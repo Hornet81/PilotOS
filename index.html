@@ -6465,6 +6465,28 @@ window.rosterSelectDay = function(dateStr){
   dLabel = dLabel.charAt(0).toUpperCase()+dLabel.slice(1);
   if(dateEl) dateEl.textContent = dLabel;
 
+  // Add report time badge if there are flights
+  var reportBadgeEl = document.getElementById('rst-detail-report');
+  if(reportBadgeEl){
+    var flightsForReport = dayEntries.filter(function(e){ return e.type==='flight' && e.std && e.std.indexOf(':')>-1; });
+    if(flightsForReport.length){
+      flightsForReport.sort(function(a,b){ return t2m(a.std)-t2m(b.std); });
+      var firstStd = flightsForReport[0].std;
+      var reportMin = t2m(firstStd) - 55;
+      if(reportMin < 0) reportMin += 1440;
+      var reportStr = String(Math.floor(reportMin/60)).padStart(2,'0') + ':' + String(reportMin%60).padStart(2,'0');
+      var tzLabel = RST.useLT ? 'LT' : 'UTC';
+      if(RST.useLT){ var lm=(reportMin+RST.tzOffset+1440)%1440; reportStr=String(Math.floor(lm/60)).padStart(2,'0')+':'+String(lm%60).padStart(2,'0'); }
+      reportBadgeEl.innerHTML = '<span style="font-size:10px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:.5px">Report</span>'
+        + '<span style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace;margin-left:8px">'+reportStr+'</span>'
+        + '<span style="font-size:10px;color:#64748B;margin-left:4px">'+tzLabel+'</span>'
+        + '<span style="font-size:10px;color:#94A3B8;margin-left:6px">STD − 55min</span>';
+      reportBadgeEl.style.display = 'flex';
+    } else {
+      reportBadgeEl.style.display = 'none';
+    }
+  }
+
   if(!dayEntries.length){
     bodyEl.innerHTML = '<div style="color:#94A3B8;font-size:12px">Sin actividad registrada · <button onclick="rosterAddForDate(\''+dateStr+'\')" style="background:none;border:none;color:#5B21B6;cursor:pointer;font-size:12px;font-family:\'Space Grotesk\',sans-serif;text-decoration:underline">Añadir</button></div>';
   } else {
@@ -7934,6 +7956,7 @@ async function cafiDoAuth() {
           <div style="font-size:14px;font-weight:700;color:#0F172A" id="rst-detail-date">—</div>
           <button onclick="rosterEditDay()" style="padding:5px 12px;background:linear-gradient(135deg,rgba(109,40,217,.1),rgba(8,145,178,.08));border:1px solid rgba(109,40,217,.25);border-radius:8px;color:#5B21B6;font-size:11px;font-weight:600;cursor:pointer;font-family:'Space Grotesk',sans-serif">✏️ Editar</button>
         </div>
+        <div id="rst-detail-report" style="display:none;align-items:center;background:#F0F9FF;border:1px solid rgba(8,145,178,.2);border-radius:10px;padding:8px 12px;margin-bottom:10px"></div>
         <div id="rst-detail-body" style="font-size:13px;color:#1E3A5F;line-height:1.6"></div>
       </div>
 
