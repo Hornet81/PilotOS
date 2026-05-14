@@ -4368,7 +4368,7 @@ async function cafiSendMessage() {
 
   try {
     // ── RAG Backend ──────────────────────────────────────────────
-    const backendUrl = localStorage.getItem('cafi_backend_url') || 'http://localhost:4000';
+    const backendUrl = localStorage.getItem('cafi_backend_url') || 'https://happy-ambition-production-75eb.up.railway.app';
     const authToken  = localStorage.getItem('cafi_auth_token') || '';
 
     // Build logbook context for backend
@@ -4420,7 +4420,7 @@ async function cafiSendMessage() {
       cafiAddMsg('ai', 'Sesion expirada. Vuelve a iniciar sesion.');
       cafiShowAuth();
     } else if (em.includes('fetch') || em.toLowerCase().includes('network') || em.includes('Failed')) {
-      cafiAddMsg('ai', 'No se puede conectar con el servidor RAG. Asegurate de que el backend esta corriendo en localhost:4000.');
+      cafiAddMsg('ai', 'No se puede conectar con el servidor RAG. Verifica tu conexión a internet.');
     } else {
       cafiAddMsg('ai', 'Error: ' + em);
     }
@@ -5962,10 +5962,14 @@ var RST = {
 
 // ── Persist ──
 function rstSave(){
-  try { localStorage.setItem('pilotOS_roster', JSON.stringify(RST.entries)); } catch(e){}
+  try { localStorage.setItem('pilotOS_roster', JSON.stringify(RST.entries)); localStorage.removeItem('pilotOS_roster_cleared'); } catch(e){}
 }
 function rstLoad(){
-  try { var r = localStorage.getItem('pilotOS_roster'); if(r) RST.entries = JSON.parse(r); } catch(e){}
+  try {
+    if(localStorage.getItem('pilotOS_roster_cleared') === '1'){ RST.entries = []; return; }
+    var r = localStorage.getItem('pilotOS_roster');
+    if(r){ var parsed = JSON.parse(r); if(Array.isArray(parsed)) RST.entries = parsed; }
+  } catch(e){}
 }
 
 // ── Time helpers ──
@@ -6058,49 +6062,46 @@ function rstRenderCalendar(){
     // Build stacked bars — one per activity type (max 4 visible)
     var barsHTML = '';
     if(hasEntry){
-      // Group: flights as one bar, others individual
       var barItems = [];
       var flights = dayEntries.filter(function(e){ return e.type==='flight'; });
       var nonFlights = dayEntries.filter(function(e){ return e.type!=='flight'; });
       if(flights.length){
         var fc = TC['flight'];
-        var timeStr = flights[0].std || '';
-        barItems.push({ bg:fc.bg, tx:fc.tx, lbl: timeStr || ('✈'+(flights.length>1?'×'+flights.length:'')) });
+        var timeStr = flights[0].std || '✈';
+        barItems.push({ bg:fc.bg, tx:fc.tx, lbl: timeStr });
       }
       nonFlights.forEach(function(e){
         var tc2 = TC[e.type]||TC.other;
         var typeLabels = {standby:'STBY',osb:'OSB',off:'OFF',f:'F',ef:'EF',srof:'SROF',noff:'NOFF',lm:'LM',training:'SIM',sick:'SICK',other:'?'};
         barItems.push({ bg:tc2.bg, tx:tc2.tx, lbl: typeLabels[e.type]||e.type });
       });
-      // Max 3 bars shown
-      var visible = barItems.slice(0,3);
-      var extraCount = barItems.length - visible.length;
-      barsHTML = '<div style="width:100%;display:flex;flex-direction:column;border-radius:9px 9px 0 0;overflow:hidden;flex-shrink:0">';
-      var barH = visible.length === 1 ? '20px' : visible.length === 2 ? '13px' : '10px';
-      visible.forEach(function(b){
-        barsHTML += '<div style="height:'+barH+';background:'+b.bg+';display:flex;align-items:center;justify-content:center">'
-          + '<span style="font-size:8px;font-weight:900;color:'+b.tx+';letter-spacing:.3px;white-space:nowrap;line-height:1">'+b.lbl+'</span>'
-          + '</div>';
-      });
-      if(extraCount > 0){
-        barsHTML += '<div style="height:8px;background:rgba(0,0,0,.06);display:flex;align-items:center;justify-content:center">'
-          + '<span style="font-size:6px;font-weight:700;color:#475569">+'+extraCount+'</span></div>';
-      }
-      barsHTML += '</div>';
-      if(extraCount > 0){
-        barsHTML += '<div style="height:10px;background:rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center">'
-          + '<span style="font-size:7px;font-weight:700;color:#475569">+'+extraCount+'</span></div>';
-      }
-      barsHTML += '</div>';
+      glowCol = (TC[dayEntries[0].type]||TC.other).gl;
     }
 
-    cells += '<td style="padding:2px;height:62px;vertical-align:top">'
+    var barTopHTML = '';
+    if(hasEntry){
+      var vis2 = barItems.slice(0,3);
+      var extra2 = barItems.length - vis2.length;
+      // Height per bar: leave ~18px for the number at bottom
+      var totalBarsH = 58 - 20; // 38px for bars
+      var bh2 = vis2.length===1 ? 20 : vis2.length===2 ? 14 : 10;
+      barTopHTML = '<div style="position:absolute;top:0;left:0;right:0;overflow:hidden;border-radius:7px 7px 0 0">';
+      vis2.forEach(function(b){
+        barTopHTML += '<div style="height:'+bh2+'px;background:'+b.bg+';display:flex;align-items:center;justify-content:center">'
+          +'<span style="font-size:9px;font-weight:900;color:'+b.tx+';white-space:nowrap;letter-spacing:.2px">'+b.lbl+'</span>'
+          +'</div>';
+      });
+      if(extra2>0) barTopHTML += '<div style="height:6px;background:rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center"><span style="font-size:6px;font-weight:700;color:#fff">+'+extra2+'</span></div>';
+      barTopHTML += '</div>';
+    }
+
+    cells += '<td style="padding:1px;height:60px;vertical-align:top">'
       + '<div onclick="rosterSelectDay(\''+dateStr+'\');rosterCellPop(this,\''+glowCol+'\')" '
-      + 'style="position:relative;height:58px;background:#FFFFFF;border:1.5px solid '+(isToday?'#0891B2':(hasEntry?border:'rgba(30,58,164,.08)'))+';border-radius:8px;cursor:pointer;transition:box-shadow .15s,transform .12s;overflow:hidden;display:flex;flex-direction:column;align-items:stretch">'
+      + 'style="position:relative;width:100%;height:58px;background:#FFFFFF;border:1.5px solid '+(isToday?'#0891B2':(hasEntry?border:'rgba(30,58,164,.08)'))+';border-radius:8px;cursor:pointer;transition:box-shadow .15s,transform .12s;overflow:hidden">'
       + checkBadge
-      + barsHTML
-      + '<div style="flex:1;display:flex;align-items:center;justify-content:center;padding:2px 0">'
-      + '<span style="font-size:12px;font-weight:700;color:'+(isSun?'#0369A1':'#0F172A')+';line-height:1">'+d+'</span>'
+      + barTopHTML
+      + '<div style="position:absolute;bottom:4px;left:0;right:0;text-align:center">'
+      + '<span style="font-size:11px;font-weight:700;color:'+(isSun?'#0369A1':'#0F172A')+'">'+d+'</span>'
       + '</div>'
       + '</div>'
       + '</td>';
@@ -6109,7 +6110,7 @@ function rstRenderCalendar(){
   // Build table rows from flat cell list
   // Total slots = offset + daysInMonth, pad to multiple of 7
   var allCells = [];
-  for(var i=0;i<offset;i++) allCells.push('<td style="padding:1px;height:54px"></td>');
+  for(var i=0;i<offset;i++) allCells.push('<td style="padding:1px;height:60px"></td>');
 
   var rows = '';
   var col = offset;
@@ -6118,7 +6119,7 @@ function rstRenderCalendar(){
   var numRows = Math.ceil(totalSlots / 7);
 
   var cellArr = cells.split('</td>').filter(function(c){ return c.trim(); });
-  var emptyCell = '<td style="padding:2px;height:62px"></td>';
+  var emptyCell = '<td style="padding:1px;height:60px"></td>';
   var fullArr = [];
   for(var i=0;i<offset;i++) fullArr.push(emptyCell);
   cellArr.forEach(function(c){ fullArr.push(c+'</td>'); });
@@ -7140,11 +7141,38 @@ window.rosterHandleFile = function(event){
 async function rosterRunAI(dataUrl, mimeType){
   var proc = document.getElementById('rst-ai-proc');
   var status = document.getElementById('rst-ai-status');
-  if(status) status.textContent = 'Analizando roster con Claude Vision…';
+  if(status) status.textContent = 'Comprimiendo imagen…';
 
   var parts = dataUrl.split(',');
   var mt = mimeType || (parts[0].match(/:(.*?);/)||[])[1] || 'image/jpeg';
   var b64 = parts[1];
+
+  // Compress image to max 1200px wide and 0.85 quality to avoid fetch size limits
+  try {
+    await new Promise(function(resolve){
+      var img = new Image();
+      img.onload = function(){
+        var maxW = 1400, maxH = 1800;
+        var w = img.width, h = img.height;
+        if(w > maxW || h > maxH){
+          var ratio = Math.min(maxW/w, maxH/h);
+          w = Math.round(w*ratio); h = Math.round(h*ratio);
+        }
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        var compressed = canvas.toDataURL('image/jpeg', 0.88);
+        b64 = compressed.split(',')[1];
+        mt = 'image/jpeg';
+        resolve();
+      };
+      img.onerror = function(){ resolve(); }; // fallback to original
+      img.src = dataUrl;
+    });
+  } catch(e){}
+
+  if(status) status.textContent = 'Analizando roster con Claude Vision…';
 
   // If PDF, we can't send to vision directly — fallback to manual message
   if(mt === 'application/pdf'){
@@ -7154,32 +7182,71 @@ async function rosterRunAI(dataUrl, mimeType){
   }
 
   var today = new Date().toISOString().slice(0,10);
-  var prompt = 'Analyze this pilot roster image for an airline pilot (likely Vueling/Iberia/Ryanair).\n'
-    + 'Extract ALL days. Return ONLY valid JSON (no markdown):\n'
-    + '{"month":"YYYY-MM","airline":"detected or null","entries":[\n'
-    + '  {"date":"YYYY-MM-DD","type":"TYPE","flightNum":"or null","dep":"IATA or null","arr":"IATA or null","std":"HH:MM or null","sta":"HH:MM or null"}\n'
+  var prompt = 'You are analyzing a Vueling Airlines PERSONAL CREW SCHEDULE (monthly roster table).\n'
+    + 'The roster is a grid where COLUMNS = days of the month, ROWS = data for each day.\n'
+    + '\n'
+    + 'TABLE STRUCTURE - read each day column independently:\n'
+    + '- Header row: day number (1,2,3...) with day name (Fri/Sat/Sun/Mon/Tue/Wed/Thu)\n'
+    + '- Row 1 of day: Activity code (SROF, OFF, OSB3, 3SBY, flight number like 8478, LMF2, etc)\n'
+    + '- Row 2: For flights: departure airport (BCN, ORY, MAH...) - For non-flights: empty or sub-code\n'
+    + '- Row 3: For flights: arrival airport\n'
+    + '- Row 4: Scheduled times "S HH:MM" (departure) and "HH:MM" (arrival) - IGNORE "A HH:MM" lines\n'
+    + '- If a day has 2+ flight pairs, they stack vertically within the same column\n'
+    + '- The bottom rows of the table show check-in (S HH:MM) and check-out times\n'
+    + '\n'
+    + 'CRITICAL READING RULES:\n'
+    + '1. NEVER assign a flight to the wrong day. Stay strictly within each day\'s column.\n'
+    + '2. Times format: "S 04:31" means STD=04:31 UTC. The number after S is the scheduled time.\n'
+    + '3. A day with OSB3 means "Out of Standby" - it has both OSB type AND flight(s) that day.\n'
+    + '   Create TWO entries: one {type:"osb"} and one {type:"flight"} for each flight pair.\n'
+    + '4. "3SBY" = 3-day standby block = type:"standby" for each of those days\n'
+    + '5. Flight numbers are 4 digits (6034, 8161, 8478). Never invent or shift flight numbers between days.\n'
+    + '6. Routes like "BCN ORY ORY BCN" = two flights: BCN→ORY and ORY→BCN (same day)\n'
+    + '7. LMF2/LMCC/LMFE/LMSL/LMCE/LMSL = all map to type:"lm"\n'
+    + '8. "PS" at bottom of a day = positioning flight (still type:"flight")\n'
+    + '9. An asterisk (*BCN) means positioning to BCN - still a flight entry\n'
+    + '10. Check-in time (bottom row S HH:MM) = STD of first flight minus 55min. Use the actual flight STD instead.\n'
+    + '\n'
+    + 'TYPE MAPPING:\n'
+    + 'SROF→srof | OFF→off | OSB/OSB3→osb | 3SBY/STBY/SBY→standby | F→f | EF→ef | NOFF→noff\n'
+    + 'LM*→lm | SIM→training | SICK→sick | flight number→flight | unknown→other\n'
+    + '\n'
+    + 'OUTPUT: Return ONLY valid JSON, no markdown:\n'
+    + '{"month":"YYYY-MM","entries":[\n'
+    + '{"date":"YYYY-MM-DD","type":"TYPE","flightNum":"4digits or null","dep":"IATA or null","arr":"IATA or null","std":"HH:MM or null","sta":"HH:MM or null"}\n'
     + ']}\n'
-    + 'TYPE must be one of: flight, standby, osb, off, f, ef, srof, noff, lm, training, sick, other\n'
-    + 'Mapping: STBY/SBY/imaginaria=standby, OSB=osb, OFF/libre=off, F/franco=f, EF=ef, SROF=srof, NOFF=noff, LM/elearning=lm, SIM/simulador=training, SICK/baja=sick, vuelo/flight=flight\n'
-    + 'For flight: fill flightNum, dep, arr, std, sta. For others: null those fields (keep std/sta if shown).\n'
-    + 'Today is '+today+'. Include ALL days visible.';
+    + 'Rules:\n'
+    + '- One entry per activity (non-flight days = 1 entry, flight days = 1 entry per flight pair)\n'
+    + '- OSB days = 2 entries (osb + each flight)\n'
+    + '- Include ALL days 1-31 even if empty (type:"off" for truly empty days)\n'
+    + '- Double-check: day 7 with 3SBY = standby, NOT a flight\n'
+    + '- Month year from header e.g. "05/01/2026 TO 05/31/2026" → month:"2026-05"\n'
+    + 'Today is '+today+'.';
 
   try {
-    var res = await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:2000,
-        messages:[{role:'user',content:[
-          {type:'image',source:{type:'base64',media_type:mt,data:b64}},
-          {type:'text',text:prompt}
-        ]}]
-      })
+    // Get auth token from CAFI session
+    var authToken = '';
+    try { authToken = localStorage.getItem('cafi_auth_token') || ''; } catch(e){}
+    if(!authToken){
+      if(proc) proc.style.display='none';
+      if(typeof showToast==='function') showToast('⚠️ Inicia sesión en CAFI primero');
+      return;
+    }
+
+    if(status) status.textContent = 'Analizando roster con IA…';
+
+    var res = await fetch(cafiBackendUrl + '/roster/analyze', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + authToken
+      },
+      body: JSON.stringify({ image_base64: b64, media_type: mt })
     });
     var data = await res.json();
-    var text = ((data.content&&data.content[0]&&data.content[0].text)||'').replace(/```json|```/g,'').trim();
-    var parsed; try{ parsed=JSON.parse(text); }catch(ex){ throw new Error('No se pudo parsear respuesta IA'); }
+    if(!res.ok) throw new Error(data.error || 'Error del servidor');
+    var parsed = data; // backend returns parsed JSON directly
+    console.log('[Roster AI]', parsed.entries?.length, 'entries');
 
     if(!parsed.entries || !parsed.entries.length) throw new Error('No se encontraron entradas en el roster');
 
@@ -7217,8 +7284,34 @@ async function rosterRunAI(dataUrl, mimeType){
 }
 
 // ── Show/hide calendar UI ──
+window.rosterShowJSONImport = function(){
+  var modal = document.getElementById('rst-json-modal');
+  if(modal){ modal.style.display='flex'; }
+};
+
+window.rosterImportJSON = function(){
+  var ta = document.getElementById('rst-json-input');
+  if(!ta) return;
+  try {
+    var text = ta.value.trim();
+    var parsed = JSON.parse(text);
+    if(!parsed.entries || !parsed.entries.length) throw new Error('No hay entradas');
+    var newMonth = parsed.month || parsed.entries[0].date.slice(0,7);
+    if(newMonth) RST.entries = RST.entries.filter(function(e){ return e.date.slice(0,7) !== newMonth; });
+    parsed.entries.forEach(function(e){ if(e.date && e.type) RST.entries.push(e); });
+    rstSave();
+    rstRenderCalendar();
+    rstRenderStats();
+    rstRenderFlights();
+    rosterShowCalendar();
+    document.getElementById('rst-json-modal').style.display = 'none';
+    if(typeof showToast==='function') showToast('✅ '+parsed.entries.length+' entradas importadas');
+  } catch(e) {
+    if(typeof showToast==='function') showToast('❌ JSON inválido: '+e.message);
+  }
+};
+
 function rosterShowCalendar(){
-  // Collapse the big upload zone into a compact update bar
   var zone = document.getElementById('rst-upload-zone');
   if(zone){
     zone.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">'
@@ -7229,15 +7322,41 @@ function rosterShowCalendar(){
       + '<div style="font-size:11px;color:#475569">¿Cambios? Sube la nueva versión</div>'
       + '</div>'
       + '</div>'
-      + '<label style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:linear-gradient(135deg,#6D28D9,#0891B2);border-radius:10px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;box-shadow:0 2px 8px rgba(109,40,217,.2)">'
-      + '<input type="file" accept="image/*,application/pdf" onchange="rosterHandleFile(event)" style="display:none">↩ Actualizar'
-      + '</label>'
+      + '<div style="display:flex;gap:8px;align-items:center">'
+      + '<button onclick="rosterShowJSONImport()" style="padding:7px 12px;background:#EFF6FF;border:1px solid rgba(8,145,178,.3);border-radius:10px;color:#0369A1;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap">📋 Actualizar</button>'
+      + '<button onclick="rosterClearAll()" style="padding:7px 12px;background:#FEF2F2;border:1px solid rgba(248,113,113,.3);border-radius:10px;color:#B91C1C;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap">🗑 Borrar</button>'
+      + '</div>'
       + '</div>';
     zone.style.padding = '12px 14px';
     zone.style.background = '#F0F6FF';
     zone.style.borderStyle = 'solid';
   }
 }
+
+window.rosterClearAll = function(){
+  RST.entries = [];
+  try { localStorage.removeItem('pilotOS_roster'); } catch(e){}
+  try { localStorage.setItem('pilotOS_roster_cleared', '1'); } catch(e){}
+  rstRenderCalendar();
+  rstRenderStats();
+  rstRenderFlights();
+  var zone = document.getElementById('rst-upload-zone');
+  if(zone){
+    zone.innerHTML = '<div style="font-size:30px;margin-bottom:6px">🗓</div>'
+      + '<div style="font-size:15px;font-weight:700;color:#0F172A;margin-bottom:4px">Sube tu roster mensual</div>'
+      + '<div style="font-size:12px;color:#475569;margin-bottom:14px;line-height:1.55">Foto o PDF — la IA extrae todos los vuelos automáticamente.<br>Compatible con Vueling, Iberia, Ryanair y otros formatos.</div>'
+      + '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">'
+      + '<label style="display:inline-flex;align-items:center;gap:7px;padding:10px 18px;background:linear-gradient(135deg,#6D28D9,#0891B2);border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;box-shadow:0 2px 10px rgba(109,40,217,.25)"><input type="file" accept="image/*" capture="environment" onchange="rosterHandleFile(event)" style="display:none">📷 Cámara</label>'
+      + '<label style="display:inline-flex;align-items:center;gap:7px;padding:10px 18px;background:#FFFFFF;border:1px solid rgba(30,58,164,.15);border-radius:12px;color:#1E3A5F;font-size:13px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif"><input type="file" accept="image/*,application/pdf" onchange="rosterHandleFile(event)" style="display:none">🖼 Galería / PDF</label>'
+      + '</div>';
+    zone.style.cssText = 'margin-bottom:16px;background:#EFF6FF;border:1.5px dashed rgba(8,145,178,.35);border-radius:18px;padding:18px 16px;text-align:center';
+  }
+  var detail = document.getElementById('rst-day-detail');
+  if(detail) detail.style.display = 'none';
+  var panel = document.getElementById('rst-fatigue-panel');
+  if(panel) panel.style.display = 'none';
+  if(typeof showToast==='function') showToast('🗑 Roster borrado correctamente');
+};
 
 // ── Init ──
 window.rosterInit = function(){
@@ -7653,7 +7772,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
 })(); // end ROSTER ENGINE
 
-var cafiBackendUrl = localStorage.getItem('cafi_backend_url') || 'http://localhost:4000';
+var cafiBackendUrl = localStorage.getItem('cafi_backend_url') || 'https://happy-ambition-production-75eb.up.railway.app';
 
 function cafiShowAuth() {
   var o = document.getElementById('cafi-auth-overlay');
@@ -7738,9 +7857,20 @@ async function cafiDoAuth() {
           <label style="display:inline-flex;align-items:center;gap:7px;padding:10px 18px;background:#FFFFFF;border:1px solid rgba(30,58,164,.15);border-radius:12px;color:#1E3A5F;font-size:13px;font-weight:600;cursor:pointer;font-family:'Space Grotesk',sans-serif">
             <input type="file" accept="image/*,application/pdf" onchange="rosterHandleFile(event)" style="display:none">🖼 Galería / PDF
           </label>
+          <button onclick="rosterShowJSONImport()" style="display:inline-flex;align-items:center;gap:7px;padding:10px 18px;background:#FFFFFF;border:1px solid rgba(30,58,164,.15);border-radius:12px;color:#1E3A5F;font-size:13px;font-weight:600;cursor:pointer;font-family:'Space Grotesk',sans-serif">📋 JSON</button>
         </div>
-        <div id="rst-replace-hint" style="display:none;margin-top:10px;font-size:11px;color:#0369A1">
-          ¿Cambio en tu roster? Sube la nueva versión y se sobreescribe automáticamente.
+      </div>
+
+      <!-- JSON Import Modal -->
+      <div id="rst-json-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,.6);padding:20px;box-sizing:border-box">
+        <div style="background:#fff;border-radius:20px;padding:20px;max-height:80vh;display:flex;flex-direction:column">
+          <div style="font-size:15px;font-weight:700;color:#0F172A;margin-bottom:8px">📋 Importar JSON</div>
+          <div style="font-size:11px;color:#475569;margin-bottom:10px">Pega el JSON del roster generado por Claude</div>
+          <textarea id="rst-json-input" style="flex:1;min-height:200px;border:1px solid rgba(30,58,164,.2);border-radius:10px;padding:10px;font-size:11px;font-family:monospace;resize:none;outline:none" placeholder='{"month":"2026-05","entries":[...]}'></textarea>
+          <div style="display:flex;gap:10px;margin-top:12px">
+            <button onclick="rosterImportJSON()" style="flex:1;padding:12px;background:linear-gradient(135deg,#6D28D9,#0891B2);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:'Space Grotesk',sans-serif">✅ Importar</button>
+            <button onclick="document.getElementById('rst-json-modal').style.display='none'" style="padding:12px 16px;background:#F1F5F9;border:none;border-radius:10px;color:#475569;font-size:14px;cursor:pointer">✕</button>
+          </div>
         </div>
       </div>
 
