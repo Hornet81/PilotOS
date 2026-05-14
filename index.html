@@ -6023,6 +6023,10 @@ function rstRenderCalendar(){
       srof:     { bg:'#1abc9c', bd:'#17a589',             tx:'#FFFFFF', lbl:'☕SROF', gl:'rgba(26,188,156,.5)' },
       // NOFF: teal ligeramente distinto
       noff:     { bg:'#2ecc71', bd:'#27ae60',             tx:'#FFFFFF', lbl:'☕NOFF', gl:'rgba(46,204,113,.5)' },
+      // AOFF: Annual Off — rojo igual que OFF
+      aoff:     { bg:'#48c9b0', bd:'#3db49d',             tx:'#FFFFFF', lbl:'☕AOFF', gl:'rgba(72,201,176,.5)' },
+      // NROF: No-bid Off — rojo igual que OFF
+      nrof:     { bg:'#48c9b0', bd:'#3db49d',             tx:'#FFFFFF', lbl:'☕NROF', gl:'rgba(72,201,176,.5)' },
       // LM eLearning: gris con icono pantalla
       lm:       { bg:'#7f8c8d', bd:'#6c7a7d',             tx:'#FFFFFF', lbl:'🖥LM',   gl:'rgba(127,140,141,.5)' },
       // SIM Simulador: gris oscuro pantalla
@@ -6067,12 +6071,20 @@ function rstRenderCalendar(){
       var nonFlights = dayEntries.filter(function(e){ return e.type!=='flight'; });
       if(flights.length){
         var fc = TC['flight'];
-        var timeStr = flights[0].std || '✈';
+        var firstStd = flights[0].std;
+        var timeStr;
+        if(firstStd && firstStd.indexOf(':') > -1){
+          var repM = parseInt(firstStd.split(':')[0])*60 + parseInt(firstStd.split(':')[1]) - 55;
+          if(repM < 0) repM += 1440;
+          timeStr = String(Math.floor(repM/60)).padStart(2,'0') + ':' + String(repM%60).padStart(2,'0');
+        } else {
+          timeStr = '✈';
+        }
         barItems.push({ bg:fc.bg, tx:fc.tx, lbl: timeStr });
       }
       nonFlights.forEach(function(e){
         var tc2 = TC[e.type]||TC.other;
-        var typeLabels = {standby:'STBY',osb:'OSB',off:'OFF',f:'F',ef:'EF',srof:'SROF',noff:'NOFF',lm:'LM',training:'SIM',sick:'SICK',other:'?'};
+        var typeLabels = {standby:'STBY',osb:'OSB',off:'OFF',f:'F',ef:'EF',srof:'SROF',noff:'NOFF',aoff:'AOFF',nrof:'NROF',lm:'LM',training:'SIM',sick:'SICK',other:'?'};
         barItems.push({ bg:tc2.bg, tx:tc2.tx, lbl: typeLabels[e.type]||e.type });
       });
       glowCol = (TC[dayEntries[0].type]||TC.other).gl;
@@ -6145,7 +6157,7 @@ function rstRenderStats(){
     if(d.getFullYear()!==y || d.getMonth()!==mo) return;
     if(e.type==='flight'){ flights++; if(e.std&&e.sta){ var m=t2m(e.sta)-t2m(e.std); if(m<0)m+=1440; hours+=m; } }
     else if(e.type==='standby'||e.type==='osb') standby++;
-    else if(e.type==='off'||e.type==='f'||e.type==='ef'||e.type==='srof'||e.type==='noff') off++;
+    else if(e.type==='off'||e.type==='f'||e.type==='ef'||e.type==='srof'||e.type==='noff'||e.type==='aoff'||e.type==='nrof') off++;
   });
   var sf=document.getElementById('rst-s-flights');
   var sh=document.getElementById('rst-s-hours');
@@ -6477,10 +6489,10 @@ window.rosterSelectDay = function(dateStr){
   // Add report time badge if there are flights
   var reportBadgeEl = document.getElementById('rst-detail-report');
   if(reportBadgeEl){
-    var flightsForReport = dayEntries.filter(function(e){ return e.type==='flight' && ((e.std && e.std.indexOf(':')>-1)||(e.std_actual && e.std_actual.indexOf(':')>-1)); });
+    var flightsForReport = dayEntries.filter(function(e){ return e.type==='flight' && e.std && e.std.indexOf(':')>-1; });
     if(flightsForReport.length){
-      flightsForReport.sort(function(a,b){ return t2m(a.std||a.std_actual||'99:99')-t2m(b.std||b.std_actual||'99:99'); });
-      var firstStd = flightsForReport[0].std || flightsForReport[0].std_actual;
+      flightsForReport.sort(function(a,b){ return t2m(a.std)-t2m(b.std); });
+      var firstStd = flightsForReport[0].std;
       var reportMin = t2m(firstStd) - 55;
       if(reportMin < 0) reportMin += 1440;
       var reportStr = String(Math.floor(reportMin/60)).padStart(2,'0') + ':' + String(reportMin%60).padStart(2,'0');
@@ -6503,6 +6515,7 @@ window.rosterSelectDay = function(dateStr){
     var typeLabels = {
       flight:'Vuelo', standby:'STBY', osb:'OSB',
       off:'OFF', f:'F', ef:'EF', srof:'SROF', noff:'NOFF',
+      aoff:'AOFF', nrof:'NROF',
       lm:'LM', training:'SIM', sick:'SICK', other:'Otro'
     };
 
@@ -6558,8 +6571,8 @@ window.rosterSelectDay = function(dateStr){
         + (legNum ? '<span style="font-size:9px;font-weight:800;color:rgba(255,255,255,.85)">L'+legNum+'</span>' : '')
         + '</div>'
         + '<div style="flex:1;background:#F8FAFF;border:1px solid rgba(30,58,164,.08);border-left:none;padding:10px 13px;display:flex;flex-direction:column;justify-content:center;gap:3px">'
-        + '<div style="font-size:13px;font-weight:800;color:#0F172A">'+(e.flightNum||'—')+'</div>'
-        + (e.dep&&e.arr ? '<div style="font-size:12px;font-weight:700;color:#0369A1">'+e.dep+' → '+e.arr+'</div>' : '')
+        + '<div style="font-size:13px;font-weight:800;color:#0F172A">'+(e.flightNum||'—')+(e.dep&&e.dep.charAt(0)===\'*\'?\'  <span style="font-size:10px;font-weight:700;background:#FEF3C7;color:#92400E;border:1px solid #FCD34D;border-radius:4px;padding:1px 5px">POSICIONAL</span>\':\'\')+\'</div>\'
+        + (e.dep&&e.arr ? \'<div style="font-size:12px;font-weight:700;color:#0369A1">\'+e.dep+\' \u2192 \'+e.arr+\'</div>\' : \'\')
         + '<div style="font-size:11px;color:#475569;font-family:\'Space Mono\',monospace">'
         + '<span style="color:#94A3B8;font-size:9px;font-weight:700;margin-right:4px">S</span>'
         + dispStd+' – '+dispSta+timeLabel
@@ -7196,6 +7209,65 @@ window.rosterHandleFile = function(event){
   event.target.value = '';
 };
 
+// ── Smart merge: preserves std/sta when importing actual (A) times ──
+function rstSmartMerge(newEntries, newMonth){
+  newEntries.forEach(function(newE){
+    if(!newE.date || !newE.type) return;
+
+    // For non-flight entries: simple replace by date+type
+    if(newE.type !== 'flight'){
+      RST.entries = RST.entries.filter(function(e){
+        return !(e.date === newE.date && e.type === newE.type);
+      });
+      RST.entries.push(newE);
+      return;
+    }
+
+    // For flight entries: smart merge
+    // Detect if new entry is "actual only" (A-time import: has std_actual but no std)
+    var hasNewScheduled = newE.std && newE.std.indexOf(':') > -1;
+    var hasNewActual    = newE.std_actual && newE.std_actual.indexOf(':') > -1;
+
+    if(!hasNewScheduled && hasNewActual){
+      // A-time import: find existing flight entry for same date + flightNum (or dep+arr)
+      var existing = RST.entries.find(function(e){
+        return e.date === newE.date && e.type === 'flight' &&
+          (e.flightNum && newE.flightNum ? e.flightNum === newE.flightNum
+            : (e.dep === newE.dep && e.arr === newE.arr));
+      });
+      if(existing){
+        // Update only actual times — keep scheduled times intact
+        existing.std_actual = newE.std_actual;
+        existing.sta_actual = newE.sta_actual;
+        // Update dep/arr/flightNum if they were missing
+        if(!existing.flightNum && newE.flightNum) existing.flightNum = newE.flightNum;
+        if(!existing.dep && newE.dep) existing.dep = newE.dep;
+        if(!existing.arr && newE.arr) existing.arr = newE.arr;
+        return; // don't add duplicate
+      }
+      // No existing entry — add as-is (A-only flight)
+      RST.entries.push(newE);
+      return;
+    }
+
+    // S-time or no-prefix import: replace/add, preserving actual times if they exist
+    var existingIdx = RST.entries.findIndex(function(e){
+      return e.date === newE.date && e.type === 'flight' &&
+        (e.flightNum && newE.flightNum ? e.flightNum === newE.flightNum
+          : (e.dep === newE.dep && e.arr === newE.arr));
+    });
+    if(existingIdx >= 0){
+      var old = RST.entries[existingIdx];
+      // Preserve existing actual times unless new entry also has them
+      if(!newE.std_actual && old.std_actual) newE.std_actual = old.std_actual;
+      if(!newE.sta_actual && old.sta_actual) newE.sta_actual = old.sta_actual;
+      RST.entries[existingIdx] = newE;
+    } else {
+      RST.entries.push(newE);
+    }
+  });
+}
+
 async function rosterRunAIText(textContent){
   var proc = document.getElementById('rst-ai-proc');
   var status = document.getElementById('rst-ai-status');
@@ -7221,8 +7293,16 @@ async function rosterRunAIText(textContent){
     if(!parsed.entries || !parsed.entries.length) throw new Error('No se encontraron entradas en el roster');
 
     var newMonth = parsed.month || (parsed.entries[0] && parsed.entries[0].date ? parsed.entries[0].date.slice(0,7) : null);
-    if(newMonth) RST.entries = RST.entries.filter(function(e){ return e.date.slice(0,7) !== newMonth; });
-    parsed.entries.forEach(function(e){ if(e.date && e.type) RST.entries.push(e); });
+    if(newMonth){
+      // For S-time imports: clear month first, then smart-merge
+      // For A-time imports: smart-merge without clearing (preserves std/sta)
+      var firstEntry = parsed.entries.find(function(e){ return e.type==='flight'; });
+      var isActualImport = firstEntry && !firstEntry.std && firstEntry.std_actual;
+      if(!isActualImport){
+        RST.entries = RST.entries.filter(function(e){ return e.date.slice(0,7) !== newMonth; });
+      }
+    }
+    rstSmartMerge(parsed.entries, newMonth);
     rstSave();
 
     if(newMonth){ var p=newMonth.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1; }
@@ -7351,14 +7431,15 @@ async function rosterRunAI(dataUrl, mimeType){
 
     if(!parsed.entries || !parsed.entries.length) throw new Error('No se encontraron entradas en el roster');
 
-    // Merge: keep entries for OTHER months, replace for month detected
     var newMonth = parsed.month || (parsed.entries[0]&&parsed.entries[0].date?parsed.entries[0].date.slice(0,7):null);
     if(newMonth){
-      RST.entries = RST.entries.filter(function(e){ return e.date.slice(0,7) !== newMonth; });
+      var firstE = parsed.entries.find(function(e){ return e.type==='flight'; });
+      var isActualImg = firstE && !firstE.std && firstE.std_actual;
+      if(!isActualImg){
+        RST.entries = RST.entries.filter(function(e){ return e.date.slice(0,7) !== newMonth; });
+      }
     }
-    parsed.entries.forEach(function(e){
-      if(e.date && e.type) RST.entries.push(e);
-    });
+    rstSmartMerge(parsed.entries, newMonth);
     rstSave();
 
     // Set view to detected month
