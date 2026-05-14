@@ -6216,12 +6216,17 @@ function rstFormatTime(t){
 // ── FDP / DP (ORO.FTL.205 Vueling: report -55min, debrief +20min) ──
 function rstCalcFDP(flights){
   if(!flights||!flights.length) return null;
-  var sorted = flights.slice().sort(function(a,b){ return (a.std||'').localeCompare(b.std||''); });
+  var sorted = flights.slice().sort(function(a,b){
+    var aT = a.std||a.std_actual||''; var bT = b.std||b.std_actual||'';
+    return aT.localeCompare(bT);
+  });
   var first = sorted[0], last = sorted[sorted.length-1];
-  if(!first.std||!last.sta||first.std.indexOf(':')<0||last.sta.indexOf(':')<0) return null;
+  var firstStd = first.std || first.std_actual;
+  var lastSta  = last.sta  || last.sta_actual;
+  if(!firstStd||!lastSta||firstStd.indexOf(':')<0||lastSta.indexOf(':')<0) return null;
   var toMin = function(s){ return parseInt(s.split(':')[0])*60+parseInt(s.split(':')[1]); };
-  var reportMin = toMin(first.std)-55; if(reportMin<0) reportMin+=1440;
-  var staMin = toMin(last.sta); if(staMin<reportMin) staMin+=1440;
+  var reportMin = toMin(firstStd)-55; if(reportMin<0) reportMin+=1440;
+  var staMin = toMin(lastSta); if(staMin<reportMin) staMin+=1440;
   var fdpMin = staMin-reportMin;
   var dpMin  = fdpMin+20;
   var sectors = sorted.length;
@@ -6280,9 +6285,11 @@ function rstRenderFatigue(){
     var bhMins = 0;
     RST.entries.forEach(function(e){
       if(e.type!=='flight'||e.date<d28Str||e.date>todayStr) return;
-      if(e.std&&e.sta&&String(e.std).indexOf(':')>-1&&String(e.sta).indexOf(':')>-1){
-        var s=parseInt(e.std.split(':')[0])*60+parseInt(e.std.split(':')[1]);
-        var a=parseInt(e.sta.split(':')[0])*60+parseInt(e.sta.split(':')[1]);
+      var eStd = e.std || e.std_actual;
+      var eSta = e.sta || e.sta_actual;
+      if(eStd&&eSta&&String(eStd).indexOf(':')>-1&&String(eSta).indexOf(':')>-1){
+        var s=parseInt(eStd.split(':')[0])*60+parseInt(eStd.split(':')[1]);
+        var a=parseInt(eSta.split(':')[0])*60+parseInt(eSta.split(':')[1]);
         var m=a-s; if(m<0)m+=1440; bhMins+=m;
       }
     });
@@ -6319,25 +6326,27 @@ function rstRenderFatigue(){
 
     // Find last DP end (STA last flight today/past + 20min)
     var pastFlights = RST.entries.filter(function(e){ return e.type==='flight'&&e.date<=todayStr; })
-      .sort(function(a,b){ return (a.date+a.std||'').localeCompare(b.date+b.std||''); });
+      .sort(function(a,b){ return (a.date+(a.std||a.std_actual)||'').localeCompare(b.date+(b.std||b.std_actual)||''); });
     // Find next report (STD first flight future - 55min)
     var futureFlights = RST.entries.filter(function(e){ return e.type==='flight'&&e.date>=todayStr; })
-      .sort(function(a,b){ return (a.date+a.std||'').localeCompare(b.date+b.std||''); });
+      .sort(function(a,b){ return (a.date+(a.std||a.std_actual)||'').localeCompare(b.date+(b.std||b.std_actual)||''); });
 
     var restOk = false;
     if(pastFlights.length && futureFlights.length){
       var lastF = pastFlights[pastFlights.length-1];
       var nextF = futureFlights[0];
-      if(lastF.sta&&nextF.std&&String(lastF.sta).indexOf(':')>-1&&String(nextF.std).indexOf(':')>-1){
-        var lastDate = new Date(lastF.date+'T'+lastF.sta+':00Z');
+      var lastFSta = lastF.sta || lastF.sta_actual;
+      var nextFStd = nextF.std || nextF.std_actual;
+      if(lastFSta&&nextFStd&&String(lastFSta).indexOf(':')>-1&&String(nextFStd).indexOf(':')>-1){
+        var lastDate = new Date(lastF.date+'T'+lastFSta+':00Z');
         lastDate = new Date(lastDate.getTime()+20*60000); // +20min debrief
-        var nextDate = new Date(nextF.date+'T'+nextF.std+':00Z');
+        var nextDate = new Date(nextF.date+'T'+nextFStd+':00Z');
         nextDate = new Date(nextDate.getTime()-55*60000); // -55min report
         var restMs = nextDate - lastDate;
         var restH = Math.floor(restMs/3600000);
         var restM = Math.floor((restMs%3600000)/60000);
         if(restVal) restVal.textContent = restH+'h'+(restM?' '+restM+'m':'');
-        if(restSub) restSub.textContent = 'Hasta report '+rstFormatTime(nextF.std.slice(0,5))+' el '+nextF.date.slice(8)+'/'+nextF.date.slice(5,7);
+        if(restSub) restSub.textContent = 'Hasta report '+rstFormatTime(nextFStd.slice(0,5))+' el '+nextF.date.slice(8)+'/'+nextF.date.slice(5,7);
         var restPct = Math.min(100, Math.round(restH/12*100));
         var restColor = restH<8?'#ef4444':restH<10?'#f97316':'#34d399';
         if(restBar){ restBar.style.width=restPct+'%'; restBar.style.background=restColor; }
@@ -6468,10 +6477,10 @@ window.rosterSelectDay = function(dateStr){
   // Add report time badge if there are flights
   var reportBadgeEl = document.getElementById('rst-detail-report');
   if(reportBadgeEl){
-    var flightsForReport = dayEntries.filter(function(e){ return e.type==='flight' && e.std && e.std.indexOf(':')>-1; });
+    var flightsForReport = dayEntries.filter(function(e){ return e.type==='flight' && ((e.std && e.std.indexOf(':')>-1)||(e.std_actual && e.std_actual.indexOf(':')>-1)); });
     if(flightsForReport.length){
-      flightsForReport.sort(function(a,b){ return t2m(a.std)-t2m(b.std); });
-      var firstStd = flightsForReport[0].std;
+      flightsForReport.sort(function(a,b){ return t2m(a.std||a.std_actual||'99:99')-t2m(b.std||b.std_actual||'99:99'); });
+      var firstStd = flightsForReport[0].std || flightsForReport[0].std_actual;
       var reportMin = t2m(firstStd) - 55;
       if(reportMin < 0) reportMin += 1440;
       var reportStr = String(Math.floor(reportMin/60)).padStart(2,'0') + ':' + String(reportMin%60).padStart(2,'0');
@@ -6508,9 +6517,11 @@ window.rosterSelectDay = function(dateStr){
       if(i > 0){
         var prevE = flights[i-1];
         var stopovertxt = '—'; var diff3 = 0;
-        if(prevE.sta && String(prevE.sta).indexOf(':')>-1 && e.std && String(e.std).indexOf(':')>-1){
-          var staM3=parseInt(prevE.sta.split(':')[0])*60+parseInt(prevE.sta.split(':')[1]);
-          var stdM3=parseInt(e.std.split(':')[0])*60+parseInt(e.std.split(':')[1]);
+        var prevSta = prevE.sta || prevE.sta_actual;
+        var currStd = e.std || e.std_actual;
+        if(prevSta && String(prevSta).indexOf(':')>-1 && currStd && String(currStd).indexOf(':')>-1){
+          var staM3=parseInt(prevSta.split(':')[0])*60+parseInt(prevSta.split(':')[1]);
+          var stdM3=parseInt(currStd.split(':')[0])*60+parseInt(currStd.split(':')[1]);
           diff3=stdM3-staM3; if(diff3<0)diff3+=1440;
           var h3=Math.floor(diff3/60),m3=diff3%60;
           stopovertxt=h3>0?h3+'h'+(m3>0?' '+m3+'m':''):m3+'m';
@@ -6527,9 +6538,12 @@ window.rosterSelectDay = function(dateStr){
       var staOk=e.sta&&String(e.sta).indexOf(':')>-1;
       var stdActOk=e.std_actual&&String(e.std_actual).indexOf(':')>-1;
       var staActOk=e.sta_actual&&String(e.sta_actual).indexOf(':')>-1;
-      var stdM2=stdOk?parseInt(e.std.split(':')[0])*60+parseInt(e.std.split(':')[1]):0;
-      var staM2=staOk?parseInt(e.sta.split(':')[0])*60+parseInt(e.sta.split(':')[1]):9999;
-      var nextDay=stdOk&&staOk&&staM2<stdM2;
+      // For nextDay flag use best available time
+      var _stdRef = e.std || e.std_actual;
+      var _staRef = e.sta || e.sta_actual;
+      var stdM2=_stdRef&&String(_stdRef).indexOf(':')>-1?parseInt(_stdRef.split(':')[0])*60+parseInt(_stdRef.split(':')[1]):0;
+      var staM2=_staRef&&String(_staRef).indexOf(':')>-1?parseInt(_staRef.split(':')[0])*60+parseInt(_staRef.split(':')[1]):9999;
+      var nextDay=_stdRef&&_staRef&&staM2<stdM2;
       var flightCfg = TC2['flight'] || {bg:'#c0392b', tx:'#fff'};
       var legNum = flights.length > 1 ? (i+1) : '';
       var dispStd = stdOk ? rstFormatTime(e.std) : '--:--';
@@ -6554,6 +6568,7 @@ window.rosterSelectDay = function(dateStr){
         + (hasActual ? '<div style="font-size:11px;color:#059669;font-family:\'Space Mono\',monospace">'
             +'<span style="color:#059669;font-size:9px;font-weight:700;margin-right:4px">A</span>'
             +dispStdAct+' – '+dispStaAct+timeLabel
+            +(nextDay&&!stdOk&&!staOk?' <span style=\"background:#0369A1;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:6px\">+1</span>':'')
             +'</div>' : '')
         + '</div>'
         + '</div>';
