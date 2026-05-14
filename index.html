@@ -7158,13 +7158,20 @@ window.rosterHandleFile = function(event){
   if(proc) proc.style.display='block';
   if(status) status.textContent = 'Leyendo archivo…';
 
+  var isTxt = file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt');
+  if(isTxt){
+    var tr = new FileReader();
+    tr.onload = function(e){ rosterRunAIText(e.target.result); };
+    tr.readAsText(file, 'UTF-8');
+    event.target.value = '';
+    return;
+  }
+
   var reader = new FileReader();
   reader.onload = function(e){
     var dataUrl = e.target.result;
-    // PDFs we just show a notice — send as image if it's an image
     if(file.type === 'application/pdf'){
       if(status) status.textContent = 'PDF detectado — procesando como imagen…';
-      // Try to use the dataUrl directly (PDF as base64)
       rosterRunAI(dataUrl, file.type);
     } else {
       rosterRunAI(dataUrl, file.type);
@@ -7173,6 +7180,49 @@ window.rosterHandleFile = function(event){
   reader.readAsDataURL(file);
   event.target.value = '';
 };
+
+async function rosterRunAIText(textContent){
+  var proc = document.getElementById('rst-ai-proc');
+  var status = document.getElementById('rst-ai-status');
+  if(status) status.textContent = 'Analizando roster con IA…';
+
+  var authToken = '';
+  try { authToken = localStorage.getItem('cafi_auth_token') || ''; } catch(e){}
+  if(!authToken){
+    if(proc) proc.style.display='none';
+    if(typeof showToast==='function') showToast('⚠️ Inicia sesión en CAFI primero');
+    return;
+  }
+
+  try {
+    var res = await fetch(cafiBackendUrl + '/roster/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+      body: JSON.stringify({ text_content: textContent })
+    });
+    var data = await res.json();
+    if(!res.ok) throw new Error(data.error || 'Error del servidor');
+    var parsed = data;
+    if(!parsed.entries || !parsed.entries.length) throw new Error('No se encontraron entradas en el roster');
+
+    var newMonth = parsed.month || (parsed.entries[0] && parsed.entries[0].date ? parsed.entries[0].date.slice(0,7) : null);
+    if(newMonth) RST.entries = RST.entries.filter(function(e){ return e.date.slice(0,7) !== newMonth; });
+    parsed.entries.forEach(function(e){ if(e.date && e.type) RST.entries.push(e); });
+    rstSave();
+
+    if(newMonth){ var p=newMonth.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1; }
+    if(proc) proc.style.display='none';
+    rosterShowCalendar(); rstRenderCalendar(); rstRenderStats(); rstRenderFlights();
+    if(typeof ldUpdateRosterBtn==='function') ldUpdateRosterBtn();
+
+    var nFlights = parsed.entries.filter(function(e){ return e.type==='flight'; }).length;
+    if(typeof showToast==='function') showToast('✅ Roster importado · '+nFlights+' vuelos detectados');
+
+  } catch(err){
+    if(proc) proc.style.display='none';
+    if(typeof showToast==='function') showToast('❌ Error IA: '+err.message);
+  }
+}
 
 async function rosterRunAI(dataUrl, mimeType){
   var proc = document.getElementById('rst-ai-proc');
@@ -7359,7 +7409,7 @@ function rosterShowCalendar(){
       + '</div>'
       + '</div>'
       + '<div style="display:flex;gap:8px;align-items:center">'
-      + '<button onclick="rosterShowJSONImport()" style="padding:7px 12px;background:#EFF6FF;border:1px solid rgba(8,145,178,.3);border-radius:10px;color:#0369A1;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap">📋 Actualizar</button>'
+      + '<label style="padding:7px 12px;background:#EFF6FF;border:1px solid rgba(8,145,178,.3);border-radius:10px;color:#0369A1;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;display:inline-flex;align-items:center;gap:5px"><input type="file" accept=".txt,image/*,application/pdf" onchange="rosterHandleFile(event)" style="display:none">📂 Actualizar</label>'
       + '<button onclick="rosterClearAll()" style="padding:7px 12px;background:#FEF2F2;border:1px solid rgba(248,113,113,.3);border-radius:10px;color:#B91C1C;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap">🗑 Borrar</button>'
       + '</div>'
       + '</div>';
@@ -7380,11 +7430,8 @@ window.rosterClearAll = function(){
   if(zone){
     zone.innerHTML = '<div style="font-size:30px;margin-bottom:6px">🗓</div>'
       + '<div style="font-size:15px;font-weight:700;color:#0F172A;margin-bottom:4px">Sube tu roster mensual</div>'
-      + '<div style="font-size:12px;color:#475569;margin-bottom:14px;line-height:1.55">Foto o PDF — la IA extrae todos los vuelos automáticamente.<br>Compatible con Vueling, Iberia, Ryanair y otros formatos.</div>'
-      + '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">'
-      + '<label style="display:inline-flex;align-items:center;gap:7px;padding:10px 18px;background:linear-gradient(135deg,#6D28D9,#0891B2);border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;box-shadow:0 2px 10px rgba(109,40,217,.25)"><input type="file" accept="image/*" capture="environment" onchange="rosterHandleFile(event)" style="display:none">📷 Cámara</label>'
-      + '<label style="display:inline-flex;align-items:center;gap:7px;padding:10px 18px;background:#FFFFFF;border:1px solid rgba(30,58,164,.15);border-radius:12px;color:#1E3A5F;font-size:13px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif"><input type="file" accept="image/*,application/pdf" onchange="rosterHandleFile(event)" style="display:none">🖼 Galería / PDF</label>'
-      + '</div>';
+      + '<div style="font-size:12px;color:#475569;margin-bottom:14px;line-height:1.55">PDF, TXT o JPEG</div>'
+      + '<label style="display:inline-flex;align-items:center;gap:8px;padding:11px 24px;background:linear-gradient(135deg,#6D28D9,#0891B2);border-radius:12px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;box-shadow:0 2px 10px rgba(109,40,217,.25)"><input type="file" accept=".txt,image/*,application/pdf" onchange="rosterHandleFile(event)" style="display:none">📂 Subir archivo</label>';
     zone.style.cssText = 'margin-bottom:16px;background:#EFF6FF;border:1.5px dashed rgba(8,145,178,.35);border-radius:18px;padding:18px 16px;text-align:center';
   }
   var detail = document.getElementById('rst-day-detail');
@@ -7885,16 +7932,10 @@ async function cafiDoAuth() {
       <div id="rst-upload-zone" style="margin-bottom:16px;background:#EFF6FF;border:1.5px dashed rgba(8,145,178,.35);border-radius:18px;padding:18px 16px;text-align:center">
         <div style="font-size:30px;margin-bottom:6px">🗓</div>
         <div style="font-size:15px;font-weight:700;color:#0F172A;margin-bottom:4px">Sube tu roster mensual</div>
-        <div style="font-size:12px;color:#475569;margin-bottom:14px;line-height:1.55">Foto o PDF — la IA extrae todos los vuelos automáticamente.<br>Compatible con Vueling, Iberia, Ryanair y otros formatos.</div>
-        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-          <label style="display:inline-flex;align-items:center;gap:7px;padding:10px 18px;background:linear-gradient(135deg,#6D28D9,#0891B2);border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:'Space Grotesk',sans-serif;box-shadow:0 2px 10px rgba(109,40,217,.25)">
-            <input type="file" accept="image/*" capture="environment" onchange="rosterHandleFile(event)" style="display:none">📷 Cámara
-          </label>
-          <label style="display:inline-flex;align-items:center;gap:7px;padding:10px 18px;background:#FFFFFF;border:1px solid rgba(30,58,164,.15);border-radius:12px;color:#1E3A5F;font-size:13px;font-weight:600;cursor:pointer;font-family:'Space Grotesk',sans-serif">
-            <input type="file" accept="image/*,application/pdf" onchange="rosterHandleFile(event)" style="display:none">🖼 Galería / PDF
-          </label>
-          <button onclick="rosterShowJSONImport()" style="display:inline-flex;align-items:center;gap:7px;padding:10px 18px;background:#FFFFFF;border:1px solid rgba(30,58,164,.15);border-radius:12px;color:#1E3A5F;font-size:13px;font-weight:600;cursor:pointer;font-family:'Space Grotesk',sans-serif">📋 JSON</button>
-        </div>
+        <div style="font-size:12px;color:#475569;margin-bottom:14px;line-height:1.55">PDF, TXT o JPEG</div>
+        <label style="display:inline-flex;align-items:center;gap:8px;padding:11px 24px;background:linear-gradient(135deg,#6D28D9,#0891B2);border-radius:12px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:'Space Grotesk',sans-serif;box-shadow:0 2px 10px rgba(109,40,217,.25)">
+          <input type="file" accept=".txt,image/*,application/pdf" onchange="rosterHandleFile(event)" style="display:none">📂 Subir archivo
+        </label>
       </div>
 
       <!-- JSON Import Modal -->
