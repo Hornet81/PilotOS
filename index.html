@@ -2357,8 +2357,8 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
         </svg>
       </div>
       <div class="sb-user-menu" id="sb-user-menu">
-        <div class="sb-avatar" id="sb-initials" onclick="toggleUserDropdown()">CP</div>
-        <div class="sb-dropdown" id="sb-dropdown">
+        <div class="sb-avatar" id="sb-initials" onclick="toggleUserDropdown(event)">CP</div>
+        <div class="sb-dropdown" id="sb-dropdown" onclick="event.stopPropagation()">
 
           <!-- Header -->
           <div class="sb-dropdown-header">
@@ -8496,6 +8496,20 @@ async function pagDoAuth() {
   btn.disabled = true;
   btn.textContent = 'Conectando…';
 
+  // ── DEMO BYPASS (email: 111 / pass: 111) ──
+  if (email === '111' && pass === '111') {
+    var demoUser = { name: 'Demo Pilot', email: 'demo@pilotos.app' };
+    localStorage.setItem('cafi_auth_token', 'demo-bypass-token');
+    localStorage.setItem('cafi_auth_user', JSON.stringify(demoUser));
+    if (airline) localStorage.setItem('pag_airline', airline);
+    updateUserAvatar(demoUser);
+    pagHide();
+    btn.disabled = false;
+    btn.textContent = 'Entrar →';
+    return;
+  }
+  // ──────────────────────────────────────────
+
   try {
     var endpoint = isLogin ? '/auth/login' : '/auth/register';
     var body = isLogin ? { email, password: pass } : { email, password: pass, name: email.split('@')[0], airline };
@@ -8576,18 +8590,18 @@ function updateUserAvatar(user) {
   if (ddEmail) ddEmail.textContent = user.name ? (user.email || '') : '';
 }
 
-function toggleUserDropdown() {
+function toggleUserDropdown(e) {
+  if (e) { e.stopPropagation(); e.preventDefault(); }
   var dd = document.getElementById('sb-dropdown');
   if (!dd) return;
   if (dd.classList.contains('open')) {
     dd.classList.remove('open');
     return;
   }
-  // Position fixed relative to avatar
   var avatar = document.getElementById('sb-initials');
   if (avatar) {
     var rect = avatar.getBoundingClientRect();
-    dd.style.top = (rect.bottom + 10) + 'px';
+    dd.style.top  = (rect.bottom + 10) + 'px';
     dd.style.right = (window.innerWidth - rect.right) + 'px';
     dd.style.left = 'auto';
   }
