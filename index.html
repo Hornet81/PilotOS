@@ -2358,34 +2358,6 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
       </div>
       <div class="sb-user-menu" id="sb-user-menu">
         <div class="sb-avatar" id="sb-initials" onclick="toggleUserDropdown(event)">CP</div>
-        <div class="sb-dropdown" id="sb-dropdown" onclick="event.stopPropagation()">
-
-          <!-- Header -->
-          <div class="sb-dropdown-header">
-            <div class="sb-dd-avatar-big" id="sb-dd-avatar-big">CP</div>
-            <div class="sb-dd-info">
-              <div class="sb-dd-name" id="sb-dd-name">Piloto</div>
-              <div class="sb-dd-email" id="sb-dd-email"></div>
-              <div class="sb-dd-badge">Online</div>
-            </div>
-          </div>
-
-          <!-- Items -->
-          <div class="sb-dropdown-items">
-            <div class="sb-dropdown-divider"></div>
-            <div class="sb-dropdown-item danger" onclick="pagSignOut()">
-              <div class="sb-dropdown-item-icon">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="#FCA5A5" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
-                  <polyline points="16 17 21 12 16 7" stroke="#FCA5A5" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
-                  <line x1="21" y1="12" x2="9" y2="12" stroke="#FCA5A5" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </div>
-              <span class="sb-dropdown-item-label">Cerrar sesión</span>
-            </div>
-          </div>
-
-        </div>
       </div>
     </div>
   </div>
@@ -8609,10 +8581,12 @@ function toggleUserDropdown(e) {
 }
 
 document.addEventListener('click', function(e) {
-  var menu = document.getElementById('sb-user-menu');
-  if (menu && !menu.contains(e.target)) {
-    var dd = document.getElementById('sb-dropdown');
-    if (dd) dd.classList.remove('open');
+  var dd = document.getElementById('sb-dropdown');
+  if (!dd || !dd.classList.contains('open')) return;
+  var avatar = document.getElementById('sb-initials');
+  // Cerrar si el click fue fuera del dropdown Y fuera del avatar
+  if (!dd.contains(e.target) && (!avatar || !avatar.contains(e.target))) {
+    dd.classList.remove('open');
   }
 });
 
@@ -8986,5 +8960,31 @@ function pagSignOut() {
   <div id="cafi-auth-err"></div>
   <span id="cafi-backend-display"></span>
 </div>
+
+<!-- ═══ USER DROPDOWN — fuera de todo transform/overflow para que position:fixed funcione ═══ -->
+<div class="sb-dropdown" id="sb-dropdown" onclick="event.stopPropagation()">
+  <div class="sb-dropdown-header">
+    <div class="sb-dd-avatar-big" id="sb-dd-avatar-big">CP</div>
+    <div class="sb-dd-info">
+      <div class="sb-dd-name" id="sb-dd-name">Piloto</div>
+      <div class="sb-dd-email" id="sb-dd-email"></div>
+      <div class="sb-dd-badge">Online</div>
+    </div>
+  </div>
+  <div class="sb-dropdown-items">
+    <div class="sb-dropdown-divider"></div>
+    <div class="sb-dropdown-item danger" onclick="pagSignOut()">
+      <div class="sb-dropdown-item-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="#FCA5A5" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+          <polyline points="16 17 21 12 16 7" stroke="#FCA5A5" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="21" y1="12" x2="9" y2="12" stroke="#FCA5A5" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <span class="sb-dropdown-item-label">Cerrar sesión</span>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
