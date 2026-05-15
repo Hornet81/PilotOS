@@ -7022,64 +7022,97 @@ window.rosterSelectDay = function(dateStr){
     RST.editDate = dateStr;
     RST.editIndex = 0;
 
-    // ── Render warnings block if any entry for this day has warnings ──
+    // ── Show warnings popup if any entry for this day has warnings ──
     var allWarnings = [];
     dayEntries.forEach(function(e){
       if(e.warnings && e.warnings.length) e.warnings.forEach(function(w){ allWarnings.push({ entry: e, warning: w }); });
     });
-    var warnContainer = document.getElementById('rst-day-warnings');
-    if(warnContainer){
-      if(allWarnings.length){
-        var sevColor = function(s){ return s==='critical'?'#B91C1C':s==='warning'?'#B45309':'#0369A1'; };
-        var sevBg    = function(s){ return s==='critical'?'#FEF2F2':s==='warning'?'#FFFBEB':'#EFF6FF'; };
-        var sevBd    = function(s){ return s==='critical'?'rgba(248,113,113,.3)':s==='warning'?'rgba(245,158,11,.3)':'rgba(8,145,178,.2)'; };
-        var sevLabel = function(s){ return s==='critical'?'Error crítico':s==='warning'?'Aviso':'Info'; };
-        var wHTML = '<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">'
-          + '<div style="font-size:10px;font-weight:800;color:#B45309;text-transform:uppercase;letter-spacing:.8px;display:flex;align-items:center;gap:6px">'
-          + '<span>⚠️</span> '+allWarnings.length+' '+(allWarnings.length===1?'aviso detectado':'avisos detectados')+'</div>';
-        allWarnings.forEach(function(item, wi){
-          var w = item.warning; var e = item.entry;
-          var fix = w.suggested_fix || {};
-          var sc = sevColor(w.severity); var sbg = sevBg(w.severity); var sbd = sevBd(w.severity);
-          wHTML += '<div style="background:'+sbg+';border:1px solid '+sbd+';border-left:3px solid '+sc+';border-radius:10px;padding:11px 12px">'
-            + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">'
-            + '<span style="font-size:9px;font-weight:800;color:'+sc+';background:rgba(0,0,0,.06);padding:2px 7px;border-radius:20px;letter-spacing:.5px">'+sevLabel(w.severity).toUpperCase()+'</span>'
-            + '<span style="font-size:9px;font-weight:600;color:#64748B;font-family:\'Space Mono\',monospace">'+w.code+'</span>'
-            + '</div>'
-            + '<p style="font-size:12px;color:#1E3A5F;margin:0 0 8px;line-height:1.5">'+w.message+'</p>';
-          if(fix.proposed){
-            wHTML += '<div style="background:rgba(255,255,255,.75);border:1px solid rgba(30,58,164,.1);border-radius:8px;padding:9px 11px;margin-bottom:8px">'
-              + '<div style="font-size:10px;font-weight:700;color:#0369A1;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">💡 Corrección sugerida</div>'
-              + '<div style="font-size:11px;color:#1E3A5F;margin-bottom:7px;line-height:1.4">'+fix.explanation+'</div>'
-              + '<div style="display:flex;align-items:center;gap:6px">'
-              + '<span style="background:#FEE2E2;color:#B91C1C;font-weight:700;font-family:\'Space Mono\',monospace;font-size:12px;padding:3px 9px;border-radius:6px;text-decoration:line-through">'+fix.current+'</span>'
-              + '<span style="color:#94A3B8;font-size:14px">→</span>'
-              + '<span style="background:#DCFCE7;color:#15803D;font-weight:700;font-family:\'Space Mono\',monospace;font-size:12px;padding:3px 9px;border-radius:6px">'+fix.proposed+'</span>'
-              + '</div>'
-              + '</div>'
-              + '<button onclick="rstApplyFix(\''+dateStr+'\','+wi+')" style="width:100%;padding:9px;background:linear-gradient(135deg,#15803D,#0369A1);border:none;border-radius:9px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;margin-bottom:6px">✓ Aplicar corrección</button>';
-          } else {
-            wHTML += '<div style="background:rgba(255,255,255,.75);border:1px solid rgba(30,58,164,.1);border-radius:8px;padding:9px 11px;margin-bottom:8px">'
-              + '<div style="font-size:11px;color:#1E3A5F;line-height:1.4">💡 '+fix.explanation+'</div>'
-              + '</div>';
-          }
-          wHTML += '<div style="display:flex;gap:6px;align-items:center">'
-            + '<input id="rst-warn-manual-'+wi+'" type="text" placeholder="Introduce valor correcto…" maxlength="6" style="flex:1;padding:7px 11px;border:1px solid rgba(30,58,164,.18);border-radius:8px;font-size:13px;font-family:\'Space Mono\',monospace;color:#0F172A;background:#FFFFFF;outline:none;letter-spacing:.08em" oninput="this.value=this.value.toUpperCase()">'
-            + '<button onclick="rstApplyManual(\''+dateStr+'\','+wi+')" style="padding:7px 13px;background:linear-gradient(135deg,#6D28D9,#0891B2);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:\'Space Grotesk\',sans-serif">Guardar</button>'
-            + '<button onclick="rstDismissWarning(\''+dateStr+'\','+wi+')" style="padding:7px 10px;background:#F1F5F9;border:1px solid rgba(30,58,164,.12);border-radius:8px;color:#475569;font-size:12px;cursor:pointer">Ignorar</button>'
-            + '</div>'
-            + '</div>';
-        });
-        wHTML += '</div>';
-        warnContainer.innerHTML = wHTML;
-        warnContainer.style.display = 'block';
-      } else {
-        warnContainer.innerHTML = '';
-        warnContainer.style.display = 'none';
-      }
-    }
+    if(allWarnings.length) rstShowWarningsPopup(dateStr, allWarnings);
   }
   detail.style.display = 'block';
+};
+
+// ── Warnings Popup Modal ──
+window.rstShowWarningsPopup = function(dateStr, allWarnings){
+  // Remove any existing popup
+  var old = document.getElementById('rst-warn-popup');
+  if(old) old.remove();
+
+  var d = new Date(dateStr+'T00:00:00');
+  var dLabel = d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+  dLabel = dLabel.charAt(0).toUpperCase()+dLabel.slice(1);
+
+  var sevColor = function(s){ return s==='critical'?'#B91C1C':s==='warning'?'#B45309':'#0369A1'; };
+  var sevBg    = function(s){ return s==='critical'?'#FEF2F2':s==='warning'?'#FFFBEB':'#EFF6FF'; };
+  var sevBd    = function(s){ return s==='critical'?'rgba(248,113,113,.3)':s==='warning'?'rgba(245,158,11,.3)':'rgba(8,145,178,.2)'; };
+  var sevLabel = function(s){ return s==='critical'?'Error crítico':s==='warning'?'Aviso':'Info'; };
+  var sevIcon  = function(s){ return s==='critical'?'🔴':'🟡'; };
+
+  var nCrit = allWarnings.filter(function(i){ return i.warning.severity==='critical'; }).length;
+  var headerColor = nCrit > 0 ? '#B91C1C' : '#B45309';
+  var headerBg    = nCrit > 0 ? 'linear-gradient(135deg,#FEF2F2,#FFF5F5)' : 'linear-gradient(135deg,#FFFBEB,#FFFDF0)';
+
+  var cardsHTML = '';
+  allWarnings.forEach(function(item, wi){
+    var w = item.warning;
+    var fix = w.suggested_fix || {};
+    var sc = sevColor(w.severity); var sbg = sevBg(w.severity); var sbd = sevBd(w.severity);
+    cardsHTML += '<div style="background:'+sbg+';border:1px solid '+sbd+';border-left:4px solid '+sc+';border-radius:12px;padding:13px 14px;margin-bottom:10px">'
+      + '<div style="display:flex;align-items:center;gap:7px;margin-bottom:6px">'
+      + '<span style="font-size:10px;font-weight:800;color:'+sc+';background:rgba(0,0,0,.07);padding:2px 8px;border-radius:20px;letter-spacing:.5px">'+sevLabel(w.severity).toUpperCase()+'</span>'
+      + '<span style="font-size:10px;font-weight:600;color:#64748B;font-family:\'Space Mono\',monospace;letter-spacing:.3px">'+w.code+'</span>'
+      + '</div>'
+      + '<p style="font-size:13px;color:#1E3A5F;margin:0 0 10px;line-height:1.55;font-weight:500">'+w.message+'</p>';
+
+    if(fix.proposed){
+      cardsHTML += '<div style="background:rgba(255,255,255,.8);border:1px solid rgba(30,58,164,.12);border-radius:10px;padding:10px 12px;margin-bottom:10px">'
+        + '<div style="font-size:10px;font-weight:700;color:#0369A1;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">💡 Corrección sugerida</div>'
+        + '<div style="font-size:11px;color:#334155;margin-bottom:8px;line-height:1.5">'+fix.explanation+'</div>'
+        + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+        + '<span style="background:#FEE2E2;color:#B91C1C;font-weight:700;font-family:\'Space Mono\',monospace;font-size:13px;padding:4px 10px;border-radius:7px;text-decoration:line-through">'+fix.current+'</span>'
+        + '<span style="color:#94A3B8;font-size:16px;font-weight:300">→</span>'
+        + '<span style="background:#DCFCE7;color:#15803D;font-weight:700;font-family:\'Space Mono\',monospace;font-size:13px;padding:4px 10px;border-radius:7px">'+fix.proposed+'</span>'
+        + '</div>'
+        + '</div>'
+        + '<button onclick="rstApplyFix(\''+dateStr+'\','+wi+');document.getElementById(\'rst-warn-popup\').remove();" style="width:100%;padding:10px;background:linear-gradient(135deg,#15803D,#0369A1);border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;margin-bottom:8px;box-shadow:0 2px 8px rgba(21,128,61,.2)">✓ Aplicar corrección</button>';
+    } else if(fix.explanation){
+      cardsHTML += '<div style="background:rgba(255,255,255,.8);border:1px solid rgba(30,58,164,.1);border-radius:10px;padding:10px 12px;margin-bottom:10px">'
+        + '<div style="font-size:11px;color:#334155;line-height:1.5">💡 '+fix.explanation+'</div>'
+        + '</div>';
+    }
+
+    cardsHTML += '<div style="display:flex;gap:7px;align-items:center">'
+      + '<input id="rst-warn-manual-'+wi+'" type="text" placeholder="Valor correcto…" maxlength="6" style="flex:1;padding:8px 12px;border:1px solid rgba(30,58,164,.2);border-radius:9px;font-size:13px;font-family:\'Space Mono\',monospace;color:#0F172A;background:#FFFFFF;outline:none;letter-spacing:.08em" oninput="this.value=this.value.toUpperCase()">'
+      + '<button onclick="rstApplyManual(\''+dateStr+'\','+wi+');document.getElementById(\'rst-warn-popup\').remove();" style="padding:8px 14px;background:linear-gradient(135deg,#6D28D9,#0891B2);border:none;border-radius:9px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:\'Space Grotesk\',sans-serif">Guardar</button>'
+      + '<button onclick="rstDismissWarning(\''+dateStr+'\','+wi+');document.getElementById(\'rst-warn-popup\').remove();" style="padding:8px 11px;background:#F1F5F9;border:1px solid rgba(30,58,164,.12);border-radius:9px;color:#475569;font-size:12px;cursor:pointer">Ignorar</button>'
+      + '</div>'
+      + '</div>';
+  });
+
+  var popup = document.createElement('div');
+  popup.id = 'rst-warn-popup';
+  popup.style.cssText = 'position:fixed;inset:0;z-index:9998;background:rgba(14,30,80,.5);backdrop-filter:blur(12px);display:flex;align-items:flex-end;justify-content:center;padding:0;animation:fadeIn .2s ease';
+  popup.innerHTML = ''
+    + '<div style="background:#FFFFFF;border-radius:24px 24px 0 0;width:100%;max-width:560px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 -12px 40px rgba(30,58,164,.18);animation:slideUp .28s cubic-bezier(.2,.8,.3,1)">'
+    // Header
+    + '<div style="background:'+headerBg+';padding:16px 18px 14px;border-radius:24px 24px 0 0;border-bottom:1px solid rgba(30,58,164,.08);flex-shrink:0">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between">'
+    + '<div>'
+    + '<div style="font-size:11px;font-weight:700;color:'+headerColor+';text-transform:uppercase;letter-spacing:.7px;margin-bottom:3px">⚠️ '+allWarnings.length+' '+(allWarnings.length===1?'aviso':'avisos')+' detectados</div>'
+    + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Grotesk\',sans-serif">'+dLabel+'</div>'
+    + '</div>'
+    + '<button onclick="document.getElementById(\'rst-warn-popup\').remove()" style="width:34px;height:34px;background:rgba(0,0,0,.06);border:none;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#475569;flex-shrink:0">×</button>'
+    + '</div>'
+    + '</div>'
+    // Scrollable body
+    + '<div style="overflow-y:auto;padding:16px 18px 24px;-webkit-overflow-scrolling:touch">'
+    + cardsHTML
+    + '</div>'
+    + '</div>';
+
+  // Close on backdrop tap
+  popup.addEventListener('click', function(ev){ if(ev.target===popup) popup.remove(); });
+  document.body.appendChild(popup);
 };
 
 // ── Month nav ──
@@ -7589,7 +7622,9 @@ window.rosterHandleFile = function(event){
   if(!file) return;
   var proc = document.getElementById('rst-ai-proc');
   var status = document.getElementById('rst-ai-status');
+  var zone = document.getElementById('rst-upload-zone');
   if(proc) proc.style.display='block';
+  if(zone) zone.style.display='none';
   if(status) status.textContent = 'Leyendo archivo…';
 
   var isTxt = file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt');
@@ -7677,12 +7712,14 @@ function rstSmartMerge(newEntries, newMonth){
 async function rosterRunAIText(textContent){
   var proc = document.getElementById('rst-ai-proc');
   var status = document.getElementById('rst-ai-status');
+  var zone = document.getElementById('rst-upload-zone');
   if(status) status.textContent = 'Analizando roster con IA…';
 
   var authToken = '';
   try { authToken = localStorage.getItem('cafi_auth_token') || ''; } catch(e){}
   if(!authToken){
     if(proc) proc.style.display='none';
+    if(zone) zone.style.display='';
     if(typeof showToast==='function') showToast('⚠️ Inicia sesión en CAFI primero');
     return;
   }
@@ -7700,8 +7737,6 @@ async function rosterRunAIText(textContent){
 
     var newMonth = parsed.month || (parsed.entries[0] && parsed.entries[0].date ? parsed.entries[0].date.slice(0,7) : null);
     if(newMonth){
-      // For S-time imports: clear month first, then smart-merge
-      // For A-time imports: smart-merge without clearing (preserves std/sta)
       var firstEntry = parsed.entries.find(function(e){ return e.type==='flight'; });
       var isActualImport = firstEntry && !firstEntry.std && firstEntry.std_actual;
       if(!isActualImport){
@@ -7722,6 +7757,7 @@ async function rosterRunAIText(textContent){
 
   } catch(err){
     if(proc) proc.style.display='none';
+    if(zone) zone.style.display='';
     if(typeof showToast==='function') showToast('❌ Error IA: '+err.message);
   }
 }
@@ -7729,6 +7765,7 @@ async function rosterRunAIText(textContent){
 async function rosterRunAI(dataUrl, mimeType){
   var proc = document.getElementById('rst-ai-proc');
   var status = document.getElementById('rst-ai-status');
+  var zone = document.getElementById('rst-upload-zone');
   if(status) status.textContent = 'Comprimiendo imagen…';
 
   var parts = dataUrl.split(',');
@@ -7765,6 +7802,7 @@ async function rosterRunAI(dataUrl, mimeType){
   // If PDF, we can't send to vision directly — fallback to manual message
   if(mt === 'application/pdf'){
     if(proc) proc.style.display='none';
+    if(zone) zone.style.display='';
     if(typeof showToast==='function') showToast('⚠ PDF: usa imagen (foto de pantalla) para análisis IA');
     return;
   }
@@ -7817,6 +7855,7 @@ async function rosterRunAI(dataUrl, mimeType){
     try { authToken = localStorage.getItem('cafi_auth_token') || ''; } catch(e){}
     if(!authToken){
       if(proc) proc.style.display='none';
+      if(zone) zone.style.display='';
       if(typeof showToast==='function') showToast('⚠️ Inicia sesión en CAFI primero');
       return;
     }
@@ -7868,6 +7907,7 @@ async function rosterRunAI(dataUrl, mimeType){
 
   } catch(err){
     if(proc) proc.style.display='none';
+    if(zone) zone.style.display='';
     if(typeof showToast==='function') showToast('❌ Error IA: '+err.message);
   }
 }
