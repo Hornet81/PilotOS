@@ -325,6 +325,13 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .modal-overlay{position:fixed;inset:0;z-index:500;background:rgba(14,30,80,.35);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .3s ease}
 .modal-box{background:#FFFFFF;border:1px solid rgba(109,40,217,.2);border-radius:28px;padding:28px 24px;max-width:420px;width:100%;animation:slideUp .35s cubic-bezier(.2,.8,.3,1);box-shadow:0 20px 60px rgba(30,58,164,.15)}
 @keyframes slideUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes aiOrbit{0%{transform:rotate(0deg) translateX(22px) rotate(0deg)}100%{transform:rotate(360deg) translateX(22px) rotate(-360deg)}}
+@keyframes aiOrbit2{0%{transform:rotate(180deg) translateX(22px) rotate(-180deg)}100%{transform:rotate(540deg) translateX(22px) rotate(-540deg)}}
+@keyframes aiPulseRing{0%,100%{transform:translate(-50%,-50%) scale(1);opacity:.5}50%{transform:translate(-50%,-50%) scale(1.25);opacity:0}}
+@keyframes aiDotBounce{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-6px);opacity:1}}
+@keyframes aiGlow{0%,100%{box-shadow:0 0 12px rgba(8,145,178,.3),0 0 24px rgba(109,40,217,.15)}50%{box-shadow:0 0 20px rgba(8,145,178,.55),0 0 40px rgba(109,40,217,.3)}}
+@keyframes aiTextFade{0%{opacity:0;transform:translateY(4px)}20%{opacity:1;transform:translateY(0)}80%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-4px)}}
 .modal-logo{display:flex;align-items:center;gap:10px;margin-bottom:22px}
 .modal-logo-icon{width:40px;height:40px;border-radius:12px;background:var(--g);display:flex;align-items:center;justify-content:center}
 .modal-logo-text{font-family:'Space Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:20px;font-weight:800}
@@ -6444,23 +6451,66 @@ function rstRenderCalendar(){
 
 // ── Stats ──
 function rstRenderStats(){
-  var flights=0, hours=0, standby=0, off=0;
+  var flights=0, blockMin=0, standby=0, off=0, dutyDays=0, dutyMin=0;
   var y=RST.viewYear, mo=RST.viewMonth;
+
+  // Group flights by date for per-day duty calc
+  var dayFlights = {};
   RST.entries.forEach(function(e){
     var d = new Date(e.date);
     if(d.getFullYear()!==y || d.getMonth()!==mo) return;
-    if(e.type==='flight'){ flights++; if(e.std&&e.sta){ var m=t2m(e.sta)-t2m(e.std); if(m<0)m+=1440; hours+=m; } }
-    else if(e.type==='standby'||e.type==='osb') standby++;
+    if(e.type==='flight'){
+      flights++;
+      if(e.std&&e.sta){ var m=t2m(e.sta)-t2m(e.std); if(m<0)m+=1440; blockMin+=m; }
+      if(!dayFlights[e.date]) dayFlights[e.date]=[];
+      dayFlights[e.date].push(e);
+    } else if(e.type==='standby'||e.type==='osb') standby++;
     else if(e.type==='off'||e.type==='f'||e.type==='ef'||e.type==='srof'||e.type==='noff'||e.type==='aoff'||e.type==='nrof'||e.type==='meof') off++;
   });
+
+  // Duty hours: per operating day = (last STA - first STD) + 90min overhead (60 report + 30 debrief)
+  Object.keys(dayFlights).forEach(function(date){
+    var legs = dayFlights[date].sort(function(a,b){ return t2m(a.std||'00:00')-t2m(b.std||'00:00'); });
+    var firstStd = legs[0].std, lastSta = legs[legs.length-1].sta;
+    if(firstStd && lastSta){
+      var span = t2m(lastSta) - t2m(firstStd);
+      if(span < 0) span += 1440;
+      dutyMin += span + 90; // +90min overhead
+    }
+    dutyDays++;
+  });
+
   var sf=document.getElementById('rst-s-flights');
   var sh=document.getElementById('rst-s-hours');
   var ss=document.getElementById('rst-s-standby');
   var so=document.getElementById('rst-s-off');
+  var sd=document.getElementById('rst-s-duty');
+  var sdd=document.getElementById('rst-s-duty-days');
   if(sf) sf.textContent = flights;
-  if(sh) sh.textContent = hours>0 ? m2h(hours) : '0h';
+  if(sh) sh.textContent = blockMin>0 ? m2h(blockMin) : '0h';
   if(ss) ss.textContent = standby;
   if(so) so.textContent = off;
+  if(sd) sd.textContent = dutyMin>0 ? m2h(dutyMin) : '0h';
+  if(sdd) sdd.textContent = dutyDays;
+
+  // Initial hours: save on first import, show on subsequent updates
+  var storageKey = 'pilotOS_roster_initial_h_'+(y)+'-'+String(mo+1).padStart(2,'0');
+  var initialLabel = document.getElementById('rst-initial-hours-label');
+  var initialVal   = document.getElementById('rst-initial-hours-val');
+  if(blockMin > 0){
+    try {
+      var stored = localStorage.getItem(storageKey);
+      if(!stored){
+        localStorage.setItem(storageKey, blockMin);
+      } else if(parseInt(stored) !== blockMin){
+        // Hours changed = roster updated
+        if(initialLabel){ initialLabel.style.display='block'; }
+        if(initialVal){ initialVal.textContent = m2h(parseInt(stored)); }
+      } else {
+        if(initialLabel){ initialLabel.style.display='none'; }
+      }
+    } catch(e){}
+  }
 }
 
 // ── Event delegation for leg time inputs (replaces inline oninput) ──
@@ -7946,7 +7996,7 @@ function rosterShowCalendar(){
       + '</div>'
       + '<div style="display:flex;gap:8px;align-items:center">'
       + '<label style="padding:7px 12px;background:#EFF6FF;border:1px solid rgba(8,145,178,.3);border-radius:10px;color:#0369A1;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;display:inline-flex;align-items:center;gap:5px"><input type="file" accept=".txt,image/*,application/pdf" onchange="rosterHandleFile(event)" style="display:none">📂 Actualizar</label>'
-      + '<button onclick="rosterClearAll()" style="padding:7px 12px;background:#FEF2F2;border:1px solid rgba(248,113,113,.3);border-radius:10px;color:#B91C1C;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap">🗑 Borrar</button>'
+      + '<button onclick="rosterConfirmDelete()" style="padding:7px 12px;background:#FEF2F2;border:1px solid rgba(248,113,113,.3);border-radius:10px;color:#B91C1C;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap">🗑 Borrar</button>'
       + '</div>'
       + '</div>';
     zone.style.padding = '12px 14px';
@@ -7954,6 +8004,28 @@ function rosterShowCalendar(){
     zone.style.borderStyle = 'solid';
   }
 }
+
+window.rosterConfirmDelete = function(){
+  // Inject modal if not already present
+  var existing = document.getElementById('rst-confirm-delete-modal');
+  if(existing) { existing.style.display='flex'; return; }
+  var modal = document.createElement('div');
+  modal.id = 'rst-confirm-delete-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(14,30,80,.45);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s ease';
+  modal.innerHTML = ''
+    + '<div style="background:#FFFFFF;border-radius:24px;padding:28px 24px;max-width:340px;width:100%;box-shadow:0 24px 60px rgba(30,58,164,.2);animation:slideUp .25s cubic-bezier(.2,.8,.3,1);text-align:center">'
+    + '<div style="width:56px;height:56px;background:#FEF2F2;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 16px">🗑</div>'
+    + '<div style="font-size:18px;font-weight:800;color:#0F172A;font-family:\'Space Grotesk\',sans-serif;margin-bottom:8px">¿Borrar el roster?</div>'
+    + '<div style="font-size:13px;color:#64748B;line-height:1.6;margin-bottom:22px">Se eliminarán todos los vuelos, guardias y días del mes importado.<br><strong style="color:#B91C1C">Esta acción no se puede deshacer.</strong></div>'
+    + '<div style="display:flex;gap:10px">'
+    + '<button onclick="document.getElementById(\'rst-confirm-delete-modal\').style.display=\'none\'" style="flex:1;padding:12px;background:#F1F5F9;border:none;border-radius:12px;color:#475569;font-size:14px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif">Cancelar</button>'
+    + '<button onclick="document.getElementById(\'rst-confirm-delete-modal\').style.display=\'none\';rosterClearAll();" style="flex:1;padding:12px;background:linear-gradient(135deg,#DC2626,#B91C1C);border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;box-shadow:0 4px 12px rgba(185,28,28,.3)">Sí, borrar</button>'
+    + '</div>'
+    + '</div>';
+  // Close on backdrop click
+  modal.addEventListener('click', function(ev){ if(ev.target===modal) modal.style.display='none'; });
+  document.body.appendChild(modal);
+};
 
 window.rosterClearAll = function(){
   RST.entries = [];
@@ -8646,21 +8718,68 @@ function pagSignOut() {
       </div>
 
       <!-- AI processing -->
-      <div id="rst-ai-proc" style="display:none;margin-bottom:14px;background:#EFF6FF;border:1px solid rgba(8,145,178,.2);border-radius:16px;padding:14px;text-align:center">
-        <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:5px">
-          <div style="width:16px;height:16px;border:2.5px solid rgba(8,145,178,.2);border-top-color:#0891B2;border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0"></div>
-          <span style="font-size:13px;font-weight:600;color:#0369A1" id="rst-ai-status">Analizando roster con IA…</span>
+      <div id="rst-ai-proc" style="display:none;margin-bottom:14px;background:linear-gradient(135deg,#EFF6FF 0%,#F5F3FF 100%);border:1px solid rgba(109,40,217,.15);border-radius:20px;padding:20px 16px;text-align:center;animation:aiGlow 2.5s ease-in-out infinite">
+        <!-- Orbital animation -->
+        <div style="position:relative;width:64px;height:64px;margin:0 auto 14px">
+          <!-- Pulse ring -->
+          <div style="position:absolute;top:50%;left:50%;width:64px;height:64px;border-radius:50%;border:2px solid rgba(8,145,178,.25);transform:translate(-50%,-50%);animation:aiPulseRing 1.8s ease-out infinite"></div>
+          <div style="position:absolute;top:50%;left:50%;width:64px;height:64px;border-radius:50%;border:2px solid rgba(109,40,217,.2);transform:translate(-50%,-50%);animation:aiPulseRing 1.8s ease-out infinite .6s"></div>
+          <!-- Central brain icon -->
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:36px;height:36px;background:linear-gradient(135deg,#0891B2,#6D28D9);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;z-index:2;box-shadow:0 2px 12px rgba(109,40,217,.35)">🧠</div>
+          <!-- Orbiting dot 1 -->
+          <div style="position:absolute;top:50%;left:50%;width:8px;height:8px;margin:-4px;animation:aiOrbit 2s linear infinite">
+            <div style="width:8px;height:8px;background:#0891B2;border-radius:50%;box-shadow:0 0 6px rgba(8,145,178,.8)"></div>
+          </div>
+          <!-- Orbiting dot 2 -->
+          <div style="position:absolute;top:50%;left:50%;width:8px;height:8px;margin:-4px;animation:aiOrbit2 2s linear infinite">
+            <div style="width:7px;height:7px;background:#7C3AED;border-radius:50%;box-shadow:0 0 6px rgba(124,58,237,.8)"></div>
+          </div>
         </div>
-        <div style="font-size:11px;color:#475569">Claude Vision extrae fechas, vuelos y horarios</div>
+        <!-- Status text with animated fade -->
+        <div style="font-size:14px;font-weight:700;background:linear-gradient(135deg,#0369A1,#6D28D9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px" id="rst-ai-status">Analizando roster con IA…</div>
+        <!-- Bouncing dots -->
+        <div style="display:flex;align-items:center;justify-content:center;gap:5px;margin-bottom:8px">
+          <div style="width:7px;height:7px;background:#0891B2;border-radius:50%;animation:aiDotBounce 1.2s ease-in-out infinite 0s"></div>
+          <div style="width:7px;height:7px;background:#5B21B6;border-radius:50%;animation:aiDotBounce 1.2s ease-in-out infinite .2s"></div>
+          <div style="width:7px;height:7px;background:#0891B2;border-radius:50%;animation:aiDotBounce 1.2s ease-in-out infinite .4s"></div>
+        </div>
+        <div style="font-size:10px;color:#6B7280;letter-spacing:.4px;font-family:'Space Mono',monospace">CLAUDE VISION · OCR · VALIDACIÓN</div>
       </div>
 
       <!-- Stats pills -->
-      <div id="rst-stats" style="overflow-x:auto;overflow-y:hidden;padding-bottom:4px;margin-bottom:12px;max-width:100%">
-        <div style="display:inline-flex;gap:8px;width:max-content">
-          <div class="stat-pill"><div class="sp-label">Vuelos</div><div class="sp-val c" id="rst-s-flights">0</div></div>
-          <div class="stat-pill"><div class="sp-label">Horas prog.</div><div class="sp-val v" id="rst-s-hours">0h</div></div>
-          <div class="stat-pill"><div class="sp-label">STBY</div><div class="sp-val a" id="rst-s-standby">0</div></div>
-          <div class="stat-pill"><div class="sp-label">Días libres</div><div class="sp-val g" id="rst-s-off">0</div></div>
+      <div id="rst-stats" style="margin-bottom:12px">
+        <!-- Initial hours label — only shown after update -->
+        <div id="rst-initial-hours-label" style="display:none;font-size:10px;font-weight:700;color:#5B21B6;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;padding-left:2px">
+          ⏱ Horas progr. inicial: <span id="rst-initial-hours-val">0h</span>
+        </div>
+        <div style="overflow-x:auto;overflow-y:hidden;padding-bottom:4px;max-width:100%">
+          <div style="display:inline-flex;gap:8px;width:max-content">
+            <!-- Pill 1: Block hours -->
+            <div class="stat-pill"><div class="sp-label">Horas prog.</div><div class="sp-val v" id="rst-s-hours">0h</div></div>
+            <!-- Pill 2: Duty hours -->
+            <div class="stat-pill"><div class="sp-label">Duty hours</div><div class="sp-val c" id="rst-s-duty">0h</div></div>
+            <!-- Pill 3: Vuelos -->
+            <div class="stat-pill"><div class="sp-label">Vuelos</div><div class="sp-val c" id="rst-s-flights">0</div></div>
+            <!-- Pill 4: STBY + Duty days + Free days (compact) -->
+            <div class="stat-pill" style="min-width:130px">
+              <div style="display:flex;justify-content:space-between;gap:10px">
+                <div style="text-align:center">
+                  <div class="sp-label">STBY</div>
+                  <div style="font-size:17px;font-weight:700;font-family:'Space Mono',monospace;color:#92400E" id="rst-s-standby">0</div>
+                </div>
+                <div style="width:1px;background:rgba(30,58,164,.1);align-self:stretch"></div>
+                <div style="text-align:center">
+                  <div class="sp-label">Duty</div>
+                  <div style="font-size:17px;font-weight:700;font-family:'Space Mono',monospace;color:#0369A1" id="rst-s-duty-days">0</div>
+                </div>
+                <div style="width:1px;background:rgba(30,58,164,.1);align-self:stretch"></div>
+                <div style="text-align:center">
+                  <div class="sp-label">Libres</div>
+                  <div style="font-size:17px;font-weight:700;font-family:'Space Mono',monospace;color:#16A34A" id="rst-s-off">0</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
