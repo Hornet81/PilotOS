@@ -710,23 +710,96 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 }
 .sb-avatar{cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;}
 .sb-user-menu{position:relative;display:flex;align-items:center;}
+
+/* ── User Dropdown — fixed, escapes overflow:hidden ── */
 .sb-dropdown{
-  position:absolute;top:calc(100% + 10px);right:0;
-  background:#fff;border:1px solid rgba(30,58,164,.12);border-radius:16px;
-  padding:6px 0;min-width:196px;
-  box-shadow:0 8px 28px rgba(0,0,0,.14);z-index:9999;
-  opacity:0;pointer-events:none;transform:translateY(-8px);
-  transition:opacity .18s cubic-bezier(.2,.8,.3,1),transform .18s cubic-bezier(.2,.8,.3,1);
+  position:fixed;
+  top:0;right:0; /* set dynamically by JS */
+  background:rgba(8,14,36,0.88);
+  backdrop-filter:blur(24px) saturate(180%);
+  -webkit-backdrop-filter:blur(24px) saturate(180%);
+  border:1px solid rgba(124,58,237,.30);
+  border-radius:20px;
+  min-width:228px;
+  box-shadow:
+    0 24px 64px rgba(0,0,0,.55),
+    0 0 0 1px rgba(255,255,255,.055) inset,
+    0 1px 0 rgba(255,255,255,.08) inset;
+  z-index:99999;
+  opacity:0;
+  pointer-events:none;
+  transform:scale(.88) translateY(-10px);
+  transform-origin:top right;
+  transition:opacity .22s cubic-bezier(.2,.8,.3,1), transform .22s cubic-bezier(.2,.8,.3,1);
+  overflow:hidden;
 }
-.sb-dropdown.open{opacity:1;pointer-events:all;transform:translateY(0);}
-.sb-dropdown-header{padding:11px 16px 10px;border-bottom:1px solid rgba(30,58,164,.08);}
-.sb-dd-name{font-size:13px;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:164px;}
-.sb-dd-email{font-size:11px;color:#475569;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:164px;}
-.sb-dropdown-item{display:flex;align-items:center;gap:9px;padding:9px 16px;cursor:pointer;transition:background .14s;}
-.sb-dropdown-item:hover{background:rgba(30,58,164,.05);}
-.sb-dropdown-item-label{font-size:13px;font-weight:500;color:#1E3A5F;}
-.sb-dropdown-item.danger .sb-dropdown-item-label{color:#DC2626;}
-.sb-dropdown-item.danger:hover{background:rgba(220,38,38,.05);}
+.sb-dropdown.open{
+  opacity:1;
+  pointer-events:all;
+  transform:scale(1) translateY(0);
+}
+
+/* Header section */
+.sb-dropdown-header{
+  background:linear-gradient(135deg,rgba(109,40,217,.28),rgba(8,145,178,.18));
+  padding:16px 16px 14px;
+  display:flex;align-items:center;gap:12px;
+  border-bottom:1px solid rgba(255,255,255,.07);
+}
+.sb-dd-avatar-big{
+  width:40px;height:40px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,#7C3AED,#22D3EE);
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:700;color:#fff;
+  box-shadow:0 0 0 2px rgba(124,58,237,.45),0 4px 12px rgba(0,0,0,.35);
+}
+.sb-dd-info{flex:1;min-width:0;}
+.sb-dd-name{
+  font-family:'Space Grotesk',-apple-system,sans-serif;
+  font-size:14px;font-weight:600;color:#F1F5F9;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;
+}
+.sb-dd-email{
+  font-size:11px;color:rgba(255,255,255,.45);margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;
+}
+.sb-dd-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:9px;font-weight:700;letter-spacing:.4px;
+  color:#4ADE80;background:rgba(74,222,128,.12);
+  border:1px solid rgba(74,222,128,.28);
+  border-radius:20px;padding:2px 7px;margin-top:5px;
+}
+.sb-dd-badge::before{
+  content:'';width:5px;height:5px;border-radius:50%;
+  background:#4ADE80;flex-shrink:0;
+}
+
+/* Items section */
+.sb-dropdown-items{padding:6px 0 8px;}
+.sb-dropdown-item{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 16px;cursor:pointer;
+  transition:background .15s;
+  -webkit-tap-highlight-color:transparent;
+}
+.sb-dropdown-item:hover{background:rgba(255,255,255,.055);}
+.sb-dropdown-item:active{background:rgba(255,255,255,.09);}
+.sb-dropdown-item-icon{
+  width:28px;height:28px;border-radius:9px;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.sb-dropdown-item-label{
+  font-family:'Space Grotesk',-apple-system,sans-serif;
+  font-size:13px;font-weight:500;color:rgba(241,245,249,.85);
+}
+.sb-dropdown-item.danger .sb-dropdown-item-icon{background:rgba(220,38,38,.14);}
+.sb-dropdown-item.danger .sb-dropdown-item-label{color:#FCA5A5;}
+.sb-dropdown-item.danger:hover{background:rgba(220,38,38,.08);}
+
+/* Divider */
+.sb-dropdown-divider{height:1px;background:rgba(255,255,255,.07);margin:4px 0;}
 .notif-btn-light{
   width:30px;height:30px;border-radius:50%;
   background:rgba(10,21,48,.55);
@@ -2286,14 +2359,32 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
       <div class="sb-user-menu" id="sb-user-menu">
         <div class="sb-avatar" id="sb-initials" onclick="toggleUserDropdown()">CP</div>
         <div class="sb-dropdown" id="sb-dropdown">
+
+          <!-- Header -->
           <div class="sb-dropdown-header">
-            <div class="sb-dd-name" id="sb-dd-name">Piloto</div>
-            <div class="sb-dd-email" id="sb-dd-email"></div>
+            <div class="sb-dd-avatar-big" id="sb-dd-avatar-big">CP</div>
+            <div class="sb-dd-info">
+              <div class="sb-dd-name" id="sb-dd-name">Piloto</div>
+              <div class="sb-dd-email" id="sb-dd-email"></div>
+              <div class="sb-dd-badge">Online</div>
+            </div>
           </div>
-          <div class="sb-dropdown-item danger" onclick="pagSignOut()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="#DC2626" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><polyline points="16 17 21 12 16 7" stroke="#DC2626" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="21" y1="12" x2="9" y2="12" stroke="#DC2626" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <span class="sb-dropdown-item-label">Cerrar sesión</span>
+
+          <!-- Items -->
+          <div class="sb-dropdown-items">
+            <div class="sb-dropdown-divider"></div>
+            <div class="sb-dropdown-item danger" onclick="pagSignOut()">
+              <div class="sb-dropdown-item-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="#FCA5A5" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+                  <polyline points="16 17 21 12 16 7" stroke="#FCA5A5" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+                  <line x1="21" y1="12" x2="9" y2="12" stroke="#FCA5A5" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <span class="sb-dropdown-item-label">Cerrar sesión</span>
+            </div>
           </div>
+
         </div>
       </div>
     </div>
@@ -8477,6 +8568,8 @@ function updateUserAvatar(user) {
   if (!initials) initials = 'CP';
   var el = document.getElementById('sb-initials');
   if (el) el.textContent = initials;
+  var bigAv = document.getElementById('sb-dd-avatar-big');
+  if (bigAv) bigAv.textContent = initials;
   var ddName = document.getElementById('sb-dd-name');
   var ddEmail = document.getElementById('sb-dd-email');
   if (ddName) ddName.textContent = user.name || user.email || 'Piloto';
@@ -8485,7 +8578,20 @@ function updateUserAvatar(user) {
 
 function toggleUserDropdown() {
   var dd = document.getElementById('sb-dropdown');
-  if (dd) dd.classList.toggle('open');
+  if (!dd) return;
+  if (dd.classList.contains('open')) {
+    dd.classList.remove('open');
+    return;
+  }
+  // Position fixed relative to avatar
+  var avatar = document.getElementById('sb-initials');
+  if (avatar) {
+    var rect = avatar.getBoundingClientRect();
+    dd.style.top = (rect.bottom + 10) + 'px';
+    dd.style.right = (window.innerWidth - rect.right) + 'px';
+    dd.style.left = 'auto';
+  }
+  dd.classList.add('open');
 }
 
 document.addEventListener('click', function(e) {
@@ -8503,6 +8609,8 @@ function pagSignOut() {
   } catch(ex) {}
   var el = document.getElementById('sb-initials');
   if (el) el.textContent = 'CP';
+  var bigAv = document.getElementById('sb-dd-avatar-big');
+  if (bigAv) bigAv.textContent = 'CP';
   var dd = document.getElementById('sb-dropdown');
   if (dd) dd.classList.remove('open');
   var ddName = document.getElementById('sb-dd-name');
