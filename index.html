@@ -6257,6 +6257,9 @@ function rstRenderCalendar(){
 
     var todayRing = isToday ? 'outline:2.5px solid #0891B2;outline-offset:1px;' : '';
     var checkBadge = inLogbook && dayEntries.length > 0 ? '<div style="position:absolute;top:2px;right:3px;font-size:7px;color:#15803D;font-weight:700;z-index:2">✓</div>' : '';
+    // Warning badge — shown when any entry for this day has warnings
+    var dayHasWarnings = dayEntries.some(function(e){ return e.warnings && e.warnings.length > 0; });
+    var warnBadge = dayHasWarnings ? '<div style="position:absolute;top:-5px;left:-5px;width:16px;height:16px;border-radius:50%;background:#F59E0B;border:2px solid #FFFFFF;display:flex;align-items:center;justify-content:center;font-size:8px;z-index:3;box-shadow:0 1px 4px rgba(245,158,11,.4)">⚠</div>' : '';
 
     // Build stacked bars — one per activity type (max 4 visible)
     var barsHTML = '';
@@ -6305,7 +6308,8 @@ function rstRenderCalendar(){
 
     cells += '<td style="padding:1px;height:60px;vertical-align:top">'
       + '<div onclick="rosterSelectDay(\''+dateStr+'\');rosterCellPop(this,\''+glowCol+'\')" '
-      + 'style="position:relative;width:100%;height:58px;background:#FFFFFF;border:1.5px solid '+(isToday?'#0891B2':(hasEntry?border:'rgba(30,58,164,.08)'))+';border-radius:8px;cursor:pointer;transition:box-shadow .15s,transform .12s;overflow:hidden">'
+      + 'style="position:relative;width:100%;height:58px;background:#FFFFFF;border:1.5px solid '+(isToday?'#0891B2':(dayHasWarnings?'#F59E0B':(hasEntry?border:'rgba(30,58,164,.08)')))+';border-radius:8px;cursor:pointer;transition:box-shadow .15s,transform .12s;overflow:visible">'
+      + warnBadge
       + checkBadge
       + barTopHTML
       + '<div style="position:absolute;bottom:4px;left:0;right:0;text-align:center">'
@@ -6873,6 +6877,63 @@ window.rosterSelectDay = function(dateStr){
     bodyEl.innerHTML = html;
     RST.editDate = dateStr;
     RST.editIndex = 0;
+
+    // ── Render warnings block if any entry for this day has warnings ──
+    var allWarnings = [];
+    dayEntries.forEach(function(e){
+      if(e.warnings && e.warnings.length) e.warnings.forEach(function(w){ allWarnings.push({ entry: e, warning: w }); });
+    });
+    var warnContainer = document.getElementById('rst-day-warnings');
+    if(warnContainer){
+      if(allWarnings.length){
+        var sevColor = function(s){ return s==='critical'?'#B91C1C':s==='warning'?'#B45309':'#0369A1'; };
+        var sevBg    = function(s){ return s==='critical'?'#FEF2F2':s==='warning'?'#FFFBEB':'#EFF6FF'; };
+        var sevBd    = function(s){ return s==='critical'?'rgba(248,113,113,.3)':s==='warning'?'rgba(245,158,11,.3)':'rgba(8,145,178,.2)'; };
+        var sevLabel = function(s){ return s==='critical'?'Error crítico':s==='warning'?'Aviso':'Info'; };
+        var wHTML = '<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">'
+          + '<div style="font-size:10px;font-weight:800;color:#B45309;text-transform:uppercase;letter-spacing:.8px;display:flex;align-items:center;gap:6px">'
+          + '<span>⚠️</span> '+allWarnings.length+' '+(allWarnings.length===1?'aviso detectado':'avisos detectados')+'</div>';
+        allWarnings.forEach(function(item, wi){
+          var w = item.warning; var e = item.entry;
+          var fix = w.suggested_fix || {};
+          var sc = sevColor(w.severity); var sbg = sevBg(w.severity); var sbd = sevBd(w.severity);
+          wHTML += '<div style="background:'+sbg+';border:1px solid '+sbd+';border-left:3px solid '+sc+';border-radius:10px;padding:11px 12px">'
+            + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">'
+            + '<span style="font-size:9px;font-weight:800;color:'+sc+';background:rgba(0,0,0,.06);padding:2px 7px;border-radius:20px;letter-spacing:.5px">'+sevLabel(w.severity).toUpperCase()+'</span>'
+            + '<span style="font-size:9px;font-weight:600;color:#64748B;font-family:\'Space Mono\',monospace">'+w.code+'</span>'
+            + '</div>'
+            + '<p style="font-size:12px;color:#1E3A5F;margin:0 0 8px;line-height:1.5">'+w.message+'</p>';
+          if(fix.proposed){
+            wHTML += '<div style="background:rgba(255,255,255,.75);border:1px solid rgba(30,58,164,.1);border-radius:8px;padding:9px 11px;margin-bottom:8px">'
+              + '<div style="font-size:10px;font-weight:700;color:#0369A1;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">💡 Corrección sugerida</div>'
+              + '<div style="font-size:11px;color:#1E3A5F;margin-bottom:7px;line-height:1.4">'+fix.explanation+'</div>'
+              + '<div style="display:flex;align-items:center;gap:6px">'
+              + '<span style="background:#FEE2E2;color:#B91C1C;font-weight:700;font-family:\'Space Mono\',monospace;font-size:12px;padding:3px 9px;border-radius:6px;text-decoration:line-through">'+fix.current+'</span>'
+              + '<span style="color:#94A3B8;font-size:14px">→</span>'
+              + '<span style="background:#DCFCE7;color:#15803D;font-weight:700;font-family:\'Space Mono\',monospace;font-size:12px;padding:3px 9px;border-radius:6px">'+fix.proposed+'</span>'
+              + '</div>'
+              + '</div>'
+              + '<button onclick="rstApplyFix(\''+dateStr+'\','+wi+')" style="width:100%;padding:9px;background:linear-gradient(135deg,#15803D,#0369A1);border:none;border-radius:9px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;margin-bottom:6px">✓ Aplicar corrección</button>';
+          } else {
+            wHTML += '<div style="background:rgba(255,255,255,.75);border:1px solid rgba(30,58,164,.1);border-radius:8px;padding:9px 11px;margin-bottom:8px">'
+              + '<div style="font-size:11px;color:#1E3A5F;line-height:1.4">💡 '+fix.explanation+'</div>'
+              + '</div>';
+          }
+          wHTML += '<div style="display:flex;gap:6px;align-items:center">'
+            + '<input id="rst-warn-manual-'+wi+'" type="text" placeholder="Introduce valor correcto…" maxlength="6" style="flex:1;padding:7px 11px;border:1px solid rgba(30,58,164,.18);border-radius:8px;font-size:13px;font-family:\'Space Mono\',monospace;color:#0F172A;background:#FFFFFF;outline:none;letter-spacing:.08em" oninput="this.value=this.value.toUpperCase()">'
+            + '<button onclick="rstApplyManual(\''+dateStr+'\','+wi+')" style="padding:7px 13px;background:linear-gradient(135deg,#6D28D9,#0891B2);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:\'Space Grotesk\',sans-serif">Guardar</button>'
+            + '<button onclick="rstDismissWarning(\''+dateStr+'\','+wi+')" style="padding:7px 10px;background:#F1F5F9;border:1px solid rgba(30,58,164,.12);border-radius:8px;color:#475569;font-size:12px;cursor:pointer">Ignorar</button>'
+            + '</div>'
+            + '</div>';
+        });
+        wHTML += '</div>';
+        warnContainer.innerHTML = wHTML;
+        warnContainer.style.display = 'block';
+      } else {
+        warnContainer.innerHTML = '';
+        warnContainer.style.display = 'none';
+      }
+    }
   }
   detail.style.display = 'block';
 };
@@ -7510,6 +7571,7 @@ async function rosterRunAIText(textContent){
     if(proc) proc.style.display='none';
     rosterShowCalendar(); rstRenderCalendar(); rstRenderStats(); rstRenderFlights();
     if(typeof ldUpdateRosterBtn==='function') ldUpdateRosterBtn();
+    rstUpdateWarningsBanner();
 
     var nFlights = parsed.entries.filter(function(e){ return e.type==='flight'; }).length;
     if(typeof showToast==='function') showToast('✅ Roster importado · '+nFlights+' vuelos detectados');
@@ -7687,11 +7749,94 @@ window.rosterImportJSON = function(){
     rstRenderStats();
     rstRenderFlights();
     rosterShowCalendar();
+    rstUpdateWarningsBanner();
     document.getElementById('rst-json-modal').style.display = 'none';
     if(typeof showToast==='function') showToast('✅ '+parsed.entries.length+' entradas importadas');
   } catch(e) {
     if(typeof showToast==='function') showToast('❌ JSON inválido: '+e.message);
   }
+};
+
+// ── Warning helpers ────────────────────────────────────────────────────────
+
+// Update the amber banner at the top of the roster screen
+function rstUpdateWarningsBanner(){
+  var banner = document.getElementById('rst-warnings-banner');
+  if(!banner) return;
+  var total = 0;
+  RST.entries.forEach(function(e){ if(e.warnings && e.warnings.length) total += e.warnings.length; });
+  if(total > 0){
+    var countEl = document.getElementById('rst-warnings-count');
+    if(countEl) countEl.textContent = total + (total === 1 ? ' aviso pendiente de revisión' : ' avisos pendientes de revisión');
+    banner.style.display = 'flex';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+// Collect all warnings across entries for a given date (used by popup)
+function rstGetWarningsForDate(dateStr){
+  var result = [];
+  var entries = RST.entries.filter(function(e){ return e.date === dateStr; });
+  entries.forEach(function(e){
+    if(e.warnings && e.warnings.length) e.warnings.forEach(function(w){ result.push({ entry: e, warning: w }); });
+  });
+  return result;
+}
+
+// Apply the suggested_fix for warning index wi on dateStr
+window.rstApplyFix = function(dateStr, wi){
+  var items = rstGetWarningsForDate(dateStr);
+  if(!items[wi]) return;
+  var item = items[wi]; var w = item.warning; var e = item.entry; var fix = w.suggested_fix || {};
+  if(!fix.proposed) return;
+  if(fix.field === 'dep') e.dep = fix.proposed;
+  else if(fix.field === 'arr') e.arr = fix.proposed;
+  else if(fix.field === 'sta') e.sta = fix.proposed;
+  else if(fix.field === 'std') e.std = fix.proposed;
+  else if(fix.field === 'flightNum') e.flightNum = fix.proposed;
+  // Remove this warning from the entry
+  e.warnings = e.warnings.filter(function(x){ return x !== w; });
+  rstSave();
+  rstRenderCalendar();
+  rstUpdateWarningsBanner();
+  rosterSelectDay(dateStr);
+  if(typeof showToast==='function') showToast('✅ Corrección aplicada: '+fix.field.toUpperCase()+' → '+fix.proposed);
+};
+
+// Apply a manual value for warning index wi on dateStr
+window.rstApplyManual = function(dateStr, wi){
+  var inp = document.getElementById('rst-warn-manual-'+wi);
+  if(!inp || !inp.value.trim()) return;
+  var val = inp.value.trim().toUpperCase();
+  var items = rstGetWarningsForDate(dateStr);
+  if(!items[wi]) return;
+  var item = items[wi]; var w = item.warning; var e = item.entry; var fix = w.suggested_fix || {};
+  var field = fix.field || 'dep';
+  if(field === 'dep') e.dep = val;
+  else if(field === 'arr') e.arr = val;
+  else if(field === 'sta') e.sta = val;
+  else if(field === 'std') e.std = val;
+  else if(field === 'flightNum') e.flightNum = val;
+  e.warnings = e.warnings.filter(function(x){ return x !== w; });
+  rstSave();
+  rstRenderCalendar();
+  rstUpdateWarningsBanner();
+  rosterSelectDay(dateStr);
+  if(typeof showToast==='function') showToast('✅ '+field.toUpperCase()+' actualizado a '+val);
+};
+
+// Dismiss (ignore) warning index wi on dateStr
+window.rstDismissWarning = function(dateStr, wi){
+  var items = rstGetWarningsForDate(dateStr);
+  if(!items[wi]) return;
+  var w = items[wi].warning; var e = items[wi].entry;
+  e.warnings = e.warnings.filter(function(x){ return x !== w; });
+  rstSave();
+  rstRenderCalendar();
+  rstUpdateWarningsBanner();
+  rosterSelectDay(dateStr);
+  if(typeof showToast==='function') showToast('Aviso descartado');
 };
 
 function rosterShowCalendar(){
@@ -8355,6 +8500,16 @@ async function cafiDoAuth() { return pagDoAuth(); }
         <button onclick="rosterNavMonth(1)" style="width:34px;height:34px;border-radius:50%;background:#FFFFFF;border:1px solid rgba(30,58,164,.15);color:#0369A1;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(30,58,164,.08)">›</button>
       </div>
 
+      <!-- Roster warnings banner -->
+      <div id="rst-warnings-banner" style="display:none;background:#FFFBEB;border:1px solid rgba(245,158,11,.35);border-radius:14px;padding:12px 14px;margin-bottom:12px;display:none;align-items:center;gap:10px">
+        <span style="font-size:18px;flex-shrink:0">⚠️</span>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700;color:#92400E" id="rst-warnings-count">Avisos pendientes</div>
+          <div style="font-size:11px;color:#B45309;margin-top:1px">Pulsa el icono ⚠ en cualquier día para revisar y corregir</div>
+        </div>
+        <button onclick="document.getElementById('rst-warnings-banner').style.display='none'" style="background:none;border:none;color:#B45309;cursor:pointer;font-size:16px;padding:0 2px;flex-shrink:0">✕</button>
+      </div>
+
       <!-- Calendar grid -->
       <div id="rst-calendar" style="background:#FFFFFF;border:1px solid rgba(30,58,164,.1);border-radius:20px;padding:8px;margin-bottom:14px;box-shadow:0 1px 6px rgba(30,58,164,.06)">
         <table id="rst-cal-grid" style="width:100%;border-collapse:collapse;table-layout:fixed">
@@ -8381,6 +8536,7 @@ async function cafiDoAuth() { return pagDoAuth(); }
         </div>
         <div id="rst-detail-report" style="display:none;align-items:center;background:#F0F9FF;border:1px solid rgba(8,145,178,.2);border-radius:10px;padding:8px 12px;margin-bottom:10px"></div>
         <div id="rst-detail-body" style="font-size:13px;color:#1E3A5F;line-height:1.6"></div>
+        <div id="rst-day-warnings" style="display:none"></div>
       </div>
 
       <!-- Fatigue & Stats Dashboard -->
