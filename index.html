@@ -6429,10 +6429,16 @@ function rstRenderCalendar(){
       var nonFlights = dayEntries.filter(function(e){ return e.type!=='flight'; });
       if(flights.length){
         var fc = TC['flight'];
-        var firstStd = flights[0].std;
+        var firstFlight = flights[0];
+        var firstStd = firstFlight.std || firstFlight.std_actual;
         var timeStr;
         if(firstStd && firstStd.indexOf(':') > -1){
-          var repM = parseInt(firstStd.split(':')[0])*60 + parseInt(firstStd.split(':')[1]) - 55;
+          var repM;
+          if(firstFlight.checkin && firstFlight.checkin.indexOf(':')>-1){
+            repM = parseInt(firstFlight.checkin.split(':')[0])*60 + parseInt(firstFlight.checkin.split(':')[1]);
+          } else {
+            repM = parseInt(firstStd.split(':')[0])*60 + parseInt(firstStd.split(':')[1]) - 55;
+          }
           if(repM < 0) repM += 1440;
           var repStr = String(Math.floor(repM/60)).padStart(2,'0') + ':' + String(repM%60).padStart(2,'0');
           timeStr = '✈ ' + repStr;
@@ -6665,7 +6671,13 @@ function rstCalcFDP(flights){
   var lastSta  = last.sta  || last.sta_actual;
   if(!firstStd||!lastSta||firstStd.indexOf(':')<0||lastSta.indexOf(':')<0) return null;
   var toMin = function(s){ return parseInt(s.split(':')[0])*60+parseInt(s.split(':')[1]); };
-  var reportMin = toMin(firstStd)-55; if(reportMin<0) reportMin+=1440;
+  // Use checkin from PDF if available (e.g. ORY = H-60), otherwise default H-55
+  var reportMin;
+  if(first.checkin && first.checkin.indexOf(':')>-1){
+    reportMin = toMin(first.checkin); if(reportMin<0) reportMin+=1440;
+  } else {
+    reportMin = toMin(firstStd)-55; if(reportMin<0) reportMin+=1440;
+  }
   var staMin = toMin(lastSta); if(staMin<reportMin) staMin+=1440;
   var fdpMin = staMin-reportMin;
   var dpMin  = fdpMin+20;
@@ -6917,11 +6929,17 @@ window.rosterSelectDay = function(dateStr){
   // Add report time badge if there are flights
   var reportBadgeEl = document.getElementById('rst-detail-report');
   if(reportBadgeEl){
-    var flightsForReport = dayEntries.filter(function(e){ return e.type==='flight' && e.std && e.std.indexOf(':')>-1; });
+    var flightsForReport = dayEntries.filter(function(e){ return e.type==='flight' && (e.std||e.std_actual) && (e.std||e.std_actual).indexOf(':')>-1; });
     if(flightsForReport.length){
-      flightsForReport.sort(function(a,b){ return t2m(a.std)-t2m(b.std); });
-      var firstStd = flightsForReport[0].std;
-      var reportMin = t2m(firstStd) - 55;
+      flightsForReport.sort(function(a,b){ return t2m(a.std||a.std_actual)-t2m(b.std||b.std_actual); });
+      var firstFl = flightsForReport[0];
+      var firstStd = firstFl.std || firstFl.std_actual;
+      var reportMin;
+      if(firstFl.checkin && firstFl.checkin.indexOf(':')>-1){
+        reportMin = t2m(firstFl.checkin);
+      } else {
+        reportMin = t2m(firstStd) - 55;
+      }
       if(reportMin < 0) reportMin += 1440;
       var reportStr = String(Math.floor(reportMin/60)).padStart(2,'0') + ':' + String(reportMin%60).padStart(2,'0');
       var tzLabel = RST.useLT ? 'LT' : 'UTC';
@@ -6929,7 +6947,7 @@ window.rosterSelectDay = function(dateStr){
       reportBadgeEl.innerHTML = '<span style="font-size:10px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:.5px">Report</span>'
         + '<span style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace;margin-left:8px">'+reportStr+'</span>'
         + '<span style="font-size:10px;color:#64748B;margin-left:4px">'+tzLabel+'</span>'
-        + '<span style="font-size:10px;color:#94A3B8;margin-left:6px">STD − 55min</span>';
+        + '<span style="font-size:10px;color:#94A3B8;margin-left:6px">'+(firstFl.checkin ? 'del PDF' : 'STD − 55min')+'</span>';
       reportBadgeEl.style.display = 'flex';
     } else {
       reportBadgeEl.style.display = 'none';
