@@ -7227,16 +7227,30 @@ function rstCheckMonthBanner(){
   var now = new Date();
   var isCurrentMonth = (RST.viewYear === now.getFullYear() && RST.viewMonth === now.getMonth());
   var banner   = document.getElementById('rst-month-banner');
-  var todayBtn = document.getElementById('rst-today-btn');
+  var label    = document.getElementById('rst-month-label');
   var months   = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   if(!isCurrentMonth){
+    // Viewing another month — gray out label, show reference
+    if(label){
+      label.style.color = '#94A3B8';
+      label.style.fontWeight = '600';
+    }
     var txt = document.getElementById('rst-month-banner-text');
     if(txt) txt.textContent = 'Viendo ' + months[RST.viewMonth] + ' ' + RST.viewYear + ' — No es el mes actual';
-    if(banner)   banner.style.display   = 'flex';
-    if(todayBtn) todayBtn.style.display = 'inline-block';
+    if(banner) banner.style.display = 'flex';
+    var todayRef = document.getElementById('rst-today-ref');
+    var todayRefM = document.getElementById('rst-today-ref-month');
+    if(todayRef) todayRef.style.display = 'block';
+    if(todayRefM) todayRefM.textContent = months[now.getMonth()] + ' ' + now.getFullYear();
   } else {
-    if(banner)   banner.style.display   = 'none';
-    if(todayBtn) todayBtn.style.display = 'none';
+    // Current month — brand blue, strong
+    if(label){
+      label.style.color = '#0369A1';
+      label.style.fontWeight = '800';
+    }
+    if(banner) banner.style.display = 'none';
+    var todayRef2 = document.getElementById('rst-today-ref');
+    if(todayRef2) todayRef2.style.display = 'none';
   }
 }
 
@@ -7916,6 +7930,10 @@ async function rosterRunPDF(pdfBase64){
         if(parsed.pdf_duty_min)  localStorage.setItem('pilotOS_pdf_duty_'+newMonth,  parsed.pdf_duty_min);
       } catch(e){}
     }
+    // Store import timestamp
+    if(newMonth){
+      try { localStorage.setItem('pilotOS_import_ts_'+newMonth, new Date().toISOString()); } catch(e){}
+    }
 
     if(newMonth){ var p=newMonth.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1; }
     try { rosterShowCalendar(); } catch(e){ console.warn(e); }
@@ -8259,12 +8277,21 @@ window.rstDismissWarning = function(dateStr, wi){
 function rosterShowCalendar(){
   var zone = document.getElementById('rst-upload-zone');
   if(zone){
+    var _vMonth = (RST.viewYear||new Date().getFullYear())+'-'+String((RST.viewMonth!=null?RST.viewMonth:new Date().getMonth())+1).padStart(2,'0');
+    var _ts = '';
+    try {
+      var _raw = localStorage.getItem('pilotOS_import_ts_'+_vMonth);
+      if(_raw){
+        var _d = new Date(_raw);
+        _ts = ' · '+_d.toLocaleDateString('es-ES',{day:'2-digit',month:'short'})+' '+_d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+      }
+    } catch(e){}
     zone.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">'
       + '<div style="display:flex;align-items:center;gap:8px">'
       + '<span style="font-size:16px">🗓</span>'
       + '<div>'
       + '<div style="font-size:12px;font-weight:700;color:#0369A1">Roster importado</div>'
-      + '<div style="font-size:11px;color:#475569">¿Cambios? Sube la nueva versión</div>'
+      + '<div style="font-size:11px;color:#94A3B8">Importado'+_ts+'</div>'
       + '</div>'
       + '</div>'
       + '<div style="display:flex;gap:8px;align-items:center">'
@@ -9085,7 +9112,7 @@ function pagSignOut() {
         <button onclick="rosterNavMonth(-1)" style="width:34px;height:34px;flex-shrink:0;border-radius:50%;background:#FFFFFF;border:1px solid rgba(30,58,164,.15);color:#0369A1;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(30,58,164,.08)">‹</button>
         <div style="display:flex;align-items:center;gap:8px">
           <div id="rst-month-label" style="font-size:15px;font-weight:700;color:#0F172A;letter-spacing:.3px"></div>
-          <button id="rst-today-btn" onclick="rstGoToday()" style="display:none;padding:3px 10px;background:linear-gradient(135deg,#0891B2,#0369A1);border:none;border-radius:20px;color:#fff;font-size:10px;font-weight:800;cursor:pointer;font-family:'Space Grotesk',sans-serif;letter-spacing:.4px;box-shadow:0 2px 6px rgba(8,145,178,.35)">HOY</button>
+          <div id="rst-today-ref" style="display:none;font-size:10px;color:#0891B2;font-weight:700;letter-spacing:.2px">Hoy: <span id="rst-today-ref-month"></span></div>
         </div>
         <button onclick="rosterNavMonth(1)" style="width:34px;height:34px;flex-shrink:0;border-radius:50%;background:#FFFFFF;border:1px solid rgba(30,58,164,.15);color:#0369A1;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(30,58,164,.08)">›</button>
       </div>
