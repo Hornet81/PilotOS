@@ -326,7 +326,6 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .modal-box{background:#FFFFFF;border:1px solid rgba(109,40,217,.2);border-radius:28px;padding:28px 24px;max-width:420px;width:100%;animation:slideUp .35s cubic-bezier(.2,.8,.3,1);box-shadow:0 20px 60px rgba(30,58,164,.15)}
 @keyframes slideUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
 @keyframes spin{to{transform:rotate(360deg)}}
-.rst-day-selected{outline:3px solid #0891B2 !important;outline-offset:1px;background:linear-gradient(135deg,#EFF6FF,#F0F9FF) !important;box-shadow:0 0 0 4px rgba(8,145,178,.12),0 4px 16px rgba(8,145,178,.25) !important;}
 @keyframes aiOrbit{0%{transform:rotate(0deg) translateX(22px) rotate(0deg)}100%{transform:rotate(360deg) translateX(22px) rotate(-360deg)}}
 @keyframes aiOrbit2{0%{transform:rotate(180deg) translateX(22px) rotate(-180deg)}100%{transform:rotate(540deg) translateX(22px) rotate(-540deg)}}
 @keyframes aiPulseRing{0%,100%{transform:translate(-50%,-50%) scale(1);opacity:.5}50%{transform:translate(-50%,-50%) scale(1.25);opacity:0}}
@@ -6420,7 +6419,7 @@ function rstRenderCalendar(){
     var checkBadge = inLogbook && dayEntries.length > 0 ? '<div style="position:absolute;top:2px;right:3px;font-size:7px;color:#15803D;font-weight:700;z-index:2">✓</div>' : '';
     // Warning badge — shown when any entry for this day has warnings
     var dayHasWarnings = dayEntries.some(function(e){ return e.warnings && e.warnings.length > 0; });
-    var warnBadge = dayHasWarnings ? '<div style="position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#F59E0B,#EF4444);border:2.5px solid #FFFFFF;display:flex;align-items:center;justify-content:center;font-size:11px;z-index:3;box-shadow:0 2px 8px rgba(245,158,11,.5)">&#x26A0;&#xFE0F;</div>' : '';
+    var warnBadge = dayHasWarnings ? '<div style="position:absolute;top:-5px;left:-5px;width:16px;height:16px;border-radius:50%;background:#F59E0B;border:2px solid #FFFFFF;display:flex;align-items:center;justify-content:center;font-size:8px;z-index:3;box-shadow:0 1px 4px rgba(245,158,11,.4)">⚠</div>' : '';
 
     // Build stacked bars — one per activity type (max 4 visible)
     var barsHTML = '';
@@ -6468,7 +6467,7 @@ function rstRenderCalendar(){
     }
 
     cells += '<td style="padding:1px;height:60px;vertical-align:top">'
-      + '<div data-date="'+dateStr+'" onclick="rosterSelectDay(\''+dateStr+'\');rosterCellPop(this,\''+glowCol+'\')" '
+      + '<div onclick="rosterSelectDay(\''+dateStr+'\');rosterCellPop(this,\''+glowCol+'\')" '
       + 'style="position:relative;width:100%;height:58px;background:#FFFFFF;border:1.5px solid '+(isToday?'#0891B2':(dayHasWarnings?'#F59E0B':(hasEntry?border:'rgba(30,58,164,.08)')))+';border-radius:8px;cursor:pointer;transition:box-shadow .15s,transform .12s;overflow:visible">'
       + warnBadge
       + checkBadge
@@ -6904,9 +6903,6 @@ function rstRenderFlights(){
 }
 // ── Select day ──
 window.rosterSelectDay = function(dateStr){
-  document.querySelectorAll('[data-date]').forEach(function(el){ el.classList.remove('rst-day-selected'); });
-  var _sc = document.querySelector('[data-date="' + dateStr + '"]');
-  if(_sc) _sc.classList.add('rst-day-selected');
   var dayEntries = entriesForDate(dateStr);
   var detail = document.getElementById('rst-day-detail');
   var dateEl = document.getElementById('rst-detail-date');
@@ -6975,28 +6971,10 @@ window.rosterSelectDay = function(dateStr){
         var sc=diff3<45?'#B45309':'#0369A1';
         var sbg=diff3<45?'#FFFBEB':'#EFF6FF';
         var sbd=diff3<45?'rgba(245,158,11,.3)':'rgba(8,145,178,.2)';
-        var pc3 = prevE.acTypeCode||prevE.acType, cc3 = e.acTypeCode||e.acType;
-        var sw3 = pc3 && cc3 && pc3 !== cc3;
-        if(sw3){
-          html+='<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:3px 0">'
-            +'<div style="flex:1;height:1px;background:linear-gradient(to right,rgba(30,58,164,.05),rgba(245,158,11,.25))"></div>'
-            +'<div style="display:flex;align-items:center;border-radius:22px;overflow:hidden;box-shadow:0 2px 10px rgba(245,158,11,.2)">'
-            +'<div style="padding:6px 13px;background:'+sbg+';border:1.5px solid '+sbd+';border-right:none;border-radius:22px 0 0 22px;font-size:11px;font-weight:700;color:'+sc+';white-space:nowrap">&#x1F17F;&#xFE0F; '+stopovertxt+'</div>'
-            +'<div style="width:1px;height:30px;background:rgba(245,158,11,.3)"></div>'
-            +'<div style="padding:5px 12px;background:linear-gradient(135deg,#FEF3C7,#FFFBEB);border:1.5px solid rgba(245,158,11,.4);border-left:none;border-radius:0 22px 22px 0;display:flex;align-items:center;gap:5px">'
-            +'<span>&#x26A1;</span>'
-            +'<div style="line-height:1.3">'
-            +'<div style="font-size:8px;font-weight:800;color:#92400E;letter-spacing:.5px">A/C SWAP</div>'
-            +'<div style="font-size:10px;color:#B45309;font-weight:700">'+(prevE.acType||pc3)+' &#x2192; '+(e.acType||cc3)+'</div>'
-            +'</div></div></div>'
-            +'<div style="flex:1;height:1px;background:linear-gradient(to left,rgba(30,58,164,.05),rgba(245,158,11,.25))"></div>'
-          +'</div>';
-        } else {
-          html+='<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:2px 0">'
-            +'<div style="flex:1;height:1px;background:rgba(30,58,164,.1)"></div>'
-            +'<div style="padding:5px 12px;background:'+sbg+';border:1px solid '+sbd+';border-radius:20px;font-size:11px;font-weight:700;color:'+sc+';white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.05)">&#x1F17F;&#xFE0F; '+stopovertxt+'</div>'
-            +'<div style="flex:1;height:1px;background:rgba(30,58,164,.1)"></div></div>';
-        }
+        html+='<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:2px 0">'
+          +'<div style="flex:1;height:1px;background:rgba(30,58,164,.1)"></div>'
+          +'<div style="padding:4px 10px;background:'+sbg+';border:1px solid '+sbd+';border-radius:20px;font-size:11px;font-weight:700;color:'+sc+';font-family:\'Space Mono\',monospace;white-space:nowrap">🅿️ '+stopovertxt+'</div>'
+          +'<div style="flex:1;height:1px;background:rgba(30,58,164,.1)"></div></div>';
       }
         var stdOk=e.std&&String(e.std).indexOf(':')>-1;
       var staOk=e.sta&&String(e.sta).indexOf(':')>-1;
@@ -7016,7 +6994,7 @@ window.rosterSelectDay = function(dateStr){
       var dispStdAct = stdActOk ? rstFormatTime(e.std_actual) : '--:--';
       var dispStaAct = staActOk ? rstFormatTime(e.sta_actual) : '--:--';
       var timeLabel = RST.useLT ? ' LT' : ' UTC';
-      var isPos = e.positioning === true;
+      var isPos = e.dep && e.dep.charAt(0) === '*';
       html += '<div style="display:flex;align-items:stretch;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">'
         + '<div style="background:'+flightCfg.bg+';padding:12px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:58px;gap:2px">'
         + '<span style="font-size:24px;line-height:1;filter:brightness(0) invert(1)">✈</span>'
@@ -7034,19 +7012,11 @@ window.rosterSelectDay = function(dateStr){
         + (nextDay?' <span style="background:#0369A1;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:6px">+1</span>':'')
         + '</div>'
         + (hasActual ? '<div style="font-size:11px;color:#059669;font-family:\'Space Mono\',monospace">'
-            +'<span style="color:#059669;font-size:9px;font-weight:700;margin-right:4px">'+(e.sta_actual_src==='E'||e.std_actual_src==='E'?'E':'A')+'</span>'
+            +'<span style="color:#059669;font-size:9px;font-weight:700;margin-right:4px">A</span>'
             +dispStdAct+' – '+dispStaAct+timeLabel
             +(nextDay&&!stdOk&&!staOk?' <span style="background:#0369A1;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:6px">+1</span>':'')
             +'</div>' : '')
         + '</div>'
-        + (function(){
-            var d2=e.std_actual||e.std, a2=e.sta_actual||e.sta, bStr='';
-            if(d2&&a2){ var bm2=t2m(a2)-t2m(d2); if(bm2<0)bm2+=1440; bStr=Math.floor(bm2/60)+'h'+String(bm2%60).padStart(2,'0')+'m'; }
-            return '<div style="background:#F1F5F9;border-top:1px solid rgba(30,58,164,.08);border-right:1px solid rgba(30,58,164,.08);border-bottom:1px solid rgba(30,58,164,.08);padding:8px 10px;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:5px;min-width:58px">'
-              +(e.acType?'<span style="font-size:9px;font-weight:800;color:#64748B;letter-spacing:.4px;font-family:\'Space Mono\',monospace">'+e.acType+'</span>':'<span style="font-size:9px;color:#CBD5E1">—</span>')
-              +(bStr?'<span style="font-size:13px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace;line-height:1">'+bStr+'</span>':'<span style="font-size:10px;color:#CBD5E1">—</span>')
-              +'</div>';
-          })()
         + '</div>';
     });
 
@@ -7234,10 +7204,41 @@ window.rosterNavMonth = function(dir){
   RST.viewMonth += dir;
   if(RST.viewMonth > 11){ RST.viewMonth=0; RST.viewYear++; }
   if(RST.viewMonth < 0){ RST.viewMonth=11; RST.viewYear--; }
-  rstRenderCalendar();
-  rstRenderStats();
-  document.getElementById('rst-day-detail').style.display='none';
+  rstRenderCalendar(); rstRenderStats();
+  rstCheckMonthBanner();
+  rstCheckMonthBanner();
 };
+
+window.rstGoToday = function(){
+  var now = new Date();
+  RST.viewYear  = now.getFullYear();
+  RST.viewMonth = now.getMonth();
+  rstRenderCalendar(); rstRenderStats();
+  rstCheckMonthBanner();
+  // Select today
+  var todayStr = now.toISOString().slice(0,10);
+  setTimeout(function(){
+    var cell = document.querySelector('[data-date="'+todayStr+'"]');
+    if(cell) cell.click();
+  }, 50);
+};
+
+function rstCheckMonthBanner(){
+  var now = new Date();
+  var isCurrentMonth = (RST.viewYear === now.getFullYear() && RST.viewMonth === now.getMonth());
+  var banner   = document.getElementById('rst-month-banner');
+  var todayBtn = document.getElementById('rst-today-btn');
+  var months   = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  if(!isCurrentMonth){
+    var txt = document.getElementById('rst-month-banner-text');
+    if(txt) txt.textContent = 'Viendo ' + months[RST.viewMonth] + ' ' + RST.viewYear + ' — No es el mes actual';
+    if(banner)   banner.style.display   = 'flex';
+    if(todayBtn) todayBtn.style.display = 'inline-block';
+  } else {
+    if(banner)   banner.style.display   = 'none';
+    if(todayBtn) todayBtn.style.display = 'none';
+  }
+}
 
 // ── Add for date ──
 window.rosterAddForDate = function(dateStr){
@@ -7917,25 +7918,11 @@ async function rosterRunPDF(pdfBase64){
     }
 
     if(newMonth){ var p=newMonth.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1; }
-    try { rosterShowCalendar(); } catch(e){ console.warn('rosterShowCalendar:',e); }
-    var _rz = document.getElementById('rst-upload-zone'); if(_rz) _rz.style.display='';
-    try { rstRenderCalendar(); } catch(e){ console.warn('rstRenderCalendar:',e); }
-    try { rstRenderStats();    } catch(e){ console.warn('rstRenderStats:',e); }
-    try { rstRenderFlights();  } catch(e){ console.warn('rstRenderFlights:',e); }
-    try { if(typeof ldUpdateRosterBtn==='function') ldUpdateRosterBtn(); } catch(e){}
-    try { rstUpdateWarningsBanner(); } catch(e){ console.warn('rstUpdateWarningsBanner:',e); }
-    var nF = parsed.entries.filter(function(e){ return e.type==='flight'; }).length;
-    var nW = (parsed.import_summary && parsed.import_summary.flagged_for_review) || 0;
-    var msg = '✅ PDF importado · '+nF+' vuelos';
-    if(nW===0) msg+=' · 0 avisos ✨'; else msg+=' · '+nW+' aviso'+(nW===1?'':'s')+' pendientes';
-    if(typeof showToast==='function') showToast(msg);
 
   } catch(err){
-    console.error('rosterRunPDF error:', err);
+    if(proc) proc.style.display='none';
+    if(zone) zone.style.display='';
     if(typeof showToast==='function') showToast('❌ Error PDF: '+err.message);
-  } finally {
-    var _fp = document.getElementById('rst-ai-proc'); if(_fp) _fp.style.display='none';
-    var _fz = document.getElementById('rst-upload-zone'); if(_fz && !RST.entries.length) _fz.style.display='';
   }
 }
 
@@ -7976,23 +7963,18 @@ async function rosterRunAIText(textContent){
     rstSave();
 
     if(newMonth){ var p=newMonth.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1; }
-    try { rosterShowCalendar(); } catch(e){ console.warn('rosterShowCalendar:',e); }
-    var _rz2 = document.getElementById('rst-upload-zone'); if(_rz2) _rz2.style.display='';
-    try { rstRenderCalendar(); } catch(e){ console.warn(e); }
-    try { rstRenderStats();    } catch(e){ console.warn(e); }
-    try { rstRenderFlights();  } catch(e){ console.warn(e); }
-    try { if(typeof ldUpdateRosterBtn==='function') ldUpdateRosterBtn(); } catch(e){}
-    try { rstUpdateWarningsBanner(); } catch(e){ console.warn(e); }
+    if(proc) proc.style.display='none';
+    rosterShowCalendar(); rstRenderCalendar(); rstRenderStats(); rstRenderFlights();
+    if(typeof ldUpdateRosterBtn==='function') ldUpdateRosterBtn();
+    rstUpdateWarningsBanner();
 
     var nFlights = parsed.entries.filter(function(e){ return e.type==='flight'; }).length;
     if(typeof showToast==='function') showToast('✅ Roster importado · '+nFlights+' vuelos detectados');
 
   } catch(err){
-    console.error('rosterRunAIText error:', err);
+    if(proc) proc.style.display='none';
+    if(zone) zone.style.display='';
     if(typeof showToast==='function') showToast('❌ Error IA: '+err.message);
-  } finally {
-    var _ap = document.getElementById('rst-ai-proc'); if(_ap) _ap.style.display='none';
-    var _az = document.getElementById('rst-upload-zone'); if(_az && !RST.entries.length) _az.style.display='';
   }
 }
 
@@ -8139,11 +8121,9 @@ async function rosterRunAI(dataUrl, mimeType){
     if(typeof showToast==='function') showToast('✅ Roster importado · '+nFlights+' vuelos detectados');
 
   } catch(err){
-    console.error('rosterRunAI error:', err);
+    if(proc) proc.style.display='none';
+    if(zone) zone.style.display='';
     if(typeof showToast==='function') showToast('❌ Error IA: '+err.message);
-  } finally {
-    var _ap = document.getElementById('rst-ai-proc'); if(_ap) _ap.style.display='none';
-    var _az = document.getElementById('rst-upload-zone'); if(_az && !RST.entries.length) _az.style.display='';
   }
 }
 
@@ -8462,6 +8442,20 @@ var _origGoTo = window.goTo;
 window.goTo = function(key){
   _origGoTo(key);
   if(key==='logbook') setTimeout(ldUpdateRosterBtn, 100);
+  if(key==='roster'){
+    // Always return to current month for safety
+    var now = new Date();
+    RST.viewYear  = now.getFullYear();
+    RST.viewMonth = now.getMonth();
+    setTimeout(function(){
+      try { rstRenderCalendar(); rstRenderStats(); } catch(e){}
+      // Auto-select today if there are entries
+      var todayStr = now.toISOString().slice(0,10);
+      var todayCell = document.querySelector('[data-date="'+todayStr+'"]');
+      if(todayCell) { todayCell.click(); }
+      rstCheckMonthBanner();
+    }, 80);
+  }
 };
 
 // ════════════════════════════════════════════════
@@ -9068,21 +9062,28 @@ function pagSignOut() {
         </button>
       </div>
 
-      <!-- Month nav -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <button onclick="rosterNavMonth(-1)" style="width:34px;height:34px;border-radius:50%;background:#FFFFFF;border:1px solid rgba(30,58,164,.15);color:#0369A1;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(30,58,164,.08)">‹</button>
-        <div id="rst-month-label" style="font-size:15px;font-weight:700;color:#0F172A;letter-spacing:.3px"></div>
-        <button onclick="rosterNavMonth(1)" style="width:34px;height:34px;border-radius:50%;background:#FFFFFF;border:1px solid rgba(30,58,164,.15);color:#0369A1;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(30,58,164,.08)">›</button>
+            <!-- Month nav -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:6px">
+        <button onclick="rosterNavMonth(-1)" style="width:34px;height:34px;flex-shrink:0;border-radius:50%;background:#FFFFFF;border:1px solid rgba(30,58,164,.15);color:#0369A1;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(30,58,164,.08)">‹</button>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div id="rst-month-label" style="font-size:15px;font-weight:700;color:#0F172A;letter-spacing:.3px"></div>
+          <button id="rst-today-btn" onclick="rstGoToday()" style="display:none;padding:3px 10px;background:linear-gradient(135deg,#0891B2,#0369A1);border:none;border-radius:20px;color:#fff;font-size:10px;font-weight:800;cursor:pointer;font-family:'Space Grotesk',sans-serif;letter-spacing:.4px;box-shadow:0 2px 6px rgba(8,145,178,.35)">HOY</button>
+        </div>
+        <button onclick="rosterNavMonth(1)" style="width:34px;height:34px;flex-shrink:0;border-radius:50%;background:#FFFFFF;border:1px solid rgba(30,58,164,.15);color:#0369A1;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(30,58,164,.08)">›</button>
       </div>
-
-      <!-- Roster warnings banner -->
-      <div id="rst-warnings-banner" style="display:none;background:#FFFBEB;border:1px solid rgba(245,158,11,.35);border-radius:14px;padding:12px 14px;margin-bottom:12px;display:none;align-items:center;gap:10px">
-        <span style="font-size:18px;flex-shrink:0">⚠️</span>
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:700;color:#92400E" id="rst-warnings-count">Avisos pendientes</div>
           <div style="font-size:11px;color:#B45309;margin-top:1px">Pulsa el icono ⚠ en cualquier día para revisar y corregir</div>
         </div>
         <button onclick="document.getElementById('rst-warnings-banner').style.display='none'" style="background:none;border:none;color:#B45309;cursor:pointer;font-size:16px;padding:0 2px;flex-shrink:0">✕</button>
+      </div>
+
+      <!-- Wrong month banner -->
+      <div id="rst-month-banner" style="display:none;background:linear-gradient(135deg,#FEF3C7,#FFF7ED);border:1.5px solid rgba(245,158,11,.5);border-radius:14px;padding:11px 14px;margin-bottom:10px;align-items:center;gap:10px">
+        <span style="font-size:20px;flex-shrink:0">📅</span>
+        <div style="flex:1">
+          <div id="rst-month-banner-text" style="font-size:13px;font-weight:800;color:#92400E"></div>
+          <div style="font-size:11px;color:#B45309;margin-top:1px">Pulsa HOY para volver al mes actual</div>
+        </div>
+        <button onclick="rstGoToday()" style="padding:6px 14px;background:linear-gradient(135deg,#F59E0B,#EF4444);border:none;border-radius:10px;color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:'Space Grotesk',sans-serif;white-space:nowrap;box-shadow:0 2px 8px rgba(245,158,11,.4)">HOY</button>
       </div>
 
       <!-- Calendar grid -->
