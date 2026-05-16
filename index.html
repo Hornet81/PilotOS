@@ -7016,7 +7016,7 @@ window.rosterSelectDay = function(dateStr){
       var dispStdAct = stdActOk ? rstFormatTime(e.std_actual) : '--:--';
       var dispStaAct = staActOk ? rstFormatTime(e.sta_actual) : '--:--';
       var timeLabel = RST.useLT ? ' LT' : ' UTC';
-      var isPos = e.dep && e.dep.charAt(0) === '*';
+      var isPos = e.positioning === true;
       html += '<div style="display:flex;align-items:stretch;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">'
         + '<div style="background:'+flightCfg.bg+';padding:12px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:58px;gap:2px">'
         + '<span style="font-size:24px;line-height:1;filter:brightness(0) invert(1)">✈</span>'
@@ -7034,11 +7034,19 @@ window.rosterSelectDay = function(dateStr){
         + (nextDay?' <span style="background:#0369A1;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:6px">+1</span>':'')
         + '</div>'
         + (hasActual ? '<div style="font-size:11px;color:#059669;font-family:\'Space Mono\',monospace">'
-            +'<span style="color:#059669;font-size:9px;font-weight:700;margin-right:4px">A</span>'
+            +'<span style="color:#059669;font-size:9px;font-weight:700;margin-right:4px">'+(e.sta_actual_src==='E'||e.std_actual_src==='E'?'E':'A')+'</span>'
             +dispStdAct+' – '+dispStaAct+timeLabel
             +(nextDay&&!stdOk&&!staOk?' <span style="background:#0369A1;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:6px">+1</span>':'')
             +'</div>' : '')
         + '</div>'
+        + (function(){
+            var d2=e.std_actual||e.std, a2=e.sta_actual||e.sta, bStr='';
+            if(d2&&a2){ var bm2=t2m(a2)-t2m(d2); if(bm2<0)bm2+=1440; bStr=Math.floor(bm2/60)+'h'+String(bm2%60).padStart(2,'0')+'m'; }
+            return '<div style="background:#F1F5F9;border-top:1px solid rgba(30,58,164,.08);border-right:1px solid rgba(30,58,164,.08);border-bottom:1px solid rgba(30,58,164,.08);padding:8px 10px;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:5px;min-width:58px">'
+              +(e.acType?'<span style="font-size:9px;font-weight:800;color:#64748B;letter-spacing:.4px;font-family:\'Space Mono\',monospace">'+e.acType+'</span>':'<span style="font-size:9px;color:#CBD5E1">—</span>')
+              +(bStr?'<span style="font-size:13px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace;line-height:1">'+bStr+'</span>':'<span style="font-size:10px;color:#CBD5E1">—</span>')
+              +'</div>';
+          })()
         + '</div>';
     });
 
@@ -7909,11 +7917,25 @@ async function rosterRunPDF(pdfBase64){
     }
 
     if(newMonth){ var p=newMonth.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1; }
+    try { rosterShowCalendar(); } catch(e){ console.warn('rosterShowCalendar:',e); }
+    var _rz = document.getElementById('rst-upload-zone'); if(_rz) _rz.style.display='';
+    try { rstRenderCalendar(); } catch(e){ console.warn('rstRenderCalendar:',e); }
+    try { rstRenderStats();    } catch(e){ console.warn('rstRenderStats:',e); }
+    try { rstRenderFlights();  } catch(e){ console.warn('rstRenderFlights:',e); }
+    try { if(typeof ldUpdateRosterBtn==='function') ldUpdateRosterBtn(); } catch(e){}
+    try { rstUpdateWarningsBanner(); } catch(e){ console.warn('rstUpdateWarningsBanner:',e); }
+    var nF = parsed.entries.filter(function(e){ return e.type==='flight'; }).length;
+    var nW = (parsed.import_summary && parsed.import_summary.flagged_for_review) || 0;
+    var msg = '✅ PDF importado · '+nF+' vuelos';
+    if(nW===0) msg+=' · 0 avisos ✨'; else msg+=' · '+nW+' aviso'+(nW===1?'':'s')+' pendientes';
+    if(typeof showToast==='function') showToast(msg);
 
   } catch(err){
-    if(proc) proc.style.display='none';
-    if(zone) zone.style.display='';
+    console.error('rosterRunPDF error:', err);
     if(typeof showToast==='function') showToast('❌ Error PDF: '+err.message);
+  } finally {
+    var _fp = document.getElementById('rst-ai-proc'); if(_fp) _fp.style.display='none';
+    var _fz = document.getElementById('rst-upload-zone'); if(_fz && !RST.entries.length) _fz.style.display='';
   }
 }
 
@@ -7954,18 +7976,23 @@ async function rosterRunAIText(textContent){
     rstSave();
 
     if(newMonth){ var p=newMonth.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1; }
-    if(proc) proc.style.display='none';
-    rosterShowCalendar(); rstRenderCalendar(); rstRenderStats(); rstRenderFlights();
-    if(typeof ldUpdateRosterBtn==='function') ldUpdateRosterBtn();
-    rstUpdateWarningsBanner();
+    try { rosterShowCalendar(); } catch(e){ console.warn('rosterShowCalendar:',e); }
+    var _rz2 = document.getElementById('rst-upload-zone'); if(_rz2) _rz2.style.display='';
+    try { rstRenderCalendar(); } catch(e){ console.warn(e); }
+    try { rstRenderStats();    } catch(e){ console.warn(e); }
+    try { rstRenderFlights();  } catch(e){ console.warn(e); }
+    try { if(typeof ldUpdateRosterBtn==='function') ldUpdateRosterBtn(); } catch(e){}
+    try { rstUpdateWarningsBanner(); } catch(e){ console.warn(e); }
 
     var nFlights = parsed.entries.filter(function(e){ return e.type==='flight'; }).length;
     if(typeof showToast==='function') showToast('✅ Roster importado · '+nFlights+' vuelos detectados');
 
   } catch(err){
-    if(proc) proc.style.display='none';
-    if(zone) zone.style.display='';
+    console.error('rosterRunAIText error:', err);
     if(typeof showToast==='function') showToast('❌ Error IA: '+err.message);
+  } finally {
+    var _ap = document.getElementById('rst-ai-proc'); if(_ap) _ap.style.display='none';
+    var _az = document.getElementById('rst-upload-zone'); if(_az && !RST.entries.length) _az.style.display='';
   }
 }
 
@@ -8112,9 +8139,11 @@ async function rosterRunAI(dataUrl, mimeType){
     if(typeof showToast==='function') showToast('✅ Roster importado · '+nFlights+' vuelos detectados');
 
   } catch(err){
-    if(proc) proc.style.display='none';
-    if(zone) zone.style.display='';
+    console.error('rosterRunAI error:', err);
     if(typeof showToast==='function') showToast('❌ Error IA: '+err.message);
+  } finally {
+    var _ap = document.getElementById('rst-ai-proc'); if(_ap) _ap.style.display='none';
+    var _az = document.getElementById('rst-upload-zone'); if(_az && !RST.entries.length) _az.style.display='';
   }
 }
 
