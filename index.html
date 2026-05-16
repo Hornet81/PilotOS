@@ -6429,16 +6429,10 @@ function rstRenderCalendar(){
       var nonFlights = dayEntries.filter(function(e){ return e.type!=='flight'; });
       if(flights.length){
         var fc = TC['flight'];
-        var firstFlight = flights[0];
-        var firstStd = firstFlight.std || firstFlight.std_actual;
+        var firstStd = flights[0].std;
         var timeStr;
         if(firstStd && firstStd.indexOf(':') > -1){
-          var repM;
-          if(firstFlight.checkin && firstFlight.checkin.indexOf(':')>-1){
-            repM = parseInt(firstFlight.checkin.split(':')[0])*60 + parseInt(firstFlight.checkin.split(':')[1]);
-          } else {
-            repM = parseInt(firstStd.split(':')[0])*60 + parseInt(firstStd.split(':')[1]) - 55;
-          }
+          var repM = parseInt(firstStd.split(':')[0])*60 + parseInt(firstStd.split(':')[1]) - 55;
           if(repM < 0) repM += 1440;
           var repStr = String(Math.floor(repM/60)).padStart(2,'0') + ':' + String(repM%60).padStart(2,'0');
           timeStr = '✈ ' + repStr;
@@ -6671,13 +6665,7 @@ function rstCalcFDP(flights){
   var lastSta  = last.sta  || last.sta_actual;
   if(!firstStd||!lastSta||firstStd.indexOf(':')<0||lastSta.indexOf(':')<0) return null;
   var toMin = function(s){ return parseInt(s.split(':')[0])*60+parseInt(s.split(':')[1]); };
-  // Use checkin from PDF if available (e.g. ORY = H-60), otherwise default H-55
-  var reportMin;
-  if(first.checkin && first.checkin.indexOf(':')>-1){
-    reportMin = toMin(first.checkin); if(reportMin<0) reportMin+=1440;
-  } else {
-    reportMin = toMin(firstStd)-55; if(reportMin<0) reportMin+=1440;
-  }
+  var reportMin = toMin(firstStd)-55; if(reportMin<0) reportMin+=1440;
   var staMin = toMin(lastSta); if(staMin<reportMin) staMin+=1440;
   var fdpMin = staMin-reportMin;
   var dpMin  = fdpMin+20;
@@ -6929,17 +6917,11 @@ window.rosterSelectDay = function(dateStr){
   // Add report time badge if there are flights
   var reportBadgeEl = document.getElementById('rst-detail-report');
   if(reportBadgeEl){
-    var flightsForReport = dayEntries.filter(function(e){ return e.type==='flight' && (e.std||e.std_actual) && (e.std||e.std_actual).indexOf(':')>-1; });
+    var flightsForReport = dayEntries.filter(function(e){ return e.type==='flight' && e.std && e.std.indexOf(':')>-1; });
     if(flightsForReport.length){
-      flightsForReport.sort(function(a,b){ return t2m(a.std||a.std_actual)-t2m(b.std||b.std_actual); });
-      var firstFl = flightsForReport[0];
-      var firstStd = firstFl.std || firstFl.std_actual;
-      var reportMin;
-      if(firstFl.checkin && firstFl.checkin.indexOf(':')>-1){
-        reportMin = t2m(firstFl.checkin);
-      } else {
-        reportMin = t2m(firstStd) - 55;
-      }
+      flightsForReport.sort(function(a,b){ return t2m(a.std)-t2m(b.std); });
+      var firstStd = flightsForReport[0].std;
+      var reportMin = t2m(firstStd) - 55;
       if(reportMin < 0) reportMin += 1440;
       var reportStr = String(Math.floor(reportMin/60)).padStart(2,'0') + ':' + String(reportMin%60).padStart(2,'0');
       var tzLabel = RST.useLT ? 'LT' : 'UTC';
@@ -6947,7 +6929,7 @@ window.rosterSelectDay = function(dateStr){
       reportBadgeEl.innerHTML = '<span style="font-size:10px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:.5px">Report</span>'
         + '<span style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace;margin-left:8px">'+reportStr+'</span>'
         + '<span style="font-size:10px;color:#64748B;margin-left:4px">'+tzLabel+'</span>'
-        + '<span style="font-size:10px;color:#94A3B8;margin-left:6px">'+(firstFl.checkin ? 'del PDF' : 'STD − 55min')+'</span>';
+        + '<span style="font-size:10px;color:#94A3B8;margin-left:6px">STD − 55min</span>';
       reportBadgeEl.style.display = 'flex';
     } else {
       reportBadgeEl.style.display = 'none';
@@ -6972,6 +6954,15 @@ window.rosterSelectDay = function(dateStr){
     var flights    = dayEntries.filter(function(e){ return e.type==='flight'; });
     var nonFlights = dayEntries.filter(function(e){ return e.type!=='flight'; });
 
+    // ── Pre-calculate day duty for display ──
+    var dayDutyStr = '';
+    (function(){
+      var fl = flights.slice().sort(function(a,b){ return t2m(a.std||a.std_actual||'00:00')-t2m(b.std||b.std_actual||'00:00'); });
+      if(!fl.length) return;
+      var fs = fl[0].std_actual||fl[0].std, ls = fl[fl.length-1].sta_actual||fl[fl.length-1].sta;
+      if(fs&&ls){ var span=t2m(ls)-t2m(fs); if(span<0)span+=1440; span+=90; dayDutyStr=Math.floor(span/60)+'h'+String(span%60).padStart(2,'0')+'m'; }
+    })();
+
     // ── Render flights with legs + stopover ──
     flights.forEach(function(e, i){
       if(i > 0){
@@ -6991,14 +6982,26 @@ window.rosterSelectDay = function(dateStr){
         var sbd=diff3<45?'rgba(245,158,11,.3)':'rgba(8,145,178,.2)';
         html+='<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:2px 0">'
           +'<div style="flex:1;height:1px;background:rgba(30,58,164,.1)"></div>'
-          +'<div style="padding:4px 10px;background:'+sbg+';border:1px solid '+sbd+';border-radius:20px;font-size:11px;font-weight:700;color:'+sc+';font-family:\'Space Mono\',monospace;white-space:nowrap">🅿️ '+stopovertxt+'</div>'
+          +'<div style="padding:4px 10px;background:'+sbg+';border:1px solid '+sbd+';border-radius:20px;font-size:11px;font-weight:700;color:'+sc+';font-family:\'Space Mono\',monospace;white-space:nowrap">\u{1F17F}\uFE0F '+stopovertxt+'</div>'
           +'<div style="flex:1;height:1px;background:rgba(30,58,164,.1)"></div></div>';
+        // A/C CHANGE indicator
+        if(prevE.acType && e.acType && prevE.acType !== e.acType){
+          html+='<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:1px 0 3px">'
+            +'<div style="flex:1;height:1px;background:rgba(245,158,11,.2)"></div>'
+            +'<div style="padding:3px 10px;background:#FFFBEB;border:1px solid rgba(245,158,11,.4);border-radius:20px;font-size:10px;font-weight:800;color:#B45309;letter-spacing:.4px;white-space:nowrap">\u26A1 A/C CHANGE \u00B7 '+prevE.acType+' \u2192 '+e.acType+'</div>'
+            +'<div style="flex:1;height:1px;background:rgba(245,158,11,.2)"></div></div>';
+        }
       }
-        var stdOk=e.std&&String(e.std).indexOf(':')>-1;
+      // Block time for this leg
+      var legBlockStr = '';
+      (function(){
+        var d = e.std_actual||e.std, a = e.sta_actual||e.sta;
+        if(d&&a){ var bm=t2m(a)-t2m(d); if(bm<0)bm+=1440; legBlockStr=Math.floor(bm/60)+'h'+String(bm%60).padStart(2,'0')+'m'; }
+      })();
+      var stdOk=e.std&&String(e.std).indexOf(':')>-1;
       var staOk=e.sta&&String(e.sta).indexOf(':')>-1;
       var stdActOk=e.std_actual&&String(e.std_actual).indexOf(':')>-1;
       var staActOk=e.sta_actual&&String(e.sta_actual).indexOf(':')>-1;
-      // For nextDay flag use best available time
       var _stdRef = e.std || e.std_actual;
       var _staRef = e.sta || e.sta_actual;
       var stdM2=_stdRef&&String(_stdRef).indexOf(':')>-1?parseInt(_stdRef.split(':')[0])*60+parseInt(_stdRef.split(':')[1]):0;
@@ -7014,30 +7017,34 @@ window.rosterSelectDay = function(dateStr){
       var timeLabel = RST.useLT ? ' LT' : ' UTC';
       var isPos = e.positioning === true;
       html += '<div style="display:flex;align-items:stretch;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">'
-        + '<div style="background:'+flightCfg.bg+';padding:12px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:58px;gap:2px">'
-        + '<span style="font-size:24px;line-height:1;filter:brightness(0) invert(1)">✈</span>'
+        + '<div style="background:'+flightCfg.bg+';padding:12px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:46px;gap:2px">'
+        + '<span style="font-size:22px;line-height:1;filter:brightness(0) invert(1)">\u2708</span>'
         + (legNum ? '<span style="font-size:9px;font-weight:800;color:rgba(255,255,255,.85)">L'+legNum+'</span>' : '')
         + '</div>'
-        + '<div style="flex:1;background:#F8FAFF;border:1px solid rgba(30,58,164,.08);border-left:none;padding:10px 13px;display:flex;flex-direction:column;justify-content:center;gap:3px">'
+        + '<div style="flex:1;background:#F8FAFF;border-top:1px solid rgba(30,58,164,.08);border-bottom:1px solid rgba(30,58,164,.08);padding:10px 11px;display:flex;flex-direction:column;justify-content:center;gap:3px;min-width:0">'
         + '<div style="font-size:13px;font-weight:800;color:#0F172A">'
         + (e.flightNum||'—')
-        + (isPos ? ' <span style="font-size:10px;font-weight:700;background:#FEF3C7;color:#92400E;border:1px solid #FCD34D;border-radius:4px;padding:1px 5px">POSICIONAL</span>' : '')
+        + (isPos ? ' <span style="font-size:9px;font-weight:700;background:#FEF3C7;color:#92400E;border:1px solid #FCD34D;border-radius:4px;padding:1px 5px">POSICIONAL</span>' : '')
         + '</div>'
-        + (e.dep&&e.arr ? '<div style="font-size:12px;font-weight:700;color:#0369A1">'+(isPos?'*':'')+e.dep+' → '+e.arr+'</div>' : '')
-        + '<div style="font-size:11px;color:#475569;font-family:\'Space Mono\',monospace">'
-        + '<span style="color:#94A3B8;font-size:9px;font-weight:700;margin-right:4px">S</span>'
-        + dispStd+' – '+dispSta+timeLabel
-        + (nextDay?' <span style="background:#0369A1;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:6px">+1</span>':'')
+        + (e.dep&&e.arr ? '<div style="font-size:12px;font-weight:700;color:#0369A1">'+(isPos?'*':'')+e.dep+' \u2192 '+e.arr+'</div>' : '')
+        + '<div style="font-size:10px;color:#475569;font-family:\'Space Mono\',monospace">'
+        + '<span style="color:#94A3B8;font-size:8px;font-weight:700;margin-right:3px">S</span>'
+        + dispStd+' \u2013 '+dispSta+timeLabel
+        + (nextDay?' <span style="background:#0369A1;color:#fff;font-size:8px;font-weight:800;padding:1px 4px;border-radius:5px">+1</span>':'')
         + '</div>'
-        + (hasActual ? '<div style="font-size:11px;color:#059669;font-family:\'Space Mono\',monospace">'
-            +'<span style="color:#059669;font-size:9px;font-weight:700;margin-right:4px">'+(e.sta_actual_src==='E'||e.std_actual_src==='E'?'E':'A')+'</span>'
-            +dispStdAct+' – '+dispStaAct+timeLabel
-            +(nextDay&&!stdOk&&!staOk?' <span style="background:#0369A1;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:6px">+1</span>':'')
+        + (hasActual ? '<div style="font-size:10px;color:#059669;font-family:\'Space Mono\',monospace">'
+            +'<span style="color:#059669;font-size:8px;font-weight:700;margin-right:3px">'+(e.sta_actual_src==='E'||e.std_actual_src==='E'?'E':'A')+'</span>'
+            +dispStdAct+' \u2013 '+dispStaAct+timeLabel
+            +(nextDay&&!stdOk&&!staOk?' <span style="background:#0369A1;color:#fff;font-size:8px;font-weight:800;padding:1px 4px;border-radius:5px">+1</span>':'')
             +'</div>' : '')
+        + '</div>'
+        + '<div style="background:#F1F5F9;border-top:1px solid rgba(30,58,164,.08);border-right:1px solid rgba(30,58,164,.08);border-bottom:1px solid rgba(30,58,164,.08);padding:8px 10px;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:4px;min-width:58px">'
+        + (e.acType ? '<span style="font-size:9px;font-weight:800;color:#64748B;letter-spacing:.3px;font-family:\'Space Mono\',monospace">'+e.acType+'</span>' : '<span style="font-size:9px;color:#CBD5E1">—</span>')
+        + (legBlockStr ? '<span style="font-size:13px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace;line-height:1.1">'+legBlockStr+'</span>' : '<span style="font-size:10px;color:#CBD5E1">—</span>')
+        + (dayDutyStr ? '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:0px"><span style="font-size:7px;font-weight:700;color:#94A3B8;letter-spacing:.5px;text-transform:uppercase">DUTY</span><span style="font-size:10px;font-weight:800;color:#0369A1;font-family:\'Space Mono\',monospace;line-height:1.1">'+dayDutyStr+'</span></div>' : '')
         + '</div>'
         + '</div>';
     });
-
     // ── FDP / DP panel ──
     if(flights.length > 0){
       try {
@@ -7896,7 +7903,7 @@ async function rosterRunPDF(pdfBase64){
     rstSmartMerge(parsed.entries, newMonth);
     rstSave();
 
-    // Save PDF-extracted block/duty totals
+    // Save PDF-extracted block/duty totals for accurate stats display
     if(newMonth && (parsed.pdf_block_min || parsed.pdf_duty_min)){
       try {
         if(parsed.pdf_block_min) localStorage.setItem('pilotOS_pdf_block_'+newMonth, parsed.pdf_block_min);
@@ -7905,23 +7912,11 @@ async function rosterRunPDF(pdfBase64){
     }
 
     if(newMonth){ var p=newMonth.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1; }
-    if(proc) proc.style.display='none';
-    rosterShowCalendar(); rstRenderCalendar(); rstRenderStats(); rstRenderFlights();
-    if(typeof ldUpdateRosterBtn==='function') ldUpdateRosterBtn();
-    rstUpdateWarningsBanner();
-
-    var nFlights = parsed.entries.filter(function(e){ return e.type==='flight'; }).length;
-    var nWarnings = (parsed.import_summary && parsed.import_summary.flagged_for_review) || 0;
-    var msg = '✅ PDF importado · '+nFlights+' vuelos';
-    if(nWarnings === 0) msg += ' · 0 avisos ✨';
-    else msg += ' · '+nWarnings+' aviso'+(nWarnings===1?'':'s')+' pendientes';
-    if(typeof showToast==='function') showToast(msg);
 
   } catch(err){
-    if(typeof showToast==='function') showToast('❌ Error PDF: '+err.message);
-  } finally {
     if(proc) proc.style.display='none';
-    if(zone && !RST.entries.length) zone.style.display='';
+    if(zone) zone.style.display='';
+    if(typeof showToast==='function') showToast('❌ Error PDF: '+err.message);
   }
 }
 
