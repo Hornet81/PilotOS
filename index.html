@@ -7636,16 +7636,21 @@ window.rosterHandleFile = function(event){
     return;
   }
 
+  var isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  if(isPDF){
+    if(status) status.textContent = 'Procesando PDF con parser determinista…';
+    var pdfReader = new FileReader();
+    pdfReader.onload = function(e){
+      var b64 = e.target.result.split(',')[1];
+      rosterRunPDF(b64);
+    };
+    pdfReader.readAsDataURL(file);
+    event.target.value = '';
+    return;
+  }
+
   var reader = new FileReader();
-  reader.onload = function(e){
-    var dataUrl = e.target.result;
-    if(file.type === 'application/pdf'){
-      if(status) status.textContent = 'PDF detectado — procesando como imagen…';
-      rosterRunAI(dataUrl, file.type);
-    } else {
-      rosterRunAI(dataUrl, file.type);
-    }
-  };
+  reader.onload = function(e){ rosterRunAI(e.target.result, file.type); };
   reader.readAsDataURL(file);
   event.target.value = '';
 };
@@ -7707,6 +7712,63 @@ function rstSmartMerge(newEntries, newMonth){
       RST.entries.push(newE);
     }
   });
+}
+
+async function rosterRunPDF(pdfBase64){
+  var proc   = document.getElementById('rst-ai-proc');
+  var status = document.getElementById('rst-ai-status');
+  var zone   = document.getElementById('rst-upload-zone');
+  if(status) status.textContent = 'Analizando PDF con parser determinista…';
+
+  var authToken = '';
+  try { authToken = localStorage.getItem('cafi_auth_token') || ''; } catch(e){}
+  if(!authToken){
+    if(proc) proc.style.display='none';
+    if(zone) zone.style.display='';
+    if(typeof showToast==='function') showToast('⚠️ Inicia sesión en CAFI primero');
+    return;
+  }
+
+  try {
+    var res = await fetch(cafiBackendUrl + '/roster/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+      body: JSON.stringify({ pdf_buffer: pdfBase64 })
+    });
+    var data = await res.json();
+    if(!res.ok) throw new Error(data.error || 'Error del servidor');
+    var parsed = data;
+    if(!parsed.entries || !parsed.entries.length) throw new Error('No se encontraron entradas en el PDF');
+
+    var newMonth = parsed.month || (parsed.entries[0] && parsed.entries[0].date ? parsed.entries[0].date.slice(0,7) : null);
+    if(newMonth){
+      var firstEntry = parsed.entries.find(function(e){ return e.type==='flight'; });
+      var isActualImport = firstEntry && !firstEntry.std && firstEntry.std_actual;
+      if(!isActualImport){
+        RST.entries = RST.entries.filter(function(e){ return e.date.slice(0,7) !== newMonth; });
+      }
+    }
+    rstSmartMerge(parsed.entries, newMonth);
+    rstSave();
+
+    if(newMonth){ var p=newMonth.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1; }
+    if(proc) proc.style.display='none';
+    rosterShowCalendar(); rstRenderCalendar(); rstRenderStats(); rstRenderFlights();
+    if(typeof ldUpdateRosterBtn==='function') ldUpdateRosterBtn();
+    rstUpdateWarningsBanner();
+
+    var nFlights = parsed.entries.filter(function(e){ return e.type==='flight'; }).length;
+    var nWarnings = (parsed.import_summary && parsed.import_summary.flagged_for_review) || 0;
+    var msg = '✅ PDF importado · '+nFlights+' vuelos';
+    if(nWarnings === 0) msg += ' · 0 avisos ✨';
+    else msg += ' · '+nWarnings+' aviso'+(nWarnings===1?'':'s')+' pendientes';
+    if(typeof showToast==='function') showToast(msg);
+
+  } catch(err){
+    if(proc) proc.style.display='none';
+    if(zone) zone.style.display='';
+    if(typeof showToast==='function') showToast('❌ Error PDF: '+err.message);
+  }
 }
 
 async function rosterRunAIText(textContent){
