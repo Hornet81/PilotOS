@@ -326,6 +326,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .modal-box{background:#FFFFFF;border:1px solid rgba(109,40,217,.2);border-radius:28px;padding:28px 24px;max-width:420px;width:100%;animation:slideUp .35s cubic-bezier(.2,.8,.3,1);box-shadow:0 20px 60px rgba(30,58,164,.15)}
 @keyframes slideUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
 @keyframes spin{to{transform:rotate(360deg)}}
+.rst-day-selected{outline:3px solid #0891B2 !important;outline-offset:1px;background:linear-gradient(135deg,#EFF6FF,#F0F9FF) !important;box-shadow:0 0 0 4px rgba(8,145,178,.12),0 4px 16px rgba(8,145,178,.25) !important;}
 @keyframes aiOrbit{0%{transform:rotate(0deg) translateX(22px) rotate(0deg)}100%{transform:rotate(360deg) translateX(22px) rotate(-360deg)}}
 @keyframes aiOrbit2{0%{transform:rotate(180deg) translateX(22px) rotate(-180deg)}100%{transform:rotate(540deg) translateX(22px) rotate(-540deg)}}
 @keyframes aiPulseRing{0%,100%{transform:translate(-50%,-50%) scale(1);opacity:.5}50%{transform:translate(-50%,-50%) scale(1.25);opacity:0}}
@@ -6467,7 +6468,7 @@ function rstRenderCalendar(){
     }
 
     cells += '<td style="padding:1px;height:60px;vertical-align:top">'
-      + '<div onclick="rosterSelectDay(\''+dateStr+'\');rosterCellPop(this,\''+glowCol+'\')" '
+      + '<div data-date="'+dateStr+'" onclick="rosterSelectDay(\''+dateStr+'\');rosterCellPop(this,\''+glowCol+'\')" '
       + 'style="position:relative;width:100%;height:58px;background:#FFFFFF;border:1.5px solid '+(isToday?'#0891B2':(dayHasWarnings?'#F59E0B':(hasEntry?border:'rgba(30,58,164,.08)')))+';border-radius:8px;cursor:pointer;transition:box-shadow .15s,transform .12s;overflow:visible">'
       + warnBadge
       + checkBadge
@@ -6705,204 +6706,287 @@ window.rosterCellPop = function(el, glowCol){
 };
 
 // ── Fatigue & Stats Dashboard ──
+function rstRenderFlights(){
+  // Delegated to rstRenderFatigue — legacy calls still work
+  setTimeout(function(){ try { rstRenderFatigue(); } catch(e){} }, 0);
+}
+
 function rstRenderFatigue(){
   try {
-    if(!RST || !RST.entries) return;
+    if(!RST || !RST.entries || !RST.entries.length) return;
     var panel = document.getElementById('rst-fatigue-panel');
     if(!panel) return;
-    if(!RST.entries.length){ panel.style.display='none'; return; }
-    panel.style.display='block';
+    panel.style.display = 'block';
     rstDetectTZ();
-    // Ensure RST_TC exists
-    if(!window.RST_TC){ rstRenderCalendar(); }
+    if(!window.RST_TC) rstRenderCalendar();
 
-    var today = new Date();
-    var todayStr = today.toISOString().slice(0,10);
+    var now      = new Date();
+    var todayStr = now.toISOString().slice(0,10);
+    var t2m      = function(t){ if(!t)return 0; var p=String(t).split(':'); return (parseInt(p[0])||0)*60+(parseInt(p[1])||0); };
+    var fmm      = function(m){ m=((m%1440)+1440)%1440; return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); };
+    var dur      = function(ms){ var h=Math.floor(ms/3600000),m=Math.floor((ms%3600000)/60000); return h+'h'+(m?' '+m+'m':''); };
+    var months   = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
-    // ── 1. Block hours last 28 days ──
-    var d28 = new Date(today); d28.setDate(d28.getDate()-28);
-    var d28Str = d28.toISOString().slice(0,10);
-    var bhMins = 0;
-    RST.entries.forEach(function(e){
-      if(e.type!=='flight'||e.date<d28Str||e.date>todayStr) return;
-      var eStd = e.std || e.std_actual;
-      var eSta = e.sta || e.sta_actual;
-      if(eStd&&eSta&&String(eStd).indexOf(':')>-1&&String(eSta).indexOf(':')>-1){
-        var s=parseInt(eStd.split(':')[0])*60+parseInt(eStd.split(':')[1]);
-        var a=parseInt(eSta.split(':')[0])*60+parseInt(eSta.split(':')[1]);
-        var m=a-s; if(m<0)m+=1440; bhMins+=m;
+    // ── All flights sorted ──
+    var allFlights = RST.entries.filter(function(e){ return e.type==='flight'; })
+      .sort(function(a,b){ return (a.date+(a.std||a.std_actual||'00:00')).localeCompare(b.date+(b.std||b.std_actual||'00:00')); });
+
+    // Past and future flights
+    var pastFlights   = allFlights.filter(function(e){ return e.date < todayStr; });
+    var todayFlights  = allFlights.filter(function(e){ return e.date === todayStr; });
+    var futureFlights = allFlights.filter(function(e){ return e.date > todayStr; });
+
+    // ── 7-day strip ──
+    var strip = document.getElementById('rst-week-strip');
+    if(strip){
+      var stripHTML = '';
+      for(var d=0; d<7; d++){
+        var dd = new Date(now); dd.setDate(dd.getDate()+d);
+        var ds = dd.toISOString().slice(0,10);
+        var dayEntries = RST.entries.filter(function(e){ return e.date===ds; });
+        var isToday = d===0;
+        var hasFlight = dayEntries.some(function(e){ return e.type==='flight'; });
+        var hasStby   = dayEntries.some(function(e){ return e.type==='standby'||e.type==='osb'; });
+        var hasSick   = dayEntries.some(function(e){ return e.type==='sick'; });
+        var isEmpty   = dayEntries.length===0;
+        var bg = hasFlight ? 'linear-gradient(135deg,#c0392b,#e74c3c)'
+               : hasStby   ? 'linear-gradient(135deg,#1a3a5c,#2e6da4)'
+               : hasSick   ? 'linear-gradient(135deg,#e67e22,#f39c12)'
+               : isEmpty   ? 'rgba(255,255,255,.08)'
+               : 'linear-gradient(135deg,#1abc9c,#16a085)';
+        var dayLabel = ['L','M','X','J','V','S','D'][(dd.getDay()+6)%7];
+        var numLabel = dd.getDate();
+        var ring = isToday ? 'box-shadow:0 0 0 2px #0891B2;' : '';
+        stripHTML += '<div style="flex:1;text-align:center;'+ ring +'">'
+          + '<div style="height:32px;border-radius:8px;background:'+bg+';display:flex;align-items:center;justify-content:center;margin-bottom:3px">'
+          + (hasFlight?'<span style="font-size:11px">✈</span>':hasStby?'<span style="font-size:11px">⏱</span>':hasSick?'<span style="font-size:10px">🏠</span>':'')
+          + '</div>'
+          + '<div style="font-size:8px;font-weight:'+(isToday?'800':'600')+';color:'+(isToday?'#0891B2':'rgba(148,163,184,.6)')+'">'+dayLabel+'</div>'
+          + '<div style="font-size:9px;font-weight:'+(isToday?'800':'500')+';color:'+(isToday?'#fff':'rgba(148,163,184,.5)')+'">'+numLabel+'</div>'
+          + '</div>';
       }
-    });
-    var bhH = Math.floor(bhMins/60), bhM = bhMins%60;
-    var bhVal = document.getElementById('rst-bh-val');
-    var bhBar = document.getElementById('rst-bh-bar');
-    var bhBadge = document.getElementById('rst-bh-badge');
-    var bhSub = document.getElementById('rst-bh-sub');
-    var bhPct = Math.min(100, Math.round(bhMins/6000*100)); // 6000min = 100h
-    if(bhVal) bhVal.textContent = bhH+'h'+(bhM?' '+bhM+'m':'');
-    if(bhBar){
-      var barColor = bhPct>90?'#f87171':bhPct>75?'#fb923c':'#34d399';
-      bhBar.style.width = bhPct+'%';
-      bhBar.style.background = bhPct>90
-        ? 'linear-gradient(90deg,#f97316,#ef4444)'
-        : bhPct>75
-        ? 'linear-gradient(90deg,#fbbf24,#f97316)'
-        : 'linear-gradient(90deg,#34d399,#0891b2)';
+      strip.innerHTML = stripHTML;
     }
-    if(bhBadge){
-      var badgeOk = bhPct<=75, badgeWarn = bhPct>75&&bhPct<=90, badgeCrit = bhPct>90;
-      bhBadge.textContent = badgeCrit?'⚠ LÍMITE':badgeWarn?'ATENCIÓN':'NOMINAL';
-      bhBadge.style.background = badgeCrit?'rgba(239,68,68,.25)':badgeWarn?'rgba(251,146,60,.2)':'rgba(52,211,153,.15)';
-      bhBadge.style.color = badgeCrit?'#fca5a5':badgeWarn?'#fed7aa':'#6ee7b7';
-      bhBadge.style.border = '1px solid '+(badgeCrit?'rgba(239,68,68,.3)':badgeWarn?'rgba(251,146,60,.25)':'rgba(52,211,153,.2)');
-    }
-    if(bhSub) bhSub.textContent = bhPct+'% del límite · '+Math.round((6000-bhMins)/60)+'h disponibles';
 
-    // ── 2. Rest period ──
+    // ── STATUS NOW ──
+    var nowIcon  = document.getElementById('rst-now-icon');
+    var nowState = document.getElementById('rst-now-state');
+    var nowSub   = document.getElementById('rst-now-sub');
+    var countdown= document.getElementById('rst-now-countdown');
+    var cdVal    = document.getElementById('rst-now-countdown-val');
+    var nowPanel = document.getElementById('rst-status-now');
+
+    if(todayFlights.length){
+      // Has flights today
+      var nowMin = now.getUTCHours()*60+now.getUTCMinutes();
+      var currentFlight = null;
+      var nextTodayFlight = null;
+      todayFlights.forEach(function(f){
+        var fStd = t2m(f.std||f.std_actual||'');
+        var fSta = t2m(f.sta||f.sta_actual||'');
+        if(nowMin >= fStd-70 && nowMin <= fSta+30) currentFlight = f;
+        else if(nowMin < fStd-60 && !nextTodayFlight) nextTodayFlight = f;
+      });
+      if(currentFlight){
+        if(nowPanel) nowPanel.style.background='linear-gradient(135deg,#7f1d1d 0%,#991b1b 100%)';
+        if(nowIcon)  nowIcon.textContent='✈';
+        if(nowState) nowState.textContent='EN VUELO';
+        if(nowSub)   nowSub.textContent=(currentFlight.dep||'?')+' → '+(currentFlight.arr||'?')+' · VY'+currentFlight.flightNum;
+        if(countdown) countdown.style.display='none';
+      } else if(nextTodayFlight){
+        var repMin = nextTodayFlight.checkin ? t2m(nextTodayFlight.checkin) : t2m(nextTodayFlight.std||nextTodayFlight.std_actual)-55;
+        var diffMs = (repMin - nowMin) * 60000;
+        if(nowPanel) nowPanel.style.background='linear-gradient(135deg,#0c2340 0%,#1e3a5f 100%)';
+        if(nowIcon)  nowIcon.textContent='🛂';
+        if(nowState) nowState.textContent='PRÓXIMO REPORT';
+        if(nowSub)   nowSub.textContent='Hoy · Report '+fmm(repMin)+' UTC';
+        if(countdown && diffMs > 0){
+          countdown.style.display='block';
+          var dH=Math.floor(diffMs/3600000), dM=Math.floor((diffMs%3600000)/60000);
+          if(cdVal) cdVal.textContent=dH+'h '+String(dM).padStart(2,'0')+'m';
+        }
+      } else {
+        if(nowIcon)  nowIcon.textContent='✅';
+        if(nowState) nowState.textContent='SERVICIO COMPLETADO';
+        if(nowSub)   nowSub.textContent='Todos los vuelos de hoy operados';
+        if(countdown) countdown.style.display='none';
+      }
+    } else {
+      var todayEntry = RST.entries.find(function(e){ return e.date===todayStr; });
+      var todayType = todayEntry ? todayEntry.type : null;
+      if(nowPanel) nowPanel.style.background='linear-gradient(135deg,#0f172a 0%,#0c2340 100%)';
+      if(todayType==='standby'||todayType==='osb'){
+        if(nowIcon)  nowIcon.textContent='⏱';
+        if(nowState) nowState.textContent='STANDBY';
+        if(nowSub)   nowSub.textContent='Disponible para ser llamado';
+      } else if(todayType==='sick'){
+        if(nowIcon)  nowIcon.textContent='🏠';
+        if(nowState) nowState.textContent='BAJA MÉDICA';
+        if(nowSub)   nowSub.textContent='';
+      } else if(!todayType || todayType==='off' || todayType==='srof' || todayType==='f'){
+        if(nowIcon)  nowIcon.textContent='🌙';
+        if(nowState) nowState.textContent='DÍA LIBRE';
+        if(nowSub)   nowSub.textContent='';
+      } else {
+        if(nowIcon)  nowIcon.textContent='📋';
+        if(nowState) nowState.textContent=(todayEntry&&todayEntry.type||'').toUpperCase();
+        if(nowSub)   nowSub.textContent='';
+      }
+      // Countdown to next report
+      var nf = futureFlights[0];
+      if(nf && countdown){
+        var nfDate = new Date(nf.date+'T00:00:00Z');
+        var repMinF = nf.checkin ? t2m(nf.checkin) : t2m(nf.std||nf.std_actual)-55;
+        var reportTime = new Date(nfDate.getTime()+repMinF*60000);
+        var diffMsF = reportTime - now;
+        if(diffMsF > 0 && diffMsF < 48*3600000){
+          countdown.style.display='block';
+          var dHF=Math.floor(diffMsF/3600000), dMF=Math.floor((diffMsF%3600000)/60000);
+          if(cdVal) cdVal.textContent=dHF+'h '+String(dMF).padStart(2,'0')+'m';
+        } else { countdown.style.display='none'; }
+      }
+    }
+
+    // ── REST PERIOD ──
     var restCard = document.getElementById('rst-rest-card');
     var restVal  = document.getElementById('rst-rest-val');
     var restSub  = document.getElementById('rst-rest-sub');
     var restBar  = document.getElementById('rst-rest-bar');
+    var restLimit= document.getElementById('rst-rest-limit');
 
-    // Find last DP end (STA last flight today/past + 20min)
-    var pastFlights = RST.entries.filter(function(e){ return e.type==='flight'&&e.date<=todayStr; })
-      .sort(function(a,b){ return (a.date+(a.std||a.std_actual)||'').localeCompare(b.date+(b.std||b.std_actual)||''); });
-    // Find next report (STD first flight future - 55min)
-    var futureFlights = RST.entries.filter(function(e){ return e.type==='flight'&&e.date>=todayStr; })
-      .sort(function(a,b){ return (a.date+(a.std||a.std_actual)||'').localeCompare(b.date+(b.std||b.std_actual)||''); });
+    // Last flight STA + 20min debrief
+    var lastFlight = pastFlights.length ? pastFlights[pastFlights.length-1] : (todayFlights.length ? null : null);
+    if(todayFlights.length){
+      var sorted = todayFlights.slice().sort(function(a,b){ return t2m(a.sta||a.sta_actual||'00:00')-t2m(b.sta||b.sta_actual||'00:00'); });
+      lastFlight = sorted[sorted.length-1];
+    }
+    // Next flight first leg
+    var nextDutyFlights = futureFlights.filter(function(e){ return e.date === (futureFlights[0]||{}).date; });
+    var nextFirst = nextDutyFlights[0] || futureFlights[0];
 
-    var restOk = false;
-    if(pastFlights.length && futureFlights.length){
-      var lastF = pastFlights[pastFlights.length-1];
-      var nextF = futureFlights[0];
-      var lastFSta = lastF.sta || lastF.sta_actual;
-      var nextFStd = nextF.std || nextF.std_actual;
-      if(lastFSta&&nextFStd&&String(lastFSta).indexOf(':')>-1&&String(nextFStd).indexOf(':')>-1){
-        var lastDate = new Date(lastF.date+'T'+lastFSta+':00Z');
-        lastDate = new Date(lastDate.getTime()+20*60000); // +20min debrief
-        var nextDate = new Date(nextF.date+'T'+nextFStd+':00Z');
-        nextDate = new Date(nextDate.getTime()-55*60000); // -55min report
-        var restMs = nextDate - lastDate;
-        var restH = Math.floor(restMs/3600000);
-        var restM = Math.floor((restMs%3600000)/60000);
-        if(restVal) restVal.textContent = restH+'h'+(restM?' '+restM+'m':'');
-        if(restSub) restSub.textContent = 'Hasta report '+rstFormatTime(nextFStd.slice(0,5))+' el '+nextF.date.slice(8)+'/'+nextF.date.slice(5,7);
-        var restPct = Math.min(100, Math.round(restH/12*100));
-        var restColor = restH<8?'#ef4444':restH<10?'#f97316':'#34d399';
-        if(restBar){ restBar.style.width=restPct+'%'; restBar.style.background=restColor; }
-        if(restCard){
-          restCard.style.borderColor = restH<8?'rgba(239,68,68,.3)':restH<10?'rgba(249,115,22,.3)':'rgba(52,211,153,.2)';
-          restCard.style.background = restH<8?'#FEF2F2':restH<10?'#FFF7ED':'#F0FDF4';
-        }
-        restOk = true;
+    if(lastFlight && nextFirst){
+      var lSta = lastFlight.sta_actual || lastFlight.sta;
+      var lDate = new Date(lastFlight.date+'T'+(lSta||'00:00')+':00Z');
+      var dpEnd = new Date(lDate.getTime()+20*60000);
+      var nfRep = nextFirst.checkin ? t2m(nextFirst.checkin) : t2m(nextFirst.std||nextFirst.std_actual)-55;
+      var nDate = new Date(nextFirst.date+'T00:00:00Z');
+      var reportDt = new Date(nDate.getTime()+nfRep*60000);
+      var restMs = reportDt - dpEnd;
+      var restH = Math.floor(restMs/3600000);
+      var restM = Math.floor((restMs%3600000)/60000);
+      if(restVal) restVal.textContent = restH+'h'+(restM?' '+restM+'m':'');
+      var nextDateLabel = nextFirst.date.slice(8)+' '+months[parseInt(nextFirst.date.slice(5,7))-1];
+      if(restSub) restSub.textContent = 'Hasta report '+fmm(nfRep)+' · '+nextDateLabel;
+      var restPct = Math.min(100, Math.round(restH/12*100));
+      var restColor = restH < 10 ? '#ef4444' : restH < 12 ? '#f97316' : '#34d399';
+      if(restBar){ restBar.style.width=restPct+'%'; restBar.style.background=restColor; }
+      if(restCard){
+        restCard.style.borderColor = restH<10?'rgba(239,68,68,.25)':restH<12?'rgba(249,115,22,.2)':'rgba(52,211,153,.15)';
+        restCard.style.background  = restH<10?'#FEF2F2':restH<12?'#FFF7ED':'#F0FDF4';
       }
+    } else {
+      if(restVal) restVal.textContent='—';
+      if(restSub) restSub.textContent = nextFirst ? 'Primer servicio del mes' : 'Sin vuelos próximos';
     }
-    if(!restOk){
-      if(restVal) restVal.textContent = '—';
-      if(restSub) restSub.textContent = 'Sin vuelos próximos';
+
+    // ── BLOCK HOURS 28d ──
+    var d28 = new Date(now); d28.setDate(d28.getDate()-28);
+    var d28Str = d28.toISOString().slice(0,10);
+    var bhMins = 0;
+    allFlights.forEach(function(e){
+      if(e.date < d28Str || e.date > todayStr) return;
+      var s=t2m(e.std_actual||e.std), a=t2m(e.sta_actual||e.sta);
+      if(s&&a){ var m=a-s; if(m<0)m+=1440; bhMins+=m; }
+    });
+    var bhH=Math.floor(bhMins/60), bhM=bhMins%60;
+    var bhPct=Math.min(100,Math.round(bhMins/6000*100));
+    var bhVal=document.getElementById('rst-bh-val');
+    var bhBar=document.getElementById('rst-bh-bar');
+    var bhBadge=document.getElementById('rst-bh-badge');
+    var bhSub=document.getElementById('rst-bh-sub');
+    if(bhVal) bhVal.textContent=bhH+'h'+(bhM?' '+bhM+'m':'');
+    if(bhBar){
+      bhBar.style.width=bhPct+'%';
+      bhBar.style.background=bhPct>90?'linear-gradient(90deg,#f97316,#ef4444)':bhPct>75?'linear-gradient(90deg,#fbbf24,#f97316)':'linear-gradient(90deg,#34d399,#0891b2)';
     }
-
-    // ── 3. Fatigue Index ──
-    var fatCard  = document.getElementById('rst-fatigue-card');
-    var fatRing  = document.getElementById('rst-fatigue-ring');
-    var fatPct   = document.getElementById('rst-fatigue-pct');
-    var fatLabel = document.getElementById('rst-fatigue-label');
-    var fatSub   = document.getElementById('rst-fatigue-sub');
-
-    var score = 0;
-    var factors = [];
-
-    // Consecutive duty days (last 7)
-    var consecDuty = 0;
-    for(var di=0; di<7; di++){
-      var chk = new Date(today); chk.setDate(chk.getDate()-di);
-      var chkStr = chk.toISOString().slice(0,10);
-      var dayE = RST.entries.filter(function(e){ return e.date===chkStr; });
-      var isDuty = dayE.some(function(e){ return e.type==='flight'||e.type==='standby'||e.type==='osb'||e.type==='training'; });
-      if(isDuty) consecDuty++; else break;
+    if(bhBadge){
+      var isCrit=bhPct>90,isWarn=bhPct>75&&bhPct<=90;
+      bhBadge.textContent=isCrit?'⚠ LÍMITE':isWarn?'ATENCIÓN':'NOMINAL';
+      bhBadge.style.background=isCrit?'rgba(239,68,68,.25)':isWarn?'rgba(251,146,60,.2)':'rgba(52,211,153,.15)';
+      bhBadge.style.color=isCrit?'#fca5a5':isWarn?'#fed7aa':'#6ee7b7';
+      bhBadge.style.border='1px solid '+(isCrit?'rgba(239,68,68,.3)':isWarn?'rgba(251,146,60,.25)':'rgba(52,211,153,.2)');
     }
-    if(consecDuty>=6){ score+=40; factors.push(consecDuty+' días seguidos'); }
-    else if(consecDuty>=4){ score+=20; factors.push(consecDuty+' días seguidos'); }
-    else if(consecDuty>=2){ score+=5; }
+    if(bhSub) bhSub.textContent=bhPct+'% · '+Math.round((6000-bhMins)/60)+'h libres';
 
-    // Early starts last 3 days (report before 06:00 LT)
-    var earlyStarts = 0;
-    for(var ei=0; ei<3; ei++){
-      var ed = new Date(today); ed.setDate(ed.getDate()-ei);
-      var edStr = ed.toISOString().slice(0,10);
-      var edFlights = RST.entries.filter(function(e){ return e.type==='flight'&&e.date===edStr&&e.std; });
-      edFlights.forEach(function(f){
-        if(!f.std||f.std.indexOf(':')<0) return;
-        var repMin = parseInt(f.std.split(':')[0])*60+parseInt(f.std.split(':')[1])-55;
-        var repLT = ((repMin+RST.tzOffset)%1440+1440)%1440;
-        if(repLT < 360) earlyStarts++; // before 06:00
-      });
-    }
-    if(earlyStarts>=2){ score+=30; factors.push(earlyStarts+' madrugones recientes'); }
-    else if(earlyStarts===1){ score+=15; factors.push('Early start reciente'); }
+    // ── NEXT DUTY card ──
+    var ndCard   = document.getElementById('rst-next-duty');
+    var ndDate   = document.getElementById('rst-next-duty-date');
+    var ndReport = document.getElementById('rst-next-report');
+    var ndRepSrc = document.getElementById('rst-next-report-src');
+    var ndFdp    = document.getElementById('rst-next-fdp');
+    var ndLegs   = document.getElementById('rst-next-legs');
 
-    // Late finishes last 3 days (DP end after 01:00 LT)
-    var lateFinishes = 0;
-    for(var li=0; li<3; li++){
-      var ld2 = new Date(today); ld2.setDate(ld2.getDate()-li);
-      var ldStr = ld2.toISOString().slice(0,10);
-      var ldFlights = RST.entries.filter(function(e){ return e.type==='flight'&&e.date===ldStr&&e.sta; });
-      if(ldFlights.length){
-        var last2 = ldFlights[ldFlights.length-1];
-        if(last2.sta&&last2.sta.indexOf(':')>-1){
-          var dpEndMin = parseInt(last2.sta.split(':')[0])*60+parseInt(last2.sta.split(':')[1])+20;
-          var dpLT = ((dpEndMin+RST.tzOffset)%1440+1440)%1440;
-          if(dpLT < 180 || dpLT > 1260) lateFinishes++; // after 01:00 / before 03:00
-        }
+    if(nextDutyFlights.length && ndCard){
+      ndCard.style.display='block';
+      var nDate2 = new Date(nextDutyFlights[0].date+'T00:00:00Z');
+      var isNextTomorrow = nextDutyFlights[0].date === (function(){ var d=new Date(now); d.setDate(d.getDate()+1); return d.toISOString().slice(0,10); })();
+      var dateStr2 = (isNextTomorrow?'🌅 Mañana · ':'')+nDate2.getUTCDate()+' '+months[nDate2.getUTCMonth()];
+      if(ndDate) ndDate.textContent=dateStr2;
+
+      var firstLeg = nextDutyFlights[0];
+      var repM2 = firstLeg.checkin ? t2m(firstLeg.checkin) : t2m(firstLeg.std||firstLeg.std_actual)-55;
+      if(ndReport) ndReport.textContent=fmm(repM2)+' UTC';
+      if(ndRepSrc) ndRepSrc.textContent=firstLeg.checkin?'del PDF':'STD − 55min';
+
+      // FDP estimate
+      var lastLeg2 = nextDutyFlights[nextDutyFlights.length-1];
+      var lastSta2 = t2m(lastLeg2.sta||lastLeg2.std_actual);
+      var fdpEstMs = (lastSta2 - repM2)*60000; if(fdpEstMs<0) fdpEstMs+=86400000;
+      if(ndFdp) ndFdp.textContent=dur(fdpEstMs);
+
+      // Legs list
+      if(ndLegs){
+        var legsHTML = nextDutyFlights.map(function(f,idx){
+          var stdDisp = f.std ? f.std.slice(0,5) : (f.std_actual?f.std_actual.slice(0,5):'--:--');
+          var staDisp = f.sta ? f.sta.slice(0,5) : (f.sta_actual?f.sta_actual.slice(0,5):'--:--');
+          var isPos = f.positioning===true;
+          return '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:#F8FAFF;border-radius:10px;border:1px solid rgba(30,58,164,.06)">'
+            + '<div style="width:20px;height:20px;background:'+(isPos?'#FEF3C7':'#c0392b')+';border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0">'+(isPos?'🎫':'✈')+'</div>'
+            + '<div style="flex:1;min-width:0">'
+            + '<div style="font-size:12px;font-weight:800;color:#0F172A">'+(f.dep||'?')+' → '+(f.arr||'?')+'</div>'
+            + '<div style="font-size:9px;color:#94A3B8">VY'+(f.flightNum||'?')+(f.acType?' · '+f.acType:'')+'</div>'
+            + '</div>'
+            + '<div style="text-align:right;flex-shrink:0">'
+            + '<div style="font-size:11px;font-weight:800;color:#0369A1;font-family:\'Space Mono\',monospace">'+stdDisp+'</div>'
+            + '<div style="font-size:9px;color:#94A3B8">→ '+staDisp+'</div>'
+            + '</div>'
+            + '</div>';
+        }).join('');
+        ndLegs.innerHTML = legsHTML;
       }
+    } else if(ndCard){
+      ndCard.style.display='none';
     }
-    if(lateFinishes>=2){ score+=30; factors.push(lateFinishes+' finales tardíos'); }
-    else if(lateFinishes===1){ score+=15; factors.push('Turno tardío reciente'); }
 
-    score = Math.min(100, score);
-    var level = score>=70?'ALTO':score>=40?'MODERADO':score>=20?'LEVE':'BAJO';
-    var fatColors = {ALTO:'#ef4444',MODERADO:'#f97316',LEVE:'#fbbf24',BAJO:'#34d399'};
-    var fatBgs = {ALTO:'linear-gradient(135deg,#7f1d1d,#991b1b)',MODERADO:'linear-gradient(135deg,#7c2d12,#9a3412)',LEVE:'linear-gradient(135deg,#78350f,#92400e)',BAJO:'linear-gradient(135deg,#064e3b,#065f46)'};
-    var col = fatColors[level];
+    // Keep rst-flight-list hidden (legacy)
+    var fl = document.getElementById('rst-flight-list');
+    if(fl) fl.style.display='none';
 
-    if(fatCard) fatCard.style.background = fatBgs[level];
-    if(fatRing){ fatRing.style.stroke=col; var offset=163-(163*score/100); fatRing.style.strokeDashoffset=offset; }
-    if(fatPct) fatPct.textContent = score;
-    if(fatLabel){ fatLabel.textContent = level; fatLabel.style.color=col; }
-    if(fatSub) fatSub.textContent = factors.length ? factors.join(' · ') : 'Sin factores de riesgo';
+    // Keep rst-fatigue-card compat
+    var sc = Math.min(100, Math.round(bhMins/6000*100 * 0.7 + (lastFlight&&nextFirst? Math.max(0,100-Math.floor((reportDt-dpEnd)/3600000)*8):0)));
+    var fRing=document.getElementById('rst-fatigue-ring'),fPct=document.getElementById('rst-fatigue-pct'),fLbl=document.getElementById('rst-fatigue-label'),fSub=document.getElementById('rst-fatigue-sub');
+    if(fRing) fRing.style.strokeDashoffset=163-(163*Math.min(sc,100)/100);
+    if(fPct) fPct.textContent=Math.min(sc,100);
+    if(fLbl) fLbl.textContent=sc<40?'FRESCO':sc<65?'NORMAL':sc<80?'CARGADO':'FATIGA';
+    if(fSub) fSub.textContent=sc+'% índice';
 
-  } catch(ex){}
+  } catch(err){ console.warn('rstRenderFatigue error:', err); }
 }
-function rstRenderFlights(){
-  var ul = document.getElementById('rst-flights-ul');
-  var wrap = document.getElementById('rst-flight-list');
-  if(!ul||!wrap) return;
-  var today = new Date().toISOString().slice(0,10);
-  var upcoming = RST.entries.filter(function(e){ return e.type==='flight' && e.date >= today; })
-    .sort(function(a,b){ return a.date.localeCompare(b.date); }).slice(0,5);
-  if(!upcoming.length){ wrap.style.display='none'; }
-  else {
-    wrap.style.display='block';
-    ul.innerHTML = upcoming.map(function(e){
-      var isToday = e.date === today;
-      var dateLabel = isToday ? '🟢 HOY' : e.date.slice(5).replace('-','/');
-      return '<div style="background:#FFFFFF;border:1px solid rgba(30,58,164,.1);border-radius:12px;padding:11px 13px;display:flex;align-items:center;gap:10px;box-shadow:0 1px 4px rgba(30,58,164,.06)">'
-        + '<div style="font-size:10px;font-weight:700;color:'+(isToday?'#15803D':'#0369A1')+';font-family:\'Space Mono\',monospace;min-width:44px">'+dateLabel+'</div>'
-        + '<div style="flex:1;min-width:0">'
-        + '<div style="font-size:13px;font-weight:700;color:#0F172A">'+(e.flightNum||'—')+'</div>'
-        + '<div style="font-size:11px;color:#475569">'+(e.dep||'—')+' → '+(e.arr||'—')+'</div>'
-        + '</div>'
-        + '<div style="text-align:right">'
-        + '<div style="font-size:12px;font-weight:600;color:#0369A1;font-family:\'Space Mono\',monospace">'+(rstFormatTime(e.std)||'--:--')+'</div>'
-        + '<div style="font-size:10px;color:#94A3B8">'+(RST.useLT?'LT':'UTC')+'</div>'
-        + '</div>'
-        + '</div>';
-    }).join('');
-  }
-  setTimeout(function(){ try { rstRenderFatigue(); } catch(e){} }, 0);
-}
-// ── Select day ──
+
 window.rosterSelectDay = function(dateStr){
+  document.querySelectorAll('[data-date]').forEach(function(el){ el.classList.remove('rst-day-selected'); });
+  var _sc=document.querySelector('[data-date="'+dateStr+'"]');
+  if(_sc) _sc.classList.add('rst-day-selected');
   var dayEntries = entriesForDate(dateStr);
   var detail = document.getElementById('rst-day-detail');
   var dateEl = document.getElementById('rst-detail-date');
@@ -9169,70 +9253,85 @@ function pagSignOut() {
       <!-- Fatigue & Stats Dashboard -->
       <div id="rst-fatigue-panel" style="display:none;margin-bottom:14px">
 
-        <!-- Block Hours 28d -->
-        <div id="rst-bh-card" style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);border-radius:20px;padding:18px 18px 16px;margin-bottom:12px;position:relative;overflow:hidden">
-          <!-- Background glow -->
-          <div style="position:absolute;top:-30px;right:-30px;width:120px;height:120px;background:radial-gradient(circle,rgba(8,145,178,.35) 0%,transparent 70%);pointer-events:none"></div>
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
+        <!-- ══ STATUS NOW card ══ -->
+        <div id="rst-status-now" style="border-radius:22px;padding:20px 18px;margin-bottom:10px;position:relative;overflow:hidden;background:linear-gradient(135deg,#0f172a 0%,#0c2340 100%)">
+          <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;background:radial-gradient(circle,rgba(8,145,178,.3) 0%,transparent 65%);pointer-events:none"></div>
+          <div style="position:absolute;bottom:-30px;left:-20px;width:120px;height:120px;background:radial-gradient(circle,rgba(109,40,217,.2) 0%,transparent 70%);pointer-events:none"></div>
+          <!-- State label -->
+          <div id="rst-now-label" style="font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:rgba(148,163,184,.7);margin-bottom:10px">Estado actual</div>
+          <!-- Main state -->
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+            <div id="rst-now-icon" style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">💤</div>
             <div>
-              <div style="font-size:10px;font-weight:700;color:rgba(148,163,184,.8);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Block Hours · 28 días</div>
-              <div style="display:flex;align-items:baseline;gap:6px">
-                <span id="rst-bh-val" style="font-size:36px;font-weight:900;color:#FFFFFF;font-family:'Space Mono',monospace;line-height:1">0h</span>
-                <span style="font-size:13px;color:rgba(148,163,184,.7);font-weight:600">/ 100h</span>
-              </div>
+              <div id="rst-now-state" style="font-size:22px;font-weight:900;color:#FFFFFF;line-height:1.1">—</div>
+              <div id="rst-now-sub" style="font-size:11px;color:rgba(148,163,184,.7);margin-top:2px">—</div>
             </div>
-            <div id="rst-bh-badge" style="padding:6px 12px;border-radius:20px;font-size:11px;font-weight:800;letter-spacing:.4px">OK</div>
+            <!-- Countdown -->
+            <div id="rst-now-countdown" style="margin-left:auto;text-align:right;display:none">
+              <div id="rst-now-countdown-val" style="font-size:18px;font-weight:900;color:#0891B2;font-family:'Space Mono',monospace;line-height:1"></div>
+              <div style="font-size:9px;color:rgba(148,163,184,.5);margin-top:1px">al report</div>
+            </div>
           </div>
-          <!-- Progress bar -->
-          <div style="background:rgba(255,255,255,.1);border-radius:6px;height:8px;overflow:hidden;margin-bottom:8px">
-            <div id="rst-bh-bar" style="height:100%;border-radius:6px;transition:width .6s cubic-bezier(.4,0,.2,1);width:0%"></div>
+          <!-- 7-day strip -->
+          <div id="rst-week-strip" style="display:flex;gap:4px"></div>
+        </div>
+
+        <!-- ══ REST + BLOCK HOURS row ══ -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+
+          <!-- Rest -->
+          <div id="rst-rest-card" style="background:#FFFFFF;border:1px solid rgba(30,58,164,.1);border-radius:18px;padding:14px 14px 12px;position:relative;overflow:hidden">
+            <div style="font-size:8px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Descanso</div>
+            <div id="rst-rest-val" style="font-size:26px;font-weight:900;color:#0F172A;font-family:'Space Mono',monospace;line-height:1;margin-bottom:3px">—</div>
+            <div id="rst-rest-sub" style="font-size:9px;color:#64748B;margin-bottom:8px;line-height:1.3">—</div>
+            <div style="background:rgba(30,58,164,.07);border-radius:4px;height:4px;overflow:hidden">
+              <div id="rst-rest-bar" style="height:100%;border-radius:4px;width:0%;transition:width .6s cubic-bezier(.4,0,.2,1)"></div>
+            </div>
+            <div id="rst-rest-limit" style="font-size:8px;color:#CBD5E1;margin-top:4px">Mín 10h · ORO.FTL.235</div>
           </div>
-          <div style="display:flex;justify-content:space-between">
-            <span id="rst-bh-sub" style="font-size:10px;color:rgba(148,163,184,.6)">Calculando…</span>
-            <span style="font-size:10px;color:rgba(148,163,184,.4)">Límite ORO.FTL.210</span>
+
+          <!-- Block hours 28d -->
+          <div id="rst-bh-card" style="background:linear-gradient(135deg,#1e3a5f,#0f2744);border-radius:18px;padding:14px 14px 12px;position:relative;overflow:hidden">
+            <div style="position:absolute;top:-20px;right:-20px;width:80px;height:80px;background:radial-gradient(circle,rgba(8,145,178,.3),transparent 70%);pointer-events:none"></div>
+            <div style="font-size:8px;font-weight:800;color:rgba(148,163,184,.7);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Block · 28d</div>
+            <div style="display:flex;align-items:baseline;gap:4px;margin-bottom:3px">
+              <span id="rst-bh-val" style="font-size:26px;font-weight:900;color:#fff;font-family:'Space Mono',monospace;line-height:1">0h</span>
+              <span style="font-size:11px;color:rgba(148,163,184,.5);font-weight:600">/100h</span>
+            </div>
+            <div id="rst-bh-sub" style="font-size:9px;color:rgba(148,163,184,.6);margin-bottom:8px">—</div>
+            <div style="background:rgba(255,255,255,.1);border-radius:4px;height:4px;overflow:hidden">
+              <div id="rst-bh-bar" style="height:100%;border-radius:4px;width:0%;transition:width .6s cubic-bezier(.4,0,.2,1)"></div>
+            </div>
+            <div id="rst-bh-badge" style="margin-top:5px;font-size:8px;font-weight:800;letter-spacing:.5px;display:inline-block;padding:2px 7px;border-radius:8px">NOMINAL</div>
           </div>
         </div>
 
-        <!-- Rest Period + Fatigue Index row -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-
-          <!-- Rest Period -->
-          <div id="rst-rest-card" style="background:#FFFFFF;border:1px solid rgba(30,58,164,.1);border-radius:16px;padding:14px;position:relative;overflow:hidden">
-            <div style="font-size:9px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Descanso</div>
-            <div id="rst-rest-val" style="font-size:22px;font-weight:900;color:#0F172A;font-family:'Space Mono',monospace;line-height:1;margin-bottom:4px">—</div>
-            <div id="rst-rest-sub" style="font-size:9px;color:#475569;margin-bottom:8px">Hasta próximo report</div>
-            <div id="rst-rest-bar-wrap" style="background:rgba(30,58,164,.08);border-radius:4px;height:4px;overflow:hidden">
-              <div id="rst-rest-bar" style="height:100%;border-radius:4px;width:0%;transition:width .6s"></div>
-            </div>
-            <div id="rst-rest-limit" style="font-size:8px;color:#94A3B8;margin-top:4px">Mín 10h · ORO.FTL.235</div>
+        <!-- ══ NEXT DUTY card ══ -->
+        <div id="rst-next-duty" style="display:none;background:#FFFFFF;border:1px solid rgba(30,58,164,.1);border-radius:18px;padding:16px;margin-bottom:10px;box-shadow:0 2px 12px rgba(30,58,164,.06)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div style="font-size:9px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:1px">Próximo servicio</div>
+            <div id="rst-next-duty-date" style="font-size:11px;font-weight:700;color:#0369A1;font-family:'Space Mono',monospace"></div>
           </div>
-
-          <!-- Fatigue Index -->
-          <div id="rst-fatigue-card" style="border-radius:16px;padding:14px;position:relative;overflow:hidden">
-            <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;color:rgba(255,255,255,.7)">Índice Fatiga</div>
-            <!-- Gauge ring SVG -->
-            <div style="display:flex;align-items:center;justify-content:center;margin-bottom:6px">
-              <div style="position:relative;width:64px;height:64px">
-                <svg width="64" height="64" style="transform:rotate(-90deg)">
-                  <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="6"/>
-                  <circle id="rst-fatigue-ring" cx="32" cy="32" r="26" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-dasharray="163" stroke-dashoffset="163" style="transition:stroke-dashoffset .8s cubic-bezier(.4,0,.2,1)"/>
-                </svg>
-                <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
-                  <span id="rst-fatigue-pct" style="font-size:14px;font-weight:900;color:#FFFFFF;font-family:'Space Mono',monospace">0</span>
-                </div>
-              </div>
+          <!-- Report row -->
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#F8FAFF;border-radius:12px;margin-bottom:10px">
+            <div style="font-size:18px">🛂</div>
+            <div>
+              <div style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.8px">Report</div>
+              <div id="rst-next-report" style="font-size:20px;font-weight:900;color:#0F172A;font-family:'Space Mono',monospace;line-height:1.1">--:--</div>
+              <div id="rst-next-report-src" style="font-size:9px;color:#94A3B8"></div>
             </div>
-            <div id="rst-fatigue-label" style="font-size:11px;font-weight:800;color:#FFFFFF;text-align:center;letter-spacing:.3px">—</div>
-            <div id="rst-fatigue-sub" style="font-size:9px;color:rgba(255,255,255,.6);text-align:center;margin-top:2px">—</div>
+            <div style="margin-left:auto;text-align:right">
+              <div id="rst-next-fdp-label" style="font-size:9px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.6px">FDP est.</div>
+              <div id="rst-next-fdp" style="font-size:15px;font-weight:800;color:#0369A1;font-family:'Space Mono',monospace"></div>
+            </div>
           </div>
+          <!-- Legs -->
+          <div id="rst-next-legs" style="display:flex;flex-direction:column;gap:6px"></div>
         </div>
 
-        <!-- Próximos vuelos -->
-        <div id="rst-flight-list" style="display:none">
-          <div style="font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;padding:0 2px">Próximos vuelos</div>
-          <div id="rst-flights-ul" style="display:flex;flex-direction:column;gap:8px"></div>
-        </div>
-
+        <!-- Fatigue index hidden (keep IDs for rstRenderFatigue compat) -->
+        <div id="rst-fatigue-card" style="display:none"><div id="rst-fatigue-ring"></div><div id="rst-fatigue-pct"></div><div id="rst-fatigue-label"></div><div id="rst-fatigue-sub"></div></div>
+        <div id="rst-flight-list" style="display:none"><div id="rst-flights-ul"></div></div>
       </div>
 
     </div>
