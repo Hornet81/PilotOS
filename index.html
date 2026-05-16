@@ -7918,13 +7918,27 @@ async function rosterRunPDF(pdfBase64){
     }
 
     if(newMonth){ var p=newMonth.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1; }
+    try { rosterShowCalendar(); } catch(e){ console.warn(e); }
+    var _rz=document.getElementById('rst-upload-zone'); if(_rz) _rz.style.display='';
+    try { rstRenderCalendar(); } catch(e){ console.warn(e); }
+    try { rstRenderStats();    } catch(e){ console.warn(e); }
+    try { rstRenderFlights();  } catch(e){ console.warn(e); }
+    try { if(typeof ldUpdateRosterBtn==='function') ldUpdateRosterBtn(); } catch(e){}
+    try { rstUpdateWarningsBanner(); } catch(e){ console.warn(e); }
+    var _nF=parsed.entries.filter(function(e){ return e.type==='flight'; }).length;
+    var _nW=(parsed.import_summary&&parsed.import_summary.flagged_for_review)||0;
+    var _msg='✅ PDF importado · '+_nF+' vuelos'+(_nW===0?' · 0 avisos ✨':' · '+_nW+' aviso'+(_nW===1?'':'s')+' pendientes');
+    if(typeof showToast==='function') showToast(_msg);
 
   } catch(err){
-    if(proc) proc.style.display='none';
-    if(zone) zone.style.display='';
+    console.error('rosterRunPDF error:',err);
     if(typeof showToast==='function') showToast('❌ Error PDF: '+err.message);
+  } finally {
+    var _fp=document.getElementById('rst-ai-proc'); if(_fp) _fp.style.display='none';
+    var _fz=document.getElementById('rst-upload-zone'); if(_fz&&!RST.entries.length) _fz.style.display='';
   }
 }
+
 
 async function rosterRunAIText(textContent){
   var proc = document.getElementById('rst-ai-proc');
@@ -7972,9 +7986,11 @@ async function rosterRunAIText(textContent){
     if(typeof showToast==='function') showToast('✅ Roster importado · '+nFlights+' vuelos detectados');
 
   } catch(err){
-    if(proc) proc.style.display='none';
-    if(zone) zone.style.display='';
+    console.error('rosterRunAI error:',err);
     if(typeof showToast==='function') showToast('❌ Error IA: '+err.message);
+  } finally {
+    var _ap=document.getElementById('rst-ai-proc'); if(_ap) _ap.style.display='none';
+    var _az=document.getElementById('rst-upload-zone'); if(_az&&!RST.entries.length) _az.style.display='';
   }
 }
 
@@ -8121,9 +8137,11 @@ async function rosterRunAI(dataUrl, mimeType){
     if(typeof showToast==='function') showToast('✅ Roster importado · '+nFlights+' vuelos detectados');
 
   } catch(err){
-    if(proc) proc.style.display='none';
-    if(zone) zone.style.display='';
+    console.error('rosterRunAI error:',err);
     if(typeof showToast==='function') showToast('❌ Error IA: '+err.message);
+  } finally {
+    var _ap=document.getElementById('rst-ai-proc'); if(_ap) _ap.style.display='none';
+    var _az=document.getElementById('rst-upload-zone'); if(_az&&!RST.entries.length) _az.style.display='';
   }
 }
 
