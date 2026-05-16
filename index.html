@@ -7705,11 +7705,8 @@ window.rosterHandleFile = function(event){
   var file = event.target.files[0];
   if(!file) return;
   var proc = document.getElementById('rst-ai-proc');
-  var status = document.getElementById('rst-ai-status');
   var zone = document.getElementById('rst-upload-zone');
-  if(proc) proc.style.display='block';
   if(zone) zone.style.display='none';
-  if(status) status.textContent = 'Leyendo archivo…';
 
   var isTxt = file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt');
   if(isTxt){
@@ -7856,6 +7853,9 @@ async function rosterRunPDF(pdfBase64){
     return;
   }
 
+  var _procEl = document.getElementById('rst-ai-proc');
+  var _zoneEl = document.getElementById('rst-upload-zone');
+
   try {
     var res = await fetch(cafiBackendUrl + '/roster/analyze', {
       method: 'POST',
@@ -7878,7 +7878,6 @@ async function rosterRunPDF(pdfBase64){
     rstSmartMerge(parsed.entries, newMonth);
     rstSave();
 
-    // Save PDF-extracted block/duty totals for accurate stats display
     if(newMonth && (parsed.pdf_block_min || parsed.pdf_duty_min)){
       try {
         if(parsed.pdf_block_min) localStorage.setItem('pilotOS_pdf_block_'+newMonth, parsed.pdf_block_min);
@@ -7887,7 +7886,7 @@ async function rosterRunPDF(pdfBase64){
     }
 
     if(newMonth){ var p=newMonth.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1; }
-    if(proc) proc.style.display='none';
+    if(_procEl) _procEl.style.display='none';
     rosterShowCalendar(); rstRenderCalendar(); rstRenderStats(); rstRenderFlights();
     if(typeof ldUpdateRosterBtn==='function') ldUpdateRosterBtn();
     rstUpdateWarningsBanner();
@@ -7900,9 +7899,11 @@ async function rosterRunPDF(pdfBase64){
     if(typeof showToast==='function') showToast(msg);
 
   } catch(err){
-    if(proc) proc.style.display='none';
-    if(zone) zone.style.display='';
     if(typeof showToast==='function') showToast('❌ Error PDF: '+err.message);
+  } finally {
+    // Always hide loader and restore upload zone on error
+    if(_procEl) _procEl.style.display='none';
+    if(_zoneEl && !RST.entries.length) _zoneEl.style.display='';
   }
 }
 
