@@ -5985,18 +5985,16 @@ async function ldRunOCR(dataUrl){
   ocr.className='ld-ocr loading'; ocr.style.display='flex';
   ocr.innerHTML='<div class="ld-ocr-spin"></div>&nbsp;Analizando MCDU con IA...';
   var parts=dataUrl.split(','), mt=parts[0].match(/:(.*?);/)[1], b64=parts[1];
-  var prompt='Analyze this Airbus MCDU screen. Return ONLY valid JSON without markdown:\n{"flightNumber":"VY1234 or null","departure":"LEBL or null","arrival":"EGLL or null","date":"YYYY-MM-DD or null","std":"HH:MM or null","sta":"HH:MM or null","aircraftType":"A319/A320/A320neo/A321/A321neo/A321XLR or null","registration":"EC-XXX or null","cruiseFL":"FL360 or null","estimatedBlockTime":"HH:MM or null","confidence":"high/medium/low","pageDetected":"FPLN/INIT/PERF/OTHER","error":"Not an MCDU screen or null"}';
+  var authToken=''; try{authToken=localStorage.getItem('cafi_auth_token')||'';}catch(e){}
+  var backendUrl=localStorage.getItem('cafi_backend_url')||'https://happy-ambition-production-75eb.up.railway.app';
   try{
-    var res=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:600,messages:[{role:'user',content:[
-        {type:'image',source:{type:'base64',media_type:mt,data:b64}},
-        {type:'text',text:prompt}
-      ]}]})
+    var res=await fetch(backendUrl+'/api/logbook/analyze',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+authToken},
+      body:JSON.stringify({image_base64:b64,media_type:mt})
     });
-    var data=await res.json();
-    var text=((data.content&&data.content[0]&&data.content[0].text)?data.content[0].text:'').replace(/```json|```/g,'').trim();
-    var parsed; try{parsed=JSON.parse(text);}catch(e){throw new Error('Respuesta inesperada');}
+    var parsed=await res.json();
+    if(!res.ok) throw new Error(parsed.error||'Error del servidor');
     if(parsed.error&&parsed.error!=='null'){
       ocr.className='ld-ocr err'; ocr.innerHTML='⚠ '+parsed.error+' — Completa manualmente'; return;
     }
@@ -6269,10 +6267,14 @@ window.runAIBriefing = async function(){
   btn.disabled=true; label.textContent='Analizando…'; spin.style.display='block'; star.style.display='none';
   resultWrap.innerHTML=''; resultWrap.classList.remove('visible');
   var prompt='Eres un meteorólogo aeronáutico experto. Analiza los siguientes datos de vuelo y genera un briefing operacional conciso en español para un piloto de A320.\n\nRUTA: '+dep+' → '+arr+'\nMETAR (salida): '+metar+'\nTAF (salida): '+taf+'\nCódigo WMO salida: '+depCode+' | llegada: '+arrCode+'\nViento: '+windKt+' kt\n\nResponde ÚNICAMENTE con JSON sin markdown, con esta estructura exacta:\n{\n  "summary": "Resumen ejecutivo en 2 frases",\n  "dep_analysis": "Análisis condiciones salida (1-2 frases)",\n  "arr_analysis": "Análisis condiciones llegada (1-2 frases)",\n  "warnings": ["alerta1 si existe"],\n  "recommendation": "Recomendación operacional concreta",\n  "severity": "ok|caution|warning"\n}\nSi no hay alertas reales, warnings debe ser [].';
+  var wxAuthToken=''; try{wxAuthToken=localStorage.getItem('cafi_auth_token')||'';}catch(e){}
+  var wxBackendUrl=localStorage.getItem('cafi_backend_url')||'https://happy-ambition-production-75eb.up.railway.app';
   try{
-    var resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:600,messages:[{role:'user',content:prompt}]})});
+    var resp=await fetch(wxBackendUrl+'/api/weather/analyze',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+wxAuthToken},body:JSON.stringify({prompt:prompt})});
     var data=await resp.json();
-    var raw=(data.content||[]).map(function(b){return b.text||'';}).join('');
+    if(!resp.ok) throw new Error(data.error||'Error del servidor');
+    var raw=JSON.stringify(data);
+    var p=data;
     raw=raw.replace(/```json|```/g,'').trim();
     var p=JSON.parse(raw);
     var sev=p.severity||'ok';
