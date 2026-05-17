@@ -1385,6 +1385,21 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 /* Logbook sky blue bg */
 #scr-logbook{background:linear-gradient(180deg,#87CEEB 0%,#C8E6F5 60%,#D6EEF8 100%)!important}
 
+/* ── NAME AUTOCOMPLETE ── */
+.ld-name-list{position:absolute;top:calc(100% + 2px);left:0;right:0;background:#fff;border:1px solid rgba(30,58,164,.2);border-radius:10px;z-index:200;display:none;box-shadow:0 4px 16px rgba(30,58,164,.12);overflow:hidden;max-height:180px;overflow-y:auto}
+.ld-name-opt{padding:9px 12px;font-size:13px;color:#0F172A;cursor:pointer;transition:background .1s;font-family:'Space Grotesk',system-ui,sans-serif}
+.ld-name-opt:hover{background:#EFF6FF}
+
+/* ── EXTENDED STATS CARD ── */
+.ld-estats{background:rgba(255,255,255,.9);border:1px solid rgba(30,58,164,.12);border-radius:18px;padding:14px 16px;margin-bottom:14px}
+.ld-estats-title{font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.ld-estats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ld-ecard{background:linear-gradient(135deg,#F0F6FF,#EEF2FF);border:1px solid rgba(30,58,164,.1);border-radius:12px;padding:10px 12px}
+.ld-ecard-label{font-size:9px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.ld-ecard-val{font-size:17px;font-weight:700;color:#0F172A;font-family:'Space Mono',monospace;line-height:1.15;word-break:break-word}
+.ld-ecard-val.sm{font-size:12px}
+.ld-ecard-sub{font-size:10px;color:#0369A1;margin-top:3px}
+
 /* Logbook home card: logo alineado a la izquierda como el resto de tarjetas */
 .cat-logbook .mc-icon-box{justify-content:flex-start!important;}
 
@@ -3427,6 +3442,30 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
       <div class="ld-stat"><div class="ld-stat-label">Aterrizajes · Vuelos</div><div class="ld-stat-value" id="ld_ldg">0</div><div class="ld-stat-sub" id="ld_flights">0 registrados</div></div>
     </div>
 
+    <!-- Extended Stats -->
+    <div class="ld-estats" id="ld_estats">
+      <div class="ld-estats-title">📊 Estadísticas</div>
+      <div class="ld-estats-grid">
+        <div class="ld-ecard">
+          <div class="ld-ecard-label" id="ld_es_role_label">Horas como FO</div>
+          <div class="ld-ecard-val" id="ld_es_role_val">0h 00m</div>
+        </div>
+        <div class="ld-ecard">
+          <div class="ld-ecard-label">Compañero frecuente</div>
+          <div class="ld-ecard-val sm" id="ld_es_buddy">—</div>
+        </div>
+        <div class="ld-ecard">
+          <div class="ld-ecard-label">Destino frecuente</div>
+          <div class="ld-ecard-val" id="ld_es_dest">—</div>
+        </div>
+        <div class="ld-ecard">
+          <div class="ld-ecard-label">Millas este mes</div>
+          <div class="ld-ecard-val" id="ld_es_miles">0 nm</div>
+          <div class="ld-ecard-sub" id="ld_es_miles_fun"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Toolbar -->
     <div class="ld-toolbar">
       <button class="ld-btn-p" onclick="ldOpenModal(false)">📷 Nueva — Foto MCDU</button>
@@ -3525,7 +3564,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
           <span style="font-size:18px">🗓</span>
           <div style="flex:1;min-width:0">
             <div style="font-size:12px;font-weight:700;color:#67d7f5" id="ld-roster-prefill-title">Vuelo importado del Roster</div>
-            <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:1px" id="ld-roster-prefill-sub">Revisa y confirma los datos</div>
+            <div style="font-size:11px;color:#E0F7FF;margin-top:1px;font-weight:500" id="ld-roster-prefill-sub">Revisa y confirma los datos</div>
           </div>
           <button onclick="this.closest('#ld-roster-prefill-banner').style.display='none'" style="width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.08);border:none;color:rgba(255,255,255,.4);cursor:pointer;font-size:12px">✕</button>
         </div>
@@ -3569,12 +3608,12 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 
         <div class="ld-sec">Tiempos UTC</div>
         <div class="ld-grid-2">
-          <div class="ld-fg"><label class="ld-fl">STD <span class="ld-ocr-tag">OCR</span></label><input class="ld-fi" type="time" id="ld_std"></div>
-          <div class="ld-fg"><label class="ld-fl">ATD (off-block)</label><input class="ld-fi" type="time" id="ld_atd"></div>
+          <div class="ld-fg"><label class="ld-fl">ATD <span class="ld-ocr-tag" style="background:rgba(8,145,178,.12);color:#0369A1;border-color:rgba(8,145,178,.3)">OUT</span></label><input class="ld-fi" type="time" id="ld_atd"></div>
+          <div class="ld-fg"><label class="ld-fl">STD <span class="ld-ocr-tag">OFF</span></label><input class="ld-fi" type="time" id="ld_std"></div>
         </div>
         <div class="ld-grid-2">
-          <div class="ld-fg"><label class="ld-fl">STA <span class="ld-ocr-tag">OCR</span></label><input class="ld-fi" type="time" id="ld_sta"></div>
-          <div class="ld-fg"><label class="ld-fl">ATA (on-block)</label><input class="ld-fi" type="time" id="ld_ata"></div>
+          <div class="ld-fg"><label class="ld-fl">ATA <span class="ld-ocr-tag" style="background:rgba(8,145,178,.12);color:#0369A1;border-color:rgba(8,145,178,.3)">IN</span></label><input class="ld-fi" type="time" id="ld_ata"></div>
+          <div class="ld-fg"><label class="ld-fl">STA <span class="ld-ocr-tag">ON</span></label><input class="ld-fi" type="time" id="ld_sta"></div>
         </div>
         <div class="ld-fg" style="margin-bottom:8px"><label class="ld-fl">Block time ★ (auto si ATD+ATA)</label><input class="ld-fi" type="text" id="ld_block" placeholder="02:35"></div>
 
@@ -3600,6 +3639,21 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
               <option value="COM">Comercial (AOC)</option><option value="TRNG">Training / OPC</option>
               <option value="FERRY">Ferry</option><option value="OTH">Otro</option>
             </select>
+          </div>
+        </div>
+
+        <div class="ld-grid-2">
+          <div class="ld-fg" style="position:relative">
+            <label class="ld-fl">CM1 Name <span style="font-size:9px;font-weight:500;color:#92400E;text-transform:none;letter-spacing:0">(Comandante)</span></label>
+            <input class="ld-fi" type="text" id="ld_cm1" placeholder="Apellido..." autocomplete="off"
+              oninput="ldNameSuggest(this,'ld_cm1_list')" onfocus="ldNameSuggest(this,'ld_cm1_list')" onblur="setTimeout(function(){ldNameHide('ld_cm1_list')},150)">
+            <div class="ld-name-list" id="ld_cm1_list"></div>
+          </div>
+          <div class="ld-fg" style="position:relative">
+            <label class="ld-fl">CM2 Name <span style="font-size:9px;font-weight:500;color:#0369A1;text-transform:none;letter-spacing:0">(Copiloto)</span></label>
+            <input class="ld-fi" type="text" id="ld_cm2" placeholder="Apellido..." autocomplete="off"
+              oninput="ldNameSuggest(this,'ld_cm2_list')" onfocus="ldNameSuggest(this,'ld_cm2_list')" onblur="setTimeout(function(){ldNameHide('ld_cm2_list')},150)">
+            <div class="ld-name-list" id="ld_cm2_list"></div>
           </div>
         </div>
 
@@ -3926,7 +3980,7 @@ function goTo(key){
   if (sb) sb.scrollTop = 0;
   if (key === 'cafi') { initMic('cafi'); cafiInit(); cafiStartBubble(); }
   if (key === 'oes')  initMic('oes');
-  if (key === 'ld' && window._initLD) window._initLD();
+  if (key === 'logbook' && window._initLD) window._initLD();
   if (key === 'roster' && window.rosterInit) window.rosterInit();
 }
 function goHome(){goTo('home');}
@@ -5917,6 +5971,13 @@ function ldOpenModal(manual){
   document.getElementById('ld_date').value=new Date().toISOString().split('T')[0];
   document.getElementById('ld_zone').style.display=manual?'none':'';
   document.getElementById('ld_modal_title').innerHTML=manual?'Nueva entrada — <span>Manual</span>':'Nueva entrada — <span>MCDU OCR</span>';
+  // Auto-fill own name based on current role selection
+  var _role=document.getElementById('ld_role').value;
+  var _myFo=localStorage.getItem('pilotOS_myname_fo')||'';
+  var _myCpt=localStorage.getItem('pilotOS_myname_cpt')||'';
+  var _cm1el=document.getElementById('ld_cm1'), _cm2el=document.getElementById('ld_cm2');
+  if(_role==='FO'&&_myFo&&_cm2el) _cm2el.value=_myFo;
+  else if(_role==='CPT'&&_myCpt&&_cm1el) _cm1el.value=_myCpt;
   document.getElementById('ld_modal').classList.add('open');
   document.getElementById('scr-logbook').classList.add('modal-active');
   document.body.style.overflow='hidden';
@@ -5928,7 +5989,7 @@ function ldCloseModal(){
   ldResetUpload();
 }
 function ldResetForm(){
-  ['ld_date','ld_flight','ld_dep','ld_arr','ld_reg','ld_fl','ld_std','ld_atd','ld_sta','ld_ata','ld_block','ld_night_inp','ld_notes'].forEach(function(id){
+  ['ld_date','ld_flight','ld_dep','ld_arr','ld_reg','ld_fl','ld_std','ld_atd','ld_sta','ld_ata','ld_block','ld_night_inp','ld_notes','ld_cm1','ld_cm2'].forEach(function(id){
     var el=document.getElementById(id); if(el){el.value='';el.classList.remove('af');}
   });
   document.getElementById('ld_ldgd').value=1;
@@ -5997,14 +6058,20 @@ async function ldRunOCR(dataUrl){
 }
 function ldFillOCR(d){
   function set(id,val,up){
-    if(!val||val==='null') return;
+    if(!val||val==='null'||val===null) return;
     var el=document.getElementById(id); if(!el) return;
     el.value=up?String(val).toUpperCase():val; el.classList.add('af');
   }
   set('ld_date',d.date); set('ld_flight',d.flightNumber,true);
   set('ld_dep',d.departure,true); set('ld_arr',d.arrival,true);
   set('ld_reg',d.registration,true); set('ld_fl',d.cruiseFL);
-  set('ld_std',d.std); set('ld_sta',d.sta); set('ld_block',d.estimatedBlockTime);
+  // AOC STATUS fields (OUT/OFF/IN/ON) take priority; fall back to std/sta
+  set('ld_atd', d.atd || d.std);
+  set('ld_std', d.std);
+  set('ld_ata', d.ata || d.sta);
+  set('ld_sta', d.sta);
+  // Block time: use explicit block field or estimatedBlockTime
+  set('ld_block', d.block || d.estimatedBlockTime);
   if(d.aircraftType){
     var sel=document.getElementById('ld_actype');
     var opt=[].slice.call(sel.options).find(function(o){return o.value===d.aircraftType;});
@@ -6037,9 +6104,21 @@ function ldSave(){
     block:g('ld_block'),role:g('ld_role'),func:g('ld_func'),
     rules:g('ld_rules'),opType:g('ld_optype'),conditions:g('ld_cond'),
     ldgDay:n('ld_ldgd'),ldgNight:n('ld_ldgn'),night:g('ld_night_inp'),
+    cm1:g('ld_cm1'),cm2:g('ld_cm2'),
     notes:g('ld_notes'),source:ldImgB64?'MCDU-OCR':'MANUAL'
   };
-  ldEntries.unshift(e); ldSaveData(); ldCloseModal(); ldRender(); ldStats();
+  // Persist own-name default and add colleagues to names DB
+  var _r=e.role, _c1=e.cm1, _c2=e.cm2;
+  if(_r==='FO'){
+    if(_c2) localStorage.setItem('pilotOS_myname_fo',_c2);
+    if(_c1) ldNamesSave(_c1);
+  } else {
+    if(_c1) localStorage.setItem('pilotOS_myname_cpt',_c1);
+    if(_c2) ldNamesSave(_c2);
+  }
+  if(_c1) ldNamesSave(_c1);
+  if(_c2) ldNamesSave(_c2);
+  ldEntries.unshift(e); ldSaveData(); ldSyncToServer(); ldCloseModal(); ldRender(); ldStats();
   showToast('✓ Vuelo '+e.dep+'→'+e.arr+' registrado','success');
 }
 
@@ -6087,7 +6166,9 @@ function ldGoPage(p){ldPage=p;ldRender();}
 function ldFilter(){ldPage=1;ldRender();}
 function ldDelete(id){
   if(!confirm('¿Eliminar esta entrada del logbook?')) return;
-  ldEntries=ldEntries.filter(function(e){return e.id!==id;}); ldSaveData(); ldRender(); ldStats();
+  ldEntries=ldEntries.filter(function(e){return e.id!==id;});
+  ldSaveData(); ldRender(); ldStats();
+  ldDeleteFromServer(id);
   showToast('Entrada eliminada','info');
 }
 
@@ -6108,6 +6189,7 @@ function ldStats(){
   if(el('ld_28'))     el('ld_28').className='ld-stat-value'+(warn?' warn':'');
   if(el('ld_stat28card')) el('ld_stat28card').className='ld-stat'+(warn?' warn':'');
   if(el('ld_28sub'))  el('ld_28sub').textContent=warn?'⚠ Próximo al límite EASA':'límite EASA: 100h / 28 días';
+  ldExtendedStats();
 }
 
 // Export
@@ -6124,8 +6206,8 @@ function ldToday(){return new Date().toISOString().split('T')[0];}
 
 function ldExportCSV(){
   if(!ldEntries.length){showToast('No hay vuelos para exportar','error');return;}
-  var H=['ID','Fecha','Vuelo','Origen','Destino','Tipo AC','Motor','Matrícula','FL','STD','ATD','STA','ATA','Block','Nocturno','Ldg Día','Ldg Noche','Rol','Función','Reglas','Tipo Op.','Condiciones','Notas','Fuente','Guardado UTC'];
-  var R=ldEntries.map(function(e){return[e.id,e.date,e.flight,e.dep,e.arr,e.acType,e.engine,e.reg,e.fl,e.std,e.atd,e.sta,e.ata,e.block,e.night,e.ldgDay,e.ldgNight,e.role,e.func,e.rules,e.opType,e.conditions,e.notes,e.source,e.savedAt];});
+  var H=['ID','Fecha','Vuelo','Origen','Destino','Tipo AC','Motor','Matrícula','FL','ATD (OUT)','STD (OFF)','ATA (IN)','STA (ON)','Block','Nocturno','Ldg Día','Ldg Noche','Rol','Función','CM1','CM2','Reglas','Tipo Op.','Condiciones','Notas','Fuente','Guardado UTC'];
+  var R=ldEntries.map(function(e){return[e.id,e.date,e.flight,e.dep,e.arr,e.acType,e.engine,e.reg,e.fl,e.atd,e.std,e.ata,e.sta,e.block,e.night,e.ldgDay,e.ldgNight,e.role,e.func,e.cm1||'',e.cm2||'',e.rules,e.opType,e.conditions,e.notes,e.source,e.savedAt];});
   var csv=[H].concat(R).map(function(r){return r.map(function(v){return'"'+((v??'').toString().replace(/"/g,'""'))+'"';}).join(',');}).join('\n');
   ldDl('\uFEFF'+csv,'PilotOS_Logbook_'+ldToday()+'.csv','text/csv;charset=utf-8;');
   showToast('✓ CSV exportado','success');
@@ -6147,8 +6229,158 @@ function ldExportPDF(){
   w.document.close(); showToast('✓ Vista PDF lista','success');
 }
 
+// ── NAMES DATABASE ──
+var LD_NAMES_KEY='pilotOS_names_db';
+var ldNamesDb=[];
+function ldNamesLoad(){try{ldNamesDb=JSON.parse(localStorage.getItem(LD_NAMES_KEY)||'[]');}catch(e){ldNamesDb=[];}}
+function ldNamesSave(name){
+  if(!name)return; name=name.trim();
+  if(!name)return;
+  ldNamesDb=ldNamesDb.filter(function(n){return n!==name;});
+  ldNamesDb.unshift(name);
+  if(ldNamesDb.length>120)ldNamesDb=ldNamesDb.slice(0,120);
+  localStorage.setItem(LD_NAMES_KEY,JSON.stringify(ldNamesDb));
+}
+function ldNameSuggest(input,listId){
+  var list=document.getElementById(listId); if(!list)return;
+  var q=input.value.toLowerCase().trim();
+  var matches=q?ldNamesDb.filter(function(n){return n.toLowerCase().includes(q);}):ldNamesDb.slice(0,8);
+  if(!matches.length){list.style.display='none';return;}
+  list.innerHTML=matches.slice(0,8).map(function(n){
+    return '<div class="ld-name-opt" onmousedown="ldNameSelect(\''+n.replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\',\''+input.id+'\',\''+listId+'\')">'+n+'</div>';
+  }).join('');
+  list.style.display='block';
+}
+function ldNameSelect(name,inputId,listId){
+  var inp=document.getElementById(inputId); if(inp)inp.value=name;
+  ldNameHide(listId);
+}
+function ldNameHide(listId){var l=document.getElementById(listId);if(l)l.style.display='none';}
+document.addEventListener('click',function(e){if(!e.target.closest('.ld-fg'))document.querySelectorAll('.ld-name-list').forEach(function(l){l.style.display='none';});});
+ldNamesLoad();
+
+// ── ROLE CHANGE → AUTO-FILL OWN NAME ──
+(function(){
+  var _rl=document.getElementById('ld_role');
+  if(!_rl)return;
+  _rl.addEventListener('change',function(){
+    var r=this.value;
+    var fo=localStorage.getItem('pilotOS_myname_fo')||'';
+    var cpt=localStorage.getItem('pilotOS_myname_cpt')||'';
+    var c1=document.getElementById('ld_cm1'), c2=document.getElementById('ld_cm2');
+    if(r==='FO'&&fo&&c2) c2.value=fo;
+    else if(r==='CPT'&&cpt&&c1) c1.value=cpt;
+  });
+})();
+
+// ── EXTENDED STATS ──
+function ldExtendedStats(){
+  var _el=function(id){return document.getElementById(id);};
+  if(!_el('ld_estats'))return;
+  var cptM=ldEntries.filter(function(e){return e.role==='CPT';}).reduce(function(s,e){return s+ldT2m(e.block);},0);
+  var foM=ldEntries.filter(function(e){return e.role==='FO';}).reduce(function(s,e){return s+ldT2m(e.block);},0);
+  var myRole=cptM>=foM?'CPT':'FO';
+  var myM=cptM>=foM?cptM:foM;
+  if(_el('ld_es_role_label'))_el('ld_es_role_label').textContent='Horas como '+myRole;
+  if(_el('ld_es_role_val'))_el('ld_es_role_val').textContent=ldM2s(myM);
+  // Top companion (partner is CM1 if FO, CM2 if CPT)
+  var bc={};
+  ldEntries.forEach(function(e){
+    var p=(myRole==='FO'?e.cm1:e.cm2)||''; if(p)bc[p]=(bc[p]||0)+1;
+  });
+  var bk=Object.keys(bc).sort(function(a,b){return bc[b]-bc[a];})[0]||'—';
+  if(_el('ld_es_buddy'))_el('ld_es_buddy').textContent=bk==='—'?'—':bk+' ('+bc[bk]+' vuelos)';
+  // Top destination
+  var dc={};
+  ldEntries.forEach(function(e){if(e.arr)dc[e.arr]=(dc[e.arr]||0)+1;});
+  var dk=Object.keys(dc).sort(function(a,b){return dc[b]-dc[a];})[0]||'—';
+  if(_el('ld_es_dest'))_el('ld_es_dest').textContent=dk==='—'?'—':dk+' ×'+(dc[dk]||0);
+  // Miles this month (~440 kt average)
+  var now=new Date(), ms=new Date(now.getFullYear(),now.getMonth(),1).getTime();
+  var mf=ldEntries.filter(function(e){return new Date(e.date).getTime()>=ms;});
+  var mm=mf.reduce(function(s,e){return s+ldT2m(e.block);},0);
+  var nm=Math.round((mm/60)*440);
+  if(_el('ld_es_miles'))_el('ld_es_miles').textContent=nm.toLocaleString('es-ES')+' nm';
+  var fun='';
+  if(nm>21600)fun='🌍 ×'+(nm/21600).toFixed(1)+' vueltas al mundo';
+  else if(nm>5000)fun='✈ '+(nm/21600*100).toFixed(0)+'% de una vuelta al mundo';
+  else if(nm>800)fun='≈ '+(nm/539).toFixed(1)+'× BCN→LHR';
+  else if(nm>0)fun='≈ BCN→MAD ×'+Math.round(nm/190);
+  if(_el('ld_es_miles_fun'))_el('ld_es_miles_fun').textContent=fun;
+}
+
+// ── SERVER SYNC ──
+function ldAuthHeaders(){
+  var t=''; try{t=localStorage.getItem('cafi_auth_token')||'';}catch(e){}
+  return t&&t!=='demo-bypass-token'?t:null;
+}
+function ldBackendUrl(){
+  return localStorage.getItem('cafi_backend_url')||'https://happy-ambition-production-75eb.up.railway.app';
+}
+
+// PUSH — enviar todos los vuelos al servidor (silent)
+async function ldSyncToServer(){
+  var token=ldAuthHeaders(); if(!token||!ldEntries.length)return;
+  try{
+    var r=await fetch(ldBackendUrl()+'/api/logbook/sync',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({entries:ldEntries})
+    });
+    if(r.ok){
+      var body=await r.json();
+      console.log('[Logbook] Synced '+body.synced+' entries to server');
+    }
+  }catch(e){/* offline */}
+}
+
+// PULL — descargar desde el servidor y hacer merge
+async function ldPullFromServer(){
+  var token=ldAuthHeaders(); if(!token)return;
+  try{
+    var r=await fetch(ldBackendUrl()+'/api/logbook',{
+      headers:{'Authorization':'Bearer '+token}
+    });
+    if(!r.ok)return;
+    var body=await r.json();
+    var serverEntries=body.entries||[];
+    if(!serverEntries.length)return;
+    // Merge: deduplicar por id, mantener el más reciente (savedAt)
+    var map={};
+    ldEntries.forEach(function(e){if(e.id)map[e.id]=e;});
+    var newCount=0;
+    serverEntries.forEach(function(se){
+      if(!se||!se.id)return;
+      var local=map[se.id];
+      if(!local){map[se.id]=se;newCount++;}
+      else if(se.savedAt&&local.savedAt&&se.savedAt>local.savedAt){map[se.id]=se;newCount++;}
+    });
+    if(!newCount)return;
+    ldEntries=Object.values(map).sort(function(a,b){
+      return(b.date||'').localeCompare(a.date||'')||(b.savedAt||'').localeCompare(a.savedAt||'');
+    });
+    ldSaveData(); ldRender(); ldStats();
+    showToast('☁ '+newCount+' vuelo'+(newCount>1?'s':'')+' sincronizado'+(newCount>1?'s':''),'info');
+  }catch(e){/* offline */}
+}
+
+// DELETE en servidor cuando se borra localmente
+async function ldDeleteFromServer(id){
+  var token=ldAuthHeaders(); if(!token)return;
+  try{
+    await fetch(ldBackendUrl()+'/api/logbook/'+id,{
+      method:'DELETE',
+      headers:{'Authorization':'Bearer '+token}
+    });
+  }catch(e){}
+}
+
 // Init
-window._initLD=function(){if(window._ldOk)return;window._ldOk=1;ldLoad();ldRender();ldStats();};
+window._initLD=function(){
+  if(window._ldOk)return; window._ldOk=1;
+  ldLoad(); ldRender(); ldStats();
+  ldPullFromServer(); // pull desde servidor en background
+};
 document.getElementById('ld_modal').addEventListener('click',function(e){if(e.target===e.currentTarget)ldCloseModal();});
 var _latd=document.getElementById('ld_atd');if(_latd)_latd.addEventListener('change',ldAutoBlock);
 var _lata=document.getElementById('ld_ata');if(_lata)_lata.addEventListener('change',ldAutoBlock);
