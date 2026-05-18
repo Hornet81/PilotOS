@@ -1693,6 +1693,38 @@ input#ld_fl, input#ld_cond { display:none !important; }
 
 /* OCR animations compat */
 .ld-ocr.loading,.ld-ocr.ok,.ld-ocr.err { display:flex; }
+/* MCDU green highlight — times section after successful OCR */
+.ldm-times-wrap {
+  border-radius:14px; padding:4px; margin:-4px;
+  transition:background .4s, box-shadow .4s, border-color .4s;
+  border:1px solid transparent;
+}
+.ldm-times-wrap.mcdu-ok {
+  background:rgba(0,255,80,.05) !important;
+  border-color:rgba(0,255,80,.2) !important;
+  box-shadow:0 0 18px rgba(0,255,80,.08), inset 0 0 12px rgba(0,255,80,.04) !important;
+}
+.ldm-times-wrap.mcdu-ok .ldm-inp {
+  background:rgba(0,20,8,.75) !important;
+  border-color:rgba(0,255,80,.22) !important;
+}
+.ldm-times-wrap.mcdu-ok .ldm-inp:focus {
+  border-color:rgba(0,255,80,.5) !important;
+  box-shadow:0 0 0 3px rgba(0,255,80,.08) !important;
+}
+.ldm-times-wrap.mcdu-ok .ldm-inp.af {
+  border-color:rgba(0,255,80,.4) !important;
+  color:#7fff7f !important;
+}
+/* MCDU green label indicator */
+.ldm-mcdu-badge {
+  display:none; font-size:9px; font-family:'Space Mono',monospace;
+  color:rgba(0,255,80,.7); letter-spacing:.4px;
+  background:rgba(0,255,80,.08); border:1px solid rgba(0,255,80,.2);
+  border-radius:5px; padding:1px 7px; margin-left:6px;
+}
+.ldm-times-wrap.mcdu-ok .ldm-mcdu-badge { display:inline; }
+
 /* ══ END LDM MODAL ══ */
 #scr-logbook{display:flex;flex-direction:column;overflow:hidden}
 #ld-panel-vuelos.ld-panel{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
@@ -4393,7 +4425,11 @@ input#ld_fl, input#ld_cond { display:none !important; }
         </div>
 
         <!-- ── TIEMPOS UTC ── -->
-        <div class="ldm-sec">Tiempos UTC</div>
+        <div class="ldm-sec">
+          Tiempos UTC
+          <span class="ldm-mcdu-badge">✓ MCDU</span>
+        </div>
+        <div class="ldm-times-wrap" id="ldm-times-wrap">
         <div class="ldm-row2">
           <div class="ldm-fg">
             <label class="ldm-lbl">ATD <span class="ldm-tag ldm-tag-act">OUT</span></label>
@@ -4414,10 +4450,24 @@ input#ld_fl, input#ld_cond { display:none !important; }
             <input class="ldm-inp" type="time" id="ld_sta" oninput="ldUpdateDayBadges()" onchange="ldUpdateDayBadges()">
           </div>
         </div>
-        <div class="ldm-fg" style="margin-bottom:4px">
-          <label class="ldm-lbl">BLOCK TIME <span style="font-size:9px;color:rgba(34,211,238,.4);font-weight:400;text-transform:none;letter-spacing:0">(auto si ATD+ATA)</span></label>
-          <input class="ldm-inp ldm-inp-highlight" type="text" id="ld_block" placeholder="00:00">
+        <!-- Flight Time row — below STA -->
+        <div class="ldm-row2" style="margin-bottom:4px">
+          <div class="ldm-fg">
+            <label class="ldm-lbl">
+              FLIGHT TIME
+              <span class="ldm-tag ldm-tag-ocr" style="background:rgba(34,211,238,.08);color:rgba(34,211,238,.7);border-color:rgba(34,211,238,.2)">OCR</span>
+              <span style="font-size:9px;color:rgba(248,250,252,.25);text-transform:none;letter-spacing:0;font-weight:400;margin-left:2px">OFF→ON</span>
+            </label>
+            <input class="ldm-inp" type="text" id="ld_flight_time" placeholder="00:00"
+              style="font-family:'Space Mono',monospace;font-size:15px;text-align:center;letter-spacing:1px">
+          </div>
+          <div class="ldm-fg">
+            <label class="ldm-lbl">BLOCK TIME <span style="font-size:9px;color:rgba(34,211,238,.4);font-weight:400;text-transform:none;letter-spacing:0">(auto si ATD+ATA)</span></label>
+            <input class="ldm-inp ldm-inp-highlight" type="text" id="ld_block" placeholder="00:00"
+              style="font-family:'Space Mono',monospace;font-size:15px;text-align:center;letter-spacing:1px">
+          </div>
         </div>
+        </div><!-- /ldm-times-wrap -->
 
         <!-- ── ROL & FUNCIÓN ── -->
         <div class="ldm-sec">Rol &amp; Función</div>
@@ -6808,9 +6858,11 @@ function ldCloseModal(){
   ldResetUpload();
 }
 function ldResetForm(){
-  ['ld_date','ld_flight','ld_dep','ld_arr','ld_reg','ld_fl','ld_std','ld_atd','ld_sta','ld_ata','ld_block','ld_night_inp','ld_notes','ld_cm1','ld_cm2'].forEach(function(id){
+  ['ld_date','ld_flight','ld_dep','ld_arr','ld_reg','ld_fl','ld_std','ld_atd','ld_sta','ld_ata','ld_block','ld_flight_time','ld_night_inp','ld_notes','ld_cm1','ld_cm2'].forEach(function(id){
     var el=document.getElementById(id); if(el){el.value='';el.classList.remove('af');}
   });
+  // Reset MCDU green state
+  var tw=document.getElementById('ldm-times-wrap'); if(tw) tw.classList.remove('mcdu-ok');
   document.getElementById('ld_ldgd').value=1;
   document.getElementById('ld_ldgn').value=0;
   document.getElementById('ld_role').selectedIndex=1;
@@ -6891,12 +6943,21 @@ function ldFillOCR(d){
   set('ld_std', d.std);
   set('ld_ata', d.ata || d.sta);
   set('ld_sta', d.sta);
-  // Block time: use explicit block field or estimatedBlockTime
+  // Block time
   set('ld_block', d.block || d.estimatedBlockTime);
+  // Flight time (OFF→ON, from AOC STATUS page)
+  set('ld_flight_time', d.flightTime);
+  // Aircraft type
   if(d.aircraftType){
     var sel=document.getElementById('ld_actype');
     var opt=[].slice.call(sel.options).find(function(o){return o.value===d.aircraftType;});
     if(opt){sel.value=opt.value;sel.classList.add('af');}
+  }
+  // ── Green MCDU highlight on times section if any time was filled ──
+  var anyTime = d.atd||d.std||d.ata||d.sta||d.block||d.flightTime;
+  if(anyTime){
+    var wrap=document.getElementById('ldm-times-wrap');
+    if(wrap) wrap.classList.add('mcdu-ok');
   }
 }
 
@@ -6924,7 +6985,7 @@ function ldSave(){
     dep:g('ld_dep').toUpperCase(),arr:g('ld_arr').toUpperCase(),
     acType:g('ld_actype'),engine:g('ld_engine'),reg:g('ld_reg').toUpperCase(),fl:g('ld_fl'),
     std:g('ld_std'),atd:g('ld_atd'),sta:g('ld_sta'),ata:g('ld_ata'),
-    block:g('ld_block'),role:g('ld_role'),func:g('ld_func'),
+    block:g('ld_block'),flightTime:g('ld_flight_time'),role:g('ld_role'),func:g('ld_func'),
     rules:g('ld_rules'),opType:g('ld_optype'),conditions:g('ld_cond'),
     ldgDay:n('ld_ldgd'),ldgNight:n('ld_ldgn'),night:g('ld_night_inp'),
     cm1:g('ld_cm1'),cm2:g('ld_cm2'),
@@ -6988,6 +7049,7 @@ function ldRender(){
     html+='<div class="ld-fmonth">'+ldFmtMonth(mk+'-01')+'</div>';
     groups[mk].forEach(function(e){
       var hasNoc=e.night&&e.night!=='00:00'&&e.night!=='0:00'&&e.night!=='';
+      var hasFt=e.flightTime&&e.flightTime!=='00:00'&&e.flightTime!=='';
       var src=e.source==='MCDU-OCR'?'📷 ':'';
       var roleClass=e.role==='CPT'?'ld-fpill-cpt':'ld-fpill-fo';
       var funcClass=e.func==='PM'?'ld-fpill-pm':'ld-fpill-pf';
@@ -7005,6 +7067,7 @@ function ldRender(){
           +(acLabel?'<span class="ld-fpill ld-fpill-ac">'+acLabel+'</span>':'')
           +'<span class="ld-fpill '+roleClass+'">'+(e.role||'FO')+'</span>'
           +(e.func?'<span class="ld-fpill '+funcClass+'">'+(e.func)+'</span>':'')
+          +(hasFt?'<span class="ld-fpill" style="background:rgba(0,255,80,.07);color:rgba(0,220,80,.85);border:1px solid rgba(0,255,80,.2);font-family:\'Space Mono\',monospace">✈ '+e.flightTime+'</span>':'')
           +(hasNoc?'<span class="ld-fpill ld-fpill-noc">'+e.night+' noc</span>':'')
           +(e.std?'<span class="ld-fdate">'+e.std+'Z</span>':'')
           +'<button class="ld-fdel" onclick="event.stopPropagation();ldDelete(\''+e.id+'\')" title="Eliminar">🗑</button>'
