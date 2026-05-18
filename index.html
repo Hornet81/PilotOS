@@ -1390,6 +1390,16 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .ld-name-opt{padding:9px 12px;font-size:13px;color:#0F172A;cursor:pointer;transition:background .1s;font-family:'Space Grotesk',system-ui,sans-serif}
 .ld-name-opt:hover{background:#EFF6FF}
 
+/* ── +1 DAY BADGE ── */
+.ld-plus1{display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#B45309,#92400E);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:5px;font-family:'Space Mono',monospace;letter-spacing:.3px;animation:p1fade .3s ease}
+@keyframes p1fade{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+
+/* ── AIRCRAFT DB SUGGESTIONS ── */
+#ld_reg_suggestions .ld-reg-opt{padding:8px 12px;font-size:12px;color:#0F172A;cursor:pointer;transition:background .1s;font-family:'Space Grotesk',sans-serif;display:flex;align-items:center;gap:8px}
+#ld_reg_suggestions .ld-reg-opt:hover{background:#EFF6FF}
+#ld_reg_suggestions .ld-reg-opt .ld-reg-reg{font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:#0891B2;min-width:60px}
+#ld_reg_suggestions .ld-reg-opt .ld-reg-info{font-size:11px;color:#475569}
+
 /* ── EXTENDED STATS CARD ── */
 .ld-estats{background:rgba(255,255,255,.9);border:1px solid rgba(30,58,164,.12);border-radius:18px;padding:14px 16px;margin-bottom:14px}
 .ld-estats-title{font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
@@ -3471,6 +3481,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
       <button class="ld-btn-p" onclick="ldOpenModal(false)">📷 Nueva — Foto MCDU</button>
       <button class="ld-btn-g" onclick="ldOpenModal(true)">✏️ Manual</button>
       <button class="ld-btn-e" onclick="ldToggleExport()">⬇ Exportar</button>
+      <button class="ld-btn-e" onclick="ldShowImport()" style="background:rgba(109,40,217,.1);color:#5B21B6;border-color:rgba(109,40,217,.25)">📥 Importar</button>
     </div>
     <!-- Roster AI button -->
     <div id="ld-roster-btn-wrap" style="display:none;margin-bottom:12px">
@@ -3508,7 +3519,9 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
           <tbody id="ld_tbody"><tr><td colspan="12">
             <div class="ld-empty"><div class="ld-empty-icon">📋</div>
             <div class="ld-empty-title">Logbook vacío</div>
-            <div class="ld-empty-sub">Añade tu primer vuelo con foto MCDU o manualmente</div></div>
+            <div class="ld-empty-sub">Añade tu primer vuelo con foto MCDU o manualmente</div>
+            <button onclick="ldShowImport()" style="margin-top:14px;padding:10px 20px;background:linear-gradient(135deg,rgba(109,40,217,.15),rgba(8,145,178,.12));border:1.5px solid rgba(109,40,217,.3);border-radius:12px;color:#5B21B6;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px">📥 Importar logbook existente (XLS / CSV / TXT)</button>
+            </div>
           </td></tr></tbody>
         </table>
       </div>
@@ -3520,7 +3533,46 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 
   </div></div>
 
-  <!-- MODAL -->
+  <!-- IMPORT MODAL -->
+  <div class="ld-modal-ov" id="ld_import_modal" style="display:none;align-items:center;justify-content:center">
+    <div class="ld-modal" style="max-height:80vh">
+      <div class="ld-modal-hdr">
+        <div class="ld-modal-title">Importar Logbook <span>XLS / CSV / TXT</span></div>
+        <button class="ld-modal-close" onclick="ldCloseImport()">✕</button>
+      </div>
+      <div class="ld-modal-body" style="padding:16px">
+        <div style="background:rgba(109,40,217,.06);border:1px solid rgba(109,40,217,.2);border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:#1E3A5F;line-height:1.6">
+          <strong style="color:#5B21B6">Columnas aceptadas</strong> (cualquier orden, cabeceras en español o inglés):<br>
+          <span style="font-family:'Space Mono',monospace;font-size:10.5px">fecha/date, vuelo/flight, origen/dep, destino/arr, matrícula/reg, tipo/actype, motor/engine, atd, std, ata, sta, block, nocturno/night, ldg_dia, ldg_noche, rol/role, funcion/func, cm1, cm2, notas/notes</span>
+        </div>
+        <div id="ld_import_zone" style="border:2px dashed rgba(109,40,217,.3);border-radius:14px;padding:28px 20px;text-align:center;cursor:pointer;transition:all .15s;background:rgba(255,255,255,.7)"
+          ondragover="event.preventDefault();this.style.background='rgba(109,40,217,.08)'"
+          ondragleave="this.style.background='rgba(255,255,255,.7)'"
+          ondrop="ldImportDrop(event)">
+          <div style="font-size:32px;margin-bottom:8px">📥</div>
+          <div style="font-size:13px;font-weight:600;color:#1E3A5F;margin-bottom:4px">Arrastra tu archivo aquí</div>
+          <div style="font-size:11px;color:#475569;margin-bottom:14px">o selecciona desde tu dispositivo</div>
+          <label style="padding:10px 22px;background:linear-gradient(135deg,#6D28D9,#0891B2);color:#fff;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;display:inline-block">
+            <input type="file" id="ld_import_file" accept=".csv,.txt,.xls,.xlsx" onchange="ldImportFile(event)" style="display:none">
+            Seleccionar archivo
+          </label>
+          <div style="margin-top:10px;font-size:11px;color:#64748B">Formatos: .csv · .txt · .xls · .xlsx</div>
+        </div>
+        <div id="ld_import_preview" style="display:none;margin-top:14px">
+          <div id="ld_import_status" style="font-size:12px;color:#1E3A5F;margin-bottom:8px;padding:8px 12px;background:rgba(8,145,178,.07);border-radius:8px;border-left:3px solid #0891B2"></div>
+          <div id="ld_import_table_wrap" style="overflow-x:auto;max-height:200px;overflow-y:auto;border-radius:8px;border:1px solid rgba(30,58,164,.1)"></div>
+        </div>
+      </div>
+      <div class="ld-modal-ftr">
+        <div style="font-size:11px;color:#475569">Los registros existentes no se sobrescribirán</div>
+        <div style="display:flex;gap:8px">
+          <button class="ld-cancel" onclick="ldCloseImport()">Cancelar</button>
+          <button class="ld-save" id="ld_import_confirm_btn" style="display:none" onclick="ldImportConfirm()">✓ Importar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="ld-modal-ov" id="ld_modal">
     <div class="ld-modal">
       <div class="ld-modal-hdr">
@@ -3581,6 +3633,12 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 
         <div class="ld-sec">Aeronave</div>
         <div class="ld-grid-3">
+          <div class="ld-fg" style="position:relative">
+            <label class="ld-fl">Matrícula <span class="ld-ocr-tag">OCR</span></label>
+            <input class="ld-fi" type="text" id="ld_reg" placeholder="EC-MXY" autocomplete="off"
+              oninput="ldRegInput(this)" onblur="ldRegBlur(this)">
+            <div id="ld_reg_suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:200;background:#fff;border:1px solid rgba(30,58,164,.2);border-radius:10px;box-shadow:0 4px 16px rgba(30,58,164,.12);max-height:140px;overflow-y:auto;margin-top:2px"></div>
+          </div>
           <div class="ld-fg"><label class="ld-fl">Tipo <span class="ld-ocr-tag">OCR</span></label>
             <select class="ld-fi" id="ld_actype" style="cursor:pointer">
               <option value="">— Tipo —</option><option value="A319">A319</option>
@@ -3594,7 +3652,6 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
               <option value="LEAP-1A">CFM LEAP-1A</option><option value="PW1100G">PW1100G</option>
             </select>
           </div>
-          <div class="ld-fg"><label class="ld-fl">Matrícula <span class="ld-ocr-tag">OCR</span></label><input class="ld-fi" type="text" id="ld_reg" placeholder="EC-MXY"></div>
         </div>
         <div class="ld-grid-2">
           <div class="ld-fg"><label class="ld-fl">FL Crucero <span class="ld-ocr-tag">OCR</span></label><input class="ld-fi" type="text" id="ld_fl" placeholder="FL360"></div>
@@ -3608,12 +3665,12 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 
         <div class="ld-sec">Tiempos UTC</div>
         <div class="ld-grid-2">
-          <div class="ld-fg"><label class="ld-fl">ATD <span class="ld-ocr-tag" style="background:rgba(8,145,178,.12);color:#0369A1;border-color:rgba(8,145,178,.3)">OUT</span></label><input class="ld-fi" type="time" id="ld_atd"></div>
-          <div class="ld-fg"><label class="ld-fl">STD <span class="ld-ocr-tag">OFF</span></label><input class="ld-fi" type="time" id="ld_std"></div>
+          <div class="ld-fg"><label class="ld-fl">ATD <span class="ld-ocr-tag" style="background:rgba(8,145,178,.12);color:#0369A1;border-color:rgba(8,145,178,.3)">OUT</span></label><input class="ld-fi" type="time" id="ld_atd" oninput="ldUpdateDayBadges()"></div>
+          <div class="ld-fg"><label class="ld-fl">STD <span class="ld-ocr-tag">OFF</span><span id="ld_std_p1" class="ld-plus1" style="display:none">+1</span></label><input class="ld-fi" type="time" id="ld_std" oninput="ldUpdateDayBadges()"></div>
         </div>
         <div class="ld-grid-2">
-          <div class="ld-fg"><label class="ld-fl">ATA <span class="ld-ocr-tag" style="background:rgba(8,145,178,.12);color:#0369A1;border-color:rgba(8,145,178,.3)">IN</span></label><input class="ld-fi" type="time" id="ld_ata"></div>
-          <div class="ld-fg"><label class="ld-fl">STA <span class="ld-ocr-tag">ON</span></label><input class="ld-fi" type="time" id="ld_sta"></div>
+          <div class="ld-fg"><label class="ld-fl">ATA <span class="ld-ocr-tag" style="background:rgba(8,145,178,.12);color:#0369A1;border-color:rgba(8,145,178,.3)">IN</span><span id="ld_ata_p1" class="ld-plus1" style="display:none">+1</span></label><input class="ld-fi" type="time" id="ld_ata" oninput="ldUpdateDayBadges()"></div>
+          <div class="ld-fg"><label class="ld-fl">STA <span class="ld-ocr-tag">ON</span><span id="ld_sta_p1" class="ld-plus1" style="display:none">+1</span></label><input class="ld-fi" type="time" id="ld_sta" oninput="ldUpdateDayBadges()"></div>
         </div>
         <div class="ld-fg" style="margin-bottom:8px"><label class="ld-fl">Block time ★ (auto si ATD+ATA)</label><input class="ld-fi" type="text" id="ld_block" placeholder="02:35"></div>
 
@@ -6000,6 +6057,8 @@ function ldResetForm(){
   });
   document.getElementById('ld_confirm').checked=false;
   var ocr=document.getElementById('ld_ocr'); ocr.style.display='none'; ocr.className='ld-ocr';
+  // Reset +1 badges
+  ['ld_std_p1','ld_ata_p1','ld_sta_p1'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
 }
 
 // Upload
@@ -6322,10 +6381,15 @@ function ldBackendUrl(){
 async function ldSyncToServer(){
   var token=ldAuthHeaders(); if(!token||!ldEntries.length)return;
   try{
+    // Filtramos la entrada especial de BD de matrículas — se envía por separado
+    var realEntries=ldEntries.filter(function(e){
+      return e&&e.id!==LD_AC_DB_ENTRY_ID&&e.type!=='__ac_db__';
+    });
+    if(!realEntries.length)return;
     var r=await fetch(ldBackendUrl()+'/api/logbook/sync',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-      body:JSON.stringify({entries:ldEntries})
+      body:JSON.stringify({entries:realEntries})
     });
     if(r.ok){
       var body=await r.json();
@@ -6376,14 +6440,369 @@ async function ldDeleteFromServer(id){
 }
 
 // Init
+// ════════════════════════════════════════════════════
+// AIRCRAFT DATABASE — auto-fill tipo/motor por matrícula
+// Sincroniza con el servidor via entrada especial __ac_db__
+// en el mismo endpoint de logbook. Sin cambios de backend.
+// ════════════════════════════════════════════════════
+var LD_AC_DB_KEY = 'pilotOS_ac_db_v1';
+var LD_AC_DB_ENTRY_ID = '__pilotOS_ac_db__'; // ID especial en el servidor
+
+function ldAcDbLoad(){
+  try{ return JSON.parse(localStorage.getItem(LD_AC_DB_KEY)||'{}'); }
+  catch(e){ return {}; }
+}
+function ldAcDbSave(db){
+  localStorage.setItem(LD_AC_DB_KEY, JSON.stringify(db));
+}
+function ldAcDbGet(reg){
+  var db=ldAcDbLoad(); return db[reg.toUpperCase()]||null;
+}
+function ldAcDbSet(reg, acType, engine){
+  if(!reg||!acType) return;
+  var db=ldAcDbLoad();
+  db[reg.toUpperCase()]={acType:acType, engine:engine||''};
+  ldAcDbSave(db);
+  // Sincronizar con servidor en background
+  ldAcDbSyncToServer(db);
+}
+
+// Construye la entrada especial que representa la BD de matrículas
+function ldAcDbBuildEntry(db){
+  return {
+    id: LD_AC_DB_ENTRY_ID,
+    savedAt: new Date().toISOString(),
+    type: '__ac_db__',      // marca especial — ignorada por la tabla
+    acDb: db,
+    // Campos mínimos para que el servidor no rechace la entrada
+    date: '', dep: '', arr: '', block: '00:00', source: 'AC_DB'
+  };
+}
+
+// Enviar BD de matrículas al servidor (silencioso)
+async function ldAcDbSyncToServer(db){
+  var token=ldAuthHeaders(); if(!token) return;
+  try{
+    var entry = ldAcDbBuildEntry(db||ldAcDbLoad());
+    await fetch(ldBackendUrl()+'/api/logbook/sync',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({entries:[entry]})
+    });
+  } catch(e){ /* offline — sin problema, localStorage tiene los datos */ }
+}
+
+// Extraer BD de matrículas de las entradas del servidor y hacer merge
+function ldAcDbMergeFromServer(serverEntries){
+  if(!serverEntries||!serverEntries.length) return;
+  var dbEntry = serverEntries.find(function(e){ return e&&e.id===LD_AC_DB_ENTRY_ID; });
+  if(!dbEntry||!dbEntry.acDb) return;
+  // Merge: el servidor gana para matrículas que no tenemos localmente
+  var local = ldAcDbLoad();
+  var merged = Object.assign({}, dbEntry.acDb, local); // local tiene prioridad
+  ldAcDbSave(merged);
+  console.log('[AC-DB] Merged from server: '+Object.keys(merged).length+' matrículas');
+}
+function ldRegInput(el){
+  var val=el.value.toUpperCase();
+  el.value=val;
+  var db=ldAcDbLoad();
+  var sugg=document.getElementById('ld_reg_suggestions');
+  if(!sugg) return;
+  var keys=Object.keys(db).filter(function(k){ return k.startsWith(val) && k!==val && val.length>=2; });
+  if(keys.length===0||val.length<2){ sugg.style.display='none'; return; }
+  sugg.innerHTML=keys.slice(0,6).map(function(k){
+    var info=db[k];
+    return '<div class="ld-reg-opt" onmousedown="ldRegSelect(\''+k+'\')">'
+      +'<span class="ld-reg-reg">'+k+'</span>'
+      +'<span class="ld-reg-info">'+info.acType+(info.engine?' · '+info.engine:'')+'</span>'
+      +'</div>';
+  }).join('');
+  sugg.style.display='block';
+}
+function ldRegSelect(reg){
+  var el=document.getElementById('ld_reg');
+  if(el) el.value=reg;
+  var sugg=document.getElementById('ld_reg_suggestions');
+  if(sugg) sugg.style.display='none';
+  ldRegApply(reg);
+}
+function ldRegApply(reg){
+  var info=ldAcDbGet(reg);
+  if(!info) return;
+  var typeEl=document.getElementById('ld_actype');
+  var engEl=document.getElementById('ld_engine');
+  if(typeEl&&info.acType){
+    var opt=[].slice.call(typeEl.options).find(function(o){return o.value===info.acType;});
+    if(opt){typeEl.value=opt.value;typeEl.classList.add('af');}
+  }
+  if(engEl&&info.engine){
+    var opt2=[].slice.call(engEl.options).find(function(o){return o.value===info.engine;});
+    if(opt2){engEl.value=opt2.value;engEl.classList.add('af');}
+  }
+}
+function ldRegBlur(el){
+  setTimeout(function(){
+    var sugg=document.getElementById('ld_reg_suggestions');
+    if(sugg) sugg.style.display='none';
+    // Auto-apply if known
+    if(el.value.length>=4) ldRegApply(el.value.toUpperCase());
+  }, 160);
+}
+// Override ldSave to also save to aircraft DB
+(function(){
+  var _orig=window.ldSave||function(){};
+  window.ldSave=function(){
+    // Run original save (it will validate and save the entry)
+    var before=ldEntries.length;
+    _orig.call(this);
+    // If a new entry was saved (entries grew), persist to AC DB
+    if(ldEntries.length>before){
+      var e=ldEntries[0];
+      if(e.reg&&e.acType) ldAcDbSet(e.reg,e.acType,e.engine);
+    }
+    // Also persist from current form if modal still open (was not closed due to error)
+    // but orig already handles the close, so we check anyway
+    var reg=(document.getElementById('ld_reg')||{}).value||'';
+    var acType=(document.getElementById('ld_actype')||{}).value||'';
+    var engine=(document.getElementById('ld_engine')||{}).value||'';
+    if(reg&&acType) ldAcDbSet(reg,acType,engine);
+  };
+})();
+
+// ════════════════════════════════════════════════════
+// +1 DAY BADGES — UTC times crossing midnight
+// ════════════════════════════════════════════════════
+function ldT2mins(val){ if(!val) return null; var p=val.split(':'); return +p[0]*60+(+p[1]||0); }
+function ldUpdateDayBadges(){
+  var atd=ldT2mins(document.getElementById('ld_atd').value);
+  var std=ldT2mins(document.getElementById('ld_std').value);
+  var ata=ldT2mins(document.getElementById('ld_ata').value);
+  var sta=ldT2mins(document.getElementById('ld_sta').value);
+  function setP1(id, show){ var el=document.getElementById(id); if(el) el.style.display=show?'inline-flex':'none'; }
+  // Reference = ATD (the departure time, first event)
+  // STD is "off blocks" relative to ATD
+  if(atd!==null&&std!==null) setP1('ld_std_p1', std<atd);
+  else setP1('ld_std_p1',false);
+  // ATA and STA relative to ATD
+  if(atd!==null&&ata!==null) setP1('ld_ata_p1', ata<atd);
+  else setP1('ld_ata_p1',false);
+  if(atd!==null&&sta!==null) setP1('ld_sta_p1', sta<atd);
+  else setP1('ld_sta_p1',false);
+}
+
+// ════════════════════════════════════════════════════
+// LOGBOOK IMPORT — XLS / CSV / TXT
+// ════════════════════════════════════════════════════
+var _ldImportData = null;
+function ldShowImport(){
+  var m=document.getElementById('ld_import_modal');
+  if(m){ m.style.display='flex'; document.body.style.overflow='hidden'; }
+}
+function ldCloseImport(){
+  var m=document.getElementById('ld_import_modal');
+  if(m){ m.style.display='none'; document.body.style.overflow=''; }
+  _ldImportData=null;
+  var f=document.getElementById('ld_import_file'); if(f) f.value='';
+  var p=document.getElementById('ld_import_preview'); if(p) p.style.display='none';
+  var b=document.getElementById('ld_import_confirm_btn'); if(b) b.style.display='none';
+}
+function ldImportDrop(e){
+  e.preventDefault();
+  document.getElementById('ld_import_zone').style.background='rgba(255,255,255,.7)';
+  var file=e.dataTransfer.files[0]; if(file) ldParseImportFile(file);
+}
+function ldImportFile(e){ var file=e.target.files[0]; if(file) ldParseImportFile(file); }
+function ldParseImportFile(file){
+  var name=file.name.toLowerCase();
+  var r=new FileReader();
+  if(name.endsWith('.xls')||name.endsWith('.xlsx')){
+    // Use SheetJS via CDN if available, otherwise fallback text
+    if(typeof XLSX!=='undefined'){
+      r.onload=function(ev){ try{
+        var wb=XLSX.read(ev.target.result,{type:'binary'});
+        var ws=wb.Sheets[wb.SheetNames[0]];
+        var rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+        ldImportProcess(rows,file.name);
+      } catch(err){ ldImportError('Error leyendo Excel: '+err.message); } };
+      r.readAsBinaryString(file);
+    } else {
+      // Dynamically load SheetJS
+      var s=document.createElement('script');
+      s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.onload=function(){ ldParseImportFile(file); };
+      document.head.appendChild(s);
+    }
+    return;
+  }
+  r.onload=function(ev){ ldImportCSV(ev.target.result, file.name); };
+  r.readAsText(file,'UTF-8');
+}
+function ldImportCSV(text,fname){
+  var lines=text.split(/\r?\n/).filter(function(l){return l.trim();});
+  if(lines.length<2){ldImportError('Archivo vacío o sin datos');return;}
+  // Detect delimiter
+  var delim=',';
+  if(lines[0].split('\t').length>lines[0].split(',').length) delim='\t';
+  else if(lines[0].split(';').length>lines[0].split(',').length) delim=';';
+  var headers=lines[0].split(delim).map(function(h){return h.trim().replace(/^"|"$/g,'').toLowerCase();});
+  var rows=lines.slice(1).map(function(l){
+    var cols=l.split(delim).map(function(c){return c.trim().replace(/^"|"$/g,'');});
+    var obj={};
+    headers.forEach(function(h,i){ obj[h]=cols[i]||''; });
+    return obj;
+  });
+  ldImportProcess(rows,fname);
+}
+// Column name aliases
+var LD_COL_MAP={
+  date:['fecha','date','flt_date','dia'],
+  flight:['vuelo','flight','numero_vuelo','flt','nflight'],
+  dep:['origen','dep','departure','from','salida','icao_dep','org'],
+  arr:['destino','arr','arrival','to','llegada','icao_arr','dst'],
+  reg:['matricula','reg','registration','tail','ac_reg','ec'],
+  acType:['tipo','type','actype','aircraft_type','ac_type','aeronave'],
+  engine:['motor','engine','eng'],
+  atd:['atd','out','blk_out','actual_off'],
+  std:['std','off','sched_dep','sched_off'],
+  ata:['ata','in','blk_in','actual_on'],
+  sta:['sta','on','sched_arr','sched_on'],
+  block:['block','blk','block_time','tiempo_bloque','bloque'],
+  night:['nocturno','night','night_time','tiempo_nocturno'],
+  ldgDay:['ldg_dia','ldg_day','day_ldg','day_landing'],
+  ldgNight:['ldg_noche','ldg_night','night_ldg','night_landing'],
+  role:['rol','role'],
+  func:['funcion','func','function'],
+  cm1:['cm1','comandante','captain','cpt'],
+  cm2:['cm2','copiloto','first_officer','fo'],
+  notes:['notas','notes','remarks','obs']
+};
+function ldMapRow(row){
+  var out={};
+  Object.keys(LD_COL_MAP).forEach(function(field){
+    var aliases=LD_COL_MAP[field];
+    for(var i=0;i<aliases.length;i++){
+      if(row[aliases[i]]!==undefined&&row[aliases[i]]!==''){
+        out[field]=row[aliases[i]]; break;
+      }
+    }
+  });
+  // Also try exact keys (in case headers are already in english)
+  Object.keys(row).forEach(function(k){
+    if(LD_COL_MAP[k]&&out[k]===undefined) out[k]=row[k];
+  });
+  return out;
+}
+function ldImportProcess(rows,fname){
+  var mapped=rows.map(ldMapRow).filter(function(r){ return r.date||r.dep||r.arr||r.flight; });
+  if(mapped.length===0){ldImportError('No se encontraron filas válidas. Verifica las cabeceras.');return;}
+  _ldImportData=mapped;
+  // Preview
+  var status=document.getElementById('ld_import_status');
+  var wrap=document.getElementById('ld_import_table_wrap');
+  var prev=document.getElementById('ld_import_preview');
+  var btn=document.getElementById('ld_import_confirm_btn');
+  status.innerHTML='📂 <strong>'+fname+'</strong> — '+mapped.length+' filas detectadas. Vista previa de las primeras 5:';
+  var sample=mapped.slice(0,5);
+  var cols=['date','flight','dep','arr','reg','acType','block'];
+  var th=cols.map(function(c){return '<th style="padding:5px 8px;font-size:10px;color:#fff;background:#1a2840;white-space:nowrap">'+c+'</th>';}).join('');
+  var trs=sample.map(function(r){
+    return '<tr>'+cols.map(function(c){return '<td style="padding:4px 8px;font-size:11px;border-bottom:1px solid #eee;white-space:nowrap">'+(r[c]||'—')+'</td>';}).join('')+'</tr>';
+  }).join('');
+  wrap.innerHTML='<table style="width:100%;border-collapse:collapse"><thead><tr>'+th+'</tr></thead><tbody>'+trs+'</tbody></table>';
+  prev.style.display='block';
+  btn.style.display='block';
+}
+function ldImportError(msg){
+  var status=document.getElementById('ld_import_status');
+  var prev=document.getElementById('ld_import_preview');
+  if(status) status.innerHTML='⚠ '+msg;
+  if(prev) prev.style.display='block';
+  _ldImportData=null;
+}
+function ldImportConfirm(){
+  if(!_ldImportData||_ldImportData.length===0){ ldCloseImport(); return; }
+  var existingIds=new Set(ldEntries.map(function(e){return e.date+e.dep+e.arr+e.flight;}));
+  var added=0, skipped=0;
+  _ldImportData.forEach(function(r){
+    var key=(r.date||'')+(r.dep||'')+(r.arr||'')+(r.flight||'');
+    if(existingIds.has(key)){skipped++;return;}
+    existingIds.add(key);
+    var e={
+      id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),
+      savedAt:new Date().toISOString(),
+      date:r.date||'',flight:r.flight||'',
+      dep:(r.dep||'').toUpperCase(),arr:(r.arr||'').toUpperCase(),
+      acType:r.acType||'',engine:r.engine||'CFM56',reg:(r.reg||'').toUpperCase(),
+      fl:r.fl||'',std:r.std||'',atd:r.atd||'',sta:r.sta||'',ata:r.ata||'',
+      block:r.block||'',role:r.role||'FO',func:r.func||'PF',
+      rules:r.rules||'IFR',opType:r.opType||'COM',conditions:r.conditions||'NORM',
+      ldgDay:parseInt(r.ldgDay||1),ldgNight:parseInt(r.ldgNight||0),
+      night:r.night||'',cm1:r.cm1||'',cm2:r.cm2||'',
+      notes:r.notes||'',source:'IMPORT'
+    };
+    ldEntries.push(e);
+    if(e.reg&&e.acType) {
+      // Añadir a BD local (sin sync individual para no saturar)
+      var db=ldAcDbLoad();
+      db[e.reg.toUpperCase()]={acType:e.acType,engine:e.engine||''};
+      ldAcDbSave(db);
+    }
+    added++;
+  });
+  // Sort by date desc
+  ldEntries.sort(function(a,b){ return b.date.localeCompare(a.date); });
+  ldSaveData();
+  // Sincronizar logbook Y bd de matrículas al servidor
+  ldSyncToServer();
+  ldAcDbSyncToServer();
+  ldCloseImport(); ldRender(); ldStats();
+  showToast('✓ '+added+' vuelos importados'+(skipped?' · '+skipped+' ya existían':''),'success');
+}
+
 window._initLD=function(){
   if(window._ldOk)return; window._ldOk=1;
   ldLoad(); ldRender(); ldStats();
-  ldPullFromServer(); // pull desde servidor en background
+  // Pull desde servidor y, en el mismo paso, sincronizar BD de matrículas
+  (async function(){
+    var token=ldAuthHeaders(); if(!token)return;
+    try{
+      var r=await fetch(ldBackendUrl()+'/api/logbook',{
+        headers:{'Authorization':'Bearer '+token}
+      });
+      if(!r.ok)return;
+      var body=await r.json();
+      var serverEntries=body.entries||[];
+      // 1. Extraer BD de matrículas del servidor y hacer merge local
+      ldAcDbMergeFromServer(serverEntries);
+      // 2. Filtrar entradas especiales antes del merge de logbook
+      var realEntries=serverEntries.filter(function(e){
+        return e&&e.id!==LD_AC_DB_ENTRY_ID&&e.type!=='__ac_db__';
+      });
+      if(!realEntries.length)return;
+      var map={};
+      ldEntries.forEach(function(e){if(e.id)map[e.id]=e;});
+      var newCount=0;
+      realEntries.forEach(function(se){
+        if(!se||!se.id)return;
+        var local=map[se.id];
+        if(!local){map[se.id]=se;newCount++;}
+        else if(se.savedAt&&local.savedAt&&se.savedAt>local.savedAt){map[se.id]=se;newCount++;}
+      });
+      if(!newCount)return;
+      ldEntries=Object.values(map).sort(function(a,b){
+        return(b.date||'').localeCompare(a.date||'')||(b.savedAt||'').localeCompare(a.savedAt||'');
+      });
+      ldSaveData(); ldRender(); ldStats();
+      showToast('☁ '+newCount+' vuelo'+(newCount>1?'s':'')+' sincronizado'+(newCount>1?'s':''),'info');
+    }catch(e){ /* offline */ }
+  })();
 };
 document.getElementById('ld_modal').addEventListener('click',function(e){if(e.target===e.currentTarget)ldCloseModal();});
-var _latd=document.getElementById('ld_atd');if(_latd)_latd.addEventListener('change',ldAutoBlock);
-var _lata=document.getElementById('ld_ata');if(_lata)_lata.addEventListener('change',ldAutoBlock);
+var _latd=document.getElementById('ld_atd');if(_latd){_latd.addEventListener('change',ldAutoBlock);_latd.addEventListener('change',ldUpdateDayBadges);}
+var _lata=document.getElementById('ld_ata');if(_lata){_lata.addEventListener('change',ldAutoBlock);_lata.addEventListener('change',ldUpdateDayBadges);}
+var _lstd=document.getElementById('ld_std');if(_lstd)_lstd.addEventListener('change',ldUpdateDayBadges);
+var _lsta=document.getElementById('ld_sta');if(_lsta)_lsta.addEventListener('change',ldUpdateDayBadges);
 ['ld_dep','ld_arr','ld_reg','ld_flight'].forEach(function(id){
   var _uei=document.getElementById(id);if(_uei)_uei.addEventListener('input',function(){this.value=this.value.toUpperCase();});
 });
