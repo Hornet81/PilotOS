@@ -7268,21 +7268,22 @@ window.rosterSelectDay = function(dateStr){
           var h3=Math.floor(diff3/60),m3=diff3%60;
           stopovertxt=h3>0?h3+'h'+(m3>0?' '+m3+'m':''):m3+'m';
         }
-        var sc=diff3<45?'#B45309':'#0369A1';
-        var sbg=diff3<45?'#FFFBEB':'#EFF6FF';
-        var sbd=diff3<45?'rgba(245,158,11,.3)':'rgba(8,145,178,.2)';
-        var swapWarning='';
-        if(prevE.acType && e.acType && prevE.acType!==e.acType){
-          swapWarning='<div style="margin-top:3px;padding:3px 9px;background:#FEF3C7;border:1px solid rgba(245,158,11,.4);border-radius:8px;font-size:10px;font-weight:700;color:#92400E;white-space:nowrap">🔄 Aircraft swap: '+prevE.acType+' → '+e.acType+'</div>';
+        var hasSwap = (prevE.acType && e.acType && prevE.acType !== e.acType);
+        // ── Stopover pill ──
+        var scTime = diff3<45 ? '#92400E' : '#0369A1';
+        var sbgTime = diff3<45 ? '#FEF3C7' : '#DBEAFE';
+        var pillHTML;
+        if(hasSwap){
+          // Split pill: left=stopover time, right=A/C CHANGE caution
+          pillHTML =
+            '<div style="display:inline-flex;align-items:stretch;border-radius:20px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.10);border:1px solid rgba(0,0,0,.06)">'            +'<div style="display:flex;align-items:center;gap:5px;padding:5px 12px;background:'+sbgTime+';white-space:nowrap">'            +'<span style="font-size:12px">🅿️</span>'            +'<span style="font-size:11px;font-weight:800;color:'+scTime+';font-family:\'Space Mono\',monospace">'+stopovertxt+'</span>'            +'</div>'            +'<div style="width:1px;background:rgba(0,0,0,.08)"></div>'            +'<div style="display:flex;align-items:center;gap:7px;padding:5px 13px;background:linear-gradient(135deg,#B45309,#D97706);white-space:nowrap">'            +'<div style="display:flex;flex-direction:column;align-items:flex-start;gap:0px">'            +'<span style="font-size:8px;font-weight:900;color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:1.2px;line-height:1.2">A/C CHANGE</span>'            +'<div style="display:flex;align-items:center;gap:4px">'            +'<span style="font-size:11px;font-weight:700;color:#FFF;font-family:\'Space Mono\',monospace">'+prevE.acType+'</span>'            +'<span style="font-size:13px;color:rgba(255,255,255,.6);font-weight:300">→</span>'            +'<span style="font-size:11px;font-weight:700;color:#FFF;font-family:\'Space Mono\',monospace">'+e.acType+'</span>'            +'</div>'            +'</div>'            +'</div>'            +'</div>';
+        } else {
+          var sc  = diff3<45 ? '#B45309' : '#0369A1';
+          var sbg = diff3<45 ? '#FFFBEB' : '#EFF6FF';
+          var sbd = diff3<45 ? 'rgba(245,158,11,.3)' : 'rgba(8,145,178,.2)';
+          pillHTML = '<div style="padding:5px 14px;background:'+sbg+';border:1px solid '+sbd+';border-radius:20px;font-size:11px;font-weight:700;color:'+sc+';font-family:\'Space Mono\',monospace;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.06)">🅿️ '+stopovertxt+'</div>';
         }
-        html+='<div style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:2px 0">'
-          +'<div style="display:flex;align-items:center;width:100%;gap:8px">'
-          +'<div style="flex:1;height:1px;background:rgba(30,58,164,.1)"></div>'
-          +'<div style="padding:4px 10px;background:'+sbg+';border:1px solid '+sbd+';border-radius:20px;font-size:11px;font-weight:700;color:'+sc+';font-family:\'Space Mono\',monospace;white-space:nowrap">🅿️ '+stopovertxt+'</div>'
-          +'<div style="flex:1;height:1px;background:rgba(30,58,164,.1)"></div>'
-          +'</div>'
-          +swapWarning
-          +'</div>';
+        html += '<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:3px 0">'          +'<div style="flex:1;height:1px;background:rgba(30,58,164,.08)"></div>'          +pillHTML          +'<div style="flex:1;height:1px;background:rgba(30,58,164,.08)"></div>'          +'</div>';
       }
         var stdOk=e.std&&String(e.std).indexOf(':')>-1;
       var staOk=e.sta&&String(e.sta).indexOf(':')>-1;
