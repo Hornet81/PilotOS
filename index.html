@@ -6570,7 +6570,32 @@ function rstRenderCalendar(){
   var daysInMonth = new Date(y, mo+1, 0).getDate();
   var todayStr = new Date().toISOString().slice(0,10);
 
+  // ── Type config built once outside loop ──
+  var TC = window.RST_TC = {
+    flight:   { bg:'#c0392b', bd:'#a93226',             tx:'#FFFFFF', lbl:'✈',     gl:'rgba(192,57,43,.5)' },
+    standby:  { bg:'#1a3a5c', bd:'#15304d',             tx:'#FFFFFF', lbl:'☕STBY', gl:'rgba(26,58,92,.5)' },
+    osb:      { bg:'#2e6da4', bd:'#286091',             tx:'#FFFFFF', lbl:'✈OSB',  gl:'rgba(46,109,164,.5)' },
+    off:      { bg:'#48c9b0', bd:'#3db49d',             tx:'#FFFFFF', lbl:'☕OFF',  gl:'rgba(72,201,176,.5)' },
+    f:        { bg:'#48c9b0', bd:'#3db49d',             tx:'#FFFFFF', lbl:'☕F',    gl:'rgba(72,201,176,.5)' },
+    ef:       { bg:'#2980b9', bd:'#2471a3',             tx:'#FFFFFF', lbl:'✓EF',   gl:'rgba(41,128,185,.5)' },
+    srof:     { bg:'#1abc9c', bd:'#17a589',             tx:'#FFFFFF', lbl:'☕SROF', gl:'rgba(26,188,156,.5)' },
+    noff:     { bg:'#2ecc71', bd:'#27ae60',             tx:'#FFFFFF', lbl:'☕NOFF', gl:'rgba(46,204,113,.5)' },
+    meof:     { bg:'#48c9b0', bd:'#3db49d',             tx:'#FFFFFF', lbl:'🏥MEOF', gl:'rgba(72,201,176,.5)' },
+    aoff:     { bg:'#48c9b0', bd:'#3db49d',             tx:'#FFFFFF', lbl:'☕AOFF', gl:'rgba(72,201,176,.5)' },
+    nrof:     { bg:'#48c9b0', bd:'#3db49d',             tx:'#FFFFFF', lbl:'☕NROF', gl:'rgba(72,201,176,.5)' },
+    ebt:      { bg:'#566573', bd:'#4a5964',             tx:'#FFFFFF', lbl:'🖥SIM',   gl:'rgba(86,101,115,.5)' },
+    eva:      { bg:'#566573', bd:'#4a5964',             tx:'#FFFFFF', lbl:'🖥SIM',   gl:'rgba(86,101,115,.5)' },
+    lm:       { bg:'#7f8c8d', bd:'#6c7a7d',             tx:'#FFFFFF', lbl:'🖥LM',   gl:'rgba(127,140,141,.5)' },
+    training: { bg:'#566573', bd:'#4a5964',             tx:'#FFFFFF', lbl:'🖥SIM',  gl:'rgba(86,101,115,.5)' },
+    sick:     { bg:'#e67e22', bd:'#d35400',             tx:'#FFFFFF', lbl:'🏠SICK', gl:'rgba(230,126,34,.5)' },
+    other:    { bg:'#bdc3c7', bd:'#a8b2b8',             tx:'#555',    lbl:'?',      gl:'rgba(189,195,199,.5)' }
+  };
   var cells = '';
+  // Pre-load logbook entries once outside loop (performance fix)
+  var _lbEntries = [];
+  try { _lbEntries = JSON.parse(localStorage.getItem('ld_entries') || localStorage.getItem('logbook_entries') || '[]'); } catch(ex){}
+  var _lbDates = {};
+  _lbEntries.forEach(function(e){ if(e.date) _lbDates[e.date]=true; });
   // Days loop
   for(var d=1; d<=daysInMonth; d++){
     var dateStr = y+'-'+String(mo+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
@@ -6578,42 +6603,6 @@ function rstRenderCalendar(){
     var isToday = dateStr === todayStr;
     var isSun = (new Date(y, mo, d).getDay() === 0);
 
-    // ── Type config matching Vueling Notify colors ── (also stored globally for reuse)
-    var TC = window.RST_TC = {
-      // Vuelo: coral/rojo como Vueling Notify
-      flight:   { bg:'#c0392b', bd:'#a93226',             tx:'#FFFFFF', lbl:'✈',     gl:'rgba(192,57,43,.5)' },
-      // STBY: azul oscuro
-      standby:  { bg:'#1a3a5c', bd:'#15304d',             tx:'#FFFFFF', lbl:'☕STBY', gl:'rgba(26,58,92,.5)' },
-      // OSB: azul medio — más claro que STBY
-      osb:      { bg:'#2e6da4', bd:'#2860911',             tx:'#FFFFFF', lbl:'✈OSB',  gl:'rgba(46,109,164,.5)' },
-      // OFF: teal suave igual gama STBY
-      off:      { bg:'#48c9b0', bd:'#3db49d',             tx:'#FFFFFF', lbl:'☕OFF',  gl:'rgba(72,201,176,.5)' },
-      // F Franco: mismo verde teal que OFF
-      f:        { bg:'#48c9b0', bd:'#3db49d',             tx:'#FFFFFF', lbl:'☕F',    gl:'rgba(72,201,176,.5)' },
-      // EF: azul con check
-      ef:       { bg:'#2980b9', bd:'#2471a3',             tx:'#FFFFFF', lbl:'✓EF',   gl:'rgba(41,128,185,.5)' },
-      // SROF: teal igual que STBY/OFF
-      srof:     { bg:'#1abc9c', bd:'#17a589',             tx:'#FFFFFF', lbl:'☕SROF', gl:'rgba(26,188,156,.5)' },
-      // NOFF: teal ligeramente distinto
-      noff:     { bg:'#2ecc71', bd:'#27ae60',             tx:'#FFFFFF', lbl:'☕NOFF', gl:'rgba(46,204,113,.5)' },
-      // MEOF: Medical Off — mismo verde que OFF
-      meof:     { bg:'#48c9b0', bd:'#3db49d',             tx:'#FFFFFF', lbl:'🏥MEOF', gl:'rgba(72,201,176,.5)' },
-      // AOFF: Annual Off — rojo igual que OFF
-      aoff:     { bg:'#48c9b0', bd:'#3db49d',             tx:'#FFFFFF', lbl:'☕AOFF', gl:'rgba(72,201,176,.5)' },
-      // NROF: No-bid Off — rojo igual que OFF
-      nrof:     { bg:'#48c9b0', bd:'#3db49d',             tx:'#FFFFFF', lbl:'☕NROF', gl:'rgba(72,201,176,.5)' },
-      // EBT: Evidence-Based Training — mismo color que SIM
-      ebt:      { bg:'#566573', bd:'#4a5964',             tx:'#FFFFFF', lbl:'🖥SIM',   gl:'rgba(86,101,115,.5)' },
-      // EVA: Evaluación — mismo color que SIM
-      eva:      { bg:'#566573', bd:'#4a5964',             tx:'#FFFFFF', lbl:'🖥SIM',   gl:'rgba(86,101,115,.5)' },
-      // LM eLearning: gris con icono pantalla
-      lm:       { bg:'#7f8c8d', bd:'#6c7a7d',             tx:'#FFFFFF', lbl:'🖥LM',   gl:'rgba(127,140,141,.5)' },
-      // SIM Simulador: gris oscuro pantalla
-      training: { bg:'#566573', bd:'#4a5964',             tx:'#FFFFFF', lbl:'🖥SIM',  gl:'rgba(86,101,115,.5)' },
-      // SICK: naranja/salmón casa
-      sick:     { bg:'#e67e22', bd:'#d35400',             tx:'#FFFFFF', lbl:'🏠SICK', gl:'rgba(230,126,34,.5)' },
-      other:    { bg:'#bdc3c7', bd:'#a8b2b8',             tx:'#555',    lbl:'?',      gl:'rgba(189,195,199,.5)' }
-    };
     // Default empty cell — blanco/gris muy suave
     var bg = '#FFFFFF', border = 'rgba(30,58,164,.08)', textCol = isSun ? '#0369A1' : '#475569';
     var cellLabel = '', glowCol = 'rgba(30,58,164,.15)';
@@ -6632,12 +6621,8 @@ function rstRenderCalendar(){
       }
     }
 
-    // Logbook sync check
-    var inLogbook = false;
-    try {
-      var lb = JSON.parse(localStorage.getItem('ld_entries') || localStorage.getItem('logbook_entries') || '[]');
-      inLogbook = lb.some(function(e){ return e.date === dateStr; });
-    } catch(ex){}
+    // Logbook sync check (uses pre-loaded set for performance)
+    var inLogbook = _lbDates[dateStr] === true;
 
     var todayRing = isToday ? 'outline:2.5px solid #0891B2;outline-offset:1px;' : '';
     var checkBadge = inLogbook && dayEntries.length > 0 ? '<div style="position:absolute;top:2px;right:3px;font-size:7px;color:#15803D;font-weight:700;z-index:2">✓</div>' : '';
@@ -6653,7 +6638,7 @@ function rstRenderCalendar(){
       var nonFlights = dayEntries.filter(function(e){ return e.type!=='flight'; });
       if(flights.length){
         var fc = TC['flight'];
-        var firstStd = flights[0].std;
+        var firstStd = flights[0].std_actual || flights[0].std;
         var timeStr;
         if(firstStd && firstStd.indexOf(':') > -1){
           var repM = parseInt(firstStd.split(':')[0])*60 + parseInt(firstStd.split(':')[1]) - 55;
@@ -6748,13 +6733,13 @@ function rstRenderStats(){
   // Group flights by date for per-day duty calc
   var dayFlights = {};
   RST.entries.forEach(function(e){
-    var d = new Date(e.date);
-    if(d.getFullYear()!==y || d.getMonth()!==mo) return;
+    var _dp = e.date.split('-');
+    if(parseInt(_dp[0])!==y || parseInt(_dp[1])-1!==mo) return;
     if(e.type==='flight'){
       flights++;
       // Block hours: prefer actual times (already flown), fallback to scheduled
-      var effStd = e.sta_actual ? e.std_actual : (e.std || e.std_actual);
-      var effSta = e.sta_actual ? e.sta_actual : (e.sta || e.sta_actual);
+      var effStd = e.std_actual || e.std;
+      var effSta = e.sta_actual || e.sta;
       if(effStd && effSta){
         var m = t2m(effSta) - t2m(effStd);
         if(m < 0) m += 1440;
@@ -6881,12 +6866,13 @@ function rstFormatTime(t){
 function rstCalcFDP(flights){
   if(!flights||!flights.length) return null;
   var sorted = flights.slice().sort(function(a,b){
-    var aT = a.std||a.std_actual||''; var bT = b.std||b.std_actual||'';
+    var aT = a.std_actual||a.std||''; var bT = b.std_actual||b.std||'';
     return aT.localeCompare(bT);
   });
   var first = sorted[0], last = sorted[sorted.length-1];
-  var firstStd = first.std || first.std_actual;
-  var lastSta  = last.sta  || last.sta_actual;
+  // Prefer actual times (real operation) over scheduled
+  var firstStd = first.std_actual || first.std;
+  var lastSta  = last.sta_actual  || last.sta;
   if(!firstStd||!lastSta||firstStd.indexOf(':')<0||lastSta.indexOf(':')<0) return null;
   var toMin = function(s){ return parseInt(s.split(':')[0])*60+parseInt(s.split(':')[1]); };
   var reportMin = toMin(firstStd)-55; if(reportMin<0) reportMin+=1440;
@@ -6894,14 +6880,21 @@ function rstCalcFDP(flights){
   var fdpMin = staMin-reportMin;
   var dpMin  = fdpMin+20;
   var sectors = sorted.length;
-  // Local hour for table lookup
-  var repLocal = ((reportMin+RST.tzOffset)%1440+1440)%1440;
+  // Local hour for table lookup — always use BCN base time (CEST UTC+2 May-Oct, CET UTC+1 Nov-Apr)
+  // The ORO.FTL.205 table must use the local time of the crew base, not the device timezone
+  var now = new Date();
+  var month = now.getUTCMonth()+1; // 1-12
+  var bcnOffset = (month>=4&&month<=10) ? 120 : 60; // CEST=+120, CET=+60
+  var repLocal = ((reportMin+bcnOffset)%1440+1440)%1440;
   var repH = Math.floor(repLocal/60);
   // ORO.FTL.205 Table B
   var T=[[6,14,[780,750,720,690]],[14,18,[720,690,660,630]],[18,22,[690,660,630,600]],[22,24,[630,600,570,540]],[0,5,[630,600,570,540]],[5,6,[720,690,660,630]]];
   var col=sectors<=2?0:sectors<=4?1:sectors<=6?2:3;
   var fdpMaxMin=720;
   for(var i=0;i<T.length;i++){ if(repH>=T[i][0]&&repH<T[i][1]){ fdpMaxMin=T[i][2][col]; break; } }
+  // ORO.FTL.205(b) Early Start reduction: report LT before 06:30 → FDP max -30 min
+  var repLocalMin = repLocal % 1440; // minutes from midnight LT
+  if(repLocalMin < 6*60+30){ fdpMaxMin -= 30; }
   var fmm = function(m){ m=((m%1440)+1440)%1440; return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); };
   var dur = function(m){ var s=m<0?'-':''; m=Math.abs(m); return s+Math.floor(m/60)+'h'+(m%60?' '+String(m%60).padStart(2,'0')+'m':''); };
   return {
@@ -6910,7 +6903,7 @@ function rstCalcFDP(flights){
     fdpMax: dur(fdpMaxMin), fdpMaxEnd: fmm((reportMin+fdpMaxMin)%1440),
     fdpM20: dur(fdpMaxMin-20), fdpM20End: fmm((reportMin+fdpMaxMin-20)%1440),
     dpDur:  dur(dpMin),  dpEnd:  fmm((staMin+20)%1440),
-    dpMax:  dur(fdpMaxMin+120),
+    dpMax:  dur(fdpMaxMin+20),
     sectors: sectors,
     warn: fdpMin>fdpMaxMin?'exceed':fdpMin>(fdpMaxMin-20)?'near':'ok'
   };
@@ -6964,7 +6957,7 @@ function rstRenderFatigue(){
     if(strip){
       var stripHTML = '';
       for(var d=0; d<7; d++){
-        var dd = new Date(now); dd.setDate(dd.getDate()+d);
+        var dd = new Date(now); dd.setUTCDate(dd.getUTCDate()+d);
         var ds = dd.toISOString().slice(0,10);
         var dayEntries = RST.entries.filter(function(e){ return e.date===ds; });
         var isToday = d===0;
@@ -7080,7 +7073,7 @@ function rstRenderFatigue(){
     // Last flight STA + 20min debrief
     var lastFlight = pastFlights.length ? pastFlights[pastFlights.length-1] : (todayFlights.length ? null : null);
     if(todayFlights.length){
-      var sorted = todayFlights.slice().sort(function(a,b){ return t2m(a.sta||a.sta_actual||'00:00')-t2m(b.sta||b.sta_actual||'00:00'); });
+      var sorted = todayFlights.slice().sort(function(a,b){ return t2m(a.sta_actual||a.sta||'00:00')-t2m(b.sta_actual||b.sta||'00:00'); });
       lastFlight = sorted[sorted.length-1];
     }
     // Next flight first leg
@@ -7196,7 +7189,7 @@ function rstRenderFatigue(){
     if(fl) fl.style.display='none';
 
     // Keep rst-fatigue-card compat
-    var sc = Math.min(100, Math.round(bhMins/6000*100 * 0.7 + (lastFlight&&nextFirst? Math.max(0,100-Math.floor((reportDt-dpEnd)/3600000)*8):0)));
+    var sc = Math.min(100, Math.round(bhMins/6000*100 * 0.7 + (lastFlight&&nextFirst&&typeof reportDt!=='undefined'&&typeof dpEnd!=='undefined'? Math.max(0,100-Math.floor((reportDt-dpEnd)/3600000)*8):0)));
     var fRing=document.getElementById('rst-fatigue-ring'),fPct=document.getElementById('rst-fatigue-pct'),fLbl=document.getElementById('rst-fatigue-label'),fSub=document.getElementById('rst-fatigue-sub');
     if(fRing) fRing.style.strokeDashoffset=163-(163*Math.min(sc,100)/100);
     if(fPct) fPct.textContent=Math.min(sc,100);
@@ -7224,10 +7217,10 @@ window.rosterSelectDay = function(dateStr){
   // Add report time badge if there are flights
   var reportBadgeEl = document.getElementById('rst-detail-report');
   if(reportBadgeEl){
-    var flightsForReport = dayEntries.filter(function(e){ return e.type==='flight' && e.std && e.std.indexOf(':')>-1; });
+    var flightsForReport = dayEntries.filter(function(e){ return e.type==='flight' && (e.std||e.std_actual) && (e.std||e.std_actual).indexOf(':')>-1; });
     if(flightsForReport.length){
-      flightsForReport.sort(function(a,b){ return t2m(a.std)-t2m(b.std); });
-      var firstStd = flightsForReport[0].std;
+      flightsForReport.sort(function(a,b){ return t2m(a.std||a.std_actual)-t2m(b.std||b.std_actual); });
+      var firstStd = flightsForReport[0].std_actual || flightsForReport[0].std;
       var reportMin = t2m(firstStd) - 55;
       if(reportMin < 0) reportMin += 1440;
       var reportStr = String(Math.floor(reportMin/60)).padStart(2,'0') + ':' + String(reportMin%60).padStart(2,'0');
@@ -7512,7 +7505,6 @@ window.rosterNavMonth = function(dir){
   if(RST.viewMonth > 11){ RST.viewMonth=0; RST.viewYear++; }
   if(RST.viewMonth < 0){ RST.viewMonth=11; RST.viewYear--; }
   rstRenderCalendar(); rstRenderStats();
-  rstCheckMonthBanner();
   rstCheckMonthBanner();
 };
 
@@ -7991,6 +7983,8 @@ window.rosterSaveEdit = function(){
     if(type === 'flight'){
       var rows = document.querySelectorAll('#rst-legs-container .rst-leg-row');
       var saved = 0;
+      // Remove existing flights for this day before adding new ones to prevent duplicates
+      RST.entries = RST.entries.filter(function(e){ return !(e.date===dateStr && e.type==='flight'); });
       rows.forEach(function(row){
         try {
           var fn  = (row.querySelector('.rst-leg-fn')  ||{}).value||'';
@@ -8244,7 +8238,6 @@ async function rosterRunPDF(pdfBase64){
 
     if(newMonth){ var p=newMonth.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1; }
     try { rosterShowCalendar(); } catch(e){ console.warn(e); }
-    var _rz=document.getElementById('rst-upload-zone'); if(_rz) _rz.style.display='';
     try { rstRenderCalendar(); } catch(e){ console.warn(e); }
     try { rstRenderStats();    } catch(e){ console.warn(e); }
     try { rstRenderFlights();  } catch(e){ console.warn(e); }
@@ -8260,7 +8253,8 @@ async function rosterRunPDF(pdfBase64){
     if(typeof showToast==='function') showToast('❌ Error PDF: '+err.message);
   } finally {
     var _fp=document.getElementById('rst-ai-proc'); if(_fp) _fp.style.display='none';
-    var _fz=document.getElementById('rst-upload-zone'); if(_fz&&!RST.entries.length) _fz.style.display='';
+    // Always restore correct zone state — never leave it invisible after error
+    if(RST.entries.length){ try{ rosterShowCalendar(); }catch(e){} } else { var _fz=document.getElementById('rst-upload-zone'); if(_fz) _fz.style.display=''; }
   }
 }
 
@@ -8302,6 +8296,7 @@ async function rosterRunAIText(textContent){
     rstSave();
 
     if(newMonth){ var p=newMonth.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1; }
+    if(newMonth){ try { localStorage.setItem('pilotOS_import_ts_'+newMonth, new Date().toISOString()); } catch(e){} }
     if(proc) proc.style.display='none';
     rosterShowCalendar(); rstRenderCalendar(); rstRenderStats(); rstRenderFlights();
     if(typeof ldUpdateRosterBtn==='function') ldUpdateRosterBtn();
@@ -8315,13 +8310,15 @@ async function rosterRunAIText(textContent){
     if(typeof showToast==='function') showToast('❌ Error IA: '+err.message);
   } finally {
     var _ap=document.getElementById('rst-ai-proc'); if(_ap) _ap.style.display='none';
-    var _az=document.getElementById('rst-upload-zone'); if(_az&&!RST.entries.length) _az.style.display='';
+    // Always restore correct zone state — never leave it invisible after error
+    if(RST.entries.length){ try{ rosterShowCalendar(); }catch(e){} } else { var _az=document.getElementById('rst-upload-zone'); if(_az) _az.style.display=''; }
   }
 }
 
 async function rosterRunAI(dataUrl, mimeType){
-  var proc = document.getElementById('rst-ai-proc');
-  var zone = document.getElementById('rst-upload-zone');
+  var proc   = document.getElementById('rst-ai-proc');
+  var zone   = document.getElementById('rst-upload-zone');
+  var status = document.getElementById('rst-ai-status');
   rstSetProcMode('ai');
 
   var parts = dataUrl.split(',');
@@ -8466,7 +8463,8 @@ async function rosterRunAI(dataUrl, mimeType){
     if(typeof showToast==='function') showToast('❌ Error IA: '+err.message);
   } finally {
     var _ap=document.getElementById('rst-ai-proc'); if(_ap) _ap.style.display='none';
-    var _az=document.getElementById('rst-upload-zone'); if(_az&&!RST.entries.length) _az.style.display='';
+    // Always restore correct zone state — never leave it invisible after error
+    if(RST.entries.length){ try{ rosterShowCalendar(); }catch(e){} } else { var _az=document.getElementById('rst-upload-zone'); if(_az) _az.style.display=''; }
   }
 }
 
@@ -8487,6 +8485,10 @@ window.rosterImportJSON = function(){
     if(newMonth) RST.entries = RST.entries.filter(function(e){ return e.date.slice(0,7) !== newMonth; });
     parsed.entries.forEach(function(e){ if(e.date && e.type) RST.entries.push(e); });
     rstSave();
+    // Save import timestamp so rosterShowCalendar shows the correct time
+    if(newMonth){
+      try { localStorage.setItem('pilotOS_import_ts_'+newMonth, new Date().toISOString()); } catch(e){}
+    }
     rstRenderCalendar();
     rstRenderStats();
     rstRenderFlights();
@@ -8888,8 +8890,9 @@ window.rosterExportICS = function(){
       var reportTime = null;
       if(first.std && first.std.indexOf(':')>-1){
         var stdH=parseInt(first.std.split(':')[0]), stdM=parseInt(first.std.split(':')[1]);
-        var repM = stdH*60+stdM-55; if(repM<0) repM+=1440;
-        var nextDay = repM > stdH*60+stdM; // crossed midnight
+        var repM = stdH*60+stdM-55;
+        var nextDay = repM < 0; // report crosses to previous day (early morning flights)
+        if(repM<0) repM+=1440;
         var repDate = nextDay ? (function(){
           var d=new Date(date+'T00:00:00Z'); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10);
         })() : date;
