@@ -7271,10 +7271,18 @@ window.rosterSelectDay = function(dateStr){
         var sc=diff3<45?'#B45309':'#0369A1';
         var sbg=diff3<45?'#FFFBEB':'#EFF6FF';
         var sbd=diff3<45?'rgba(245,158,11,.3)':'rgba(8,145,178,.2)';
-        html+='<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:2px 0">'
+        var swapWarning='';
+        if(prevE.acType && e.acType && prevE.acType!==e.acType){
+          swapWarning='<div style="margin-top:3px;padding:3px 9px;background:#FEF3C7;border:1px solid rgba(245,158,11,.4);border-radius:8px;font-size:10px;font-weight:700;color:#92400E;white-space:nowrap">🔄 Aircraft swap: '+prevE.acType+' → '+e.acType+'</div>';
+        }
+        html+='<div style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:2px 0">'
+          +'<div style="display:flex;align-items:center;width:100%;gap:8px">'
           +'<div style="flex:1;height:1px;background:rgba(30,58,164,.1)"></div>'
           +'<div style="padding:4px 10px;background:'+sbg+';border:1px solid '+sbd+';border-radius:20px;font-size:11px;font-weight:700;color:'+sc+';font-family:\'Space Mono\',monospace;white-space:nowrap">🅿️ '+stopovertxt+'</div>'
-          +'<div style="flex:1;height:1px;background:rgba(30,58,164,.1)"></div></div>';
+          +'<div style="flex:1;height:1px;background:rgba(30,58,164,.1)"></div>'
+          +'</div>'
+          +swapWarning
+          +'</div>';
       }
         var stdOk=e.std&&String(e.std).indexOf(':')>-1;
       var staOk=e.sta&&String(e.sta).indexOf(':')>-1;
@@ -7316,6 +7324,18 @@ window.rosterSelectDay = function(dateStr){
             +dispStdAct+' – '+dispStaAct+timeLabel
             +(nextDay&&!stdOk&&!staOk?' <span style="background:#0369A1;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:6px">+1</span>':'')
             +'</div>' : '')
+        + (function(){
+            var parts = [];
+            if(e.acType) parts.push('<span style="background:#EFF6FF;color:#0369A1;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;border:1px solid rgba(3,105,161,.15)">✈ '+e.acType+'</span>');
+            var _std = e.std || e.std_actual, _sta = e.sta || e.sta_actual;
+            if(_std && _sta && String(_std).indexOf(':')>-1 && String(_sta).indexOf(':')>-1){
+              var sm=parseInt(_std.split(':')[0])*60+parseInt(_std.split(':')[1]);
+              var em=parseInt(_sta.split(':')[0])*60+parseInt(_sta.split(':')[1]);
+              var bm=em-sm; if(bm<0) bm+=1440;
+              parts.push('<span style="background:#F0FDF4;color:#15803D;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;border:1px solid rgba(21,128,61,.15)">⏱ '+Math.floor(bm/60)+'h'+(('0'+(bm%60)).slice(-2))+'m</span>');
+            }
+            return parts.length ? '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">'+parts.join('')+'</div>' : '';
+          })()
         + '</div>'
         + '</div>';
     });
@@ -7711,12 +7731,16 @@ window.rosterEditLeg = function(dateStr, idx){
     + '<div><label style="font-size:10px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Destino</label>'
     + '<input id="rle-arr" type="text" class="fi" maxlength="3" value="'+(entry.arr||'')+'" style="font-size:13px;padding:9px 10px;text-transform:uppercase"></div>'
     + '</div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
     + '<div><label style="font-size:10px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">STD (UTC)</label>'
     + '<input id="rle-std" type="time" class="fi" value="'+(entry.std||'')+'" style="font-size:13px;padding:9px 10px;font-family:\'Space Mono\',monospace"></div>'
     + '<div><label style="font-size:10px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">STA (UTC)</label>'
     + '<input id="rle-sta" type="time" class="fi" value="'+(entry.sta||'')+'" style="font-size:13px;padding:9px 10px;font-family:\'Space Mono\',monospace"></div>'
     + '</div>'
+    + '<div style="margin-bottom:10px"><label style="font-size:10px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Tipo Aeronave</label>'
+    + '<select id="rle-actype" class="fi" style="font-size:13px;padding:9px 10px;width:100%;background:#fff"><option value="">— Sin especificar —</option>'
+    + ['A319','A320','A320neo','A321','A321neo','A321XLR'].map(function(t){return '<option value="'+t+'"'+(entry.acType===t?' selected':'')+'>'+t+'</option>';}).join('')
+    + '</select></div>'
     + '<button onclick="rosterSaveLegEdit('+idx+',\''+dateStr+'\')" style="width:100%;padding:11px;background:linear-gradient(135deg,#0369A1,#0891B2);border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:\'Space Grotesk\',sans-serif">✓ Guardar Leg '+legNum+'</button>';
 
   // Insert at top of scroll area
@@ -7734,11 +7758,13 @@ window.rosterSaveLegEdit = function(idx, dateStr){
     var arr = (document.getElementById('rle-arr')||{}).value||'';
     var std = (document.getElementById('rle-std')||{}).value||'';
     var sta = (document.getElementById('rle-sta')||{}).value||'';
+    var acType = (document.getElementById('rle-actype')||{}).value||'';
     entry.flightNum = fn.trim().toUpperCase()||null;
     entry.dep = dep.trim().toUpperCase()||null;
     entry.arr = arr.trim().toUpperCase()||null;
     entry.std = std||null;
     entry.sta = sta||null;
+    entry.acType = acType||null;
     rstSave(); rstRenderCalendar(); rstRenderStats(); rstRenderFlights();
     var sheet = document.getElementById('rst-leg-edit-sheet');
     if(sheet) sheet.remove();
@@ -7876,7 +7902,11 @@ function rosterAddLegRow(leg){
     + '<input type="time" class="fi rst-leg-std" value="'+(leg.std&&leg.std!=="null"?leg.std:"")+'" style="font-size:13px;padding:9px 10px;font-family:\'Space Mono\',monospace"></div>'
     + '<div><label style="font-size:10px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">STA (UTC)\u00a0<span class="rst-nd" style="display:none;background:#0369A1;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:8px;font-family:\'Space Mono\',monospace;letter-spacing:0;vertical-align:middle">+1</span></label>'
     + '<input type="time" class="fi rst-leg-sta" value="'+(leg.sta&&leg.sta!=="null"?leg.sta:"")+'" style="font-size:13px;padding:9px 10px;font-family:\'Space Mono\',monospace"></div>'
-    + '</div>';
+    + '</div>'
+    + '<div style="margin-top:8px"><label style="font-size:10px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Tipo Aeronave</label>'
+    + '<select class="fi rst-leg-actype" style="font-size:13px;padding:9px 10px;width:100%;background:#fff"><option value="">— Sin especificar —</option>'
+    + ['A319','A320','A320neo','A321','A321neo','A321XLR'].map(function(t){return '<option value="'+t+'"'+(leg.acType===t?' selected':'')+'>'+t+'</option>';}).join('')
+    + '</select></div>';
   container.appendChild(div);
   try { if(leg.std && leg.std!=='null' && leg.sta && leg.sta!=='null') rosterCheckNextDayForRow(div); } catch(e){}
   rosterUpdateAddBtn();
@@ -7992,12 +8022,13 @@ window.rosterSaveEdit = function(){
           var arr = (row.querySelector('.rst-leg-arr') ||{}).value||'';
           var std = (row.querySelector('.rst-leg-std') ||{}).value||'';
           var sta = (row.querySelector('.rst-leg-sta') ||{}).value||'';
+          var acType = (row.querySelector('.rst-leg-actype')||{}).value||'';
           if(fn.trim() || dep.trim() || arr.trim()){
             RST.entries.push({ date:dateStr, type:'flight',
               flightNum:fn.trim().toUpperCase()||null,
               dep:dep.trim().toUpperCase()||null,
               arr:arr.trim().toUpperCase()||null,
-              std:std||null, sta:sta||null });
+              std:std||null, sta:sta||null, acType:acType||null });
             saved++;
           }
         } catch(re){}
