@@ -3665,12 +3665,12 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 
         <div class="ld-sec">Tiempos UTC</div>
         <div class="ld-grid-2">
-          <div class="ld-fg"><label class="ld-fl">ATD <span class="ld-ocr-tag" style="background:rgba(8,145,178,.12);color:#0369A1;border-color:rgba(8,145,178,.3)">OUT</span></label><input class="ld-fi" type="time" id="ld_atd" oninput="ldUpdateDayBadges()"></div>
-          <div class="ld-fg"><label class="ld-fl">STD <span class="ld-ocr-tag">OFF</span><span id="ld_std_p1" class="ld-plus1" style="display:none">+1</span></label><input class="ld-fi" type="time" id="ld_std" oninput="ldUpdateDayBadges()"></div>
+          <div class="ld-fg"><label class="ld-fl">ATD <span class="ld-ocr-tag" style="background:rgba(8,145,178,.12);color:#0369A1;border-color:rgba(8,145,178,.3)">OUT</span></label><input class="ld-fi" type="time" id="ld_atd" oninput="ldAutoBlock();ldUpdateDayBadges()" onchange="ldAutoBlock();ldUpdateDayBadges()"></div>
+          <div class="ld-fg"><label class="ld-fl">STD <span class="ld-ocr-tag">OFF</span><span id="ld_std_p1" class="ld-plus1" style="display:none">+1</span></label><input class="ld-fi" type="time" id="ld_std" oninput="ldUpdateDayBadges()" onchange="ldUpdateDayBadges()"></div>
         </div>
         <div class="ld-grid-2">
-          <div class="ld-fg"><label class="ld-fl">ATA <span class="ld-ocr-tag" style="background:rgba(8,145,178,.12);color:#0369A1;border-color:rgba(8,145,178,.3)">IN</span><span id="ld_ata_p1" class="ld-plus1" style="display:none">+1</span></label><input class="ld-fi" type="time" id="ld_ata" oninput="ldUpdateDayBadges()"></div>
-          <div class="ld-fg"><label class="ld-fl">STA <span class="ld-ocr-tag">ON</span><span id="ld_sta_p1" class="ld-plus1" style="display:none">+1</span></label><input class="ld-fi" type="time" id="ld_sta" oninput="ldUpdateDayBadges()"></div>
+          <div class="ld-fg"><label class="ld-fl">ATA <span class="ld-ocr-tag" style="background:rgba(8,145,178,.12);color:#0369A1;border-color:rgba(8,145,178,.3)">IN</span><span id="ld_ata_p1" class="ld-plus1" style="display:none">+1</span></label><input class="ld-fi" type="time" id="ld_ata" oninput="ldAutoBlock();ldUpdateDayBadges()" onchange="ldAutoBlock();ldUpdateDayBadges()"></div>
+          <div class="ld-fg"><label class="ld-fl">STA <span class="ld-ocr-tag">ON</span><span id="ld_sta_p1" class="ld-plus1" style="display:none">+1</span></label><input class="ld-fi" type="time" id="ld_sta" oninput="ldUpdateDayBadges()" onchange="ldUpdateDayBadges()"></div>
         </div>
         <div class="ld-fg" style="margin-bottom:8px"><label class="ld-fl">Block time ★ (auto si ATD+ATA)</label><input class="ld-fi" type="text" id="ld_block" placeholder="02:35"></div>
 
@@ -6177,6 +6177,8 @@ function ldSave(){
   }
   if(_c1) ldNamesSave(_c1);
   if(_c2) ldNamesSave(_c2);
+  // ── Guardar matrícula en BD de aeronaves ──
+  if(e.reg && e.acType) ldAcDbSet(e.reg, e.acType, e.engine);
   ldEntries.unshift(e); ldSaveData(); ldSyncToServer(); ldCloseModal(); ldRender(); ldStats();
   showToast('✓ Vuelo '+e.dep+'→'+e.arr+' registrado','success');
 }
@@ -6455,6 +6457,43 @@ function ldAcDbLoad(){
 function ldAcDbSave(db){
   localStorage.setItem(LD_AC_DB_KEY, JSON.stringify(db));
 }
+// Pre-poblar con flota Vueling conocida si la BD está vacía
+function ldAcDbInit(){
+  var db=ldAcDbLoad();
+  if(Object.keys(db).length>0) return; // ya tiene datos
+  var vueling={
+    // A319 CFM56
+    'EC-LRS':{acType:'A319',engine:'CFM56'},'EC-LRT':{acType:'A319',engine:'CFM56'},
+    'EC-LRU':{acType:'A319',engine:'CFM56'},'EC-MBM':{acType:'A319',engine:'CFM56'},
+    'EC-MBN':{acType:'A319',engine:'CFM56'},'EC-MBQ':{acType:'A319',engine:'CFM56'},
+    'EC-MQD':{acType:'A319',engine:'CFM56'},'EC-MQE':{acType:'A319',engine:'CFM56'},
+    // A320 CFM56
+    'EC-LVL':{acType:'A320',engine:'CFM56'},'EC-LVQ':{acType:'A320',engine:'CFM56'},
+    'EC-LVT':{acType:'A320',engine:'CFM56'},'EC-LYE':{acType:'A320',engine:'CFM56'},
+    'EC-MBP':{acType:'A320',engine:'CFM56'},'EC-MBS':{acType:'A320',engine:'CFM56'},
+    'EC-MCF':{acType:'A320',engine:'CFM56'},'EC-MCG':{acType:'A320',engine:'CFM56'},
+    'EC-MCU':{acType:'A320',engine:'CFM56'},'EC-MFA':{acType:'A320',engine:'CFM56'},
+    'EC-MFE':{acType:'A320',engine:'CFM56'},'EC-MKL':{acType:'A320',engine:'CFM56'},
+    'EC-MKM':{acType:'A320',engine:'CFM56'},'EC-MLJ':{acType:'A320',engine:'CFM56'},
+    'EC-MXF':{acType:'A320',engine:'CFM56'},'EC-MXG':{acType:'A320',engine:'CFM56'},
+    'EC-MXY':{acType:'A320',engine:'CFM56'},'EC-NAJ':{acType:'A320',engine:'CFM56'},
+    // A320neo LEAP-1A
+    'EC-NCB':{acType:'A320neo',engine:'LEAP-1A'},'EC-NCC':{acType:'A320neo',engine:'LEAP-1A'},
+    'EC-NCD':{acType:'A320neo',engine:'LEAP-1A'},'EC-NCE':{acType:'A320neo',engine:'LEAP-1A'},
+    'EC-NCF':{acType:'A320neo',engine:'LEAP-1A'},'EC-NFA':{acType:'A320neo',engine:'LEAP-1A'},
+    'EC-NFB':{acType:'A320neo',engine:'LEAP-1A'},'EC-NFC':{acType:'A320neo',engine:'LEAP-1A'},
+    // A321 CFM56 / IAE
+    'EC-LKG':{acType:'A321',engine:'CFM56'},'EC-LKH':{acType:'A321',engine:'CFM56'},
+    'EC-MLS':{acType:'A321',engine:'CFM56'},'EC-MLT':{acType:'A321',engine:'CFM56'},
+    'EC-NIE':{acType:'A321',engine:'IAE'},'EC-NIF':{acType:'A321',engine:'IAE'},
+    // A321neo LEAP-1A / PW1100G
+    'EC-NAK':{acType:'A321neo',engine:'LEAP-1A'},'EC-NAL':{acType:'A321neo',engine:'LEAP-1A'},
+    'EC-NAM':{acType:'A321neo',engine:'LEAP-1A'},'EC-NAN':{acType:'A321neo',engine:'LEAP-1A'},
+    'EC-NGA':{acType:'A321neo',engine:'LEAP-1A'},'EC-NGB':{acType:'A321neo',engine:'LEAP-1A'}
+  };
+  ldAcDbSave(vueling);
+  console.log('[AC-DB] Flota Vueling pre-cargada: '+Object.keys(vueling).length+' matrículas');
+}
 function ldAcDbGet(reg){
   var db=ldAcDbLoad(); return db[reg.toUpperCase()]||null;
 }
@@ -6509,7 +6548,7 @@ function ldRegInput(el){
   var db=ldAcDbLoad();
   var sugg=document.getElementById('ld_reg_suggestions');
   if(!sugg) return;
-  var keys=Object.keys(db).filter(function(k){ return k.startsWith(val) && k!==val && val.length>=2; });
+  var keys=Object.keys(db).filter(function(k){ return k.startsWith(val) && k!==val && val.length>=1; });
   if(keys.length===0||val.length<2){ sugg.style.display='none'; return; }
   sugg.innerHTML=keys.slice(0,6).map(function(k){
     var info=db[k];
@@ -6549,27 +6588,6 @@ function ldRegBlur(el){
     if(el.value.length>=4) ldRegApply(el.value.toUpperCase());
   }, 160);
 }
-// Override ldSave to also save to aircraft DB
-(function(){
-  var _orig=window.ldSave||function(){};
-  window.ldSave=function(){
-    // Run original save (it will validate and save the entry)
-    var before=ldEntries.length;
-    _orig.call(this);
-    // If a new entry was saved (entries grew), persist to AC DB
-    if(ldEntries.length>before){
-      var e=ldEntries[0];
-      if(e.reg&&e.acType) ldAcDbSet(e.reg,e.acType,e.engine);
-    }
-    // Also persist from current form if modal still open (was not closed due to error)
-    // but orig already handles the close, so we check anyway
-    var reg=(document.getElementById('ld_reg')||{}).value||'';
-    var acType=(document.getElementById('ld_actype')||{}).value||'';
-    var engine=(document.getElementById('ld_engine')||{}).value||'';
-    if(reg&&acType) ldAcDbSet(reg,acType,engine);
-  };
-})();
-
 // ════════════════════════════════════════════════════
 // +1 DAY BADGES — UTC times crossing midnight
 // ════════════════════════════════════════════════════
@@ -6762,6 +6780,7 @@ function ldImportConfirm(){
 
 window._initLD=function(){
   if(window._ldOk)return; window._ldOk=1;
+  ldAcDbInit(); // Pre-cargar flota si BD vacía
   ldLoad(); ldRender(); ldStats();
   // Pull desde servidor y, en el mismo paso, sincronizar BD de matrículas
   (async function(){
@@ -6799,11 +6818,8 @@ window._initLD=function(){
   })();
 };
 document.getElementById('ld_modal').addEventListener('click',function(e){if(e.target===e.currentTarget)ldCloseModal();});
-var _latd=document.getElementById('ld_atd');if(_latd){_latd.addEventListener('change',ldAutoBlock);_latd.addEventListener('change',ldUpdateDayBadges);}
-var _lata=document.getElementById('ld_ata');if(_lata){_lata.addEventListener('change',ldAutoBlock);_lata.addEventListener('change',ldUpdateDayBadges);}
-var _lstd=document.getElementById('ld_std');if(_lstd)_lstd.addEventListener('change',ldUpdateDayBadges);
-var _lsta=document.getElementById('ld_sta');if(_lsta)_lsta.addEventListener('change',ldUpdateDayBadges);
-['ld_dep','ld_arr','ld_reg','ld_flight'].forEach(function(id){
+// Convertir a mayúsculas — dep, arr, flight (reg ya lo hace ldRegInput)
+['ld_dep','ld_arr','ld_flight'].forEach(function(id){
   var _uei=document.getElementById(id);if(_uei)_uei.addEventListener('input',function(){this.value=this.value.toUpperCase();});
 });
 
