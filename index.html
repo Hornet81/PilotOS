@@ -7268,28 +7268,47 @@ window.rosterSelectDay = function(dateStr){
           var h3=Math.floor(diff3/60),m3=diff3%60;
           stopovertxt=h3>0?h3+'h'+(m3>0?' '+m3+'m':''):m3+'m';
         }
-        var hasSwap = (prevE.acType && e.acType && prevE.acType !== e.acType);
-        // ── Stopover pill ──
+        var prevCode = prevE.acTypeCode || prevE.acType;
+        var currCode = e.acTypeCode || e.acType;
+        var hasSwap = (prevCode && currCode && prevCode !== currCode);
         var scTime = diff3<45 ? '#92400E' : '#0369A1';
         var sbgTime = diff3<45 ? '#FEF3C7' : '#DBEAFE';
         var pillHTML;
         if(hasSwap){
-          // Split pill: left=stopover time, right=A/C CHANGE caution
           pillHTML =
-            '<div style="display:inline-flex;align-items:stretch;border-radius:20px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.10);border:1px solid rgba(0,0,0,.06)">'            +'<div style="display:flex;align-items:center;gap:5px;padding:5px 12px;background:'+sbgTime+';white-space:nowrap">'            +'<span style="font-size:12px">🅿️</span>'            +'<span style="font-size:11px;font-weight:800;color:'+scTime+';font-family:\'Space Mono\',monospace">'+stopovertxt+'</span>'            +'</div>'            +'<div style="width:1px;background:rgba(0,0,0,.08)"></div>'            +'<div style="display:flex;align-items:center;gap:7px;padding:5px 13px;background:linear-gradient(135deg,#B45309,#D97706);white-space:nowrap">'            +'<div style="display:flex;flex-direction:column;align-items:flex-start;gap:0px">'            +'<span style="font-size:8px;font-weight:900;color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:1.2px;line-height:1.2">A/C CHANGE</span>'            +'<div style="display:flex;align-items:center;gap:4px">'            +'<span style="font-size:11px;font-weight:700;color:#FFF;font-family:\'Space Mono\',monospace">'+prevE.acType+'</span>'            +'<span style="font-size:13px;color:rgba(255,255,255,.6);font-weight:300">→</span>'            +'<span style="font-size:11px;font-weight:700;color:#FFF;font-family:\'Space Mono\',monospace">'+e.acType+'</span>'            +'</div>'            +'</div>'            +'</div>'            +'</div>';
+            '<div style="display:inline-flex;align-items:stretch;border-radius:20px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.10);border:1px solid rgba(0,0,0,.06)">'
+            +'<div style="display:flex;align-items:center;gap:5px;padding:5px 12px;background:'+sbgTime+';white-space:nowrap">'
+            +'<span style="font-size:12px">🅿️</span>'
+            +'<span style="font-size:11px;font-weight:800;color:'+scTime+';font-family:\'Space Mono\',monospace">'+stopovertxt+'</span>'
+            +'</div>'
+            +'<div style="width:1px;background:rgba(0,0,0,.08)"></div>'
+            +'<div style="display:flex;align-items:center;gap:7px;padding:5px 13px;background:linear-gradient(135deg,#B45309,#D97706);white-space:nowrap">'
+            +'<div style="display:flex;flex-direction:column;align-items:flex-start;gap:1px">'
+            +'<span style="font-size:8px;font-weight:900;color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:1.2px;line-height:1.2">A/C CHANGE</span>'
+            +'<div style="display:flex;align-items:center;gap:4px">'
+            +'<span style="font-size:11px;font-weight:700;color:#FFF;font-family:\'Space Mono\',monospace">'+(prevE.acTypeCode||prevE.acType)+'</span>'
+            +'<span style="font-size:13px;color:rgba(255,255,255,.6)">&rarr;</span>'
+            +'<span style="font-size:11px;font-weight:700;color:#FFF;font-family:\'Space Mono\',monospace">'+(e.acTypeCode||e.acType)+'</span>'
+            +'</div>'
+            +'</div>'
+            +'</div>'
+            +'</div>';
         } else {
           var sc  = diff3<45 ? '#B45309' : '#0369A1';
           var sbg = diff3<45 ? '#FFFBEB' : '#EFF6FF';
           var sbd = diff3<45 ? 'rgba(245,158,11,.3)' : 'rgba(8,145,178,.2)';
           pillHTML = '<div style="padding:5px 14px;background:'+sbg+';border:1px solid '+sbd+';border-radius:20px;font-size:11px;font-weight:700;color:'+sc+';font-family:\'Space Mono\',monospace;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.06)">🅿️ '+stopovertxt+'</div>';
         }
-        html += '<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:3px 0">'          +'<div style="flex:1;height:1px;background:rgba(30,58,164,.08)"></div>'          +pillHTML          +'<div style="flex:1;height:1px;background:rgba(30,58,164,.08)"></div>'          +'</div>';
+        html += '<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:3px 0">'
+          +'<div style="flex:1;height:1px;background:rgba(30,58,164,.08)"></div>'
+          +pillHTML
+          +'<div style="flex:1;height:1px;background:rgba(30,58,164,.08)"></div>'
+          +'</div>';
       }
-        var stdOk=e.std&&String(e.std).indexOf(':')>-1;
+      var stdOk=e.std&&String(e.std).indexOf(':')>-1;
       var staOk=e.sta&&String(e.sta).indexOf(':')>-1;
       var stdActOk=e.std_actual&&String(e.std_actual).indexOf(':')>-1;
       var staActOk=e.sta_actual&&String(e.sta_actual).indexOf(':')>-1;
-      // For nextDay flag use best available time
       var _stdRef = e.std || e.std_actual;
       var _staRef = e.sta || e.sta_actual;
       var stdM2=_stdRef&&String(_stdRef).indexOf(':')>-1?parseInt(_stdRef.split(':')[0])*60+parseInt(_stdRef.split(':')[1]):0;
@@ -7304,12 +7323,21 @@ window.rosterSelectDay = function(dateStr){
       var dispStaAct = staActOk ? rstFormatTime(e.sta_actual) : '--:--';
       var timeLabel = RST.useLT ? ' LT' : ' UTC';
       var isPos = e.dep && e.dep.charAt(0) === '*';
-      html += '<div style="display:flex;align-items:stretch;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">'
-        + '<div style="background:'+flightCfg.bg+';padding:12px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:58px;gap:2px">'
-        + '<span style="font-size:24px;line-height:1;filter:brightness(0) invert(1)">✈</span>'
+      // Block time
+      var _bStd = e.std || e.std_actual, _bSta = e.sta || e.sta_actual;
+      var blockMin = 0;
+      if(_bStd && _bSta && String(_bStd).indexOf(':')>-1 && String(_bSta).indexOf(':')>-1){
+        var _bsm=parseInt(_bStd.split(':')[0])*60+parseInt(_bStd.split(':')[1]);
+        var _bem=parseInt(_bSta.split(':')[0])*60+parseInt(_bSta.split(':')[1]);
+        blockMin=_bem-_bsm; if(blockMin<0) blockMin+=1440;
+      }
+      var blockStr = blockMin>0 ? Math.floor(blockMin/60)+'h'+(('0'+(blockMin%60)).slice(-2))+'m' : '';
+      html += '<div style="display:flex;align-items:stretch;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.09)">'
+        + '<div style="background:'+flightCfg.bg+';padding:12px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:54px;gap:2px">'
+        + '<span style="font-size:22px;line-height:1;filter:brightness(0) invert(1)">✈</span>'
         + (legNum ? '<span style="font-size:9px;font-weight:800;color:rgba(255,255,255,.85)">L'+legNum+'</span>' : '')
         + '</div>'
-        + '<div style="flex:1;background:#F8FAFF;border:1px solid rgba(30,58,164,.08);border-left:none;padding:10px 13px;display:flex;flex-direction:column;justify-content:center;gap:3px">'
+        + '<div style="flex:1;background:#F8FAFF;border-top:1px solid rgba(30,58,164,.08);border-bottom:1px solid rgba(30,58,164,.08);padding:10px 13px;display:flex;flex-direction:column;justify-content:center;gap:3px">'
         + '<div style="font-size:13px;font-weight:800;color:#0F172A">'
         + (e.flightNum||'—')
         + (isPos ? ' <span style="font-size:10px;font-weight:700;background:#FEF3C7;color:#92400E;border:1px solid #FCD34D;border-radius:4px;padding:1px 5px">POSICIONAL</span>' : '')
@@ -7325,18 +7353,14 @@ window.rosterSelectDay = function(dateStr){
             +dispStdAct+' – '+dispStaAct+timeLabel
             +(nextDay&&!stdOk&&!staOk?' <span style="background:#0369A1;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:6px">+1</span>':'')
             +'</div>' : '')
-        + (function(){
-            var parts = [];
-            if(e.acType) parts.push('<span style="background:#EFF6FF;color:#0369A1;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;border:1px solid rgba(3,105,161,.15)">✈ '+e.acType+'</span>');
-            var _std = e.std || e.std_actual, _sta = e.sta || e.sta_actual;
-            if(_std && _sta && String(_std).indexOf(':')>-1 && String(_sta).indexOf(':')>-1){
-              var sm=parseInt(_std.split(':')[0])*60+parseInt(_std.split(':')[1]);
-              var em=parseInt(_sta.split(':')[0])*60+parseInt(_sta.split(':')[1]);
-              var bm=em-sm; if(bm<0) bm+=1440;
-              parts.push('<span style="background:#F0FDF4;color:#15803D;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;border:1px solid rgba(21,128,61,.15)">⏱ '+Math.floor(bm/60)+'h'+(('0'+(bm%60)).slice(-2))+'m</span>');
-            }
-            return parts.length ? '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">'+parts.join('')+'</div>' : '';
-          })()
+        + '</div>'
+        + '<div style="background:linear-gradient(180deg,#0C4A6E 0%,#075985 100%);padding:12px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:62px;gap:5px;border-left:1px solid rgba(255,255,255,.08)">'
+        + (e.acType
+            ? '<span style="font-size:13px;font-weight:900;color:#FFFFFF;letter-spacing:.5px;font-family:\'Space Grotesk\',sans-serif;line-height:1;text-align:center">'+e.acType+'</span>'
+            : '<span style="font-size:9px;color:rgba(255,255,255,.2)">—</span>')
+        + (blockStr
+            ? '<span style="font-size:13px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace;line-height:1;text-align:center;background:rgba(255,255,255,.92);border-radius:4px;padding:2px 6px">'+blockStr+'</span>'
+            : '')
         + '</div>'
         + '</div>';
     });
@@ -7739,8 +7763,8 @@ window.rosterEditLeg = function(dateStr, idx){
     + '<input id="rle-sta" type="time" class="fi" value="'+(entry.sta||'')+'" style="font-size:13px;padding:9px 10px;font-family:\'Space Mono\',monospace"></div>'
     + '</div>'
     + '<div style="margin-bottom:10px"><label style="font-size:10px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Tipo Aeronave</label>'
-    + '<select id="rle-actype" class="fi" style="font-size:13px;padding:9px 10px;width:100%;background:#fff"><option value="">— Sin especificar —</option>'
-    + ['A319','A320','A320neo','A321','A321neo','A321XLR'].map(function(t){return '<option value="'+t+'"'+(entry.acType===t?' selected':'')+'>'+t+'</option>';}).join('')
+    + '<select id="rle-actype" class="fi" style="font-size:13px;padding:9px 10px;width:100%;background:#fff"><option value="">\u2014 Sin especificar \u2014</option>'
+    + ["A319","A320","A320neo","A321","A321neo","A321XLR"].map(function(t){return "<option value=\""+t+"\""+(entry.acType===t?" selected":"")+">"+t+"</option>";}).join("")
     + '</select></div>'
     + '<button onclick="rosterSaveLegEdit('+idx+',\''+dateStr+'\')" style="width:100%;padding:11px;background:linear-gradient(135deg,#0369A1,#0891B2);border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:\'Space Grotesk\',sans-serif">✓ Guardar Leg '+legNum+'</button>';
 
@@ -7759,13 +7783,13 @@ window.rosterSaveLegEdit = function(idx, dateStr){
     var arr = (document.getElementById('rle-arr')||{}).value||'';
     var std = (document.getElementById('rle-std')||{}).value||'';
     var sta = (document.getElementById('rle-sta')||{}).value||'';
-    var acType = (document.getElementById('rle-actype')||{}).value||'';
+    var acTypeVal = (document.getElementById('rle-actype')||{}).value||'';
     entry.flightNum = fn.trim().toUpperCase()||null;
     entry.dep = dep.trim().toUpperCase()||null;
     entry.arr = arr.trim().toUpperCase()||null;
     entry.std = std||null;
     entry.sta = sta||null;
-    entry.acType = acType||null;
+    entry.acType = acTypeVal||null;
     rstSave(); rstRenderCalendar(); rstRenderStats(); rstRenderFlights();
     var sheet = document.getElementById('rst-leg-edit-sheet');
     if(sheet) sheet.remove();
@@ -7905,8 +7929,8 @@ function rosterAddLegRow(leg){
     + '<input type="time" class="fi rst-leg-sta" value="'+(leg.sta&&leg.sta!=="null"?leg.sta:"")+'" style="font-size:13px;padding:9px 10px;font-family:\'Space Mono\',monospace"></div>'
     + '</div>'
     + '<div style="margin-top:8px"><label style="font-size:10px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Tipo Aeronave</label>'
-    + '<select class="fi rst-leg-actype" style="font-size:13px;padding:9px 10px;width:100%;background:#fff"><option value="">— Sin especificar —</option>'
-    + ['A319','A320','A320neo','A321','A321neo','A321XLR'].map(function(t){return '<option value="'+t+'"'+(leg.acType===t?' selected':'')+'>'+t+'</option>';}).join('')
+    + '<select class="fi rst-leg-actype" style="font-size:13px;padding:9px 10px;width:100%;background:#fff"><option value="">\u2014 Sin especificar \u2014</option>'
+    + ["A319","A320","A320neo","A321","A321neo","A321XLR"].map(function(t){return "<option value=\""+t+"\""+(leg.acType===t?" selected":"")+">"+t+"</option>";}).join("")
     + '</select></div>';
   container.appendChild(div);
   try { if(leg.std && leg.std!=='null' && leg.sta && leg.sta!=='null') rosterCheckNextDayForRow(div); } catch(e){}
@@ -8147,10 +8171,11 @@ function rstSmartMerge(newEntries, newMonth){
         // Update only actual times — keep scheduled times intact
         existing.std_actual = newE.std_actual;
         existing.sta_actual = newE.sta_actual;
-        // Update dep/arr/flightNum if they were missing
+        // Update dep/arr/flightNum/acType if they were missing
         if(!existing.flightNum && newE.flightNum) existing.flightNum = newE.flightNum;
         if(!existing.dep && newE.dep) existing.dep = newE.dep;
         if(!existing.arr && newE.arr) existing.arr = newE.arr;
+        if(!existing.acType && newE.acType) existing.acType = newE.acType;
         return; // don't add duplicate
       }
       // No existing entry — add as-is (A-only flight)
@@ -8169,6 +8194,7 @@ function rstSmartMerge(newEntries, newMonth){
       // Preserve existing actual times unless new entry also has them
       if(!newE.std_actual && old.std_actual) newE.std_actual = old.std_actual;
       if(!newE.sta_actual && old.sta_actual) newE.sta_actual = old.sta_actual;
+      if(!newE.acType && old.acType) newE.acType = old.acType;
       RST.entries[existingIdx] = newE;
     } else {
       RST.entries.push(newE);
