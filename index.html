@@ -1437,6 +1437,17 @@ select.ld-fi { appearance:none; -webkit-appearance:none; cursor:pointer; }
 .ld-map-rst{font-size:11px;color:rgba(34,211,238,.6);cursor:pointer;font-family:'Space Mono',monospace}
 .ld-map-rst:active{color:#22D3EE}
 .ld-zoom-ind{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);z-index:5;font-family:'Space Mono',monospace;font-size:10px;color:rgba(34,211,238,.4);background:rgba(11,16,32,.7);padding:2px 9px;border-radius:10px;letter-spacing:.3px;pointer-events:none}
+/* ══ MAPA PANEL LAYOUT ══ */
+#ld-panel-mapa.ld-panel{flex-direction:column;overflow:hidden}
+.ld-map-wrap{flex:1;min-height:0;position:relative;overflow:hidden;background:#060C1A}
+/* ══ COLLAPSIBLE DRAWER ══ */
+.ld-drawer{flex-shrink:0;background:#0B1020;border-top:1px solid rgba(34,211,238,.12)}
+.ld-drawer-handle{padding:8px 16px 2px;cursor:pointer;user-select:none;-webkit-user-select:none}
+.ld-drawer-handle:active{background:rgba(34,211,238,.04)}
+.ld-drawer-pill{width:36px;height:4px;border-radius:2px;background:rgba(248,250,252,.18);margin:0 auto}
+.ld-drawer-body{overflow:hidden;transition:max-height .35s cubic-bezier(.4,0,.2,1);max-height:0}
+.ld-drawer-body.ld-drawer-open{max-height:400px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.ld-drawer-body.ld-drawer-open::-webkit-scrollbar{display:none}
 
 /* ══ HOME CARD LOGBOOK (replace logo with text icon) ══ */
 .ld-home-icon{
@@ -4227,9 +4238,9 @@ input#ld_fl, input#ld_cond { display:none !important; }
 
   <!-- ══ PANEL MAPA ══ -->
   <div id="ld-panel-mapa" class="ld-panel" style="display:none">
+    <!-- Map fills all available vertical space -->
     <div class="ld-map-wrap" id="ld-map-wrap">
       <canvas id="ld-map-canvas" aria-label="Mapa interactivo de rutas"></canvas>
-      <!-- Route info overlay -->
       <div class="ld-map-info" id="ld-map-info">
         <div class="ld-rc-dot" id="ld-mi-dot" style="width:10px;height:10px"></div>
         <div class="ld-map-info-route" id="ld-mi-route">BCN<span class="ar">›</span>LHR</div>
@@ -4239,14 +4250,22 @@ input#ld_fl, input#ld_cond { display:none !important; }
       <div class="ld-map-corner" style="top:8px;left:10px">EUR/MED</div>
       <div class="ld-zoom-ind" id="ld-zoom-ind">1.0×</div>
     </div>
-    <!-- Route list header -->
-    <div style="padding:10px 16px 6px;display:flex;align-items:center;gap:8px;background:rgba(11,16,32,.96);border-top:1px solid rgba(34,211,238,.1)">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 12h18M3 6l6 6-6 6"/></svg>
-      <span style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:rgba(248,250,252,.3);flex:1">Rutas frecuentes</span>
-      <span class="ld-map-rst" onclick="ldMapReset()">Vista global ↺</span>
+    <!-- Collapsible drawer -->
+    <div id="ld-drawer" class="ld-drawer">
+      <div class="ld-drawer-handle" onclick="ldDrawerToggle()">
+        <div class="ld-drawer-pill"></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:7px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="2" stroke-linecap="round"><path d="M3 12h18M3 6l6 6-6 6"/></svg>
+          <span style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:rgba(248,250,252,.4);flex:1">Rutas frecuentes</span>
+          <span class="ld-map-rst" onclick="event.stopPropagation();ldMapReset()">Vista global ↺</span>
+          <svg id="ld-drawer-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(34,211,238,.5)" stroke-width="2.5" stroke-linecap="round" style="transition:transform .3s;transform:rotate(180deg)"><polyline points="18 15 12 9 6 15"/></svg>
+        </div>
+      </div>
+      <div id="ld-drawer-body" class="ld-drawer-body">
+        <div id="ld-route-cards"></div>
+        <div style="height:80px"></div>
+      </div>
     </div>
-    <div id="ld-route-cards" style="background:#0B1020"></div>
-    <div style="height:80px"></div>
   </div><!-- /ld-panel-mapa -->
 
   <!-- ══ PANEL STATS ══ -->
@@ -11144,13 +11163,13 @@ function ldSwitchTab(name, el) {
   var panels = {vuelos:'block', mapa:'none', stats:'none'};
   ['vuelos','mapa','stats'].forEach(function(t){
     var panel = document.getElementById('ld-panel-'+t);
-    if(panel) panel.style.display = t===name ? (t==='mapa'?'flex':'block') : 'none';
+    if(panel) panel.style.display = t===name ? (t==='mapa'||t==='stats'?'flex':'block') : 'none';
     var btn = document.getElementById('ld-tab-btn-'+t);
     if(btn) btn.classList.toggle('on', t===name);
   });
   var fab = document.getElementById('ld-fab');
   if(fab) fab.style.display = name==='vuelos' ? 'flex' : 'none';
-  if(name==='mapa' && !window._ldMapInit) { window._ldMapInit=1; ldMapInit(); }
+  if(name==='mapa' && !window._ldMapInit) { window._ldMapInit=1; requestAnimationFrame(function(){ requestAnimationFrame(ldMapInit); }); }
   if(name==='vuelos') { document.getElementById('ld-panel-vuelos').style.display='block'; }
 }
 
@@ -11397,11 +11416,20 @@ var LDM = {
   }
 };
 
+function ldDrawerToggle(){
+  var body=document.getElementById('ld-drawer-body');
+  var chev=document.getElementById('ld-drawer-chevron');
+  if(!body) return;
+  var isOpen=body.classList.contains('ld-drawer-open');
+  body.classList.toggle('ld-drawer-open',!isOpen);
+  if(chev) chev.style.transform=isOpen?'rotate(180deg)':'rotate(0deg)';
+}
 function ldMapInit(){
   var wrap = document.getElementById('ld-map-wrap');
   if(!wrap) return;
-  var W = wrap.offsetWidth || 375;
-  var H = Math.round(W * 0.72);
+  var W = wrap.offsetWidth || wrap.clientWidth || 375;
+  // Height: use actual if laid out, else 72% of width as fallback
+  var H = (wrap.offsetHeight > 80) ? wrap.offsetHeight : Math.round(W * 0.72);
   LDM.W=W; LDM.H=H;
   LDM.dpr=Math.min(window.devicePixelRatio||1,3);
   var cv=document.getElementById('ld-map-canvas');
