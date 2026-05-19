@@ -7917,6 +7917,11 @@ function ldBackendUrl(){
 // PUSH — enviar todos los vuelos al servidor (silent)
 async function ldSyncToServer(){
   var token=ldAuthHeaders(); if(!token||!ldEntries.length)return;
+  // ── Backup en la nube solo Pro/Unlimited ──
+  if(!isPro()){
+    ldSetSyncStatus('local');
+    return;
+  }
   try{
     var realEntries=ldEntries.filter(function(e){
       return e&&e.id!==LD_AC_DB_ENTRY_ID&&e.type!=='__ac_db__';
@@ -7948,7 +7953,12 @@ async function ldSyncToServer(){
 function ldSetSyncStatus(status){
   var el=document.getElementById('ld-sync-indicator');
   if(!el)return;
-  var map={ok:['☁','#22D3EE','Sincronizado'],error:['⚠','#FBBF24','Error de sync'],limit:['🔒','#F87171','Límite de plan']};
+  var map={
+    ok:    ['☁','#22D3EE','Sincronizado'],
+    error: ['⚠','#FBBF24','Error de sync'],
+    limit: ['🔒','#F87171','Límite de plan'],
+    local: ['💾','rgba(248,250,252,.3)','Solo local · Actualiza a Pro'],
+  };
   var v=map[status]||map['ok'];
   el.innerHTML='<span style="color:'+v[1]+';font-size:11px;font-family:Space Mono,monospace">'+v[0]+' '+v[2]+'</span>';
 }
@@ -7956,6 +7966,8 @@ function ldSetSyncStatus(status){
 // PULL — descargar desde el servidor y hacer merge
 async function ldPullFromServer(){
   var token=ldAuthHeaders(); if(!token)return;
+  // ── Pull solo Pro/Unlimited ──
+  if(!isPro()) return;
   try{
     var r=await fetch(ldBackendUrl()+'/api/logbook',{
       headers:{'Authorization':'Bearer '+token}
@@ -8335,7 +8347,8 @@ window._initLD=function(){
   if(window._ldOk)return; window._ldOk=1;
   ldAcDbInit(); // Pre-cargar flota si BD vacía
   ldLoad(); ldRender(); ldStats();
-  ldUpdatePlanBanners(); // mostrar banners de plan
+  ldUpdatePlanBanners();
+  ldSetSyncStatus(isPro() ? 'ok' : 'local'); // mostrar banners de plan
   // Show FAB & correct tab on init
   ldSwitchTab('vuelos');
   // Pull desde servidor y, en el mismo paso, sincronizar BD de matrículas
