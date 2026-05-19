@@ -4620,7 +4620,35 @@ input#ld_fl, input#ld_cond { display:none !important; }
       <input type="text" placeholder="Buscar vuelo, ruta, matrícula..." id="ld_search" oninput="ldFilter()">
     </div>
 
-    <!-- Export panel -->
+    <!-- ── PLAN BANNERS ── -->
+    <!-- Banner: usuario sin cuenta (datos solo locales) -->
+    <div id="ld-banner-noauth" style="display:none;margin-bottom:10px;padding:10px 14px;background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.25);border-radius:12px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:18px;flex-shrink:0">⚠️</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:600;color:rgba(251,191,36,.9)">Datos solo en este dispositivo</div>
+        <div style="font-size:11px;color:rgba(251,191,36,.55);font-family:'Space Mono',monospace;margin-top:2px">Sin cuenta, si borras el caché pierdes tu logbook.</div>
+      </div>
+      <button onclick="pagShow()" style="flex-shrink:0;padding:5px 10px;background:rgba(251,191,36,.15);border:1px solid rgba(251,191,36,.3);border-radius:8px;color:rgba(251,191,36,.9);font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">Crear cuenta →</button>
+    </div>
+    <!-- Banner: límite plan Free -->
+    <div id="ld-banner-planlimit" style="display:none;margin-bottom:10px;padding:10px 14px;background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.25);border-radius:12px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:18px;flex-shrink:0">🔒</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:600;color:rgba(180,160,255,.9)">Plan Free · <span id="ld-plan-count-used">0</span> / 25 vuelos</div>
+          <div style="font-size:11px;color:rgba(180,160,255,.5);font-family:'Space Mono',monospace;margin-top:2px">Actualiza a Pro para logbook ilimitado, OCR y exportar.</div>
+        </div>
+        <div style="flex-shrink:0;text-align:right">
+          <div style="font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:rgba(180,160,255,.9)" id="ld-plan-bar-pct">0%</div>
+        </div>
+      </div>
+      <div style="margin-top:8px;height:4px;background:rgba(124,58,237,.15);border-radius:4px;overflow:hidden">
+        <div id="ld-plan-bar" style="height:100%;background:linear-gradient(90deg,#7C3AED,#22D3EE);border-radius:4px;transition:width .4s;width:0%"></div>
+      </div>
+    </div>
+    <!-- Indicador sync -->
+    <div id="ld-sync-indicator" style="display:none;text-align:right;margin-bottom:6px;min-height:16px"></div>
+    <!-- ── / PLAN BANNERS ── -->
     <div class="ld-export-panel" id="ld_export">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
         <div style="font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(34,211,238,.6);display:flex;align-items:center;gap:7px">
@@ -4634,16 +4662,19 @@ input#ld_fl, input#ld_cond { display:none !important; }
           <span class="ld-export-icon">📄</span>
           <div class="ld-export-title">PDF EASA</div>
           <div class="ld-export-sub">FCL.050 App.1</div>
+          <div id="ld-export-lock" style="font-size:9px;color:rgba(251,191,36,.7);margin-top:4px;font-family:'Space Mono',monospace">🔒 Pro</div>
         </div>
         <div class="ld-export-card" onclick="ldExportCSV()">
           <span class="ld-export-icon">📊</span>
           <div class="ld-export-title">Excel / CSV</div>
           <div class="ld-export-sub">UTF-8 · aerolínea</div>
+          <div style="font-size:9px;color:rgba(251,191,36,.7);margin-top:4px;font-family:'Space Mono',monospace">🔒 Pro</div>
         </div>
         <div class="ld-export-card" onclick="ldExportJSON()">
           <span class="ld-export-icon">🔒</span>
           <div class="ld-export-title">Backup JSON</div>
           <div class="ld-export-sub">Hash integridad</div>
+          <div style="font-size:9px;color:rgba(251,191,36,.7);margin-top:4px;font-family:'Space Mono',monospace">🔒 Pro</div>
         </div>
       </div>
     </div>
@@ -7272,6 +7303,35 @@ window.addEventListener('load', updateOnlineStatus);
 // LOGBOOK — Dark HUD theme · EASA FCL.050
 // ══════════════════════════════════════════════════════════════════
 var LD_KEY = 'pilotOS_logbook_v1';
+
+// ── PLAN HELPERS ─────────────────────────────────────────────────
+var PLAN_FREE_LOGBOOK_LIMIT = 25;
+var PLAN_FREE_OES_LIMIT     = 20;
+
+function pilotPlan(){ return localStorage.getItem('pilotOS_plan') || 'free'; }
+function isPro(){      return pilotPlan() === 'pro' || pilotPlan() === 'unlimited'; }
+function isUnlimited(){ return pilotPlan() === 'unlimited'; }
+function isLoggedIn(){ return !!(localStorage.getItem('cafi_auth_token')); }
+
+function planCanExport(){      return isPro(); }
+function planCanOCR(){         return isPro(); }
+function planCanRoster(){      return isPro(); }
+function planLogbookLimit(){   return isPro() ? Infinity : PLAN_FREE_LOGBOOK_LIMIT; }
+
+function ldRealEntryCount(){
+  return ldEntries.filter(function(e){ return e && e.id !== LD_AC_DB_ENTRY_ID && e.type !== '__ac_db__'; }).length;
+}
+
+function showPlanToast(feature){
+  var msgs = {
+    ocr:    '🔒 OCR de MCDU disponible en Pro · Actualiza tu plan',
+    export: '🔒 Exportar disponible en Pro · Actualiza tu plan',
+    roster: '🔒 Import de Roster disponible en Pro · Actualiza tu plan',
+    limit:  '🔒 Límite de ' + PLAN_FREE_LOGBOOK_LIMIT + ' vuelos en Free · Actualiza a Pro',
+  };
+  showToast(msgs[feature] || '🔒 Disponible en plan Pro', 'warning');
+}
+// ─────────────────────────────────────────────────────────────────
 var ldEntries = [];
 var ldFiltered = [];
 var ldPage = 1, LD_PER = 20;
@@ -7365,6 +7425,13 @@ function ldResetUpload(){
 
 // Claude Vision OCR
 async function ldRunOCR(dataUrl){
+  // ── Plan check: OCR solo Pro/Unlimited ──
+  if(!planCanOCR()){
+    var ocr=document.getElementById('ld_ocr');
+    ocr.className='ld-ocr err'; ocr.style.display='flex';
+    ocr.innerHTML='🔒 OCR de MCDU disponible en <strong>Plan Pro</strong> · <a href="#" onclick="ldCloseModal();showPlanBanner()" style="color:#22D3EE;text-decoration:none">Actualizar plan →</a>';
+    return;
+  }
   var ocr=document.getElementById('ld_ocr');
   ocr.className='ld-ocr loading'; ocr.style.display='flex';
   ocr.innerHTML='<div class="ld-ocr-spin"></div>&nbsp;Analizando MCDU con IA...';
@@ -7439,6 +7506,15 @@ function ldSave(){
   var g=function(id){var _e=document.getElementById(id);return(_e?_e.value:'').trim();};
   var n=function(id){var _e=document.getElementById(id);return parseInt(_e?_e.value:'0');};
   if(!g('ld_date')||!g('ld_dep')||!g('ld_arr')||!g('ld_block')){showToast('Fecha, ruta y block time son obligatorios','error');return;}
+
+  // ── Plan limit: Free max 25 entradas ──
+  var realCount = ldRealEntryCount();
+  if(!isPro() && realCount >= PLAN_FREE_LOGBOOK_LIMIT){
+    ldCloseModal();
+    showPlanToast('limit');
+    ldShowPlanBanner();
+    return;
+  }
   var e={
     id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),
     savedAt:new Date().toISOString(),
@@ -7465,7 +7541,7 @@ function ldSave(){
   if(_c2) ldNamesSave(_c2);
   // ── Guardar matrícula en BD de aeronaves ──
   if(e.reg && e.acType) ldAcDbSet(e.reg, e.acType, e.engine);
-  ldEntries.unshift(e); ldSaveData(); ldSyncToServer(); ldCloseModal(); ldRender(); ldStats();
+  ldEntries.unshift(e); ldSaveData(); ldSyncToServer(); ldCloseModal(); ldRender(); ldStats(); ldUpdatePlanBanners();
   showToast('✓ Vuelo '+e.dep+'→'+e.arr+' registrado','success');
 }
 
@@ -7598,6 +7674,43 @@ function ldCloseMenu(){
   if(btn) btn.style.boxShadow='0 4px 20px rgba(124,58,237,.35),0 0 0 1px rgba(255,255,255,.05),inset 0 1px 0 rgba(255,255,255,.08)';
 }
 
+// ── PLAN BANNERS ──────────────────────────────────────────────────
+function ldUpdatePlanBanners(){
+  var realCount = ldRealEntryCount();
+  var loggedIn  = isLoggedIn();
+
+  // Banner "sin cuenta"
+  var noAuthEl = document.getElementById('ld-banner-noauth');
+  if(noAuthEl) noAuthEl.style.display = loggedIn ? 'none' : 'flex';
+
+  // Banner límite Free
+  var limitEl = document.getElementById('ld-banner-planlimit');
+  if(limitEl){
+    var showLimit = !isPro() && realCount > 0;
+    limitEl.style.display = showLimit ? 'block' : 'none';
+    if(showLimit){
+      var pct = Math.min(100, Math.round(realCount / PLAN_FREE_LOGBOOK_LIMIT * 100));
+      var countEl = document.getElementById('ld-plan-count-used');
+      var barEl   = document.getElementById('ld-plan-bar');
+      var pctEl   = document.getElementById('ld-plan-bar-pct');
+      if(countEl) countEl.textContent = realCount;
+      if(barEl)   barEl.style.width   = pct + '%';
+      if(pctEl)   pctEl.textContent   = pct + '%';
+      // Cambiar color a rojo cuando está al 80%+
+      if(barEl && pct >= 80) barEl.style.background = 'linear-gradient(90deg,#EF4444,#F87171)';
+    }
+  }
+
+  // Indicador sync: solo mostrarlo si está logado
+  var syncEl = document.getElementById('ld-sync-indicator');
+  if(syncEl) syncEl.style.display = loggedIn ? 'block' : 'none';
+}
+
+function ldShowPlanBanner(){
+  ldUpdatePlanBanners();
+}
+// ─────────────────────────────────────────────────────────────────
+
 // Export
 function ldToggleExport(){
   var p=document.getElementById('ld_export');
@@ -7611,6 +7724,7 @@ function ldDl(content,fname,mime){
 function ldToday(){return new Date().toISOString().split('T')[0];}
 
 function ldExportCSV(){
+  if(!planCanExport()){showPlanToast('export');return;}
   if(!ldEntries.length){showToast('No hay vuelos para exportar','error');return;}
   var H=['ID','Fecha','Vuelo','Origen','Destino','Tipo AC','Motor','Matrícula','FL','ATD (OUT)','STD (OFF)','ATA (IN)','STA (ON)','Block','Nocturno','Ldg Día','Ldg Noche','Rol','Función','CM1','CM2','Reglas','Tipo Op.','Condiciones','Notas','Fuente','Guardado UTC'];
   var R=ldEntries.map(function(e){return[e.id,e.date,e.flight,e.dep,e.arr,e.acType,e.engine,e.reg,e.fl,e.atd,e.std,e.ata,e.sta,e.block,e.night,e.ldgDay,e.ldgNight,e.role,e.func,e.cm1||'',e.cm2||'',e.rules,e.opType,e.conditions,e.notes,e.source,e.savedAt];});
@@ -7619,6 +7733,7 @@ function ldExportCSV(){
   showToast('✓ CSV exportado','success');
 }
 function ldExportJSON(){
+  if(!planCanExport()){showPlanToast('export');return;}
   if(!ldEntries.length){showToast('No hay vuelos para exportar','error');return;}
   var tm=ldEntries.reduce(function(s,e){return s+ldT2m(e.block);},0);
   var hash=btoa('v1:'+ldEntries.length+':'+tm+':'+(ldEntries[0]&&ldEntries[0].id?ldEntries[0].id:'')).slice(0,20);
@@ -7627,6 +7742,7 @@ function ldExportJSON(){
   showToast('✓ Backup JSON exportado','success');
 }
 function ldExportPDF(){
+  if(!planCanExport()){showPlanToast('export');return;}
   if(!ldEntries.length){showToast('No hay vuelos para exportar','error');return;}
   var w=window.open('','_blank');
   var tm=ldEntries.reduce(function(s,e){return s+ldT2m(e.block);},0);
@@ -7728,7 +7844,6 @@ function ldBackendUrl(){
 async function ldSyncToServer(){
   var token=ldAuthHeaders(); if(!token||!ldEntries.length)return;
   try{
-    // Filtramos la entrada especial de BD de matrículas — se envía por separado
     var realEntries=ldEntries.filter(function(e){
       return e&&e.id!==LD_AC_DB_ENTRY_ID&&e.type!=='__ac_db__';
     });
@@ -7741,8 +7856,27 @@ async function ldSyncToServer(){
     if(r.ok){
       var body=await r.json();
       console.log('[Logbook] Synced '+body.synced+' entries to server');
+      ldSetSyncStatus('ok');
+      // Update cached plan if returned
+      if(body.plan) localStorage.setItem('pilotOS_plan', body.plan);
+    } else {
+      var errBody=await r.json().catch(function(){return{};});
+      if(errBody.error==='plan_limit'){
+        ldSetSyncStatus('limit');
+        showPlanToast('limit');
+      } else {
+        ldSetSyncStatus('error');
+      }
     }
-  }catch(e){/* offline */}
+  }catch(e){ ldSetSyncStatus('error'); /* offline */ }
+}
+
+function ldSetSyncStatus(status){
+  var el=document.getElementById('ld-sync-indicator');
+  if(!el)return;
+  var map={ok:['☁','#22D3EE','Sincronizado'],error:['⚠','#FBBF24','Error de sync'],limit:['🔒','#F87171','Límite de plan']};
+  var v=map[status]||map['ok'];
+  el.innerHTML='<span style="color:'+v[1]+';font-size:11px;font-family:Space Mono,monospace">'+v[0]+' '+v[2]+'</span>';
 }
 
 // PULL — descargar desde el servidor y hacer merge
@@ -8127,6 +8261,7 @@ window._initLD=function(){
   if(window._ldOk)return; window._ldOk=1;
   ldAcDbInit(); // Pre-cargar flota si BD vacía
   ldLoad(); ldRender(); ldStats();
+  ldUpdatePlanBanners(); // mostrar banners de plan
   // Show FAB & correct tab on init
   ldSwitchTab('vuelos');
   // Pull desde servidor y, en el mismo paso, sincronizar BD de matrículas
@@ -11006,9 +11141,10 @@ async function pagDoAuth() {
 
   // ── DEMO BYPASS (email: 111 / pass: 111) ──
   if (email === '111' && pass === '111') {
-    var demoUser = { name: 'Demo Pilot', email: 'demo@pilotos.app' };
+    var demoUser = { name: 'Demo Pilot', email: 'demo@pilotos.app', plan: 'pro' };
     localStorage.setItem('cafi_auth_token', 'demo-bypass-token');
     localStorage.setItem('cafi_auth_user', JSON.stringify(demoUser));
+    localStorage.setItem('pilotOS_plan', 'pro');
     if (airline) localStorage.setItem('pag_airline', airline);
     updateUserAvatar(demoUser);
     pagHide();
@@ -11033,6 +11169,7 @@ async function pagDoAuth() {
     } else {
       localStorage.setItem('cafi_auth_token', data.token);
       localStorage.setItem('cafi_auth_user', JSON.stringify(data.user));
+      localStorage.setItem('pilotOS_plan', data.user.plan || 'free');
       if (airline) localStorage.setItem('pag_airline', airline);
       updateUserAvatar(data.user);
       pagHide();
