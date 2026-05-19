@@ -7770,7 +7770,16 @@ function ldCloseMenu(){
 // ── STRIPE UPGRADE ───────────────────────────────────────────────
 async function upgCheckout(priceId) {
   var token = localStorage.getItem('cafi_auth_token');
+
+  // Sin cuenta → ir a registro
   if (!token) { pagShow(); return; }
+
+  // Demo token → no tiene cuenta real, pedir registro
+  if (token === 'demo-bypass-token') {
+    showToast('⚠️ Crea una cuenta para suscribirte a un plan', 'warning');
+    setTimeout(function(){ pagShow(); }, 1500);
+    return;
+  }
 
   var btn = priceId.includes('SE4Y')
     ? document.getElementById('upg-btn-pro')
@@ -7786,10 +7795,22 @@ async function upgCheckout(priceId) {
       body: JSON.stringify({ priceId: priceId })
     });
     var data = await res.json();
+
+    // Token expirado o inválido → pedir login de nuevo
+    if (res.status === 401) {
+      localStorage.removeItem('cafi_auth_token');
+      localStorage.removeItem('cafi_auth_user');
+      localStorage.removeItem('pilotOS_plan');
+      showToast('⚠️ Sesión expirada. Vuelve a iniciar sesión para continuar.', 'warning');
+      setTimeout(function(){ pagShow(); }, 2000);
+      if (btn) { btn.disabled = false; btn.textContent = btn.id.includes('pro') ? 'Actualizar a Pro →' : 'Actualizar a Unlimited →'; }
+      return;
+    }
+
     if (!res.ok) throw new Error(data.error || 'Error al crear sesión');
     window.location.href = data.url;
   } catch(e) {
-    showToast('Error: ' + e.message, 'error');
+    showToast('⚠️ ' + e.message, 'error');
     if (btn) { btn.disabled = false; btn.textContent = btn.id.includes('pro') ? 'Actualizar a Pro →' : 'Actualizar a Unlimited →'; }
   }
 }
