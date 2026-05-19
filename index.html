@@ -11294,6 +11294,21 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
       var stored = localStorage.getItem('cafi_auth_user');
       if (stored) updateUserAvatar(JSON.parse(stored));
     } catch(ex) {}
+    // Fetch plan from server to always have the latest
+    (function(){
+      var token = localStorage.getItem('cafi_auth_token');
+      if (!token || token === 'demo-bypass-token') return;
+      var backendUrl = localStorage.getItem('cafi_backend_url') ||
+        'https://happy-ambition-production-75eb.up.railway.app';
+      fetch(backendUrl + '/api/user/plan', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      }).then(function(r){ return r.json(); }).then(function(d){
+        if (d.plan) {
+          localStorage.setItem('pilotOS_plan', d.plan);
+          sbUpdatePlanBadge();
+        }
+      }).catch(function(){});
+    })();
   }
 });
 
