@@ -4638,12 +4638,14 @@ input#ld_fl, input#ld_cond { display:none !important; }
           <div style="font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:600;color:rgba(180,160,255,.9)">Plan Free · <span id="ld-plan-count-used">0</span> / 25 vuelos</div>
           <div style="font-size:11px;color:rgba(180,160,255,.5);font-family:'Space Mono',monospace;margin-top:2px">Actualiza a Pro para logbook ilimitado, OCR y exportar.</div>
         </div>
-        <div style="flex-shrink:0;text-align:right">
-          <div style="font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:rgba(180,160,255,.9)" id="ld-plan-bar-pct">0%</div>
-        </div>
+        <button onclick="goTo('upgrade')" style="flex-shrink:0;padding:5px 10px;background:rgba(124,58,237,.2);border:1px solid rgba(124,58,237,.4);border-radius:8px;color:rgba(180,160,255,.9);font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">Ver planes →</button>
       </div>
       <div style="margin-top:8px;height:4px;background:rgba(124,58,237,.15);border-radius:4px;overflow:hidden">
         <div id="ld-plan-bar" style="height:100%;background:linear-gradient(90deg,#7C3AED,#22D3EE);border-radius:4px;transition:width .4s;width:0%"></div>
+      </div>
+      <div style="margin-top:6px;display:flex;justify-content:space-between;font-family:'Space Mono',monospace;font-size:10px;color:rgba(180,160,255,.4)">
+        <span><span id="ld-plan-count-used">0</span> / 25 vuelos</span>
+        <span id="ld-plan-bar-pct">0%</span>
       </div>
     </div>
     <!-- Indicador sync -->
@@ -5294,7 +5296,7 @@ input#ld_fl, input#ld_cond { display:none !important; }
 <script>
 // ── NAVIGATION ──
 let curScreen='home';
-const screens={home:'scr-home',oes:'scr-oes',cafi:'scr-cafi',pay:'scr-pay',fatigue:'scr-fatigue',skyview:'scr-skyview',career:'scr-career',tools:'scr-tools',docs:'scr-docs',logbook:'scr-logbook',roster:'scr-roster'};
+const screens={home:'scr-home',oes:'scr-oes',cafi:'scr-cafi',pay:'scr-pay',fatigue:'scr-fatigue',skyview:'scr-skyview',career:'scr-career',tools:'scr-tools',docs:'scr-docs',logbook:'scr-logbook',roster:'scr-roster',upgrade:'scr-upgrade'};
 const tabMap={home:'bt-home',oes:'bt-oes',cafi:'bt-cafi',tools:'bt-tools',logbook:'bt-logbook'};
 
 function showScreen(id){
@@ -5330,6 +5332,7 @@ function goTo(key){
   if (key === 'cafi') { initMic('cafi'); cafiInit(); cafiStartBubble(); }
   if (key === 'oes')  initMic('oes');
   if (key === 'logbook' && window._initLD) window._initLD();
+  if (key === 'upgrade') upgUpdateCards();
   if (key === 'roster' && window.rosterInit) window.rosterInit();
 }
 function goHome(){goTo('home');}
@@ -7674,7 +7677,78 @@ function ldCloseMenu(){
   if(btn) btn.style.boxShadow='0 4px 20px rgba(124,58,237,.35),0 0 0 1px rgba(255,255,255,.05),inset 0 1px 0 rgba(255,255,255,.08)';
 }
 
-// ── PLAN BANNERS ──────────────────────────────────────────────────
+// ── STRIPE UPGRADE ───────────────────────────────────────────────
+async function upgCheckout(priceId) {
+  var token = localStorage.getItem('cafi_auth_token');
+  if (!token) { pagShow(); return; }
+
+  var btn = priceId.includes('SE4Y')
+    ? document.getElementById('upg-btn-pro')
+    : document.getElementById('upg-btn-unlimited');
+  if (btn) { btn.disabled = true; btn.textContent = 'Redirigiendo…'; }
+
+  try {
+    var backendUrl = localStorage.getItem('cafi_backend_url') ||
+      'https://happy-ambition-production-75eb.up.railway.app';
+    var res = await fetch(backendUrl + '/api/stripe/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ priceId: priceId })
+    });
+    var data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al crear sesión');
+    window.location.href = data.url;
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = btn.id.includes('pro') ? 'Actualizar a Pro →' : 'Actualizar a Unlimited →'; }
+  }
+}
+
+function upgUpdateCards() {
+  var plan = pilotPlan();
+  var freeActive = document.getElementById('upg-free-active');
+  var btnPro = document.getElementById('upg-btn-pro');
+  var btnUnl = document.getElementById('upg-btn-unlimited');
+  if (freeActive) freeActive.style.display = plan === 'free' ? 'block' : 'none';
+  if (btnPro) {
+    if (plan === 'pro') { btnPro.textContent = 'Plan actual'; btnPro.disabled = true; btnPro.style.opacity = '.5'; }
+    else if (plan === 'unlimited') { btnPro.textContent = 'Bajar a Pro'; btnPro.disabled = false; btnPro.style.opacity = '.6'; }
+    else { btnPro.textContent = 'Actualizar a Pro →'; btnPro.disabled = false; btnPro.style.opacity = '1'; }
+  }
+  if (btnUnl) {
+    if (plan === 'unlimited') { btnUnl.textContent = 'Plan actual'; btnUnl.disabled = true; btnUnl.style.opacity = '.5'; }
+    else { btnUnl.textContent = 'Actualizar a Unlimited →'; btnUnl.disabled = false; btnUnl.style.opacity = '1'; }
+  }
+}
+
+// Detectar retorno de Stripe Checkout
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('checkout') === 'success') {
+    var plan = params.get('plan') || 'pro';
+    localStorage.setItem('pilotOS_plan', plan);
+    showToast('✅ Plan ' + plan.charAt(0).toUpperCase() + plan.slice(1) + ' activado. ¡Bienvenido!', 'success');
+    // Limpiar parámetros de la URL
+    window.history.replaceState({}, '', window.location.pathname);
+    // Refrescar plan desde el servidor
+    setTimeout(function() {
+      var token = localStorage.getItem('cafi_auth_token');
+      var backendUrl = localStorage.getItem('cafi_backend_url') ||
+        'https://happy-ambition-production-75eb.up.railway.app';
+      if (token) {
+        fetch(backendUrl + '/api/user/plan', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        }).then(function(r){ return r.json(); }).then(function(d){
+          if (d.plan) { localStorage.setItem('pilotOS_plan', d.plan); }
+        }).catch(function(){});
+      }
+    }, 2000);
+  }
+  if (params.get('checkout') === 'cancelled') {
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+})();
+// ─────────────────────────────────────────────────────────────────
 function ldUpdatePlanBanners(){
   var realCount = ldRealEntryCount();
   var loggedIn  = isLoggedIn();
@@ -11281,6 +11355,106 @@ function pagSignOut() {
   var gate = document.getElementById('pilot-auth-gate');
   if (gate) gate.classList.remove('hidden');
 }</script>
+
+<!-- ════════════ UPGRADE SCREEN ════════════ -->
+<div class="screen" id="scr-upgrade" style="background:linear-gradient(180deg,#0A0612 0%,#0D0A1A 60%,#080510 100%)">
+  <div class="inner-header" style="background:rgba(10,6,20,.9);border-bottom:1px solid rgba(124,58,237,.2)">
+    <button class="back-btn" onclick="goHome()" style="color:#A78BFA">←</button>
+    <span class="ih-title" style="color:#fff">Planes</span>
+    <span style="width:44px"></span>
+  </div>
+  <div class="scroll-body" style="padding:20px 16px 40px">
+
+    <!-- Header -->
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:rgba(167,139,250,.7);text-transform:uppercase;margin-bottom:8px">PilotOS</div>
+      <div style="font-size:26px;font-weight:700;color:#fff;line-height:1.2;margin-bottom:8px">Elige tu plan</div>
+      <div style="font-size:13px;color:rgba(248,250,252,.4);font-family:'Space Mono',monospace">Cancela cuando quieras</div>
+    </div>
+
+    <!-- Plan FREE -->
+    <div id="upg-card-free" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div>
+          <div style="font-size:16px;font-weight:700;color:#fff">Free</div>
+          <div style="font-size:12px;color:rgba(248,250,252,.4);font-family:'Space Mono',monospace;margin-top:2px">Para empezar</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:24px;font-weight:700;color:#fff">0€</div>
+          <div style="font-size:10px;color:rgba(248,250,252,.35);font-family:'Space Mono',monospace">/mes</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:7px;font-size:12px;color:rgba(248,250,252,.55);font-family:'Space Mono',monospace">
+        <div>✓ CAFI — 20 consultas/mes</div>
+        <div>✓ Logbook — 25 vuelos</div>
+        <div>✓ OES — 20 preguntas/sesión</div>
+        <div>✓ SkyView, Fatigue, Career básico</div>
+        <div style="color:rgba(248,250,252,.25)">✕ OCR MCDU · Export · Roster IA</div>
+      </div>
+      <div id="upg-free-active" style="display:none;margin-top:14px;padding:8px;background:rgba(255,255,255,.05);border-radius:10px;text-align:center;font-size:12px;color:rgba(248,250,252,.4);font-family:'Space Mono',monospace">Plan actual</div>
+    </div>
+
+    <!-- Plan PRO -->
+    <div id="upg-card-pro" style="background:rgba(124,58,237,.08);border:2px solid rgba(124,58,237,.5);border-radius:20px;padding:20px;margin-bottom:12px;position:relative">
+      <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:linear-gradient(90deg,#7C3AED,#22D3EE);color:#fff;font-size:10px;font-weight:700;padding:3px 14px;border-radius:20px;white-space:nowrap;letter-spacing:.5px">MÁS POPULAR</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div>
+          <div style="font-size:16px;font-weight:700;color:#A78BFA">Pro</div>
+          <div style="font-size:12px;color:rgba(167,139,250,.5);font-family:'Space Mono',monospace;margin-top:2px">Para pilotos de línea</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:24px;font-weight:700;color:#A78BFA">9,99€</div>
+          <div style="font-size:10px;color:rgba(167,139,250,.5);font-family:'Space Mono',monospace">/mes · IVA incl.</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:7px;font-size:12px;color:rgba(167,139,250,.8);font-family:'Space Mono',monospace;margin-bottom:16px">
+        <div>✓ CAFI — 200 consultas/mes</div>
+        <div>✓ Logbook ilimitado</div>
+        <div>✓ OCR MCDU — 60/mes</div>
+        <div>✓ Import Roster IA — 30/mes</div>
+        <div>✓ Export PDF · CSV · JSON</div>
+        <div>✓ Estadísticas avanzadas</div>
+        <div>✓ Backup nube · Sync multi-dispositivo</div>
+        <div>✓ OES ilimitado</div>
+      </div>
+      <button id="upg-btn-pro" onclick="upgCheckout('price_1TYkkx2KvMRpp4a22IP5SE4Y')" style="width:100%;padding:13px;background:linear-gradient(135deg,#7C3AED,#6D28D9);border:none;border-radius:13px;color:#fff;font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s">
+        Actualizar a Pro →
+      </button>
+    </div>
+
+    <!-- Plan UNLIMITED -->
+    <div id="upg-card-unlimited" style="background:rgba(14,116,144,.08);border:1px solid rgba(34,211,238,.25);border-radius:20px;padding:20px;margin-bottom:24px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div>
+          <div style="font-size:16px;font-weight:700;color:#22D3EE">Unlimited</div>
+          <div style="font-size:12px;color:rgba(34,211,238,.45);font-family:'Space Mono',monospace;margin-top:2px">Sin límites</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:24px;font-weight:700;color:#22D3EE">19,99€</div>
+          <div style="font-size:10px;color:rgba(34,211,238,.45);font-family:'Space Mono',monospace">/mes · IVA incl.</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:7px;font-size:12px;color:rgba(103,232,249,.7);font-family:'Space Mono',monospace;margin-bottom:16px">
+        <div>✓ Todo de Pro sin límites</div>
+        <div>✓ CAFI ilimitado</div>
+        <div>✓ OCR ilimitado</div>
+        <div>✓ Roster IA ilimitado</div>
+        <div>✓ Análisis IA logbook — 10/mes</div>
+        <div>✓ Sim Prep — early access</div>
+      </div>
+      <button id="upg-btn-unlimited" onclick="upgCheckout('price_1TYkIn2KvMRpp4a2ScxBeQGJ')" style="width:100%;padding:13px;background:linear-gradient(135deg,#0891B2,#0E7490);border:none;border-radius:13px;color:#fff;font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s">
+        Actualizar a Unlimited →
+      </button>
+    </div>
+
+    <!-- Nota seguridad -->
+    <div style="text-align:center;font-size:11px;color:rgba(248,250,252,.2);font-family:'Space Mono',monospace;line-height:1.6">
+      🔒 Pago seguro con Stripe · Cancela cuando quieras<br>
+      Sin permanencia · Sin compromisos
+    </div>
+
+  </div>
+</div>
 
 <!-- ════════════ ROSTER SCREEN ════════════ -->
 <div class="screen" id="scr-roster">
