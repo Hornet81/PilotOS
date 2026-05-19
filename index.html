@@ -11307,6 +11307,27 @@ function updateUserAvatar(user) {
   var ddEmail = document.getElementById('sb-dd-email');
   if (ddName) ddName.textContent = user.name || user.email || 'Piloto';
   if (ddEmail) ddEmail.textContent = user.name ? (user.email || '') : '';
+  // ── Plan badge ──
+  if (user.plan) localStorage.setItem('pilotOS_plan', user.plan);
+  sbUpdatePlanBadge();
+}
+
+function sbUpdatePlanBadge() {
+  var plan = pilotPlan();
+  var badge = document.getElementById('sb-plan-badge');
+  var upgradeBtn = document.getElementById('sb-upgrade-btn');
+  if (!badge) return;
+  var cfg = {
+    free:      { label:'FREE',      bg:'rgba(255,255,255,.08)', color:'rgba(248,250,252,.45)', border:'rgba(255,255,255,.1)' },
+    pro:       { label:'PRO',       bg:'rgba(251,146,60,.2)',   color:'rgba(251,146,60,.95)',  border:'rgba(251,146,60,.4)' },
+    unlimited: { label:'UNLIMITED', bg:'rgba(14,116,144,.2)',   color:'rgba(34,211,238,.9)',   border:'rgba(34,211,238,.3)' },
+  };
+  var c = cfg[plan] || cfg.free;
+  badge.textContent = c.label;
+  badge.style.background = c.bg;
+  badge.style.color = c.color;
+  badge.style.border = '1px solid ' + c.border;
+  if (upgradeBtn) upgradeBtn.style.display = plan === 'free' ? 'inline-flex' : 'none';
 }
 
 function toggleUserDropdown(e) {
@@ -11317,6 +11338,7 @@ function toggleUserDropdown(e) {
     dd.classList.remove('open');
     return;
   }
+  sbUpdatePlanBadge();
   var avatar = document.getElementById('sb-initials');
   if (avatar) {
     var rect = avatar.getBoundingClientRect();
@@ -11395,19 +11417,19 @@ function pagSignOut() {
     </div>
 
     <!-- Plan PRO -->
-    <div id="upg-card-pro" style="background:rgba(124,58,237,.08);border:2px solid rgba(124,58,237,.5);border-radius:20px;padding:20px;margin-bottom:12px;position:relative">
-      <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:linear-gradient(90deg,#7C3AED,#22D3EE);color:#fff;font-size:10px;font-weight:700;padding:3px 14px;border-radius:20px;white-space:nowrap;letter-spacing:.5px">MÁS POPULAR</div>
+    <div id="upg-card-pro" style="background:rgba(251,146,60,.08);border:2px solid rgba(251,146,60,.5);border-radius:20px;padding:20px;margin-bottom:12px;position:relative">
+      <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:linear-gradient(90deg,#F97316,#FB923C);color:#fff;font-size:10px;font-weight:700;padding:3px 14px;border-radius:20px;white-space:nowrap;letter-spacing:.5px">MÁS POPULAR</div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
         <div>
-          <div style="font-size:16px;font-weight:700;color:#A78BFA">Pro</div>
-          <div style="font-size:12px;color:rgba(167,139,250,.5);font-family:'Space Mono',monospace;margin-top:2px">Para pilotos de línea</div>
+          <div style="font-size:16px;font-weight:700;color:#FB923C">Pro</div>
+          <div style="font-size:12px;color:rgba(251,146,60,.5);font-family:'Space Mono',monospace;margin-top:2px">Para pilotos de línea</div>
         </div>
         <div style="text-align:right">
-          <div style="font-size:24px;font-weight:700;color:#A78BFA">9,99€</div>
-          <div style="font-size:10px;color:rgba(167,139,250,.5);font-family:'Space Mono',monospace">/mes · IVA incl.</div>
+          <div style="font-size:24px;font-weight:700;color:#FB923C">9,99€</div>
+          <div style="font-size:10px;color:rgba(251,146,60,.5);font-family:'Space Mono',monospace">/mes · IVA incl.</div>
         </div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:7px;font-size:12px;color:rgba(167,139,250,.8);font-family:'Space Mono',monospace;margin-bottom:16px">
+      <div style="display:flex;flex-direction:column;gap:7px;font-size:12px;color:rgba(251,146,60,.8);font-family:'Space Mono',monospace;margin-bottom:16px">
         <div>✓ CAFI — 200 consultas/mes</div>
         <div>✓ Logbook ilimitado</div>
         <div>✓ OCR MCDU — 60/mes</div>
@@ -11417,7 +11439,7 @@ function pagSignOut() {
         <div>✓ Backup nube · Sync multi-dispositivo</div>
         <div>✓ OES ilimitado</div>
       </div>
-      <button id="upg-btn-pro" onclick="upgCheckout('price_1TYkkx2KvMRpp4a22IP5SE4Y')" style="width:100%;padding:13px;background:linear-gradient(135deg,#7C3AED,#6D28D9);border:none;border-radius:13px;color:#fff;font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s">
+      <button id="upg-btn-pro" onclick="upgCheckout('price_1TYkkx2KvMRpp4a22IP5SE4Y')" style="width:100%;padding:13px;background:linear-gradient(135deg,#F97316,#EA6C0A);border:none;border-radius:13px;color:#fff;font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s">
         Actualizar a Pro →
       </button>
     </div>
@@ -11859,6 +11881,10 @@ function pagSignOut() {
       <div class="sb-dd-name" id="sb-dd-name">Piloto</div>
       <div class="sb-dd-email" id="sb-dd-email"></div>
       <div class="sb-dd-badge">Online</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap">
+        <div id="sb-plan-badge" style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;font-family:'Space Mono',monospace;letter-spacing:.5px;background:rgba(255,255,255,.08);color:rgba(248,250,252,.5);border:1px solid rgba(255,255,255,.1)">FREE</div>
+        <button id="sb-upgrade-btn" onclick="event.stopPropagation();document.getElementById('sb-dropdown').classList.remove('open');goTo('upgrade')" style="display:none;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;font-family:'Space Grotesk',sans-serif;background:linear-gradient(135deg,rgba(124,58,237,.3),rgba(34,211,238,.2));border:1px solid rgba(124,58,237,.4);color:rgba(167,139,250,.9);cursor:pointer;transition:opacity .15s">Actualizar →</button>
+      </div>
     </div>
   </div>
   <div class="sb-dropdown-items">
