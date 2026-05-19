@@ -308,7 +308,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .note{font-size:11px;color:#475569;text-align:center;margin-top:10px}
 
 /* ── BOTTOM TABS ── */
-.bottom-tabs{position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(255,255,255,.97);backdrop-filter:blur(24px);border-top:1.5px solid rgba(30,58,164,.15);display:flex;padding:8px 0 max(8px, env(safe-area-inset-bottom));box-shadow:0 -2px 16px rgba(30,58,164,.1)}
+.bottom-tabs{position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(255,255,255,.97);backdrop-filter:blur(24px);border-top:1px solid rgba(13,148,136,.18);display:flex;padding:8px 0 max(8px, env(safe-area-inset-bottom));box-shadow:0 -2px 16px rgba(13,148,136,.08)}
 .btab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:4px 0;transition:all .14s}
 .btab svg{transition:all .14s;color:#334155}
 .btab-l{font-size:11px;font-weight:600;color:#1E3A5F;transition:color .14s;letter-spacing:.3px}
@@ -2728,6 +2728,7 @@ input#ld_fl, input#ld_cond { display:none !important; }
   backdrop-filter: blur(28px);
   border-bottom: 1px solid rgba(34,211,238,0.16) !important;
   position: relative; z-index: 2;
+  padding-top: calc(12px + env(safe-area-inset-top, 0px)) !important;
 }
 #scr-roster .back-btn { color: #2dd4bf !important; }
 #scr-roster .ih-title { color: #F0FFFE !important; }
@@ -2954,9 +2955,12 @@ input#ld_fl, input#ld_cond { display:none !important; }
   border:1px solid rgba(34,211,238,.14);
   border-radius:18px;padding:14px 14px 12px;position:relative;overflow:hidden;
 }
-#rst-rest-val{font-size:26px;font-weight:900;color:#FFFFFF;font-family:'Space Mono',monospace;line-height:1;margin-bottom:3px}
-#rst-rest-sub{font-size:12px;color:rgba(240,255,254,.80);margin-bottom:8px;line-height:1.3}
-#rst-rest-limit{font-size:11px;color:rgba(240,255,254,.65);margin-top:4px}
+#rst-rest-val{font-size:26px;font-weight:900;color:#065F46;font-family:'Space Mono',monospace;line-height:1;margin-bottom:3px}
+#rst-rest-sub{font-size:12px;color:#0D6B6B;margin-bottom:8px;line-height:1.3}
+#rst-rest-limit{font-size:11px;color:#374151;margin-top:4px}
+/* BH card has dark bg — keep its value white */
+#rst-bh-card #rst-bh-val,
+#rst-bh-card span[style*="Space Mono"]{color:#FFFFFF !important}
 
 /* ── Block hours card ── */
 #rst-bh-card{
@@ -2992,6 +2996,9 @@ input#ld_fl, input#ld_cond { display:none !important; }
 .pbar-wrap{height:5px;background:rgba(255,255,255,.15);border-radius:4px;overflow:hidden}
 .pbar-fill{height:100%;border-radius:4px;transition:width .7s cubic-bezier(.4,0,.2,1)}
 .lbl-micro{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:rgba(240,255,254,.75);margin-bottom:6px}
+/* Rest card has JS-applied light bg — label must be dark */
+#rst-rest-card .lbl-micro{color:#0D6B6B !important}
+#rst-rest-card .pbar-wrap{background:rgba(13,148,136,.15)}
 .badge-pill{font-size:10px;font-weight:800;letter-spacing:.5px;display:inline-block;padding:3px 10px;border-radius:8px;margin-top:5px}
 
 /* ── JSON Modal ── */
@@ -8872,8 +8879,8 @@ function rstRenderFatigue(){
       var restColor = restH < 10 ? '#ef4444' : restH < 12 ? '#f97316' : '#34d399';
       if(restBar){ restBar.style.width=restPct+'%'; restBar.style.background=restColor; }
       if(restCard){
-        restCard.style.borderColor = restH<10?'rgba(239,68,68,.25)':restH<12?'rgba(249,115,22,.2)':'rgba(52,211,153,.15)';
-        restCard.style.background  = restH<10?'#FEF2F2':restH<12?'#FFF7ED':'#F0FDF4';
+        restCard.style.borderColor = restH<10?'rgba(239,68,68,.45)':restH<12?'rgba(249,115,22,.40)':'rgba(16,185,129,.40)';
+        restCard.style.background  = restH<10?'#FEE2E2':restH<12?'#FEF3C7':'#D1FAE5';
       }
     } else {
       if(restVal) restVal.textContent='—';
@@ -9146,9 +9153,9 @@ window.rosterSelectDay = function(dateStr){
         rstDetectTZ();
         var fdp = rstCalcFDP(flights);
         if(fdp){
-          var warnColor = fdp.warn==='exceed'?'#B91C1C':fdp.warn==='near'?'#B45309':'#15803D';
-          var warnBg    = fdp.warn==='exceed'?'#FEF2F2':fdp.warn==='near'?'#FFFBEB':'#F0FDF4';
-          var warnBd    = fdp.warn==='exceed'?'rgba(248,113,113,.3)':fdp.warn==='near'?'rgba(245,158,11,.3)':'rgba(74,222,128,.3)';
+          var warnColor = fdp.warn==='exceed'?'#991B1B':fdp.warn==='near'?'#92400E':'#065F46';
+          var warnBg    = fdp.warn==='exceed'?'#FEE2E2':fdp.warn==='near'?'#FEF3C7':'#D1FAE5';
+          var warnBd    = fdp.warn==='exceed'?'rgba(239,68,68,.50)':fdp.warn==='near'?'rgba(245,158,11,.55)':'rgba(16,185,129,.50)';
           var tzLabel   = RST.useLT ? 'LT' : 'UTC';
           var repDisp      = fdp.report;
           var fdpEndDisp   = fdp.fdpEnd;
@@ -9160,8 +9167,8 @@ window.rosterSelectDay = function(dateStr){
             fdpM20Disp=rstFormatTime(fdp.fdpM20End); fdpMaxDisp=rstFormatTime(fdp.fdpMaxEnd);
             dpEndDisp=rstFormatTime(fdp.dpEnd);
           }
-          html += '<div style="background:'+warnBg+';border:1px solid '+warnBd+';border-radius:12px;padding:12px 13px;margin-top:2px">'
-            + '<div style="font-size:11px;font-weight:800;color:'+warnColor+';text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📋 Límites FTL · ORO.FTL.205</div>'
+          html += '<div style="background:'+warnBg+';border:1.5px solid '+warnBd+';border-radius:12px;padding:12px 13px;margin-top:2px">'
+            + '<div style="font-size:12px;font-weight:800;color:'+warnColor+';text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📋 Límites FTL · ORO.FTL.205</div>'
             + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
             + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px">'
             + '<div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Report</div>'
