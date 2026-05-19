@@ -4240,6 +4240,14 @@ input#ld_fl, input#ld_cond { display:none !important; }
           <div class="pc-hint">119,03 € / día · Sujeto a IRPF y SS</div>
         </div>
       </div>
+      <div class="frow">
+        <div class="fg">
+          <label class="pc-field-label">Sparring (horas)</label>
+          <input class="fi" type="number" id="pc_sparring" value="0" step="0.5" min="0">
+          <div class="pc-hint">70,02 € / hora · CPT y FO · Sujeto a IRPF y SS</div>
+        </div>
+        <div class="fg"></div>
+      </div>
     </div>
 
     <!-- ─ BLOQUE 4: OPCIONALES ─ -->
@@ -6440,8 +6448,9 @@ function pcCalc() {
   var rfImp    = rfOn ? (parseFloat(document.getElementById('pc_rf').value)||0) : 0;
   var flexDays = parseInt(document.getElementById('pc_flex').value)||0;
   var vacDays  = parseInt(document.getElementById('pc_vac').value)||0;
-  var hFonline = parseFloat(document.getElementById('pc_fonline').value)||0;
-  var dOficina = parseInt(document.getElementById('pc_oficina').value)||0;
+  var hFonline  = parseFloat(document.getElementById('pc_fonline').value)||0;
+  var dOficina  = parseInt(document.getElementById('pc_oficina').value)||0;
+  var hSparring = parseFloat(document.getElementById('pc_sparring') ? document.getElementById('pc_sparring').value : 0)||0;
   var nTri     = parseInt(document.getElementById('pc_tri') ? document.getElementById('pc_tri').value : 0)||0;
   var nTre     = parseInt(document.getElementById('pc_tre') ? document.getElementById('pc_tre').value : 0)||0;
   var hLsc     = parseFloat(document.getElementById('pc_lsc') ? document.getElementById('pc_lsc').value : 0)||0;
@@ -6479,8 +6488,9 @@ function pcCalc() {
   var plusVac  = vacDays * vacRate;
 
   // Formación y actividad
-  var plusFonline = hFonline * 12.35;
-  var plusOficina = dOficina * 119.03;
+  var plusFonline  = hFonline  * 12.35;
+  var plusOficina  = dOficina  * 119.03;
+  var plusSparring = hSparring * 70.02;
 
   // Cargos
   var plusTri  = nTri  * 800.99;
@@ -6500,7 +6510,7 @@ function pcCalc() {
   // ── Total devengado ──
   var totalDev = salBase + pagaExt + primaCom + plusPat
     + plusHV + plusPos + plusImag + plusFlex + plusVac
-    + plusFonline + plusOficina
+    + plusFonline + plusOficina + plusSparring
     + plusTri + plusTre + plusLsc + plusGti + plusJdia + plusJdiaF
     + pagaTrim + plusBolsa + bonoProd
     + dNacSuj + dNacExe + dIntSuj + dIntExe
@@ -6536,6 +6546,7 @@ function pcCalc() {
     pagaTrim:pagaTrim, plusBolsa:plusBolsa,
     flexDays:flexDays, plusFlex:plusFlex, vacDays:vacDays, plusVac:plusVac, vacRate:vacRate,
     hFonline:hFonline, plusFonline:plusFonline, dOficina:dOficina, plusOficina:plusOficina,
+    hSparring:hSparring, plusSparring:plusSparring,
     nTri:nTri, plusTri:plusTri, nTre:nTre, plusTre:plusTre,
     hLsc:hLsc, plusLsc:plusLsc, dGti:dGti, plusGti:plusGti,
     dJdia:dJdia, plusJdia:plusJdia, dJdiaF:dJdiaF, plusJdiaF:plusJdiaF,
@@ -6566,8 +6577,9 @@ function pcCalc() {
   if (dInt>0) { rows += pcRow('2101','Dietas Int. sujetas',dInt+' días',D.int.sujeta,dIntSuj,'var'); rows += pcRow('2103','Dietas Int. exentas',dInt+' días',D.int.exenta,dIntExe,'var'); }
   if (dPern>0) { rows += pcRow('2109','Pernocta int. sujeta',dPern+' noches',D.pernoc.sujeta,dPernSuj,'var'); rows += pcRow('2106','Pernocta int. exenta',dPern+' noches',D.pernoc.exenta,dPernExe,'var'); }
   if (dPernNat>0) { rows += pcRow('203','Pernocta nac. sujeta',dPernNat+' noches',(D.nac_pern?D.nac_pern.sujeta:48.88),dPernNatSuj,'var'); rows += pcRow('204','Pernocta nac. exenta',dPernNat+' noches',(D.nac_pern?D.nac_pern.exenta:53.34),dPernNatExe,'var'); }
-  if (plusFonline>0) rows += pcRow('2114','Formación Online',pcFmt(hFonline)+' h',12.35,plusFonline,'var');
-  if (plusOficina>0) rows += pcRow('2107','Actividad Oficinas',dOficina+' días',119.03,plusOficina,'var');
+  if (plusFonline>0)   rows += pcRow('2114','Formación Online',pcFmt(hFonline)+' h',12.35,plusFonline,'var');
+  if (plusOficina>0)   rows += pcRow('2107','Actividad Oficinas',dOficina+' días',119.03,plusOficina,'var');
+  if (plusSparring>0)  rows += pcRow('2017','Sparring',pcFmt(hSparring)+' h',70.02,plusSparring,'var');
   if (plusTri>0)   rows += pcRow('411','TRI',nTri+' sim.',800.99,plusTri,'var');
   if (plusTre>0)   rows += pcRow('412','TRE',nTre+' sim.',924.22,plusTre,'var');
   if (plusLsc>0)   rows += pcRow('413','LSC / LCC',pcFmt(hLsc)+' h',51.46,plusLsc,'var');
@@ -6631,6 +6643,9 @@ function pcExportReport() {
   if (L.pagaTrim > 0) rows += pr('289','Paga Trimestral','', L.pagaTrim, L.pagaTrim, 'var');
   if (L.plusBolsa > 0) rows += pr('300','Bolsa Beneficios (÷12)','', L.T.bolsa_anual/12, L.plusBolsa, 'var');
   if (L.bonoProd > 0) rows += pr('310','Bono productividad (>700h PT)',(L.bonoHoras||0).toFixed(1)+' h',(L.esp==='cmd'?49.11:17.80), L.bonoProd, 'var');
+  if (L.plusFonline > 0)   rows += pr('2114','Formación Online',  pcFmt(L.hFonline)+' h',  12.35, L.plusFonline,  'var');
+  if (L.plusOficina > 0)   rows += pr('2107','Actividad Oficinas', L.dOficina+' días',      119.03, L.plusOficina,  'var');
+  if (L.plusSparring > 0)  rows += pr('2017','Sparring',           pcFmt(L.hSparring)+' h', 70.02, L.plusSparring, 'var');
   rows += prTot('TOTAL DEVENGADO (cód.301)', L.totalDev, 'pr-total');
   if (L.rfImp > 0) rows += pr('510','Retribución Flexible','', L.rfImp, L.rfImp, '', 'pr-ded');
   rows += pr('515','Retención IRPF ('+(L.irpf*100).toFixed(2)+'%)', (L.irpf*100).toFixed(2)+'%', L.baseIRPF, L.retIRPF, '', 'pr-ded');
