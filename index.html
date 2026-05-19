@@ -764,7 +764,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   opacity:0;
   pointer-events:none;
   transform:scale(.88) translateY(-10px);
-  transform-origin:top right;
+  transform-origin:top left;
   transition:opacity .22s cubic-bezier(.2,.8,.3,1), transform .22s cubic-bezier(.2,.8,.3,1);
   overflow:hidden;
 }
@@ -5034,6 +5034,7 @@ input#ld_fl, input#ld_cond { display:none !important; }
             
             <h2>Oral Exam Simulator</h2>
             <p>Checkride EASA A320 · FCOM & FCTM Vueling (Issue 03 DEC 25)</p>
+            <div id="oes-fleet-note" style="display:none;margin-top:6px;padding:6px 12px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:8px;font-size:11px;color:#FCD34D;font-family:'Space Grotesk',sans-serif;line-height:1.4"></div>
             <button class="start-btn" onclick="startOes()">Comenzar →</button>
           </div>
         </div>
@@ -7245,7 +7246,15 @@ async function cafiSendMessage() {
     var companyCtx = null;
     try {
       var ap = JSON.parse(localStorage.getItem('pilotos_company') || '{}');
-      if (ap.companyName) companyCtx = { name: ap.companyName, aircraft: ap.aircraft || 'A320' };
+      if (ap.companyName) {
+        var _fleet = ap.fleet || (ap.aircraft === '737' ? 'B737' : 'A320');
+        companyCtx = {
+          name: ap.companyName,
+          aircraft: ap.aircraftFull || ap.aircraft || 'A320',
+          fleet: _fleet,
+          fcom: (COMPANY_DATA[ap.company + '_' + _fleet] || COMPANY_DATA['VLG_A320']).fcom || ''
+        };
+      }
     } catch(e) {}
 
     const res = await fetch(backendUrl + '/api/chat', {
@@ -7957,14 +7966,17 @@ function calcFatigue(){
 // COMPANY CONTEXT & ONBOARDING
 // ════════════════════════════════════
 let APP = {
-  company: null,      // 'VLG', 'EZY', 'FR', 'IB'
+  company: null,      // 'VLG'
   companyName: null,  // 'Vueling'
-  aircraft: null,     // 'A320'
+  aircraft: null,     // 'A320' | '737'
   aircraftFull: null, // 'Vueling A320 Family'
+  fleet: null,        // 'A320' | 'B737'  ← drives all fleet-specific content
 };
 
+// Fleet-keyed data: compound key = company + '_' + fleet
 const COMPANY_DATA = {
-  VLG: {
+  // ── Vueling · A320 Family ──────────────────────────────────────
+  VLG: {                          // legacy key kept for backwards-compat
     name: 'Vueling',
     aircraft: 'A320 Family',
     color: '#FF6B00',
@@ -7973,8 +7985,41 @@ const COMPANY_DATA = {
     irpf: 28,
     pay: { fo:3800, sfo:4600, cpt:6200, scpt:7800 },
     hr:  { fo:18, sfo:24, cpt:34, scpt:40 },
-  }
+  },
+  VLG_A320: {
+    name: 'Vueling',
+    aircraft: 'A320',
+    aircraftFull: 'Vueling A320 Family',
+    color: '#FF6B00',
+    emoji: '🟡',
+    fcom: 'FCOM &amp; FCTM Vueling · Issue 03 DEC 25',
+    irpf: 28,
+    pay: { fo:3800, sfo:4600, cpt:6200, scpt:7800 },
+    hr:  { fo:18, sfo:24, cpt:34, scpt:40 },
+    cafiFleet: 'A320 Family (A319/A320/A321)',
+    oesAvailable: true,
+  },
+  // ── Vueling · Boeing 737 ───────────────────────────────────────
+  VLG_B737: {
+    name: 'Vueling',
+    aircraft: 'B737',
+    aircraftFull: 'Boeing 737 MAX/NG',
+    color: '#005EB8',
+    emoji: '🔵',
+    fcom: 'Boeing 737 FCOM · AOM/QRH (próximamente)',
+    irpf: 28,
+    pay: { fo:3800, sfo:4600, cpt:6200, scpt:7800 },
+    hr:  { fo:18, sfo:24, cpt:34, scpt:40 },
+    cafiFleet: 'Boeing 737 MAX/NG',
+    oesAvailable: false,   // B737 exam questions not yet available
+  },
 };
+
+// ── Helper: resolve current fleet data ──────────────────────────
+function getFleetData() {
+  var key = APP.company && APP.fleet ? APP.company + '_' + APP.fleet : null;
+  return COMPANY_DATA[key] || COMPANY_DATA['VLG_A320'];
+}
 
 function toggleAirline(code) {
   document.querySelectorAll('.airline-item').forEach(el => {
@@ -8031,27 +8076,58 @@ function confirmCompany() {
 }
 
 function applyCompanyContext() {
+  // Resolve fleet-specific data
+  var fd = getFleetData();
+
   // Update logo pill tag if exists
   const pillTag = document.querySelector('.logo-tag-pill');
-  if (pillTag) pillTag.textContent = APP.companyName + ' · ' + APP.aircraft;
+  if (pillTag) pillTag.textContent = fd.name + ' · ' + fd.aircraft;
 
-  const label = APP.companyName + ' · ' + APP.aircraft;
+  const label = fd.name + ' · ' + fd.aircraft;
   // Update home greeting
   const nameEl = document.querySelector('.sb-name');
-  if (nameEl) nameEl.textContent = APP.companyName + ' Pilot';
+  if (nameEl) nameEl.textContent = fd.name + ' Pilot';
+  // Update home header rank tag
+  const rankEl = document.getElementById('dh-rank-el');
+  if (rankEl) rankEl.textContent = fd.aircraft + (fd.aircraft === 'B737' ? ' MAX/NG' : ' CEO');
   // Update nav tags
-  document.querySelectorAll('.nav-tag').forEach(t => { if(t.textContent.includes('A320') || t.textContent.includes('VUELING') || t.textContent.includes('VLG')) t.textContent = APP.company + ' · ' + APP.aircraft; });
+  document.querySelectorAll('.nav-tag').forEach(t => {
+    if (t.textContent.includes('A320') || t.textContent.includes('B737') ||
+        t.textContent.includes('VUELING') || t.textContent.includes('VLG')) {
+      t.textContent = APP.company + ' · ' + fd.aircraft;
+    }
+  });
   // Update badges
   ['pay','docs'].forEach(id => {
     const b = document.getElementById(id + '-company-badge');
     if (b) { b.textContent = label; b.style.display = 'inline-flex'; }
   });
-  // Update CAFI banner sub
+  // Update CAFI banner sub (FCOM reference line)
   const cafiSub = document.querySelector('.cafi-sub');
-  if (cafiSub) cafiSub.textContent = (COMPANY_DATA[APP.company]&&COMPANY_DATA[APP.company].fcom?COMPANY_DATA[APP.company].fcom:'FCOM') + ' · ' + (COMPANY_DATA[APP.company]&&COMPANY_DATA[APP.company].fctm?COMPANY_DATA[APP.company].fctm:'FCTM');
+  if (cafiSub) cafiSub.textContent = fd.fcom || 'FCOM';
+  // Update CAFI airline-select to match fleet
+  var airlineSelect = document.getElementById('airline-select');
+  if (airlineSelect) {
+    airlineSelect.value = (fd.aircraft === 'B737') ? 'RYR' : 'VLG';
+  }
   // Update IRPF default
   const irpfInput = document.getElementById('pc-irpf');
-  if (irpfInput) irpfInput.value = (COMPANY_DATA[APP.company]&&COMPANY_DATA[APP.company].irpf?COMPANY_DATA[APP.company].irpf:28);
+  if (irpfInput) irpfInput.value = fd.irpf || 28;
+  // Update OES header fleet label
+  var oesFleetNote = document.getElementById('oes-fleet-note');
+  if (oesFleetNote) {
+    if (fd.oesAvailable === false) {
+      oesFleetNote.style.display = 'block';
+      oesFleetNote.textContent = '⚠️ El banco de preguntas B737 estará disponible próximamente. Mostrando preguntas A320.';
+    } else {
+      oesFleetNote.style.display = 'none';
+    }
+  }
+  // Update PayCheck conv-name if present
+  var convName = document.getElementById('pc_conv_name');
+  if (convName && APP.company === 'VLG') {
+    convName.textContent = 'IV Convenio Colectivo Vueling Airlines';
+  }
 }
 
 function showOnboarding() {
@@ -8065,29 +8141,20 @@ var _pagSelectedFleet = 'A320'; // default
 
 function pagSelectFleet(fleet) {
   _pagSelectedFleet = fleet;
-  ['A320','B737'].forEach(function(f){
-    var el = document.getElementById('pfc-' + f.toLowerCase().replace('7','').replace('37','737'));
-    // use exact ids
-  });
   document.getElementById('pfc-a320').classList.toggle('pag-fleet-sel', fleet === 'A320');
   document.getElementById('pfc-b737').classList.toggle('pag-fleet-sel', fleet === 'B737');
-}
-
-function pagSelectLoginFleet(fleet) {
-  _pagSelectedFleet = fleet;
-  document.getElementById('pfc-login-a320').classList.toggle('pag-fleet-sel', fleet === 'A320');
-  document.getElementById('pfc-login-b737').classList.toggle('pag-fleet-sel', fleet === 'B737');
-  // Persist immediately so returning users see their fleet applied
+  // Persist + apply immediately so the whole app reflects the choice
   _pagSaveFleet(fleet);
 }
 
 function _pagSaveFleet(fleet) {
-  var ac = fleet === 'B737' ? '737' : 'A320';
-  var fullName = fleet === 'B737' ? 'Boeing 737 MAX/NG' : 'Vueling A320 Family';
-  APP.company = 'VLG';
-  APP.companyName = 'Vueling';
-  APP.aircraft = ac;
-  APP.aircraftFull = fullName;
+  var fleetKey = (fleet === 'B737') ? 'VLG_B737' : 'VLG_A320';
+  var cd = COMPANY_DATA[fleetKey];
+  APP.company    = 'VLG';
+  APP.fleet      = fleet;           // 'A320' | 'B737'
+  APP.companyName = cd.name;
+  APP.aircraft   = cd.aircraft;
+  APP.aircraftFull = cd.aircraftFull;
   try { localStorage.setItem('pilotos_company', JSON.stringify(APP)); } catch(e){}
   applyCompanyContext();
 }
@@ -8097,23 +8164,23 @@ function _pagApplyFleetFromStorage() {
     var saved = localStorage.getItem('pilotos_company');
     if (saved) {
       APP = JSON.parse(saved);
+      // Back-compat: if fleet field missing, derive from aircraft
+      if (!APP.fleet) {
+        APP.fleet = (APP.aircraft === '737' || APP.aircraft === 'B737') ? 'B737' : 'A320';
+      }
     } else {
       // Default: Vueling A320
-      APP.company = 'VLG'; APP.companyName = 'Vueling';
+      APP.company = 'VLG'; APP.fleet = 'A320'; APP.companyName = 'Vueling';
       APP.aircraft = 'A320'; APP.aircraftFull = 'Vueling A320 Family';
       localStorage.setItem('pilotos_company', JSON.stringify(APP));
     }
     applyCompanyContext();
-    // Sync fleet cards to stored value
-    var storedFleet = (APP.aircraft === '737') ? 'B737' : 'A320';
+    // Sync register fleet cards to stored value
+    var storedFleet = APP.fleet || 'A320';
     _pagSelectedFleet = storedFleet;
     if (document.getElementById('pfc-a320')) {
       document.getElementById('pfc-a320').classList.toggle('pag-fleet-sel', storedFleet === 'A320');
       document.getElementById('pfc-b737').classList.toggle('pag-fleet-sel', storedFleet === 'B737');
-    }
-    if (document.getElementById('pfc-login-a320')) {
-      document.getElementById('pfc-login-a320').classList.toggle('pag-fleet-sel', storedFleet === 'A320');
-      document.getElementById('pfc-login-b737').classList.toggle('pag-fleet-sel', storedFleet === 'B737');
     }
   } catch(e) {}
 }
@@ -12372,7 +12439,6 @@ function pagTab(tab) {
   document.getElementById('pag-tab-register').classList.toggle('on', !isLogin);
   document.getElementById('pag-register-fields').style.display = isLogin ? 'none' : 'block';
   document.getElementById('pag-forgot').style.display = isLogin ? 'block' : 'none';
-  document.getElementById('pag-login-fleet').style.display = isLogin ? 'block' : 'none';
   document.getElementById('pag-btn').textContent = isLogin ? 'Entrar →' : 'Crear cuenta →';
   document.getElementById('pag-pass').setAttribute('autocomplete', isLogin ? 'current-password' : 'new-password');
   document.getElementById('pag-err').classList.remove('show');
@@ -12583,8 +12649,8 @@ function toggleUserDropdown(e) {
   if (avatar) {
     var rect = avatar.getBoundingClientRect();
     dd.style.top  = (rect.bottom + 10) + 'px';
-    dd.style.right = (window.innerWidth - rect.right) + 'px';
-    dd.style.left = 'auto';
+    dd.style.left = rect.left + 'px';
+    dd.style.right = 'auto';
   }
   dd.classList.add('open');
 }
@@ -13038,28 +13104,6 @@ function pagSignOut() {
     <!-- Forgot (login-only) -->
     <span class="pag-forgot" id="pag-forgot" onclick="pagForgot()">¿Olvidaste tu contraseña?</span>
 
-    <!-- Fleet selector on login tab (for returning users or new device) -->
-    <div id="pag-login-fleet" style="margin-bottom:2px">
-      <div class="pag-fleet-sep"><span class="pag-fleet-sep-txt">Tu flota</span></div>
-      <div class="pag-fleet-grid">
-        <div class="pag-fleet-card pag-fleet-sel" id="pfc-login-a320" onclick="pagSelectLoginFleet('A320')">
-          <div class="pag-fleet-check">✓</div>
-          <div class="pag-fleet-icon">✈️</div>
-          <div class="pag-fleet-body">
-            <div class="pag-fleet-code">A320</div>
-            <div class="pag-fleet-sub">A319 · A320 · A321</div>
-          </div>
-        </div>
-        <div class="pag-fleet-card" id="pfc-login-b737" onclick="pagSelectLoginFleet('B737')">
-          <div class="pag-fleet-check">✓</div>
-          <div class="pag-fleet-icon">🛫</div>
-          <div class="pag-fleet-body">
-            <div class="pag-fleet-code">B737</div>
-            <div class="pag-fleet-sub">737 MAX · 737 NG</div>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- Register-only fields -->
     <div id="pag-register-fields" style="display:none">
