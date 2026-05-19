@@ -2705,6 +2705,85 @@ input#ld_fl, input#ld_cond { display:none !important; }
 
   .pag-note{font-size:10px;color:rgba(100,116,139,.6);text-align:center;margin-top:14px;line-height:1.5;font-family:'Space Mono',monospace}
 
+  /* ── Fleet selector (shown after Vueling is picked) ── */
+  .pag-fleet-wrap{
+    overflow:hidden;
+    max-height:0;
+    opacity:0;
+    transition:max-height .38s cubic-bezier(.4,0,.2,1), opacity .3s ease, transform .32s cubic-bezier(.4,0,.2,1);
+    transform:translateY(-8px);
+    margin-top:0;
+  }
+  .pag-fleet-wrap.open{
+    max-height:120px;
+    opacity:1;
+    transform:translateY(0);
+    margin-top:12px;
+  }
+  .pag-fleet-label{
+    font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;
+    color:rgba(148,198,255,.5);margin-bottom:8px;display:block;
+    font-family:'Space Mono',monospace;
+  }
+  .pag-fleet-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .pag-fleet-card{
+    position:relative;
+    background:rgba(10,30,58,.7);
+    border:1.5px solid rgba(34,211,238,.12);
+    border-radius:14px;padding:12px 10px;
+    display:flex;flex-direction:row;align-items:center;gap:10px;
+    cursor:pointer;transition:all .18s;user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .pag-fleet-card:hover{
+    border-color:rgba(250,204,21,.35);
+    background:rgba(250,204,21,.05);
+  }
+  .pag-fleet-card.pag-fleet-sel{
+    border-color:rgba(250,204,21,.7);
+    background:linear-gradient(135deg,rgba(250,204,21,.12),rgba(245,158,11,.08));
+    box-shadow:0 0 0 1px rgba(250,204,21,.2), 0 4px 16px rgba(250,204,21,.12);
+  }
+  .pag-fleet-icon{
+    font-size:22px;flex-shrink:0;
+    filter:drop-shadow(0 2px 6px rgba(250,204,21,.3));
+    transition:transform .2s;
+  }
+  .pag-fleet-card.pag-fleet-sel .pag-fleet-icon{transform:scale(1.1)}
+  .pag-fleet-body{display:flex;flex-direction:column;gap:1px}
+  .pag-fleet-code{
+    font-family:'Space Mono',monospace;font-size:15px;font-weight:700;
+    color:#e2f4ff;line-height:1;
+  }
+  .pag-fleet-card.pag-fleet-sel .pag-fleet-code{
+    background:linear-gradient(135deg,#FBBF24,#F59E0B);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  }
+  .pag-fleet-sub{font-size:9px;font-weight:500;color:rgba(148,198,255,.55);font-family:'Space Grotesk',system-ui,sans-serif;letter-spacing:.3px}
+  .pag-fleet-check{
+    position:absolute;top:7px;right:7px;
+    width:14px;height:14px;border-radius:50%;
+    background:linear-gradient(135deg,#FBBF24,#F59E0B);
+    display:none;align-items:center;justify-content:center;
+    font-size:8px;color:#451a03;font-weight:900;
+    box-shadow:0 0 8px rgba(250,204,21,.5);
+  }
+  .pag-fleet-card.pag-fleet-sel .pag-fleet-check{display:flex}
+
+  /* Fleet selector also used standalone on login tab */
+  .pag-fleet-sep{
+    display:flex;align-items:center;gap:8px;
+    margin:14px 0 10px;
+  }
+  .pag-fleet-sep::before,.pag-fleet-sep::after{
+    content:'';flex:1;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(34,211,238,.15),transparent);
+  }
+  .pag-fleet-sep-txt{
+    font-size:9px;font-weight:600;letter-spacing:1px;text-transform:uppercase;
+    color:rgba(148,198,255,.4);font-family:'Space Mono',monospace;white-space:nowrap;
+  }
+
   /* ── Keep old class names as aliases so cafiShowAuth still works ── */
   .cafi-auth-overlay{display:none!important}
   .cafi-auth-overlay.hidden{display:none!important}
@@ -3535,78 +3614,9 @@ input#ld_fl, input#ld_cond { display:none !important; }
 </svg>
 
 
-<!-- ════════════ ONBOARDING MODAL ════════════ -->
-<div id="onboarding-modal" class="modal-overlay" style="display:none">
-  <div class="modal-box">
-    <div class="modal-logo">
-      <div class="modal-logo-icon">
-        
-      </div>
-      <div class="modal-logo-text">pilot<em>OS</em></div>
-    </div>
-    <div class="modal-title">¿En qué compañía vuelas?</div>
-    <div class="modal-sub">Selecciona tu aerolínea y tipo de aeronave para personalizar todos los módulos con los manuales y convenios correctos.</div>
-    <div class="airline-list">
-
-      <!-- VUELING -->
-      <div class="airline-item" id="al-vlg" onclick="toggleAirline('vlg')">
-        <div class="airline-header">
-          <div class="airline-logo" style="background:rgba(250,204,21,.2)">🟡</div>
-          <div>
-            <div class="airline-name">Vueling</div>
-            <div class="airline-tag">Grupo IAG · Barcelona</div>
-          </div>
-          <span class="airline-arrow">›</span>
-        </div>
-        <div class="aircraft-list">
-          <button class="aircraft-btn" onclick="selectCompany('VLG','A320','Vueling A320 Family','event')">
-            <span class="ac-dot"></span>Airbus A320 Family (A319/A320/A321)
-          </button>
-          <button class="aircraft-btn soon-airline" disabled>
-            <span class="ac-dot"></span>Boeing 737 <span class="soon-tag">No opera</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- EASYJET -->
-      <div class="airline-item soon-airline" style="pointer-events:none">
-        <div class="airline-header">
-          <div class="airline-logo" style="background:rgba(255,102,0,.15)">🟧</div>
-          <div>
-            <div class="airline-name">easyJet</div>
-            <div class="airline-tag">Airbus A319/A320/A321</div>
-          </div>
-          <span class="soon-tag">Próximamente</span>
-        </div>
-      </div>
-
-      <!-- RYANAIR -->
-      <div class="airline-item soon-airline" style="pointer-events:none">
-        <div class="airline-header">
-          <div class="airline-logo" style="background:rgba(0,80,160,.15)">🔵</div>
-          <div>
-            <div class="airline-name">Ryanair</div>
-            <div class="airline-tag">Boeing 737 MAX/NG</div>
-          </div>
-          <span class="soon-tag">Próximamente</span>
-        </div>
-      </div>
-
-      <!-- IBERIA -->
-      <div class="airline-item soon-airline" style="pointer-events:none">
-        <div class="airline-header">
-          <div class="airline-logo" style="background:rgba(220,0,0,.12)">🔴</div>
-          <div>
-            <div class="airline-name">Iberia</div>
-            <div class="airline-tag">A320 · A350 · A330</div>
-          </div>
-          <span class="soon-tag">Próximamente</span>
-        </div>
-      </div>
-
-    </div>
-    <button class="modal-btn" id="modal-confirm-btn" disabled onclick="confirmCompany()">Confirmar selección →</button>
-  </div>
+<!-- ONBOARDING MODAL removed — fleet selector now in auth gate -->
+<div id="onboarding-modal" style="display:none!important;pointer-events:none" aria-hidden="true">
+  <div id="al-vlg"></div><button id="modal-confirm-btn" disabled></button>
 </div>
 
 <!-- ════════════ TOAST ALERT ════════════ -->
@@ -3619,7 +3629,7 @@ input#ld_fl, input#ld_cond { display:none !important; }
 <!-- ════════════ HOME ════════════ -->
 <div class="screen active" id="scr-home">
   <div class="dh-header">
-    <div class="dh-pilot">
+    <div class="dh-pilot" onclick="toggleUserDropdown(event)" style="cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent">
       <div class="dh-avatar" id="dh-avatar-el">AC</div>
       <div style="display:flex;flex-direction:column;gap:0">
         <div class="dh-name" id="dh-name-el" style="font-size:12px;line-height:1.15">Alex</div>
@@ -4621,7 +4631,7 @@ input#ld_fl, input#ld_cond { display:none !important; }
     <!-- Row 4: Career + Logbook -->
     <div class="dh-grid dh-g2" style="margin-top:10px">
       <div class="dh-card dh-card-career" onclick="goTo('career')">
-        <div class="dh-card-top"><div class="dh-cicon dh-ci-purple" style="width:41px;height:41px;border-radius:12px"><svg style="width:100%;height:100%;display:block" version="1.1" id="Layer_2" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 501.999 460.665">
+        <div class="dh-card-top"><div class="dh-cicon dh-ci-purple" style="width:58px;height:58px;border-radius:14px"><svg style="width:100%;height:100%;display:block" version="1.1" id="Layer_2" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 501.999 460.665">
 <linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="169.7896" y1="293.0581" x2="527.1224" y2="17.0582">
 	<stop  offset="0.1209" style="stop-color:#04053A"/>
 	<stop  offset="0.3003" style="stop-color:#05063D"/>
@@ -4670,7 +4680,7 @@ input#ld_fl, input#ld_cond { display:none !important; }
         <div style="display:flex;justify-content:space-between;font-size:9px;color:rgba(241,245,249,.4);border-top:1px solid rgba(255,255,255,.07);padding-top:6px;margin-top:2px"><span>Captain</span><span style="color:#A78BFA;font-weight:700">Q4 2026 ›</span></div>
       </div>
       <div class="dh-card dh-card-career" onclick="goTo('logbook')">
-        <div class="dh-card-top"><div class="dh-cicon dh-ci-purple" style="width:41px;height:41px;border-radius:12px"><svg style="width:100%;height:100%;display:block" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 878.276 941.568">
+        <div class="dh-card-top"><div class="dh-cicon dh-ci-purple" style="width:58px;height:58px;border-radius:14px"><svg style="width:100%;height:100%;display:block" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 878.276 941.568">
 <g id="Layer_3">
 	<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="319.105" y1="595.3633" x2="847.6843" y2="46.7746">
 		<stop  offset="0" style="stop-color:#000227"/>
@@ -8045,23 +8055,88 @@ function applyCompanyContext() {
 }
 
 function showOnboarding() {
-  document.getElementById('onboarding-modal').style.display = 'flex';
+  // Second popup removed — fleet selection is now in the auth gate.
+  // Auto-apply VLG/A320 if nothing is stored yet.
+  _pagApplyFleetFromStorage();
 }
 
-// Init on load
-window.addEventListener('load', () => {
+// ── Fleet selection helpers (integrated in auth gate) ──
+var _pagSelectedFleet = 'A320'; // default
+
+function pagSelectFleet(fleet) {
+  _pagSelectedFleet = fleet;
+  ['A320','B737'].forEach(function(f){
+    var el = document.getElementById('pfc-' + f.toLowerCase().replace('7','').replace('37','737'));
+    // use exact ids
+  });
+  document.getElementById('pfc-a320').classList.toggle('pag-fleet-sel', fleet === 'A320');
+  document.getElementById('pfc-b737').classList.toggle('pag-fleet-sel', fleet === 'B737');
+}
+
+function pagSelectLoginFleet(fleet) {
+  _pagSelectedFleet = fleet;
+  document.getElementById('pfc-login-a320').classList.toggle('pag-fleet-sel', fleet === 'A320');
+  document.getElementById('pfc-login-b737').classList.toggle('pag-fleet-sel', fleet === 'B737');
+  // Persist immediately so returning users see their fleet applied
+  _pagSaveFleet(fleet);
+}
+
+function _pagSaveFleet(fleet) {
+  var ac = fleet === 'B737' ? '737' : 'A320';
+  var fullName = fleet === 'B737' ? 'Boeing 737 MAX/NG' : 'Vueling A320 Family';
+  APP.company = 'VLG';
+  APP.companyName = 'Vueling';
+  APP.aircraft = ac;
+  APP.aircraftFull = fullName;
+  try { localStorage.setItem('pilotos_company', JSON.stringify(APP)); } catch(e){}
+  applyCompanyContext();
+}
+
+function _pagApplyFleetFromStorage() {
   try {
-    const saved = localStorage.getItem('pilotos_company');
+    var saved = localStorage.getItem('pilotos_company');
     if (saved) {
       APP = JSON.parse(saved);
-      applyCompanyContext();
-      ;
     } else {
-      setTimeout(() => showOnboarding(), 600);
+      // Default: Vueling A320
+      APP.company = 'VLG'; APP.companyName = 'Vueling';
+      APP.aircraft = 'A320'; APP.aircraftFull = 'Vueling A320 Family';
+      localStorage.setItem('pilotos_company', JSON.stringify(APP));
     }
-  } catch(e) {
-    setTimeout(() => showOnboarding(), 600);
-  }
+    applyCompanyContext();
+    // Sync fleet cards to stored value
+    var storedFleet = (APP.aircraft === '737') ? 'B737' : 'A320';
+    _pagSelectedFleet = storedFleet;
+    if (document.getElementById('pfc-a320')) {
+      document.getElementById('pfc-a320').classList.toggle('pag-fleet-sel', storedFleet === 'A320');
+      document.getElementById('pfc-b737').classList.toggle('pag-fleet-sel', storedFleet === 'B737');
+    }
+    if (document.getElementById('pfc-login-a320')) {
+      document.getElementById('pfc-login-a320').classList.toggle('pag-fleet-sel', storedFleet === 'A320');
+      document.getElementById('pfc-login-b737').classList.toggle('pag-fleet-sel', storedFleet === 'B737');
+    }
+  } catch(e) {}
+}
+
+// Show fleet wrap when Vueling is chosen during registration
+(function _patchPagSelectAirline(){
+  var _orig = window.pagSelectAirline;
+  window.pagSelectAirline = function(card, value) {
+    if (_orig) _orig(card, value);
+    var wrap = document.getElementById('pag-fleet-wrap');
+    if (wrap) {
+      if (value === 'Vueling') { wrap.classList.add('open'); }
+      else { wrap.classList.remove('open'); }
+    }
+  };
+})();
+
+// Init on load
+window.addEventListener('load', function() {
+  _pagApplyFleetFromStorage();
+  // Open fleet selector in register form by default (Vueling pre-selected)
+  var wrap = document.getElementById('pag-fleet-wrap');
+  if (wrap) wrap.classList.add('open');
 });
 
 // ════════════════════════════════════
@@ -12285,6 +12360,9 @@ function pagSelectAirline(card, value) {
   });
   card.classList.add('pag-selected');
   document.getElementById('pag-airline').value = value;
+  // Show/hide fleet selector
+  var wrap = document.getElementById('pag-fleet-wrap');
+  if (wrap) { wrap.classList.toggle('open', value === 'Vueling'); }
 }
 
 // ── Tab switcher ──
@@ -12294,9 +12372,17 @@ function pagTab(tab) {
   document.getElementById('pag-tab-register').classList.toggle('on', !isLogin);
   document.getElementById('pag-register-fields').style.display = isLogin ? 'none' : 'block';
   document.getElementById('pag-forgot').style.display = isLogin ? 'block' : 'none';
+  document.getElementById('pag-login-fleet').style.display = isLogin ? 'block' : 'none';
   document.getElementById('pag-btn').textContent = isLogin ? 'Entrar →' : 'Crear cuenta →';
   document.getElementById('pag-pass').setAttribute('autocomplete', isLogin ? 'current-password' : 'new-password');
   document.getElementById('pag-err').classList.remove('show');
+  // Auto-open fleet wrap on register (Vueling pre-selected)
+  if (!isLogin) {
+    setTimeout(function(){
+      var wrap = document.getElementById('pag-fleet-wrap');
+      if (wrap) wrap.classList.add('open');
+    }, 50);
+  }
 }
 
 // ── Forgot password ──
@@ -12357,6 +12443,7 @@ async function pagDoAuth() {
     localStorage.setItem('pilotOS_plan', 'pro');
     if (airline) localStorage.setItem('pag_airline', airline);
     updateUserAvatar(demoUser);
+    _pagSaveFleet(typeof _pagSelectedFleet !== 'undefined' ? _pagSelectedFleet : 'A320');
     pagHide();
     btn.disabled = false;
     btn.textContent = 'Entrar →';
@@ -12382,6 +12469,7 @@ async function pagDoAuth() {
       localStorage.setItem('pilotOS_plan', data.user.plan || 'free');
       if (airline) localStorage.setItem('pag_airline', airline);
       updateUserAvatar(data.user);
+      _pagSaveFleet(typeof _pagSelectedFleet !== 'undefined' ? _pagSelectedFleet : 'A320');
       pagHide();
       // If CAFI screen is already rendered, greet the user there
       if (typeof cafiAddMsg === 'function') {
@@ -12450,7 +12538,7 @@ function updateUserAvatar(user) {
     initials = parts[0].substring(0, 2).toUpperCase();
   }
   if (!initials) initials = 'CP';
-  var el = document.getElementById('sb-initials');
+  var el = document.getElementById('dh-avatar-el');
   if (el) el.textContent = initials;
   var bigAv = document.getElementById('sb-dd-avatar-big');
   if (bigAv) bigAv.textContent = initials;
@@ -12490,7 +12578,8 @@ function toggleUserDropdown(e) {
     return;
   }
   sbUpdatePlanBadge();
-  var avatar = document.getElementById('sb-initials');
+  // Anchor to dh-avatar-el (home header) or fallback to click target
+  var avatar = document.getElementById('dh-avatar-el') || (e && e.currentTarget);
   if (avatar) {
     var rect = avatar.getBoundingClientRect();
     dd.style.top  = (rect.bottom + 10) + 'px';
@@ -12503,9 +12592,9 @@ function toggleUserDropdown(e) {
 document.addEventListener('click', function(e) {
   var dd = document.getElementById('sb-dropdown');
   if (!dd || !dd.classList.contains('open')) return;
-  var avatar = document.getElementById('sb-initials');
-  // Cerrar si el click fue fuera del dropdown Y fuera del avatar
-  if (!dd.contains(e.target) && (!avatar || !avatar.contains(e.target))) {
+  var pilotArea = document.querySelector('.dh-pilot');
+  // Close if click was outside dropdown AND outside the pilot area
+  if (!dd.contains(e.target) && (!pilotArea || !pilotArea.contains(e.target))) {
     dd.classList.remove('open');
   }
 });
@@ -12515,7 +12604,7 @@ function pagSignOut() {
     localStorage.removeItem('cafi_auth_token');
     localStorage.removeItem('cafi_auth_user');
   } catch(ex) {}
-  var el = document.getElementById('sb-initials');
+  var el = document.getElementById('dh-avatar-el');
   if (el) el.textContent = 'CP';
   var bigAv = document.getElementById('sb-dd-avatar-big');
   if (bigAv) bigAv.textContent = 'CP';
@@ -12949,6 +13038,29 @@ function pagSignOut() {
     <!-- Forgot (login-only) -->
     <span class="pag-forgot" id="pag-forgot" onclick="pagForgot()">¿Olvidaste tu contraseña?</span>
 
+    <!-- Fleet selector on login tab (for returning users or new device) -->
+    <div id="pag-login-fleet" style="margin-bottom:2px">
+      <div class="pag-fleet-sep"><span class="pag-fleet-sep-txt">Tu flota</span></div>
+      <div class="pag-fleet-grid">
+        <div class="pag-fleet-card pag-fleet-sel" id="pfc-login-a320" onclick="pagSelectLoginFleet('A320')">
+          <div class="pag-fleet-check">✓</div>
+          <div class="pag-fleet-icon">✈️</div>
+          <div class="pag-fleet-body">
+            <div class="pag-fleet-code">A320</div>
+            <div class="pag-fleet-sub">A319 · A320 · A321</div>
+          </div>
+        </div>
+        <div class="pag-fleet-card" id="pfc-login-b737" onclick="pagSelectLoginFleet('B737')">
+          <div class="pag-fleet-check">✓</div>
+          <div class="pag-fleet-icon">🛫</div>
+          <div class="pag-fleet-body">
+            <div class="pag-fleet-code">B737</div>
+            <div class="pag-fleet-sub">737 MAX · 737 NG</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Register-only fields -->
     <div id="pag-register-fields" style="display:none">
       <div style="margin-top:2px;margin-bottom:14px">
@@ -13000,6 +13112,29 @@ function pagSignOut() {
         </div>
         <!-- Hidden input keeps the selected value -->
         <input id="pag-airline" type="hidden" value="Vueling">
+
+        <!-- Fleet selector — animates open when Vueling is chosen -->
+        <div class="pag-fleet-wrap" id="pag-fleet-wrap">
+          <span class="pag-fleet-label">Flota</span>
+          <div class="pag-fleet-grid">
+            <div class="pag-fleet-card pag-fleet-sel" id="pfc-a320" onclick="pagSelectFleet('A320')">
+              <div class="pag-fleet-check">✓</div>
+              <div class="pag-fleet-icon">✈️</div>
+              <div class="pag-fleet-body">
+                <div class="pag-fleet-code">A320</div>
+                <div class="pag-fleet-sub">A319 · A320 · A321</div>
+              </div>
+            </div>
+            <div class="pag-fleet-card" id="pfc-b737" onclick="pagSelectFleet('B737')">
+              <div class="pag-fleet-check">✓</div>
+              <div class="pag-fleet-icon">🛫</div>
+              <div class="pag-fleet-body">
+                <div class="pag-fleet-code">B737</div>
+                <div class="pag-fleet-sub">737 MAX · 737 NG</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
