@@ -10290,6 +10290,70 @@ function rstRenderFlights(){
   setTimeout(function(){ try { rstRenderFatigue(); } catch(e){} }, 0);
 }
 
+
+// ── Tabla IATA ↔ ICAO — red Vueling + aeropuertos europeos frecuentes ──
+// Permite hacer matching aunque Roster use IATA y Logbook use ICAO o viceversa.
+var RST_IATA_ICAO = {
+  // España
+  'BCN':'LEBL','MAD':'LEMD','PMI':'LEPA','AGP':'LEMG','ALC':'LEAL',
+  'VLC':'LEVC','SVQ':'LEZL','BIO':'LEBB','SCQ':'LEST','VGO':'LEVX',
+  'LCG':'LECO','OVD':'LEAS','SDR':'LEXJ','GRX':'LEGR','FUE':'GCFV',
+  'ACE':'GCRR','TFS':'GCTS','TFN':'GCXO','LPA':'GCLP','SPC':'GCLA',
+  'GMZ':'GCGM','VDE':'GCHI','PMI':'LEPA','IBZ':'LEIB','MAH':'LEMH',
+  // UK
+  'LGW':'EGKK','LHR':'EGLL','LTN':'EGGW','STN':'EGSS','MAN':'EGCC',
+  'EDI':'EGPH','GLA':'EGPF','BHX':'EGBB','BRS':'EGGD','NCL':'EGNT',
+  'LBA':'EGNM','LPL':'EGGP','ABZ':'EGPD','INV':'EGPE','BFS':'EGAA',
+  // Francia
+  'CDG':'LFPG','ORY':'LFPO','NCE':'LFMN','LYS':'LFLL','MRS':'LFML',
+  'TLS':'LFBO','BOD':'LFBD','NTE':'LFRS','SXB':'LFST','LIL':'LFQQ',
+  'BIQ':'LFBZ','PUF':'LFBP','MPL':'LFMT','BES':'LFRB','RNS':'LFRN',
+  // Italia
+  'FCO':'LIRF','LIN':'LIML','MXP':'LIMC','VCE':'LIPZ','NAP':'LIRN',
+  'BGY':'LIME','CTA':'LICC','PMO':'LICJ','BRI':'LIBD','TRN':'LIMF',
+  'BLQ':'LIPE','GOA':'LIMJ','PSA':'LIRP','FLR':'LIRQ','VRN':'LIPX',
+  'CAG':'LIEE','OLB':'LIEO','AHO':'LIEA','CIY':'LICB','REG':'LICR',
+  // Alemania
+  'FRA':'EDDF','MUC':'EDDM','TXL':'EDDT','BER':'EDDB','HAM':'EDDH',
+  'DUS':'EDDL','CGN':'EDDK','STR':'EDDS','NUE':'EDDN','HAJ':'EDDV',
+  // Países Bajos / Bélgica
+  'AMS':'EHAM','BRU':'EBBR','CRL':'EBCI',
+  // Suiza / Austria
+  'ZRH':'LSZH','GVA':'LSGG','VIE':'LOWW','INN':'LOWI','SZG':'LOWS',
+  // Portugal
+  'LIS':'LPPT','OPO':'LPPR','FAO':'LPFR','FNC':'LPMA',
+  // Grecia
+  'ATH':'LGAV','HER':'LGIR','SKG':'LGTS','RHO':'LGRP','CFU':'LGKR',
+  'JMK':'LGMK','PVK':'LGPZ','KGS':'LGKO','ZTH':'LGZA','CHQ':'LGSA',
+  // Turquía
+  'IST':'LTBA','SAW':'LTFJ','AYT':'LTAI','ADB':'LTBJ','ESB':'LTAC',
+  // Otros Europa
+  'DUB':'EIDW','CPH':'EKCH','OSL':'ENGM','ARN':'ESSA','HEL':'EFHK',
+  'WAW':'EPWA','PRG':'LKPR','BUD':'LHBP','OTP':'LROP','SOF':'LBSF',
+  'BEG':'LYBE','ZAG':'LDZA','DBV':'LDDU','SPU':'LDSP','TGD':'LYPG',
+  'LJU':'LJLJ','SKP':'LWSK','TIA':'LATI','OHD':'LWOH',
+  // Marruecos / Norte África
+  'CMN':'GMMN','RAK':'GMMX','AGA':'GMAD','TNG':'GMTT','FEZ':'GMFF',
+  'TUN':'DTTA','ALG':'DAAG',
+  // Oriente Medio / otros
+  'DXB':'OMDB','DOH':'OTHH','AUH':'OMAA','AMM':'OJAI','BEY':'OLBA',
+  // Canarias extra
+  'SPC':'GCLA','GMZ':'GCGM','VDE':'GCHI','HHN':'EDFH'
+};
+
+// Índice inverso ICAO → IATA (se construye una vez)
+var RST_ICAO_IATA = {};
+Object.keys(RST_IATA_ICAO).forEach(function(iata){ RST_ICAO_IATA[RST_IATA_ICAO[iata]] = iata; });
+
+// Normaliza cualquier código a IATA (si ya es IATA lo devuelve igual)
+function rstToIata(code) {
+  if (!code) return '';
+  var c = code.toUpperCase().replace(/^\*/,'').trim();
+  if (c.length === 3) return c;                    // ya es IATA
+  if (c.length === 4) return RST_ICAO_IATA[c] || c; // ICAO → IATA
+  return c;
+}
+
 // ── Buscar en ldEntries el vuelo real que corresponde a un leg del Roster ──
 // NO usamos número de vuelo: Roster tiene número comercial (3500),
 // Logbook tiene callsign operacional (VY06JB) — son campos distintos.
@@ -10297,16 +10361,17 @@ function rstRenderFlights(){
 function rstFindLogbookMatch(rosterEntry) {
   if (!window.ldEntries || !ldEntries.length) return null;
   var rDate = rosterEntry.date;
-  var rDep  = (rosterEntry.dep || '').toUpperCase().replace(/^\*/,'');
-  var rArr  = (rosterEntry.arr || '').toUpperCase().replace(/^\*/,'');
+  // Normalizar a IATA para que BCN==BCN y LEBL==BCN funcionen igual
+  var rDep  = rstToIata(rosterEntry.dep);
+  var rArr  = rstToIata(rosterEntry.arr);
   var rStd  = (rosterEntry.std || rosterEntry.std_actual || '').slice(0,5); // HH:MM
 
-  // Candidatos del mismo día con la misma ruta
+  // Candidatos del mismo día con la misma ruta (normalizando ambos extremos a IATA)
   var sameRoute = ldEntries.filter(function(l) {
     return l && l.type !== '__ac_db__'
         && l.date === rDate
-        && (l.dep || '').toUpperCase() === rDep
-        && (l.arr || '').toUpperCase() === rArr;
+        && rstToIata(l.dep) === rDep
+        && rstToIata(l.arr) === rArr;
   });
   if (!sameRoute.length) return null;
 
