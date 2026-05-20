@@ -9127,6 +9127,55 @@ function ldDietInfo(arr, pernoc) {
 }
 
 // ─────────────────────────────────────────────────────
+// LEG ECONOMICS: full breakdown for the detail modal
+// Plus HV (2104) + Nocturnal supplement (2111) + Dieta
+// ─────────────────────────────────────────────────────
+function ldLegNomina(e) {
+  var esp = (e.role === 'CPT') ? 'cmd' : 'cop';
+  var T   = CONVENIO[esp];
+  if (!T) return null;
+
+  // Block HH:MM → decimal hours
+  function toH(t) {
+    if (!t) return 0;
+    var p = t.replace(/^[ASE]/,'').split(':');
+    return (+p[0]||0) + (+p[1]||0) / 60;
+  }
+  var blockH = Math.round(toH(e.block) * 100) / 100;
+  if (!blockH) return null;
+
+  // Is nocturnal: aibt (or ata) falls 22:00–06:00 local
+  var isNoc = false;
+  var ataVal = e.aibt || e.ata;
+  if (ataVal) {
+    var parts = ataVal.split(':');
+    var mins  = (+parts[0]||0) * 60 + (+parts[1]||0);
+    isNoc = mins >= 22 * 60 || mins < 6 * 60;
+  }
+
+  var rnd = function(v) { return Math.round(v * 100) / 100; };
+
+  var plusHV  = rnd(blockH * T.plusHoraVuelo);
+  var plusNoc = isNoc ? rnd(blockH * T.horaNoct) : 0;
+
+  var diet      = ldDietInfo(e.arr, e.pernoc);
+  var dietTotal = diet ? rnd(diet.exenta + diet.sujeta) : 0;
+
+  return {
+    blockH        : blockH,
+    esp           : esp,
+    rateHV        : T.plusHoraVuelo,
+    plusHV        : plusHV,
+    isNoc         : isNoc,
+    rateNoc       : T.horaNoct,
+    plusNoc       : plusNoc,
+    diet          : diet,
+    dietTotal     : dietTotal,
+    total         : rnd(plusHV + plusNoc + dietTotal)
+  };
+}
+
+// ─────────────────────────────────────────────────────
 // FLIGHT STATUS: cyan / amber / grey
 // Cyan   = roster linked + ATD + ATA (nómina calculable)
 // Amber  = has at least one signal but not all three
@@ -9175,7 +9224,7 @@ function ldOpenDetail(id) {
   var sBdr   = ldFlightStatus(e) === 'complete' ? 'rgba(34,211,238,.2)'  : ldFlightStatus(e) === 'partial' ? 'rgba(245,158,11,.2)'  : 'rgba(71,85,105,.3)';
 
   var diff   = ldBlockDiff(e.block, e.std, e.sta);
-  var diet   = ldDietInfo(e.arr, e.pernoc);
+  var nomina = ldLegNomina(e);
 
   var roleClass = e.role === 'CPT' ? 'ld-fpill-cpt' : 'ld-fpill-fo';
   var funcClass = e.func === 'PM'  ? 'ld-fpill-pm'  : 'ld-fpill-pf';
@@ -9197,15 +9246,47 @@ function ldOpenDetail(id) {
   if (hasNoc)   pillsHtml += '<span class="ld-fpill ld-fpill-noc" style="font-size:10px;padding:3px 9px">'+e.night+' noc</span>';
   if (hasPernoc)pillsHtml += '<span class="ld-fpill" style="background:rgba(99,102,241,.1);color:#818cf8;border:1px solid rgba(99,102,241,.2);font-size:10px;padding:3px 9px">🌙 Pernocta</span>';
 
-  var dietHtml = '';
-  if (diet) {
-    dietHtml = '<div class="ldd-diet">'
-      +'<div class="ldd-diet-top"><span class="ldd-diet-name">'+diet.label+'</span></div>'
-      +'<div class="ldd-diet-row"><span class="ldd-diet-k">Exento IRPF</span><span class="ldd-diet-v">'+diet.exenta.toFixed(2)+' €</span></div>'
-      +'<div class="ldd-diet-row"><span class="ldd-diet-k">Sujeto IRPF</span><span class="ldd-diet-v">'+diet.sujeta.toFixed(2)+' €</span></div>'
-      +'<div class="ldd-diet-row" style="margin-top:3px;padding-top:4px;border-top:1px solid rgba(124,58,237,.15)">'
-      +'<span class="ldd-diet-k" style="color:rgba(200,196,255,.5)">Total bruto</span>'
-      +'<span class="ldd-diet-v" style="color:rgba(200,196,255,.95)">'+(diet.exenta+diet.sujeta).toFixed(2)+' €</span></div>'
+  var nominaHtml = '';
+  if (!e.role) {
+    nominaHtml = '<div style="background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:8px">'
+      +'<span style="font-size:16px;flex-shrink:0">⚠️</span>'
+      +'<div>'
+      +'<div style="font-family:\'Space Grotesk\',sans-serif;font-size:11px;font-weight:700;color:rgba(245,158,11,.9)">Rol no definido</div>'
+      +'<div style="font-family:\'Space Mono\',monospace;font-size:9.5px;color:rgba(245,158,11,.5);margin-top:2px">Edita el vuelo e indica CPT o FO para calcular el Plus HV.</div>'
+      +'</div>'
+      +'</div>';
+  } else if (nomina) {
+    function nr(label, hours, rate, amount, highlight) {
+      var style = highlight ? ' style="color:rgba(200,196,255,.95)"' : '';
+      return '<div class="ldd-diet-row" style="margin-bottom:5px">'
+        +'<span class="ldd-diet-k">'+label+'</span>'
+        +'<div style="text-align:right">'
+        +'<span class="ldd-diet-v"'+style+'>'+amount.toFixed(2)+' €</span>'
+        +(hours ? '<div style="font-family:\'Space Mono\',monospace;font-size:8.5px;color:rgba(248,250,252,.2);margin-top:1px">'+hours.toFixed(2)+'h × '+rate.toFixed(2)+'€</div>' : '')
+        +'</div>'
+        +'</div>';
+    }
+    nominaHtml = '<div class="ldd-diet">';
+    nominaHtml += nr('Plus HV (2104)', nomina.blockH, nomina.rateHV, nomina.plusHV);
+    if (nomina.isNoc)
+      nominaHtml += nr('Noc. supl. (2111)', nomina.blockH, nomina.rateNoc, nomina.plusNoc);
+    if (nomina.diet) {
+      var d = nomina.diet;
+      nominaHtml += '<div style="height:1px;background:rgba(124,58,237,.12);margin:6px 0"></div>'
+        +'<div class="ldd-diet-row" style="margin-bottom:2px">'
+        +'<span class="ldd-diet-k">'+d.label+'</span>'
+        +'<span class="ldd-diet-v">'+nomina.dietTotal.toFixed(2)+' €</span>'
+        +'</div>'
+        +'<div style="display:flex;gap:10px;margin-bottom:5px">'
+        +'<span style="font-family:\'Space Mono\',monospace;font-size:8.5px;color:rgba(248,250,252,.2)">Exento '+d.exenta.toFixed(2)+'€</span>'
+        +'<span style="font-family:\'Space Mono\',monospace;font-size:8.5px;color:rgba(248,250,252,.2)">Sujeto '+d.sujeta.toFixed(2)+'€</span>'
+        +'</div>';
+    }
+    nominaHtml += '<div style="height:1px;background:rgba(34,211,238,.1);margin:4px 0 6px"></div>'
+      +'<div class="ldd-diet-row">'
+      +'<span class="ldd-diet-k" style="color:rgba(34,211,238,.6);font-weight:700;font-family:\'Space Grotesk\',sans-serif;font-size:10px">ESTIMADO LEG</span>'
+      +'<span style="font-family:\'Space Mono\',monospace;font-size:13px;font-weight:700;color:#22D3EE">'+nomina.total.toFixed(2)+' €</span>'
+      +'</div>'
       +'</div>';
   }
 
@@ -9253,7 +9334,7 @@ function ldOpenDetail(id) {
       +'</div>'
       +'<div class="ldd-sec">Vuelo</div>'
       +'<div class="ldd-pills">'+pillsHtml+'</div>'
-      +(diet ? '<div class="ldd-sec">Nómina</div>'+dietHtml : '')
+      +(nomina ? '<div class="ldd-sec">Nómina</div>'+nominaHtml : '')
       +(notesHtml ? '<div class="ldd-sec">Notas</div>'+notesHtml : '')
     +'</div>'
     +'<div class="ldd-ftr">'
