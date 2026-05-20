@@ -10291,49 +10291,40 @@ function rstRenderFlights(){
 }
 
 // ── Buscar en ldEntries el vuelo real que corresponde a un leg del Roster ──
-// Jerarquía: 1) fecha+vuelo  2) fecha+ruta+STD  3) fecha+ruta (solo si es único)
+// NO usamos número de vuelo: Roster tiene número comercial (3500),
+// Logbook tiene callsign operacional (VY06JB) — son campos distintos.
+// Jerarquía: 1) fecha + ruta + STD   2) fecha + ruta (solo si es único)
 function rstFindLogbookMatch(rosterEntry) {
   if (!window.ldEntries || !ldEntries.length) return null;
   var rDate = rosterEntry.date;
-  var rDep  = (rosterEntry.dep  || '').toUpperCase().replace(/^\*/,'');
-  var rArr  = (rosterEntry.arr  || '').toUpperCase().replace(/^\*/,'');
-  var rFnum = String(rosterEntry.flightNum || '').replace(/^VY/i,'').replace(/^0+/,'');
-  var rStd  = (rosterEntry.std  || '').slice(0,5); // HH:MM
+  var rDep  = (rosterEntry.dep || '').toUpperCase().replace(/^\*/,'');
+  var rArr  = (rosterEntry.arr || '').toUpperCase().replace(/^\*/,'');
+  var rStd  = (rosterEntry.std || rosterEntry.std_actual || '').slice(0,5); // HH:MM
 
-  // Candidatos del mismo día
-  var sameDayFlights = ldEntries.filter(function(l) {
-    return l && l.type !== '__ac_db__' && l.date === rDate;
-  });
-  if (!sameDayFlights.length) return null;
-
-  // 1️⃣ Número de vuelo normalizado (más específico)
-  if (rFnum) {
-    var byFlight = sameDayFlights.find(function(l) {
-      var lFnum = String(l.flight || '').replace(/^VY/i,'').replace(/^0+/,'');
-      return lFnum && lFnum === rFnum;
-    });
-    if (byFlight) return byFlight;
-  }
-
-  // Candidatos con la misma ruta
-  var sameRoute = sameDayFlights.filter(function(l) {
-    return (l.dep || '').toUpperCase() === rDep
+  // Candidatos del mismo día con la misma ruta
+  var sameRoute = ldEntries.filter(function(l) {
+    return l && l.type !== '__ac_db__'
+        && l.date === rDate
+        && (l.dep || '').toUpperCase() === rDep
         && (l.arr || '').toUpperCase() === rArr;
   });
   if (!sameRoute.length) return null;
 
-  // 2️⃣ Misma ruta + STD coincide (resuelve BCN→PMI×2 en el mismo día)
-  if (rStd && sameRoute.length > 1) {
+  // 1️⃣ Misma ruta + STD coincide — resuelve BCN→PMI×2 en el mismo día.
+  //    El formulario del Logbook autorellena ld_std desde el Roster,
+  //    así que l.std debería coincidir exactamente con rStd.
+  if (rStd) {
     var byStd = sameRoute.find(function(l) {
       return (l.std || '').slice(0,5) === rStd;
     });
     if (byStd) return byStd;
   }
 
-  // 3️⃣ Misma ruta y es el único candidato
+  // 2️⃣ Único candidato para esa ruta ese día — asignación segura
   if (sameRoute.length === 1) return sameRoute[0];
 
-  // Ambiguo (misma ruta, varios sin STD) — no asignar para no mezclar
+  // Ambiguo: misma ruta varias veces sin STD para diferenciar.
+  // No asignamos nada — mejor no mostrar que mostrar datos erróneos.
   return null;
 }
 
@@ -10738,10 +10729,12 @@ window.rosterSelectDay = function(dateStr){
       }
       var stdOk=e.std&&String(e.std).indexOf(':')>-1;
       var staOk=e.sta&&String(e.sta).indexOf(':')>-1;
-      var stdActOk=e.std_actual&&String(e.std_actual).indexOf(':')>-1;
-      var staActOk=e.sta_actual&&String(e.sta_actual).indexOf(':')>-1;
-      var atdOk=e.atd&&String(e.atd).indexOf(':')>-1;
-      var ataOk=e.ata&&String(e.ata).indexOf(':')>-1;
+      var stdActOk =e.std_actual  &&String(e.std_actual).indexOf(':')>-1;   // A
+      var staActOk =e.sta_actual  &&String(e.sta_actual).indexOf(':')>-1;   // A
+      var stdEstOk =e.std_estimated&&String(e.std_estimated).indexOf(':')>-1; // E
+      var staEstOk =e.sta_estimated&&String(e.sta_estimated).indexOf(':')>-1; // E
+      var atdOk    =e.atd&&String(e.atd).indexOf(':')>-1;                    // L
+      var ataOk    =e.ata&&String(e.ata).indexOf(':')>-1;                    // L
       var _stdRef = e.std || e.std_actual;
       var _staRef = e.sta || e.sta_actual;
       var stdM2=_stdRef&&String(_stdRef).indexOf(':')>-1?parseInt(_stdRef.split(':')[0])*60+parseInt(_stdRef.split(':')[1]):0;
@@ -10752,15 +10745,22 @@ window.rosterSelectDay = function(dateStr){
       var dispStd = stdOk ? rstFormatTime(e.std) : '--:--';
       var dispSta = staOk ? rstFormatTime(e.sta) : '--:--';
       var timeLabel = RST.useLT ? ' LT' : ' UTC';
-      // Prioridad: Logbook (atd/ata) > PDF (std_actual/sta_actual)
-      var hasLogbook = atdOk || ataOk;
-      var hasPdfAct  = stdActOk || staActOk;
-      var hasActual  = hasLogbook || hasPdfAct;
-      var dispActDep = atdOk ? rstFormatTime(e.atd) : (stdActOk ? rstFormatTime(e.std_actual) : '--:--');
-      var dispActArr = ataOk ? rstFormatTime(e.ata) : (staActOk ? rstFormatTime(e.sta_actual) : '--:--');
-      // Discrepancia: ambas fuentes existen y difieren
-      var hasMismatch = atdOk && stdActOk && e.atd.slice(0,5) !== e.std_actual.slice(0,5);
-      var actSource = hasLogbook ? 'L' : 'A'; // L=Logbook, A=Actual PDF
+      // Cuatro filas independientes — S, A, E, L nunca se solapan
+      var hasA = stdActOk || staActOk;   // A = tiempos reales del datalink (automático)
+      var hasE = stdEstOk || staEstOk;   // E = tiempos estimados insertados manualmente por la compañía
+      var hasL = atdOk    || ataOk;      // L = tiempos reales del Logbook del piloto
+      var dispA_dep = stdActOk ? rstFormatTime(e.std_actual)   : '--:--';
+      var dispA_arr = staActOk ? rstFormatTime(e.sta_actual)   : '--:--';
+      var dispE_dep = stdEstOk ? rstFormatTime(e.std_estimated): '--:--';
+      var dispE_arr = staEstOk ? rstFormatTime(e.sta_estimated): '--:--';
+      var dispL_dep = atdOk    ? rstFormatTime(e.atd)          : '--:--';
+      var dispL_arr = ataOk    ? rstFormatTime(e.ata)          : '--:--';
+      // Discrepancia: L difiere de A o E en más de 1 min
+      var t2m = function(t){ var p=(t||'').split(':'); return (+p[0]||0)*60+(+p[1]||0); };
+      var hasMismatch = hasL && (
+        (hasA && Math.abs(t2m(e.atd) - t2m(e.std_actual))   > 1) ||
+        (hasE && Math.abs(t2m(e.atd) - t2m(e.std_estimated))> 1)
+      );
       var isPos = (e.dep && e.dep.charAt(0) === '*') || e.positioning === true;
       // Block time
       var _bStd = e.std || e.std_actual, _bSta = e.sta || e.sta_actual;
@@ -10782,15 +10782,23 @@ window.rosterSelectDay = function(dateStr){
         + (isPos ? ' <span style="font-size:10px;font-weight:700;background:#FEF3C7;color:#92400E;border:1px solid #FCD34D;border-radius:4px;padding:1px 5px">POSICIONAL</span>' : '')
         + '</div>'
         + (e.dep&&e.arr ? '<div style="font-size:12px;font-weight:700;color:#0369A1">'+e.dep+' → '+e.arr+'</div>' : '')
-        + '<div style="font-size:11px;color:#475569;font-family:\'Space Mono\',monospace">'
-        + '<span style="color:#94A3B8;font-size:9px;font-weight:700;margin-right:4px">S</span>'
+        + '<div style="font-size:11px;color:#475569;font-family:\'Space Mono\',monospace;display:flex;align-items:center;gap:4px">'
+        + '<span style="font-size:9px;font-weight:700;color:#64748B;background:rgba(100,116,139,.1);border:1px solid rgba(100,116,139,.2);border-radius:4px;padding:0 4px;line-height:1.6">S</span>'
         + dispStd+' – '+dispSta+timeLabel
         + (nextDay?' <span style="background:#0369A1;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:6px">+1</span>':'')
         + '</div>'
-        + (hasActual ? '<div style="font-size:11px;color:'+(hasLogbook?'#0891B2':'#059669')+';font-family:\'Space Mono\',monospace;display:flex;align-items:center;gap:4px">'
-            +'<span style="font-size:9px;font-weight:700;background:'+(hasLogbook?'rgba(8,145,178,.12)':'rgba(5,150,105,.1)')+';color:'+(hasLogbook?'#0891B2':'#059669')+';border:1px solid '+(hasLogbook?'rgba(8,145,178,.3)':'rgba(5,150,105,.25)')+';border-radius:4px;padding:0 4px;line-height:1.6">'+actSource+'</span>'
-            +dispActDep+' – '+dispActArr+timeLabel
-            +(hasMismatch?' <span title="Difiere del PDF del Roster" style="font-size:10px;color:#F59E0B">⚠</span>':'')
+        + (hasA ? '<div style="font-size:11px;color:#059669;font-family:\'Space Mono\',monospace;display:flex;align-items:center;gap:4px">'
+            +'<span style="font-size:9px;font-weight:700;background:rgba(5,150,105,.1);color:#059669;border:1px solid rgba(5,150,105,.25);border-radius:4px;padding:0 4px;line-height:1.6">A</span>'
+            +dispA_dep+' – '+dispA_arr+timeLabel
+            +'</div>' : '')
+        + (hasE ? '<div style="font-size:11px;color:#D97706;font-family:\'Space Mono\',monospace;display:flex;align-items:center;gap:4px">'
+            +'<span style="font-size:9px;font-weight:700;background:rgba(217,119,6,.1);color:#D97706;border:1px solid rgba(217,119,6,.25);border-radius:4px;padding:0 4px;line-height:1.6">E</span>'
+            +dispE_dep+' – '+dispE_arr+timeLabel
+            +'</div>' : '')
+        + (hasL ? '<div style="font-size:11px;color:#0891B2;font-family:\'Space Mono\',monospace;display:flex;align-items:center;gap:4px">'
+            +'<span style="font-size:9px;font-weight:700;background:rgba(8,145,178,.12);color:#0891B2;border:1px solid rgba(8,145,178,.3);border-radius:4px;padding:0 4px;line-height:1.6">L</span>'
+            +dispL_dep+' – '+dispL_arr+timeLabel
+            +(hasMismatch?' <span title="Difiere de A/E" style="font-size:10px;color:#EF4444">⚠</span>':'')
             +'</div>' : '')
         + '</div>'
         + '<div style="background:linear-gradient(180deg,#0C4A6E 0%,#075985 100%);padding:12px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:62px;gap:5px;border-left:1px solid rgba(255,255,255,.08)">'
