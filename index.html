@@ -6040,6 +6040,15 @@ input#ld_fl, input#ld_cond { display:none !important; }
           <div class="ldm-fg"><label class="ldm-lbl">LDG NOCHE</label><input class="ldm-inp ldm-inp-center" type="number" id="ld_ldgn" value="0" min="0"></div>
           <div class="ldm-fg"><label class="ldm-lbl">NOCTURNO</label><input class="ldm-inp ldm-inp-center" type="text" id="ld_night_inp" placeholder="00:00"></div>
         </div>
+        <div style="margin-bottom:12px">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px">
+            <input type="checkbox" id="ld_pernoc" style="width:18px;height:18px;accent-color:#22d3ee;flex-shrink:0">
+            <span style="font-size:12px;font-weight:600;color:rgba(248,250,252,.7);text-transform:uppercase;letter-spacing:.5px">Pernocta fuera de base</span>
+          </label>
+        </div>
+
+        <!-- ID del roster vinculado (oculto) -->
+        <input type="hidden" id="ld_roster_entry_id">
 
         <!-- FL / Condiciones (ocultos por defecto, se usan por OCR) -->
         <input type="hidden" id="ld_fl">
@@ -8556,6 +8565,46 @@ function ldOpenModal(manual){
   var _cm1el=document.getElementById('ld_cm1'), _cm2el=document.getElementById('ld_cm2');
   if(_role==='FO'&&_myFo&&_cm2el) _cm2el.value=_myFo;
   else if(_role==='CPT'&&_myCpt&&_cm1el) _cm1el.value=_myCpt;
+  // ── Paso 4: autorellenar std/sta/rosterEntryId desde el Roster ──
+  (function(){
+    try {
+      rstLoad();
+      var today = new Date().toISOString().slice(0,10);
+      var todayFlights = RST.entries.filter(function(e){
+        return e.type==='flight' && e.date===today;
+      });
+      if(!todayFlights.length) return;
+      // Usar el vuelo más próximo por STD
+      var now = new Date();
+      var nowMins = now.getUTCHours()*60 + now.getUTCMinutes();
+      todayFlights.sort(function(a,b){
+        var t2m=function(t){ if(!t) return 9999; var p=t.split(':'); return (+p[0]||0)*60+(+p[1]||0); };
+        return Math.abs(t2m(a.std)-nowMins) - Math.abs(t2m(b.std)-nowMins);
+      });
+      var f = todayFlights[0];
+      // Solo rellenar si el formulario está vacío (no pisar OCR)
+      var depEl = document.getElementById('ld_dep');
+      if(depEl && !depEl.value && f.dep) depEl.value = f.dep;
+      var arrEl = document.getElementById('ld_arr');
+      if(arrEl && !arrEl.value && f.arr) arrEl.value = f.arr;
+      var stdEl = document.getElementById('ld_std');
+      if(stdEl && !stdEl.value && f.std) stdEl.value = f.std;
+      var staEl = document.getElementById('ld_sta');
+      if(staEl && !staEl.value && f.sta) staEl.value = f.sta;
+      var flEl = document.getElementById('ld_flight');
+      if(flEl && !flEl.value && f.flightNum) flEl.value = f.flightNum;
+      // Guardar roster_entry_id oculto (para vincular logbook ↔ roster)
+      var ridEl = document.getElementById('ld_roster_entry_id');
+      if(ridEl && f.id) ridEl.value = f.id;
+      // Mostrar banner informativo
+      var banner = document.getElementById('ld-roster-prefill-banner');
+      if(banner){ banner.style.display='flex'; }
+      var titleEl = document.getElementById('ld-roster-prefill-title');
+      if(titleEl && f.flightNum) titleEl.textContent = 'Vuelo '+f.flightNum+' importado del Roster';
+      var subEl2 = document.getElementById('ld-roster-prefill-sub');
+      if(subEl2) subEl2.textContent = (f.dep||'')+'→'+(f.arr||'')+' · STD '+(f.std||'--:--')+' · STA '+(f.sta||'--:--');
+    } catch(e){ /* silencioso */ }
+  })();
   document.getElementById('ld_modal').classList.add('open');
   document.getElementById('scr-logbook').classList.add('modal-active');
   document.body.style.overflow='hidden';
@@ -8567,9 +8616,10 @@ function ldCloseModal(){
   ldResetUpload();
 }
 function ldResetForm(){
-  ['ld_date','ld_flight','ld_dep','ld_arr','ld_reg','ld_fl','ld_std','ld_atd','ld_sta','ld_ata','ld_block','ld_flight_time','ld_night_inp','ld_notes','ld_cm1','ld_cm2'].forEach(function(id){
+  ['ld_date','ld_flight','ld_dep','ld_arr','ld_reg','ld_fl','ld_std','ld_atd','ld_sta','ld_ata','ld_block','ld_flight_time','ld_night_inp','ld_notes','ld_cm1','ld_cm2','ld_roster_entry_id'].forEach(function(id){
     var el=document.getElementById(id); if(el){el.value='';el.classList.remove('af');}
   });
+  var _pernoc=document.getElementById('ld_pernoc'); if(_pernoc) _pernoc.checked=false;
   // Reset MCDU green state
   var tw=document.getElementById('ldm-times-wrap'); if(tw) tw.classList.remove('mcdu-ok');
   document.getElementById('ld_ldgd').value=1;
@@ -8751,7 +8801,12 @@ function ldSave(){
     rules:g('ld_rules'),opType:g('ld_optype'),conditions:g('ld_cond'),
     ldgDay:n('ld_ldgd'),ldgNight:n('ld_ldgn'),night:g('ld_night_inp'),
     cm1:g('ld_cm1'),cm2:g('ld_cm2'),
-    notes:g('ld_notes'),source:ldImgB64?'MCDU-OCR':'MANUAL'
+    notes:g('ld_notes'),source:ldImgB64?'MCDU-OCR':'MANUAL',
+    // ── Campos para nómina: ATD=AOBT, ATA=AIBT (ya recogidos arriba, pero los mapeamos explícitamente) ──
+    aobt:g('ld_atd')||null,
+    aibt:g('ld_ata')||null,
+    pernoc:(function(){ var el=document.getElementById('ld_pernoc'); return el?el.checked:false; })(),
+    rosterEntryId:g('ld_roster_entry_id')||null
   };
   // Persist own-name default and add colleagues to names DB
   var _r=e.role, _c1=e.cm1, _c2=e.cm2;
@@ -11519,6 +11574,16 @@ async function rosterRunPDF(pdfBase64){
     }
     rstSmartMerge(parsed.entries, newMonth);
     rstSave();
+    // ── Paso 2: persistir roster en Supabase (silencioso) ──
+    (function(){
+      var _tk=''; try{ _tk=lsGet('cafi_auth_token',''); }catch(e){}
+      if(!_tk||!RST.entries.length) return;
+      fetch(ldBackendUrl()+'/api/roster/save',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+_tk},
+        body:JSON.stringify({entries:RST.entries})
+      }).catch(function(){/* offline — localStorage tiene los datos */});
+    })();
 
     // Save PDF-extracted block/duty totals for accurate stats display
     if(newMonth && (parsed.pdf_block_min || parsed.pdf_duty_min)){
