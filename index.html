@@ -6926,7 +6926,7 @@ function refreshContext() {
   kbChip.textContent = `📖 FCOM KB: ${kbSize} entradas`;
   kbChip.classList.toggle('empty', kbSize === 0);
 
-  if (pilotData.logbook?.length > 0) {
+  if ((pilotData.logbook&&pilotData.logbook.length) > 0) {
     const totalM = pilotData.logbook.reduce((s,e)=>s+t2m(e.block||'0:00'),0);
     lbChip.textContent = `📋 Logbook: ${pilotData.logbook.length} vuelos · ${m2t(totalM)}h`;
     lbChip.classList.remove('empty');
@@ -6937,17 +6937,17 @@ function refreshContext() {
 
   // Stats grid
   const kbSize2 = (window.KB && window.KB.length) || KB_SAMPLE.length;
-  const totalM = pilotData.logbook?.reduce((s,e)=>s+t2m(e.block||'0:00'),0)||0;
-  const nightM = pilotData.logbook?.reduce((s,e)=>s+t2m(e.night||'0:00'),0)||0;
+  const totalM = (pilotData.logbook&&pilotData.logbook.reduce)((s,e)=>s+t2m(e.block||'0:00'),0)||0;
+  const nightM = (pilotData.logbook&&pilotData.logbook.reduce)((s,e)=>s+t2m(e.night||'0:00'),0)||0;
   document.getElementById('stats-grid').innerHTML = `
     <div class="stat-card active">
       <div class="stat-label">FCOM KB</div>
       <div class="stat-val">${kbSize2}</div>
       <div class="stat-sub">entradas con ref. exacta</div>
     </div>
-    <div class="stat-card ${pilotData.logbook?.length?'active':''}">
+    <div class="stat-card ${(pilotData.logbook&&pilotData.logbook.length)?'active':''}">
       <div class="stat-label">Vuelos</div>
-      <div class="stat-val">${pilotData.logbook?.length||0}</div>
+      <div class="stat-val">${(pilotData.logbook&&pilotData.logbook.length)||0}</div>
       <div class="stat-sub">en logbook</div>
     </div>
     <div class="stat-card ${totalM?'active':''}">
@@ -6962,8 +6962,8 @@ function refreshContext() {
     </div>
     <div class="stat-card ${pilotData.company?'active':''}">
       <div class="stat-label">Compañía</div>
-      <div class="stat-val" style="font-size:12px">${pilotData.company?.companyName||pilotData.company?.company||'—'}</div>
-      <div class="stat-sub">${pilotData.company?.aircraft||'—'}</div>
+      <div class="stat-val" style="font-size:12px">${(pilotData.company&&pilotData.company.companyName)||(pilotData.company&&pilotData.company.company)||'—'}</div>
+      <div class="stat-sub">${(pilotData.company&&pilotData.company.aircraft)||'—'}</div>
     </div>`;
 }
 
@@ -7060,7 +7060,7 @@ function formatContent(text) {
 }
 
 function cafiAddMsg(role, content, kbUsed, logbookUsed) {
-  document.getElementById('welcome')?.remove();
+  var _w=document.getElementById('welcome');if(_w)_w.remove();
   const msgs = document.getElementById('messages');
   const div = document.createElement('div');
   div.className = `msg ${role}`;
@@ -7081,13 +7081,13 @@ function cafiAddMsg(role, content, kbUsed, logbookUsed) {
 }
 
 function addTyping(){
-  document.getElementById('welcome')?.remove();
+  var _w=document.getElementById('welcome');if(_w)_w.remove();
   const msgs=document.getElementById('messages');
   const div=document.createElement('div');div.className='msg ai';div.id='typing-indicator';
   div.innerHTML=`<div class="msg-av">✈</div><div class="msg-body"><div class="msg-content"><div class="typing"><span></span><span></span><span></span></div></div></div>`;
   msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
 }
-function removeTyping(){document.getElementById('typing-indicator')?.remove();}
+function removeTyping(){var _ti=document.getElementById('typing-indicator');if(_ti)_ti.remove();}
 
 // ── DETECT SI LA PREGUNTA ES SOBRE LOGBOOK ──
 function isLogbookQuery(q) {
@@ -7118,7 +7118,7 @@ async function cafiSendMessage() {
   const pd = pilotData || loadPilotData();
   const logbookNeeded = isLogbookQuery(text);
   const logCtx = logbookNeeded ? buildLogbookContext(pd) : '';
-  const logbookUsed = logbookNeeded && pd.logbook?.length > 0;
+  const logbookUsed = logbookNeeded && (pd.logbook&&pd.logbook.length) > 0;
 
   // Hint de qué está consultando
   const hint = document.getElementById('input-hint');
@@ -7814,33 +7814,7 @@ function pcExportReport() {
     + '<span>Generado: ' + L.fecha + '</span>'
     + '<span>' + convNombre + ' &middot; ' + convVer + '</span>'
     + '</div>'
-    + '
-<!-- ════ GEAR PANEL ════ -->
-<div id="dh-gear-panel" style="display:none;position:fixed;top:68px;right:14px;z-index:9999;background:rgba(6,9,24,0.97);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(124,58,237,0.28);border-radius:18px;padding:6px;min-width:200px;box-shadow:0 12px 40px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.04);">
-  <div class="gear-item" onclick="closeGearPanel()">
-    <div class="gear-icon" style="background:rgba(124,58,237,.18);border-color:rgba(167,139,250,.3)">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A78BFA" stroke-width="1.9"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-    </div>
-    <div><div class="gear-label">Notificaciones</div><div class="gear-sub">Sin alertas nuevas</div></div>
-  </div>
-  <div class="gear-divider"></div>
-  <div class="gear-item" onclick="closeGearPanel()">
-    <div class="gear-icon" style="background:rgba(34,211,238,.12);border-color:rgba(34,211,238,.25)">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="1.9"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M2 9l10 6 10-6"/></svg>
-    </div>
-    <div><div class="gear-label">Mensajes</div><div class="gear-sub">Bandeja de entrada</div></div>
-  </div>
-  <div class="gear-divider"></div>
-  <div class="gear-item" onclick="closeGearPanel();toggleSidebar()">
-    <div class="gear-icon" style="background:rgba(241,245,249,.08);border-color:rgba(241,245,249,.15)">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="1.9"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-    </div>
-    <div><div class="gear-label">Filtros</div><div class="gear-sub">Categorías del dashboard</div></div>
-  </div>
-</div>
-<!-- ════ GEAR BACKDROP ════ -->
-<div id="gear-backdrop" style="display:none;position:fixed;inset:0;z-index:9998;" onclick="closeGearPanel()"></div>
-</body></html>';
+    + '\n</body></html>';
 
   try {
     var win = window.open('', '_blank');
@@ -8851,7 +8825,7 @@ function ldExportCSV(){
   if(!ldEntries.length){showToast('No hay vuelos para exportar','error');return;}
   var H=['ID','Fecha','Vuelo','Origen','Destino','Tipo AC','Motor','Matrícula','FL','ATD (OUT)','STD (OFF)','ATA (IN)','STA (ON)','Block','Nocturno','Ldg Día','Ldg Noche','Rol','Función','CM1','CM2','Reglas','Tipo Op.','Condiciones','Notas','Fuente','Guardado UTC'];
   var R=ldEntries.map(function(e){return[e.id,e.date,e.flight,e.dep,e.arr,e.acType,e.engine,e.reg,e.fl,e.atd,e.std,e.ata,e.sta,e.block,e.night,e.ldgDay,e.ldgNight,e.role,e.func,e.cm1||'',e.cm2||'',e.rules,e.opType,e.conditions,e.notes,e.source,e.savedAt];});
-  var csv=[H].concat(R).map(function(r){return r.map(function(v){return'"'+((v??'').toString().replace(/"/g,'""'))+'"';}).join(',');}).join('\n');
+  var csv=[H].concat(R).map(function(r){return r.map(function(v){return'"'+((v||"").toString().replace(/"/g,'""'))+'"';}).join(',');}).join('\n');
   ldDl('\uFEFF'+csv,'PilotOS_Logbook_'+ldToday()+'.csv','text/csv;charset=utf-8;');
   showToast('✓ CSV exportado','success');
 }
@@ -8870,33 +8844,7 @@ function ldExportPDF(){
   var w=window.open('','_blank');
   var tm=ldEntries.reduce(function(s,e){return s+ldT2m(e.block);},0);
   var rows=ldEntries.map(function(e){return'<tr><td>'+e.date+'</td><td>'+(e.flight||'—')+'</td><td>'+e.dep+' → '+e.arr+'</td><td>'+(e.acType||'—')+'</td><td>'+(e.reg||'—')+'</td><td>'+(e.std||'—')+'</td><td>'+(e.sta||'—')+'</td><td>'+(e.block||'—')+'</td><td>'+(e.night||'—')+'</td><td>'+((e.ldgDay||0)+(e.ldgNight||0))+'</td><td>'+(e.role||'—')+'</td><td>'+(e.func||'—')+'</td><td>'+(e.notes||'')+'</td></tr>';}).join('');
-  w.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>PilotOS Logbook EASA</title><style>body{font-family:Arial,sans-serif;font-size:8.5pt;margin:12mm;color:#000}.btn{margin-bottom:12px;padding:8px 20px;background:#0077b6;color:#fff;border:none;border-radius:4px;cursor:pointer}h1{font-size:14pt;margin-bottom:4px}.sub{font-size:8pt;color:#555;margin-bottom:12px}.meta{display:flex;gap:24px;margin-bottom:14px;font-size:8pt;border:1px solid #ddd;padding:8px 12px;border-radius:4px}.meta b{display:block;font-size:7pt;color:#888;text-transform:uppercase}table{width:100%;border-collapse:collapse;font-size:7.5pt}th{background:#1a2840;color:#fff;padding:5px 4px;text-align:left;font-size:7pt}td{padding:3.5px 4px;border-bottom:1px solid #eee;white-space:nowrap}tr:nth-child(even){background:#f5f7fb}.footer{margin-top:14px;font-size:7pt;color:#888;border-top:1px solid #ccc;padding-top:8px;display:flex;justify-content:space-between}@media print{.btn{display:none}}</style></head><body><h1>✈ PilotOS — LOGBOOK</h1><div class="sub">EASA Part-FCL Appendix 1 — FCL.050 · Exportado: '+new Date().toLocaleString('es-ES')+'</div><div class="meta"><div><b>Total vuelos</b>'+ldEntries.length+'</div><div><b>Block time total</b>'+ldM2s(tm)+'</div><div><b>Generado</b>'+new Date().toLocaleDateString('es-ES')+'</div></div><button class="btn" onclick="window.print()">🖨 Imprimir / Guardar PDF</button><table><thead><tr><th>Fecha</th><th>Vuelo</th><th>Ruta</th><th>Tipo</th><th>Matrícula</th><th>STD</th><th>STA</th><th>Block</th><th>Nocturno</th><th>Ldg</th><th>Rol</th><th>Func.</th><th>Notas</th></tr></thead><tbody>'+rows+'</tbody></table><div class="footer"><span>PilotOS Logbook · EASA FCL.050</span><span>'+ldEntries.length+' entradas · '+ldM2s(tm)+' block time</span></div>
-<!-- ════ GEAR PANEL ════ -->
-<div id="dh-gear-panel" style="display:none;position:fixed;top:68px;right:14px;z-index:9999;background:rgba(6,9,24,0.97);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(124,58,237,0.28);border-radius:18px;padding:6px;min-width:200px;box-shadow:0 12px 40px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.04);">
-  <div class="gear-item" onclick="closeGearPanel()">
-    <div class="gear-icon" style="background:rgba(124,58,237,.18);border-color:rgba(167,139,250,.3)">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A78BFA" stroke-width="1.9"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-    </div>
-    <div><div class="gear-label">Notificaciones</div><div class="gear-sub">Sin alertas nuevas</div></div>
-  </div>
-  <div class="gear-divider"></div>
-  <div class="gear-item" onclick="closeGearPanel()">
-    <div class="gear-icon" style="background:rgba(34,211,238,.12);border-color:rgba(34,211,238,.25)">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="1.9"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M2 9l10 6 10-6"/></svg>
-    </div>
-    <div><div class="gear-label">Mensajes</div><div class="gear-sub">Bandeja de entrada</div></div>
-  </div>
-  <div class="gear-divider"></div>
-  <div class="gear-item" onclick="closeGearPanel();toggleSidebar()">
-    <div class="gear-icon" style="background:rgba(241,245,249,.08);border-color:rgba(241,245,249,.15)">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="1.9"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-    </div>
-    <div><div class="gear-label">Filtros</div><div class="gear-sub">Categorías del dashboard</div></div>
-  </div>
-</div>
-<!-- ════ GEAR BACKDROP ════ -->
-<div id="gear-backdrop" style="display:none;position:fixed;inset:0;z-index:9998;" onclick="closeGearPanel()"></div>
-</body></html>');
+  w.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>PilotOS Logbook EASA</title><style>body{font-family:Arial,sans-serif;font-size:8.5pt;margin:12mm;color:#000}.btn{margin-bottom:12px;padding:8px 20px;background:#0077b6;color:#fff;border:none;border-radius:4px;cursor:pointer}h1{font-size:14pt;margin-bottom:4px}.sub{font-size:8pt;color:#555;margin-bottom:12px}.meta{display:flex;gap:24px;margin-bottom:14px;font-size:8pt;border:1px solid #ddd;padding:8px 12px;border-radius:4px}.meta b{display:block;font-size:7pt;color:#888;text-transform:uppercase}table{width:100%;border-collapse:collapse;font-size:7.5pt}th{background:#1a2840;color:#fff;padding:5px 4px;text-align:left;font-size:7pt}td{padding:3.5px 4px;border-bottom:1px solid #eee;white-space:nowrap}tr:nth-child(even){background:#f5f7fb}.footer{margin-top:14px;font-size:7pt;color:#888;border-top:1px solid #ccc;padding-top:8px;display:flex;justify-content:space-between}@media print{.btn{display:none}}</style></head><body><h1>✈ PilotOS — LOGBOOK</h1><div class="sub">EASA Part-FCL Appendix 1 — FCL.050 · Exportado: '+new Date().toLocaleString('es-ES')+'</div><div class="meta"><div><b>Total vuelos</b>'+ldEntries.length+'</div><div><b>Block time total</b>'+ldM2s(tm)+'</div><div><b>Generado</b>'+new Date().toLocaleDateString('es-ES')+'</div></div><button class="btn" onclick="window.print()">🖨 Imprimir / Guardar PDF</button><table><thead><tr><th>Fecha</th><th>Vuelo</th><th>Ruta</th><th>Tipo</th><th>Matrícula</th><th>STD</th><th>STA</th><th>Block</th><th>Nocturno</th><th>Ldg</th><th>Rol</th><th>Func.</th><th>Notas</th></tr></thead><tbody>'+rows+'</tbody></table><div class="footer"><span>PilotOS Logbook · EASA FCL.050</span><span>'+ldEntries.length+' entradas · '+ldM2s(tm)+' block time</span></div>\n\n</body></html>');
   w.document.close(); showToast('✓ Vista PDF lista','success');
 }
 
@@ -11577,7 +11525,7 @@ async function rosterRunAI(dataUrl, mimeType){
     var data = await res.json();
     if(!res.ok) throw new Error(data.error || 'Error del servidor');
     var parsed = data; // backend returns parsed JSON directly
-    console.log('[Roster AI]', parsed.entries?.length, 'entries');
+    console.log('[Roster AI]', (parsed.entries&&parsed.entries.length), 'entries');
 
     if(!parsed.entries || !parsed.entries.length) throw new Error('No se encontraron entradas en el roster');
 
@@ -13023,31 +12971,7 @@ function pagSignOut() {
 </div>
 
 
-<!-- ════ GEAR PANEL ════ -->
-<div id="dh-gear-panel" style="display:none;position:fixed;top:68px;right:14px;z-index:9999;background:rgba(6,9,24,0.97);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(124,58,237,0.28);border-radius:18px;padding:6px;min-width:200px;box-shadow:0 12px 40px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.04);">
-  <div class="gear-item" onclick="closeGearPanel()">
-    <div class="gear-icon" style="background:rgba(124,58,237,.18);border-color:rgba(167,139,250,.3)">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A78BFA" stroke-width="1.9"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-    </div>
-    <div><div class="gear-label">Notificaciones</div><div class="gear-sub">Sin alertas nuevas</div></div>
-  </div>
-  <div class="gear-divider"></div>
-  <div class="gear-item" onclick="closeGearPanel()">
-    <div class="gear-icon" style="background:rgba(34,211,238,.12);border-color:rgba(34,211,238,.25)">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="1.9"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M2 9l10 6 10-6"/></svg>
-    </div>
-    <div><div class="gear-label">Mensajes</div><div class="gear-sub">Bandeja de entrada</div></div>
-  </div>
-  <div class="gear-divider"></div>
-  <div class="gear-item" onclick="closeGearPanel();toggleSidebar()">
-    <div class="gear-icon" style="background:rgba(241,245,249,.08);border-color:rgba(241,245,249,.15)">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="1.9"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-    </div>
-    <div><div class="gear-label">Filtros</div><div class="gear-sub">Categorías del dashboard</div></div>
-  </div>
-</div>
-<!-- ════ GEAR BACKDROP ════ -->
-<div id="gear-backdrop" style="display:none;position:fixed;inset:0;z-index:9998;" onclick="closeGearPanel()"></div>
+
 </body>
 
 <script>
@@ -13297,7 +13221,7 @@ var LDM = {
       m.drawArc(p1[0],p1[1],cp[0],cp[1],p2[0],p2[1],pg);
       ctx.shadowBlur=0;
       if(pg>=1){
-        var speed=isSel?.5:.65;
+        var speed=isSel?0.5:0.65;
         var t2=((m.phase*speed+idx*.15)%1);
         var pt=m.bPt(p1[0],p1[1],cp[0],cp[1],p2[0],p2[1],t2);
         ctx.beginPath(); ctx.arc(pt[0],pt[1],isSel?4:2.5,0,Math.PI*2);
@@ -13499,6 +13423,8 @@ function ldMapReset(){
   document.querySelectorAll('.ld-rc').forEach(function(c){c.classList.remove('sel');});
 }
 </script>
+
+
 
 
 <!-- ════ GEAR PANEL ════ -->
