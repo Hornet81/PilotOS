@@ -8904,32 +8904,6 @@ function ldSave(){
   if(e.reg && e.acType) ldAcDbSet(e.reg, e.acType, e.engine);
   ldEntries.unshift(e); ldSaveData(); ldSyncToServer(); ldCloseModal(); ldRender(); ldStats(); ldUpdatePlanBanners();
 
-  // ── Actualizar tiempos reales en el Roster correspondiente ──
-  if (e.atd || e.ata) {
-    try {
-      rstLoad();
-      var match = RST.entries.find(function(r) {
-        if (r.type !== 'flight' || r.date !== e.date) return false;
-        // Coincidencia por número de vuelo (si lo tenemos)
-        if (e.flight && r.flightNum) {
-          var normL = String(e.flight).replace(/^VY/i,'').replace(/^0+/,'');
-          var normR = String(r.flightNum).replace(/^VY/i,'').replace(/^0+/,'');
-          return normL === normR;
-        }
-        // Fallback: misma ruta DEP→ARR
-        return (r.dep||'').toUpperCase() === (e.dep||'').toUpperCase()
-            && (r.arr||'').toUpperCase() === (e.arr||'').toUpperCase();
-      });
-      if (match) {
-        // Guardar en campos propios del logbook — sin pisar std_actual/sta_actual del PDF
-        if (e.atd) match.atd = e.atd;
-        if (e.ata) match.ata = e.ata;
-        rstSave();
-        try { rstRenderCalendar(); } catch(ex){}
-      }
-    } catch(ex) { /* silencioso */ }
-  }
-
   showToast('✓ Vuelo '+e.dep+'→'+e.arr+' registrado','success');
 }
 
@@ -10316,6 +10290,53 @@ function rstRenderFlights(){
   setTimeout(function(){ try { rstRenderFatigue(); } catch(e){} }, 0);
 }
 
+// ── Buscar en ldEntries el vuelo real que corresponde a un leg del Roster ──
+// Jerarquía: 1) fecha+vuelo  2) fecha+ruta+STD  3) fecha+ruta (solo si es único)
+function rstFindLogbookMatch(rosterEntry) {
+  if (!window.ldEntries || !ldEntries.length) return null;
+  var rDate = rosterEntry.date;
+  var rDep  = (rosterEntry.dep  || '').toUpperCase().replace(/^\*/,'');
+  var rArr  = (rosterEntry.arr  || '').toUpperCase().replace(/^\*/,'');
+  var rFnum = String(rosterEntry.flightNum || '').replace(/^VY/i,'').replace(/^0+/,'');
+  var rStd  = (rosterEntry.std  || '').slice(0,5); // HH:MM
+
+  // Candidatos del mismo día
+  var sameDayFlights = ldEntries.filter(function(l) {
+    return l && l.type !== '__ac_db__' && l.date === rDate;
+  });
+  if (!sameDayFlights.length) return null;
+
+  // 1️⃣ Número de vuelo normalizado (más específico)
+  if (rFnum) {
+    var byFlight = sameDayFlights.find(function(l) {
+      var lFnum = String(l.flight || '').replace(/^VY/i,'').replace(/^0+/,'');
+      return lFnum && lFnum === rFnum;
+    });
+    if (byFlight) return byFlight;
+  }
+
+  // Candidatos con la misma ruta
+  var sameRoute = sameDayFlights.filter(function(l) {
+    return (l.dep || '').toUpperCase() === rDep
+        && (l.arr || '').toUpperCase() === rArr;
+  });
+  if (!sameRoute.length) return null;
+
+  // 2️⃣ Misma ruta + STD coincide (resuelve BCN→PMI×2 en el mismo día)
+  if (rStd && sameRoute.length > 1) {
+    var byStd = sameRoute.find(function(l) {
+      return (l.std || '').slice(0,5) === rStd;
+    });
+    if (byStd) return byStd;
+  }
+
+  // 3️⃣ Misma ruta y es el único candidato
+  if (sameRoute.length === 1) return sameRoute[0];
+
+  // Ambiguo (misma ruta, varios sin STD) — no asignar para no mezclar
+  return null;
+}
+
 function rstRenderFatigue(){
   try {
     if(!RST || !RST.entries || !RST.entries.length) return;
@@ -10701,6 +10722,19 @@ window.rosterSelectDay = function(dateStr){
           +pillHTML
           +'<div style="flex:1;height:2px;background:rgba(13,148,136,.30);border-radius:2px"></div>'
           +'</div>';
+      }
+      // ── Buscar entrada de Logbook en tiempo real para este leg ──
+      // Asegurar que ldEntries tiene datos (puede que el módulo Roster se abra sin pasar por Logbook)
+      if (!window.ldEntries || !ldEntries.length) {
+        try { ldEntries = JSON.parse(localStorage.getItem('pilotOS_logbook_v1') || '[]'); } catch(ex) {}
+      }
+      var _lb = rstFindLogbookMatch(e);
+      if (_lb) {
+        // Tomar ATD/ATA del Logbook (no sobreescribir std_actual del PDF)
+        if (_lb.atd) e.atd = _lb.atd;
+        else if (_lb.std) e.atd = _lb.std;   // ld_std = ATD en el formulario
+        if (_lb.ata) e.ata = _lb.ata;
+        else if (_lb.sta) e.ata = _lb.sta;   // ld_sta = ATA en el formulario
       }
       var stdOk=e.std&&String(e.std).indexOf(':')>-1;
       var staOk=e.sta&&String(e.sta).indexOf(':')>-1;
