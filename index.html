@@ -5204,6 +5204,18 @@ input#ld_fl, input#ld_cond { display:none !important; }
     <!-- ─ BLOQUE 2: ACTIVIDAD ─ -->
     <div class="card-box">
       <div class="pc-sep"><span>Actividad del mes</span></div>
+      <!-- ── Banner de importación desde Logbook ── -->
+      <div id="pc-import-banner" style="display:none;margin-bottom:14px;padding:12px 14px;border-radius:14px;border:1px solid rgba(245,158,11,.3);background:rgba(245,158,11,.07)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span id="pc-import-status-dot" style="width:8px;height:8px;border-radius:50%;background:#F59E0B;flex-shrink:0"></span>
+          <span id="pc-import-status-txt" style="font-size:11px;font-weight:700;color:#FBBF24;text-transform:uppercase;letter-spacing:.8px">Estimado</span>
+          <span id="pc-import-flights" style="font-size:11px;color:rgba(255,255,255,.45);margin-left:auto"></span>
+        </div>
+        <div id="pc-import-sub" style="font-size:12px;color:rgba(255,255,255,.55);line-height:1.5"></div>
+      </div>
+      <button id="pc-import-btn" onclick="pcImportFromLogbook()" style="width:100%;padding:11px 14px;margin-bottom:14px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:12px;color:#FBBF24;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+        <span>📥</span><span>Importar desde Logbook</span>
+      </button>
       <div class="frow" style="margin-bottom:10px">
         <div class="fg">
           <label class="pc-field-label">Total horas vuelo (bloque)</label>
@@ -7760,6 +7772,75 @@ function pcCalc() {
 }
 
 // ── EXPORT REPORT ──
+
+// ── Paso 5: Importar datos del mes desde Supabase ──────────────────
+async function pcImportFromLogbook() {
+  var token = ''; try { token = lsGet('cafi_auth_token',''); } catch(e) {}
+  if (!token) { showToast('Inicia sesión en CAFI primero', 'error'); return; }
+
+  // Leer mes del selector (pc_mes_sel si existe, o mes actual)
+  var monthSel = document.getElementById('pc_mes_sel');
+  var month;
+  if (monthSel && monthSel.value) {
+    month = monthSel.value; // esperamos 'YYYY-MM'
+  } else {
+    var now = new Date();
+    month = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+  }
+
+  var btn = document.getElementById('pc-import-btn');
+  if (btn) { btn.textContent = '⏳ Cargando...'; btn.disabled = true; }
+
+  try {
+    var r = await fetch(ldBackendUrl() + '/api/paycheck?month=' + month, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    var data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Error del servidor');
+
+    if (data.status === 'empty') {
+      showToast('No hay vuelos en el Logbook para ' + month, 'error');
+      return;
+    }
+
+    // ── Rellenar campos del formulario ──
+    function setVal(id, val) {
+      var el = document.getElementById(id);
+      if (el) el.value = val;
+    }
+
+    setVal('pc_hv',      data.block_hours || 0);
+    setVal('pc_hn',      data.night_hours || 0);
+    setVal('pc_dnat',    data.nac_diets   || 0);
+    setVal('pc_dint',    data.int_diets   || 0);
+    setVal('pc_dpern_nat', data.nac_pernoc || 0);
+    setVal('pc_dpern',   data.int_pernoc  || 0);
+
+    // ── Mostrar banner de estado ──
+    var banner = document.getElementById('pc-import-banner');
+    var dot    = document.getElementById('pc-import-status-dot');
+    var txt    = document.getElementById('pc-import-status-txt');
+    var sub    = document.getElementById('pc-import-sub');
+    var flights= document.getElementById('pc-import-flights');
+
+    if (banner) banner.style.display = 'block';
+    var isConfirmed = (data.status === 'confirmed');
+    if (dot) dot.style.background = isConfirmed ? '#22D3EE' : '#F59E0B';
+    if (txt) txt.textContent = isConfirmed ? 'Confirmado' : 'Estimado';
+    if (txt) txt.style.color  = isConfirmed ? '#22D3EE' : '#FBBF24';
+    if (flights) flights.textContent = data.flights_complete + '/' + data.flights_total + ' vuelos completos';
+    if (sub) sub.textContent = isConfirmed
+      ? 'Todos los vuelos tienen AOBT/AIBT registrados — datos de nómina confirmados.'
+      : 'Faltan tiempos reales en algunos vuelos — abre el Logbook y añade ATD/ATA para confirmar.';
+
+    showToast('✅ Datos importados para ' + month + ' (' + (isConfirmed ? 'Confirmado' : 'Estimado') + ')');
+  } catch(err) {
+    showToast('❌ ' + err.message, 'error');
+  } finally {
+    if (btn) { btn.innerHTML = '<span>📥</span><span>Importar desde Logbook</span>'; btn.disabled = false; }
+  }
+}
+
 function pcExportReport() {
   var L = PC_LAST;
   if (!L || !L.fecha) { showToast('Primero calcula la nómina.'); return; }
@@ -8822,6 +8903,33 @@ function ldSave(){
   // ── Guardar matrícula en BD de aeronaves ──
   if(e.reg && e.acType) ldAcDbSet(e.reg, e.acType, e.engine);
   ldEntries.unshift(e); ldSaveData(); ldSyncToServer(); ldCloseModal(); ldRender(); ldStats(); ldUpdatePlanBanners();
+
+  // ── Actualizar tiempos reales en el Roster correspondiente ──
+  if (e.atd || e.ata) {
+    try {
+      rstLoad();
+      var match = RST.entries.find(function(r) {
+        if (r.type !== 'flight' || r.date !== e.date) return false;
+        // Coincidencia por número de vuelo (si lo tenemos)
+        if (e.flight && r.flightNum) {
+          var normL = String(e.flight).replace(/^VY/i,'').replace(/^0+/,'');
+          var normR = String(r.flightNum).replace(/^VY/i,'').replace(/^0+/,'');
+          return normL === normR;
+        }
+        // Fallback: misma ruta DEP→ARR
+        return (r.dep||'').toUpperCase() === (e.dep||'').toUpperCase()
+            && (r.arr||'').toUpperCase() === (e.arr||'').toUpperCase();
+      });
+      if (match) {
+        // Guardar en campos propios del logbook — sin pisar std_actual/sta_actual del PDF
+        if (e.atd) match.atd = e.atd;
+        if (e.ata) match.ata = e.ata;
+        rstSave();
+        try { rstRenderCalendar(); } catch(ex){}
+      }
+    } catch(ex) { /* silencioso */ }
+  }
+
   showToast('✓ Vuelo '+e.dep+'→'+e.arr+' registrado','success');
 }
 
@@ -10598,6 +10706,8 @@ window.rosterSelectDay = function(dateStr){
       var staOk=e.sta&&String(e.sta).indexOf(':')>-1;
       var stdActOk=e.std_actual&&String(e.std_actual).indexOf(':')>-1;
       var staActOk=e.sta_actual&&String(e.sta_actual).indexOf(':')>-1;
+      var atdOk=e.atd&&String(e.atd).indexOf(':')>-1;
+      var ataOk=e.ata&&String(e.ata).indexOf(':')>-1;
       var _stdRef = e.std || e.std_actual;
       var _staRef = e.sta || e.sta_actual;
       var stdM2=_stdRef&&String(_stdRef).indexOf(':')>-1?parseInt(_stdRef.split(':')[0])*60+parseInt(_stdRef.split(':')[1]):0;
@@ -10607,10 +10717,16 @@ window.rosterSelectDay = function(dateStr){
       var legNum = flights.length > 1 ? (i+1) : '';
       var dispStd = stdOk ? rstFormatTime(e.std) : '--:--';
       var dispSta = staOk ? rstFormatTime(e.sta) : '--:--';
-      var hasActual = stdActOk || staActOk;
-      var dispStdAct = stdActOk ? rstFormatTime(e.std_actual) : '--:--';
-      var dispStaAct = staActOk ? rstFormatTime(e.sta_actual) : '--:--';
       var timeLabel = RST.useLT ? ' LT' : ' UTC';
+      // Prioridad: Logbook (atd/ata) > PDF (std_actual/sta_actual)
+      var hasLogbook = atdOk || ataOk;
+      var hasPdfAct  = stdActOk || staActOk;
+      var hasActual  = hasLogbook || hasPdfAct;
+      var dispActDep = atdOk ? rstFormatTime(e.atd) : (stdActOk ? rstFormatTime(e.std_actual) : '--:--');
+      var dispActArr = ataOk ? rstFormatTime(e.ata) : (staActOk ? rstFormatTime(e.sta_actual) : '--:--');
+      // Discrepancia: ambas fuentes existen y difieren
+      var hasMismatch = atdOk && stdActOk && e.atd.slice(0,5) !== e.std_actual.slice(0,5);
+      var actSource = hasLogbook ? 'L' : 'A'; // L=Logbook, A=Actual PDF
       var isPos = (e.dep && e.dep.charAt(0) === '*') || e.positioning === true;
       // Block time
       var _bStd = e.std || e.std_actual, _bSta = e.sta || e.sta_actual;
@@ -10637,10 +10753,10 @@ window.rosterSelectDay = function(dateStr){
         + dispStd+' – '+dispSta+timeLabel
         + (nextDay?' <span style="background:#0369A1;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:6px">+1</span>':'')
         + '</div>'
-        + (hasActual ? '<div style="font-size:11px;color:#059669;font-family:\'Space Mono\',monospace">'
-            +'<span style="color:#059669;font-size:9px;font-weight:700;margin-right:4px">A</span>'
-            +dispStdAct+' – '+dispStaAct+timeLabel
-            +(nextDay&&!stdOk&&!staOk?' <span style="background:#0369A1;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:6px">+1</span>':'')
+        + (hasActual ? '<div style="font-size:11px;color:'+(hasLogbook?'#0891B2':'#059669')+';font-family:\'Space Mono\',monospace;display:flex;align-items:center;gap:4px">'
+            +'<span style="font-size:9px;font-weight:700;background:'+(hasLogbook?'rgba(8,145,178,.12)':'rgba(5,150,105,.1)')+';color:'+(hasLogbook?'#0891B2':'#059669')+';border:1px solid '+(hasLogbook?'rgba(8,145,178,.3)':'rgba(5,150,105,.25)')+';border-radius:4px;padding:0 4px;line-height:1.6">'+actSource+'</span>'
+            +dispActDep+' – '+dispActArr+timeLabel
+            +(hasMismatch?' <span title="Difiere del PDF del Roster" style="font-size:10px;color:#F59E0B">⚠</span>':'')
             +'</div>' : '')
         + '</div>'
         + '<div style="background:linear-gradient(180deg,#0C4A6E 0%,#075985 100%);padding:12px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:62px;gap:5px;border-left:1px solid rgba(255,255,255,.08)">'
