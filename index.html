@@ -5956,7 +5956,7 @@ input#ld_fl, input#ld_cond { display:none !important; }
           </div>
           <div class="ldm-fg">
             <label class="ldm-lbl">STD <span class="ldm-tag ldm-tag-off">OFF</span><span id="ld_std_p1" class="ldm-p1" style="display:none">+1</span></label>
-            <input class="ldm-inp" type="time" id="ld_std" oninput="ldUpdateDayBadges()" onchange="ldUpdateDayBadges()">
+            <input class="ldm-inp" type="time" id="ld_std" oninput="ldAutoFlightTime();ldUpdateDayBadges()" onchange="ldAutoFlightTime();ldUpdateDayBadges()">
           </div>
         </div>
         <div class="ldm-row2">
@@ -5966,23 +5966,24 @@ input#ld_fl, input#ld_cond { display:none !important; }
           </div>
           <div class="ldm-fg">
             <label class="ldm-lbl">STA <span class="ldm-tag ldm-tag-act">ON</span><span id="ld_sta_p1" class="ldm-p1" style="display:none">+1</span></label>
-            <input class="ldm-inp" type="time" id="ld_sta" oninput="ldUpdateDayBadges()" onchange="ldUpdateDayBadges()">
+            <input class="ldm-inp" type="time" id="ld_sta" oninput="ldAutoFlightTime();ldUpdateDayBadges()" onchange="ldAutoFlightTime();ldUpdateDayBadges()">
           </div>
         </div>
-        <!-- Flight Time row — below STA -->
+        <!-- Block Time + Flight Time row -->
         <div class="ldm-row2" style="margin-bottom:4px">
+          <div class="ldm-fg">
+            <label class="ldm-lbl">BLOCK TIME <span style="font-size:9px;color:rgba(34,211,238,.4);font-weight:400;text-transform:none;letter-spacing:0">(auto ATD→ATA)</span></label>
+            <input class="ldm-inp ldm-inp-highlight" type="text" id="ld_block" placeholder="00:00"
+              oninput="ldAutoFlightFromManual()"
+              style="font-family:'Space Mono',monospace;font-size:15px;text-align:center;letter-spacing:1px">
+          </div>
           <div class="ldm-fg">
             <label class="ldm-lbl">
               FLIGHT TIME
               <span class="ldm-tag ldm-tag-ocr" style="background:rgba(34,211,238,.08);color:rgba(34,211,238,.7);border-color:rgba(34,211,238,.2)">OCR</span>
-              <span style="font-size:9px;color:rgba(248,250,252,.25);text-transform:none;letter-spacing:0;font-weight:400;margin-left:2px">OFF→ON</span>
+              <span style="font-size:9px;color:rgba(248,250,252,.25);text-transform:none;letter-spacing:0;font-weight:400;margin-left:2px">(auto STD→STA)</span>
             </label>
             <input class="ldm-inp" type="text" id="ld_flight_time" placeholder="00:00"
-              style="font-family:'Space Mono',monospace;font-size:15px;text-align:center;letter-spacing:1px">
-          </div>
-          <div class="ldm-fg">
-            <label class="ldm-lbl">BLOCK TIME <span style="font-size:9px;color:rgba(34,211,238,.4);font-weight:400;text-transform:none;letter-spacing:0">(auto si ATD+ATA)</span></label>
-            <input class="ldm-inp ldm-inp-highlight" type="text" id="ld_block" placeholder="00:00"
               style="font-family:'Space Mono',monospace;font-size:15px;text-align:center;letter-spacing:1px">
           </div>
         </div>
@@ -8682,7 +8683,44 @@ function ldAutoBlock(){
   if(!atd||!ata) return;
   var h1=+atd.split(':')[0],m1=+atd.split(':')[1],h2=+ata.split(':')[0],m2=+ata.split(':')[1];
   var mins=(h2*60+m2)-(h1*60+m1); if(mins<0) mins+=1440;
-  document.getElementById('ld_block').value=String(Math.floor(mins/60)).padStart(2,'0')+':'+String(mins%60).padStart(2,'0');
+  var blockEl = document.getElementById('ld_block');
+  blockEl.value = String(Math.floor(mins/60)).padStart(2,'0')+':'+String(mins%60).padStart(2,'0');
+  // Also auto-populate flight time if not manually set (flight ≈ block − ~18min taxi)
+  ldAutoFlightFromBlock(mins);
+}
+
+// Auto-calc FLIGHT TIME from STD→STA (scheduled times)
+function ldAutoFlightTime(){
+  var std=document.getElementById('ld_std').value, sta=document.getElementById('ld_sta').value;
+  if(!std||!sta) return;
+  var h1=+std.split(':')[0],m1=+std.split(':')[1],h2=+sta.split(':')[0],m2=+sta.split(':')[1];
+  var mins=(h2*60+m2)-(h1*60+m1); if(mins<0) mins+=1440;
+  if(mins<=0||mins>900) return; // sanity check
+  var el=document.getElementById('ld_flight_time');
+  if(el) el.value=String(Math.floor(mins/60)).padStart(2,'0')+':'+String(mins%60).padStart(2,'0');
+}
+
+// Auto-populate flight time from block time when block is typed manually
+// Flight time = block time (simplest aviation standard; user can override)
+function ldAutoFlightFromManual(){
+  var blockEl=document.getElementById('ld_block');
+  if(!blockEl||!blockEl.value) return;
+  var ftEl=document.getElementById('ld_flight_time');
+  if(!ftEl||ftEl.value) return; // don't overwrite if already set
+  ftEl.value = blockEl.value;
+}
+
+// Called when ATD+ATA auto-fill block: also suggest flight time
+function ldAutoFlightFromBlock(blockMins){
+  var ftEl=document.getElementById('ld_flight_time');
+  if(!ftEl||ftEl.value) return; // don't overwrite manual entry
+  // Use STD→STA if available, else use block time directly
+  var std=document.getElementById('ld_std').value, sta=document.getElementById('ld_sta').value;
+  if(std&&sta){
+    ldAutoFlightTime();
+  } else {
+    ftEl.value=String(Math.floor(blockMins/60)).padStart(2,'0')+':'+String(blockMins%60).padStart(2,'0');
+  }
 }
 
 // Save
