@@ -3643,11 +3643,11 @@ input#ld_fl, input#ld_cond { display:none !important; }
 <div class="screen active" id="scr-home">
   <div class="dh-header">
     <div class="dh-pilot">
-      <div class="dh-avatar" id="dh-avatar-el" onclick="openPilotPanel(event)" style="cursor:pointer">AC</div>
+      <div class="dh-avatar" id="dh-avatar-el" onclick="openPilotPanel(event)" style="cursor:pointer">CP</div>
       <div style="display:flex;flex-direction:column;gap:0;cursor:pointer" onclick="openPilotPanel(event)">
-        <div class="dh-name" id="dh-name-el" style="font-size:12px;line-height:1.15">Alex</div>
-        <div style="font-size:12px;font-weight:600;color:#F1F5F9;line-height:1.15">Captain</div>
-        <div class="dh-rank" id="dh-rank-el" style="font-size:10px;margin-top:1px">A320 Ceo</div>
+        <div class="dh-name" id="dh-name-el" style="font-size:12px;line-height:1.15">Piloto</div>
+        <div id="dh-pos-el" style="font-size:12px;font-weight:600;color:#F1F5F9;line-height:1.15">Captain</div>
+        <div class="dh-rank" id="dh-rank-el" style="font-size:10px;margin-top:1px">—</div>
       </div>
     </div>
     <div class="dh-logo" style="line-height:0;padding:0;display:flex;align-items:center"><svg style="height:38px;width:auto;display:block;flex-shrink:0" xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 830.97 260.12">
@@ -3686,10 +3686,10 @@ input#ld_fl, input#ld_cond { display:none !important; }
   <!-- PILOT PANEL -->
   <div id="dh-pilot-panel" style="display:none;position:fixed;top:68px;left:14px;z-index:9999;background:rgba(6,9,24,0.97);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(124,58,237,0.28);border-radius:18px;padding:6px;min-width:200px;box-shadow:0 12px 40px rgba(0,0,0,.6)">
     <div style="display:flex;align-items:center;gap:10px;padding:10px 12px 8px">
-      <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#1E3A8A,#0369A1);border:2px solid rgba(34,211,238,.4);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#fff;flex-shrink:0">AC</div>
+      <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#1E3A8A,#0369A1);border:2px solid rgba(34,211,238,.4);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#fff;flex-shrink:0" id="dh-panel-avatar">CP</div>
       <div>
-        <div style="font-size:13px;font-weight:700;color:#F1F5F9;line-height:1.2">Alex Captain</div>
-        <div style="font-size:10px;color:rgba(167,139,250,.8);margin-top:2px">A320 &middot; Vueling</div>
+        <div style="font-size:13px;font-weight:700;color:#F1F5F9;line-height:1.2" id="dh-panel-name">Piloto</div>
+        <div style="font-size:10px;color:rgba(167,139,250,.8);margin-top:2px" id="dh-panel-sub">— · —</div>
       </div>
     </div>
     <div class="gear-divider"></div>
@@ -8246,6 +8246,11 @@ function applyCompanyContext() {
   // Update IRPF default
   const irpfInput = document.getElementById('pc-irpf');
   if (irpfInput) irpfInput.value = (COMPANY_DATA[APP.company]&&COMPANY_DATA[APP.company].irpf?COMPANY_DATA[APP.company].irpf:28);
+  // ── Update home dashboard rank + pilot panel ──
+  var dhRank = document.getElementById('dh-rank-el');
+  if (dhRank) dhRank.textContent = (APP.aircraft || '—') + (APP.company ? ' · ' + APP.company : '');
+  var dhPanelSub = document.getElementById('dh-panel-sub');
+  if (dhPanelSub) dhPanelSub.textContent = (APP.aircraft || '—') + ' · ' + (APP.companyName || APP.company || '—');
 }
 
 function showOnboarding(){}
@@ -13321,6 +13326,18 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
       // Network error — allow offline access with cached token (don't force logout)
     });
   }
+  // Restore company data → update dashboard rank / pilot panel
+  try {
+    var savedComp = localStorage.getItem('pilotos_company');
+    if (savedComp) {
+      var c = JSON.parse(savedComp);
+      if (c.company)      APP.company      = c.company;
+      if (c.companyName)  APP.companyName  = c.companyName;
+      if (c.aircraft)     APP.aircraft     = c.aircraft;
+      if (c.aircraftFull) APP.aircraftFull = c.aircraftFull;
+      applyCompanyContext();
+    }
+  } catch(ex) {}
 });
 
 // Legacy alias used elsewhere in the codebase
@@ -13338,6 +13355,7 @@ function updateUserAvatar(user) {
     initials = parts[0].substring(0, 2).toUpperCase();
   }
   if (!initials) initials = 'CP';
+  // ── sb (top-right nav avatar) ──
   var el = document.getElementById('sb-initials');
   if (el) el.textContent = initials;
   var bigAv = document.getElementById('sb-dd-avatar-big');
@@ -13346,6 +13364,18 @@ function updateUserAvatar(user) {
   var ddEmail = document.getElementById('sb-dd-email');
   if (ddName) ddName.textContent = user.name || user.email || 'Piloto';
   if (ddEmail) ddEmail.textContent = user.name ? (user.email || '') : '';
+  // ── dh (home screen dashboard header) ──
+  var dhAv = document.getElementById('dh-avatar-el');
+  if (dhAv) dhAv.textContent = initials;
+  var dhPanelAv = document.getElementById('dh-panel-avatar');
+  if (dhPanelAv) dhPanelAv.textContent = initials;
+  var dhName = document.getElementById('dh-name-el');
+  if (dhName) {
+    var firstName = parts[0] ? (parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase()) : 'Piloto';
+    dhName.textContent = firstName;
+  }
+  var dhPanelName = document.getElementById('dh-panel-name');
+  if (dhPanelName) dhPanelName.textContent = user.name || user.email || 'Piloto';
   // ── Plan badge ──
   if (user.plan) lsSet('pilotOS_plan',user.plan);
   sbUpdatePlanBadge();
@@ -13413,6 +13443,19 @@ function pagSignOut() {
   var ddEmail = document.getElementById('sb-dd-email');
   if (ddName) ddName.textContent = 'Piloto';
   if (ddEmail) ddEmail.textContent = '';
+  // Reset dashboard header
+  var dhAv = document.getElementById('dh-avatar-el');
+  if (dhAv) dhAv.textContent = 'CP';
+  var dhPanelAv = document.getElementById('dh-panel-avatar');
+  if (dhPanelAv) dhPanelAv.textContent = 'CP';
+  var dhName = document.getElementById('dh-name-el');
+  if (dhName) dhName.textContent = 'Piloto';
+  var dhPanelName = document.getElementById('dh-panel-name');
+  if (dhPanelName) dhPanelName.textContent = 'Piloto';
+  var dhRank = document.getElementById('dh-rank-el');
+  if (dhRank) dhRank.textContent = '—';
+  var dhPanelSub = document.getElementById('dh-panel-sub');
+  if (dhPanelSub) dhPanelSub.textContent = '— · —';
   var gate = document.getElementById('pilot-auth-gate');
   if (gate) gate.classList.remove('hidden');
 }</script>
