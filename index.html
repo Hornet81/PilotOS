@@ -12460,20 +12460,7 @@ async function pagDoAuth() {
   btn.disabled = true;
   btn.textContent = 'Conectando…';
 
-  // ── DEMO BYPASS (email: 111 / pass: 111) ──
-  if (email === '111' && pass === '111') {
-    var demoUser = { name: 'Demo Pilot', email: 'demo@pilotos.app', plan: 'pro' };
-    lsSet('cafi_auth_token','demo-bypass-token');
-    localStorage.setItem('cafi_auth_user', JSON.stringify(demoUser));
-    lsSet('pilotOS_plan','pro');
-    if (airline) lsSet('pag_airline',airline);
-    updateUserAvatar(demoUser);
-    pagHide();
-    btn.disabled = false;
-    btn.textContent = 'Entrar →';
-    return;
-  }
-  // ──────────────────────────────────────────
+  // demo bypass removed for security
 
   try {
     var endpoint = isLogin ? '/auth/login' : '/auth/register';
@@ -12488,13 +12475,28 @@ async function pagDoAuth() {
       err.textContent = data.error || 'Error al autenticar. Inténtalo de nuevo.';
       err.classList.add('show');
     } else {
-      lsSet('cafi_auth_token',data.token);
+      // ── Registro: esperar confirmación de email antes de dar acceso ──
+      if (!isLogin && (!data.token || data.email_confirmation_required || data.user && !data.user.email_confirmed_at)) {
+        err.style.color = '#4ADE80';
+        err.textContent = '✅ Cuenta creada. Revisa tu email y confirma tu dirección antes de entrar.';
+        err.classList.add('show');
+        btn.disabled = false;
+        btn.textContent = 'Crear cuenta →';
+        return;
+      }
+      if (!data.token) {
+        err.textContent = 'Error: no se recibió token de sesión. Inténtalo de nuevo.';
+        err.classList.add('show');
+        btn.disabled = false;
+        btn.textContent = isLogin ? 'Entrar →' : 'Crear cuenta →';
+        return;
+      }
+      lsSet('cafi_auth_token', data.token);
       localStorage.setItem('cafi_auth_user', JSON.stringify(data.user));
-      lsSet('pilotOS_plan',data.user.plan || 'free');
-      if (airline) lsSet('pag_airline',airline);
+      lsSet('pilotOS_plan', data.user.plan || 'free');
+      if (airline) lsSet('pag_airline', airline);
       updateUserAvatar(data.user);
       pagHide();
-      // If CAFI screen is already rendered, greet the user there
       if (typeof cafiAddMsg === 'function') {
         setTimeout(function(){
           cafiAddMsg('ai', '✅ <strong>Conectado como ' + (data.user.name || data.user.email) + '</strong><br>CAFI tiene acceso al FCOM/FCTM completo de Vueling via RAG. ¿Por dónde empezamos?');
@@ -12524,24 +12526,35 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
     var gate = document.getElementById('pilot-auth-gate');
     if (gate) gate.classList.remove('hidden');
   } else {
+    // Show avatar from cached data immediately (optimistic)
     try {
       var stored = localStorage.getItem('cafi_auth_user');
       if (stored) updateUserAvatar(JSON.parse(stored));
     } catch(ex) {}
-    // Fetch plan from server to always have the latest
-    (function(){
-      var token = lsGet('cafi_auth_token', '');
-      if (!token || token === 'demo-bypass-token') return;
-      var backendUrl = lsGet('cafi_backend_url','https://happy-ambition-production-75eb.up.railway.app');
-      fetch(backendUrl + '/api/user/plan', {
-        headers: { 'Authorization': 'Bearer ' + token }
-      }).then(function(r){ return r.json(); }).then(function(d){
-        if (d.plan) {
-          lsSet('pilotOS_plan',d.plan);
-          sbUpdatePlanBadge();
-        }
-      }).catch(function(){});
-    })();
+    // Verify token is still valid with the server
+    var backendUrl = lsGet('cafi_backend_url','https://happy-ambition-production-75eb.up.railway.app');
+    fetch(backendUrl + '/api/user/plan', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    }).then(function(r){
+      if (r.status === 401 || r.status === 403) {
+        // Token invalid/expired — force re-login
+        lsDel('cafi_auth_token');
+        lsDel('cafi_auth_user');
+        lsDel('pilotOS_plan');
+        var gate = document.getElementById('pilot-auth-gate');
+        if (gate) gate.classList.remove('hidden');
+        return null;
+      }
+      return r.json();
+    }).then(function(d){
+      if (!d) return;
+      if (d.plan) {
+        lsSet('pilotOS_plan', d.plan);
+        if (typeof sbUpdatePlanBadge === 'function') sbUpdatePlanBadge();
+      }
+    }).catch(function(){
+      // Network error — allow offline access with cached token (don't force logout)
+    });
   }
 });
 
