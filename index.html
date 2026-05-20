@@ -1915,16 +1915,40 @@ input#ld_fl, input#ld_cond { display:none !important; }
   display:flex;align-items:center;gap:8px
 }
 .ld-fmonth::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(34,211,238,.15),transparent)}
-.ld-fcard{
+
+/* ── Day block container ── */
+.ld-fday{
   background:rgba(17,24,39,.82);border:1px solid rgba(34,211,238,.12);
-  border-radius:18px;margin-bottom:9px;overflow:hidden;cursor:pointer;
-  position:relative;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);transition:border-color .18s,transform .15s
+  border-radius:18px;margin-bottom:9px;overflow:hidden;
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+}
+/* Day header */
+.ld-fday-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 13px 7px 16px;
+  border-bottom:1px solid rgba(255,255,255,.05);
+}
+.ld-fday-left{display:flex;align-items:baseline;gap:7px}
+.ld-fday-wd{font-family:'Space Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.ld-fday-dt{font-family:'Space Mono',monospace;font-size:10px;color:rgba(248,250,252,.25)}
+.ld-fday-stats{display:flex;align-items:center;gap:10px}
+.ld-fday-stat{text-align:right}
+.ld-fday-stat-v{font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:rgba(248,250,252,.6)}
+.ld-fday-stat-l{font-family:'Space Mono',monospace;font-size:8px;color:rgba(248,250,252,.2);text-transform:uppercase;letter-spacing:.5px;margin-top:1px}
+
+/* ── Flight row inside day block ── */
+.ld-fday-flights{padding:6px 7px 7px;display:flex;flex-direction:column;gap:5px}
+.ld-fcard{
+  border-radius:12px;
+  overflow:hidden;cursor:pointer;
+  position:relative;transition:background .15s,transform .15s;
+  background:rgba(11,16,32,.5);
 }
 .ld-fcard::before{
-  content:'';position:absolute;left:0;top:10px;bottom:10px;
+  content:'';position:absolute;left:0;top:8px;bottom:8px;
   width:3px;background:linear-gradient(180deg,#7C3AED,#22D3EE);border-radius:0 2px 2px 0
 }
-.ld-fcard:active{border-color:rgba(124,58,237,.45);transform:scale(.985)}
+.ld-fcard:active{background:rgba(124,58,237,.07);transform:scale(.995)}
 .ld-fcard-top{padding:12px 13px 8px 18px;display:flex;align-items:center;gap:10px}
 .ld-fcard-ap{
   font-family:'DM Mono','Space Mono',monospace;font-size:20px;font-weight:500;
@@ -9036,43 +9060,74 @@ function ldRender(){
     document.getElementById('ld_pag').style.display='none'; return;
   }
   var start=(ldPage-1)*LD_PER, page=ldFiltered.slice(start,start+LD_PER);
-  // Group by month
-  var groups={}, order=[];
+  var LD_DAY_PAL=[
+    {accent:'#7C3AED',wdColor:'#a78bfa',hdrBg:'rgba(124,58,237,.06)',cardBorder:'rgba(124,58,237,.28)'},
+    {accent:'#22D3EE',wdColor:'#67e8f9',hdrBg:'rgba(34,211,238,.04)',cardBorder:'rgba(34,211,238,.18)'},
+    {accent:'#F59E0B',wdColor:'#fcd34d',hdrBg:'rgba(245,158,11,.05)',cardBorder:'rgba(245,158,11,.22)'},
+    {accent:'#34d399',wdColor:'#6ee7b7',hdrBg:'rgba(52,211,153,.04)',cardBorder:'rgba(52,211,153,.2)'}
+  ];
+  var LD_WD=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  function ldWeekday(ds){try{return LD_WD[new Date(ds+'T00:00:00').getDay()];}catch(e){return '';}}
+  var monthGroups={},monthOrder=[];
   page.forEach(function(e){
     var mk=e.date?e.date.slice(0,7):'0000-00';
-    if(!groups[mk]){groups[mk]=[];order.push(mk);}
-    groups[mk].push(e);
+    if(!monthGroups[mk]){monthGroups[mk]={};monthOrder.push(mk);}
+    var dk=e.date||'0000-00-00';
+    if(!monthGroups[mk][dk])monthGroups[mk][dk]=[];
+    monthGroups[mk][dk].push(e);
   });
   var html='';
-  order.forEach(function(mk){
+  var globalDayIdx=0;
+  monthOrder.forEach(function(mk){
     html+='<div class="ld-fmonth">'+ldFmtMonth(mk+'-01')+'</div>';
-    groups[mk].forEach(function(e){
-      var hasNoc=e.night&&e.night!=='00:00'&&e.night!=='0:00'&&e.night!=='';
-      var hasFt=e.flightTime&&e.flightTime!=='00:00'&&e.flightTime!=='';
-      var src=e.source==='MCDU-OCR'?'📷 ':'';
-      var roleClass=e.role==='CPT'?'ld-fpill-cpt':'ld-fpill-fo';
-      var funcClass=e.func==='PM'?'ld-fpill-pm':'ld-fpill-pf';
-      var acLabel=(e.acType||'')+(e.reg?' · '+e.reg:'');
-      var dotInfo = ldStatusDot(e);
-      html+='<div class="ld-fcard" onclick="ldOpenDetail(\''+e.id+'\')">'
-        +'<div class="ld-fcard-top">'
-          +'<div style="flex:1">'
-            +'<div class="ld-fcard-ap">'+(e.dep||'???')+'<span class="ld-far">›</span>'+(e.arr||'???')+'</div>'
-            +'<div class="ld-fcard-fi">'+src+(e.flight||'—')+' · '+ldFmtDay(e.date)+'</div>'
+    var dayKeys=Object.keys(monthGroups[mk]).sort().reverse();
+    dayKeys.forEach(function(dk){
+      var dayFlights=monthGroups[mk][dk];
+      var pal=LD_DAY_PAL[globalDayIdx%4]; globalDayIdx++;
+      var dayMins=dayFlights.reduce(function(s,e){return s+ldT2m(e.block);},0);
+      var dayBlock=ldM2s(dayMins);
+      var wd=ldWeekday(dk);
+      html+='<div class="ld-fday" style="border-top:2px solid '+pal.accent+'">'
+        +'<div class="ld-fday-hdr" style="background:'+pal.hdrBg+'">'
+          +'<div class="ld-fday-left">'
+            +'<span class="ld-fday-wd" style="color:'+pal.wdColor+'">'+wd+'</span>'
+            +'<span class="ld-fday-dt">'+ldFmtDay(dk)+'</span>'
           +'</div>'
-          +'<div class="ld-fcard-bk"><div class="ld-fcard-bv">'+(e.block||'—')+'</div><div class="ld-fcard-bl">block</div></div>'
-        +'</div>'
-        +'<div class="ld-fcard-bot">'
-          +'<div class="ld-fsdot" style="background:'+dotInfo.color+';box-shadow:'+dotInfo.glow+'" title="'+dotInfo.title+'"></div>'
-          +(acLabel?'<span class="ld-fpill ld-fpill-ac">'+acLabel+'</span>':'')
-          +'<span class="ld-fpill '+roleClass+'">'+(e.role||'FO')+'</span>'
-          +(e.func?'<span class="ld-fpill '+funcClass+'">'+(e.func)+'</span>':'')
-          +(hasFt?'<span class="ld-fpill" style="background:rgba(0,255,80,.07);color:rgba(0,220,80,.85);border:1px solid rgba(0,255,80,.2);font-family:\'Space Mono\',monospace">✈ '+e.flightTime+'</span>':'')
-          +(hasNoc?'<span class="ld-fpill ld-fpill-noc">'+e.night+' noc</span>':'')
-          +(e.std?'<span class="ld-fdate">'+e.std+'Z</span>':'')
-          +'<button class="ld-fdel" onclick="event.stopPropagation();ldDelete(\''+e.id+'\')" title="Eliminar">🗑</button>'
-        +'</div>'
+          +'<div class="ld-fday-stats">'
+            +(dayMins>0?'<div class="ld-fday-stat"><div class="ld-fday-stat-v">'+dayBlock+'</div><div class="ld-fday-stat-l">block</div></div>':'')
+            +'<div class="ld-fday-stat"><div class="ld-fday-stat-v">'+dayFlights.length+'</div><div class="ld-fday-stat-l">sect.</div></div>'
+          +'</div>'
         +'</div>';
+      html+='<div class="ld-fday-flights">';
+      dayFlights.forEach(function(e){
+        var hasNoc=e.night&&e.night!=='00:00'&&e.night!=='0:00'&&e.night!=='';
+        var hasFt=e.flightTime&&e.flightTime!=='00:00'&&e.flightTime!=='';
+        var src=e.source==='MCDU-OCR'?'📷 ':'';
+        var roleClass=e.role==='CPT'?'ld-fpill-cpt':'ld-fpill-fo';
+        var funcClass=e.func==='PM'?'ld-fpill-pm':'ld-fpill-pf';
+        var acLabel=(e.acType||'')+(e.reg?' · '+e.reg:'');
+        var dotInfo=ldStatusDot(e);
+        html+='<div class="ld-fcard" onclick="ldOpenDetail(\''+e.id+'\')" style="border:1px solid '+pal.cardBorder+'">' 
+          +'<div class="ld-fcard-top">'
+            +'<div style="flex:1">'
+              +'<div class="ld-fcard-ap">'+(e.dep||'???')+'<span class="ld-far">›</span>'+(e.arr||'???')+'</div>'
+              +'<div class="ld-fcard-fi">'+src+(e.flight||'—')+' · '+ldFmtDay(e.date)+'</div>'
+            +'</div>'
+            +'<div class="ld-fcard-bk"><div class="ld-fcard-bv">'+(e.block||'—')+'</div><div class="ld-fcard-bl">block</div></div>'
+          +'</div>'
+          +'<div class="ld-fcard-bot">'
+            +'<div class="ld-fsdot" style="background:'+dotInfo.color+';box-shadow:'+dotInfo.glow+'" title="'+dotInfo.title+'"></div>'
+            +(acLabel?'<span class="ld-fpill ld-fpill-ac">'+acLabel+'</span>':'')
+            +'<span class="ld-fpill '+roleClass+'">'+(e.role||'FO')+'</span>'
+            +(e.func?'<span class="ld-fpill '+funcClass+'">'+(e.func)+'</span>':'')
+            +(hasFt?'<span class="ld-fpill" style="background:rgba(0,255,80,.07);color:rgba(0,220,80,.85);border:1px solid rgba(0,255,80,.2);font-family:\'Space Mono\',monospace">✈ '+e.flightTime+'</span>':'')
+            +(hasNoc?'<span class="ld-fpill ld-fpill-noc">'+e.night+' noc</span>':'')
+            +(e.std?'<span class="ld-fdate">'+e.std+'Z</span>':'')
+            +'<button class="ld-fdel" onclick="event.stopPropagation();ldDelete(\''+e.id+'\')" title="Eliminar">🗑</button>'
+          +'</div>'
+          +'</div>';
+      });
+      html+='</div></div>'; // close ld-fday-flights + ld-fday
     });
   });
   container.innerHTML=html;
