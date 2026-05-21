@@ -6391,7 +6391,10 @@ function goTo(key){
   if (sb) sb.scrollTop = 0;
   if (key === 'cafi') { initMic('cafi'); cafiInit(); cafiStartBubble(); }
   if (key === 'oes')  initMic('oes');
-  if (key === 'logbook' && window._initLD) window._initLD();
+  if (key === 'logbook') {
+    if (window.ldSwitchTab) window.ldSwitchTab('vuelos');
+    if (window._initLD) window._initLD();
+  }
   if (key === 'upgrade') upgUpdateCards();
   if (key === 'roster' && window.rosterInit) window.rosterInit();
   if (key === 'pay') {
@@ -8988,7 +8991,7 @@ function ldRender(){
           +'<div class="ld-fcard-bk"><div class="ld-fcard-bv">'+(e.block||'—')+'</div><div class="ld-fcard-bl">block</div></div>'
         +'</div>'
         +'<div class="ld-fcard-bot">'
-          (function(){
+          +(function(){
             var hasAtd = !!(e.atd || e.aobt);
             var hasAta = !!(e.ata || e.aibt);
             if (hasAtd && hasAta && e.block) return '<div class="ld-fsdot complete" title="Completo · Cuenta en nómina"></div>';
@@ -9775,7 +9778,9 @@ window._initLD=function(){
   if(window._ldInitRunning) return;
   window._ldInitRunning = true;
   ldAcDbInit();
-  ldLoad(); ldRender(); ldStats();
+  ldLoad();
+  try { ldRender(); } catch(err) { console.error('[LD] ldRender error:', err); }
+  try { ldStats(); } catch(err) { console.error('[LD] ldStats error:', err); }
   ldSwitchTab('vuelos');
   // Pull desde servidor — merge idempotente: si no hay cambios no hace nada
   (async function(){
