@@ -9721,26 +9721,35 @@ function ldImportConfirm(){
 window._initLD=function(){
   ldAcDbInit();
   ldLoad(); ldRender(); ldStats();
-  ldUpdatePlanBanners();
-  ldSetSyncStatus(isPro() ? 'ok' : 'local');
   ldSwitchTab('vuelos');
   // Pull desde servidor — merge idempotente: si no hay cambios no hace nada
   (async function(){
-    var token=ldAuthHeaders(); if(!token)return;
+    var token=ldAuthHeaders();
+    if(!token){
+      // Sin token — mostrar banners con estado local
+      ldUpdatePlanBanners();
+      ldSetSyncStatus('local');
+      return;
+    }
     try{
-      // Obtener plan actualizado del servidor (por si ha cambiado desde el último login)
+      // 1. Obtener plan real del servidor ANTES de pintar los banners
       var meR=await fetch(ldBackendUrl()+'/api/me',{headers:{'Authorization':'Bearer '+token}});
       if(meR.ok){ var me=await meR.json(); if(me.plan) lsSet('pilotOS_plan',me.plan); }
+      // Ahora los banners reflejan el plan real
+      ldUpdatePlanBanners();
+      ldSetSyncStatus(isPro() ? 'ok' : 'local');
+      // 2. Pull logbook — siempre si hay token, independientemente del plan
       var r=await fetch(ldBackendUrl()+'/api/logbook',{headers:{'Authorization':'Bearer '+token}});
       if(!r.ok)return;
       var body=await r.json();
       var serverEntries=body.entries||[];
       ldAcDbMergeFromServer(serverEntries);
+      // Solo merge de vuelos para Pro/Unlimited
       if(!isPro()) return;
       var realEntries=serverEntries.filter(function(e){
         return e&&e.id!==LD_AC_DB_ENTRY_ID&&e.type!=='__ac_db__';
       });
-      if(!realEntries.length)return;
+      if(!realEntries.length) return;
       var map={};
       ldEntries.forEach(function(e){if(e.id)map[e.id]=e;});
       var newCount=0;
@@ -9750,13 +9759,16 @@ window._initLD=function(){
         if(!local){map[se.id]=se;newCount++;}
         else if(se.savedAt&&local.savedAt&&se.savedAt>local.savedAt){map[se.id]=se;newCount++;}
       });
-      if(!newCount){ ldUpdatePlanBanners(); return; }
+      if(!newCount) return;
       ldEntries=Object.values(map).sort(function(a,b){
         return(b.date||'').localeCompare(a.date||'')||(b.savedAt||'').localeCompare(a.savedAt||'');
       });
       ldSaveData(); ldRender(); ldStats(); ldUpdatePlanBanners();
       showToast('☁ '+newCount+' vuelo'+(newCount>1?'s':'')+' sincronizado'+(newCount>1?'s':''),'info');
-    }catch(e){ /* offline */ }
+    }catch(e){
+      ldUpdatePlanBanners();
+      ldSetSyncStatus('error');
+    }
   })();
 };
 document.getElementById('ld_modal').addEventListener('click',function(e){if(e.target===e.currentTarget)ldCloseModal();});
