@@ -1713,6 +1713,10 @@ select.ld-fi { appearance:none; -webkit-appearance:none; cursor:pointer; }
 }
 .ldm-rh-dep  { color:#F8FAFC !important; }
 .ldm-rh-dest { color:#22D3EE !important; }
+.ldm-rh-dep::placeholder  { color:rgba(248,250,252,.25) !important; }
+.ldm-rh-dest::placeholder { color:rgba(34,211,238,.25) !important; }
+.ldm-rh-inp::-webkit-input-placeholder { opacity:.25 }
+.ldm-rh-inp::-moz-placeholder          { opacity:.25 }
 .ldm-rh-arr  {
   color:rgba(34,211,238,.55); font-size:18px;
   flex-shrink:0; font-family:'Space Mono',monospace;
@@ -1893,6 +1897,9 @@ input#ld_fl, input#ld_cond { display:none !important; }
 .ld-fsdot{width:6px;height:6px;border-radius:50%;background:#475569;flex-shrink:0}
 .ld-fsdot.partial{background:#F59E0B;box-shadow:0 0 5px rgba(245,158,11,.5)}
 .ld-fsdot.complete{background:#22D3EE;box-shadow:0 0 5px rgba(34,211,238,.5)}
+@keyframes ld-draft-pulse{0%,100%{opacity:.65}50%{opacity:1;box-shadow:0 0 10px rgba(245,158,11,.75)}}
+.ld-fcard-draft{background:rgba(245,158,11,.05)!important;border:1px solid rgba(245,158,11,.28)!important}
+.ld-fcard-draft:active{border-color:rgba(245,158,11,.5)!important}
 .ld-fpill{font-size:10px;font-family:'Space Mono',monospace;font-weight:500;padding:2px 8px;border-radius:6px;white-space:nowrap}
 .ld-fpill-ac{background:rgba(49,46,129,.5);color:rgba(200,196,255,.9);border:1px solid rgba(124,58,237,.22)}
 .ld-fpill-fo{background:rgba(34,211,238,.1);color:#22D3EE;border:1px solid rgba(34,211,238,.2)}
@@ -5663,19 +5670,38 @@ input#ld_fl, input#ld_cond { display:none !important; }
         </button>
       </div>
     </div>
-    <!-- Roster AI button -->
+    <!-- Roster AI button + Quick Camera -->
     <div id="ld-roster-btn-wrap" style="display:none;margin-bottom:12px">
-      <button onclick="ldImportFromRoster()" style="width:100%;padding:12px 16px;background:linear-gradient(135deg,rgba(8,145,178,.18),rgba(109,40,217,.14));border:1.5px solid rgba(103,232,249,.35);border-radius:14px;color:#67d7f5;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .15s">
-        <span style="font-size:16px">🗓</span>
-        <span>Importar desde Roster</span>
-        <span id="ld-roster-flight-hint" style="margin-left:4px;font-size:11px;font-weight:500;color:rgba(103,232,249,.7)"></span>
-      </button>
+      <div style="display:flex;gap:8px;align-items:stretch">
+        <!-- Roster import (compact) -->
+        <button onclick="ldRosterImportOpen()" style="flex:1;padding:9px 11px;background:linear-gradient(135deg,rgba(8,145,178,.15),rgba(109,40,217,.11));border:1.5px solid rgba(103,232,249,.28);border-radius:13px;color:#67d7f5;font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;-webkit-tap-highlight-color:transparent">
+          <span style="font-size:14px">🗓</span>
+          <span>Importar Roster</span>
+          <span id="ld-roster-flight-hint" style="font-size:10px;font-weight:500;color:rgba(103,232,249,.6)"></span>
+        </button>
+        <!-- Quick Camera OCR -->
+        <button onclick="ldQuickCamera()" title="Foto MCDU · OCR directo" style="width:46px;flex-shrink:0;padding:0;background:rgba(34,211,238,.07);border:1.5px solid rgba(34,211,238,.32);border-radius:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#22D3EE;transition:background .18s,border-color .18s,box-shadow .18s;box-shadow:0 0 10px rgba(34,211,238,.12);-webkit-tap-highlight-color:transparent">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 287.5 274.65" width="23" height="23" fill="currentColor" style="filter:drop-shadow(0 0 5px rgba(34,211,238,.55))">
+            <path d="M142.61,9.86c-69.91,0-126.58,56.67-126.58,126.58s56.67,126.58,126.58,126.58,126.58-56.67,126.58-126.58S212.52,9.86,142.61,9.86ZM142.61,247.39c-61.27,0-110.95-49.67-110.95-110.95S81.33,25.5,142.61,25.5s110.95,49.67,110.95,110.95-49.67,110.95-110.95,110.95Z"/>
+            <path d="M178.2,98.81h-71.19l8.86-25.41c1.08-3.09,3.99-5.16,7.26-5.16h38.94c3.27,0,6.18,2.07,7.26,5.16l8.86,25.41Z"/>
+            <path d="M167.15,128.72c-4.15-6.54-10.61-11.07-18.17-12.75-7.56-1.69-15.32-.33-21.86,3.83-6.54,4.15-11.07,10.61-12.75,18.17-1.69,7.56-.33,15.32,3.83,21.86,4.15,6.54,10.61,11.07,18.17,12.75,7.56,1.69,15.32.33,21.86-3.83,6.54-4.15,11.07-10.61,12.75-18.17,1.69-7.56.33-15.32-3.83-21.86ZM161.8,148.53c-.12.53-.44.96-.86,1.23-.42.27-.95.38-1.48.26-1.06-.24-1.72-1.28-1.49-2.34.91-4.09.18-8.28-2.07-11.82-2.25-3.53-5.73-5.98-9.82-6.89-1.06-.24-1.72-1.28-1.49-2.34.24-1.06,1.28-1.72,2.34-1.49,5.11,1.14,9.47,4.2,12.27,8.62,2.81,4.42,3.73,9.66,2.59,14.77Z"/>
+            <path d="M173.76,126.63c3.03,5.32,4.64,11.35,4.64,17.63,0,9.54-3.72,18.51-10.46,25.26-6.75,6.75-15.72,10.46-25.26,10.46s-18.51-3.72-25.26-10.46c-6.75-6.75-10.46-15.72-10.46-25.26,0-6.28,1.61-12.32,4.64-17.63h-42.91v60.54c0,8.63,8.05,15.62,17.97,15.62h111.93c9.92,0,17.97-6.99,17.97-15.62v-60.54h-42.78Z"/>
+            <path d="M203.22,92.77c-40.41-9.36-80.82-9.36-121.22,0-7.86,1.82-13.32,8.02-13.32,15.09v13.16h46.87c.59-.69,1.21-1.36,1.86-2.01,6.75-6.75,15.72-10.46,25.26-10.46s18.51,3.72,25.26,10.46c.65.65,1.27,1.32,1.86,2.01h46.74v-13.16c0-7.07-5.46-13.27-13.32-15.09ZM201.72,106.32c0,1.62-1.32,2.94-2.94,2.94h-12.54c-1.62,0-2.94-1.32-2.94-2.94h0c0-1.62,1.32-2.94,2.94-2.94h12.54c1.62,0,2.94,1.32,2.94,2.94h0Z"/>
+          </svg>
+        </button>
+      </div>
     </div>
 
     <!-- Search -->
     <div class="ld-search">
       <span style="color:#4a6080">🔍</span>
       <input type="text" placeholder="Buscar vuelo, ruta, matrícula..." id="ld_search" oninput="ldFilter()">
+    </div>
+    <!-- Status dot legend -->
+    <div style="display:flex;align-items:center;gap:14px;padding:0 2px 8px;font-family:'Space Mono',monospace;font-size:10px;color:rgba(248,250,252,.35)">
+      <div style="display:flex;align-items:center;gap:5px"><div class="ld-fsdot complete"></div><span>Completo</span></div>
+      <div style="display:flex;align-items:center;gap:5px"><div class="ld-fsdot partial"></div><span>Parcial</span></div>
+      <div style="display:flex;align-items:center;gap:5px"><div class="ld-fsdot"></div><span>Solo roster</span></div>
     </div>
 
     <!-- ── PLAN BANNERS ── -->
@@ -6102,6 +6128,11 @@ input#ld_fl, input#ld_cond { display:none !important; }
 <!-- ════════ FLIGHT DETAIL OVERLAY ════════ -->
 <div id="ld-card-overlay" onclick="if(event.target===this)ldCloseCard()" style="display:none;position:fixed;inset:0;z-index:510;background:rgba(5,10,20,.78);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);align-items:flex-end;justify-content:center">
   <div id="ld-card-sheet" style="width:100%;max-width:520px;max-height:88vh;max-height:88dvh;background:linear-gradient(180deg,#111827 0%,#0B1020 100%);border-radius:20px 20px 0 0;overflow-y:auto;-webkit-overflow-scrolling:touch;border-top:1px solid rgba(34,211,238,.18)"></div>
+</div>
+
+<!-- ════════ ROSTER IMPORT SHEET ════════ -->
+<div id="ld-rst-import-overlay" onclick="if(event.target===this)ldRosterImportClose()" style="display:none;position:fixed;inset:0;z-index:520;background:rgba(5,10,20,.85);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);align-items:flex-end;justify-content:center">
+  <div id="ld-rst-import-sheet" style="width:100%;max-width:520px;max-height:90vh;max-height:90dvh;background:linear-gradient(180deg,#131920 0%,#0B1020 100%);border-radius:22px 22px 0 0;overflow-y:auto;-webkit-overflow-scrolling:touch;border-top:2px solid rgba(245,158,11,.35)"></div>
 </div>
 
 <div class="bottom-tabs" id="btabs">
@@ -8947,6 +8978,10 @@ function ldSave(){
   ldSaveData(); ldSyncToServer(); ldCloseModal(); ldRender(); ldStats(); ldUpdatePlanBanners();
   // Si el piloto tiene PayCheck abierto, refrescar automáticamente
   if (typeof curScreen !== 'undefined' && curScreen === 'pay' && typeof pcImportFromLogbook === 'function') pcImportFromLogbook();
+  // Si el Roster tiene un día seleccionado, refrescar el detalle para que aparezca la L cyan
+  if (typeof RST !== 'undefined' && RST.editDate && typeof rosterSelectDay === 'function') {
+    setTimeout(function(){ rosterSelectDay(RST.editDate); }, 60);
+  }
   showToast('✓ Vuelo '+e.dep+'→'+e.arr+(_editId?' actualizado':' registrado'),'success');
 }
 
@@ -8996,31 +9031,55 @@ function ldRender(){
       var roleClass=e.role==='CPT'?'ld-fpill-cpt':'ld-fpill-fo';
       var funcClass=e.func==='PM'?'ld-fpill-pm':'ld-fpill-pf';
       var acLabel=(e.acType||'')+(e.reg?' · '+e.reg:'');
-      html+='<div class="ld-fcard" onclick="ldShowCard(\''+e.id+'\')">'
-        +'<div class="ld-fcard-top">'
-          +'<div style="flex:1">'
-            +'<div class="ld-fcard-ap">'+(e.dep||'???')+'<span class="ld-far">›</span>'+(e.arr||'???')+'</div>'
-            +'<div class="ld-fcard-fi">'+src+(e.flight||'—')+' · '+ldFmtDay(e.date)+'</div>'
+      var isDraft=(e.source==='ROSTER-DRAFT')&&!(e.atd||e.aobt);
+      if(isDraft){
+        html+='<div class="ld-fcard ld-fcard-draft" onclick="ldShowCard(\''+e.id+'\')">'
+          +'<div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#F59E0B,#F97316);border-radius:3px 0 0 3px;animation:ld-draft-pulse 2s ease-in-out infinite"></div>'
+          +'<div class="ld-fcard-top">'
+            +'<div style="flex:1">'
+              +'<div class="ld-fcard-ap">'+(e.dep||'???')+'<span class="ld-far" style="color:#F59E0B">›</span>'+(e.arr||'???')+'</div>'
+              +'<div class="ld-fcard-fi">'+(e.flight||'—')+' · '+ldFmtDay(e.date)+'</div>'
+            +'</div>'
+            +'<div class="ld-fcard-bk" style="border-left-color:rgba(245,158,11,.12)">'
+              +'<div class="ld-fcard-bv" style="color:rgba(245,158,11,.7)">'+(e.std||'—')+'</div>'
+              +'<div class="ld-fcard-bl">STD</div>'
+            +'</div>'
           +'</div>'
-          +'<div class="ld-fcard-bk"><div class="ld-fcard-bv">'+(e.block||'—')+'</div><div class="ld-fcard-bl">block</div></div>'
-        +'</div>'
-        +'<div class="ld-fcard-bot">'
-          +(function(){
-            var hasAtd = !!(e.atd || e.aobt);
-            var hasAta = !!(e.ata || e.aibt);
-            if (hasAtd && hasAta && e.block) return '<div class="ld-fsdot complete" title="Completo · Cuenta en nómina"></div>';
-            if (e.block || e.dep || e.arr)   return '<div class="ld-fsdot partial" title="Parcial · Faltan ATD/ATA"></div>';
-            return '<div class="ld-fsdot" title="Sin datos"></div>';
-          })()
-          +(acLabel?'<span class="ld-fpill ld-fpill-ac">'+acLabel+'</span>':'')
-          +'<span class="ld-fpill '+roleClass+'">'+(e.role||'FO')+'</span>'
-          +(e.func?'<span class="ld-fpill '+funcClass+'">'+(e.func)+'</span>':'')
-          +(hasFt?'<span class="ld-fpill" style="background:rgba(0,255,80,.07);color:rgba(0,220,80,.85);border:1px solid rgba(0,255,80,.2);font-family:\'Space Mono\',monospace">✈ '+e.flightTime+'</span>':'')
-          +(hasNoc?'<span class="ld-fpill ld-fpill-noc">'+e.night+' noc</span>':'')
-          +(e.std?'<span class="ld-fdate">'+e.std+'Z</span>':'')
-          +'<button class="ld-fdel" onclick="event.stopPropagation();ldDelete(\''+e.id+'\')" title="Eliminar">🗑</button>'
-        +'</div>'
+          +'<div class="ld-fcard-bot" style="border-top-color:rgba(245,158,11,.1)">'
+            +'<div class="ld-fsdot partial" title="Borrador · Pendiente de completar"></div>'
+            +'<span style="font-size:10px;font-family:\'Space Mono\',monospace;font-weight:600;padding:2px 8px;border-radius:6px;background:rgba(245,158,11,.12);color:#F59E0B;border:1px solid rgba(245,158,11,.28)">⏱ ROSTER</span>'
+            +(e.std&&e.sta?'<span class="ld-fdate" style="color:rgba(245,158,11,.5)">'+e.std+'–'+e.sta+'</span>':'')
+            +'<button onclick="event.stopPropagation();ldEditFlight(\''+e.id+'\')" style="margin-left:auto;font-size:10px;font-family:\'Space Grotesk\',sans-serif;font-weight:700;padding:3px 10px;border-radius:8px;border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.1);color:#F59E0B;cursor:pointer">✏ Completar</button>'
+            +'<button class="ld-fdel" onclick="event.stopPropagation();ldDelete(\''+e.id+'\')" title="Eliminar">🗑</button>'
+          +'</div>'
         +'</div>';
+      } else {
+        html+='<div class="ld-fcard" onclick="ldShowCard(\''+e.id+'\')">'
+          +'<div class="ld-fcard-top">'
+            +'<div style="flex:1">'
+              +'<div class="ld-fcard-ap">'+(e.dep||'???')+'<span class="ld-far">›</span>'+(e.arr||'???')+'</div>'
+              +'<div class="ld-fcard-fi">'+src+(e.flight||'—')+' · '+ldFmtDay(e.date)+'</div>'
+            +'</div>'
+            +'<div class="ld-fcard-bk"><div class="ld-fcard-bv">'+(e.block||'—')+'</div><div class="ld-fcard-bl">block</div></div>'
+          +'</div>'
+          +'<div class="ld-fcard-bot">'
+            +(function(){
+              var hasAtd = !!(e.atd || e.aobt);
+              var hasAta = !!(e.ata || e.aibt);
+              if (hasAtd && hasAta && e.block) return '<div class="ld-fsdot complete" title="Completo · Cuenta en nómina"></div>';
+              if (e.block || e.dep || e.arr)   return '<div class="ld-fsdot partial" title="Parcial · Faltan ATD/ATA"></div>';
+              return '<div class="ld-fsdot" title="Sin datos"></div>';
+            })()
+            +(acLabel?'<span class="ld-fpill ld-fpill-ac">'+acLabel+'</span>':'')
+            +'<span class="ld-fpill '+roleClass+'">'+(e.role||'FO')+'</span>'
+            +(e.func?'<span class="ld-fpill '+funcClass+'">'+(e.func)+'</span>':'')
+            +(hasFt?'<span class="ld-fpill" style="background:rgba(0,255,80,.07);color:rgba(0,220,80,.85);border:1px solid rgba(0,255,80,.2);font-family:\'Space Mono\',monospace">✈ '+e.flightTime+'</span>':'')
+            +(hasNoc?'<span class="ld-fpill ld-fpill-noc">'+e.night+' noc</span>':'')
+            +(e.std?'<span class="ld-fdate">'+e.std+'Z</span>':'')
+            +'<button class="ld-fdel" onclick="event.stopPropagation();ldDelete(\''+e.id+'\')" title="Eliminar">🗑</button>'
+          +'</div>'
+        +'</div>';
+      }
     });
   });
   container.innerHTML=html;
@@ -11069,12 +11128,18 @@ window.rosterSelectDay = function(dateStr){
         blockMin=_bem-_bsm; if(blockMin<0) blockMin+=1440;
       }
       var blockStr = blockMin>0 ? Math.floor(blockMin/60)+'h'+(('0'+(blockMin%60)).slice(-2))+'m' : '';
+      // ── Status dot (same rule as logbook cards) ──
+      var _lbBlock = _lb && (_lb.block || '');
+      var _lbComplete = hasL && atdOk && ataOk && !!_lbBlock;
+      var _legDotBg = _lbComplete ? '#22D3EE' : (hasL||hasA||hasE) ? '#F59E0B' : '#475569';
+      var _legDotShadow = _lbComplete ? '0 0 5px rgba(34,211,238,.6)' : (hasL||hasA||hasE) ? '0 0 5px rgba(245,158,11,.5)' : 'none';
+      var _legDotTitle = _lbComplete ? 'Completo · AOBT+AIBT+Block' : (hasL||hasA||hasE) ? 'Parcial' : 'Solo roster';
       html += '<div style="display:flex;align-items:stretch;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.09)">'
         + '<div style="background:'+flightCfg.bg+';padding:12px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:54px;gap:2px">'
         + '<span style="font-size:22px;line-height:1;filter:brightness(0) invert(1)">✈</span>'
         + (legNum ? '<span style="font-size:9px;font-weight:800;color:rgba(255,255,255,.85)">L'+legNum+'</span>' : '')
         + '</div>'
-        + '<div style="flex:1;background:#F8FAFF;border-top:1px solid rgba(30,58,164,.08);border-bottom:1px solid rgba(30,58,164,.08);padding:10px 13px;display:flex;flex-direction:column;justify-content:center;gap:3px">'
+        + '<div style="flex:1;background:#F8FAFF;border-top:1px solid rgba(30,58,164,.08);border-bottom:1px solid rgba(30,58,164,.08);padding:10px 13px;display:flex;flex-direction:column;justify-content:flex-start;gap:6px">'
         + '<div style="font-size:13px;font-weight:800;color:#0F172A">'
         + (e.flightNum||'—')
         + (isPos ? ' <span style="font-size:10px;font-weight:700;background:#FEF3C7;color:#92400E;border:1px solid #FCD34D;border-radius:4px;padding:1px 5px">POSICIONAL</span>' : '')
@@ -11106,6 +11171,7 @@ window.rosterSelectDay = function(dateStr){
         + (blockStr
             ? '<span style="font-size:13px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace;line-height:1;text-align:center;background:rgba(255,255,255,.92);border-radius:4px;padding:2px 6px">'+blockStr+'</span>'
             : '')
+        + '<div title="'+_legDotTitle+'" style="width:8px;height:8px;border-radius:50%;background:'+_legDotBg+';box-shadow:'+_legDotShadow+';flex-shrink:0"></div>'
         + '</div>'
         + '</div>';
     });
@@ -12577,53 +12643,196 @@ function rosterFindNearestFlight(){
   return best || todayFlights[0];
 }
 
-window.ldImportFromRoster = function(){
+// ── ROSTER IMPORT OPTION A — bottom sheet with date strip ──────────
+var _rstImportSelDate = null;
+
+window.ldRosterImportOpen = function(){
   rstLoad();
-  var flight = rosterFindNearestFlight();
-  if(!flight){
-    if(typeof showToast==='function') showToast('No hay vuelos en el roster para hoy');
-    return;
+  var hasFlights = RST.entries.some(function(e){ return e.type==='flight'; });
+  if(!hasFlights){ showToast('No hay vuelos en el roster','info'); return; }
+  var todayStr = new Date().toISOString().slice(0,10);
+  var hasToday = RST.entries.some(function(e){ return e.type==='flight' && e.date===todayStr; });
+  if(hasToday){
+    _rstImportSelDate = todayStr;
+  } else {
+    var nf = rosterFindNearestFlight();
+    _rstImportSelDate = nf ? nf.date : todayStr;
+  }
+  _ldRstImportRender();
+  var ov = document.getElementById('ld-rst-import-overlay');
+  if(ov){ ov.style.display='flex'; document.body.style.overflow='hidden'; }
+};
+
+window.ldRosterImportClose = function(){
+  var ov = document.getElementById('ld-rst-import-overlay');
+  if(ov) ov.style.display='none';
+  document.body.style.overflow='';
+};
+
+window.ldRosterImportSelectDay = function(ds){
+  _rstImportSelDate = ds;
+  _ldRstImportRender();
+};
+
+window.ldRosterImportShiftDays = function(delta){
+  var d = new Date((_rstImportSelDate||new Date().toISOString().slice(0,10))+'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate()+delta);
+  _rstImportSelDate = d.toISOString().slice(0,10);
+  _ldRstImportRender();
+};
+
+function _ldRstImportRender(){
+  var sheet = document.getElementById('ld-rst-import-sheet');
+  if(!sheet) return;
+  var selDate = _rstImportSelDate || new Date().toISOString().slice(0,10);
+  var todayStr = new Date().toISOString().slice(0,10);
+  var DAYS_ES = ['DO','LU','MA','MI','JU','VI','SA'];
+  var MONTHS_F = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+  // 7-day strip centred on selDate
+  var centre = new Date(selDate+'T12:00:00Z');
+  var stripDates = [];
+  for(var d=-3;d<=3;d++){
+    var dd=new Date(centre.getTime()+d*86400000);
+    stripDates.push(dd.toISOString().slice(0,10));
   }
 
-  // Open logbook modal in manual mode
-  if(typeof ldOpenModal==='function') ldOpenModal(true);
+  var stripHtml='<div style="display:flex;align-items:center;gap:3px;overflow-x:auto;padding:4px 0 10px;scrollbar-width:none;-ms-overflow-style:none">'
+    +'<button onclick="ldRosterImportShiftDays(-7)" style="background:none;border:none;color:rgba(245,158,11,.55);font-size:20px;cursor:pointer;padding:2px 6px;flex-shrink:0;line-height:1">‹</button>';
+  stripDates.forEach(function(ds){
+    var dtObj=new Date(ds+'T12:00:00Z');
+    var dn=DAYS_ES[dtObj.getUTCDay()];
+    var num=dtObj.getUTCDate();
+    var hasFl=RST.entries.some(function(e){return e.type==='flight'&&e.date===ds;});
+    var isSel=ds===selDate, isToday=ds===todayStr;
+    var bg=isSel?'rgba(245,158,11,.2)':'rgba(255,255,255,.04)';
+    var bdr=isSel?'1.5px solid rgba(245,158,11,.65)':'1.5px solid rgba(255,255,255,.07)';
+    var numCol=isSel?'#F59E0B':hasFl?'#F8FAFC':'rgba(248,250,252,.28)';
+    var dayCol=isSel?'#F59E0B':isToday?'#22D3EE':'rgba(248,250,252,.35)';
+    stripHtml+='<button onclick="ldRosterImportSelectDay(\''+ds+'\')" style="flex-shrink:0;width:42px;padding:7px 3px 5px;background:'+bg+';border:'+bdr+';border-radius:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px">'
+      +'<span style="font-size:9px;font-family:\'Space Mono\',monospace;color:'+dayCol+';font-weight:700;letter-spacing:.5px">'+dn+'</span>'
+      +'<span style="font-size:17px;font-weight:700;color:'+numCol+';line-height:1.1">'+num+'</span>'
+      +'<div style="width:5px;height:5px;border-radius:50%;background:'+(hasFl?(isSel?'#F59E0B':'rgba(245,158,11,.5)'):'transparent')+'"></div>'
+    +'</button>';
+  });
+  stripHtml+='<button onclick="ldRosterImportShiftDays(7)" style="background:none;border:none;color:rgba(245,158,11,.55);font-size:20px;cursor:pointer;padding:2px 6px;flex-shrink:0;line-height:1">›</button></div>';
 
-  // Wait a tick for modal to render, then fill
+  // Flights for selected day
+  var dayFlights=RST.entries.filter(function(e){return e.type==='flight'&&e.date===selDate;});
+  var selObj=new Date(selDate+'T12:00:00Z');
+  var dateLabel=selObj.getUTCDate()+' '+MONTHS_F[selObj.getUTCMonth()]+' '+selObj.getUTCFullYear();
+
+  var alreadyN=0, toImportN=0;
+  dayFlights.forEach(function(f){
+    var match=typeof rstFindLogbookMatch==='function'?rstFindLogbookMatch(f):null;
+    var isDraftAlready=ldEntries.some(function(e){return e.source==='ROSTER-DRAFT'&&e.date===f.date&&e.dep===f.dep&&e.arr===f.arr;});
+    if(match||isDraftAlready) alreadyN++; else toImportN++;
+  });
+
+  var flHtml='';
+  if(!dayFlights.length){
+    flHtml='<div style="padding:22px 0;text-align:center;color:rgba(248,250,252,.28);font-family:\'Space Grotesk\',sans-serif;font-size:13px">Sin vuelos en roster para este día</div>';
+  } else {
+    dayFlights.forEach(function(f){
+      var match=typeof rstFindLogbookMatch==='function'?rstFindLogbookMatch(f):null;
+      var isDraftAlready=ldEntries.some(function(e){return e.source==='ROSTER-DRAFT'&&e.date===f.date&&e.dep===f.dep&&e.arr===f.arr;});
+      var inLB=!!(match||isDraftAlready);
+      var barBg=inLB?'#22D3EE':'linear-gradient(180deg,#F59E0B,#F97316)';
+      var cardBg=inLB?'rgba(34,211,238,.06)':'rgba(245,158,11,.06)';
+      var cardBdr=inLB?'1px solid rgba(34,211,238,.18)':'1px solid rgba(245,158,11,.2)';
+      var statusCol=inLB?'#22D3EE':'rgba(245,158,11,.75)';
+      var statusTxt=inLB?(isDraftAlready?'⏱ borrador':'✓ en logbook'):'→ importar';
+      flHtml+='<div style="margin-bottom:9px;padding:11px 13px;background:'+cardBg+';border:'+cardBdr+';border-radius:13px;display:flex;align-items:center;gap:11px">'
+        +'<div style="width:3px;height:40px;border-radius:2px;background:'+barBg+';flex-shrink:0"></div>'
+        +'<div style="flex:1;min-width:0">'
+          +'<div style="font-family:\'DM Mono\',\'Space Mono\',monospace;font-size:16px;font-weight:500;color:#F8FAFC">'+(f.dep||'?')+'<span style="color:#F59E0B;margin:0 7px;font-size:13px">›</span>'+(f.arr||'?')+'</div>'
+          +'<div style="font-size:11px;color:rgba(248,250,252,.38);font-family:\'Space Mono\',monospace;margin-top:3px">'+(f.flightNum||'—')+' · '+(f.std||'—')+'–'+(f.sta||'—')+'</div>'
+        +'</div>'
+        +'<div style="font-size:10px;font-family:\'Space Mono\',monospace;color:'+statusCol+';font-weight:700;white-space:nowrap">'+statusTxt+'</div>'
+      +'</div>';
+    });
+  }
+
+  var confirmHtml=toImportN>0
+    ?'<button onclick="ldRosterImportConfirm()" style="width:100%;padding:15px;background:linear-gradient(135deg,rgba(245,158,11,.22),rgba(249,115,22,.16));border:1.5px solid rgba(245,158,11,.5);border-radius:15px;color:#F59E0B;font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;letter-spacing:.3px">'
+        +'<span style="font-size:18px">✈</span>'
+        +'<span>Importar '+toImportN+' vuelo'+(toImportN===1?'':'s')+'</span>'
+      +'</button>'
+    :'<div style="width:100%;padding:14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:15px;color:rgba(248,250,252,.22);font-family:\'Space Grotesk\',sans-serif;font-size:13px;font-weight:600;text-align:center">'
+      +(alreadyN>0?'Todos los vuelos ya están en el logbook':'Sin vuelos para importar')
+    +'</div>';
+
+  sheet.innerHTML=''
+    +'<div style="display:flex;justify-content:center;padding:13px 0 4px">'
+      +'<div style="width:38px;height:4px;background:rgba(245,158,11,.35);border-radius:2px"></div>'
+    +'</div>'
+    +'<div style="padding:8px 18px 10px;display:flex;align-items:flex-start;justify-content:space-between">'
+      +'<div>'
+        +'<div style="font-family:\'Space Mono\',monospace;font-size:10px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:rgba(245,158,11,.65);margin-bottom:3px">Importar desde Roster</div>'
+        +'<div style="font-family:\'DM Mono\',\'Space Mono\',monospace;font-size:21px;font-weight:500;color:#F8FAFC">'+dateLabel+'</div>'
+      +'</div>'
+      +'<button onclick="ldRosterImportClose()" style="background:rgba(255,255,255,.08);border:none;border-radius:50%;width:32px;height:32px;color:rgba(248,250,252,.45);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:4px">✕</button>'
+    +'</div>'
+    +'<div style="padding:0 14px">'+stripHtml+'</div>'
+    +'<div style="margin:0 18px 12px;height:1px;background:linear-gradient(90deg,rgba(245,158,11,.35),rgba(245,158,11,.04))"></div>'
+    +'<div style="padding:0 16px">'
+      +(dayFlights.length?'<div style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:rgba(245,158,11,.5);font-family:\'Space Mono\',monospace;margin-bottom:10px;font-weight:700">'+dayFlights.length+' vuelo'+(dayFlights.length===1?'':'s')+' · '+alreadyN+' en logbook · '+toImportN+' nuevo'+(toImportN===1?'':'s')+'</div>':'')
+      +flHtml
+    +'</div>'
+    +'<div style="padding:6px 16px 20px">'+confirmHtml+'</div>';
+}
+
+window.ldRosterImportConfirm = function(){
+  rstLoad();
+  var selDate = _rstImportSelDate;
+  var dayFlights = RST.entries.filter(function(e){return e.type==='flight'&&e.date===selDate;});
+  var realCount = ldRealEntryCount();
+  var imported=0, skipped=0;
+  dayFlights.forEach(function(f){
+    var match=typeof rstFindLogbookMatch==='function'?rstFindLogbookMatch(f):null;
+    var isDraftAlready=ldEntries.some(function(e){return e.source==='ROSTER-DRAFT'&&e.date===f.date&&e.dep===f.dep&&e.arr===f.arr;});
+    if(match||isDraftAlready){skipped++;return;}
+    if(!isPro()&&(realCount+imported)>=PLAN_FREE_LOGBOOK_LIMIT){showPlanToast('limit');return;}
+    var blockStr='';
+    if(f.std&&f.sta){
+      var sm=parseInt(f.std.split(':')[0])*60+parseInt(f.std.split(':')[1]);
+      var em=parseInt(f.sta.split(':')[0])*60+parseInt(f.sta.split(':')[1]);
+      var bm=em-sm; if(bm<0)bm+=1440;
+      blockStr=Math.floor(bm/60)+':'+String(bm%60).padStart(2,'0');
+    }
+    ldEntries.unshift({
+      id:Date.now().toString(36)+Math.random().toString(36).slice(2,5)+'_d'+imported,
+      savedAt:new Date().toISOString(),
+      source:'ROSTER-DRAFT',
+      date:f.date, flight:f.flightNum||'',
+      dep:(f.dep||'').toUpperCase(), arr:(f.arr||'').toUpperCase(),
+      std:f.std||'', sta:f.sta||'',
+      block:blockStr, acType:f.acType||'', reg:f.reg||'',
+      role:lsGet('ld_pref_role')||'FO',
+      rosterEntryId:f.id||null,
+      atd:null, ata:null, aobt:null, aibt:null
+    });
+    imported++;
+  });
+  if(imported>0){
+    ldSaveData(); ldSyncToServer(); ldRender(); ldStats(); ldUpdatePlanBanners();
+    ldRosterImportClose();
+    showToast('✅ '+imported+' vuelo'+(imported===1?'':'s')+' importado'+(imported===1?'':'s')+' como borrador','success');
+  } else if(skipped>0){
+    ldRosterImportClose();
+    showToast('Todos los vuelos ya estaban en el logbook','info');
+  } else {
+    showToast('Sin vuelos para importar','info');
+  }
+};
+
+// Quick camera OCR shortcut — opens modal in photo mode and fires camera input
+window.ldQuickCamera = function(){
+  ldOpenModal(false);
   setTimeout(function(){
-    // Fill fields
-    if(flight.date){ var df=document.getElementById('ld_date'); if(df) df.value=flight.date; }
-    if(flight.flightNum){ var ff=document.getElementById('ld_flight'); if(ff) ff.value=flight.flightNum; }
-    if(flight.dep){ var df2=document.getElementById('ld_dep'); if(df2) df2.value=flight.dep; }
-    if(flight.arr){ var af=document.getElementById('ld_arr'); if(af) af.value=flight.arr; }
-    if(flight.std){ var stdf=document.getElementById('ld_std'); if(stdf) stdf.value=flight.std; }
-    if(flight.sta){ var staf=document.getElementById('ld_sta'); if(staf) staf.value=flight.sta; }
-
-    // Auto calc block if STD+STA exist
-    if(flight.std && flight.sta){
-      var stdM = parseInt(flight.std.split(':')[0])*60+parseInt(flight.std.split(':')[1]);
-      var staM = parseInt(flight.sta.split(':')[0])*60+parseInt(flight.sta.split(':')[1]);
-      var blockM = staM - stdM; if(blockM<0) blockM+=1440;
-      var blockStr = Math.floor(blockM/60)+':'+String(blockM%60).padStart(2,'0');
-      var bf = document.getElementById('ld_block'); if(bf) bf.value=blockStr;
-    }
-
-    // Switch to photo mode so they can scan MCDU to override block times
-    if(typeof ldManual !== 'undefined') {
-      // Show the upload zone for photo, keep fields filled
-      var zone = document.getElementById('ld_zone');
-      if(zone) zone.style.display='';
-    }
-
-    // Show prefill banner
-    var banner = document.getElementById('ld-roster-prefill-banner');
-    var btitle = document.getElementById('ld-roster-prefill-title');
-    var bsub = document.getElementById('ld-roster-prefill-sub');
-    if(banner){ banner.style.display='flex'; }
-    if(btitle) btitle.textContent = (flight.flightNum||'Vuelo') + ' · ' + (flight.dep||'—') + ' → ' + (flight.arr||'—');
-    if(bsub) bsub.textContent = 'STD '+flight.std+' · STA '+flight.sta+' · Haz foto MCDU para confirmar block times';
-
-    if(typeof showToast==='function') showToast('✅ Datos del roster cargados — confirma con foto MCDU');
-  }, 120);
+    var cam = document.getElementById('ld_file_cam');
+    if(cam) cam.click();
+  }, 280);
 };
 
 // Hook into logbook screen init to show roster button
