@@ -9292,11 +9292,8 @@ function ldBackendUrl(){
 // PUSH — enviar todos los vuelos al servidor (silent)
 async function ldSyncToServer(){
   var token=ldAuthHeaders(); if(!token||!ldEntries.length)return;
-  // ── Backup en la nube solo Pro/Unlimited ──
-  if(!isPro()){
-    ldSetSyncStatus('local');
-    return;
-  }
+  // No bloquear por plan local — el servidor devuelve 403 si es free
+  // Así el plan en localStorage siempre se actualiza desde la respuesta del servidor
   try{
     var realEntries=ldEntries.filter(function(e){
       return e&&e.id!==LD_AC_DB_ENTRY_ID&&e.type!=='__ac_db__';
@@ -9341,8 +9338,7 @@ function ldSetSyncStatus(status){
 // PULL — descargar desde el servidor y hacer merge
 async function ldPullFromServer(){
   var token=ldAuthHeaders(); if(!token)return;
-  // ── Pull solo Pro/Unlimited ──
-  if(!isPro()) return;
+  // No bloquear por plan local — si el servidor responde, el usuario tiene acceso
   try{
     var r=await fetch(ldBackendUrl()+'/api/logbook',{
       headers:{'Authorization':'Bearer '+token}
