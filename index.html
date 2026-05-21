@@ -5694,6 +5694,17 @@ input#ld_fl, input#ld_cond { display:none !important; }
         <span id="ld-plan-bar-pct">0%</span>
       </div>
     </div>
+    <!-- Banner: restaurar desde nube (logado pero logbook vacío) -->
+    <div id="ld-restore-banner" style="display:none;margin-bottom:10px;padding:12px 14px;background:rgba(34,211,238,.06);border:1px solid rgba(34,211,238,.2);border-radius:12px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:18px;flex-shrink:0">☁</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:600;color:#22D3EE">Tus vuelos están en la nube</div>
+          <div style="font-size:11px;color:rgba(34,211,238,.5);font-family:'Space Mono',monospace;margin-top:2px">Pulsa para descargarlos a este dispositivo.</div>
+        </div>
+        <button id="ld-restore-btn" onclick="ldRestoreFromServer()" style="flex-shrink:0;padding:6px 12px;background:rgba(34,211,238,.15);border:1px solid rgba(34,211,238,.3);border-radius:8px;color:#22D3EE;font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">☁ Restaurar vuelos desde la nube</button>
+      </div>
+    </div>
     <!-- Indicador sync -->
     <div id="ld-sync-indicator" style="display:none;text-align:right;margin-bottom:6px;min-height:16px"></div>
     <!-- ── / PLAN BANNERS ── -->
@@ -9130,6 +9141,10 @@ function ldUpdatePlanBanners(){
   var noAuthEl = document.getElementById('ld-banner-noauth');
   if(noAuthEl) noAuthEl.style.display = loggedIn ? 'none' : 'flex';
 
+  // Banner "restaurar desde nube" — logado pero logbook vacío
+  var restoreEl = document.getElementById('ld-restore-banner');
+  if (restoreEl) restoreEl.style.display = (loggedIn && ldRealEntryCount()===0) ? 'block' : 'none';
+
   // Banner límite Free
   var limitEl = document.getElementById('ld-banner-planlimit');
   if(limitEl){
@@ -9337,6 +9352,51 @@ function ldSetSyncStatus(status){
 }
 
 // PULL — descargar desde el servidor y hacer merge
+// ── Restaurar logbook desde servidor — no requiere isPro(), solo token válido ──
+async function ldRestoreFromServer(){
+  var token = ldAuthHeaders();
+  if (!token) { showToast('Inicia sesión primero','error'); return; }
+  var btn = document.getElementById('ld-restore-btn');
+  if (btn) { btn.textContent = '⏳ Restaurando...'; btn.disabled = true; }
+  try {
+    // 1. Obtener plan del servidor y actualizar localStorage
+    var meRes = await fetch(ldBackendUrl()+'/api/me', { headers:{'Authorization':'Bearer '+token} });
+    if (meRes.ok) {
+      var me = await meRes.json();
+      if (me.plan) { lsSet('pilotOS_plan', me.plan); }
+    }
+    // 2. Descargar todos los vuelos
+    var r = await fetch(ldBackendUrl()+'/api/logbook', { headers:{'Authorization':'Bearer '+token} });
+    if (!r.ok) throw new Error('Error '+r.status);
+    var body = await r.json();
+    var serverEntries = (body.entries||[]).filter(function(e){
+      return e && e.id !== LD_AC_DB_ENTRY_ID && e.type !== '__ac_db__';
+    });
+    if (!serverEntries.length) { showToast('No hay vuelos en la nube todavía','info'); return; }
+    // 3. Merge con lo que hay local
+    var map = {};
+    ldEntries.forEach(function(e){ if(e.id) map[e.id]=e; });
+    serverEntries.forEach(function(se){
+      if (!se||!se.id) return;
+      var local = map[se.id];
+      if (!local) map[se.id]=se;
+      else if (se.savedAt && local.savedAt && se.savedAt > local.savedAt) map[se.id]=se;
+    });
+    ldEntries = Object.values(map).sort(function(a,b){
+      return (b.date||'').localeCompare(a.date||'')||(b.savedAt||'').localeCompare(a.savedAt||'');
+    });
+    ldSaveData(); ldRender(); ldStats(); ldUpdatePlanBanners();
+    // Ocultar botón de restauración tras éxito
+    var restoreEl = document.getElementById('ld-restore-banner');
+    if (restoreEl) restoreEl.style.display = 'none';
+    showToast('✅ '+serverEntries.length+' vuelos restaurados desde la nube','success');
+  } catch(e) {
+    showToast('❌ Error: '+e.message,'error');
+  } finally {
+    if (btn) { btn.textContent = '☁ Restaurar vuelos desde la nube'; btn.disabled = false; }
+  }
+}
+
 async function ldPullFromServer(){
   var token=ldAuthHeaders(); if(!token)return;
   // ── Pull solo Pro/Unlimited ──
@@ -12815,6 +12875,12 @@ async function pagDoAuth() {
       if (airline) lsSet('pag_airline', airline);
       updateUserAvatar(data.user);
       pagHide();
+      // Resetear el guard de _initLD para que el próximo goTo('logbook') haga el pull
+      window._ldOk = 0; window._ldInitPlan = null;
+      // Si ya estamos en el logbook, restaurar inmediatamente
+      if (typeof curScreen !== 'undefined' && curScreen === 'logbook' && typeof ldRestoreFromServer === 'function') {
+        setTimeout(ldRestoreFromServer, 300);
+      }
       if (typeof cafiAddMsg === 'function') {
         setTimeout(function(){
           cafiAddMsg('ai', '✅ <strong>Conectado como ' + (data.user.name || data.user.email) + '</strong><br>CAFI tiene acceso al FCOM/FCTM completo de Vueling via RAG. ¿Por dónde empezamos?');
