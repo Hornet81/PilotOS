@@ -6099,6 +6099,11 @@ input#ld_fl, input#ld_cond { display:none !important; }
   </div>
 </div>
 
+<!-- ════════ FLIGHT DETAIL OVERLAY ════════ -->
+<div id="ld-card-overlay" onclick="if(event.target===this)ldCloseCard()" style="display:none;position:fixed;inset:0;z-index:510;background:rgba(5,10,20,.78);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);align-items:flex-end;justify-content:center">
+  <div id="ld-card-sheet" style="width:100%;max-width:520px;max-height:88vh;max-height:88dvh;background:linear-gradient(180deg,#111827 0%,#0B1020 100%);border-radius:20px 20px 0 0;overflow-y:auto;-webkit-overflow-scrolling:touch;border-top:1px solid rgba(34,211,238,.18)"></div>
+</div>
+
 <div class="bottom-tabs" id="btabs">
   <div class="btab on" id="bt-home" onclick="tabTo('home')"><div class="btab-pill"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Inicio</div></div>
   <div class="btab" id="bt-oes" onclick="tabTo('oes')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg><span class="btab-l">Exam</span></div>
@@ -8637,6 +8642,7 @@ var ldEntries = [];
 var ldFiltered = [];
 var ldPage = 1, LD_PER = 20;
 var ldImgB64 = null, ldManual = false;
+var ldEditingId = null;
 
 // UTC clock
 window._utcClock = setInterval(function(){
@@ -8929,11 +8935,19 @@ function ldSave(){
   if(_c2) ldNamesSave(_c2);
   // ── Guardar matrícula en BD de aeronaves ──
   if(e.reg && e.acType) ldAcDbSet(e.reg, e.acType, e.engine);
-  ldEntries.unshift(e); ldSaveData(); ldSyncToServer(); ldCloseModal(); ldRender(); ldStats(); ldUpdatePlanBanners();
+  // ── Modo edición: reemplazar entrada existente ──
+  var _editId = ldEditingId; ldEditingId = null;
+  if(_editId){
+    var _idx = ldEntries.findIndex(function(x){ return x.id===_editId; });
+    if(_idx>=0){ e.id=_editId; ldEntries[_idx]=e; }
+    else { ldEntries.unshift(e); }
+  } else {
+    ldEntries.unshift(e);
+  }
+  ldSaveData(); ldSyncToServer(); ldCloseModal(); ldRender(); ldStats(); ldUpdatePlanBanners();
   // Si el piloto tiene PayCheck abierto, refrescar automáticamente
   if (typeof curScreen !== 'undefined' && curScreen === 'pay' && typeof pcImportFromLogbook === 'function') pcImportFromLogbook();
-
-  showToast('✓ Vuelo '+e.dep+'→'+e.arr+' registrado','success');
+  showToast('✓ Vuelo '+e.dep+'→'+e.arr+(_editId?' actualizado':' registrado'),'success');
 }
 
 // Table
@@ -8982,7 +8996,7 @@ function ldRender(){
       var roleClass=e.role==='CPT'?'ld-fpill-cpt':'ld-fpill-fo';
       var funcClass=e.func==='PM'?'ld-fpill-pm':'ld-fpill-pf';
       var acLabel=(e.acType||'')+(e.reg?' · '+e.reg:'');
-      html+='<div class="ld-fcard">'
+      html+='<div class="ld-fcard" onclick="ldShowCard(\''+e.id+'\')">'
         +'<div class="ld-fcard-top">'
           +'<div style="flex:1">'
             +'<div class="ld-fcard-ap">'+(e.dep||'???')+'<span class="ld-far">›</span>'+(e.arr||'???')+'</div>'
@@ -9027,6 +9041,145 @@ function ldDelete(id){
   ldDeleteFromServer(id);
   showToast('Entrada eliminada','info');
 }
+
+// ── Flight detail card ────────────────────────────────────────────
+function ldShowCard(id){
+  var e=ldEntries.find(function(x){return x.id===id;});
+  if(!e) return;
+  var hasAtd=!!(e.atd||e.aobt), hasAta=!!(e.ata||e.aibt);
+  var dotCls=(hasAtd&&hasAta&&e.block)?'ld-fsdot complete':(e.block||e.dep||e.arr)?'ld-fsdot partial':'ld-fsdot';
+  var acLabel=(e.acType||'')+(e.reg?' · '+e.reg:'');
+  var roleClass=e.role==='CPT'?'ld-fpill-cpt':'ld-fpill-fo';
+  var funcClass=e.func==='PM'?'ld-fpill-pm':'ld-fpill-pf';
+  var nightOk=e.night&&e.night!=='00:00'&&e.night!=='0:00';
+  function pill(label,cls,extra){
+    if(!label) return '';
+    return '<span class="ld-fpill'+(cls?' '+cls:'')+(extra?'" style="'+extra:'')+'">'+label+'</span>';
+  }
+  function row(label,val,color){
+    return '<div style="margin-bottom:10px">'
+      +'<div style="font-size:10px;color:rgba(248,250,252,.35);font-family:\'Space Mono\',monospace;margin-bottom:2px">'+label+'</div>'
+      +'<div style="font-size:15px;font-family:\'Space Mono\',monospace;color:'+(color||'#F8FAFC')+'">'+val+'</div>'
+      +'</div>';
+  }
+  var html=''
+    +'<div style="display:flex;justify-content:center;padding:12px 0 4px">'
+      +'<div style="width:36px;height:4px;background:rgba(34,211,238,.25);border-radius:2px"></div>'
+    +'</div>'
+    // Header
+    +'<div style="padding:12px 18px 14px;border-bottom:1px solid rgba(34,211,238,.1);display:flex;align-items:flex-start;justify-content:space-between">'
+      +'<div>'
+        +'<div style="font-family:\'DM Mono\',\'Space Mono\',monospace;font-size:26px;font-weight:500;color:#F8FAFC;letter-spacing:.5px">'
+          +(e.dep||'???')+'<span style="color:#22D3EE;margin:0 8px;font-size:18px">›</span>'+(e.arr||'???')
+        +'</div>'
+        +'<div style="margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+          +'<span style="font-size:12px;color:rgba(248,250,252,.45);font-family:\'Space Mono\',monospace">'+(e.flight||'—')+' · '+ldFmtD(e.date)+'</span>'
+          +'<div class="'+dotCls+'" style="flex-shrink:0"></div>'
+        +'</div>'
+      +'</div>'
+      +'<button onclick="ldCloseCard()" style="background:rgba(255,255,255,.07);border:none;border-radius:50%;width:32px;height:32px;color:rgba(248,250,252,.5);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px">✕</button>'
+    +'</div>'
+    // Times grid
+    +'<div style="padding:14px 18px;border-bottom:1px solid rgba(34,211,238,.08)">'
+      +'<div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(34,211,238,.5);margin-bottom:12px">Tiempos</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px">'
+        +row('STD (sched out)',e.std||'—')
+        +row('STA (sched in)',e.sta||'—')
+        +row('ATD / AOBT (out)',e.atd||e.aobt||'—','#22D3EE')
+        +row('ATA / AIBT (in)',e.ata||e.aibt||'—','#22D3EE')
+      +'</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">'
+        +'<div style="background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.22);border-radius:12px;padding:10px 14px">'
+          +'<div style="font-size:9px;color:rgba(248,250,252,.4);text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px">Block</div>'
+          +'<div style="font-size:19px;font-family:\'Space Mono\',monospace;color:#F8FAFC;font-weight:700">'+(e.block||'—')+'</div>'
+        +'</div>'
+        +'<div style="background:rgba(34,211,238,.07);border:1px solid rgba(34,211,238,.15);border-radius:12px;padding:10px 14px">'
+          +'<div style="font-size:9px;color:rgba(248,250,252,.4);text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px">Flight time</div>'
+          +'<div style="font-size:19px;font-family:\'Space Mono\',monospace;color:#F8FAFC">'+(e.flightTime||'—')+'</div>'
+        +'</div>'
+      +'</div>'
+    +'</div>'
+    // Flight info
+    +'<div style="padding:12px 18px;border-bottom:1px solid rgba(34,211,238,.08)">'
+      +'<div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(34,211,238,.5);margin-bottom:10px">Vuelo</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px">'
+        +pill(acLabel,'ld-fpill-ac')
+        +pill(e.role,roleClass)
+        +pill(e.func,funcClass)
+        +pill(e.rules,'')
+        +pill(e.opType,'')
+        +(nightOk?pill(e.night+' noc','ld-fpill-noc'):'')
+        +(e.pernoc?pill('Pernoc','','background:rgba(251,191,36,.1);color:rgba(251,191,36,.9);border:1px solid rgba(251,191,36,.25)'):'')
+      +'</div>'
+      +((e.cm1||e.cm2)?'<div style="font-size:11px;color:rgba(248,250,252,.4);margin-bottom:4px">'
+        +(e.cm1?'CM1: <span style="color:rgba(248,250,252,.7)">'+e.cm1+'</span>&nbsp;&nbsp;':'')
+        +(e.cm2?'CM2: <span style="color:rgba(248,250,252,.7)">'+e.cm2+'</span>':'')
+        +'</div>':'')
+      +((e.ldgDay||e.ldgNight)?'<div style="font-size:11px;color:rgba(248,250,252,.4)">LDG: '+(e.ldgDay||0)+' día · '+(e.ldgNight||0)+' noc</div>':'')
+    +'</div>'
+    // Nómina
+    +'<div style="padding:12px 18px;border-bottom:1px solid rgba(34,211,238,.08)">'
+      +'<div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(251,191,36,.6);margin-bottom:10px">Nómina</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px">'
+        +'<div><div style="font-size:10px;color:rgba(248,250,252,.35);margin-bottom:2px">Block (nómina)</div>'
+          +'<div style="font-size:14px;font-family:\'Space Mono\',monospace;color:#FBBF24;font-weight:700">'+(e.block||'—')+'</div></div>'
+        +'<div><div style="font-size:10px;color:rgba(248,250,252,.35);margin-bottom:2px">Horas nocturnas</div>'
+          +'<div style="font-size:14px;font-family:\'Space Mono\',monospace;color:#FBBF24">'+(nightOk?e.night:'—')+'</div></div>'
+        +'<div><div style="font-size:10px;color:rgba(248,250,252,.35);margin-bottom:2px">Pernoc</div>'
+          +'<div style="font-size:13px;color:rgba(248,250,252,.7)">'+(e.pernoc?'Sí':'No')+'</div></div>'
+        +'<div><div style="font-size:10px;color:rgba(248,250,252,.35);margin-bottom:2px">Fuente</div>'
+          +'<div style="font-size:13px;color:rgba(248,250,252,.7)">'+(e.source||'MANUAL')+'</div></div>'
+      +'</div>'
+      +(e.notes?'<div style="margin-top:10px;padding:8px 12px;background:rgba(34,211,238,.05);border:1px solid rgba(34,211,238,.1);border-radius:10px;font-size:11px;color:rgba(248,250,252,.5);line-height:1.5">'+e.notes+'</div>':'')
+    +'</div>'
+    // Actions
+    +'<div style="padding:14px 18px 32px;display:flex;gap:10px">'
+      +'<button onclick="ldCloseCard();ldEditFlight(\''+e.id+'\')" style="flex:1;padding:13px;background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.3);border-radius:14px;color:rgba(180,160,255,.9);font-family:\'Space Grotesk\',sans-serif;font-size:14px;font-weight:600;cursor:pointer">✏ Editar</button>'
+      +'<button onclick="ldCloseCard();ldDelete(\''+e.id+'\')" style="padding:13px 18px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:14px;color:rgba(239,68,68,.8);font-family:\'Space Grotesk\',sans-serif;font-size:16px;cursor:pointer">🗑</button>'
+    +'</div>';
+  var sheet=document.getElementById('ld-card-sheet');
+  if(sheet) sheet.innerHTML=html;
+  var ov=document.getElementById('ld-card-overlay');
+  if(ov){ ov.style.display='flex'; document.body.style.overflow='hidden'; }
+}
+function ldCloseCard(){
+  var ov=document.getElementById('ld-card-overlay');
+  if(ov){ ov.style.display='none'; }
+  document.body.style.overflow='';
+}
+function ldEditFlight(id){
+  var e=ldEntries.find(function(x){return x.id===id;});
+  if(!e) return;
+  ldEditingId=id;
+  ldOpenModal(e.source!=='MCDU-OCR');
+  // Pre-fill all fields
+  var g2=function(fid,val){ var el=document.getElementById(fid); if(el) el.value=val||''; };
+  g2('ld_date',e.date); g2('ld_flight',e.flight);
+  g2('ld_dep',e.dep); g2('ld_arr',e.arr);
+  g2('ld_reg',e.reg); g2('ld_std',e.std);
+  g2('ld_atd',e.atd||e.aobt); g2('ld_sta',e.sta); g2('ld_ata',e.ata||e.aibt);
+  g2('ld_block',e.block); g2('ld_flight_time',e.flightTime);
+  g2('ld_night_inp',e.night); g2('ld_cm1',e.cm1); g2('ld_cm2',e.cm2);
+  g2('ld_notes',e.notes); g2('ld_ldgd',e.ldgDay||1); g2('ld_ldgn',e.ldgNight||0);
+  var selMap={ld_actype:'acType',ld_engine:'engine',ld_role:'role',ld_func:'func',ld_rules:'rules',ld_optype:'opType',ld_cond:'conditions'};
+  Object.keys(selMap).forEach(function(sid){
+    var sel=document.getElementById(sid);
+    if(sel&&e[selMap[sid]]) sel.value=e[selMap[sid]];
+  });
+  var pernoc=document.getElementById('ld_pernoc');
+  if(pernoc) pernoc.checked=!!e.pernoc;
+  // Update save button label
+  var saveBtn=document.querySelector('.ldm-btn-save');
+  if(saveBtn) saveBtn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Actualizar vuelo';
+}
+// Reset save button label when modal closes normally
+var _origLdCloseModal=ldCloseModal;
+ldCloseModal=function(){
+  _origLdCloseModal();
+  ldEditingId=null;
+  var saveBtn=document.querySelector('.ldm-btn-save');
+  if(saveBtn) saveBtn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Guardar vuelo';
+};
 
 // Stats
 function ldStats(){
