@@ -5607,6 +5607,18 @@ input#ld_fl, input#ld_cond { display:none !important; }
             <div style="font-size:10px;color:rgba(248,250,252,.3);font-family:'Space Mono',monospace">XLS · CSV · TXT</div>
           </div>
         </button>
+        <!-- Sync from cloud -->
+        <button id="ld-menu-sync-btn" onclick="ldCloseMenu();ldManualPull()" style="
+          width:100%;display:flex;align-items:center;gap:12px;padding:10px 12px;
+          background:transparent;border:1px solid rgba(34,211,238,.1);
+          border-radius:13px;cursor:pointer;margin-bottom:5px;transition:all .15s
+        " onmouseenter="this.style.background='rgba(34,211,238,.07)'" onmouseleave="this.style.background='transparent'">
+          <div style="width:32px;height:32px;border-radius:10px;background:rgba(34,211,238,.1);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">☁</div>
+          <div style="text-align:left">
+            <div style="font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:600;color:rgba(248,250,252,.75)">Sincronizar nube</div>
+            <div style="font-size:10px;color:rgba(248,250,252,.3);font-family:'Space Mono',monospace">Descargar desde Supabase</div>
+          </div>
+        </button>
         <!-- Export -->
         <button onclick="ldCloseMenu();ldToggleExport()" style="
           width:100%;display:flex;align-items:center;gap:12px;padding:10px 12px;
@@ -5696,7 +5708,7 @@ input#ld_fl, input#ld_cond { display:none !important; }
     </div>
 
     <!-- Indicador sync -->
-    <div id="ld-sync-indicator" style="display:none;text-align:right;margin-bottom:6px;min-height:16px"></div>
+    <div id="ld-sync-indicator" onclick="ldManualPull()" style="display:none;text-align:right;margin-bottom:6px;min-height:16px;cursor:pointer;-webkit-tap-highlight-color:transparent" title="Toca para sincronizar desde la nube"></div>
     <!-- ── / PLAN BANNERS ── -->
     <div class="ld-export-panel" id="ld_export">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
@@ -8597,7 +8609,7 @@ var PLAN_FREE_OES_LIMIT     = 20;
 function pilotPlan(){ return lsGet('pilotOS_plan', 'free'); }
 function isPro(){      return pilotPlan() === 'pro' || pilotPlan() === 'unlimited'; }
 function isUnlimited(){ return pilotPlan() === 'unlimited'; }
-function isLoggedIn(){ return !!(lsGet('cafi_auth_token', '')); }
+function isLoggedIn(){ var t=lsGet('cafi_auth_token',''); return !!(t&&t!=='demo-bypass-token'); }
 
 function planCanExport(){      return isPro(); }
 function planCanOCR(){         return isPro(); }
@@ -9329,10 +9341,11 @@ function ldSetSyncStatus(status){
   var el=document.getElementById('ld-sync-indicator');
   if(!el)return;
   var map={
-    ok:    ['☁','#22D3EE','Sincronizado'],
-    error: ['⚠','#FBBF24','Error de sync'],
-    limit: ['🔒','#F87171','Límite de plan'],
-    local: ['💾','rgba(248,250,252,.3)','Solo local · Actualiza a Pro'],
+    ok:      ['☁','#22D3EE','Sincronizado'],
+    error:   ['⚠','#FBBF24','Error de sync'],
+    limit:   ['🔒','#F87171','Límite de plan'],
+    local:   ['💾','rgba(248,250,252,.3)','Solo local · Actualiza a Pro'],
+    syncing: ['⏳','#67D7F5','Sincronizando…'],
   };
   var v=map[status]||map['ok'];
   el.innerHTML='<span style="color:'+v[1]+';font-size:11px;font-family:Space Mono,monospace">'+v[0]+' '+v[2]+'</span>';
@@ -9340,33 +9353,70 @@ function ldSetSyncStatus(status){
 
 // PULL — descargar desde el servidor y hacer merge
 async function ldPullFromServer(){
-  var token=ldAuthHeaders(); if(!token)return;
-  // No bloquear por plan local — si el servidor responde, el usuario tiene acceso
+  var token=ldAuthHeaders(); if(!token)return 0;
   try{
     var r=await fetch(ldBackendUrl()+'/api/logbook',{
       headers:{'Authorization':'Bearer '+token}
     });
-    if(!r.ok)return;
+    if(!r.ok){
+      // Try to get error detail
+      var errBody={}; try{errBody=await r.json();}catch(ex){}
+      console.warn('ldPullFromServer error', r.status, errBody);
+      return -1;
+    }
     var body=await r.json();
     var serverEntries=body.entries||[];
-    if(!serverEntries.length)return;
+    // Siempre sincronizar BD de matrículas, independientemente del plan
+    ldAcDbMergeFromServer(serverEntries);
+    // Filter only real flight entries
+    var realServerEntries=serverEntries.filter(function(e){
+      return e&&e.id&&e.id!==LD_AC_DB_ENTRY_ID&&e.type!=='__ac_db__';
+    });
+    if(!realServerEntries.length) return 0;
     // Merge: deduplicar por id, mantener el más reciente (savedAt)
     var map={};
     ldEntries.forEach(function(e){if(e.id)map[e.id]=e;});
     var newCount=0;
-    serverEntries.forEach(function(se){
+    realServerEntries.forEach(function(se){
       if(!se||!se.id)return;
       var local=map[se.id];
       if(!local){map[se.id]=se;newCount++;}
       else if(se.savedAt&&local.savedAt&&se.savedAt>local.savedAt){map[se.id]=se;newCount++;}
     });
-    if(!newCount)return;
+    if(!newCount) return 0;
     ldEntries=Object.values(map).sort(function(a,b){
       return(b.date||'').localeCompare(a.date||'')||(b.savedAt||'').localeCompare(a.savedAt||'');
     });
-    ldSaveData(); ldRender(); ldStats();
-    showToast('☁ '+newCount+' vuelo'+(newCount>1?'s':'')+' sincronizado'+(newCount>1?'s':''),'info');
-  }catch(e){/* offline */}
+    ldSaveData(); ldRender(); ldStats(); ldUpdatePlanBanners();
+    return newCount;
+  }catch(e){ return -1; }
+}
+
+// Manual pull triggered by user (button / tap sync indicator)
+async function ldManualPull(){
+  var token=ldAuthHeaders();
+  if(!token){
+    showToast('Inicia sesión primero para sincronizar con la nube','error');
+    return;
+  }
+  ldSetSyncStatus('syncing');
+  var btn=document.getElementById('ld-menu-sync-btn');
+  if(btn){ btn.style.opacity='.5'; btn.style.pointerEvents='none'; }
+  try{
+    var n=await ldPullFromServer();
+    if(n>0){
+      showToast('☁ '+n+' vuelo'+(n!==1?'s':'')+' descargado'+(n!==1?'s':'')+' desde la nube','success');
+      ldSetSyncStatus('ok');
+    } else if(n===0){
+      showToast('☁ Todo al día — no hay vuelos nuevos en la nube','info');
+      ldSetSyncStatus('ok');
+    } else {
+      showToast('⚠ No se pudo conectar con el servidor','error');
+      ldSetSyncStatus('error');
+    }
+  }finally{
+    if(btn){ btn.style.opacity=''; btn.style.pointerEvents=''; }
+  }
 }
 
 // DELETE en servidor cuando se borra localmente
@@ -9719,6 +9769,9 @@ function ldImportConfirm(){
 }
 
 window._initLD=function(){
+  // Guard: evitar doble inicialización concurrente (e.g. goTo + post-login refresh)
+  if(window._ldInitRunning) return;
+  window._ldInitRunning = true;
   ldAcDbInit();
   ldLoad(); ldRender(); ldStats();
   ldSwitchTab('vuelos');
@@ -9732,42 +9785,27 @@ window._initLD=function(){
       return;
     }
     try{
+      ldSetSyncStatus('syncing');
       // 1. Obtener plan real del servidor ANTES de pintar los banners
       var meR=await fetch(ldBackendUrl()+'/api/me',{headers:{'Authorization':'Bearer '+token}});
       if(meR.ok){ var me=await meR.json(); if(me.plan) lsSet('pilotOS_plan',me.plan); }
       // Ahora los banners reflejan el plan real
       ldUpdatePlanBanners();
-      ldSetSyncStatus(isPro() ? 'ok' : 'local');
       // 2. Pull logbook — siempre si hay token, independientemente del plan
-      var r=await fetch(ldBackendUrl()+'/api/logbook',{headers:{'Authorization':'Bearer '+token}});
-      if(!r.ok)return;
-      var body=await r.json();
-      var serverEntries=body.entries||[];
-      ldAcDbMergeFromServer(serverEntries);
-      // Solo merge de vuelos para Pro/Unlimited
-      // No bloquear por plan local — el servidor decide el acceso
-      var realEntries=serverEntries.filter(function(e){
-        return e&&e.id!==LD_AC_DB_ENTRY_ID&&e.type!=='__ac_db__';
-      });
-      if(!realEntries.length) return;
-      var map={};
-      ldEntries.forEach(function(e){if(e.id)map[e.id]=e;});
-      var newCount=0;
-      realEntries.forEach(function(se){
-        if(!se||!se.id)return;
-        var local=map[se.id];
-        if(!local){map[se.id]=se;newCount++;}
-        else if(se.savedAt&&local.savedAt&&se.savedAt>local.savedAt){map[se.id]=se;newCount++;}
-      });
-      if(!newCount) return;
-      ldEntries=Object.values(map).sort(function(a,b){
-        return(b.date||'').localeCompare(a.date||'')||(b.savedAt||'').localeCompare(a.savedAt||'');
-      });
-      ldSaveData(); ldRender(); ldStats(); ldUpdatePlanBanners();
-      showToast('☁ '+newCount+' vuelo'+(newCount>1?'s':'')+' sincronizado'+(newCount>1?'s':''),'info');
+      var n=await ldPullFromServer();
+      if(n>0){
+        ldSetSyncStatus('ok');
+        showToast('☁ '+n+' vuelo'+(n!==1?'s':'')+' cargado'+(n!==1?'s':'')+' desde la nube','info');
+      } else if(n===0){
+        ldSetSyncStatus(isPro() ? 'ok' : 'local');
+      } else {
+        ldSetSyncStatus('error');
+      }
     }catch(e){
       ldUpdatePlanBanners();
       ldSetSyncStatus('error');
+    }finally{
+      window._ldInitRunning = false;
     }
   })();
 };
