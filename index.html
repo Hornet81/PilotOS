@@ -5668,7 +5668,7 @@ input#ld_fl, input#ld_cond { display:none !important; }
 
     <!-- ── PLAN BANNERS ── -->
     <!-- Banner: usuario sin cuenta (datos solo locales) -->
-    <div id="ld-banner-noauth" style="display:none;margin-bottom:10px;padding:10px 14px;background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.25);border-radius:12px;display:flex;align-items:center;gap:10px">
+    <div id="ld-banner-noauth" style="display:none;margin-bottom:10px;padding:10px 14px;background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.25);border-radius:12px;align-items:center;gap:10px">
       <span style="font-size:18px;flex-shrink:0">⚠️</span>
       <div style="flex:1;min-width:0">
         <div style="font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:600;color:rgba(251,191,36,.9)">Datos solo en este dispositivo</div>
@@ -8635,7 +8635,10 @@ function ldLoad(){
   catch(e){ ldEntries=[]; }
   ldFiltered=ldEntries.slice();
 }
-function ldSaveData(){ localStorage.setItem(LD_KEY,JSON.stringify(ldEntries)); }
+function ldSaveData(){
+  var ok=lsSet(LD_KEY,JSON.stringify(ldEntries));
+  if(!ok) showToast('⚠ Error guardando logbook: almacenamiento lleno','error');
+}
 
 function ldOpenModal(manual){
   ldManual=manual; ldResetForm();
@@ -9005,7 +9008,7 @@ function ldFilter(){ldPage=1;ldRender();}
 function ldDelete(id){
   if(!confirm('¿Eliminar esta entrada del logbook?')) return;
   ldEntries=ldEntries.filter(function(e){return e.id!==id;});
-  ldSaveData(); ldRender(); ldStats();
+  ldSaveData(); ldRender(); ldStats(); ldUpdatePlanBanners();
   ldDeleteFromServer(id);
   showToast('Entrada eliminada','info');
 }
@@ -9391,7 +9394,7 @@ function ldAcDbLoad(){
   catch(e){ return {}; }
 }
 function ldAcDbSave(db){
-  localStorage.setItem(LD_AC_DB_KEY, JSON.stringify(db));
+  lsSet(LD_AC_DB_KEY, JSON.stringify(db));
 }
 // Pre-poblar con flota Vueling conocida si la BD está vacía
 function ldAcDbInit(){
@@ -9710,8 +9713,9 @@ function ldImportConfirm(){
   // Sincronizar logbook Y bd de matrículas al servidor
   ldSyncToServer();
   ldAcDbSyncToServer();
-  ldCloseImport(); ldRender(); ldStats();
-  showToast('✓ '+added+' vuelos importados'+(skipped?' · '+skipped+' ya existían':''),'success');
+  ldCloseImport(); ldRender(); ldStats(); ldUpdatePlanBanners();
+  var syncMsg = ldAuthHeaders() ? '' : ' (sin cuenta: datos solo locales)';
+  showToast('✓ '+added+' vuelo'+(added!==1?'s':'')+' importado'+(added!==1?'s':'')+(skipped?' · '+skipped+' ya existían':'')+syncMsg,'success');
 }
 
 window._initLD=function(){
