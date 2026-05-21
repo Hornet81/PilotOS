@@ -5676,8 +5676,8 @@ input#ld_fl, input#ld_cond { display:none !important; }
         <!-- Roster import (compact) -->
         <button onclick="ldRosterImportOpen()" style="flex:1;padding:9px 11px;background:linear-gradient(135deg,rgba(8,145,178,.15),rgba(109,40,217,.11));border:1.5px solid rgba(103,232,249,.28);border-radius:13px;color:#67d7f5;font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;-webkit-tap-highlight-color:transparent">
           <span style="font-size:14px">🗓</span>
-          <span>Importar Roster</span>
-          <span id="ld-roster-flight-hint" style="font-size:10px;font-weight:500;color:rgba(103,232,249,.6)"></span>
+          <span>Importar desde Roster</span>
+          <span id="ld-roster-flight-hint" style="display:none"></span>
         </button>
         <!-- Quick Camera OCR -->
         <button onclick="ldQuickCamera()" title="Foto MCDU · OCR directo" style="width:46px;flex-shrink:0;padding:0;background:rgba(34,211,238,.07);border:1.5px solid rgba(34,211,238,.32);border-radius:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#22D3EE;transition:background .18s,border-color .18s,box-shadow .18s;box-shadow:0 0 10px rgba(34,211,238,.12);-webkit-tap-highlight-color:transparent">
@@ -9179,21 +9179,59 @@ function ldShowCard(id){
         +'</div>':'')
       +((e.ldgDay||e.ldgNight)?'<div style="font-size:11px;color:rgba(248,250,252,.4)">LDG: '+(e.ldgDay||0)+' día · '+(e.ldgNight||0)+' noc</div>':'')
     +'</div>'
-    // Nómina
-    +'<div style="padding:12px 18px;border-bottom:1px solid rgba(34,211,238,.08)">'
-      +'<div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(251,191,36,.6);margin-bottom:10px">Nómina</div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px">'
-        +'<div><div style="font-size:10px;color:rgba(248,250,252,.35);margin-bottom:2px">Block (nómina)</div>'
-          +'<div style="font-size:14px;font-family:\'Space Mono\',monospace;color:#FBBF24;font-weight:700">'+(e.block||'—')+'</div></div>'
-        +'<div><div style="font-size:10px;color:rgba(248,250,252,.35);margin-bottom:2px">Horas nocturnas</div>'
-          +'<div style="font-size:14px;font-family:\'Space Mono\',monospace;color:#FBBF24">'+(nightOk?e.night:'—')+'</div></div>'
-        +'<div><div style="font-size:10px;color:rgba(248,250,252,.35);margin-bottom:2px">Pernoc</div>'
-          +'<div style="font-size:13px;color:rgba(248,250,252,.7)">'+(e.pernoc?'Sí':'No')+'</div></div>'
-        +'<div><div style="font-size:10px;color:rgba(248,250,252,.35);margin-bottom:2px">Fuente</div>'
-          +'<div style="font-size:13px;color:rgba(248,250,252,.7)">'+(e.source||'MANUAL')+'</div></div>'
-      +'</div>'
-      +(e.notes?'<div style="margin-top:10px;padding:8px 12px;background:rgba(34,211,238,.05);border:1px solid rgba(34,211,238,.1);border-radius:10px;font-size:11px;color:rgba(248,250,252,.5);line-height:1.5">'+e.notes+'</div>':'')
-    +'</div>'
+    // ── Nómina: calcular con datos del convenio ──
+    +(function(){
+      if(!window.CONVENIO) return '';
+      var SPAIN = {'BCN':1,'MAD':1,'PMI':1,'IBZ':1,'AGP':1,'VLC':1,'ALC':1,'LPA':1,'TFN':1,'TFS':1,'SDR':1,'BIO':1,'ZAZ':1,'GRX':1,'REU':1,'GRO':1,'SVQ':1,'XRY':1,'ACE':1,'FUE':1,'SPC':1,'GMZ':1,'MLN':1,'OVD':1,'SCQ':1,'VGO':1,'LCG':1,'PNA':1,'EAS':1,'VIT':1,'RJL':1,'ODB':1,'LEI':1,'MJV':1,'MCU':1,'RGS':1};
+      var sp = (e.role==='CPT') ? CONVENIO.cmd : CONVENIO.cop;
+      var D  = CONVENIO.dietas;
+      var blockH = ldT2m(e.block||'0:00') / 60;
+      var nightH = Math.min(ldT2m(e.night||'0:00') / 60, blockH);
+      var dayH   = blockH - nightH;
+      var plusDay = dayH  * sp.plusHoraVuelo;
+      var plusNoc = nightH * sp.horaNoct;
+      var plusHV  = plusDay + plusNoc;
+      var isNac   = !!(SPAIN[e.dep] && SPAIN[e.arr]);
+      var dietaTxt, dietaAmt;
+      if(e.pernoc){
+        if(isNac){ dietaTxt='Pernoc nacional'; dietaAmt=D.nac_pern.sujeta+D.nac_pern.exenta; }
+        else      { dietaTxt='Pernoc internacional'; dietaAmt=D.pernoc.sujeta+D.pernoc.exenta; }
+      } else {
+        if(isNac){ dietaTxt='Dieta nacional'; dietaAmt=D.nac.sujeta+D.nac.exenta; }
+        else      { dietaTxt='Dieta internacional'; dietaAmt=D.int.sujeta+D.int.exenta; }
+      }
+      var total = plusHV + dietaAmt;
+      function eur(n){ return n.toFixed(2)+' €'; }
+      function nomLine(label, detail, amt){
+        return '<div style="display:flex;align-items:baseline;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)">'
+          +'<div>'
+            +'<span style="font-size:12px;color:rgba(248,250,252,.65);font-family:\'Space Grotesk\',sans-serif">'+label+'</span>'
+            +(detail?'<span style="font-size:10px;color:rgba(248,250,252,.25);font-family:\'Space Mono\',monospace;margin-left:7px">'+detail+'</span>':'')
+          +'</div>'
+          +'<span style="font-size:13px;font-family:\'Space Mono\',monospace;color:#FBBF24;font-weight:600">+'+eur(amt)+'</span>'
+        +'</div>';
+      }
+      var html2='<div style="padding:14px 18px 14px;border-bottom:1px solid rgba(34,211,238,.08)">'
+        +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
+          +'<div style="font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(251,191,36,.65)">Nómina estimada</div>'
+          +'<div style="font-size:10px;font-family:\'Space Mono\',monospace;color:rgba(251,191,36,.35)">'+(e.role==='CPT'?'CMD':'COP')+' · IV Convenio 2026</div>'
+        +'</div>';
+      if(blockH > 0){
+        html2 += nomLine('Plus hora vuelo', blockH.toFixed(2)+'h × '+eur(sp.plusHoraVuelo), plusDay);
+        if(nightH > 0){
+          html2 += '<div style="padding:2px 0 5px 14px;font-size:10px;color:rgba(248,250,252,.3);font-family:\'Space Mono\',monospace">↳ noc '+nightH.toFixed(2)+'h × '+eur(sp.horaNoct)+' = +'+eur(plusNoc)+'</div>';
+        }
+      }
+      html2 += nomLine(dietaTxt, '', dietaAmt);
+      html2 += '<div style="margin:12px 0 0;padding:11px 14px;background:rgba(251,191,36,.09);border:1px solid rgba(251,191,36,.22);border-radius:13px;display:flex;align-items:baseline;justify-content:space-between">'
+          +'<span style="font-size:11px;color:rgba(251,191,36,.7);font-family:\'Space Grotesk\',sans-serif;font-weight:600">Total estimado vuelo</span>'
+          +'<span style="font-size:22px;font-weight:700;font-family:\'Space Mono\',monospace;color:#FBBF24">≈ '+eur(total)+'</span>'
+        +'</div>'
+        +'<div style="margin-top:7px;font-size:9px;color:rgba(248,250,252,.2);font-family:\'Space Mono\',monospace;line-height:1.5;text-align:center">Bruto · sin IRPF ni SS · sin complementos ni primas</div>'
+        +(e.notes?'<div style="margin-top:10px;padding:8px 12px;background:rgba(34,211,238,.05);border:1px solid rgba(34,211,238,.1);border-radius:10px;font-size:11px;color:rgba(248,250,252,.5);line-height:1.5">'+e.notes+'</div>':'')
+      +'</div>';
+      return html2;
+    })()
     // Actions
     +'<div style="padding:14px 18px 32px;display:flex;gap:10px">'
       +'<button onclick="ldCloseCard();ldEditFlight(\''+e.id+'\')" style="flex:1;padding:13px;background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.3);border-radius:14px;color:rgba(180,160,255,.9);font-family:\'Space Grotesk\',sans-serif;font-size:14px;font-weight:600;cursor:pointer">✏ Editar</button>'
