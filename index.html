@@ -8768,7 +8768,9 @@ function ldResetForm(){
   var tw=document.getElementById('ldm-times-wrap'); if(tw) tw.classList.remove('mcdu-ok');
   document.getElementById('ld_ldgd').value=1;
   document.getElementById('ld_ldgn').value=0;
-  document.getElementById('ld_role').selectedIndex=1;
+  var _prefRole=lsGet('ld_pref_role','FO');
+  var _roleSel=document.getElementById('ld_role');
+  if(_roleSel) _roleSel.value=_prefRole;
   ['ld_actype','ld_engine','ld_func','ld_rules','ld_optype','ld_cond'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.selectedIndex=0;
   });
@@ -8953,7 +8955,8 @@ function ldSave(){
     pernoc:(function(){ var el=document.getElementById('ld_pernoc'); return el?el.checked:false; })(),
     rosterEntryId:g('ld_roster_entry_id')||null
   };
-  // Persist own-name default and add colleagues to names DB
+  // Persist role preference + own-name default and add colleagues to names DB
+  lsSet('ld_pref_role', e.role);
   var _r=e.role, _c1=e.cm1, _c2=e.cm2;
   if(_r==='FO'){
     if(_c2) lsSet('pilotOS_myname_fo',_c2);
@@ -12645,6 +12648,9 @@ function rosterFindNearestFlight(){
 
 // ── ROSTER IMPORT OPTION A — bottom sheet with date strip ──────────
 var _rstImportSelDate = null;
+var _rstImportDesel = {};  // keys of deselected importable flights
+
+function _rstFlightKey(f){ return (f.date||'')+'|'+(f.dep||'')+'|'+(f.arr||'')+'|'+(f.flightNum||''); }
 
 window.ldRosterImportOpen = function(){
   rstLoad();
@@ -12652,6 +12658,7 @@ window.ldRosterImportOpen = function(){
   if(!hasFlights){ showToast('No hay vuelos en el roster','info'); return; }
   var todayStr = new Date().toISOString().slice(0,10);
   var hasToday = RST.entries.some(function(e){ return e.type==='flight' && e.date===todayStr; });
+  _rstImportDesel = {};
   if(hasToday){
     _rstImportSelDate = todayStr;
   } else {
@@ -12671,6 +12678,7 @@ window.ldRosterImportClose = function(){
 
 window.ldRosterImportSelectDay = function(ds){
   _rstImportSelDate = ds;
+  _rstImportDesel = {};  // reset selection on day change
   _ldRstImportRender();
 };
 
@@ -12678,6 +12686,13 @@ window.ldRosterImportShiftDays = function(delta){
   var d = new Date((_rstImportSelDate||new Date().toISOString().slice(0,10))+'T12:00:00Z');
   d.setUTCDate(d.getUTCDate()+delta);
   _rstImportSelDate = d.toISOString().slice(0,10);
+  _rstImportDesel = {};
+  _ldRstImportRender();
+};
+
+window.ldRosterImportToggle = function(key){
+  if(_rstImportDesel[key]) delete _rstImportDesel[key];
+  else _rstImportDesel[key] = true;
   _ldRstImportRender();
 };
 
@@ -12726,7 +12741,8 @@ function _ldRstImportRender(){
   dayFlights.forEach(function(f){
     var match=typeof rstFindLogbookMatch==='function'?rstFindLogbookMatch(f):null;
     var isDraftAlready=ldEntries.some(function(e){return e.source==='ROSTER-DRAFT'&&e.date===f.date&&e.dep===f.dep&&e.arr===f.arr;});
-    if(match||isDraftAlready) alreadyN++; else toImportN++;
+    if(match||isDraftAlready){ alreadyN++; }
+    else if(!_rstImportDesel[_rstFlightKey(f)]){ toImportN++; }
   });
 
   var flHtml='';
@@ -12737,20 +12753,52 @@ function _ldRstImportRender(){
       var match=typeof rstFindLogbookMatch==='function'?rstFindLogbookMatch(f):null;
       var isDraftAlready=ldEntries.some(function(e){return e.source==='ROSTER-DRAFT'&&e.date===f.date&&e.dep===f.dep&&e.arr===f.arr;});
       var inLB=!!(match||isDraftAlready);
-      var barBg=inLB?'#22D3EE':'linear-gradient(180deg,#F59E0B,#F97316)';
-      var cardBg=inLB?'rgba(34,211,238,.06)':'rgba(245,158,11,.06)';
-      var cardBdr=inLB?'1px solid rgba(34,211,238,.18)':'1px solid rgba(245,158,11,.2)';
-      var statusCol=inLB?'#22D3EE':'rgba(245,158,11,.75)';
-      var statusTxt=inLB?(isDraftAlready?'⏱ borrador':'✓ en logbook'):'→ importar';
-      flHtml+='<div style="margin-bottom:9px;padding:11px 13px;background:'+cardBg+';border:'+cardBdr+';border-radius:13px;display:flex;align-items:center;gap:11px">'
-        +'<div style="width:3px;height:40px;border-radius:2px;background:'+barBg+';flex-shrink:0"></div>'
-        +'<div style="flex:1;min-width:0">'
-          +'<div style="font-family:\'DM Mono\',\'Space Mono\',monospace;font-size:16px;font-weight:500;color:#F8FAFC">'+(f.dep||'?')+'<span style="color:#F59E0B;margin:0 7px;font-size:13px">›</span>'+(f.arr||'?')+'</div>'
-          +'<div style="font-size:11px;color:rgba(248,250,252,.38);font-family:\'Space Mono\',monospace;margin-top:3px">'+(f.flightNum||'—')+' · '+(f.std||'—')+'–'+(f.sta||'—')+'</div>'
-        +'</div>'
-        +'<div style="font-size:10px;font-family:\'Space Mono\',monospace;color:'+statusCol+';font-weight:700;white-space:nowrap">'+statusTxt+'</div>'
-      +'</div>';
+      var key=_rstFlightKey(f);
+      var isDesel=!inLB&&!!_rstImportDesel[key];
+
+      if(inLB){
+        // Already in logbook — static, non-toggleable
+        var statusTxt=isDraftAlready?'⏱ borrador':'✓ en logbook';
+        flHtml+='<div style="margin-bottom:9px;padding:11px 13px;background:rgba(34,211,238,.05);border:1px solid rgba(34,211,238,.15);border-radius:13px;display:flex;align-items:center;gap:11px;opacity:.7">'
+          +'<div style="width:3px;height:40px;border-radius:2px;background:#22D3EE;flex-shrink:0"></div>'
+          +'<div style="flex:1;min-width:0">'
+            +'<div style="font-family:\'DM Mono\',\'Space Mono\',monospace;font-size:16px;font-weight:500;color:#F8FAFC">'+(f.dep||'?')+'<span style="color:#22D3EE;margin:0 7px;font-size:13px">›</span>'+(f.arr||'?')+'</div>'
+            +'<div style="font-size:11px;color:rgba(248,250,252,.38);font-family:\'Space Mono\',monospace;margin-top:3px">'+(f.flightNum||'—')+' · '+(f.std||'—')+'–'+(f.sta||'—')+'</div>'
+          +'</div>'
+          +'<div style="font-size:10px;font-family:\'Space Mono\',monospace;color:#22D3EE;font-weight:700;white-space:nowrap">'+statusTxt+'</div>'
+        +'</div>';
+      } else {
+        // Importable — toggleable card
+        var cardBg=isDesel?'rgba(255,255,255,.02)':'rgba(245,158,11,.07)';
+        var cardBdr=isDesel?'1px solid rgba(255,255,255,.08)':'1px solid rgba(245,158,11,.28)';
+        var barBg=isDesel?'rgba(255,255,255,.12)':'linear-gradient(180deg,#F59E0B,#F97316)';
+        var routeCol=isDesel?'rgba(248,250,252,.3)':'#F8FAFC';
+        var arrowCol=isDesel?'rgba(255,255,255,.2)':'#F59E0B';
+        var metaCol=isDesel?'rgba(248,250,252,.2)':'rgba(248,250,252,.38)';
+        var cardOpacity=isDesel?'.5':'1';
+        // Toggle badge
+        var badgeHtml=isDesel
+          ?'<div style="width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;flex-shrink:0"><span style="font-size:11px;color:rgba(255,255,255,.25)">○</span></div>'
+          :'<div style="width:26px;height:26px;border-radius:50%;border:2px solid rgba(245,158,11,.6);background:rgba(245,158,11,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0"><span style="font-size:13px;color:#F59E0B;font-weight:700">✓</span></div>';
+        flHtml+='<div onclick="ldRosterImportToggle(\''+key+'\')" style="margin-bottom:9px;padding:11px 13px;background:'+cardBg+';border:'+cardBdr+';border-radius:13px;display:flex;align-items:center;gap:11px;cursor:pointer;opacity:'+cardOpacity+';transition:opacity .15s,border-color .15s;-webkit-tap-highlight-color:transparent">'
+          +'<div style="width:3px;height:40px;border-radius:2px;background:'+barBg+';flex-shrink:0"></div>'
+          +'<div style="flex:1;min-width:0">'
+            +'<div style="font-family:\'DM Mono\',\'Space Mono\',monospace;font-size:16px;font-weight:500;color:'+routeCol+'">'+(f.dep||'?')+'<span style="color:'+arrowCol+';margin:0 7px;font-size:13px">›</span>'+(f.arr||'?')+'</div>'
+            +'<div style="font-size:11px;color:'+metaCol+';font-family:\'Space Mono\',monospace;margin-top:3px">'+(f.flightNum||'—')+' · '+(f.std||'—')+'–'+(f.sta||'—')+'</div>'
+          +'</div>'
+          +badgeHtml
+        +'</div>';
+      }
     });
+    // Hint below cards
+    var importableCount=dayFlights.filter(function(f){
+      var m=typeof rstFindLogbookMatch==='function'?rstFindLogbookMatch(f):null;
+      var d=ldEntries.some(function(e){return e.source==='ROSTER-DRAFT'&&e.date===f.date&&e.dep===f.dep&&e.arr===f.arr;});
+      return !m&&!d;
+    }).length;
+    if(importableCount>0){
+      flHtml+='<div style="text-align:center;font-size:10px;color:rgba(248,250,252,.25);font-family:\'Space Mono\',monospace;padding:4px 0 8px">Pulsa un vuelo para seleccionarlo / deseleccionarlo</div>';
+    }
   }
 
   var confirmHtml=toImportN>0
@@ -12759,7 +12807,7 @@ function _ldRstImportRender(){
         +'<span>Importar '+toImportN+' vuelo'+(toImportN===1?'':'s')+'</span>'
       +'</button>'
     :'<div style="width:100%;padding:14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:15px;color:rgba(248,250,252,.22);font-family:\'Space Grotesk\',sans-serif;font-size:13px;font-weight:600;text-align:center">'
-      +(alreadyN>0?'Todos los vuelos ya están en el logbook':'Sin vuelos para importar')
+      +(alreadyN>0&&toImportN===0?'Todos los vuelos ya están en el logbook':'Sin vuelos seleccionados')
     +'</div>';
 
   sheet.innerHTML=''
@@ -12776,7 +12824,7 @@ function _ldRstImportRender(){
     +'<div style="padding:0 14px">'+stripHtml+'</div>'
     +'<div style="margin:0 18px 12px;height:1px;background:linear-gradient(90deg,rgba(245,158,11,.35),rgba(245,158,11,.04))"></div>'
     +'<div style="padding:0 16px">'
-      +(dayFlights.length?'<div style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:rgba(245,158,11,.5);font-family:\'Space Mono\',monospace;margin-bottom:10px;font-weight:700">'+dayFlights.length+' vuelo'+(dayFlights.length===1?'':'s')+' · '+alreadyN+' en logbook · '+toImportN+' nuevo'+(toImportN===1?'':'s')+'</div>':'')
+      +(dayFlights.length?'<div style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:rgba(245,158,11,.5);font-family:\'Space Mono\',monospace;margin-bottom:10px;font-weight:700">'+dayFlights.length+' vuelo'+(dayFlights.length===1?'':'s')+' · '+alreadyN+' en logbook · '+toImportN+' seleccionado'+(toImportN===1?'':'s')+'</div>':'')
       +flHtml
     +'</div>'
     +'<div style="padding:6px 16px 20px">'+confirmHtml+'</div>';
@@ -12792,6 +12840,7 @@ window.ldRosterImportConfirm = function(){
     var match=typeof rstFindLogbookMatch==='function'?rstFindLogbookMatch(f):null;
     var isDraftAlready=ldEntries.some(function(e){return e.source==='ROSTER-DRAFT'&&e.date===f.date&&e.dep===f.dep&&e.arr===f.arr;});
     if(match||isDraftAlready){skipped++;return;}
+    if(_rstImportDesel[_rstFlightKey(f)]){skipped++;return;}  // user deselected this flight
     if(!isPro()&&(realCount+imported)>=PLAN_FREE_LOGBOOK_LIMIT){showPlanToast('limit');return;}
     var blockStr='';
     if(f.std&&f.sta){
@@ -12822,7 +12871,7 @@ window.ldRosterImportConfirm = function(){
     ldRosterImportClose();
     showToast('Todos los vuelos ya estaban en el logbook','info');
   } else {
-    showToast('Sin vuelos para importar','info');
+    showToast('Sin vuelos seleccionados','info');
   }
 };
 
