@@ -11138,6 +11138,7 @@ window.rosterNavMonth = function(dir){
   if(RST.viewMonth < 0){ RST.viewMonth=11; RST.viewYear--; }
   rstRenderCalendar(); rstRenderStats();
   rstCheckMonthBanner();
+  rosterShowCalendar();
 };
 
 window.rstGoToday = function(){
@@ -11146,6 +11147,7 @@ window.rstGoToday = function(){
   RST.viewMonth = now.getMonth();
   rstRenderCalendar(); rstRenderStats();
   rstCheckMonthBanner();
+  rosterShowCalendar();
   // Select today
   var todayStr = now.toISOString().slice(0,10);
   setTimeout(function(){
@@ -12213,33 +12215,47 @@ window.rstDismissWarning = function(dateStr, wi){
 
 function rosterShowCalendar(){
   var zone = document.getElementById('rst-upload-zone');
-  if(zone){
-    var _vMonth = (RST.viewYear||new Date().getFullYear())+'-'+String((RST.viewMonth!=null?RST.viewMonth:new Date().getMonth())+1).padStart(2,'0');
-    var _ts = '';
-    try {
-      var _raw = localStorage.getItem('pilotOS_import_ts_'+_vMonth);
-      if(_raw){
-        var _d = new Date(_raw);
-        _ts = ' · '+_d.toLocaleDateString('es-ES',{day:'2-digit',month:'short'})+' '+_d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
-      }
-    } catch(e){}
-    zone.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">'
-      + '<div style="display:flex;align-items:center;gap:8px">'
-      + '<span style="font-size:16px">🗓</span>'
-      + '<div>'
-      + '<div style="font-size:12px;font-weight:700;color:#22D3EE">Roster importado</div>'
-      + '<div style="font-size:11px;color:rgba(240,255,254,.45)">Importado'+_ts+'</div>'
-      + '</div>'
-      + '</div>'
-      + '<div style="display:flex;gap:8px;align-items:center">'
-      + '<label style="padding:7px 12px;background:rgba(20,184,166,.10);border:1px solid rgba(20,184,166,.32);border-radius:10px;color:#2dd4bf;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;display:inline-flex;align-items:center;gap:5px"><input type="file" accept=".txt,image/*,application/pdf" onchange="rosterHandleFile(event)" style="display:none">📂 Actualizar</label>'
-      + '<button onclick="rosterConfirmDelete()" style="padding:7px 12px;background:rgba(239,68,68,.1);border:1px solid rgba(248,113,113,.3);border-radius:10px;color:#F87171;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;-webkit-appearance:none">🗑 Borrar</button>'
-      + '</div>'
-      + '</div>';
-    zone.style.padding = '12px 14px';
-    zone.style.background = 'rgba(20,184,166,.07)';
-    zone.style.borderStyle = 'solid';
+  if(!zone) return;
+  var _vMonth = (RST.viewYear||new Date().getFullYear())+'-'+String((RST.viewMonth!=null?RST.viewMonth:new Date().getMonth())+1).padStart(2,'0');
+
+  // Check if the CURRENTLY VIEWED month has entries (not just any month)
+  var hasEntriesThisMonth = RST.entries.some(function(e){ return e.date && e.date.slice(0,7)===_vMonth; });
+
+  if(!hasEntriesThisMonth){
+    // No roster for this month — show upload form
+    zone.innerHTML = '<div style="font-size:30px;margin-bottom:6px">🗓</div>'
+      + '<div class="upload-title">Sube tu roster de ' + _vMonth + '</div>'
+      + '<div class="upload-sub">PDF, TXT o foto del roster</div>'
+      + '<label class="upload-btn-main"><input type="file" accept=".txt,image/*,application/pdf" onchange="rosterHandleFile(event)" style="display:none">📂 Subir archivo</label>';
+    zone.style.cssText = '';
+    return;
   }
+
+  // Has entries for this month — show "Roster importado" banner with update/delete
+  var _ts = '';
+  try {
+    var _raw = localStorage.getItem('pilotOS_import_ts_'+_vMonth);
+    if(_raw){
+      var _d = new Date(_raw);
+      _ts = ' · '+_d.toLocaleDateString('es-ES',{day:'2-digit',month:'short'})+' '+_d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+    }
+  } catch(e){}
+  zone.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">'
+    + '<div style="display:flex;align-items:center;gap:8px">'
+    + '<span style="font-size:16px">🗓</span>'
+    + '<div>'
+    + '<div style="font-size:12px;font-weight:700;color:#22D3EE">Roster importado</div>'
+    + '<div style="font-size:11px;color:rgba(240,255,254,.45)">Importado'+_ts+'</div>'
+    + '</div>'
+    + '</div>'
+    + '<div style="display:flex;gap:8px;align-items:center">'
+    + '<label style="padding:7px 12px;background:rgba(20,184,166,.10);border:1px solid rgba(20,184,166,.32);border-radius:10px;color:#2dd4bf;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;display:inline-flex;align-items:center;gap:5px"><input type="file" accept=".txt,image/*,application/pdf" onchange="rosterHandleFile(event)" style="display:none">📂 Actualizar</label>'
+    + '<button onclick="rosterConfirmDelete()" style="padding:7px 12px;background:rgba(239,68,68,.1);border:1px solid rgba(248,113,113,.3);border-radius:10px;color:#F87171;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;-webkit-appearance:none">🗑 Borrar</button>'
+    + '</div>'
+    + '</div>';
+  zone.style.padding = '12px 14px';
+  zone.style.background = 'rgba(20,184,166,.07)';
+  zone.style.borderStyle = 'solid';
 }
 
 window.rosterConfirmDelete = function(){
