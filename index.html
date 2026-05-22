@@ -1870,6 +1870,34 @@ input#ld_fl, input#ld_cond { display:none !important; }
   display:flex;align-items:center;gap:8px
 }
 .ld-fmonth::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(34,211,238,.15),transparent)}
+/* ── Day group ── */
+.ld-fday-group{margin-bottom:16px}
+.ld-fday-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px 10px 14px;
+  border-radius:14px;
+  border:1px solid rgba(34,211,238,.15);
+  margin-bottom:9px;
+  position:relative;overflow:hidden;
+}
+.ld-fday-hdr::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px}
+.ld-fday-left{display:flex;align-items:center;gap:9px}
+.ld-fday-dow{
+  font-family:'DM Mono','Space Mono',monospace;
+  font-size:10px;font-weight:700;letter-spacing:1.2px;
+  padding:3px 8px;border-radius:7px;border:1px solid;
+  text-transform:uppercase;
+}
+.ld-fday-date{
+  font-family:'DM Mono','Space Mono',monospace;
+  font-size:14px;font-weight:600;
+  color:rgba(248,250,252,.9);letter-spacing:.5px;text-transform:uppercase;
+}
+.ld-fday-right{display:flex;align-items:center;gap:16px}
+.ld-fday-stat{text-align:right}
+.ld-fday-sv{font-family:'DM Mono','Space Mono',monospace;font-size:15px;font-weight:600;line-height:1.1}
+.ld-fday-sl{font-size:8px;color:rgba(248,250,252,.28);text-transform:uppercase;letter-spacing:.7px;margin-top:2px}
+.ld-fday-sep{width:1px;height:28px;background:rgba(248,250,252,.08)}
 .ld-fcard{
   background:rgba(17,24,39,.82);border:1px solid rgba(34,211,238,.12);
   border-radius:18px;margin-bottom:9px;overflow:hidden;cursor:pointer;
@@ -9038,72 +9066,138 @@ function ldRender(){
     document.getElementById('ld_pag').style.display='none'; return;
   }
   var start=(ldPage-1)*LD_PER, page=ldFiltered.slice(start,start+LD_PER);
-  // Group by month
-  var groups={}, order=[];
+
+  // ── Paleta de colores por día (cicla) ──────────────────────────
+  var DAY_PALETTE=[
+    {hex:'#7C3AED',rgb:'124,58,237'},   // violeta
+    {hex:'#0891B2',rgb:'8,145,178'},    // cyan
+    {hex:'#059669',rgb:'5,150,105'},    // esmeralda
+    {hex:'#D97706',rgb:'217,119,6'},    // ámbar
+    {hex:'#DB2777',rgb:'219,39,119'},   // rosa
+    {hex:'#4F46E5',rgb:'79,70,229'},    // índigo
+    {hex:'#0D9488',rgb:'13,148,136'},   // teal
+    {hex:'#9333EA',rgb:'147,51,234'},   // púrpura
+    {hex:'#0284C7',rgb:'2,132,199'},    // azul cielo
+    {hex:'#16A34A',rgb:'22,163,74'},    // verde
+  ];
+
+  // ── Helpers ────────────────────────────────────────────────────
+  var DAYS_ES=['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'];
+  function ldParseMins(t){if(!t)return 0;var m=String(t).match(/^(\d{1,2}):(\d{2})$/);return m?parseInt(m[1])*60+parseInt(m[2]):0;}
+  function ldFmtBlock(mins){if(!mins)return null;var h=Math.floor(mins/60),m=mins%60;return h+'h '+(m<10?'0':'')+m+'m';}
+  function ldGetDow(dateStr){if(!dateStr)return'';var p=dateStr.split('-');var d=new Date(+p[0],+p[1]-1,+p[2]);return DAYS_ES[d.getDay()]||'';}
+
+  // ── Agrupar primero por mes, luego por día ─────────────────────
+  var monthGroups={}, monthOrder=[];
   page.forEach(function(e){
     var mk=e.date?e.date.slice(0,7):'0000-00';
-    if(!groups[mk]){groups[mk]=[];order.push(mk);}
-    groups[mk].push(e);
+    if(!monthGroups[mk]){monthGroups[mk]={days:{},dayOrder:[]};monthOrder.push(mk);}
+    var dk=e.date||'0000-00-00';
+    if(!monthGroups[mk].days[dk]){monthGroups[mk].days[dk]=[];monthGroups[mk].dayOrder.push(dk);}
+    monthGroups[mk].days[dk].push(e);
   });
+
   var html='';
-  order.forEach(function(mk){
+  var globalDayIdx=0; // para ciclar colores de forma global
+
+  monthOrder.forEach(function(mk){
+    var mg=monthGroups[mk];
+    // ── Cabecera de mes (sutil) ──
     html+='<div class="ld-fmonth">'+ldFmtMonth(mk+'-01')+'</div>';
-    groups[mk].forEach(function(e){
-      var hasNoc=e.night&&e.night!=='00:00'&&e.night!=='0:00'&&e.night!=='';
-      var hasFt=e.flightTime&&e.flightTime!=='00:00'&&e.flightTime!=='';
-      var src=e.source==='MCDU-OCR'?'📷 ':'';
-      var roleClass=e.role==='CPT'?'ld-fpill-cpt':'ld-fpill-fo';
-      var funcClass=e.func==='PM'?'ld-fpill-pm':'ld-fpill-pf';
-      var acLabel=(e.acType||'')+(e.reg?' · '+e.reg:'');
-      var isDraft=(e.source==='ROSTER-DRAFT')&&!(e.atd||e.aobt);
-      if(isDraft){
-        html+='<div class="ld-fcard ld-fcard-draft" onclick="ldShowCard(\''+e.id+'\')">'
-          +'<div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#F59E0B,#F97316);border-radius:3px 0 0 3px;animation:ld-draft-pulse 2s ease-in-out infinite"></div>'
-          +'<div class="ld-fcard-top">'
-            +'<div style="flex:1">'
-              +'<div class="ld-fcard-ap">'+(e.dep||'???')+'<span class="ld-far" style="color:#F59E0B">›</span>'+(e.arr||'???')+'</div>'
-              +'<div class="ld-fcard-fi">'+(e.flight||'—')+' · '+ldFmtDay(e.date)+'</div>'
-            +'</div>'
-            +'<div class="ld-fcard-bk" style="border-left-color:rgba(245,158,11,.12)">'
-              +'<div class="ld-fcard-bv" style="color:rgba(245,158,11,.7)">'+(e.std||'—')+'</div>'
-              +'<div class="ld-fcard-bl">STD</div>'
-            +'</div>'
+
+    mg.dayOrder.forEach(function(dk){
+      var flights=mg.days[dk];
+      var clr=DAY_PALETTE[globalDayIdx%DAY_PALETTE.length];
+      globalDayIdx++;
+
+      // Totales del día
+      var totalMins=0;
+      flights.forEach(function(e){totalMins+=ldParseMins(e.block);});
+      var blockStr=ldFmtBlock(totalMins);
+      var sects=flights.length;
+
+      // Partes de la fecha
+      var dow=ldGetDow(dk);
+      var dp=dk.split('-');
+      var dayDate=(dp[2]||'?')+' '+(MONTHS_ES[parseInt(dp[1]||1)-1]||'?');
+
+      // ── Cabecera de día ──
+      html+='<div class="ld-fday-group">'
+        +'<div class="ld-fday-hdr" style="'
+          +'background:rgba('+clr.rgb+',.07);'
+          +'border:1px solid rgba('+clr.rgb+',.22);'
+          +'">'
+          +'<div style="position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px;background:'+clr.hex+'"></div>'
+          +'<div class="ld-fday-left">'
+            +'<span class="ld-fday-dow" style="background:rgba('+clr.rgb+',.15);color:'+clr.hex+';border-color:rgba('+clr.rgb+',.35)">'+dow+'</span>'
+            +'<span class="ld-fday-date">'+dayDate+'</span>'
           +'</div>'
-          +'<div class="ld-fcard-bot" style="border-top-color:rgba(245,158,11,.1)">'
-            +'<div class="ld-fsdot partial" title="Borrador · Pendiente de completar"></div>'
-            +'<span style="font-size:10px;font-family:\'Space Mono\',monospace;font-weight:600;padding:2px 8px;border-radius:6px;background:rgba(245,158,11,.12);color:#F59E0B;border:1px solid rgba(245,158,11,.28)">⏱ ROSTER</span>'
-            +(e.std&&e.sta?'<span class="ld-fdate" style="color:rgba(245,158,11,.5)">'+e.std+'–'+e.sta+'</span>':'')
-            +'<button onclick="event.stopPropagation();ldEditFlight(\''+e.id+'\')" style="margin-left:auto;font-size:10px;font-family:\'Space Grotesk\',sans-serif;font-weight:700;padding:3px 10px;border-radius:8px;border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.1);color:#F59E0B;cursor:pointer">✏ Completar</button>'
-            +'<button class="ld-fdel" onclick="event.stopPropagation();ldDelete(\''+e.id+'\')" title="Eliminar">🗑</button>'
-          +'</div>'
-        +'</div>';
-      } else {
-        html+='<div class="ld-fcard" onclick="ldShowCard(\''+e.id+'\')">'
-          +'<div class="ld-fcard-top">'
-            +'<div style="flex:1">'
-              +'<div class="ld-fcard-ap">'+(e.dep||'???')+'<span class="ld-far">›</span>'+(e.arr||'???')+'</div>'
-              +'<div class="ld-fcard-fi">'+src+(e.flight||'—')+' · '+ldFmtDay(e.date)+'</div>'
-            +'</div>'
-            +'<div class="ld-fcard-bk"><div class="ld-fcard-bv">'+(e.block||'—')+'</div><div class="ld-fcard-bl">block</div></div>'
-          +'</div>'
-          +'<div class="ld-fcard-bot">'
-            +(function(){
-              var hasAtd = !!(e.atd || e.aobt);
-              var hasAta = !!(e.ata || e.aibt);
-              if (hasAtd && hasAta && e.block) return '<div class="ld-fsdot complete" title="Completo · Cuenta en nómina"></div>';
-              if (e.block || e.dep || e.arr)   return '<div class="ld-fsdot partial" title="Parcial · Faltan ATD/ATA"></div>';
-              return '<div class="ld-fsdot" title="Sin datos"></div>';
-            })()
-            +(acLabel?'<span class="ld-fpill ld-fpill-ac">'+acLabel+'</span>':'')
-            +'<span class="ld-fpill '+roleClass+'">'+(e.role||'FO')+'</span>'
-            +(e.func?'<span class="ld-fpill '+funcClass+'">'+(e.func)+'</span>':'')
-            +(hasFt?'<span class="ld-fpill" style="background:rgba(0,255,80,.07);color:rgba(0,220,80,.85);border:1px solid rgba(0,255,80,.2);font-family:\'Space Mono\',monospace">✈ '+e.flightTime+'</span>':'')
-            +(hasNoc?'<span class="ld-fpill ld-fpill-noc">'+e.night+' noc</span>':'')
-            +(e.std?'<span class="ld-fdate">'+e.std+'Z</span>':'')
-            +'<button class="ld-fdel" onclick="event.stopPropagation();ldDelete(\''+e.id+'\')" title="Eliminar">🗑</button>'
+          +'<div class="ld-fday-right">'
+            +(blockStr?'<div class="ld-fday-stat"><div class="ld-fday-sv" style="color:'+clr.hex+'">'+blockStr+'</div><div class="ld-fday-sl">BLOCK</div></div>':'')
+            +(blockStr?'<div class="ld-fday-sep"></div>':'')
+            +'<div class="ld-fday-stat"><div class="ld-fday-sv" style="color:'+clr.hex+'">'+sects+'</div><div class="ld-fday-sl">SECT.</div></div>'
           +'</div>'
         +'</div>';
-      }
+
+      // ── Cards de vuelo del día ──
+      flights.forEach(function(e){
+        var hasNoc=e.night&&e.night!=='00:00'&&e.night!=='0:00'&&e.night!=='';
+        var hasFt=e.flightTime&&e.flightTime!=='00:00'&&e.flightTime!=='';
+        var src=e.source==='MCDU-OCR'?'📷 ':'';
+        var roleClass=e.role==='CPT'?'ld-fpill-cpt':'ld-fpill-fo';
+        var funcClass=e.func==='PM'?'ld-fpill-pm':'ld-fpill-pf';
+        var acLabel=(e.acType||'')+(e.reg?' · '+e.reg:'');
+        var isDraft=(e.source==='ROSTER-DRAFT')&&!(e.atd||e.aobt);
+        if(isDraft){
+          html+='<div class="ld-fcard ld-fcard-draft" onclick="ldShowCard(\''+e.id+'\')">'
+            +'<div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#F59E0B,#F97316);border-radius:3px 0 0 3px;animation:ld-draft-pulse 2s ease-in-out infinite"></div>'
+            +'<div class="ld-fcard-top">'
+              +'<div style="flex:1">'
+                +'<div class="ld-fcard-ap">'+(e.dep||'???')+'<span class="ld-far" style="color:#F59E0B">›</span>'+(e.arr||'???')+'</div>'
+                +'<div class="ld-fcard-fi">'+(e.flight||'—')+'</div>'
+              +'</div>'
+              +'<div class="ld-fcard-bk" style="border-left-color:rgba(245,158,11,.12)">'
+                +'<div class="ld-fcard-bv" style="color:rgba(245,158,11,.7)">'+(e.std||'—')+'</div>'
+                +'<div class="ld-fcard-bl">STD</div>'
+              +'</div>'
+            +'</div>'
+            +'<div class="ld-fcard-bot" style="border-top-color:rgba(245,158,11,.1)">'
+              +'<div class="ld-fsdot partial" title="Borrador · Pendiente de completar"></div>'
+              +'<span style="font-size:10px;font-family:\'Space Mono\',monospace;font-weight:600;padding:2px 8px;border-radius:6px;background:rgba(245,158,11,.12);color:#F59E0B;border:1px solid rgba(245,158,11,.28)">⏱ ROSTER</span>'
+              +(e.std&&e.sta?'<span class="ld-fdate" style="color:rgba(245,158,11,.5)">'+e.std+'–'+e.sta+'</span>':'')
+              +'<button onclick="event.stopPropagation();ldEditFlight(\''+e.id+'\')" style="margin-left:auto;font-size:10px;font-family:\'Space Grotesk\',sans-serif;font-weight:700;padding:3px 10px;border-radius:8px;border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.1);color:#F59E0B;cursor:pointer">✏ Completar</button>'
+              +'<button class="ld-fdel" onclick="event.stopPropagation();ldDelete(\''+e.id+'\')" title="Eliminar">🗑</button>'
+            +'</div>'
+          +'</div>';
+        } else {
+          html+='<div class="ld-fcard" onclick="ldShowCard(\''+e.id+'\')">'
+            +'<div class="ld-fcard-top">'
+              +'<div style="flex:1">'
+                +'<div class="ld-fcard-ap">'+(e.dep||'???')+'<span class="ld-far">›</span>'+(e.arr||'???')+'</div>'
+                +'<div class="ld-fcard-fi">'+src+(e.flight||'—')+'</div>'
+              +'</div>'
+              +'<div class="ld-fcard-bk"><div class="ld-fcard-bv">'+(e.block||'—')+'</div><div class="ld-fcard-bl">block</div></div>'
+            +'</div>'
+            +'<div class="ld-fcard-bot">'
+              +(function(){
+                var hasAtd=!!(e.atd||e.aobt), hasAta=!!(e.ata||e.aibt);
+                if(hasAtd&&hasAta&&e.block) return '<div class="ld-fsdot complete" title="Completo · Cuenta en nómina"></div>';
+                if(e.block||e.dep||e.arr)   return '<div class="ld-fsdot partial" title="Parcial · Faltan ATD/ATA"></div>';
+                return '<div class="ld-fsdot" title="Sin datos"></div>';
+              })()
+              +(acLabel?'<span class="ld-fpill ld-fpill-ac">'+acLabel+'</span>':'')
+              +'<span class="ld-fpill '+roleClass+'">'+(e.role||'FO')+'</span>'
+              +(e.func?'<span class="ld-fpill '+funcClass+'">'+(e.func)+'</span>':'')
+              +(hasFt?'<span class="ld-fpill" style="background:rgba(0,255,80,.07);color:rgba(0,220,80,.85);border:1px solid rgba(0,255,80,.2);font-family:\'Space Mono\',monospace">✈ '+e.flightTime+'</span>':'')
+              +(hasNoc?'<span class="ld-fpill ld-fpill-noc">'+e.night+' noc</span>':'')
+              +(e.std?'<span class="ld-fdate">'+e.std+'Z</span>':'')
+              +'<button class="ld-fdel" onclick="event.stopPropagation();ldDelete(\''+e.id+'\')" title="Eliminar">🗑</button>'
+            +'</div>'
+          +'</div>';
+        }
+      });
+
+      html+='</div>'; // cierre ld-fday-group
     });
   });
   container.innerHTML=html;
