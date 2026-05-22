@@ -12573,6 +12573,8 @@ window.rosterClearAll = function(){
 window.rstPullFromServer = async function(){
   var token=''; try{ token=lsGet('cafi_auth_token',''); }catch(e){}
   if(!token) return 0;
+  // Record pull start time — used below to protect freshly-imported months
+  var _pullStartTs = Date.now();
   try{
     var r=await fetch(ldBackendUrl()+'/api/roster',{
       headers:{'Authorization':'Bearer '+token}
@@ -12586,6 +12588,13 @@ window.rstPullFromServer = async function(){
     var added=0;
     serverEntries.forEach(function(se){
       if(!se||!se.date) return;
+      // ── Guard: skip months that were locally imported AFTER this pull started ──
+      // This prevents a slow server response from overwriting a fresh local import.
+      var _seMonth = se.date.slice(0,7);
+      try{
+        var _localTs = localStorage.getItem('pilotOS_import_ts_'+_seMonth);
+        if(_localTs && new Date(_localTs).getTime() >= _pullStartTs) return;
+      }catch(e){}
       var key=se.id||(se.date+'_'+(se.type||'')+'_'+(se.flightNum||''));
       if(!map[key]){ map[key]=se; added++; }
     });
@@ -12595,6 +12604,7 @@ window.rstPullFromServer = async function(){
     });
     rstSave();
     rstRenderCalendar(); rstRenderStats(); rstRenderFlights();
+    rosterShowCalendar();
     return added;
   }catch(e){ return -1; }
 };
