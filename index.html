@@ -12482,8 +12482,12 @@ function rosterShowCalendar(){
   // Check if the CURRENTLY VIEWED month has entries (not just any month)
   var hasEntriesThisMonth = RST.entries.some(function(e){ return e.date && e.date.slice(0,7)===_vMonth; });
 
+  // Keep hint in sync with current month (not globally)
+  var _hint = document.getElementById('rst-replace-hint');
+
   if(!hasEntriesThisMonth){
-    // No roster for this month — show upload form
+    // No roster for this month — show upload form, hide the replace hint
+    if(_hint) _hint.style.display = 'none';
     zone.innerHTML = '<div style="font-size:30px;margin-bottom:6px">🗓</div>'
       + '<div class="upload-title">Sube tu roster de ' + _vMonth + '</div>'
       + '<div class="upload-sub">PDF, TXT o foto del roster</div>'
@@ -12492,7 +12496,8 @@ function rosterShowCalendar(){
     return;
   }
 
-  // Has entries for this month — show "Roster importado" banner with update/delete
+  // Has entries for this month — show "Roster importado" banner + hint
+  if(_hint) _hint.style.display = 'block';
   zone.style.display = '';   // restore visibility (was hidden during upload processing)
   var _ts = '';
   try {
@@ -12626,9 +12631,11 @@ window.rosterInit = function(){
   rstRenderStats();
   rstRenderFlights();
 
-  // Show replace hint if we already have entries
+  // Show replace hint only when the CURRENT VIEWED month already has entries
+  var _hintMonth = (RST.viewYear||new Date().getFullYear())+'-'+String((RST.viewMonth!=null?RST.viewMonth:new Date().getMonth())+1).padStart(2,'0');
+  var _hintHasMonth = RST.entries.some(function(e){ return e.date && e.date.slice(0,7)===_hintMonth; });
   var hint = document.getElementById('rst-replace-hint');
-  if(hint) hint.style.display = RST.entries.length ? 'block' : 'none';
+  if(hint) hint.style.display = _hintHasMonth ? 'block' : 'none';
 
   // FIX: pull del roster desde el servidor si hay token
   var token=''; try{ token=lsGet('cafi_auth_token',''); }catch(e){}
