@@ -12137,9 +12137,10 @@ async function rosterRunPDF(pdfBase64){
         if(parsed.pdf_duty_min)  localStorage.setItem('pilotOS_pdf_duty_'+newMonth,  parsed.pdf_duty_min);
       } catch(e){}
     }
-    // Store import timestamp
+    // Store import timestamp y limpiar la flag de "mes borrado" si el usuario reimporta
     if(newMonth){
       try { localStorage.setItem('pilotOS_import_ts_'+newMonth, new Date().toISOString()); } catch(e){}
+      try { localStorage.removeItem('pilotOS_deleted_month_'+newMonth); } catch(e){}
     }
 
     if(newMonth){ var p=newMonth.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1; }
@@ -12212,7 +12213,10 @@ async function rosterRunAIText(textContent){
     })();
 
     if(newMonth){ var p=newMonth.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1; }
-    if(newMonth){ try { localStorage.setItem('pilotOS_import_ts_'+newMonth, new Date().toISOString()); } catch(e){} }
+    if(newMonth){
+      try { localStorage.setItem('pilotOS_import_ts_'+newMonth, new Date().toISOString()); } catch(e){}
+      try { localStorage.removeItem('pilotOS_deleted_month_'+newMonth); } catch(e){}
+    }
     try { rosterShowCalendar(); } catch(e){}
     try { rstRenderCalendar(); } catch(e){}
     try { rstRenderStats();    } catch(e){}
@@ -12334,6 +12338,7 @@ async function rosterRunAI(dataUrl, mimeType){
       RST.viewYear = parseInt(p[0]);
       RST.viewMonth = parseInt(p[1])-1;
       try { localStorage.setItem('pilotOS_import_ts_'+newMonth, new Date().toISOString()); } catch(e){}
+      try { localStorage.removeItem('pilotOS_deleted_month_'+newMonth); } catch(e){}
     }
     try { rosterShowCalendar(); } catch(e){}
     try { rstRenderCalendar(); } catch(e){}
@@ -12548,9 +12553,29 @@ window.rosterConfirmDelete = function(){
 };
 
 window.rosterClearAll = function(){
+  // Recoger los meses que contiene el roster ANTES de vaciar RST.entries
+  var monthsToClear = {};
+  RST.entries.forEach(function(e){ if(e.date) monthsToClear[e.date.slice(0,7)] = true; });
+
   RST.entries = [];
   try { localStorage.removeItem('pilotOS_roster'); } catch(e){}
   try { localStorage.setItem('pilotOS_roster_cleared', '1'); } catch(e){}
+
+  // Marcar cada mes como borrado para que rstPullFromServer no los restaure
+  Object.keys(monthsToClear).forEach(function(m){
+    try { localStorage.setItem('pilotOS_deleted_month_'+m, '1'); } catch(e){}
+  });
+
+  // Borrar del servidor (silencioso, fire-and-forget)
+  var token=''; try{ token=lsGet('cafi_auth_token',''); }catch(e){}
+  if(token){
+    Object.keys(monthsToClear).forEach(function(m){
+      fetch(ldBackendUrl()+'/api/roster?month='+m, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer '+token }
+      }).catch(function(){/* offline — ok */});
+    });
+  }
   rstRenderCalendar();
   rstRenderStats();
   rstRenderFlights();
@@ -12583,14 +12608,24 @@ window.rstPullFromServer = async function(){
     var body=await r.json();
     var serverEntries=body.entries||[];
     if(!serverEntries.length) return 0;
+    // ── Build map from ALL local entries, con clave fallback para entradas sin id ──
+    // CRITICAL: el parser AI no asigna id a las entradas. Si solo mapeamos por e.id,
+    // el map queda vacío y el pull sobreescribe RST.entries con solo datos del servidor,
+    // perdiendo lo que el usuario acaba de importar (Bug 2).
     var map={};
-    RST.entries.forEach(function(e){ if(e.id) map[e.id]=e; });
+    RST.entries.forEach(function(e){
+      var k = e.id || (e.date+'_'+(e.type||'')+'_'+(e.flightNum||''));
+      if(k) map[k] = e;
+    });
     var added=0;
     serverEntries.forEach(function(se){
       if(!se||!se.date) return;
-      // ── Guard: skip months that were locally imported AFTER this pull started ──
-      // This prevents a slow server response from overwriting a fresh local import.
       var _seMonth = se.date.slice(0,7);
+      // ── Guard 1: skip months borrados explícitamente por el usuario ──
+      try{
+        if(localStorage.getItem('pilotOS_deleted_month_'+_seMonth)==='1') return;
+      }catch(e){}
+      // ── Guard 2: skip months importados localmente DESPUÉS de que empezó este pull ──
       try{
         var _localTs = localStorage.getItem('pilotOS_import_ts_'+_seMonth);
         if(_localTs && new Date(_localTs).getTime() >= _pullStartTs) return;
