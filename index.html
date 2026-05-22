@@ -12125,14 +12125,20 @@ async function rosterRunPDF(pdfBase64){
     }
     rstSmartMerge(parsed.entries, newMonth);
     rstSave();
-    // ── Paso 2: persistir roster en Supabase (silencioso) ──
+    // ── Paso 2: persistir roster en Supabase — SOLO el mes importado ──
+    // BUG FIX: antes se enviaban TODOS los meses con month:newMonth, lo que hacía que
+    // Supabase etiquetara las entradas de Mayo con month='2026-06'. Al hacer el pull
+    // en la siguiente sesión, el servidor devolvía datos mezclados y sobreescribía la
+    // vista con el mes equivocado. Ahora solo se envían las entradas del mes correcto.
     (function(){
       var _tk=''; try{ _tk=lsGet('cafi_auth_token',''); }catch(e){}
-      if(!_tk||!RST.entries.length) return;
+      if(!_tk||!newMonth) return;
+      var _monthEntries = RST.entries.filter(function(e){ return e.date && e.date.slice(0,7)===newMonth; });
+      if(!_monthEntries.length) return;
       fetch(ldBackendUrl()+'/api/roster/save',{
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+_tk},
-        body:JSON.stringify({entries:RST.entries, month: newMonth})
+        body:JSON.stringify({entries:_monthEntries, month: newMonth})
       }).catch(function(){/* offline — localStorage tiene los datos */});
     })();
 
@@ -12207,14 +12213,16 @@ async function rosterRunAIText(textContent){
     }
     rstSmartMerge(parsed.entries, newMonth);
     rstSave();
-    // Persistir en Supabase (silencioso)
+    // Persistir en Supabase — SOLO el mes importado
     (function(){
       var _tk=''; try{ _tk=lsGet('cafi_auth_token',''); }catch(e){}
-      if(!_tk||!RST.entries.length) return;
+      if(!_tk||!newMonth) return;
+      var _monthEntries = RST.entries.filter(function(e){ return e.date && e.date.slice(0,7)===newMonth; });
+      if(!_monthEntries.length) return;
       fetch(ldBackendUrl()+'/api/roster/save',{
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+_tk},
-        body:JSON.stringify({entries:RST.entries, month: newMonth})
+        body:JSON.stringify({entries:_monthEntries, month: newMonth})
       }).catch(function(){});
     })();
 
@@ -12327,14 +12335,16 @@ async function rosterRunAI(dataUrl, mimeType){
     }
     rstSmartMerge(parsed.entries, newMonth);
     rstSave();
-    // Persistir en Supabase (silencioso)
+    // Persistir en Supabase — SOLO el mes importado
     (function(){
       var _tk=''; try{ _tk=lsGet('cafi_auth_token',''); }catch(e){}
-      if(!_tk||!RST.entries.length) return;
+      if(!_tk||!newMonth) return;
+      var _monthEntries = RST.entries.filter(function(e){ return e.date && e.date.slice(0,7)===newMonth; });
+      if(!_monthEntries.length) return;
       fetch(ldBackendUrl()+'/api/roster/save',{
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+_tk},
-        body:JSON.stringify({entries:RST.entries, month: newMonth})
+        body:JSON.stringify({entries:_monthEntries, month: newMonth})
       }).catch(function(){});
     })();
 
