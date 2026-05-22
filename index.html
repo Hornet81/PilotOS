@@ -10283,6 +10283,28 @@ function rstRenderCalendar(){
     if(homeBase) { try { localStorage.setItem('pilotOS_home_base', homeBase); } catch(e){} }
   }
 
+  // ── Pre-compute "sleeps away" via positional state ──────────────────────────────────
+  // Walk day-by-day. After each day with flights: position = last ARR (all flights, incl.
+  // positioning). Days without flights (STBY, OFF…): position inherited from previous day.
+  // Moon shows whenever position ≠ homeBase at end of day.
+  var _awayDays = {};
+  if(homeBase){
+    var _curPos = homeBase;
+    for(var _aw=1; _aw<=new Date(y,mo+1,0).getDate(); _aw++){
+      var _awDs = y+'-'+String(mo+1).padStart(2,'0')+'-'+String(_aw).padStart(2,'0');
+      var _awFlts = entriesForDate(_awDs).filter(function(e){ return e.type==='flight'; });
+      if(_awFlts.length > 0){
+        var _awSorted = _awFlts.slice().sort(function(a,b){
+          var _tm = function(t){ var p=(t||'00:00').split(':'); return (+p[0]||0)*60+(+p[1]||0); };
+          return _tm(a.std_actual||a.std) - _tm(b.std_actual||b.std);
+        });
+        var _awArr = (_awSorted[_awSorted.length-1].arr||'').replace(/^\*/,'').toUpperCase();
+        if(_awArr.length===3) _curPos = _awArr;
+      }
+      _awayDays[_awDs] = (_curPos !== homeBase);
+    }
+  }
+
   // ── Type config built once outside loop ──
   var TC = window.RST_TC = {
     flight:   { bg:'#c0392b', bd:'#a93226',             tx:'#FFFFFF', lbl:'✈',     gl:'rgba(192,57,43,.5)' },
@@ -10337,26 +10359,10 @@ function rstRenderCalendar(){
     // Logbook sync check (uses pre-loaded set for performance)
     var inLogbook = _lbDates[dateStr] === true;
 
-    // ── Sleeps away from base? ───────────────────────────────────────────────────────
-    // Rule: last flight ARR of the day ≠ homeBase → crew overnights away → show 🌙
-    // Corner case: crossover flights (STA < STD) mean the crew arrives home the NEXT
-    // day, so the departure day is correctly flagged as "away" if ARR ≠ base.
-    var sleepsAway = false;
-    if(homeBase){
-      var _dayFlts = dayEntries.filter(function(e){ return e.type==='flight'; });
-      if(_dayFlts.length > 0){
-        // Sort by effective STD ascending to find the last leg
-        var _sorted = _dayFlts.slice().sort(function(a,b){
-          var aM = (function(t){ var p=(t||'00:00').split(':'); return (+p[0]||0)*60+(+p[1]||0); })(a.std_actual||a.std);
-          var bM = (function(t){ var p=(t||'00:00').split(':'); return (+p[0]||0)*60+(+p[1]||0); })(b.std_actual||b.std);
-          return aM - bM;
-        });
-        var _lastArr = (_sorted[_sorted.length-1].arr||'').replace(/^\*/,'').toUpperCase();
-        sleepsAway = (_lastArr.length === 3 && _lastArr !== homeBase);
-      }
-    }
+    // ── Sleeps away from base? (uses pre-computed positional state) ─────────────────
+    var sleepsAway = _awayDays[dateStr] === true;
     var moonBadge = sleepsAway
-      ? '<div title="Pernocta fuera de base ('+homeBase+')" style="position:absolute;bottom:17px;right:2px;font-size:11px;z-index:4;filter:drop-shadow(0 1px 3px rgba(0,0,0,.35));line-height:1">🌙</div>'
+      ? '<div title="Pernocta fuera de base" style="position:absolute;bottom:16px;right:3px;font-size:13px;color:#111;z-index:4;line-height:1;font-weight:900">&#9789;</div>'
       : '';
 
     var todayRing = isToday ? 'outline:2.5px solid #0891B2;outline-offset:1px;' : '';
@@ -10419,30 +10425,16 @@ function rstRenderCalendar(){
 
     var barTopHTML = '';
     if(crossoverArrMin >= 0){
-      // ── Crossover banner: shows overnight-flight tail into this day ──
-      // Split fraction based on arrival time
-      var xSplit = crossoverArrMin <= 480 ? 1 : (crossoverArrMin <= 960 ? 2 : 3); // 1=1/3, 2=2/3, 3=all
-      var totalBH = 20; // total banner height (px)
-      var redH   = xSplit === 1 ? Math.round(totalBH/3) : (xSplit === 2 ? Math.round(totalBH*2/3) : totalBH);
-      var restH  = totalBH - redH;
-      // Rest colour = day's own activity colour (or OFF green if empty)
-      var restBg = hasEntry ? (TC[dayEntries[0].type]||TC.off).bg : TC.off.bg;
-      var restTx = hasEntry ? (TC[dayEntries[0].type]||TC.off).tx : TC.off.tx;
-      var arrStr = (crossoverArrMin >= 0) ? (String(Math.floor(crossoverArrMin/60)).padStart(2,'0')+':'+String(crossoverArrMin%60).padStart(2,'0')) : '';
-      barTopHTML = '<div style="position:absolute;top:0;left:0;right:0;overflow:hidden;border-radius:7px 7px 0 0;z-index:1">';
-      // Red (worked) portion with landing icon + arrival time
-      barTopHTML += '<div style="height:'+redH+'px;background:#c0392b;display:flex;align-items:center;justify-content:center;gap:2px">'
-        +'<span style="font-size:8px;font-weight:900;color:#fff;white-space:nowrap">🛬'+(arrStr?' '+arrStr:'')+'</span>'
-        +'</div>';
-      // Rest portion (day's own colour/label, or OFF)
-      if(restH > 0){
-        var restTypeLabels = {standby:'STBY',osb:'OSB',off:'OFF',f:'F',ef:'EF',srof:'SROF',noff:'NOFF',aoff:'AOFF',nrof:'NROF',meof:'MEOF',ebt:'SIM',eva:'SIM',lm:'LM',training:'SIM',sick:'SICK',other:'?'};
-        var restLbl = hasEntry ? (restTypeLabels[dayEntries[0].type]||dayEntries[0].type||'OFF') : 'OFF';
-        barTopHTML += '<div style="height:'+restH+'px;background:'+restBg+';display:flex;align-items:center;justify-content:center">'
-          +'<span style="font-size:8px;font-weight:900;color:'+restTx+';white-space:nowrap">'+restLbl+'</span>'
-          +'</div>';
-      }
-      barTopHTML += '</div>';
+      // ── Crossover strip: 3 vertical thirds, filled left→right by arrival time ──
+      // 00:00–08:00 → 1st third red   08:01–16:00 → 1st+2nd   16:01–23:59 → all 3
+      var xSplit = crossoverArrMin <= 480 ? 1 : (crossoverArrMin <= 960 ? 2 : 3);
+      var _empty = 'rgba(192,57,43,0.12)';
+      var _red   = '#c0392b';
+      barTopHTML = '<div style="position:absolute;top:0;left:0;right:0;height:7px;display:flex;border-radius:7px 7px 0 0;overflow:hidden;z-index:1">'
+        + '<div style="flex:1;background:'+_red+'"></div>'
+        + '<div style="flex:1;background:'+(xSplit>=2?_red:_empty)+'"></div>'
+        + '<div style="flex:1;background:'+(xSplit>=3?_red:_empty)+'"></div>'
+        + '</div>';
     } else if(hasEntry){
       var vis2 = barItems.slice(0,3);
       var extra2 = barItems.length - vis2.length;
