@@ -10264,6 +10264,25 @@ function rstRenderCalendar(){
   var daysInMonth = new Date(y, mo+1, 0).getDate();
   var todayStr = new Date().toISOString().slice(0,10);
 
+  // ── Home base: stored from last PDF import, or inferred from moda of first-DEP ──
+  var homeBase = '';
+  try { homeBase = localStorage.getItem('pilotOS_home_base') || ''; } catch(e){}
+  if(!homeBase){
+    // Fallback: compute moda of first DEP per operating day from current entries
+    var _fbDayDep = {}, _fbDepCnt = {};
+    RST.entries.forEach(function(e){
+      if(e.type !== 'flight' || !e.dep) return;
+      var dep = (e.dep||'').replace(/^\*/,'').toUpperCase();
+      if(dep && !_fbDayDep[e.date]) _fbDayDep[e.date] = dep;
+    });
+    Object.values(_fbDayDep).forEach(function(dep){ _fbDepCnt[dep] = (_fbDepCnt[dep]||0)+1; });
+    var _maxC = 0;
+    Object.keys(_fbDepCnt).forEach(function(dep){
+      if(_fbDepCnt[dep] > _maxC){ _maxC = _fbDepCnt[dep]; homeBase = dep; }
+    });
+    if(homeBase) { try { localStorage.setItem('pilotOS_home_base', homeBase); } catch(e){} }
+  }
+
   // ── Type config built once outside loop ──
   var TC = window.RST_TC = {
     flight:   { bg:'#c0392b', bd:'#a93226',             tx:'#FFFFFF', lbl:'✈',     gl:'rgba(192,57,43,.5)' },
@@ -10317,6 +10336,28 @@ function rstRenderCalendar(){
 
     // Logbook sync check (uses pre-loaded set for performance)
     var inLogbook = _lbDates[dateStr] === true;
+
+    // ── Sleeps away from base? ───────────────────────────────────────────────────────
+    // Rule: last flight ARR of the day ≠ homeBase → crew overnights away → show 🌙
+    // Corner case: crossover flights (STA < STD) mean the crew arrives home the NEXT
+    // day, so the departure day is correctly flagged as "away" if ARR ≠ base.
+    var sleepsAway = false;
+    if(homeBase){
+      var _dayFlts = dayEntries.filter(function(e){ return e.type==='flight'; });
+      if(_dayFlts.length > 0){
+        // Sort by effective STD ascending to find the last leg
+        var _sorted = _dayFlts.slice().sort(function(a,b){
+          var aM = (function(t){ var p=(t||'00:00').split(':'); return (+p[0]||0)*60+(+p[1]||0); })(a.std_actual||a.std);
+          var bM = (function(t){ var p=(t||'00:00').split(':'); return (+p[0]||0)*60+(+p[1]||0); })(b.std_actual||b.std);
+          return aM - bM;
+        });
+        var _lastArr = (_sorted[_sorted.length-1].arr||'').replace(/^\*/,'').toUpperCase();
+        sleepsAway = (_lastArr.length === 3 && _lastArr !== homeBase);
+      }
+    }
+    var moonBadge = sleepsAway
+      ? '<div title="Pernocta fuera de base ('+homeBase+')" style="position:absolute;bottom:17px;right:2px;font-size:11px;z-index:4;filter:drop-shadow(0 1px 3px rgba(0,0,0,.35));line-height:1">🌙</div>'
+      : '';
 
     var todayRing = isToday ? 'outline:2.5px solid #0891B2;outline-offset:1px;' : '';
     var checkBadge = inLogbook && dayEntries.length > 0 ? '<div style="position:absolute;top:2px;right:3px;font-size:7px;color:#15803D;font-weight:700;z-index:2">✓</div>' : '';
@@ -10422,6 +10463,7 @@ function rstRenderCalendar(){
       + 'style="position:relative;width:100%;height:58px;background:#FFFFFF;border:1.5px solid '+(isToday?'#0891B2':(dayHasWarnings?'#F59E0B':(hasEntry?border:'rgba(30,58,164,.08)')))+';border-radius:8px;cursor:pointer;transition:box-shadow .15s,transform .12s;overflow:visible">'
       + warnBadge
       + checkBadge
+      + moonBadge
       + barTopHTML
       + '<div style="position:absolute;bottom:4px;left:0;right:0;text-align:center">'
       + '<span style="font-size:11px;font-weight:700;color:'+(isSun?'#0369A1':'#0F172A')+'">'+d+'</span>'
@@ -12273,6 +12315,11 @@ async function rosterRunPDF(pdfBase64){
         if(parsed.pdf_block_min) localStorage.setItem('pilotOS_pdf_block_'+newMonth, parsed.pdf_block_min);
         if(parsed.pdf_duty_min)  localStorage.setItem('pilotOS_pdf_duty_'+newMonth,  parsed.pdf_duty_min);
       } catch(e){}
+    }
+    // Save home base (persists across months — only overwrite if newly detected)
+    if(parsed.home_base){
+      try { localStorage.setItem('pilotOS_home_base', parsed.home_base); } catch(e){}
+      console.log('[RosterPDF] Base guardada:', parsed.home_base);
     }
     // Store import timestamp y limpiar la flag de "mes borrado" si el usuario reimporta
     if(newMonth){
