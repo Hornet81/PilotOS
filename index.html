@@ -10560,14 +10560,25 @@ function rstRenderStats(){
   });
 
   // Use PDF-extracted totals if available (more accurate — includes OSB/STBY/LM duty)
-  // Safety guard: if pdfBlock is more than 12h above the computed blockMin it almost
-  // certainly contains misread clock-times from the PDF (e.g. "22:10" read as 22h10m).
-  // In that case discard it and trust the entry-level calculation instead.
-  var _pdfBlockSafe = (pdfBlock > 0 && blockMin > 0 && (pdfBlock - blockMin) > 720) ? 0 : pdfBlock;
-  if(pdfBlock > 0 && _pdfBlockSafe === 0){
-    console.warn('[RosterStats] pdfBlock ('+Math.floor(pdfBlock/60)+'h'+pdfBlock%60+'m) parece corrupto — '
-      +'excede blockMin ('+Math.floor(blockMin/60)+'h'+blockMin%60+'m) en más de 12h. Usando blockMin.');
-    try { localStorage.removeItem('pilotOS_pdf_block_'+monthKey); } catch(e){}
+  // Safety guards:
+  //   1. pdfBlock >> blockMin (>12h): PDF row-B has misread clock-times → discard pdfBlock
+  //   2. pdfBlock < blockMin (>1h):  PDF row-B misses crossover block (stored in NEXT day's
+  //      column) → entry-level blockMin is more accurate → discard pdfBlock
+  var _pdfBlockSafe = pdfBlock;
+  if(pdfBlock > 0 && blockMin > 0){
+    var _diff = pdfBlock - blockMin;
+    if(_diff > 720){
+      // Corrupted: pdfBlock inflated by misread STA times → use blockMin
+      _pdfBlockSafe = 0;
+      console.warn('[RosterStats] pdfBlock ('+Math.floor(pdfBlock/60)+'h'+pdfBlock%60+'m) parece corrupto — '
+        +'excede blockMin ('+Math.floor(blockMin/60)+'h'+blockMin%60+'m) en más de 12h. Usando blockMin.');
+      try { localStorage.removeItem('pilotOS_pdf_block_'+monthKey); } catch(e){}
+    } else if(_diff < -60){
+      // Deficient: pdfBlock misses crossover flight's block time → entry-level blockMin is more accurate
+      _pdfBlockSafe = 0;
+      console.warn('[RosterStats] pdfBlock ('+Math.floor(pdfBlock/60)+'h'+pdfBlock%60+'m) es menor que '
+        +'blockMin ('+Math.floor(blockMin/60)+'h'+blockMin%60+'m) — bloque nocturno en columna siguiente. Usando blockMin.');
+    }
   }
   var displayBlock = _pdfBlockSafe > 0 ? _pdfBlockSafe : blockMin;
   var displayDuty  = pdfDuty  > 0 ? pdfDuty  : dutyMin;
