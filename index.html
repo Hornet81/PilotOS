@@ -12116,6 +12116,28 @@ async function rosterRunPDF(pdfBase64){
     if(!parsed.entries || !parsed.entries.length) throw new Error('No se encontraron entradas en el PDF');
 
     var newMonth = parsed.month || (parsed.entries[0] && parsed.entries[0].date ? parsed.entries[0].date.slice(0,7) : null);
+    // ── Validate newMonth — must be YYYY-MM ──
+    // If the PDF parser failed to detect the month (FROM line not found), entries come back
+    // with '????-01' dates. parseInt('????') = NaN → navigates to January-NaN → view stays
+    // on May forever. Fix: fall back to the currently viewed month and repair entry dates.
+    if(!newMonth || !/^\d{4}-\d{2}$/.test(newMonth)){
+      var _fallback = RST.viewYear && RST.viewMonth!=null
+        ? RST.viewYear+'-'+String(RST.viewMonth+1).padStart(2,'0')
+        : null;
+      if(_fallback){
+        console.warn('[Roster] newMonth invalid ('+newMonth+'), using viewed month '+_fallback);
+        // Repair entry dates: replace '????-XX' with correct month
+        parsed.entries = parsed.entries.map(function(e){
+          if(e.date && e.date.startsWith('????')){
+            return Object.assign({}, e, { date: _fallback+'-'+e.date.slice(-2) });
+          }
+          return e;
+        });
+        newMonth = _fallback;
+      } else {
+        throw new Error('No se pudo detectar el mes del roster. Navega al mes correcto antes de importar.');
+      }
+    }
     if(newMonth){
       var firstEntry = parsed.entries.find(function(e){ return e.type==='flight'; });
       var isActualImport = firstEntry && !firstEntry.std && firstEntry.std_actual;
@@ -12204,6 +12226,18 @@ async function rosterRunAIText(textContent){
     if(!parsed.entries || !parsed.entries.length) throw new Error('No se encontraron entradas en el roster');
 
     var newMonth = parsed.month || (parsed.entries[0] && parsed.entries[0].date ? parsed.entries[0].date.slice(0,7) : null);
+    if(!newMonth || !/^\d{4}-\d{2}$/.test(newMonth)){
+      var _fallback = RST.viewYear && RST.viewMonth!=null
+        ? RST.viewYear+'-'+String(RST.viewMonth+1).padStart(2,'0') : null;
+      if(_fallback){
+        parsed.entries = parsed.entries.map(function(e){
+          return e.date && e.date.startsWith('????') ? Object.assign({},e,{date:_fallback+'-'+e.date.slice(-2)}) : e;
+        });
+        newMonth = _fallback;
+      } else {
+        throw new Error('No se pudo detectar el mes del roster.');
+      }
+    }
     if(newMonth){
       var firstEntry = parsed.entries.find(function(e){ return e.type==='flight'; });
       var isActualImport = firstEntry && !firstEntry.std && firstEntry.std_actual;
@@ -12326,6 +12360,18 @@ async function rosterRunAI(dataUrl, mimeType){
     if(!parsed.entries || !parsed.entries.length) throw new Error('No se encontraron entradas en el roster');
 
     var newMonth = parsed.month || (parsed.entries[0]&&parsed.entries[0].date?parsed.entries[0].date.slice(0,7):null);
+    if(!newMonth || !/^\d{4}-\d{2}$/.test(newMonth)){
+      var _fallback = RST.viewYear && RST.viewMonth!=null
+        ? RST.viewYear+'-'+String(RST.viewMonth+1).padStart(2,'0') : null;
+      if(_fallback){
+        parsed.entries = parsed.entries.map(function(e){
+          return e.date && e.date.startsWith('????') ? Object.assign({},e,{date:_fallback+'-'+e.date.slice(-2)}) : e;
+        });
+        newMonth = _fallback;
+      } else {
+        throw new Error('No se pudo detectar el mes del roster.');
+      }
+    }
     if(newMonth){
       var firstE = parsed.entries.find(function(e){ return e.type==='flight'; });
       var isActualImg = firstE && !firstE.std && firstE.std_actual;
@@ -12547,9 +12593,17 @@ function rosterShowCalendar(){
 }
 
 window.rosterConfirmDelete = function(){
+  var _y = RST.viewYear  || new Date().getFullYear();
+  var _m = RST.viewMonth != null ? RST.viewMonth : new Date().getMonth();
+  var _monthLabel = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][_m]+' '+_y;
   // Inject modal if not already present
   var existing = document.getElementById('rst-confirm-delete-modal');
-  if(existing) { existing.style.display='flex'; return; }
+  if(existing){
+    // Update the month label in case user navigated
+    var lbl = existing.querySelector('#rst-del-month-lbl');
+    if(lbl) lbl.textContent = _monthLabel;
+    existing.style.display='flex'; return;
+  }
   var modal = document.createElement('div');
   modal.id = 'rst-confirm-delete-modal';
   modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.75);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s ease';
@@ -12557,57 +12611,56 @@ window.rosterConfirmDelete = function(){
     + '<div style="background:#072428;border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:28px 24px;max-width:340px;width:100%;box-shadow:0 24px 60px rgba(20,184,166,.22);animation:slideUp .25s cubic-bezier(.2,.8,.3,1);text-align:center">'
     + '<div style="width:56px;height:56px;background:rgba(239,68,68,.12);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 16px">🗑</div>'
     + '<div style="font-size:18px;font-weight:800;color:#F0FFFE;font-family:\'Space Grotesk\',sans-serif;margin-bottom:8px">¿Borrar el roster?</div>'
-    + '<div style="font-size:13px;color:rgba(240,255,254,.55);line-height:1.6;margin-bottom:22px">Se eliminarán todos los vuelos, guardias y días del mes importado.<br><strong style="color:#F87171">Esta acción no se puede deshacer.</strong></div>'
+    + '<div style="font-size:13px;color:rgba(240,255,254,.55);line-height:1.6;margin-bottom:22px">Se eliminarán todos los vuelos y días de <strong id="rst-del-month-lbl" style="color:#F87171">'+_monthLabel+'</strong>.<br>Los demás meses no se verán afectados.<br><strong style="color:#F87171">Esta acción no se puede deshacer.</strong></div>'
     + '<div style="display:flex;gap:10px">'
     + '<button onclick="document.getElementById(\'rst-confirm-delete-modal\').style.display=\'none\'" class="fi-btn-sec" style="flex:1;padding:12px">Cancelar</button>'
     + '<button onclick="document.getElementById(\'rst-confirm-delete-modal\').style.display=\'none\';rosterClearAll();" style="flex:1;padding:12px;background:linear-gradient(135deg,#DC2626,#B91C1C);border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;box-shadow:0 4px 12px rgba(185,28,28,.3);-webkit-appearance:none">Sí, borrar</button>'
     + '</div>'
     + '</div>';
-  // Close on backdrop click
   modal.addEventListener('click', function(ev){ if(ev.target===modal) modal.style.display='none'; });
   document.body.appendChild(modal);
 };
 
 window.rosterClearAll = function(){
-  // Recoger los meses que contiene el roster ANTES de vaciar RST.entries
-  var monthsToClear = {};
-  RST.entries.forEach(function(e){ if(e.date) monthsToClear[e.date.slice(0,7)] = true; });
+  // FIX: only delete the CURRENTLY VIEWED month — not all months.
+  // With multi-month support, clearing all months at once would wipe May when
+  // the user clicks "Borrar" while viewing June.
+  var _y = RST.viewYear  || new Date().getFullYear();
+  var _m = RST.viewMonth != null ? RST.viewMonth : new Date().getMonth();
+  var monthToDelete = _y+'-'+String(_m+1).padStart(2,'0');
 
-  RST.entries = [];
-  try { localStorage.removeItem('pilotOS_roster'); } catch(e){}
-  try { localStorage.setItem('pilotOS_roster_cleared', '1'); } catch(e){}
+  // Remove entries for this month from memory, keep all other months
+  RST.entries = RST.entries.filter(function(e){ return !e.date || e.date.slice(0,7) !== monthToDelete; });
 
-  // Marcar cada mes como borrado para que rstPullFromServer no los restaure
-  Object.keys(monthsToClear).forEach(function(m){
-    try { localStorage.setItem('pilotOS_deleted_month_'+m, '1'); } catch(e){}
-  });
+  // Persist the trimmed entries to localStorage
+  try { localStorage.setItem('pilotOS_roster', JSON.stringify(RST.entries)); } catch(e){}
+  try { localStorage.removeItem('pilotOS_roster_cleared'); } catch(e){}
 
-  // Borrar del servidor (silencioso, fire-and-forget)
+  // Mark this month as deleted so rstPullFromServer doesn't restore it
+  try { localStorage.setItem('pilotOS_deleted_month_'+monthToDelete, '1'); } catch(e){}
+  // Clear import metadata for this month
+  try { localStorage.removeItem('pilotOS_import_ts_'+monthToDelete); } catch(e){}
+  try { localStorage.removeItem('pilotOS_pdf_block_'+monthToDelete); } catch(e){}
+  try { localStorage.removeItem('pilotOS_pdf_duty_'+monthToDelete); } catch(e){}
+
+  // Delete from server (fire-and-forget)
   var token=''; try{ token=lsGet('cafi_auth_token',''); }catch(e){}
   if(token){
-    Object.keys(monthsToClear).forEach(function(m){
-      fetch(ldBackendUrl()+'/api/roster?month='+m, {
-        method: 'DELETE',
-        headers: { 'Authorization': 'Bearer '+token }
-      }).catch(function(){/* offline — ok */});
-    });
+    fetch(ldBackendUrl()+'/api/roster?month='+monthToDelete, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer '+token }
+    }).catch(function(){/* offline — ok */});
   }
+
   rstRenderCalendar();
   rstRenderStats();
   rstRenderFlights();
-  var zone = document.getElementById('rst-upload-zone');
-  if(zone){
-    zone.innerHTML = '<div style="font-size:30px;margin-bottom:6px">🗓</div>'
-      + '<div class="upload-title">Sube tu roster mensual</div>'
-      + '<div class="upload-sub">PDF, TXT o JPEG</div>'
-      + '<label class="upload-btn-main"><input type="file" accept=".txt,image/*,application/pdf" onchange="rosterHandleFile(event)" style="display:none">📂 Subir archivo</label>';
-    zone.style.cssText = '';
-  }
+  rosterShowCalendar();
   var detail = document.getElementById('rst-day-detail');
   if(detail) detail.style.display = 'none';
   var panel = document.getElementById('rst-fatigue-panel');
   if(panel) panel.style.display = 'none';
-  if(typeof showToast==='function') showToast('🗑 Roster borrado correctamente');
+  if(typeof showToast==='function') showToast('🗑 Roster de '+monthToDelete+' borrado');
 };
 
 // ── Pull roster desde el servidor (equivalente a ldPullFromServer del logbook) ──
