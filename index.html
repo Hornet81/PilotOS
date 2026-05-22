@@ -13082,22 +13082,17 @@ window.goTo = function(key){
   _origGoTo(key);
   if(key==='logbook') setTimeout(ldUpdateRosterBtn, 100);
   if(key==='roster'){
-    // FIX: Never force-reset viewYear/viewMonth when entering the roster section.
-    // The previous "Always return to current month for safety" reset was the root cause
-    // of Bug B: after importing a past month (e.g. April), switching tabs and coming
-    // back would force May, discarding the user's navigation.
-    // rosterInit (called by _origGoTo above) already handles the initial default.
+    // Always return to current month when entering the roster section
     var now = new Date();
+    RST.viewYear  = now.getFullYear();
+    RST.viewMonth = now.getMonth();
     setTimeout(function(){
       try { rstRenderCalendar(); rstRenderStats(); } catch(e){}
       try { rosterShowCalendar(); } catch(e){}
       try { rstCheckMonthBanner(); } catch(e){}
-      // Auto-select today only when we're actually on the current month
-      if(RST.viewYear === now.getFullYear() && RST.viewMonth === now.getMonth()){
-        var todayStr = now.toISOString().slice(0,10);
-        var todayCell = document.querySelector('[data-date="'+todayStr+'"]');
-        if(todayCell) { todayCell.click(); }
-      }
+      var todayStr = now.toISOString().slice(0,10);
+      var todayCell = document.querySelector('[data-date="'+todayStr+'"]');
+      if(todayCell) { todayCell.click(); }
     }, 80);
   }
 };
