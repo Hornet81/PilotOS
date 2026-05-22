@@ -1867,9 +1867,38 @@ input#ld_fl, input#ld_cond { display:none !important; }
   font-family:'DM Mono','Space Mono',monospace;
   font-size:10px;letter-spacing:1.5px;color:rgba(34,211,238,.5);
   text-transform:uppercase;padding:8px 0 5px;
-  display:flex;align-items:center;gap:8px
+  display:flex;align-items:center;gap:8px;
+  position:sticky;top:0;z-index:20;
+  margin:0 -14px;padding-left:14px;padding-right:14px;
+  transition:background .25s,backdrop-filter .25s;
 }
 .ld-fmonth::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(34,211,238,.15),transparent)}
+.ld-fmonth.is-sticky{
+  background:rgba(11,16,32,.92);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  border-bottom:1px solid rgba(34,211,238,.07);
+  padding-top:10px;padding-bottom:7px;
+}
+/* ── Glow pulse: texto ── */
+@keyframes ld-month-glow{
+  0%  {color:rgba(34,211,238,.5);text-shadow:none;}
+  25% {color:#fff;text-shadow:0 0 8px rgba(34,211,238,1),0 0 20px rgba(34,211,238,.6),0 0 40px rgba(124,58,237,.4);}
+  60% {color:rgba(34,211,238,.9);text-shadow:0 0 6px rgba(34,211,238,.5);}
+  100%{color:rgba(34,211,238,.5);text-shadow:none;}
+}
+/* ── Sweep: línea ── */
+@keyframes ld-month-sweep{
+  0%  {background:linear-gradient(90deg,rgba(34,211,238,.15),transparent);opacity:1;}
+  15% {background:linear-gradient(90deg,rgba(34,211,238,.7) 0%,rgba(255,255,255,.85) 18%,rgba(34,211,238,.5) 35%,transparent 70%);opacity:1;}
+  100%{background:linear-gradient(90deg,rgba(34,211,238,.15),transparent);opacity:1;}
+}
+.ld-fmonth.ld-month-anim{
+  animation:ld-month-glow .75s ease-out forwards;
+}
+.ld-fmonth.ld-month-anim::after{
+  animation:ld-month-sweep .75s ease-out forwards;
+}
+.ld-month-sentinel{height:1px;margin-bottom:-1px;pointer-events:none}
 /* ── Day group ── */
 .ld-fday-group{margin-bottom:16px}
 .ld-fday-hdr{
@@ -9102,8 +9131,9 @@ function ldRender(){
 
   monthOrder.forEach(function(mk){
     var mg=monthGroups[mk];
-    // ── Cabecera de mes (sutil) ──
-    html+='<div class="ld-fmonth">'+ldFmtMonth(mk+'-01')+'</div>';
+    // ── Centinela + cabecera de mes (sticky) ──
+    html+='<div class="ld-month-sentinel" data-month="'+mk+'"></div>';
+    html+='<div class="ld-fmonth" data-month="'+mk+'">'+ldFmtMonth(mk+'-01')+'</div>';
 
     mg.dayOrder.forEach(function(dk){
       var flights=mg.days[dk];
@@ -9201,6 +9231,7 @@ function ldRender(){
     });
   });
   container.innerHTML=html;
+  ldInitStickyMonths();
   var total=ldFiltered.length, pages=Math.ceil(total/LD_PER);
   var pag=document.getElementById('ld_pag');
   pag.style.display=total>LD_PER?'flex':'none';
@@ -9211,6 +9242,41 @@ function ldRender(){
 }
 function ldGoPage(p){ldPage=p;ldRender();}
 function ldFilter(){ldPage=1;ldRender();}
+
+// ── Sticky month headers + glow/sweep animation ──────────────────
+function ldInitStickyMonths(){
+  var scrollRoot=document.querySelector('#ld-panel-vuelos .scroll-body');
+  if(!scrollRoot) return;
+
+  // Desconectar observer previo
+  if(window._ldMonthObs){window._ldMonthObs.disconnect();window._ldMonthObs=null;}
+
+  var sentinels=document.querySelectorAll('#ld_cards .ld-month-sentinel');
+  if(!sentinels.length) return;
+
+  window._ldMonthObs=new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){
+      var header=entry.target.nextElementSibling;
+      if(!header||!header.classList.contains('ld-fmonth')) return;
+
+      var wasSticky=header.classList.contains('is-sticky');
+      var nowSticky=!entry.isIntersecting&&entry.boundingClientRect.top<scrollRoot.getBoundingClientRect().top+4;
+
+      if(nowSticky&&!wasSticky){
+        header.classList.add('is-sticky');
+        // Disparar animación glow + sweep
+        header.classList.remove('ld-month-anim');
+        void header.offsetWidth; // force reflow
+        header.classList.add('ld-month-anim');
+        setTimeout(function(){header.classList.remove('ld-month-anim');},800);
+      } else if(!nowSticky&&wasSticky){
+        header.classList.remove('is-sticky');
+      }
+    });
+  },{root:scrollRoot,threshold:[0,1]});
+
+  sentinels.forEach(function(s){window._ldMonthObs.observe(s);});
+}
 function ldDelete(id){
   if(!confirm('¿Eliminar esta entrada del logbook?')) return;
   ldEntries=ldEntries.filter(function(e){return e.id!==id;});
