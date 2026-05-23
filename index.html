@@ -13,6 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
 <style>
 :root{
   /* Light sky theme */
@@ -11196,15 +11197,16 @@ function ldParseImportFile(file){
         var data=new Uint8Array(ev.target.result);
         var wb=XLSX.read(data,{type:'array'});
         var ws=wb.Sheets[wb.SheetNames[0]];
-        var rawRows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-        if(rawRows.length<2){ldImportError('Hoja vacía o sin datos ('+rawRows.length+' filas)');return;}
-        var headers=rawRows[0].map(function(h){return String(h).toLowerCase().trim();});
-        var rows=rawRows.slice(1).map(function(cols){
-          var obj={};
-          headers.forEach(function(h,i){obj[h]=cols[i]!==undefined?cols[i]:'';});
-          return obj;
+        // Fix broken !ref: compute actual range from all cells present
+        var maxR=0, maxC=0;
+        Object.keys(ws).forEach(function(k){
+          if(k[0]==='!') return;
+          try{ var c=XLSX.utils.decode_cell(k); if(c.r>maxR)maxR=c.r; if(c.c>maxC)maxC=c.c; }catch(e){}
         });
-        ldImportProcess(rows,file.name);
+        ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:maxR,c:maxC}});
+        // Convert to CSV and reuse existing CSV parser
+        var csv=XLSX.utils.sheet_to_csv(ws,{blankrows:false});
+        ldImportCSV(csv,file.name);
       } catch(err){ ldImportError('Error leyendo Excel: '+err.message); } };
       r.readAsArrayBuffer(file);
     } else {
@@ -11212,6 +11214,7 @@ function ldParseImportFile(file){
       var s=document.createElement('script');
       s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
       s.onload=function(){ ldParseImportFile(file); };
+      s.onerror=function(){ ldImportError('No se pudo cargar el lector de Excel. Comprueba tu conexión o convierte el archivo a CSV.'); };
       document.head.appendChild(s);
     }
     return;
