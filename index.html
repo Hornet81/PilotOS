@@ -1642,6 +1642,100 @@ select.ld-fi { appearance:none; -webkit-appearance:none; cursor:pointer; }
 }
 .ldi-ftr-note{font-family:'Space Mono',monospace;font-size:10px;color:rgba(248,250,252,.2);letter-spacing:.2px;line-height:1.5}
 
+/* ══ LOGBOOK FILTER SYSTEM (ldf-*) ══ */
+@keyframes ldfSheetIn{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes ldfOvIn{from{opacity:0}to{opacity:1}}
+
+.ldf-ov{
+  position:fixed;inset:0;z-index:580;
+  background:rgba(4,8,18,.6);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.ldf-ov.open{opacity:1;pointer-events:all}
+
+.ldf-sheet{
+  position:fixed;bottom:0;left:0;right:0;z-index:590;
+  background:linear-gradient(180deg,#0F1628 0%,#090D1C 100%);
+  border-radius:24px 24px 0 0;
+  border-top:1.5px solid rgba(124,58,237,.4);
+  border-left:1px solid rgba(124,58,237,.1);
+  border-right:1px solid rgba(124,58,237,.1);
+  box-shadow:0 -20px 60px rgba(124,58,237,.2),0 -4px 20px rgba(0,0,0,.7);
+  padding-bottom:calc(20px + env(safe-area-inset-bottom,0px));
+  transform:translateY(100%);transition:transform .28s cubic-bezier(.32,0,.15,1);
+}
+.ldf-sheet.open{transform:translateY(0)}
+
+.ldf-handle{width:36px;height:4px;background:rgba(255,255,255,.1);border-radius:2px;margin:12px auto 0}
+
+.ldf-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 18px 10px;border-bottom:1px solid rgba(34,211,238,.07);
+}
+.ldf-title{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;color:#F8FAFC}
+.ldf-clear{font-family:'Space Mono',monospace;font-size:11px;color:rgba(124,58,237,.8);cursor:pointer;padding:4px 10px;border-radius:8px;border:1px solid rgba(124,58,237,.2);background:rgba(124,58,237,.06);transition:all .15s}
+.ldf-clear:active{background:rgba(124,58,237,.18);color:#C4B5FD}
+
+.ldf-body{padding:14px 18px 4px}
+
+.ldf-sec{
+  font-family:'Space Mono',monospace;font-size:9px;font-weight:700;
+  letter-spacing:1.2px;text-transform:uppercase;color:rgba(34,211,238,.45);
+  margin-bottom:8px;display:flex;align-items:center;gap:6px;
+}
+.ldf-sec::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(34,211,238,.1),transparent)}
+
+.ldf-chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:12px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.ldf-chips::-webkit-scrollbar{display:none}
+
+.ldf-chip{
+  flex-shrink:0;padding:7px 14px;border-radius:10px;
+  font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:600;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);
+  color:rgba(248,250,252,.45);cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.ldf-chip:active{transform:scale(.95)}
+.ldf-chip.on{
+  background:rgba(124,58,237,.18);border-color:rgba(124,58,237,.5);
+  color:rgba(196,181,253,.95);
+  box-shadow:0 0 0 1px rgba(124,58,237,.2) inset;
+}
+.ldf-chip.on.cyan{
+  background:rgba(34,211,238,.12);border-color:rgba(34,211,238,.4);
+  color:rgba(103,215,238,.95);
+}
+
+/* Filter icon button */
+.ldf-btn{
+  width:40px;height:40px;flex-shrink:0;
+  background:rgba(11,16,32,.7);border:1px solid rgba(34,211,238,.15);
+  border-radius:12px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  color:rgba(248,250,252,.5);transition:all .15s;position:relative;
+}
+.ldf-btn.active{
+  border-color:rgba(124,58,237,.5);background:rgba(124,58,237,.12);color:#C4B5FD;
+}
+.ldf-btn:active{transform:scale(.93)}
+.ldf-dot{
+  position:absolute;top:6px;right:6px;width:7px;height:7px;
+  background:#7C3AED;border-radius:50%;border:1.5px solid #090D1C;
+  box-shadow:0 0 6px rgba(124,58,237,.8);display:none;
+}
+.ldf-btn.active .ldf-dot{display:block}
+
+/* Active filter banner */
+.ldf-banner{
+  display:none;align-items:center;justify-content:space-between;
+  margin-bottom:8px;padding:7px 12px;
+  background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.25);
+  border-radius:10px;animation:ldiSlideUp .2s ease both;
+}
+.ldf-banner.show{display:flex}
+.ldf-banner-txt{font-family:'Space Mono',monospace;font-size:10px;color:rgba(196,181,253,.8);letter-spacing:.2px}
+.ldf-banner-x{font-size:16px;color:rgba(124,58,237,.6);cursor:pointer;padding:0 4px;line-height:1}
+
 /* ══ LOGBOOK HERO HEADER TABS ══ */
 @keyframes ldTitleShimmer{0%,100%{background-position:0% 0%}50%{background-position:100% 0%}}
 .ld-tab{
@@ -6249,10 +6343,21 @@ input#ld_fl, input#ld_cond { display:none !important; }
       </div>
     </div>
 
-    <!-- Search -->
-    <div class="ld-search">
-      <span style="color:#4a6080">🔍</span>
-      <input type="text" placeholder="Buscar vuelo, ruta, matrícula..." id="ld_search" oninput="ldFilter()">
+    <!-- Search + Filter -->
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <div class="ld-search" style="flex:1;margin-bottom:0">
+        <span style="color:#4a6080">🔍</span>
+        <input type="text" placeholder="Buscar vuelo, ruta, matrícula..." id="ld_search" oninput="ldFilter()">
+      </div>
+      <button class="ldf-btn" id="ldf_btn" onclick="ldfOpen()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        <div class="ldf-dot"></div>
+      </button>
+    </div>
+    <!-- Active filter banner -->
+    <div class="ldf-banner" id="ldf_banner">
+      <span class="ldf-banner-txt" id="ldf_banner_txt">Filtro activo</span>
+      <span class="ldf-banner-x" onclick="ldfClear()">✕</span>
     </div>
     <!-- Status dot legend -->
     <div style="display:flex;align-items:center;gap:14px;padding:0 2px 8px;font-family:'Space Mono',monospace;font-size:10px;color:rgba(248,250,252,.35)">
@@ -6644,6 +6749,39 @@ input#ld_fl, input#ld_cond { display:none !important; }
   </div><!-- /ld-panel-stats -->
 
   <!-- IMPORT MODAL -->
+  <!-- ══ FILTER BOTTOM SHEET ══ -->
+  <div class="ldf-ov" id="ldf_ov" onclick="ldfClose()"></div>
+  <div class="ldf-sheet" id="ldf_sheet">
+    <div class="ldf-handle"></div>
+    <div class="ldf-hdr">
+      <div class="ldf-title">Filtrar vuelos</div>
+      <span class="ldf-clear" onclick="ldfClear()">Limpiar todo</span>
+    </div>
+    <div class="ldf-body">
+      <!-- Período -->
+      <div class="ldf-sec">Período</div>
+      <div class="ldf-chips" id="ldf_chips_period">
+        <div class="ldf-chip on" data-val="all" onclick="ldfSet('period',this)">Todo</div>
+        <div class="ldf-chip" data-val="12m" onclick="ldfSet('period',this)">Últimos 12m</div>
+        <div class="ldf-chip" data-val="90d" onclick="ldfSet('period',this)">Últimos 90d</div>
+        <div class="ldf-chip" data-val="2026" onclick="ldfSet('period',this)">2026</div>
+        <div class="ldf-chip" data-val="2025" onclick="ldfSet('period',this)">2025</div>
+        <div class="ldf-chip" data-val="2024" onclick="ldfSet('period',this)">2024</div>
+        <div class="ldf-chip" data-val="2023" onclick="ldfSet('period',this)">2023</div>
+      </div>
+      <!-- Tipo / Rol -->
+      <div class="ldf-sec" style="margin-top:2px">Aeronave · Rol</div>
+      <div class="ldf-chips" id="ldf_chips_meta">
+        <div class="ldf-chip on cyan" data-val="all-role" data-kind="role" onclick="ldfSet('role',this)">Todos</div>
+        <div class="ldf-chip cyan" data-val="CPT" data-kind="role" onclick="ldfSet('role',this)">CPT</div>
+        <div class="ldf-chip cyan" data-val="FO" data-kind="role" onclick="ldfSet('role',this)">FO</div>
+        <div class="ldf-chip" style="opacity:.2;cursor:default;border-style:dashed">·</div>
+        <!-- AC types injected dynamically by ldfBuildTypes() -->
+        <div class="ldf-chip on" data-val="all-type" data-kind="type" onclick="ldfSet('type',this)">Todos</div>
+      </div>
+    </div>
+  </div>
+
   <div class="ldi-ov" id="ld_import_modal" style="display:none;align-items:flex-end;justify-content:center">
     <div class="ldi-sheet">
       <div class="ldi-hdr">
@@ -9899,9 +10037,99 @@ function ldFmtDay(dateStr){
   var p=dateStr.split('-');
   return p[2]+' '+(MONTHS_ES[parseInt(p[1]||1)-1]||'?');
 }
+// ════════════════════════════════════════════════════
+// LOGBOOK FILTER SYSTEM
+// ════════════════════════════════════════════════════
+var _ldf = { period:'all', role:'all', type:'all' };
+
+function ldfOpen(){
+  ldfBuildTypes();
+  document.getElementById('ldf_ov').classList.add('open');
+  document.getElementById('ldf_sheet').classList.add('open');
+}
+function ldfClose(){
+  document.getElementById('ldf_ov').classList.remove('open');
+  document.getElementById('ldf_sheet').classList.remove('open');
+}
+function ldfSet(kind, el){
+  // Deactivate siblings of same kind
+  var siblings=el.parentElement.querySelectorAll('[data-kind="'+kind+'"], [data-val]:not([data-kind])');
+  if(kind==='period'){
+    el.parentElement.querySelectorAll('.ldf-chip').forEach(function(c){c.classList.remove('on')});
+  } else {
+    el.parentElement.querySelectorAll('[data-kind="'+kind+'"]').forEach(function(c){c.classList.remove('on')});
+  }
+  el.classList.add('on');
+  _ldf[kind]=el.dataset.val;
+  ldFilter(); ldfUpdateUI();
+}
+function ldfClear(){
+  _ldf={period:'all',role:'all',type:'all'};
+  // Reset chips
+  document.querySelectorAll('#ldf_chips_period .ldf-chip').forEach(function(c){c.classList.toggle('on',c.dataset.val==='all')});
+  document.querySelectorAll('#ldf_chips_meta [data-kind="role"]').forEach(function(c){c.classList.toggle('on',c.dataset.val==='all-role')});
+  document.querySelectorAll('#ldf_chips_meta [data-kind="type"]').forEach(function(c){c.classList.toggle('on',c.dataset.val==='all-type')});
+  ldFilter(); ldfUpdateUI();
+}
+function ldfHasActive(){
+  return _ldf.period!=='all'||_ldf.role!=='all'||_ldf.type!=='all';
+}
+function ldfUpdateUI(){
+  var btn=document.getElementById('ldf_btn');
+  var banner=document.getElementById('ldf_banner');
+  var bannerTxt=document.getElementById('ldf_banner_txt');
+  var active=ldfHasActive();
+  if(btn) btn.classList.toggle('active',active);
+  if(banner) banner.classList.toggle('show',active);
+  if(bannerTxt&&active){
+    var parts=[];
+    if(_ldf.period!=='all') parts.push({all:'Todo','12m':'Últimos 12m','90d':'Últimos 90d'}[_ldf.period]||_ldf.period);
+    if(_ldf.type!=='all'&&_ldf.type!=='all-type') parts.push(_ldf.type);
+    if(_ldf.role!=='all'&&_ldf.role!=='all-role') parts.push(_ldf.role);
+    bannerTxt.textContent=(ldFiltered.length)+' vuelos · '+parts.join(' · ');
+  }
+}
+function ldfBuildTypes(){
+  var types=[...new Set(ldEntries.map(function(e){return e.acType||''}).filter(Boolean))].sort();
+  var wrap=document.getElementById('ldf_chips_meta');
+  // Remove existing type chips (keep role chips + separator)
+  wrap.querySelectorAll('[data-kind="type"]').forEach(function(c){c.remove()});
+  var allTypeChip=document.createElement('div');
+  allTypeChip.className='ldf-chip'+(_ldf.type==='all'||_ldf.type==='all-type'?' on':'');
+  allTypeChip.dataset.val='all-type'; allTypeChip.dataset.kind='type';
+  allTypeChip.textContent='Todos'; allTypeChip.setAttribute('onclick','ldfSet("type",this)');
+  wrap.appendChild(allTypeChip);
+  types.forEach(function(t){
+    var c=document.createElement('div');
+    c.className='ldf-chip'+(_ldf.type===t?' on':'');
+    c.dataset.val=t; c.dataset.kind='type';
+    c.textContent=t; c.setAttribute('onclick','ldfSet("type",this)');
+    wrap.appendChild(c);
+  });
+}
+function ldfApply(entries){
+  var now=new Date();
+  return entries.filter(function(e){
+    // Period
+    if(_ldf.period!=='all'){
+      var d=new Date(e.date);
+      if(_ldf.period==='90d'){ if((now-d)>90*864e5) return false; }
+      else if(_ldf.period==='12m'){ if((now-d)>365*864e5) return false; }
+      else { if(!e.date||!e.date.startsWith(_ldf.period)) return false; }
+    }
+    // Role
+    if(_ldf.role!=='all'&&_ldf.role!=='all-role'&&e.role!==_ldf.role) return false;
+    // Type
+    if(_ldf.type!=='all'&&_ldf.type!=='all-type'&&e.acType!==_ldf.type) return false;
+    return true;
+  });
+}
+
 function ldRender(){
   var _ls=document.getElementById('ld_search');var q=(_ls?_ls.value:'').toLowerCase();
-  ldFiltered=q?ldEntries.filter(function(e){return(e.flight+e.dep+e.arr+e.reg+e.acType+e.date+e.notes).toLowerCase().includes(q);}):ldEntries.slice();
+  var base=q?ldEntries.filter(function(e){return(e.flight+e.dep+e.arr+e.reg+e.acType+e.date+e.notes).toLowerCase().includes(q);}):ldEntries.slice();
+  ldFiltered=ldfApply(base);
+  ldfUpdateUI();
   var container=document.getElementById('ld_cards');
   if(!ldFiltered.length){
     container.innerHTML='<div class="ld-fempty"><div class="ld-fempty-icon">📋</div>'
@@ -10965,7 +11193,8 @@ function ldParseImportFile(file){
     // Use SheetJS via CDN if available, otherwise fallback text
     if(typeof XLSX!=='undefined'){
       r.onload=function(ev){ try{
-        var wb=XLSX.read(ev.target.result,{type:'binary'});
+        var data=new Uint8Array(ev.target.result);
+        var wb=XLSX.read(data,{type:'array'});
         var ws=wb.Sheets[wb.SheetNames[0]];
         var rows=XLSX.utils.sheet_to_json(ws,{defval:''});
         rows=rows.map(function(row){
@@ -10978,7 +11207,7 @@ function ldParseImportFile(file){
         });
         ldImportProcess(rows,file.name);
       } catch(err){ ldImportError('Error leyendo Excel: '+err.message); } };
-      r.readAsBinaryString(file);
+      r.readAsArrayBuffer(file);
     } else {
       // Dynamically load SheetJS
       var s=document.createElement('script');
