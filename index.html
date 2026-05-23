@@ -4841,9 +4841,9 @@ input#ld_fl, input#ld_cond { display:none !important; }
 </svg></div><span class="dh-badge dh-b-live">Live</span></div>
         <div style="font-size:12px;font-weight:700;color:#fff;margin-bottom:1px">Logbook</div>
         <div style="font-size:9px;color:rgba(241,245,249,.4);margin-bottom:4px">Registro EASA FCL.050</div>
-        <div style="font-size:24px;font-weight:900;color:#A78BFA;font-family:monospace;line-height:1" id="dh-lb-hours">2.840 h</div>
+        <div style="font-size:24px;font-weight:900;color:#A78BFA;font-family:monospace;line-height:1" id="dh-lb-hours">— h</div>
         <div style="font-size:9px;color:rgba(241,245,249,.4);margin-bottom:5px">Total block time</div>
-        <div style="display:flex;align-items:flex-end;gap:4px;height:38px"><div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;border-radius:2px 2px 0 0;background:rgba(167,139,250,.22);height:40%"></div><div style="font-size:7px;color:rgba(241,245,249,.25);font-family:monospace">E</div></div><div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;border-radius:2px 2px 0 0;background:rgba(167,139,250,.22);height:55%"></div><div style="font-size:7px;color:rgba(241,245,249,.25);font-family:monospace">F</div></div><div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;border-radius:2px 2px 0 0;background:rgba(167,139,250,.22);height:50%"></div><div style="font-size:7px;color:rgba(241,245,249,.25);font-family:monospace">M</div></div><div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;border-radius:2px 2px 0 0;background:rgba(167,139,250,.22);height:65%"></div><div style="font-size:7px;color:rgba(241,245,249,.25);font-family:monospace">A</div></div><div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;border-radius:2px 2px 0 0;background:#A78BFA;height:90%"></div><div style="font-size:7px;color:rgba(241,245,249,.25);font-family:monospace">M</div></div><div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;border-radius:2px 2px 0 0;background:rgba(167,139,250,.22);height:30%"></div><div style="font-size:7px;color:rgba(241,245,249,.25);font-family:monospace">J</div></div></div>
+        <div id="dh-lb-chart" style="display:flex;align-items:flex-end;gap:4px;height:38px"></div>
       </div>
     </div>
   </div>
@@ -9586,6 +9586,35 @@ function ldStats(){
   var th=Math.floor(tm/60);
   if(el('ld_mini_total')) el('ld_mini_total').textContent=th+'h';
   if(el('ld_mini_count')) el('ld_mini_count').textContent=ldEntries.length;
+  // ── Home card: total hours + 6-month bar chart ──────────────────
+  var totalH=Math.floor(tm/60);
+  var totalHStr=totalH.toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+  if(el('dh-lb-hours'))  el('dh-lb-hours').textContent=totalHStr+' h';
+  if(el('dh-hours-val')) el('dh-hours-val').textContent=totalHStr+' h';
+  // Build last-6-months buckets
+  var months6=[],d=new Date();
+  var MLBLS='EFMAMJJASOND';
+  for(var i=5;i>=0;i--){var t=new Date(d.getFullYear(),d.getMonth()-i,1);months6.push({key:t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0'),label:MLBLS[t.getMonth()],mins:0});}
+  ldEntries.forEach(function(e){
+    if(!e.date)return;
+    var mk=e.date.slice(0,7);
+    var bucket=months6.find(function(b){return b.key===mk;});
+    if(bucket) bucket.mins+=ldT2m(e.block);
+  });
+  var maxMins=Math.max.apply(null,months6.map(function(b){return b.mins;}));
+  var curKey=months6[months6.length-1].key;
+  var chartEl=el('dh-lb-chart');
+  if(chartEl){
+    chartEl.innerHTML=months6.map(function(b){
+      var pct=maxMins>0?Math.round((b.mins/maxMins)*82)+5:5;
+      var bg=b.key===curKey?'#A78BFA':'rgba(167,139,250,.28)';
+      return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">'
+        +'<div style="width:100%;border-radius:2px 2px 0 0;background:'+bg+';height:'+pct+'%"></div>'
+        +'<div style="font-size:7px;color:rgba(241,245,249,.35);font-family:monospace">'+b.label+'</div>'
+        +'</div>';
+    }).join('');
+  }
+  // ────────────────────────────────────────────────────────────────
   ldExtendedStats();
 }
 
