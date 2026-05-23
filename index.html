@@ -11196,7 +11196,14 @@ function ldParseImportFile(file){
         var data=new Uint8Array(ev.target.result);
         var wb=XLSX.read(data,{type:'array'});
         var ws=wb.Sheets[wb.SheetNames[0]];
-        var rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
+        var rawRows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+        if(rawRows.length<2){ldImportError('Hoja vacía o sin datos ('+rawRows.length+' filas)');return;}
+        var headers=rawRows[0].map(function(h){return String(h).toLowerCase().trim();});
+        var rows=rawRows.slice(1).map(function(cols){
+          var obj={};
+          headers.forEach(function(h,i){obj[h]=cols[i]!==undefined?cols[i]:'';});
+          return obj;
+        });
         ldImportProcess(rows,file.name);
       } catch(err){ ldImportError('Error leyendo Excel: '+err.message); } };
       r.readAsArrayBuffer(file);
@@ -11308,12 +11315,8 @@ function ldNormalizeRow(r){
 function ldImportProcess(rows,fname){
   var mapped=rows.map(ldMapRow).map(ldNormalizeRow).filter(function(r){ return r.date||r.dep||r.arr||r.flight; });
   if(mapped.length===0){
-    var hint='';
-    if(rows.length>0){
-      var foundKeys=Object.keys(rows[0]).slice(0,6).join(', ');
-      hint=' · Columnas encontradas: '+foundKeys;
-    }
-    ldImportError('No se encontraron filas válidas'+hint);
+    var keys=rows.length>0?Object.keys(rows[0]).slice(0,5).join(' · '):'(sin filas)';
+    ldImportError('Sin filas válidas · '+rows.length+' leídas · Cols: '+keys);
     return;
   }
   _ldImportData=mapped;
