@@ -11359,43 +11359,99 @@ function ldImportError(msg){
 }
 function ldImportConfirm(){
   if(!_ldImportData||_ldImportData.length===0){ ldCloseImport(); return; }
-  var existingIds=new Set(ldEntries.map(function(e){return e.date+e.dep+e.arr+e.flight;}));
-  var added=0, skipped=0;
+
+  // Build index of existing entries by dedup key
+  var existingMap={};
+  ldEntries.forEach(function(e,idx){
+    var key=(e.date||'')+(e.dep||'')+(e.arr||'')+(e.flight||'');
+    existingMap[key]={entry:e,idx:idx};
+  });
+
+  // Score completeness: count non-empty meaningful fields
+  var SCORE_FIELDS=['atd','ata','std','sta','block','reg','acType','night','cm1','cm2','ldgDay','ldgNight','role','func'];
+  function completenessScore(e){
+    return SCORE_FIELDS.reduce(function(s,f){
+      var v=e[f];
+      return s+(v&&String(v).trim()&&v!=='0'&&v!=='FO'&&v!=='PF'&&v!=='CFM56'?1:0);
+    },0);
+  }
+
+  // Merge fields from src into dst keeping non-empty values from src
+  function mergeEntry(dst, src){
+    var enrichFields=['atd','ata','std','sta','block','flightTime','reg','acType','engine',
+                      'night','cm1','cm2','ldgDay','ldgNight','fl','notes'];
+    var changed=false;
+    enrichFields.forEach(function(f){
+      var sv=src[f], dv=dst[f];
+      var hasNew=sv&&String(sv).trim()!=='';
+      var hasOld=dv&&String(dv).trim()!=='';
+      if(hasNew&&!hasOld){ dst[f]=sv; changed=true; }
+    });
+    return changed;
+  }
+
+  var added=0, skipped=0, updated=0;
+
   _ldImportData.forEach(function(r){
     var key=(r.date||'')+(r.dep||'')+(r.arr||'')+(r.flight||'');
-    if(existingIds.has(key)){skipped++;return;}
-    existingIds.add(key);
-    var e={
-      id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),
-      savedAt:new Date().toISOString(),
-      date:r.date||'',flight:r.flight||'',
-      dep:(r.dep||'').toUpperCase(),arr:(r.arr||'').toUpperCase(),
-      acType:r.acType||'',engine:r.engine||'CFM56',reg:(r.reg||'').toUpperCase(),
-      fl:r.fl||'',std:r.std||'',atd:r.atd||'',sta:r.sta||'',ata:r.ata||'',
-      block:r.block||'',role:r.role||'FO',func:r.func||'PF',
-      rules:r.rules||'IFR',opType:r.opType||'COM',conditions:r.conditions||'NORM',
-      ldgDay:parseInt(r.ldgDay||1),ldgNight:parseInt(r.ldgNight||0),
-      night:r.night||'',cm1:r.cm1||'',cm2:r.cm2||'',
-      notes:r.notes||'',source:'IMPORT'
-    };
-    ldEntries.push(e);
-    if(e.reg&&e.acType) {
-      // Añadir a BD local (sin sync individual para no saturar)
-      var db=ldAcDbLoad();
-      db[e.reg.toUpperCase()]={acType:e.acType,engine:e.engine||''};
-      ldAcDbSave(db);
+    var existing=existingMap[key];
+
+    if(!existing){
+      // New entry — add it
+      var e={
+        id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),
+        savedAt:new Date().toISOString(),
+        date:r.date||'',flight:r.flight||'',
+        dep:(r.dep||'').toUpperCase(),arr:(r.arr||'').toUpperCase(),
+        acType:r.acType||'',engine:r.engine||'CFM56',reg:(r.reg||'').toUpperCase(),
+        fl:r.fl||'',std:r.std||'',atd:r.atd||'',sta:r.sta||'',ata:r.ata||'',
+        block:r.block||'',role:r.role||'FO',func:r.func||'PF',
+        rules:r.rules||'IFR',opType:r.opType||'COM',conditions:r.conditions||'NORM',
+        ldgDay:parseInt(r.ldgDay||1),ldgNight:parseInt(r.ldgNight||0),
+        night:r.night||'',cm1:r.cm1||'',cm2:r.cm2||'',
+        notes:r.notes||'',source:'IMPORT'
+      };
+      ldEntries.push(e);
+      existingMap[key]={entry:e,idx:ldEntries.length-1};
+      if(e.reg&&e.acType){
+        var db=ldAcDbLoad();
+        db[e.reg.toUpperCase()]={acType:e.acType,engine:e.engine||''};
+        ldAcDbSave(db);
+      }
+      added++;
+    } else {
+      // Duplicate — decide by completeness
+      var existEntry=existing.entry;
+      var existScore=completenessScore(existEntry);
+      var newScore=completenessScore(r);
+
+      if(newScore>existScore){
+        // New is more complete — merge new fields into existing
+        var changed=mergeEntry(existEntry,r);
+        if(changed){
+          existEntry.savedAt=new Date().toISOString();
+          updated++;
+        } else { skipped++; }
+      } else {
+        // Existing is same or more complete — enrich with any missing fields
+        var changed=mergeEntry(existEntry,r);
+        if(changed){ existEntry.savedAt=new Date().toISOString(); updated++; }
+        else { skipped++; }
+      }
     }
-    added++;
   });
-  // Sort by date desc
+
   ldEntries.sort(function(a,b){ return b.date.localeCompare(a.date); });
   ldSaveData();
-  // Sincronizar logbook Y bd de matrículas al servidor
   ldSyncToServer();
   ldAcDbSyncToServer();
   ldCloseImport(); ldRender(); ldStats(); ldUpdatePlanBanners();
-  var syncMsg = ldAuthHeaders() ? '' : ' (sin cuenta: datos solo locales)';
-  showToast('✓ '+added+' vuelo'+(added!==1?'s':'')+' importado'+(added!==1?'s':'')+(skipped?' · '+skipped+' ya existían':'')+syncMsg,'success');
+
+  var syncMsg=ldAuthHeaders()?'':' (sin cuenta: datos solo locales)';
+  var parts=['✓ '+added+' vuelo'+(added!==1?'s':'')+' añadido'+(added!==1?'s':'')];
+  if(updated) parts.push(updated+' actualizado'+(updated!==1?'s':''));
+  if(skipped) parts.push(skipped+' sin cambios');
+  showToast(parts.join(' · ')+syncMsg,'success');
 }
 
 window._initLD=function(){
