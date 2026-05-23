@@ -1455,6 +1455,193 @@ select.ld-fi { appearance:none; -webkit-appearance:none; cursor:pointer; }
 .ld-name-item:active { background:rgba(124,58,237,.15); }
 
 
+/* ══ LOGBOOK IMPORT MODAL (ldi-*) ══ */
+@keyframes ldiScan{0%{left:-50%}100%{left:110%}}
+@keyframes ldiFly{0%,100%{transform:translateX(-4px) translateY(0) rotate(0deg);opacity:.3}50%{transform:translateX(4px) translateY(-3px) rotate(-4deg);opacity:1}}
+@keyframes ldiPulse{0%,100%{box-shadow:0 0 0 0 rgba(124,58,237,.5),0 0 20px rgba(124,58,237,.3)}50%{box-shadow:0 0 0 12px rgba(124,58,237,0),0 0 30px rgba(34,211,238,.2)}}
+@keyframes ldiGlow{0%,100%{opacity:.5}50%{opacity:1}}
+@keyframes ldiBorderDash{0%{opacity:.4}50%{opacity:1}100%{opacity:.4}}
+@keyframes ldiSlideUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes ldiProgress{0%{left:-45%;width:45%}100%{left:105%;width:45%}}
+@keyframes ldiCountUp{from{transform:scale(.8);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes ldiCheckIn{0%{transform:scale(0) rotate(-15deg);opacity:0}60%{transform:scale(1.2) rotate(3deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:1}}
+
+/* Overlay */
+.ldi-ov{
+  position:fixed;inset:0;z-index:600;
+  background:rgba(4,8,18,.82);
+  -webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);
+  display:none;align-items:flex-end;justify-content:center;
+}
+.ldi-ov.open{display:flex}
+
+/* Sheet */
+.ldi-sheet{
+  width:100%;max-height:92dvh;max-height:92vh;
+  background:linear-gradient(180deg,#0F1628 0%,#090D1C 100%);
+  border-radius:28px 28px 0 0;
+  border-top:1.5px solid rgba(124,58,237,.45);
+  border-left:1px solid rgba(124,58,237,.12);
+  border-right:1px solid rgba(124,58,237,.12);
+  box-shadow:0 -28px 80px rgba(124,58,237,.28),0 -6px 28px rgba(0,0,0,.75),inset 0 1px 0 rgba(255,255,255,.04);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+/* Drag handle */
+.ldi-sheet::before{
+  content:'';display:block;width:38px;height:4px;
+  background:rgba(255,255,255,.1);border-radius:2px;
+  margin:12px auto 0;flex-shrink:0;
+}
+/* Header */
+.ldi-hdr{
+  display:flex;align-items:flex-start;justify-content:space-between;
+  padding:14px 20px 14px;border-bottom:1px solid rgba(34,211,238,.07);
+  flex-shrink:0;
+  background:linear-gradient(90deg,rgba(124,58,237,.07),rgba(34,211,238,.03),transparent);
+}
+.ldi-title-wrap{display:flex;flex-direction:column;gap:7px}
+.ldi-title{
+  font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:800;
+  letter-spacing:-.3px;color:#F8FAFC;line-height:1;
+}
+.ldi-fmt-row{display:flex;gap:5px;flex-wrap:wrap}
+.ldi-fmt{
+  font-family:'Space Mono',monospace;font-size:9.5px;font-weight:700;
+  padding:3px 9px;border-radius:6px;letter-spacing:.5px;
+  background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3);
+  color:rgba(196,181,253,.85);transition:all .15s;
+}
+.ldi-fmt.cyan{background:rgba(34,211,238,.08);border-color:rgba(34,211,238,.25);color:rgba(34,211,238,.8)}
+.ldi-close{
+  width:32px;height:32px;border-radius:50%;flex-shrink:0;
+  background:rgba(30,42,58,.8);border:1px solid rgba(34,211,238,.15);
+  color:rgba(248,250,252,.45);font-size:16px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all .15s;
+  margin-top:2px;
+}
+.ldi-close:active{background:rgba(124,58,237,.3);color:#F8FAFC}
+/* Body */
+.ldi-body{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 18px 12px;-webkit-overflow-scrolling:touch}
+.ldi-body::-webkit-scrollbar{display:none}
+/* Info strip */
+.ldi-info{
+  background:rgba(124,58,237,.06);border:1px solid rgba(124,58,237,.15);
+  border-radius:12px;padding:11px 14px;margin-bottom:14px;
+  animation:ldiSlideUp .25s ease both;
+}
+.ldi-info-title{font-family:'Space Grotesk',sans-serif;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:rgba(196,181,253,.7);margin-bottom:5px}
+.ldi-info-cols{font-family:'Space Mono',monospace;font-size:10px;color:rgba(34,211,238,.55);line-height:1.7}
+/* Drop zone */
+.ldi-zone{
+  border:2px dashed rgba(124,58,237,.3);border-radius:18px;
+  padding:32px 20px 28px;text-align:center;cursor:pointer;
+  background:rgba(124,58,237,.03);transition:all .2s;position:relative;
+  overflow:hidden;animation:ldiSlideUp .3s .05s ease both;
+}
+.ldi-zone::before{
+  content:'';position:absolute;inset:-1px;border-radius:18px;
+  background:linear-gradient(135deg,rgba(124,58,237,.05),rgba(34,211,238,.03),rgba(124,58,237,.05));
+  pointer-events:none;
+}
+.ldi-zone.drag,.ldi-zone:has(input:focus){
+  border-color:rgba(34,211,238,.6);background:rgba(34,211,238,.05);
+  box-shadow:0 0 0 4px rgba(34,211,238,.07),inset 0 0 30px rgba(34,211,238,.03);
+}
+.ldi-zone-icon{
+  font-size:42px;margin-bottom:10px;display:block;
+  animation:ldiFly 3s ease-in-out infinite;filter:drop-shadow(0 0 10px rgba(124,58,237,.5));
+}
+.ldi-zone-title{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;color:#F8FAFC;margin-bottom:5px}
+.ldi-zone-sub{font-size:12px;color:rgba(248,250,252,.35);margin-bottom:18px}
+.ldi-zone-btn{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:12px 28px;
+  background:linear-gradient(135deg,#7C3AED,#5B21B6);color:#fff;
+  border-radius:14px;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;
+  cursor:pointer;box-shadow:0 6px 20px rgba(124,58,237,.45);
+  transition:all .15s;animation:ldiPulse 2.5s ease infinite;
+}
+.ldi-zone-btn:active{transform:scale(.97);box-shadow:0 3px 10px rgba(124,58,237,.3)}
+.ldi-zone-fmts{display:flex;justify-content:center;gap:6px;margin-top:14px;flex-wrap:wrap}
+.ldi-zone-fmt{
+  font-family:'Space Mono',monospace;font-size:9px;
+  background:rgba(11,16,32,.7);border:1px solid rgba(34,211,238,.15);
+  color:rgba(34,211,238,.5);padding:3px 10px;border-radius:7px;
+}
+/* Processing state */
+.ldi-processing{
+  display:none;text-align:center;padding:28px 20px 24px;
+  animation:ldiSlideUp .25s ease both;
+}
+.ldi-proc-radar{
+  position:relative;width:120px;height:120px;border-radius:50%;
+  background:radial-gradient(circle,rgba(124,58,237,.12) 0%,rgba(11,16,32,.9) 70%);
+  border:1.5px solid rgba(124,58,237,.2);
+  margin:0 auto 20px;overflow:hidden;
+  box-shadow:0 0 30px rgba(124,58,237,.15),inset 0 0 20px rgba(0,0,0,.4);
+}
+.ldi-proc-radar::before{
+  content:'';position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(rgba(124,58,237,.0) 0deg,rgba(124,58,237,.35) 60deg,rgba(34,211,238,.2) 80deg,rgba(124,58,237,.0) 100deg);
+  animation:ldi-radar-sweep 1.8s linear infinite;
+}
+@keyframes ldi-radar-sweep{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.ldi-proc-plane{
+  position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  font-size:28px;filter:drop-shadow(0 0 8px rgba(124,58,237,.8));
+  animation:ldiFly 3s ease-in-out infinite;
+}
+.ldi-proc-rings{position:absolute;inset:0;border-radius:50%}
+.ldi-proc-rings::before,.ldi-proc-rings::after{
+  content:'';position:absolute;border-radius:50%;border:1px solid rgba(34,211,238,.15);
+  top:50%;left:50%;transform:translate(-50%,-50%);
+}
+.ldi-proc-rings::before{width:50%;height:50%}
+.ldi-proc-rings::after{width:80%;height:80%}
+.ldi-proc-bar-wrap{
+  height:3px;background:rgba(34,211,238,.07);border-radius:2px;
+  overflow:hidden;margin-bottom:16px;position:relative;
+}
+.ldi-proc-bar{
+  position:absolute;height:100%;border-radius:2px;
+  background:linear-gradient(90deg,transparent,#7C3AED,#22D3EE,transparent);
+  animation:ldiProgress 1.4s ease-in-out infinite;
+}
+.ldi-proc-title{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;color:#F8FAFC;margin-bottom:6px}
+.ldi-proc-sub{font-family:'Space Mono',monospace;font-size:11px;color:rgba(34,211,238,.6);letter-spacing:.3px}
+/* Status / preview */
+.ldi-status{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:10px 14px;border-radius:12px;margin-bottom:12px;
+  font-family:'Space Mono',monospace;font-size:11px;
+  animation:ldiSlideUp .2s ease both;
+}
+.ldi-status.ok{background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.2);color:#34d399}
+.ldi-status.err{background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.2);color:#f87171}
+.ldi-status-icon{font-size:16px;flex-shrink:0;margin-top:-1px}
+.ldi-count{
+  font-size:22px;font-weight:800;font-family:'Space Grotesk',sans-serif;
+  color:#F8FAFC;display:block;
+  animation:ldiCountUp .3s ease both;
+}
+.ldi-table-wrap{
+  overflow-x:auto;max-height:190px;overflow-y:auto;
+  border-radius:12px;border:1px solid rgba(34,211,238,.1);
+  background:rgba(8,12,24,.9);
+}
+.ldi-table-wrap::-webkit-scrollbar{width:4px;height:4px}
+.ldi-table-wrap::-webkit-scrollbar-track{background:transparent}
+.ldi-table-wrap::-webkit-scrollbar-thumb{background:rgba(124,58,237,.3);border-radius:2px}
+/* Footer */
+.ldi-ftr{
+  padding:12px 18px 30px;border-top:1px solid rgba(34,211,238,.07);
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  flex-shrink:0;background:rgba(8,12,24,.95);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+}
+.ldi-ftr-note{font-family:'Space Mono',monospace;font-size:10px;color:rgba(248,250,252,.2);letter-spacing:.2px;line-height:1.5}
+
 /* ══ LOGBOOK HERO HEADER TABS ══ */
 @keyframes ldTitleShimmer{0%,100%{background-position:0% 0%}50%{background-position:100% 0%}}
 .ld-tab{
@@ -6457,37 +6644,62 @@ input#ld_fl, input#ld_cond { display:none !important; }
   </div><!-- /ld-panel-stats -->
 
   <!-- IMPORT MODAL -->
-  <div class="ld-modal-ov" id="ld_import_modal" style="display:none;align-items:center;justify-content:center">
-    <div class="ld-modal" style="max-height:80vh;border-radius:24px;margin:20px">
-      <div class="ld-modal-hdr">
-        <div><div class="ld-modal-title">Importar Logbook <span>XLS / CSV / TXT</span></div></div>
-        <button class="ld-modal-close" onclick="ldCloseImport()">✕</button>
-      </div>
-      <div class="ld-modal-body" style="padding:16px">
-        <div style="background:rgba(124,58,237,.07);border:1px solid rgba(124,58,237,.2);border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:rgba(248,250,252,.6);line-height:1.6">
-          <strong style="color:rgba(180,160,255,.9)">Columnas aceptadas</strong> (cualquier orden, cabeceras en español o inglés):<br>
-          <span style="font-family:'Space Mono',monospace;font-size:10.5px;color:rgba(34,211,238,.7)">fecha/date, vuelo/flight, origen/dep, destino/arr, matrícula/reg, tipo/actype, motor/engine, atd, std, ata, sta, block, nocturno/night, ldg_dia, ldg_noche, rol/role, funcion/func, cm1, cm2, notas/notes</span>
+  <div class="ldi-ov" id="ld_import_modal" style="display:none;align-items:flex-end;justify-content:center">
+    <div class="ldi-sheet">
+      <div class="ldi-hdr">
+        <div class="ldi-title-wrap">
+          <div class="ldi-title">Importar Logbook</div>
+          <div class="ldi-fmt-row">
+            <span class="ldi-fmt">XLS</span>
+            <span class="ldi-fmt">XLSX</span>
+            <span class="ldi-fmt cyan">CSV</span>
+            <span class="ldi-fmt cyan">TXT</span>
+          </div>
         </div>
-        <div id="ld_import_zone" style="border:2px dashed rgba(124,58,237,.3);border-radius:14px;padding:28px 20px;text-align:center;cursor:pointer;transition:all .15s;background:rgba(17,24,39,.6)"
-          ondragover="event.preventDefault();this.style.background='rgba(124,58,237,.1)'"
-          ondragleave="this.style.background='rgba(17,24,39,.6)'"
-          ondrop="ldImportDrop(event)">
-          <div style="font-size:32px;margin-bottom:8px">📥</div>
-          <div style="font-size:13px;font-weight:600;color:#F8FAFC;margin-bottom:4px">Arrastra tu archivo aquí</div>
-          <div style="font-size:11px;color:rgba(248,250,252,.4);margin-bottom:14px">o selecciona desde tu dispositivo</div>
-          <label style="padding:10px 22px;background:linear-gradient(135deg,#7C3AED,#5B21B6);color:#fff;border-radius:12px;font-size:13px;font-weight:600;cursor:pointer;display:inline-block;box-shadow:0 4px 14px rgba(124,58,237,.4)">
+        <button class="ldi-close" onclick="ldCloseImport()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="ldi-body">
+        <div class="ldi-info">
+          <div class="ldi-info-title">Columnas aceptadas · cualquier orden · español o inglés</div>
+          <div class="ldi-info-cols">fecha/date · vuelo/flight · origen/dep · destino/arr · matrícula/reg · tipo/actype · atd block · ata block · total block · nocturno/night · ldg_dia · ldg_noche · rol/role · cm1 · cm2 · notas/notes</div>
+        </div>
+        <div id="ldi_zone" class="ldi-zone"
+          ondragover="event.preventDefault();this.classList.add('drag')"
+          ondragleave="this.classList.remove('drag')"
+          ondrop="this.classList.remove('drag');ldImportDrop(event)">
+          <span class="ldi-zone-icon">✈</span>
+          <div class="ldi-zone-title">Arrastra tu archivo aquí</div>
+          <div class="ldi-zone-sub">o selecciona desde tu dispositivo</div>
+          <label class="ldi-zone-btn">
             <input type="file" id="ld_import_file" accept=".csv,.txt,.xls,.xlsx" onchange="ldImportFile(event)" style="display:none">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             Seleccionar archivo
           </label>
-          <div style="margin-top:10px;font-size:11px;color:rgba(248,250,252,.3)">Formatos: .csv · .txt · .xls · .xlsx</div>
+          <div class="ldi-zone-fmts">
+            <span class="ldi-zone-fmt">.csv</span>
+            <span class="ldi-zone-fmt">.txt</span>
+            <span class="ldi-zone-fmt">.xls</span>
+            <span class="ldi-zone-fmt">.xlsx</span>
+          </div>
         </div>
-        <div id="ld_import_preview" style="display:none;margin-top:14px">
-          <div id="ld_import_status" style="font-size:12px;color:#22D3EE;margin-bottom:8px;padding:8px 12px;background:rgba(34,211,238,.06);border-radius:8px;border-left:3px solid #22D3EE"></div>
-          <div id="ld_import_table_wrap" style="overflow-x:auto;max-height:200px;overflow-y:auto;border-radius:8px;border:1px solid rgba(34,211,238,.12)"></div>
+        <div id="ldi_processing" class="ldi-processing">
+          <div class="ldi-proc-radar">
+            <div class="ldi-proc-rings"></div>
+            <div class="ldi-proc-plane">✈</div>
+          </div>
+          <div class="ldi-proc-bar-wrap"><div class="ldi-proc-bar"></div></div>
+          <div class="ldi-proc-title" id="ldi_proc_title">Analizando archivo…</div>
+          <div class="ldi-proc-sub" id="ldi_proc_sub">Detectando formato</div>
+        </div>
+        <div id="ld_import_preview" style="display:none;margin-top:4px">
+          <div id="ld_import_status" class="ldi-status ok" style="margin-bottom:10px"></div>
+          <div id="ld_import_table_wrap" class="ldi-table-wrap"></div>
         </div>
       </div>
-      <div class="ld-modal-ftr">
-        <div style="font-size:11px;color:rgba(248,250,252,.3)">Los registros existentes no se sobrescribirán</div>
+      <div class="ldi-ftr">
+        <div class="ldi-ftr-note">Los registros existentes<br>no se sobrescribirán</div>
         <div style="display:flex;gap:8px">
           <button class="ld-cancel" onclick="ldCloseImport()">Cancelar</button>
           <button class="ld-save" id="ld_import_confirm_btn" style="display:none" onclick="ldImportConfirm()">✓ Importar</button>
@@ -10690,6 +10902,8 @@ function ldUpdateDayBadges(){
 // LOGBOOK IMPORT — XLS / CSV / TXT
 // ════════════════════════════════════════════════════
 var _ldImportData = null;
+var _ldiProcTimer = null;
+
 function ldShowImport(){
   var m=document.getElementById('ld_import_modal');
   if(m){ m.style.display='flex'; document.body.style.overflow='hidden'; }
@@ -10698,17 +10912,53 @@ function ldCloseImport(){
   var m=document.getElementById('ld_import_modal');
   if(m){ m.style.display='none'; document.body.style.overflow=''; }
   _ldImportData=null;
+  if(_ldiProcTimer){ clearInterval(_ldiProcTimer); _ldiProcTimer=null; }
   var f=document.getElementById('ld_import_file'); if(f) f.value='';
   var p=document.getElementById('ld_import_preview'); if(p) p.style.display='none';
   var b=document.getElementById('ld_import_confirm_btn'); if(b) b.style.display='none';
+  // Reset to idle zone
+  var zone=document.getElementById('ldi_zone'); if(zone) zone.style.display='block';
+  var proc=document.getElementById('ldi_processing'); if(proc) proc.style.display='none';
 }
+
+// Show scanning animation
+function ldiShowProcessing(fname){
+  var zone=document.getElementById('ldi_zone');
+  var proc=document.getElementById('ldi_processing');
+  var prev=document.getElementById('ld_import_preview');
+  var btn=document.getElementById('ld_import_confirm_btn');
+  if(zone) zone.style.display='none';
+  if(prev) prev.style.display='none';
+  if(btn) btn.style.display='none';
+  if(proc) proc.style.display='block';
+  // Animate subtitle through stages
+  var stages=['Leyendo archivo…','Detectando columnas…','Mapeando campos…','Procesando vuelos…'];
+  var i=0;
+  var sub=document.getElementById('ldi_proc_sub');
+  var ttl=document.getElementById('ldi_proc_title');
+  if(ttl) ttl.textContent=fname||'Analizando…';
+  if(sub) sub.textContent=stages[0];
+  if(_ldiProcTimer) clearInterval(_ldiProcTimer);
+  _ldiProcTimer=setInterval(function(){
+    i=(i+1)%stages.length;
+    if(sub) sub.textContent=stages[i];
+  },520);
+}
+
+// Hide animation, show result
+function ldiShowResult(){
+  if(_ldiProcTimer){ clearInterval(_ldiProcTimer); _ldiProcTimer=null; }
+  var proc=document.getElementById('ldi_processing'); if(proc) proc.style.display='none';
+  var prev=document.getElementById('ld_import_preview'); if(prev) prev.style.display='block';
+}
+
 function ldImportDrop(e){
   e.preventDefault();
-  document.getElementById('ld_import_zone').style.background='rgba(255,255,255,.7)';
   var file=e.dataTransfer.files[0]; if(file) ldParseImportFile(file);
 }
 function ldImportFile(e){ var file=e.target.files[0]; if(file) ldParseImportFile(file); }
 function ldParseImportFile(file){
+  ldiShowProcessing(file.name);
   var name=file.name.toLowerCase();
   var r=new FileReader();
   if(name.endsWith('.xls')||name.endsWith('.xlsx')){
@@ -10718,6 +10968,14 @@ function ldParseImportFile(file){
         var wb=XLSX.read(ev.target.result,{type:'binary'});
         var ws=wb.Sheets[wb.SheetNames[0]];
         var rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+        rows=rows.map(function(row){
+          var nr={};
+          Object.keys(row).forEach(function(k){
+            var v=row[k];
+            nr[k.toLowerCase().trim()]=(typeof v==='string'?v.trim():v);
+          });
+          return nr;
+        });
         ldImportProcess(rows,file.name);
       } catch(err){ ldImportError('Error leyendo Excel: '+err.message); } };
       r.readAsBinaryString(file);
@@ -10755,14 +11013,14 @@ var LD_COL_MAP={
   flight:['vuelo','flight','numero_vuelo','flt','nflight'],
   dep:['origen','dep','departure','from','salida','icao_dep','org'],
   arr:['destino','arr','arrival','to','llegada','icao_arr','dst'],
-  reg:['matricula','reg','registration','tail','ac_reg','ec'],
+  reg:['matricula','reg','registration','tail','ac_reg','ec','reg (a319/a320/a321)'],
   acType:['tipo','type','actype','aircraft_type','ac_type','aeronave'],
   engine:['motor','engine','eng'],
-  atd:['atd','out','blk_out','actual_off'],
+  atd:['atd','out','blk_out','actual_off','atd block'],
   std:['std','off','sched_dep','sched_off'],
-  ata:['ata','in','blk_in','actual_on'],
+  ata:['ata','in','blk_in','actual_on','ata block'],
   sta:['sta','on','sched_arr','sched_on'],
-  block:['block','blk','block_time','tiempo_bloque','bloque'],
+  block:['block','blk','block_time','tiempo_bloque','bloque','total block'],
   night:['nocturno','night','night_time','tiempo_nocturno'],
   ldgDay:['ldg_dia','ldg_day','day_ldg','day_landing'],
   ldgNight:['ldg_noche','ldg_night','night_ldg','night_landing'],
@@ -10788,31 +11046,77 @@ function ldMapRow(row){
   });
   return out;
 }
+// Normaliza fecha a YYYY-MM-DD (acepta DD-MM-YYYY, DD/MM/YYYY, Date objects)
+function ldNormDate(v){
+  if(!v) return '';
+  if(v instanceof Date){
+    var y=v.getFullYear(),mo=String(v.getMonth()+1).padStart(2,'0'),d=String(v.getDate()).padStart(2,'0');
+    return y+'-'+mo+'-'+d;
+  }
+  var s=String(v).trim();
+  var m=s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+  if(m) return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0,10);
+  return s;
+}
+// Normaliza hora a HH:MM (acepta HH:MM:SS, HH:MM)
+function ldNormTime(v){
+  if(!v) return '';
+  var s=String(v).trim();
+  var m=s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if(m) return m[1].padStart(2,'0')+':'+m[2];
+  return s;
+}
+// Aplica normalización de formatos a una fila ya mapeada
+function ldNormalizeRow(r){
+  if(r.date)  r.date  = ldNormDate(r.date);
+  if(r.atd)   r.atd   = ldNormTime(r.atd);
+  if(r.ata)   r.ata   = ldNormTime(r.ata);
+  if(r.std)   r.std   = ldNormTime(r.std);
+  if(r.sta)   r.sta   = ldNormTime(r.sta);
+  if(r.block) r.block = ldNormTime(r.block);
+  if(r.night) r.night = ldNormTime(r.night);
+  if(r.dep)   r.dep   = String(r.dep).trim();
+  if(r.arr)   r.arr   = String(r.arr).trim();
+  if(r.reg)   r.reg   = String(r.reg).trim();
+  return r;
+}
 function ldImportProcess(rows,fname){
-  var mapped=rows.map(ldMapRow).filter(function(r){ return r.date||r.dep||r.arr||r.flight; });
+  var mapped=rows.map(ldMapRow).map(ldNormalizeRow).filter(function(r){ return r.date||r.dep||r.arr||r.flight; });
   if(mapped.length===0){ldImportError('No se encontraron filas válidas. Verifica las cabeceras.');return;}
   _ldImportData=mapped;
-  // Preview
-  var status=document.getElementById('ld_import_status');
-  var wrap=document.getElementById('ld_import_table_wrap');
-  var prev=document.getElementById('ld_import_preview');
-  var btn=document.getElementById('ld_import_confirm_btn');
-  status.innerHTML='📂 <strong>'+fname+'</strong> — '+mapped.length+' filas detectadas. Vista previa de las primeras 5:';
-  var sample=mapped.slice(0,5);
-  var cols=['date','flight','dep','arr','reg','acType','block'];
-  var th=cols.map(function(c){return '<th style="padding:6px 10px;font-size:9px;color:rgba(34,211,238,.7);background:rgba(11,16,32,.9);white-space:nowrap;text-transform:uppercase;letter-spacing:.8px;font-family:Space Mono,monospace;border-bottom:1px solid rgba(34,211,238,.12)">'+c+'</th>';}).join('');
-  var trs=sample.map(function(r){
-    return '<tr>'+cols.map(function(c){return '<td style="padding:5px 10px;font-size:11px;color:#F8FAFC;border-bottom:1px solid rgba(34,211,238,.07);white-space:nowrap;font-family:Space Mono,monospace">'+(r[c]||'—')+'</td>';}).join('')+'</tr>';
-  }).join('');
-  wrap.innerHTML='<table style="width:100%;border-collapse:collapse;background:rgba(11,16,32,.8)"><thead><tr>'+th+'</tr></thead><tbody>'+trs+'</tbody></table>';
-  prev.style.display='block';
-  btn.style.display='block';
+  // Small delay so the radar animation is visible
+  setTimeout(function(){
+    ldiShowResult();
+    var status=document.getElementById('ld_import_status');
+    var wrap=document.getElementById('ld_import_table_wrap');
+    var btn=document.getElementById('ld_import_confirm_btn');
+    if(status){
+      status.className='ldi-status ok';
+      status.innerHTML='<span class="ldi-status-icon">✓</span>'
+        +'<div><span class="ldi-count">'+mapped.length+'</span>'
+        +'<span style="font-size:10px;opacity:.7;letter-spacing:.3px">vuelos detectados en <strong style="color:#F8FAFC">'+fname+'</strong> · Vista previa:</span></div>';
+    }
+    var sample=mapped.slice(0,5);
+    var cols=['date','flight','dep','arr','reg','block'];
+    var th=cols.map(function(c){return '<th style="padding:7px 11px;font-size:9px;color:rgba(34,211,238,.65);background:rgba(8,12,26,.95);white-space:nowrap;text-transform:uppercase;letter-spacing:.9px;font-family:Space Mono,monospace;border-bottom:1px solid rgba(34,211,238,.1);position:sticky;top:0">'+c+'</th>';}).join('');
+    var trs=sample.map(function(r){
+      return '<tr>'+cols.map(function(c){return '<td style="padding:6px 11px;font-size:11px;color:#E2E8F0;border-bottom:1px solid rgba(34,211,238,.06);white-space:nowrap;font-family:Space Mono,monospace">'+(r[c]||'<span style="opacity:.3">—</span>')+'</td>';}).join('')+'</tr>';
+    }).join('');
+    wrap.innerHTML='<table style="width:100%;border-collapse:collapse"><thead><tr>'+th+'</tr></thead><tbody>'+trs+'</tbody></table>';
+    if(btn) btn.style.display='block';
+  }, 700);
 }
 function ldImportError(msg){
+  ldiShowResult();
   var status=document.getElementById('ld_import_status');
-  var prev=document.getElementById('ld_import_preview');
-  if(status) status.innerHTML='⚠ '+msg;
-  if(prev) prev.style.display='block';
+  var zone=document.getElementById('ldi_zone');
+  if(status){
+    status.className='ldi-status err';
+    status.innerHTML='<span class="ldi-status-icon">⚠</span><div><span style="font-weight:700">Error al importar</span><br><span style="opacity:.8">'+msg+'</span></div>';
+  }
+  // Also show zone again so user can retry
+  if(zone) zone.style.display='block';
   _ldImportData=null;
 }
 function ldImportConfirm(){
