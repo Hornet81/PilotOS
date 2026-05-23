@@ -3707,9 +3707,7 @@ input#ld_fl, input#ld_cond { display:none !important; }
     <div class="dh-pilot">
       <div class="dh-avatar" id="dh-avatar-el" onclick="openPilotPanel(event)" style="cursor:pointer">AC</div>
       <div style="display:flex;flex-direction:column;gap:0;cursor:pointer" onclick="openPilotPanel(event)">
-        <div class="dh-name" id="dh-name-el" style="font-size:12px;line-height:1.15">Alex</div>
-        <div id="dh-captain-el" style="font-size:12px;font-weight:600;color:#F1F5F9;line-height:1.15">Captain</div>
-        <div class="dh-rank" id="dh-rank-el" style="font-size:10px;margin-top:1px">A320 · Vueling</div>
+        <div class="dh-name" id="dh-name-el" style="font-size:12px;line-height:1.2">Alex</div>
       </div>
     </div>
     <div class="dh-logo" style="line-height:0;padding:0;display:flex;align-items:center"><svg style="height:38px;width:auto;display:block;flex-shrink:0" xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 830.97 260.12">
@@ -8723,15 +8721,19 @@ function initFadeAnimations() {
   const g = h<12 ? 'Buenos días' : h<20 ? 'Buenas tardes' : 'Buenas noches';
   const el = document.getElementById('hero-time');
   if (!el) return;
-  // Use stored user name if available; fallback to 'Capitán'
   var firstName = 'Capitán';
   try {
     var stored = localStorage.getItem('cafi_auth_user');
     if (stored) {
       var u = JSON.parse(stored);
-      var n = (u.name || u.email || '').trim();
-      var p = n.split(/[\s@]+/).filter(Boolean);
-      if (p[0]) firstName = p[0];
+      if (typeof _getFirstName === 'function') {
+        firstName = _getFirstName(u);
+      } else if (u.name) {
+        firstName = u.name.trim().split(/\s+/)[0];
+      } else if (u.email) {
+        var word = u.email.split('@')[0].replace(/[0-9_.\-]+.*/, '');
+        firstName = word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      }
     }
   } catch(ex){}
   el.textContent = g + ', ' + firstName + ' ✦';
@@ -13951,48 +13953,77 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
 // Legacy alias used elsewhere in the codebase
 async function cafiDoAuth() { return pagDoAuth(); }
 
+// ── Helpers ──
+function _getInitials(user) {
+  // Priority 1: full name with spaces → first letter of each word (max 2)
+  if (user.name && user.name.trim()) {
+    var parts = user.name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    // Single word name → first 2 chars
+    return parts[0].substring(0, 2).toUpperCase();
+  }
+  // Priority 2: email → parse username before @, strip numbers, detect word boundary
+  if (user.email) {
+    var username = user.email.split('@')[0].replace(/[0-9_.\-]+/g, ' ').trim();
+    // Try to find camelCase boundary: "alexbalcells" → split on lowercase→uppercase
+    var camel = user.email.split('@')[0].replace(/([a-z])([A-Z])/g, '$1 $2');
+    var parts2 = camel.split(/[^a-zA-ZÀ-ÿ]+/).filter(function(p){ return p.length > 0; });
+    if (parts2.length >= 2) return (parts2[0][0] + parts2[1][0]).toUpperCase();
+    if (parts2.length === 1) return parts2[0].substring(0, 2).toUpperCase();
+    var stripped = username.split(/\s+/).filter(Boolean);
+    if (stripped.length >= 2) return (stripped[0][0] + stripped[1][0]).toUpperCase();
+    if (stripped.length === 1) return stripped[0].substring(0, 2).toUpperCase();
+  }
+  return 'CP';
+}
+
+function _getFirstName(user) {
+  if (user.name && user.name.trim()) {
+    return user.name.trim().split(/\s+/)[0];
+  }
+  if (user.email) {
+    // Take username before @, strip numbers/dots/underscores, capitalize first word
+    var u = user.email.split('@')[0];
+    // detect camelCase: "alexBalcells" → "alex"
+    var camel = u.replace(/([a-z])([A-Z])/g, '$1 $2');
+    var word = camel.split(/[^a-zA-ZÀ-ÿ]+/).filter(Boolean)[0] || u;
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  }
+  return 'Piloto';
+}
+
 // ── User avatar & session dropdown ──
 function updateUserAvatar(user) {
   if (!user) return;
-  var name = (user.name || user.email || '').trim();
-  var initials = '';
-  var parts = name.split(/[\s@]+/).filter(Boolean);
-  if (parts.length >= 2) {
-    initials = (parts[0][0] + parts[1][0]).toUpperCase();
-  } else if (parts[0]) {
-    initials = parts[0].substring(0, 2).toUpperCase();
-  }
-  if (!initials) initials = 'CP';
-  var displayName = user.name || user.email || 'Piloto';
-  var firstName = parts[0] || 'Capitán';
+  var initials  = _getInitials(user);
+  var firstName = _getFirstName(user);
+  var fullName  = user.name || firstName;
 
-  // ── Sidebar dropdown ──
-  var el = document.getElementById('sb-initials');
-  if (el) el.textContent = initials;
+  // Sidebar avatar circle
+  var sbAv = document.getElementById('sb-initials');
+  if (sbAv) sbAv.textContent = initials;
+
+  // Sidebar dropdown big avatar + name
   var bigAv = document.getElementById('sb-dd-avatar-big');
   if (bigAv) bigAv.textContent = initials;
   var ddName = document.getElementById('sb-dd-name');
+  if (ddName) ddName.textContent = fullName;
   var ddEmail = document.getElementById('sb-dd-email');
-  if (ddName) ddName.textContent = displayName;
-  if (ddEmail) ddEmail.textContent = user.name ? (user.email || '') : '';
+  if (ddEmail) ddEmail.textContent = user.email || '';
 
-  // ── Home header (dh-pilot) ──
+  // Home header: circle + first name only
   var dhAv = document.getElementById('dh-avatar-el');
   if (dhAv) dhAv.textContent = initials;
   var dhName = document.getElementById('dh-name-el');
-  if (dhName) dhName.textContent = displayName;
-  var dhCap = document.getElementById('dh-captain-el');
-  if (dhCap) dhCap.textContent = '';           // sin rango hardcoded
-  var dhRank = document.getElementById('dh-rank-el');
-  if (dhRank) dhRank.textContent = user.email || 'A320 · Vueling';
+  if (dhName) dhName.textContent = firstName;
 
-  // ── Pilot panel (popup avatar) ──
+  // Pilot panel popup
   var ppAv = document.getElementById('pp-avatar-el');
   if (ppAv) ppAv.textContent = initials;
   var ppName = document.getElementById('pp-name-el');
-  if (ppName) ppName.textContent = displayName;
+  if (ppName) ppName.textContent = fullName;
 
-  // ── Greeting ──
+  // Greeting
   var heroEl = document.getElementById('hero-time');
   if (heroEl) {
     var h = new Date().getHours();
@@ -14000,55 +14031,48 @@ function updateUserAvatar(user) {
     heroEl.textContent = g + ', ' + firstName + ' ✦';
   }
 
-  // ── Plan badge ──
+  // Plan (store first, then render)
   if (user.plan) lsSet('pilotOS_plan', user.plan);
   sbUpdatePlanBadge();
 }
 
 function sbUpdatePlanBadge() {
-  var plan = pilotPlan();
-  var badge = document.getElementById('sb-plan-badge');
+  var plan       = pilotPlan();
+  var badge      = document.getElementById('sb-plan-badge');
   var upgradeBtn = document.getElementById('sb-upgrade-btn');
-  var tokenCounter = document.getElementById('sb-token-counter');
-  var tokenText = document.getElementById('sb-token-text');
-  var tokenBar = document.getElementById('sb-token-bar');
+  var tokenDiv   = document.getElementById('sb-token-counter');
+  var tokenText  = document.getElementById('sb-token-text');
+  var tokenBar   = document.getElementById('sb-token-bar');
   if (!badge) return;
 
+  // Reset visibility
+  badge.style.display = 'none';
+  if (upgradeBtn) upgradeBtn.style.display = 'none';
+  if (tokenDiv)   tokenDiv.style.display   = 'none';
+
   if (plan === 'unlimited') {
-    // "Tu plan es · Unlimited"
-    badge.style.display = 'inline-flex';
-    badge.style.background = 'rgba(14,116,144,.2)';
-    badge.style.color = 'rgba(34,211,238,.9)';
-    badge.style.border = '1px solid rgba(34,211,238,.3)';
-    badge.textContent = 'Tu plan es · Unlimited';
-    if (upgradeBtn) upgradeBtn.style.display = 'none';
-    if (tokenCounter) tokenCounter.style.display = 'none';
+    badge.style.cssText += ';display:inline-flex;background:rgba(14,116,144,.2);color:rgba(34,211,238,.9);border:1px solid rgba(34,211,238,.3)';
+    badge.textContent = '∞ Unlimited';
 
   } else if (plan === 'pro') {
-    // "Plan Pro" badge + "Ver planes →"
-    badge.style.display = 'inline-flex';
-    badge.style.background = 'rgba(251,146,60,.2)';
-    badge.style.color = 'rgba(251,146,60,.95)';
-    badge.style.border = '1px solid rgba(251,146,60,.4)';
-    badge.textContent = 'Plan Pro';
+    badge.style.cssText += ';display:inline-flex;background:rgba(251,146,60,.18);color:rgba(251,146,60,.95);border:1px solid rgba(251,146,60,.35)';
+    badge.textContent = 'PRO';
     if (upgradeBtn) upgradeBtn.style.display = 'inline-flex';
-    // Token counter
-    if (tokenCounter) tokenCounter.style.display = 'block';
-    var used = window._pilotUsage ? (window._pilotUsage.cafi_calls || 0) : 0;
+    // Token bar
+    var used  = window._pilotUsage ? (window._pilotUsage.cafi_calls || 0) : 0;
     var limit = 200;
-    if (tokenText) tokenText.textContent = used + ' / ' + limit;
-    if (tokenBar) tokenBar.style.width = Math.min(100, Math.round(used / limit * 100)) + '%';
+    if (tokenDiv)  tokenDiv.style.display  = 'block';
+    if (tokenText) tokenText.textContent   = used + ' / ' + limit;
+    if (tokenBar)  tokenBar.style.width    = Math.min(100, Math.round(used / limit * 100)) + '%';
 
   } else {
-    // free: solo "Ver planes →"
-    badge.style.display = 'none';
+    // free — solo botón
     if (upgradeBtn) upgradeBtn.style.display = 'inline-flex';
-    // Token counter
-    if (tokenCounter) tokenCounter.style.display = 'block';
-    var usedF = window._pilotUsage ? (window._pilotUsage.cafi_calls || 0) : 0;
+    var usedF  = window._pilotUsage ? (window._pilotUsage.cafi_calls || 0) : 0;
     var limitF = 20;
-    if (tokenText) tokenText.textContent = usedF + ' / ' + limitF;
-    if (tokenBar) tokenBar.style.width = Math.min(100, Math.round(usedF / limitF * 100)) + '%';
+    if (tokenDiv)  tokenDiv.style.display  = 'block';
+    if (tokenText) tokenText.textContent   = usedF + ' / ' + limitF;
+    if (tokenBar)  tokenBar.style.width    = Math.min(100, Math.round(usedF / limitF * 100)) + '%';
   }
 }
 
