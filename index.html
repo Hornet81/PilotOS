@@ -3761,7 +3761,7 @@ input#ld_fl, input#ld_cond { display:none !important; }
       <div class="gear-icon" style="background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.2)">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" stroke-width="1.9"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
       </div>
-      <div><div class="gear-label">Plan Pro</div><div class="gear-sub">Gestionar suscripcion</div></div>
+      <div><div class="gear-label" id="pp-plan-label">Plan</div><div class="gear-sub" id="pp-plan-sub">Gestionar suscripcion</div></div>
     </div>
     <div class="gear-divider"></div>
     <div class="gear-item" onclick="pilotLogout()">
@@ -14048,14 +14048,22 @@ function sbUpdatePlanBadge() {
   if (upgradeBtn) upgradeBtn.style.display = 'none';
   if (tokenDiv)   tokenDiv.style.display   = 'none';
 
+  // Pilot panel plan label
+  var ppLabel = document.getElementById('pp-plan-label');
+  var ppSub   = document.getElementById('pp-plan-sub');
+
   if (plan === 'unlimited') {
     badge.style.cssText += ';display:inline-flex;background:rgba(14,116,144,.2);color:rgba(34,211,238,.9);border:1px solid rgba(34,211,238,.3)';
     badge.textContent = '∞ Unlimited';
+    if (ppLabel) ppLabel.textContent = '∞ Unlimited';
+    if (ppSub)   ppSub.textContent   = 'Tu plan actual';
 
   } else if (plan === 'pro') {
     badge.style.cssText += ';display:inline-flex;background:rgba(251,146,60,.18);color:rgba(251,146,60,.95);border:1px solid rgba(251,146,60,.35)';
     badge.textContent = 'PRO';
     if (upgradeBtn) upgradeBtn.style.display = 'inline-flex';
+    if (ppLabel) ppLabel.textContent = 'Plan Pro';
+    if (ppSub)   ppSub.textContent   = 'Gestionar suscripcion';
     // Token bar
     var used  = window._pilotUsage ? (window._pilotUsage.cafi_calls || 0) : 0;
     var limit = 200;
@@ -14064,8 +14072,10 @@ function sbUpdatePlanBadge() {
     if (tokenBar)  tokenBar.style.width    = Math.min(100, Math.round(used / limit * 100)) + '%';
 
   } else {
-    // free — solo botón
+    // free
     if (upgradeBtn) upgradeBtn.style.display = 'inline-flex';
+    if (ppLabel) ppLabel.textContent = 'Plan Free';
+    if (ppSub)   ppSub.textContent   = 'Ver planes disponibles';
     var usedF  = window._pilotUsage ? (window._pilotUsage.cafi_calls || 0) : 0;
     var limitF = 20;
     if (tokenDiv)  tokenDiv.style.display  = 'block';
