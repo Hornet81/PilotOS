@@ -11196,15 +11196,7 @@ function ldParseImportFile(file){
         var data=new Uint8Array(ev.target.result);
         var wb=XLSX.read(data,{type:'array'});
         var ws=wb.Sheets[wb.SheetNames[0]];
-        var rows=XLSX.utils.sheet_to_json(ws,{defval:''});
-        rows=rows.map(function(row){
-          var nr={};
-          Object.keys(row).forEach(function(k){
-            var v=row[k];
-            nr[k.toLowerCase().trim()]=(typeof v==='string'?v.trim():v);
-          });
-          return nr;
-        });
+        var rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
         ldImportProcess(rows,file.name);
       } catch(err){ ldImportError('Error leyendo Excel: '+err.message); } };
       r.readAsArrayBuffer(file);
@@ -11260,18 +11252,21 @@ var LD_COL_MAP={
   notes:['notas','notes','remarks','obs']
 };
 function ldMapRow(row){
+  // Build a lowercase-trimmed key map regardless of how the caller prepared the row
+  var lc={};
+  Object.keys(row).forEach(function(k){
+    var v=row[k];
+    lc[k.toLowerCase().trim()]=typeof v==='string'?v.trim():v;
+  });
   var out={};
   Object.keys(LD_COL_MAP).forEach(function(field){
     var aliases=LD_COL_MAP[field];
     for(var i=0;i<aliases.length;i++){
-      if(row[aliases[i]]!==undefined&&row[aliases[i]]!==''){
-        out[field]=row[aliases[i]]; break;
+      var a=aliases[i].toLowerCase().trim();
+      if(lc[a]!==undefined&&lc[a]!==''){
+        out[field]=lc[a]; break;
       }
     }
-  });
-  // Also try exact keys (in case headers are already in english)
-  Object.keys(row).forEach(function(k){
-    if(LD_COL_MAP[k]&&out[k]===undefined) out[k]=row[k];
   });
   return out;
 }
@@ -11312,7 +11307,15 @@ function ldNormalizeRow(r){
 }
 function ldImportProcess(rows,fname){
   var mapped=rows.map(ldMapRow).map(ldNormalizeRow).filter(function(r){ return r.date||r.dep||r.arr||r.flight; });
-  if(mapped.length===0){ldImportError('No se encontraron filas válidas. Verifica las cabeceras.');return;}
+  if(mapped.length===0){
+    var hint='';
+    if(rows.length>0){
+      var foundKeys=Object.keys(rows[0]).slice(0,6).join(', ');
+      hint=' · Columnas encontradas: '+foundKeys;
+    }
+    ldImportError('No se encontraron filas válidas'+hint);
+    return;
+  }
   _ldImportData=mapped;
   // Small delay so the radar animation is visible
   setTimeout(function(){
