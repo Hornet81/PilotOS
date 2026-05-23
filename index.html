@@ -40,7 +40,7 @@
   --r16:16px; --r20:20px; --r28:28px; --r36:36px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html{height:100%;overflow:hidden;background:rgba(255,255,255,.97)}
+html{height:100%;overflow:hidden;background:#080C1A}
 body{height:100%;overflow:hidden}
 
 
@@ -311,7 +311,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 
 /* ── BOTTOM TABS ── */
 .bottom-tabs{position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(255,255,255,.97);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);border-top:1px solid rgba(13,148,136,.18);display:flex;padding:8px 0 max(16px, env(safe-area-inset-bottom));box-shadow:0 -2px 16px rgba(13,148,136,.08)}
-.bottom-tabs::after{content:'';position:fixed;bottom:0;left:0;right:0;height:env(safe-area-inset-bottom,0px);background:rgba(8,12,26,.94);z-index:99}
+.bottom-tabs::after{content:'';position:fixed;bottom:0;left:0;right:0;height:env(safe-area-inset-bottom,0px);background:rgba(8,12,26,.94);z-index:1}
 .btab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:4px 0;transition:all .14s}
 .btab svg{transition:all .14s;color:#334155}
 .btab-l{font-size:11px;font-weight:600;color:#1E3A5F;transition:color .14s;letter-spacing:.3px}
@@ -3706,11 +3706,7 @@ input#ld_fl, input#ld_cond { display:none !important; }
   <div class="dh-header">
     <div class="dh-pilot">
       <div class="dh-avatar" id="dh-avatar-el" onclick="openPilotPanel(event)" style="cursor:pointer">AC</div>
-      <div style="display:flex;flex-direction:column;gap:0;cursor:pointer" onclick="openPilotPanel(event)">
-        <div class="dh-name" id="dh-name-el" style="font-size:12px;line-height:1.15">Alex</div>
-        <div style="font-size:12px;font-weight:600;color:#F1F5F9;line-height:1.15">Captain</div>
-        <div class="dh-rank" id="dh-rank-el" style="font-size:10px;margin-top:1px">A320 Ceo</div>
-      </div>
+
     </div>
     <div class="dh-logo" style="line-height:0;padding:0;display:flex;align-items:center"><svg style="height:38px;width:auto;display:block;flex-shrink:0" xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 830.97 260.12">
   <!-- Generator: Adobe Illustrator 29.6.1, SVG Export Plug-In . SVG Version: 2.1.1 Build 9)  -->
@@ -3765,7 +3761,7 @@ input#ld_fl, input#ld_cond { display:none !important; }
       <div class="gear-icon" style="background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.2)">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" stroke-width="1.9"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
       </div>
-      <div><div class="gear-label">Plan Pro</div><div class="gear-sub">Gestionar suscripcion</div></div>
+      <div><div class="gear-label" id="pp-plan-label">Plan</div><div class="gear-sub" id="pp-plan-sub">Gestionar suscripcion</div></div>
     </div>
     <div class="gear-divider"></div>
     <div class="gear-item" onclick="pilotLogout()">
@@ -5622,7 +5618,7 @@ input#ld_fl, input#ld_cond { display:none !important; }
     position:relative;z-index:10;flex-shrink:0;
     background:linear-gradient(180deg,rgba(11,16,32,1) 0%,rgba(11,16,32,.95) 100%);
     border-bottom:1px solid rgba(34,211,238,.12);
-    padding:10px 16px 0;overflow:hidden
+    padding:calc(10px + env(safe-area-inset-top,0px)) 16px 0;overflow:hidden
   ">
     <!-- Atmospheric glows -->
     <div style="position:absolute;top:-60px;left:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(124,58,237,.2) 0%,transparent 65%);pointer-events:none"></div>
@@ -14007,46 +14003,101 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
 async function cafiDoAuth() { return pagDoAuth(); }
 
 // ── User avatar & session dropdown ──
+// ── Helpers de nombre e iniciales ──
+function _getInitials(user) {
+  if (!user) return 'CP';
+  if (user.name && user.name.trim()) {
+    var parts = user.name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return parts[0].substring(0, 2).toUpperCase();
+  }
+  // email: alexbalcells2000@yahoo.es → AB
+  var em = (user.email || '').split('@')[0].replace(/[0-9_\-\.]+$/, '');
+  // detectar dos palabras pegadas: alexbalcells → alex + balcells
+  var m = em.match(/^([a-z]+?)([A-Z][a-z]+.*)$/) || em.match(/^([a-z]{2,8})([a-z]{2,})$/i);
+  if (m) return (m[1][0] + m[2][0]).toUpperCase();
+  return em.substring(0, 2).toUpperCase() || 'CP';
+}
+function _getFirstName(user) {
+  if (!user) return 'Capitán';
+  if (user.name && user.name.trim()) {
+    return user.name.trim().split(/\s+/)[0];
+  }
+  // email: alexbalcells2000@yahoo.es → Alex
+  var em = (user.email || '').split('@')[0];
+  var word = em.replace(/[0-9_\-\.].*/g, '').replace(/([a-z])([A-Z]).*/, '$1');
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() || 'Capitán';
+}
+
 function updateUserAvatar(user) {
   if (!user) return;
-  var name = (user.name || user.email || '').trim();
-  var initials = '';
-  var parts = name.split(/[\s@]+/).filter(Boolean);
-  if (parts.length >= 2) {
-    initials = (parts[0][0] + parts[1][0]).toUpperCase();
-  } else if (parts[0]) {
-    initials = parts[0].substring(0, 2).toUpperCase();
-  }
-  if (!initials) initials = 'CP';
+  var initials = _getInitials(user);
+
+  // Círculo home header
+  var dhAv = document.getElementById('dh-avatar-el');
+  if (dhAv) dhAv.textContent = initials;
+
+  // Dropdown sb-initials (si existe otro avatar)
   var el = document.getElementById('sb-initials');
   if (el) el.textContent = initials;
   var bigAv = document.getElementById('sb-dd-avatar-big');
   if (bigAv) bigAv.textContent = initials;
+
+  // Pilot panel avatar
+  var ppAv = document.getElementById('pp-avatar-el');
+  if (ppAv) ppAv.textContent = initials;
+
+  // Nombre en pilot panel
+  var ppName = document.getElementById('pp-name-el');
+  if (ppName) ppName.textContent = _getFirstName(user);
+
   var ddName = document.getElementById('sb-dd-name');
   var ddEmail = document.getElementById('sb-dd-email');
   if (ddName) ddName.textContent = user.name || user.email || 'Piloto';
-  if (ddEmail) ddEmail.textContent = user.name ? (user.email || '') : '';
+  if (ddEmail) ddEmail.textContent = user.email || '';
+
   // ── Plan badge ──
-  if (user.plan) lsSet('pilotOS_plan',user.plan);
+  if (user.plan) lsSet('pilotOS_plan', user.plan);
   sbUpdatePlanBadge();
 }
 
 function sbUpdatePlanBadge() {
   var plan = pilotPlan();
-  var badge = document.getElementById('sb-plan-badge');
+  var badge      = document.getElementById('sb-plan-badge');
   var upgradeBtn = document.getElementById('sb-upgrade-btn');
+  var ppLabel    = document.getElementById('pp-plan-label');
+  var ppSub      = document.getElementById('pp-plan-sub');
   if (!badge) return;
-  var cfg = {
-    free:      { label:'FREE',      bg:'rgba(255,255,255,.08)', color:'rgba(248,250,252,.45)', border:'rgba(255,255,255,.1)' },
-    pro:       { label:'PRO',       bg:'rgba(251,146,60,.2)',   color:'rgba(251,146,60,.95)',  border:'rgba(251,146,60,.4)' },
-    unlimited: { label:'UNLIMITED', bg:'rgba(14,116,144,.2)',   color:'rgba(34,211,238,.9)',   border:'rgba(34,211,238,.3)' },
-  };
-  var c = cfg[plan] || cfg.free;
-  badge.textContent = c.label;
-  badge.style.background = c.bg;
-  badge.style.color = c.color;
-  badge.style.border = '1px solid ' + c.border;
-  if (upgradeBtn) upgradeBtn.style.display = plan === 'unlimited' ? 'none' : 'inline-flex';
+
+  // Reset display
+  badge.style.display = 'none';
+  if (upgradeBtn) upgradeBtn.style.display = 'none';
+
+  if (plan === 'unlimited') {
+    badge.style.display = 'inline-flex';
+    badge.style.background = 'rgba(14,116,144,.2)';
+    badge.style.color      = 'rgba(34,211,238,.9)';
+    badge.style.border     = '1px solid rgba(34,211,238,.3)';
+    badge.textContent      = '∞ Unlimited';
+    if (ppLabel) ppLabel.textContent = '∞ Unlimited';
+    if (ppSub)   ppSub.textContent   = 'Tu plan actual';
+
+  } else if (plan === 'pro') {
+    badge.style.display = 'inline-flex';
+    badge.style.background = 'rgba(251,146,60,.18)';
+    badge.style.color      = 'rgba(251,146,60,.95)';
+    badge.style.border     = '1px solid rgba(251,146,60,.35)';
+    badge.textContent      = 'PRO';
+    if (upgradeBtn) upgradeBtn.style.display = 'inline-flex';
+    if (ppLabel) ppLabel.textContent = 'Plan Pro';
+    if (ppSub)   ppSub.textContent   = 'Gestionar suscripción';
+
+  } else {
+    // free — solo botón "Ver planes →", sin badge
+    if (upgradeBtn) upgradeBtn.style.display = 'inline-flex';
+    if (ppLabel) ppLabel.textContent = 'Plan Free';
+    if (ppSub)   ppSub.textContent   = 'Ver planes disponibles';
+  }
 }
 
 function toggleUserDropdown(e) {
