@@ -6547,59 +6547,51 @@ function goTo(key){
 function goHome(){goTo('home');}
 function tabTo(key){goTo(key);}
 
-// ── Home: Roster card — próximos vuelos en 3 días ──
+// ── Home: Roster card — misma lógica que "Próximo Servicio" en Roster ──
 function dhUpdateRosterCard(){
   var container = document.getElementById('dh-roster-flights');
   var subtitle  = document.getElementById('dh-roster-subtitle');
   if(!container) return;
 
-  // Cargar desde localStorage si RST.entries está vacío
-  if(!RST.entries || !RST.entries.length){
-    try {
-      var r = localStorage.getItem('pilotOS_roster');
-      if(r){ var p = JSON.parse(r); if(Array.isArray(p)) RST.entries = p; }
-    } catch(e){}
-  }
+  // Siempre leer desde localStorage directamente — RST.entries puede estar vacío
+  // si el usuario no ha entrado en la pantalla Roster en esta sesión
+  var entries = [];
+  try {
+    var raw = localStorage.getItem('pilotOS_roster');
+    if(raw){ var parsed = JSON.parse(raw); if(Array.isArray(parsed)) entries = parsed; }
+  } catch(e){}
+  // Sincronizar con RST global por si acaso
+  if(window.RST && entries.length) RST.entries = entries;
+  if(!entries.length && window.RST) entries = RST.entries || [];
 
-  var entries = RST.entries || [];
-  var today = new Date();
-  today.setHours(0,0,0,0);
-
-  // Próximos 3 días a partir de hoy (inclusive)
-  var limit = new Date(today);
-  limit.setDate(limit.getDate() + 3);
-
-  // Filtrar vuelos en ese rango, ordenados por fecha + STD
-  var flights = entries.filter(function(e){
-    if(e.type !== 'flight') return false;
-    var d = new Date(e.date + 'T00:00:00');
-    return d >= today && d < limit;
-  }).sort(function(a, b){
-    if(a.date !== b.date) return a.date < b.date ? -1 : 1;
-    var ta = (a.std||'00:00'), tb = (b.std||'00:00');
-    return ta < tb ? -1 : ta > tb ? 1 : 0;
-  });
-
-  // También incluir escalas del mismo día (legs)
-  var allFlights = [];
-  flights.forEach(function(e){
-    if(e.legs && e.legs.length){
-      e.legs.forEach(function(leg){
-        allFlights.push({ date: e.date, dep: leg.dep||e.dep, arr: leg.arr||e.arr, std: leg.std||e.std });
-      });
-    } else {
-      allFlights.push({ date: e.date, dep: e.dep, arr: e.arr, std: e.std });
-    }
-  });
-
-  if(!allFlights.length){
-    container.innerHTML = '<div class="dh-frow"><div class="dh-fdate">–</div><div class="dh-froute" style="color:rgba(241,245,249,.3);font-size:8px">Sin vuelos próximos</div></div>';
-    if(subtitle) subtitle.textContent = 'Próximos 3 días';
+  if(!entries.length){
+    container.innerHTML = '<div class="dh-frow"><div class="dh-fdate">–</div><div class="dh-froute" style="color:rgba(241,245,249,.3);font-size:8px">Sin roster importado</div></div>';
+    if(subtitle) subtitle.textContent = 'Próximos 3 vuelos';
     return;
   }
 
-  // Mostrar máximo 3 vuelos
-  var show = allFlights.slice(0, 3);
+  var now      = new Date();
+  var todayStr = now.toISOString().slice(0,10);
+
+  // Igual que rstRenderFatigue: todos los vuelos ordenados por fecha+STD
+  var allFlights = entries
+    .filter(function(e){ return e.type === 'flight'; })
+    .sort(function(a,b){
+      return (a.date + (a.std||a.std_actual||'00:00'))
+        .localeCompare(b.date + (b.std||b.std_actual||'00:00'));
+    });
+
+  var todayFlights  = allFlights.filter(function(e){ return e.date === todayStr; });
+  var futureFlights = allFlights.filter(function(e){ return e.date >  todayStr; });
+
+  // Hoy primero, luego futuros — igual que "Próximo Servicio"
+  var upcoming = todayFlights.concat(futureFlights).slice(0, 3);
+
+  if(!upcoming.length){
+    container.innerHTML = '<div class="dh-frow"><div class="dh-fdate">–</div><div class="dh-froute" style="color:rgba(241,245,249,.3);font-size:8px">Sin vuelos próximos</div></div>';
+    if(subtitle) subtitle.textContent = 'Próximos 3 vuelos';
+    return;
+  }
 
   var MONTHS = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
   function fmtDate(ds){
@@ -6608,12 +6600,12 @@ function dhUpdateRosterCard(){
   }
 
   var html = '';
-  show.forEach(function(f, idx){
-    var isLast = (idx === show.length - 1);
+  upcoming.forEach(function(f, idx){
+    var isLast = (idx === upcoming.length - 1);
     var style  = isLast ? ' style="border-bottom:none"' : '';
-    var dep    = (f.dep||'???').toUpperCase();
-    var arr    = (f.arr||'???').toUpperCase();
-    var std    = f.std || '';
+    var dep    = (f.dep||'???').replace(/^\*/,'').toUpperCase();
+    var arr    = (f.arr||'???').replace(/^\*/,'').toUpperCase();
+    var std    = (f.std||f.std_actual||'').slice(0,5);
     html += '<div class="dh-frow"'+style+'>'
           + '<div class="dh-fdate">'+fmtDate(f.date)+'</div>'
           + '<div class="dh-froute">'+dep+'–'+arr+'</div>'
