@@ -6273,11 +6273,11 @@ input#ld_fl, input#ld_cond { display:none !important; }
       <div id="ld-menu-backdrop" onclick="ldCloseMenu()" style="display:none;position:fixed;inset:0;z-index:88"></div>
       <!-- Popup menu -->
       <div id="ld-action-menu" style="
-        display:none;position:absolute;top:calc(100% + 10px);right:0;z-index:90;
-        background:rgba(13,18,35,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+        display:none;position:fixed;z-index:9990;
+        background:rgba(13,18,35,.96);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
         border:1px solid rgba(34,211,238,.18);border-radius:18px;
         box-shadow:0 16px 48px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.04),0 -4px 20px rgba(124,58,237,.18);
-        padding:8px;min-width:220px;overflow:hidden
+        padding:8px;width:240px;overflow:hidden
       ">
         <!-- Menu header -->
         <div style="padding:8px 12px 6px;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1.4px;text-transform:uppercase;color:rgba(34,211,238,.4)">Añadir vuelo</div>
@@ -10763,9 +10763,24 @@ function ldToggleMenu(){
   var back=document.getElementById('ld-menu-backdrop');
   var btn=document.getElementById('ld-glass-menu-btn');
   var open=menu.style.display==='block';
-  menu.style.display=open?'none':'block';
-  back.style.display=open?'none':'block';
-  btn.style.boxShadow=open?'0 4px 20px rgba(124,58,237,.35),0 0 0 1px rgba(255,255,255,.05),inset 0 1px 0 rgba(255,255,255,.08)':'0 4px 28px rgba(124,58,237,.55),0 0 0 2px rgba(34,211,238,.25),inset 0 1px 0 rgba(255,255,255,.12)';
+  if(open){
+    menu.style.display='none';
+    back.style.display='none';
+    btn.style.boxShadow='0 4px 20px rgba(124,58,237,.35),0 0 0 1px rgba(255,255,255,.05),inset 0 1px 0 rgba(255,255,255,.08)';
+  } else {
+    // Position menu fixed relative to button
+    var rect=btn.getBoundingClientRect();
+    var menuW=240;
+    var marginRight=14;
+    var left=Math.max(marginRight, rect.right - menuW);
+    var top=rect.bottom + 10;
+    menu.style.left=left+'px';
+    menu.style.top=top+'px';
+    menu.style.right='auto';
+    menu.style.display='block';
+    back.style.display='block';
+    btn.style.boxShadow='0 4px 28px rgba(124,58,237,.55),0 0 0 2px rgba(34,211,238,.25),inset 0 1px 0 rgba(255,255,255,.12)';
+  }
 }
 function ldCloseMenu(){
   var menu=document.getElementById('ld-action-menu');
