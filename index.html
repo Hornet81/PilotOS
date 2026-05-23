@@ -6447,9 +6447,32 @@ input#ld_fl, input#ld_cond { display:none !important; }
         <button onclick="ldShowImport()" style="padding:10px 20px;background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.3);border-radius:12px;color:rgba(180,160,255,.85);font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px">📥 Importar logbook</button>
       </div>
     </div>
-    <div class="ld-pag" id="ld_pag" style="display:none;background:transparent">
-      <span id="ld_paginfo" style="color:rgba(248,250,252,.35)"></span>
-      <div class="ld-pag-btns" id="ld_pagbtns"></div>
+    <div id="ld_pag" style="display:none;padding:10px 4px 4px">
+      <!-- Progress bar -->
+      <div style="height:2px;background:rgba(34,211,238,.08);border-radius:1px;margin-bottom:10px;overflow:hidden">
+        <div id="ld_pag_bar" style="height:100%;background:linear-gradient(90deg,#7C3AED,#22D3EE);border-radius:1px;transition:width .35s ease;width:0%"></div>
+      </div>
+      <!-- Controls -->
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <button id="ld_pag_prev" onclick="ldGoPage(ldPage-1)" style="
+          width:36px;height:36px;border-radius:10px;flex-shrink:0;
+          background:rgba(17,24,39,.7);border:1px solid rgba(34,211,238,.15);
+          color:rgba(34,211,238,.7);font-size:18px;cursor:pointer;
+          display:flex;align-items:center;justify-content:center;
+          transition:all .15s;-webkit-tap-highlight-color:transparent
+        ">‹</button>
+        <div style="flex:1;text-align:center">
+          <div id="ld_pag_dates" style="font-family:'Space Mono',monospace;font-size:11px;color:rgba(248,250,252,.55);letter-spacing:.3px;line-height:1.3"></div>
+          <div id="ld_pag_num" style="font-family:'Space Mono',monospace;font-size:9px;color:rgba(34,211,238,.4);letter-spacing:.8px;margin-top:1px"></div>
+        </div>
+        <button id="ld_pag_next" onclick="ldGoPage(ldPage+1)" style="
+          width:36px;height:36px;border-radius:10px;flex-shrink:0;
+          background:rgba(17,24,39,.7);border:1px solid rgba(34,211,238,.15);
+          color:rgba(34,211,238,.7);font-size:18px;cursor:pointer;
+          display:flex;align-items:center;justify-content:center;
+          transition:all .15s;-webkit-tap-highlight-color:transparent
+        ">›</button>
+      </div>
     </div>
 
   </div></div>
@@ -10225,11 +10248,36 @@ function ldRender(){
   ldInitStickyMonths();
   var total=ldFiltered.length, pages=Math.ceil(total/LD_PER);
   var pag=document.getElementById('ld_pag');
-  pag.style.display=total>LD_PER?'flex':'none';
-  if(document.getElementById('ld_paginfo')) document.getElementById('ld_paginfo').textContent='Mostrando '+(start+1)+'–'+Math.min(start+LD_PER,total)+' de '+total;
-  if(document.getElementById('ld_pagbtns')) document.getElementById('ld_pagbtns').innerHTML=Array.from({length:pages},function(_,i){return i+1;}).map(function(i){
-    return '<button class="ld-pag-btn'+(i===ldPage?' on':'')+'" onclick="ldGoPage('+i+')" style="background:rgba(17,24,39,.8);border:1px solid rgba(34,211,238,.2);color:rgba(248,250,252,.6);border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer">'+i+'</button>';
-  }).join('');
+  pag.style.display=total>LD_PER?'block':'none';
+  if(total<=LD_PER) return;
+
+  // Progress bar
+  var bar=document.getElementById('ld_pag_bar');
+  if(bar) bar.style.width=Math.round((ldPage/pages)*100)+'%';
+
+  // Date range of current page
+  var pageEntries=ldFiltered.slice(start, start+LD_PER);
+  var MONTHS_SHORT=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+  function fmtPageDate(d){
+    if(!d) return '—';
+    var p=d.split('-'); if(p.length<2) return d;
+    return MONTHS_SHORT[parseInt(p[1]||1)-1]+' '+(p[0]||'');
+  }
+  var firstDate=pageEntries.length?pageEntries[0].date:'';
+  var lastDate=pageEntries.length?pageEntries[pageEntries.length-1].date:'';
+  var datesEl=document.getElementById('ld_pag_dates');
+  var numEl=document.getElementById('ld_pag_num');
+  if(datesEl){
+    var fd=fmtPageDate(firstDate), ld2=fmtPageDate(lastDate);
+    datesEl.textContent=fd===ld2?fd:fd+' – '+ld2;
+  }
+  if(numEl) numEl.textContent='Pág '+ldPage+' / '+pages+' · '+total+' vuelos';
+
+  // Prev/next buttons
+  var prev=document.getElementById('ld_pag_prev');
+  var next=document.getElementById('ld_pag_next');
+  if(prev){ prev.disabled=ldPage<=1; prev.style.opacity=ldPage<=1?'.25':'1'; prev.style.cursor=ldPage<=1?'default':'pointer'; }
+  if(next){ next.disabled=ldPage>=pages; next.style.opacity=ldPage>=pages?'.25':'1'; next.style.cursor=ldPage>=pages?'default':'pointer'; }
 }
 function ldGoPage(p){ldPage=p;ldRender();}
 function ldFilter(){ldPage=1;ldRender();}
