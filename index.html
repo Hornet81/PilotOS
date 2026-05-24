@@ -1294,7 +1294,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .ld-export-body{overflow-y:auto;padding:18px 18px 8px;flex:1;}
 .ld-exp-section-lbl{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1.4px;text-transform:uppercase;color:rgba(34,211,238,.45);margin-bottom:12px;display:flex;align-items:center;gap:8px;}
 .ld-exp-section-lbl::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(34,211,238,.15),transparent);}
-.ld-export-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:4px;}
+.ld-export-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:4px;}
 .ld-export-card{border-radius:16px;padding:16px 10px 14px;cursor:pointer;transition:all .18s;text-align:center;position:relative;overflow:hidden;-webkit-tap-highlight-color:transparent;}
 .ld-ec-pdf{background:rgba(245,158,11,.07);border:1.5px solid rgba(245,158,11,.28);}
 .ld-ec-pdf:active{background:rgba(245,158,11,.16);transform:scale(.97);}
@@ -1339,6 +1339,10 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .ld-ecb-pdf{background:linear-gradient(135deg,rgba(245,158,11,.22),rgba(249,115,22,.16));border:1.5px solid rgba(245,158,11,.45);color:#F59E0B;box-shadow:0 0 20px rgba(245,158,11,.1);}
 .ld-ecb-csv{background:linear-gradient(135deg,rgba(16,185,129,.2),rgba(5,150,105,.14));border:1.5px solid rgba(16,185,129,.4);color:#10B981;box-shadow:0 0 20px rgba(16,185,129,.1);}
 .ld-ecb-json{background:linear-gradient(135deg,rgba(139,92,246,.2),rgba(109,40,217,.14));border:1.5px solid rgba(139,92,246,.4);color:#8B5CF6;box-shadow:0 0 20px rgba(139,92,246,.1);}
+.ld-ec-jepp{background:rgba(99,102,241,.07);border:1.5px solid rgba(99,102,241,.28);}
+.ld-ec-jepp:active{background:rgba(99,102,241,.16);transform:scale(.97);}
+.ld-ec-jepp .ld-ec-glow{background:#6366F1;}
+.ld-ecb-jeppesen{background:linear-gradient(135deg,rgba(99,102,241,.22),rgba(79,70,229,.16));border:1.5px solid rgba(99,102,241,.45);color:#818CF8;box-shadow:0 0 20px rgba(99,102,241,.1);}
 
 /* Table */
 .ld-wrap { background:#FFFFFF; border:1px solid rgba(30,58,164,.1); border-radius:6px; overflow:hidden; }
@@ -2460,7 +2464,7 @@ input#ld_fl, input#ld_cond { display:none !important; }
   border-radius:18px; padding:16px; margin-bottom:12px;
   -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
 }
-.ld-export-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.ld-export-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px}
 .ld-export-card{
   background:rgba(11,16,32,.7);
   border:1px solid rgba(34,211,238,.12);
@@ -11082,7 +11086,7 @@ function ldExportPickRange(fmt){
   if(!ldEntries.length){showToast('No hay vuelos para exportar','error');return;}
   _ldExportFmt  = fmt;
   _ldExportRange= 'all';
-  var names = {pdf:'PDF EASA',csv:'Excel / CSV',json:'Backup JSON'};
+  var names = {pdf:'PDF EASA',csv:'Excel / CSV',json:'Backup JSON',jeppesen:'PDF Jeppesen'};
   var tt = document.getElementById('ld-exp-title');
   var bb = document.getElementById('ld-exp-back-btn');
   var s1 = document.getElementById('ld-exp-step1');
@@ -11151,9 +11155,10 @@ function ldExportConfirm(){
   var entries=_ldRangeEntries();
   if(!entries.length){showToast('No hay vuelos en ese rango','error');return;}
   ldToggleExport();
-  if(_ldExportFmt==='csv')      _ldRunExportCSV(entries);
-  else if(_ldExportFmt==='json') _ldRunExportJSON(entries);
-  else                           _ldRunExportPDF(entries);
+  if(_ldExportFmt==='csv')           _ldRunExportCSV(entries);
+  else if(_ldExportFmt==='json')     _ldRunExportJSON(entries);
+  else if(_ldExportFmt==='jeppesen') _ldRunExportPDF_Jeppesen(entries);
+  else                               _ldRunExportPDF(entries);
 }
 function ldDl(content,fname,mime){
   var blob=new Blob([content],{type:mime}),url=URL.createObjectURL(blob);
@@ -11390,7 +11395,268 @@ function _ldRunExportPDF(entries){
   });
 }
 
-// ── NAMES DATABASE ──
+// ── JEPPESEN PDF EXPORT ─────────────────────────────────────────────────
+function _ldRunExportPDF_Jeppesen(entries){
+  showToast('Generando PDF Jeppesen\u2026','info');
+
+  function doGen(logoDataUrl){
+    try{
+      var jspdfLib=window.jspdf||window.jsPDF;
+      var JsPDF=(jspdfLib&&jspdfLib.jsPDF)?jspdfLib.jsPDF:jspdfLib;
+      var doc=new JsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+
+      var pilotName='';
+      try{var au=JSON.parse(localStorage.getItem('cafi_auth_user')||'{}');pilotName=au.name||au.email||'';}catch(e){}
+
+      var pageW=297,pageH=210,mg=7;
+      var _pageN=0;
+      var exportDate=new Date().toLocaleDateString('es-ES',{day:'2-digit',month:'long',year:'numeric'});
+
+      // ── Totales globales ──
+      var totalBlock=entries.reduce(function(s,e){return s+ldT2m(e.block);},0);
+      var totalNight=entries.reduce(function(s,e){return s+ldT2m(e.night);},0);
+      var totalLdgD =entries.reduce(function(s,e){return s+(+(e.ldgDay||0));},0);
+      var totalLdgN =entries.reduce(function(s,e){return s+(+(e.ldgNight||0));},0);
+      var totalPIC  =entries.reduce(function(s,e){
+        var r=(e.role||e.func||'').toUpperCase();
+        return s+((r==='PIC'||r==='CP'||r==='COMANDANTE')?ldT2m(e.block):0);
+      },0);
+      var totalCoPlt=totalBlock-totalPIC;
+
+      // ── Cabecera de página ──
+      function drawHeader(pg){
+        doc.setFillColor(255,255,255);
+        doc.rect(0,0,pageW,pg===1?20:14,'F');
+        doc.setFillColor(45,62,80);
+        doc.rect(0,0,pageW,1,'F');
+        if(pg===1){
+          if(logoDataUrl){try{doc.addImage(logoDataUrl,'PNG',mg,2.5,28,9);}catch(e){}}
+          else{doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(45,62,80);doc.text('PilotOS',mg,9);}
+          doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(45,62,80);
+          doc.text('PILOT LOGBOOK \u2014 JEPPESEN FORMAT',pageW/2,7,{align:'center'});
+          doc.setFont('helvetica','normal');doc.setFontSize(6);doc.setTextColor(100,100,100);
+          doc.text('EASA Part-FCL \u00b7 FCL.050 Appendix 1',pageW/2,12,{align:'center'});
+          if(pilotName){
+            doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(45,62,80);
+            doc.text(pilotName.toUpperCase(),pageW-mg,8,{align:'right'});
+          }
+          doc.setFont('helvetica','normal');doc.setFontSize(6);doc.setTextColor(120,120,120);
+          doc.text(exportDate,pageW-mg,13,{align:'right'});
+          doc.setDrawColor(45,62,80);doc.setLineWidth(0.5);doc.line(0,18,pageW,18);
+        } else {
+          doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(45,62,80);
+          doc.text('PILOT LOGBOOK \u2014 JEPPESEN FORMAT',pageW/2,8,{align:'center'});
+          if(pilotName){
+            doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(120,120,120);
+            doc.text(pilotName.toUpperCase(),pageW-mg,8,{align:'right'});
+          }
+          doc.setFont('helvetica','normal');doc.setFontSize(5.5);doc.setTextColor(150,150,150);
+          doc.text('pilotos.aero',mg,8);
+          doc.setDrawColor(45,62,80);doc.setLineWidth(0.4);doc.line(0,12,pageW,12);
+        }
+      }
+
+      // ── Mapeado de entrada → fila (23 columnas) ──
+      function mapEntry(e){
+        var role=(e.role||e.func||'').toUpperCase();
+        var isPIC=(role==='PIC'||role==='CP'||role==='COMANDANTE'||role==='CAPTAIN');
+        var blk=e.block||'';
+        var dateFmt='';
+        if(e.date&&e.date.length>=10) dateFmt=e.date.slice(8)+'/'+e.date.slice(5,7)+'/'+e.date.slice(2,4);
+        var depT=e.atd||e.std||'';
+        var arrT=e.ata||e.sta||'';
+        var ldgD=e.ldgDay!=null&&e.ldgDay!==''?String(e.ldgDay):'';
+        var ldgN=e.ldgNight!=null&&e.ldgNight!==''?String(e.ldgNight):'';
+        var picNm=e.cm1||(isPIC?'':e.cm2||'');
+        var ngtT=e.night||'';
+        var ifrT=blk; // operaciones comerciales → siempre IFR
+        return [
+          dateFmt,           // 0  DATE
+          e.dep||'',         // 1  DEP PLACE
+          depT,              // 2  DEP TIME
+          e.arr||'',         // 3  ARR PLACE
+          arrT,              // 4  ARR TIME
+          e.acType||'',      // 5  AIRCRAFT TYPE
+          e.reg||'',         // 6  REGISTRATION
+          '',                // 7  SE — vacío (A320 = multi-pilot)
+          '',                // 8  ME single-pilot — vacío
+          blk,               // 9  MULTI-PILOT TIME
+          blk,               // 10 TOTAL TIME OF FLIGHT
+          picNm,             // 11 NAME PIC
+          ldgD,              // 12 TO DAY
+          ldgN,              // 13 TO NIGHT
+          ldgD,              // 14 LDG DAY
+          ldgN,              // 15 LDG NIGHT
+          ngtT,              // 16 OPER COND: NIGHT
+          ifrT,              // 17 OPER COND: IFR
+          isPIC?blk:'',      // 18 PILOT FUNC: PIC
+          isPIC?'':blk,      // 19 PILOT FUNC: CO-PILOT
+          '',                // 20 DUAL
+          '',                // 21 INSTRUCTOR
+          e.notes||''        // 22 REMARKS
+        ];
+      }
+
+      // ── Estilos de columnas ──
+      var CW=[15,13,10,13,10,14,14,11,11,13,13,17,7,7,7,7,11,11,12,12,9,9,undefined];
+      var colStyles={};
+      for(var ci=0;ci<23;ci++){
+        colStyles[ci]={
+          cellWidth:CW[ci],
+          halign:(ci===0||ci===1||ci===3||ci===5||ci===6||ci===11||ci===22)?'left':'center',
+          overflow:'ellipsize'
+        };
+      }
+      [9,10,16,17,18,19].forEach(function(i){colStyles[i].fontStyle='bold';});
+
+      // ── Cabecera de tabla Jeppesen (2 filas con colSpan/rowSpan) ──
+      var head=[
+        [
+          {content:'1\nDATE',rowSpan:2,styles:{valign:'middle',halign:'center',fontStyle:'bold',fontSize:6}},
+          {content:'2\nDEPARTURE',colSpan:2,styles:{halign:'center',fontStyle:'bold',fontSize:6}},
+          {content:'3\nARRIVAL',colSpan:2,styles:{halign:'center',fontStyle:'bold',fontSize:6}},
+          {content:'4\nAIRCRAFT',colSpan:2,styles:{halign:'center',fontStyle:'bold',fontSize:6}},
+          {content:'5\nSINGLE PILOT\nTIME',colSpan:2,styles:{halign:'center',fontStyle:'bold',fontSize:5.5}},
+          {content:'6\nMULTI-\nPILOT',rowSpan:2,styles:{valign:'middle',halign:'center',fontStyle:'bold',fontSize:5.5}},
+          {content:'7\nTOTAL\nFLT TIME',rowSpan:2,styles:{valign:'middle',halign:'center',fontStyle:'bold',fontSize:5.5}},
+          {content:'8\nNAME PIC \u00b7 TAKEOFFS \u00b7 LANDINGS',colSpan:5,styles:{halign:'center',fontStyle:'bold',fontSize:6}},
+          {content:'9\nOPER. COND.\nTIME',colSpan:2,styles:{halign:'center',fontStyle:'bold',fontSize:5.5}},
+          {content:'10\nPILOT FUNCTION TIME',colSpan:4,styles:{halign:'center',fontStyle:'bold',fontSize:6}},
+          {content:'12\nREMARKS &\nENDORSEMENTS',rowSpan:2,styles:{valign:'middle',halign:'center',fontStyle:'bold',fontSize:5.5}},
+        ],
+        [
+          {content:'PLACE',styles:{fontSize:5.5,halign:'center',fontStyle:'normal'}},
+          {content:'TIME',styles:{fontSize:5.5,halign:'center',fontStyle:'normal'}},
+          {content:'PLACE',styles:{fontSize:5.5,halign:'center',fontStyle:'normal'}},
+          {content:'TIME',styles:{fontSize:5.5,halign:'center',fontStyle:'normal'}},
+          {content:'TYPE',styles:{fontSize:5.5,halign:'center',fontStyle:'normal'}},
+          {content:'REG.',styles:{fontSize:5.5,halign:'center',fontStyle:'normal'}},
+          {content:'SE',styles:{fontSize:5.5,halign:'center',fontStyle:'normal'}},
+          {content:'ME',styles:{fontSize:5.5,halign:'center',fontStyle:'normal'}},
+          {content:'NAME PIC',styles:{fontSize:5.5,halign:'center',fontStyle:'normal'}},
+          {content:'TO\nDAY',styles:{fontSize:5,halign:'center',fontStyle:'normal'}},
+          {content:'TO\nNIGHT',styles:{fontSize:5,halign:'center',fontStyle:'normal'}},
+          {content:'LDG\nDAY',styles:{fontSize:5,halign:'center',fontStyle:'normal'}},
+          {content:'LDG\nNIGHT',styles:{fontSize:5,halign:'center',fontStyle:'normal'}},
+          {content:'NIGHT',styles:{fontSize:5.5,halign:'center',fontStyle:'normal'}},
+          {content:'IFR',styles:{fontSize:5.5,halign:'center',fontStyle:'normal'}},
+          {content:'PIC',styles:{fontSize:5.5,halign:'center',fontStyle:'normal'}},
+          {content:'CO-\nPILOT',styles:{fontSize:5,halign:'center',fontStyle:'normal'}},
+          {content:'DUAL',styles:{fontSize:5.5,halign:'center',fontStyle:'normal'}},
+          {content:'INSTR.',styles:{fontSize:5.5,halign:'center',fontStyle:'normal'}},
+        ]
+      ];
+
+      drawHeader(1);
+
+      doc.autoTable({
+        startY:21,
+        head:head,
+        body:entries.map(mapEntry),
+        theme:'grid',
+        styles:{
+          fontSize:6.5,
+          cellPadding:{top:1.6,right:1.2,bottom:1.6,left:1.2},
+          textColor:[20,20,20],
+          fillColor:[255,255,255],
+          lineColor:[140,140,140],
+          lineWidth:0.15,
+          font:'helvetica',
+          overflow:'ellipsize',
+          minCellHeight:5
+        },
+        headStyles:{
+          fillColor:[45,62,80],
+          textColor:[255,255,255],
+          lineColor:[180,180,180],
+          lineWidth:0.2,
+          fontSize:6,
+          cellPadding:{top:1.2,right:1.2,bottom:1.2,left:1.2},
+          minCellHeight:4
+        },
+        alternateRowStyles:{fillColor:[245,245,245]},
+        columnStyles:colStyles,
+        margin:{top:15,right:mg,bottom:18,left:mg},
+        didDrawPage:function(data){
+          _pageN++;
+          if(_pageN>1) drawHeader(_pageN);
+        }
+      });
+
+      // ── Filas de totales ──
+      var fy=doc.lastAutoTable.finalY;
+      if(fy>pageH-38){doc.addPage();_pageN++;drawHeader(_pageN);fy=16;}
+
+      function fmtT(m){return m>0?ldM2s(m):'';}
+      function fmtC(n){return n>0?String(n):'';}
+
+      doc.autoTable({
+        startY:fy+0.5,
+        head:[],
+        body:[
+          ['TOTAL THIS PAGE','','','','','','','','',fmtT(totalBlock),fmtT(totalBlock),'',fmtC(totalLdgD),fmtC(totalLdgN),fmtC(totalLdgD),fmtC(totalLdgN),fmtT(totalNight),fmtT(totalBlock),fmtT(totalPIC),fmtT(totalCoPlt),'','',''],
+          ['TOTAL FROM PREVIOUS PAGES','','','','','','','','','','','','','','','','','','','','','',''],
+          ['TOTAL TIME','','','','','','','','',fmtT(totalBlock),fmtT(totalBlock),'',fmtC(totalLdgD),fmtC(totalLdgN),fmtC(totalLdgD),fmtC(totalLdgN),fmtT(totalNight),fmtT(totalBlock),fmtT(totalPIC),fmtT(totalCoPlt),'','','']
+        ],
+        theme:'grid',
+        styles:{fontSize:6.5,cellPadding:{top:1.8,right:1.2,bottom:1.8,left:1.2},lineColor:[100,100,100],lineWidth:0.25,font:'helvetica',overflow:'ellipsize'},
+        bodyStyles:{fillColor:[228,228,228],textColor:[20,20,20],fontStyle:'bold'},
+        columnStyles:colStyles,
+        margin:{right:mg,bottom:18,left:mg}
+      });
+
+      // ── Bloque de certificación ──
+      var cy=doc.lastAutoTable.finalY+4;
+      if(cy>pageH-22){doc.addPage();_pageN++;drawHeader(_pageN);cy=16;}
+      doc.setDrawColor(80,80,80);doc.setLineWidth(0.4);
+      doc.line(mg,cy,pageW-mg,cy);
+      doc.setFont('helvetica','italic');doc.setFontSize(7.5);doc.setTextColor(20,20,20);
+      doc.text('I certify that the entries in this log are true.',mg,cy+6);
+      doc.setFont('helvetica','normal');doc.setFontSize(7);
+      doc.text("PILOT\u2019S SIGNATURE: ________________________________________________",mg,cy+13);
+      doc.text('Date: ________________________',mg+152,cy+13);
+
+      // ── Pie de página en todas las páginas ──
+      var nPg=doc.internal.getNumberOfPages();
+      for(var p=1;p<=nPg;p++){
+        doc.setPage(p);
+        doc.setDrawColor(150,150,150);doc.setLineWidth(0.2);
+        doc.line(mg,pageH-7,pageW-mg,pageH-7);
+        doc.setFont('helvetica','normal');doc.setFontSize(5.5);doc.setTextColor(150,150,150);
+        doc.text('pilotos.aero \u00b7 Jeppesen compatible format',mg,pageH-3.5);
+        doc.text('Page '+p+' / '+nPg,pageW/2,pageH-3.5,{align:'center'});
+        doc.text(entries.length+' flights \u00b7 '+ldM2s(totalBlock),pageW-mg,pageH-3.5,{align:'right'});
+      }
+
+      doc.save('PilotOS_Logbook_Jeppesen_'+ldToday()+'.pdf');
+      showToast('\u2713 PDF Jeppesen generado \u2014 A4 landscape','success');
+
+    }catch(err){
+      console.error('[PDF Jeppesen]',err);
+      showToast('Error generando PDF Jeppesen: '+err.message,'error');
+    }
+  }
+
+  var jspdfReady=window.jspdf&&window.jspdf.jsPDF&&typeof window.jspdf.jsPDF.prototype.autoTable==='function';
+  function withJsPDF(cb){
+    if(jspdfReady){cb();return;}
+    var s1=document.createElement('script');
+    s1.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    s1.onload=function(){
+      var s2=document.createElement('script');
+      s2.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+      s2.onload=cb;
+      s2.onerror=function(){showToast('Error cargando librer\u00eda PDF','error');};
+      document.head.appendChild(s2);
+    };
+    s1.onerror=function(){showToast('Error cargando jsPDF','error');};
+    document.head.appendChild(s1);
+  }
+  _ldGetLogoDataUrl(function(logoDataUrl){
+    withJsPDF(function(){doGen(logoDataUrl);});
+  });
+}
+// ── FIN JEPPESEN PDF EXPORT ─────────────────────────────────────────────
 var LD_NAMES_KEY='pilotOS_names_db';
 var ldNamesDb=[];
 function ldNamesLoad(){try{ldNamesDb=JSON.parse(localStorage.getItem(LD_NAMES_KEY)||'[]');}catch(e){ldNamesDb=[];}}
@@ -17733,6 +17999,15 @@ function laShareWrapped() {
             </div>
             <div class="ld-ec-title">Backup JSON</div>
             <div class="ld-ec-sub">Hash<br>integridad</div>
+            <div class="ld-ec-badge">&#128274; Pro</div>
+          </div>
+          <div class="ld-export-card ld-ec-jepp" onclick="ldExportPickRange('jeppesen')">
+            <div class="ld-ec-glow"></div>
+            <div class="ld-ec-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(99,102,241,.9)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><line x1="2" y1="13" x2="22" y2="13"/><line x1="7" y1="8" x2="7" y2="21"/></svg>
+            </div>
+            <div class="ld-ec-title">PDF Jeppesen</div>
+            <div class="ld-ec-sub">EASA FCL.050<br>Formato oficial</div>
             <div class="ld-ec-badge">&#128274; Pro</div>
           </div>
         </div>
