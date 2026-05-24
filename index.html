@@ -1228,19 +1228,75 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .ld-search input::placeholder { color:#4a6080; }
 
 /* Export panel */
-.ld-export-panel {
-  display:none; background:#FFFFFF; border:1px solid rgba(30,58,164,.1);
-  border-radius:6px; padding:16px; margin-bottom:10px;
+/* ── EXPORT BOTTOM SHEET ── */
+.ld-export-ov{
+  display:none;position:fixed;inset:0;z-index:530;
+  background:rgba(5,10,20,.82);
+  -webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);
+  align-items:flex-end;justify-content:center;
 }
-.ld-export-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:10px; }
-.ld-export-card {
-  border:1px solid rgba(30,58,164,.1); border-radius:6px; padding:14px;
-  cursor:pointer; transition:all .15s; text-align:center;
+.ld-export-ov.open{display:flex;}
+.ld-export-sheet{
+  width:100%;max-height:88vh;
+  background:linear-gradient(170deg,rgba(13,20,40,.99) 0%,rgba(8,12,28,1) 100%);
+  border:1px solid rgba(34,211,238,.15);
+  border-top:1.5px solid rgba(34,211,238,.28);
+  border-radius:24px 24px 0 0;
+  box-shadow:0 -28px 80px rgba(34,211,238,.1),0 -6px 30px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.04);
+  display:flex;flex-direction:column;
+  padding-bottom:max(env(safe-area-inset-bottom,0px),16px);
 }
-.ld-export-card:active { border-color:#00b4d8; background:rgba(0,180,216,0.05); }
-.ld-export-icon { font-size:24px; margin-bottom:6px; }
-.ld-export-title { font-family:'Space Grotesk',system-ui,sans-serif; font-size:13px; font-weight:700; color:#fff; margin-bottom:3px; }
-.ld-export-sub { font-size:10px; color:#4a6080; line-height:1.4; }
+.ld-export-handle{width:36px;height:4px;background:rgba(255,255,255,.12);border-radius:2px;margin:12px auto 0;flex-shrink:0;}
+.ld-export-hdr{display:flex;align-items:center;gap:8px;padding:12px 18px;border-bottom:1px solid rgba(34,211,238,.07);flex-shrink:0;}
+.ld-export-hdr-title{flex:1;text-align:center;font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;color:rgba(248,250,252,.9);letter-spacing:.2px;}
+.ld-export-body{overflow-y:auto;padding:18px 18px 8px;flex:1;}
+.ld-exp-section-lbl{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1.4px;text-transform:uppercase;color:rgba(34,211,238,.45);margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.ld-exp-section-lbl::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(34,211,238,.15),transparent);}
+.ld-export-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:4px;}
+.ld-export-card{border-radius:16px;padding:16px 10px 14px;cursor:pointer;transition:all .18s;text-align:center;position:relative;overflow:hidden;-webkit-tap-highlight-color:transparent;}
+.ld-ec-pdf{background:rgba(245,158,11,.07);border:1.5px solid rgba(245,158,11,.28);}
+.ld-ec-pdf:active{background:rgba(245,158,11,.16);transform:scale(.97);}
+.ld-ec-csv{background:rgba(16,185,129,.07);border:1.5px solid rgba(16,185,129,.28);}
+.ld-ec-csv:active{background:rgba(16,185,129,.16);transform:scale(.97);}
+.ld-ec-json{background:rgba(139,92,246,.07);border:1.5px solid rgba(139,92,246,.28);}
+.ld-ec-json:active{background:rgba(139,92,246,.16);transform:scale(.97);}
+.ld-ec-glow{position:absolute;top:-18px;left:50%;transform:translateX(-50%);width:60px;height:40px;border-radius:50%;filter:blur(18px);pointer-events:none;opacity:.2;}
+.ld-ec-pdf .ld-ec-glow{background:#F59E0B;}
+.ld-ec-csv .ld-ec-glow{background:#10B981;}
+.ld-ec-json .ld-ec-glow{background:#8B5CF6;}
+.ld-ec-icon{width:42px;height:42px;border-radius:13px;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1;}
+.ld-ec-pdf .ld-ec-icon{background:rgba(245,158,11,.13);}
+.ld-ec-csv .ld-ec-icon{background:rgba(16,185,129,.13);}
+.ld-ec-json .ld-ec-icon{background:rgba(139,92,246,.13);}
+.ld-ec-title{font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:700;margin-bottom:3px;line-height:1.2;position:relative;z-index:1;}
+.ld-ec-pdf .ld-ec-title{color:rgba(251,191,36,.95);}
+.ld-ec-csv .ld-ec-title{color:rgba(52,211,153,.95);}
+.ld-ec-json .ld-ec-title{color:rgba(167,139,250,.95);}
+.ld-ec-sub{font-family:'Space Mono',monospace;font-size:9px;color:rgba(248,250,252,.28);line-height:1.4;position:relative;z-index:1;}
+.ld-ec-badge{font-family:'Space Mono',monospace;font-size:8px;margin-top:7px;padding:2px 6px;border-radius:4px;display:inline-block;position:relative;z-index:1;}
+.ld-ec-pdf .ld-ec-badge{color:rgba(251,191,36,.55);background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.16);}
+.ld-ec-csv .ld-ec-badge{color:rgba(52,211,153,.55);background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.16);}
+.ld-ec-json .ld-ec-badge{color:rgba(167,139,250,.55);background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.16);}
+/* Range picker */
+.ld-range-opts{display:flex;flex-direction:column;gap:7px;margin-bottom:16px;}
+.ld-range-opt{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:13px;cursor:pointer;transition:all .15s;border:1px solid rgba(34,211,238,.1);background:transparent;width:100%;text-align:left;-webkit-tap-highlight-color:transparent;}
+.ld-range-opt.sel{border-color:rgba(34,211,238,.38);background:rgba(34,211,238,.06);}
+.ld-range-radio{width:15px;height:15px;border-radius:50%;flex-shrink:0;border:1.5px solid rgba(34,211,238,.3);transition:all .15s;display:flex;align-items:center;justify-content:center;}
+.ld-range-opt.sel .ld-range-radio{border-color:#22D3EE;background:#22D3EE;box-shadow:0 0 8px rgba(34,211,238,.4);}
+.ld-range-radio-dot{width:6px;height:6px;border-radius:50%;background:#0D1428;opacity:0;transition:opacity .1s;}
+.ld-range-opt.sel .ld-range-radio-dot{opacity:1;}
+.ld-range-lbl{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:500;color:rgba(248,250,252,.65);flex:1;}
+.ld-range-opt.sel .ld-range-lbl{color:rgba(248,250,252,.9);font-weight:600;}
+.ld-range-count{font-family:'Space Mono',monospace;font-size:10px;color:rgba(34,211,238,.45);}
+.ld-range-custom{display:none;gap:10px;padding:12px 14px;background:rgba(17,24,39,.5);border:1px solid rgba(34,211,238,.1);border-radius:13px;margin-bottom:14px;align-items:center;}
+.ld-range-custom.vis{display:flex;}
+.ld-range-custom input[type=date]{flex:1;background:rgba(17,24,39,.8);border:1px solid rgba(34,211,238,.18);border-radius:9px;padding:8px 10px;color:rgba(248,250,252,.8);font-family:'Space Mono',monospace;font-size:12px;-webkit-appearance:none;min-width:0;color-scheme:dark;}
+.ld-range-sep{font-size:11px;color:rgba(248,250,252,.25);flex-shrink:0;}
+.ld-export-confirm-btn{width:100%;padding:14px;border:none;border-radius:14px;font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:.2px;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px;-webkit-tap-highlight-color:transparent;}
+.ld-export-confirm-btn:active{transform:scale(.98);}
+.ld-ecb-pdf{background:linear-gradient(135deg,rgba(245,158,11,.22),rgba(249,115,22,.16));border:1.5px solid rgba(245,158,11,.45);color:#F59E0B;box-shadow:0 0 20px rgba(245,158,11,.1);}
+.ld-ecb-csv{background:linear-gradient(135deg,rgba(16,185,129,.2),rgba(5,150,105,.14));border:1.5px solid rgba(16,185,129,.4);color:#10B981;box-shadow:0 0 20px rgba(16,185,129,.1);}
+.ld-ecb-json{background:linear-gradient(135deg,rgba(139,92,246,.2),rgba(109,40,217,.14));border:1.5px solid rgba(139,92,246,.4);color:#8B5CF6;box-shadow:0 0 20px rgba(139,92,246,.1);}
 
 /* Table */
 .ld-wrap { background:#FFFFFF; border:1px solid rgba(30,58,164,.1); border-radius:6px; overflow:hidden; }
@@ -6471,32 +6527,97 @@ input#ld_fl, input#ld_cond { display:none !important; }
     <!-- Indicador sync -->
     <div id="ld-sync-indicator" onclick="ldManualPull()" style="display:none;text-align:right;margin-bottom:6px;min-height:16px;cursor:pointer;-webkit-tap-highlight-color:transparent" title="Toca para sincronizar desde la nube"></div>
     <!-- ── / PLAN BANNERS ── -->
-    <div class="ld-export-panel" id="ld_export">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
-        <div style="font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(34,211,238,.6);display:flex;align-items:center;gap:7px">
-          Exportar
-          <span style="flex:1;height:1px;width:40px;background:linear-gradient(90deg,rgba(34,211,238,.15),transparent);display:inline-block"></span>
+    <!-- Export bottom sheet overlay -->
+    <div class="ld-export-ov" id="ld_export" onclick="if(event.target===this)ldToggleExport()">
+      <div class="ld-export-sheet">
+        <div class="ld-export-handle"></div>
+        <div class="ld-export-hdr">
+          <button id="ld-exp-back-btn" onclick="ldExportBack()" style="display:none;background:none;border:none;cursor:pointer;color:rgba(34,211,238,.55);font-size:12px;padding:4px 8px;font-family:'Space Mono',monospace;-webkit-tap-highlight-color:transparent;letter-spacing:.5px">&#8592; volver</button>
+          <div class="ld-export-hdr-title" id="ld-exp-title">Exportar logbook</div>
+          <button onclick="ldToggleExport()" style="background:none;border:none;cursor:pointer;color:rgba(248,250,252,.28);font-size:18px;padding:4px;line-height:1;-webkit-tap-highlight-color:transparent">&#x2715;</button>
         </div>
-        <button onclick="ldToggleExport()" style="background:none;border:none;cursor:pointer;font-size:16px;color:rgba(248,250,252,.35);line-height:1;padding:2px 4px">✕</button>
-      </div>
-      <div class="ld-export-grid">
-        <div class="ld-export-card" onclick="ldExportPDF()">
-          <span class="ld-export-icon">📄</span>
-          <div class="ld-export-title">PDF EASA</div>
-          <div class="ld-export-sub">FCL.050 App.1</div>
-          <div id="ld-export-lock" style="font-size:9px;color:rgba(251,191,36,.7);margin-top:4px;font-family:'Space Mono',monospace">🔒 Pro</div>
-        </div>
-        <div class="ld-export-card" onclick="ldExportCSV()">
-          <span class="ld-export-icon">📊</span>
-          <div class="ld-export-title">Excel / CSV</div>
-          <div class="ld-export-sub">UTF-8 · aerolínea</div>
-          <div style="font-size:9px;color:rgba(251,191,36,.7);margin-top:4px;font-family:'Space Mono',monospace">🔒 Pro</div>
-        </div>
-        <div class="ld-export-card" onclick="ldExportJSON()">
-          <span class="ld-export-icon">🔒</span>
-          <div class="ld-export-title">Backup JSON</div>
-          <div class="ld-export-sub">Hash integridad</div>
-          <div style="font-size:9px;color:rgba(251,191,36,.7);margin-top:4px;font-family:'Space Mono',monospace">🔒 Pro</div>
+        <div class="ld-export-body">
+          <!-- Step 1: Format picker -->
+          <div id="ld-exp-step1">
+            <div class="ld-exp-section-lbl">Selecciona formato</div>
+            <div class="ld-export-grid">
+              <div class="ld-export-card ld-ec-pdf" onclick="ldExportPickRange('pdf')">
+                <div class="ld-ec-glow"></div>
+                <div class="ld-ec-icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(245,158,11,.9)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+                </div>
+                <div class="ld-ec-title">PDF EASA</div>
+                <div class="ld-ec-sub">FCL.050 App.1<br>A4 landscape</div>
+                <div class="ld-ec-badge" id="ld-export-lock">&#128274; Pro</div>
+              </div>
+              <div class="ld-export-card ld-ec-csv" onclick="ldExportPickRange('csv')">
+                <div class="ld-ec-glow"></div>
+                <div class="ld-ec-icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(16,185,129,.9)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+                </div>
+                <div class="ld-ec-title">Excel / CSV</div>
+                <div class="ld-ec-sub">UTF-8<br>aerol&#237;nea</div>
+                <div class="ld-ec-badge">&#128274; Pro</div>
+              </div>
+              <div class="ld-export-card ld-ec-json" onclick="ldExportPickRange('json')">
+                <div class="ld-ec-glow"></div>
+                <div class="ld-ec-icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(139,92,246,.9)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                </div>
+                <div class="ld-ec-title">Backup JSON</div>
+                <div class="ld-ec-sub">Hash<br>integridad</div>
+                <div class="ld-ec-badge">&#128274; Pro</div>
+              </div>
+            </div>
+            <div style="margin-top:16px;padding:10px 14px;background:rgba(34,211,238,.04);border:1px solid rgba(34,211,238,.08);border-radius:12px;display:flex;align-items:center;gap:10px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(34,211,238,.45)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span style="font-family:'Space Mono',monospace;font-size:9.5px;color:rgba(248,250,252,.28);line-height:1.5">El siguiente paso te permitir&#225; elegir el rango de fechas a exportar.</span>
+            </div>
+          </div>
+          <!-- Step 2: Date range picker -->
+          <div id="ld-exp-step2" style="display:none">
+            <div class="ld-exp-section-lbl">Rango de fechas</div>
+            <div class="ld-range-opts">
+              <button class="ld-range-opt sel" onclick="ldExportRangeSelect('all')" id="ld-rng-all">
+                <div class="ld-range-radio"><div class="ld-range-radio-dot"></div></div>
+                <div class="ld-range-lbl">Todo el logbook</div>
+                <div class="ld-range-count" id="ld-rng-all-c"></div>
+              </button>
+              <button class="ld-range-opt" onclick="ldExportRangeSelect('month')" id="ld-rng-month">
+                <div class="ld-range-radio"><div class="ld-range-radio-dot"></div></div>
+                <div class="ld-range-lbl" id="ld-rng-month-lbl">Este mes</div>
+                <div class="ld-range-count" id="ld-rng-month-c"></div>
+              </button>
+              <button class="ld-range-opt" onclick="ldExportRangeSelect('prev')" id="ld-rng-prev">
+                <div class="ld-range-radio"><div class="ld-range-radio-dot"></div></div>
+                <div class="ld-range-lbl" id="ld-rng-prev-lbl">Mes anterior</div>
+                <div class="ld-range-count" id="ld-rng-prev-c"></div>
+              </button>
+              <button class="ld-range-opt" onclick="ldExportRangeSelect('3m')" id="ld-rng-3m">
+                <div class="ld-range-radio"><div class="ld-range-radio-dot"></div></div>
+                <div class="ld-range-lbl">&#218;ltimos 3 meses</div>
+                <div class="ld-range-count" id="ld-rng-3m-c"></div>
+              </button>
+              <button class="ld-range-opt" onclick="ldExportRangeSelect('year')" id="ld-rng-year">
+                <div class="ld-range-radio"><div class="ld-range-radio-dot"></div></div>
+                <div class="ld-range-lbl" id="ld-rng-year-lbl">Este a&#241;o</div>
+                <div class="ld-range-count" id="ld-rng-year-c"></div>
+              </button>
+              <button class="ld-range-opt" onclick="ldExportRangeSelect('custom')" id="ld-rng-custom">
+                <div class="ld-range-radio"><div class="ld-range-radio-dot"></div></div>
+                <div class="ld-range-lbl">Personalizado</div>
+              </button>
+            </div>
+            <div class="ld-range-custom" id="ld-exp-custom-dates">
+              <input type="date" id="ld-exp-from" />
+              <div class="ld-range-sep">&#8594;</div>
+              <input type="date" id="ld-exp-to" />
+            </div>
+            <button class="ld-export-confirm-btn ld-ecb-pdf" id="ld-exp-confirm-btn" onclick="ldExportConfirm()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span id="ld-exp-confirm-txt">Exportar</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -10899,44 +11020,282 @@ function ldShowPlanBanner(){
 }
 // ─────────────────────────────────────────────────────────────────
 
-// Export
+// ── EXPORT ──────────────────────────────────────────────────────────────
+var _ldExportFmt   = 'pdf';
+var _ldExportRange = 'all';
+
 function ldToggleExport(){
-  var p=document.getElementById('ld_export');
-  p.style.display=p.style.display==='block'?'none':'block';
+  var ov = document.getElementById('ld_export');
+  if(!ov) return;
+  if(ov.classList.contains('open')){
+    ov.classList.remove('open');
+    document.body.style.overflow = '';
+  } else {
+    // Reset to step 1
+    var s1 = document.getElementById('ld-exp-step1');
+    var s2 = document.getElementById('ld-exp-step2');
+    var bb = document.getElementById('ld-exp-back-btn');
+    var tt = document.getElementById('ld-exp-title');
+    if(s1) s1.style.display = '';
+    if(s2) s2.style.display = 'none';
+    if(bb) bb.style.display = 'none';
+    if(tt) tt.textContent = 'Exportar logbook';
+    ov.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+}
+function ldExportBack(){
+  var s1 = document.getElementById('ld-exp-step1');
+  var s2 = document.getElementById('ld-exp-step2');
+  var bb = document.getElementById('ld-exp-back-btn');
+  var tt = document.getElementById('ld-exp-title');
+  if(s2) s2.style.display = 'none';
+  if(s1) s1.style.display = '';
+  if(bb) bb.style.display = 'none';
+  if(tt) tt.textContent = 'Exportar logbook';
+}
+function _ldExportOpen(fmt){
+  var ov = document.getElementById('ld_export');
+  if(!ov.classList.contains('open')){
+    var s1 = document.getElementById('ld-exp-step1');
+    var s2 = document.getElementById('ld-exp-step2');
+    if(s1) s1.style.display = '';
+    if(s2) s2.style.display = 'none';
+    ov.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  ldExportPickRange(fmt);
+}
+function ldExportPickRange(fmt){
+  if(!planCanExport()){showPlanToast('export');return;}
+  if(!ldEntries.length){showToast('No hay vuelos para exportar','error');return;}
+  _ldExportFmt  = fmt;
+  _ldExportRange= 'all';
+  var names = {pdf:'PDF EASA',csv:'Excel / CSV',json:'Backup JSON'};
+  var tt = document.getElementById('ld-exp-title');
+  var bb = document.getElementById('ld-exp-back-btn');
+  var s1 = document.getElementById('ld-exp-step1');
+  var s2 = document.getElementById('ld-exp-step2');
+  if(tt) tt.textContent = names[fmt]||fmt;
+  if(bb) bb.style.display = '';
+  if(s1) s1.style.display = 'none';
+  if(s2) s2.style.display = '';
+  // Confirm button style
+  var cb = document.getElementById('ld-exp-confirm-btn');
+  if(cb) cb.className = 'ld-export-confirm-btn ld-ecb-'+fmt;
+  // Populate range labels + counts
+  var now = new Date();
+  var MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var cy = now.getFullYear(), cm = now.getMonth();
+  var pd = new Date(cy, cm-1, 1);
+  var pm = pd.getMonth(), py = pd.getFullYear();
+  function pad2(n){return String(n).padStart(2,'0');}
+  function cnt(f,t){return ldEntries.filter(function(e){if(!e||e.type==='__ac_db__')return false;if(f&&e.date<f)return false;if(t&&e.date>t)return false;return true;}).length;}
+  var ym0=cy+'-01-01',ym1=cy+'-12-31';
+  var mm0=cy+'-'+pad2(cm+1)+'-01',mm1=cy+'-'+pad2(cm+1)+'-31';
+  var pm0=py+'-'+pad2(pm+1)+'-01',pm1=py+'-'+pad2(pm+1)+'-31';
+  var d3=new Date(cy,cm-3,1); var t3=d3.getFullYear()+'-'+pad2(d3.getMonth()+1)+'-01';
+  var el=function(id){return document.getElementById(id);};
+  if(el('ld-rng-month-lbl')) el('ld-rng-month-lbl').textContent=MONTHS[cm]+' '+cy;
+  if(el('ld-rng-prev-lbl'))  el('ld-rng-prev-lbl').textContent=MONTHS[pm]+' '+py;
+  if(el('ld-rng-year-lbl'))  el('ld-rng-year-lbl').textContent='A\u00f1o '+cy;
+  if(el('ld-rng-all-c'))   el('ld-rng-all-c').textContent=cnt(null,null)+' vuelos';
+  if(el('ld-rng-month-c')) el('ld-rng-month-c').textContent=cnt(mm0,mm1)+' vuelos';
+  if(el('ld-rng-prev-c'))  el('ld-rng-prev-c').textContent=cnt(pm0,pm1)+' vuelos';
+  if(el('ld-rng-3m-c'))    el('ld-rng-3m-c').textContent=cnt(t3,null)+' vuelos';
+  if(el('ld-rng-year-c'))  el('ld-rng-year-c').textContent=cnt(ym0,ym1)+' vuelos';
+  // Default dates for custom
+  var sorted=[].concat(ldEntries).filter(function(e){return e&&e.date;}).sort(function(a,b){return a.date<b.date?-1:1;});
+  if(el('ld-exp-from')) el('ld-exp-from').value = sorted.length?sorted[0].date:'';
+  if(el('ld-exp-to'))   el('ld-exp-to').value   = sorted.length?sorted[sorted.length-1].date:'';
+  ldExportRangeSelect('all');
+}
+function ldExportRangeSelect(key){
+  _ldExportRange = key;
+  ['all','month','prev','3m','year','custom'].forEach(function(k){
+    var el=document.getElementById('ld-rng-'+k);
+    if(el) el.className='ld-range-opt'+(k===key?' sel':'');
+  });
+  var cust=document.getElementById('ld-exp-custom-dates');
+  if(cust) cust.className='ld-range-custom'+(key==='custom'?' vis':'');
+}
+function _ldRangeEntries(){
+  var key=_ldExportRange, now=new Date();
+  var cy=now.getFullYear(), cm=now.getMonth();
+  function pad2(n){return String(n).padStart(2,'0');}
+  var from=null, to=null;
+  if(key==='month'){ from=cy+'-'+pad2(cm+1)+'-01'; to=cy+'-'+pad2(cm+1)+'-31'; }
+  else if(key==='prev'){ var pd=new Date(cy,cm-1,1); from=pd.getFullYear()+'-'+pad2(pd.getMonth()+1)+'-01'; to=pd.getFullYear()+'-'+pad2(pd.getMonth()+1)+'-31'; }
+  else if(key==='3m'){ var d3=new Date(cy,cm-3,1); from=d3.getFullYear()+'-'+pad2(d3.getMonth()+1)+'-01'; }
+  else if(key==='year'){ from=cy+'-01-01'; to=cy+'-12-31'; }
+  else if(key==='custom'){ var fe=document.getElementById('ld-exp-from'),te=document.getElementById('ld-exp-to'); from=fe?fe.value||null:null; to=te?te.value||null:null; }
+  return ldEntries.filter(function(e){
+    if(!e||e.type==='__ac_db__') return false;
+    if(from&&e.date<from) return false;
+    if(to&&e.date>to) return false;
+    return true;
+  }).sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:0;});
+}
+function ldExportConfirm(){
+  var entries=_ldRangeEntries();
+  if(!entries.length){showToast('No hay vuelos en ese rango','error');return;}
+  ldToggleExport();
+  if(_ldExportFmt==='csv')      _ldRunExportCSV(entries);
+  else if(_ldExportFmt==='json') _ldRunExportJSON(entries);
+  else                           _ldRunExportPDF(entries);
 }
 function ldDl(content,fname,mime){
-  var blob=new Blob([content],{type:mime}), url=URL.createObjectURL(blob);
+  var blob=new Blob([content],{type:mime}),url=URL.createObjectURL(blob);
   var a=document.createElement('a');a.href=url;a.download=fname;a.click();
   setTimeout(function(){URL.revokeObjectURL(url);},1000);
 }
 function ldToday(){return new Date().toISOString().split('T')[0];}
+// Legacy entry points (still wired to menu + any other callers)
+function ldExportCSV(){  _ldExportOpen('csv'); }
+function ldExportJSON(){ _ldExportOpen('json'); }
+function ldExportPDF(){  _ldExportOpen('pdf'); }
 
-function ldExportCSV(){
-  if(!planCanExport()){showPlanToast('export');return;}
-  if(!ldEntries.length){showToast('No hay vuelos para exportar','error');return;}
-  var H=['ID','Fecha','Vuelo','Origen','Destino','Tipo AC','Motor','Matrícula','FL','ATD (OUT)','STD (OFF)','ATA (IN)','STA (ON)','Block','Nocturno','Ldg Día','Ldg Noche','Rol','Función','CM1','CM2','Reglas','Tipo Op.','Condiciones','Notas','Fuente','Guardado UTC'];
-  var R=ldEntries.map(function(e){return[e.id,e.date,e.flight,e.dep,e.arr,e.acType,e.engine,e.reg,e.fl,e.atd,e.std,e.ata,e.sta,e.block,e.night,e.ldgDay,e.ldgNight,e.role,e.func,e.cm1||'',e.cm2||'',e.rules,e.opType,e.conditions,e.notes,e.source,e.savedAt];});
-  var csv=[H].concat(R).map(function(r){return r.map(function(v){return'"'+((v||"").toString().replace(/"/g,'""'))+'"';}).join(',');}).join('\n');
+function _ldRunExportCSV(entries){
+  var H=['ID','Fecha','Vuelo','Origen','Destino','Tipo AC','Motor','Matr\u00edcula','FL','ATD (OUT)','STD (OFF)','ATA (IN)','STA (ON)','Block','Nocturno','Ldg D\u00eda','Ldg Noche','Rol','Funci\u00f3n','CM1','CM2','Reglas','Tipo Op.','Condiciones','Notas','Fuente','Guardado UTC'];
+  var R=entries.map(function(e){return[e.id,e.date,e.flight,e.dep,e.arr,e.acType,e.engine,e.reg,e.fl,e.atd,e.std,e.ata,e.sta,e.block,e.night,e.ldgDay,e.ldgNight,e.role,e.func,e.cm1||'',e.cm2||'',e.rules,e.opType,e.conditions,e.notes,e.source,e.savedAt];});
+  var csv=[H].concat(R).map(function(r){return r.map(function(v){return'"'+((v||'').toString().replace(/"/g,'""'))+'"';}).join(',');}).join('\n');
   ldDl('\uFEFF'+csv,'PilotOS_Logbook_'+ldToday()+'.csv','text/csv;charset=utf-8;');
-  showToast('✓ CSV exportado','success');
+  showToast('\u2713 CSV exportado','success');
 }
-function ldExportJSON(){
-  if(!planCanExport()){showPlanToast('export');return;}
-  if(!ldEntries.length){showToast('No hay vuelos para exportar','error');return;}
-  var tm=ldEntries.reduce(function(s,e){return s+ldT2m(e.block);},0);
-  var hash=btoa('v1:'+ldEntries.length+':'+tm+':'+(ldEntries[0]&&ldEntries[0].id?ldEntries[0].id:'')).slice(0,20);
-  var bk={version:'pilotOS-logbook-v1',exportedAt:new Date().toISOString(),integrityHash:hash,totalEntries:ldEntries.length,totalBlockMins:tm,entries:ldEntries};
+function _ldRunExportJSON(entries){
+  var tm=entries.reduce(function(s,e){return s+ldT2m(e.block);},0);
+  var hash=btoa('v1:'+entries.length+':'+tm+':'+(entries[0]&&entries[0].id?entries[0].id:'')).slice(0,20);
+  var bk={version:'pilotOS-logbook-v1',exportedAt:new Date().toISOString(),integrityHash:hash,totalEntries:entries.length,totalBlockMins:tm,entries:entries};
   ldDl(JSON.stringify(bk,null,2),'PilotOS_Backup_'+ldToday()+'.json','application/json');
-  showToast('✓ Backup JSON exportado','success');
+  showToast('\u2713 Backup JSON exportado','success');
 }
-function ldExportPDF(){
-  if(!planCanExport()){showPlanToast('export');return;}
-  if(!ldEntries.length){showToast('No hay vuelos para exportar','error');return;}
-  var w=window.open('','_blank');
-  var tm=ldEntries.reduce(function(s,e){return s+ldT2m(e.block);},0);
-  var rows=ldEntries.map(function(e){return'<tr><td>'+e.date+'</td><td>'+(e.flight||'—')+'</td><td>'+e.dep+' → '+e.arr+'</td><td>'+(e.acType||'—')+'</td><td>'+(e.reg||'—')+'</td><td>'+(e.std||'—')+'</td><td>'+(e.sta||'—')+'</td><td>'+(e.block||'—')+'</td><td>'+(e.night||'—')+'</td><td>'+((e.ldgDay||0)+(e.ldgNight||0))+'</td><td>'+(e.role||'—')+'</td><td>'+(e.func||'—')+'</td><td>'+(e.notes||'')+'</td></tr>';}).join('');
-  w.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>PilotOS Logbook EASA</title><style>body{font-family:Arial,sans-serif;font-size:8.5pt;margin:12mm;color:#000}.btn{margin-bottom:12px;padding:8px 20px;background:#0077b6;color:#fff;border:none;border-radius:4px;cursor:pointer}h1{font-size:14pt;margin-bottom:4px}.sub{font-size:8pt;color:#555;margin-bottom:12px}.meta{display:flex;gap:24px;margin-bottom:14px;font-size:8pt;border:1px solid #ddd;padding:8px 12px;border-radius:4px}.meta b{display:block;font-size:7pt;color:#888;text-transform:uppercase}table{width:100%;border-collapse:collapse;font-size:7.5pt}th{background:#1a2840;color:#fff;padding:5px 4px;text-align:left;font-size:7pt}td{padding:3.5px 4px;border-bottom:1px solid #eee;white-space:nowrap}tr:nth-child(even){background:#f5f7fb}.footer{margin-top:14px;font-size:7pt;color:#888;border-top:1px solid #ccc;padding-top:8px;display:flex;justify-content:space-between}@media print{.btn{display:none}}</style></head><body><h1>✈ PilotOS — LOGBOOK</h1><div class="sub">EASA Part-FCL Appendix 1 — FCL.050 · Exportado: '+new Date().toLocaleString('es-ES')+'</div><div class="meta"><div><b>Total vuelos</b>'+ldEntries.length+'</div><div><b>Block time total</b>'+ldM2s(tm)+'</div><div><b>Generado</b>'+new Date().toLocaleDateString('es-ES')+'</div></div><button class="btn" onclick="window.print()">🖨 Imprimir / Guardar PDF</button><table><thead><tr><th>Fecha</th><th>Vuelo</th><th>Ruta</th><th>Tipo</th><th>Matrícula</th><th>STD</th><th>STA</th><th>Block</th><th>Nocturno</th><th>Ldg</th><th>Rol</th><th>Func.</th><th>Notas</th></tr></thead><tbody>'+rows+'</tbody></table><div class="footer"><span>PilotOS Logbook · EASA FCL.050</span><span>'+ldEntries.length+' entradas · '+ldM2s(tm)+' block time</span></div></body></html>');
-  w.document.close(); showToast('✓ Vista PDF lista','success');
+function _ldRunExportPDF(entries){
+  showToast('Generando PDF\u2026','info');
+  function doGen(){
+    try{
+      var jspdfLib = window.jspdf || window.jsPDF;
+      var JsPDF = (jspdfLib && jspdfLib.jsPDF) ? jspdfLib.jsPDF : jspdfLib;
+      var doc = new JsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+      var pilotName='';
+      try{ var au=JSON.parse(localStorage.getItem('cafi_auth_user')||'{}'); pilotName=au.name||au.email||''; }catch(e){}
+      var now=new Date();
+      var dateStr=now.toLocaleDateString('es-ES',{day:'2-digit',month:'long',year:'numeric'});
+      var periodFrom=entries[0].date, periodTo=entries[entries.length-1].date;
+      var totalBlock=entries.reduce(function(s,e){return s+ldT2m(e.block);},0);
+      var totalNight=entries.reduce(function(s,e){return s+ldT2m(e.night);},0);
+      var totalLdg=entries.reduce(function(s,e){return s+(+(e.ldgDay||0))+(+(e.ldgNight||0));},0);
+      var pageW=297,pageH=210,mg=12;
+      var _pageN=0;
+      // Draw full first-page header before autoTable
+      function drawHeader(pg){
+        if(pg===1){
+          doc.setFillColor(13,20,40); doc.rect(0,0,pageW,42,'F');
+          doc.setFillColor(8,12,26);  doc.rect(0,28,pageW,14,'F');
+          doc.setDrawColor(34,211,238); doc.setLineWidth(0.6); doc.line(0,0,pageW,0);
+          doc.setDrawColor(34,211,238); doc.setLineWidth(0.3); doc.line(0,28,pageW,28);
+          doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(248,250,252);
+          doc.text('PilotOS  LOGBOOK',mg,12);
+          doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(34,211,238);
+          doc.text('EASA PART-FCL \u00b7 APPENDIX 1 \u00b7 FCL.050',mg,19);
+          if(pilotName){ doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(248,250,252); doc.text(pilotName.toUpperCase(),pageW-mg,11,{align:'right'}); }
+          doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(140,170,200);
+          doc.text('Per\u00edodo: '+periodFrom+' \u2192 '+periodTo,pageW-mg,17,{align:'right'});
+          doc.text('Generado: '+dateStr,pageW-mg,22,{align:'right'});
+          // Summary bar
+          var si=[{l:'VUELOS',v:String(entries.length)},{l:'BLOCK TOTAL',v:ldM2s(totalBlock)},{l:'NOCTURNO',v:ldM2s(totalNight)},{l:'ATERRIZAJES',v:String(totalLdg)}];
+          var sx=mg;
+          si.forEach(function(item){
+            doc.setFont('helvetica','normal'); doc.setFontSize(6); doc.setTextColor(100,140,175); doc.text(item.l,sx,34);
+            doc.setFont('helvetica','bold');   doc.setFontSize(9); doc.setTextColor(34,211,238);  doc.text(item.v,sx,39.5);
+            sx+=50;
+          });
+        } else {
+          doc.setFillColor(13,20,40); doc.rect(0,0,pageW,18,'F');
+          doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(248,250,252);
+          doc.text('PilotOS LOGBOOK',mg,11);
+          if(pilotName){ doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(140,170,200); doc.text(pilotName.toUpperCase(),pageW-mg,11,{align:'right'}); }
+          doc.setDrawColor(34,211,238); doc.setLineWidth(0.4); doc.line(0,18,pageW,18);
+        }
+      }
+      function drawFooter(pg,total){
+        doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.setTextColor(80,100,130);
+        doc.text('PilotOS \u00b7 EASA FCL.050 Appendix 1',mg,pageH-5);
+        doc.text('P\u00e1gina '+pg+(total?' / '+total:''),pageW/2,pageH-5,{align:'center'});
+        doc.text(entries.length+' vuelos \u00b7 '+ldM2s(totalBlock)+' block',pageW-mg,pageH-5,{align:'right'});
+        doc.setDrawColor(30,50,80); doc.setLineWidth(0.2); doc.line(mg,pageH-8,pageW-mg,pageH-8);
+      }
+      drawHeader(1);
+      // Table
+      var colDef=[
+        {h:'FECHA',   k:'date',     w:22,align:'center'},
+        {h:'VUELO',   k:'flight',   w:20,align:'center'},
+        {h:'DEP',     k:'dep',      w:14,align:'center'},
+        {h:'ARR',     k:'arr',      w:14,align:'center'},
+        {h:'TIPO',    k:'acType',   w:16,align:'center'},
+        {h:'MATR\u00cdCULA',k:'reg',w:20,align:'center'},
+        {h:'STD',     k:'std',      w:14,align:'center'},
+        {h:'STA',     k:'sta',      w:14,align:'center'},
+        {h:'BLOCK',   k:'block',    w:16,align:'center',tc:[0,245,160]},
+        {h:'NOCTURNO',k:'night',    w:16,align:'center',tc:[155,93,229]},
+        {h:'LDG D',   k:'ldgDay',   w:13,align:'center'},
+        {h:'LDG N',   k:'ldgNight', w:13,align:'center'},
+        {h:'ROL',     k:'role',     w:14,align:'center'},
+        {h:'NOTAS',   k:'notes',    w:'auto',align:'left'},
+      ];
+      var colStyles={};
+      colDef.forEach(function(c,i){
+        colStyles[i]={cellWidth:c.w,halign:c.align};
+        if(c.tc) colStyles[i].textColor=c.tc;
+      });
+      doc.autoTable({
+        startY:43,
+        head:[colDef.map(function(c){return c.h;})],
+        body:entries.map(function(e){return colDef.map(function(c){return(e[c.k]||'').toString();});}),
+        theme:'grid',
+        styles:{fontSize:7,cellPadding:{top:2.5,right:2,bottom:2.5,left:2},textColor:[200,215,235],fillColor:[11,16,32],lineColor:[28,45,75],lineWidth:0.2,font:'helvetica',overflow:'ellipsize'},
+        headStyles:{fillColor:[10,16,34],textColor:[34,211,238],fontSize:6.5,fontStyle:'bold',halign:'center',cellPadding:{top:3,right:2,bottom:3,left:2},lineColor:[34,211,238],lineWidth:{bottom:0.4}},
+        alternateRowStyles:{fillColor:[14,21,42]},
+        columnStyles:colStyles,
+        margin:{top:22,right:mg,bottom:14,left:mg},
+        didDrawPage:function(data){
+          _pageN++;
+          if(_pageN>1) drawHeader(_pageN);
+          drawFooter(_pageN);
+        },
+      });
+      // Totals footer block
+      var fy=doc.lastAutoTable.finalY+5;
+      if(fy>pageH-22){doc.addPage();fy=24;drawHeader(++_pageN);drawFooter(_pageN);}
+      doc.setFillColor(10,18,38); doc.rect(mg,fy,pageW-2*mg,11,'F');
+      doc.setDrawColor(34,211,238); doc.setLineWidth(0.3); doc.rect(mg,fy,pageW-2*mg,11,'S');
+      doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(34,211,238);
+      doc.text('TOTALES PERÍODO',mg+3,fy+4.5);
+      doc.setTextColor(248,250,252);
+      doc.text(entries.length+' vuelos',mg+50,fy+4.5);
+      doc.text('Block: '+ldM2s(totalBlock),mg+90,fy+4.5);
+      doc.text('Nocturno: '+ldM2s(totalNight),mg+140,fy+4.5);
+      doc.text('Aterrizajes: '+totalLdg,mg+190,fy+4.5);
+      doc.save('PilotOS_Logbook_'+ldToday()+'.pdf');
+      showToast('\u2713 PDF generado — A4 landscape','success');
+    }catch(err){
+      console.error('[PDF]',err);
+      showToast('Error generando PDF: '+err.message,'error');
+    }
+  }
+  // Load jsPDF + autotable dynamically
+  var jspdfReady = window.jspdf && window.jspdf.jsPDF && typeof window.jspdf.jsPDF.prototype.autoTable === 'function';
+  if(jspdfReady){ doGen(); return; }
+  var s1=document.createElement('script');
+  s1.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+  s1.onload=function(){
+    var s2=document.createElement('script');
+    s2.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+    s2.onload=doGen;
+    s2.onerror=function(){showToast('Error cargando librería PDF','error');};
+    document.head.appendChild(s2);
+  };
+  s1.onerror=function(){showToast('Error cargando jsPDF','error');};
+  document.head.appendChild(s1);
 }
 
 // ── NAMES DATABASE ──
