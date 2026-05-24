@@ -1033,6 +1033,48 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   text-align:center;padding:6px;font-family:system-ui,sans-serif;
 }
 
+/* ── Pull-to-refresh indicator ── */
+#ptr-indicator{
+  position:fixed;top:0;left:0;right:0;z-index:9990;
+  display:flex;align-items:center;justify-content:center;
+  pointer-events:none;
+  transform:translateY(-100%);
+  transition:transform .2s cubic-bezier(.32,1,.6,1);
+}
+#ptr-indicator.ptr-visible{ transform:translateY(0); }
+#ptr-indicator-inner{
+  margin-top:max(env(safe-area-inset-top,0px),8px);
+  background:rgba(13,20,40,.92);
+  border:1px solid rgba(34,211,238,.25);
+  border-radius:20px;
+  padding:7px 16px;
+  display:flex;align-items:center;gap:8px;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  box-shadow:0 4px 24px rgba(0,0,0,.4);
+  transform:scale(.85);
+  transition:transform .18s cubic-bezier(.32,1.2,.6,1);
+}
+#ptr-indicator.ptr-ready #ptr-indicator-inner{ transform:scale(1); }
+#ptr-spinner{
+  width:16px;height:16px;border-radius:50%;
+  border:2px solid rgba(34,211,238,.25);
+  border-top-color:#22D3EE;
+  animation:ptrSpin .7s linear infinite;
+  display:none;
+}
+#ptr-indicator.ptr-loading #ptr-spinner{ display:block; }
+#ptr-arrow{
+  width:16px;height:16px;display:flex;align-items:center;justify-content:center;
+  color:#22D3EE;transition:transform .2s;
+}
+#ptr-indicator.ptr-loading #ptr-arrow{ display:none; }
+#ptr-indicator.ptr-ready #ptr-arrow{ transform:rotate(180deg); }
+#ptr-label{
+  font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.5px;
+  color:rgba(248,250,252,.6);white-space:nowrap;
+}
+@keyframes ptrSpin{ to{ transform:rotate(360deg); } }
+
 
 /* Table column widths for horizontal scroll */
 .pc-table th:nth-child(1), .pc-table td:nth-child(1){width:46px;min-width:46px}
@@ -4172,6 +4214,14 @@ window.addEventListener('online', function(){
 </head>
 <body>
 <div id="offline-banner" class="offline-banner">📡 Sin conexión · App funcionando offline</div>
+<!-- Pull-to-refresh indicator -->
+<div id="ptr-indicator">
+  <div id="ptr-indicator-inner">
+    <div id="ptr-spinner"></div>
+    <div id="ptr-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></div>
+    <span id="ptr-label">Arrastra para actualizar</span>
+  </div>
+</div>
 
 <!-- ══ SVG DEFS ══ -->
 <svg style="display:none">
@@ -17731,6 +17781,123 @@ function laShareWrapped() {
     </div>
   </div>
 </div>
+
+<!-- ── Pull-to-refresh ── -->
+<script>
+(function(){
+  var PTR_THRESHOLD = 72;   // px to trigger
+  var PTR_MAX       = 110;  // max visual drag
+  var _ptrActive    = false;
+  var _ptrStartY    = 0;
+  var _ptrDeltaY    = 0;
+  var _ptrLoading   = false;
+  var _ptrScrollEl  = null;
+
+  var ind   = document.getElementById('ptr-indicator');
+  var label = document.getElementById('ptr-label');
+
+  // Map screen key → refresh function
+  function ptrRefresh(){
+    var key = (typeof curScreen !== 'undefined') ? curScreen : 'home';
+    if(key === 'logbook'){
+      if(typeof ldManualPull === 'function') return ldManualPull();
+    }
+    if(key === 'roster'){
+      if(typeof rstPullFromServer === 'function'){
+        return rstPullFromServer().then(function(n){
+          if(n > 0) showToast && showToast('☁ Roster actualizado','success');
+          else      showToast && showToast('☁ Roster al día','info');
+        });
+      }
+    }
+    if(key === 'home'){
+      if(typeof dhUpdateRosterCard === 'function') dhUpdateRosterCard();
+      if(typeof ldManualPull === 'function') return ldManualPull();
+    }
+    // For other screens: just a visual tick
+    return Promise.resolve();
+  }
+
+  function ptrSetState(state){
+    ind.classList.remove('ptr-visible','ptr-ready','ptr-loading');
+    if(state) ind.classList.add(state);
+    if(state === 'ptr-visible') label.textContent = 'Arrastra para actualizar';
+    if(state === 'ptr-ready')   label.textContent = 'Suelta para actualizar';
+    if(state === 'ptr-loading') label.textContent = 'Actualizando…';
+  }
+
+  function ptrReset(){
+    _ptrActive  = false;
+    _ptrLoading = false;
+    _ptrDeltaY  = 0;
+    ptrSetState(null);
+  }
+
+  // Find the scrollable element for the active screen
+  function getScrollEl(){
+    var key = (typeof curScreen !== 'undefined') ? curScreen : 'home';
+    var scr = document.getElementById(
+      (typeof screens !== 'undefined' && screens[key]) ? screens[key] : 'scr-'+key
+    );
+    if(!scr) return document.documentElement;
+    // Logbook has nested scroll panels
+    var active = scr.querySelector('.ld-panel.active .scroll-body') ||
+                 scr.querySelector('.scroll-body') ||
+                 scr;
+    return active;
+  }
+
+  document.addEventListener('touchstart', function(e){
+    if(_ptrLoading) return;
+    _ptrScrollEl = getScrollEl();
+    var st = _ptrScrollEl ? _ptrScrollEl.scrollTop : window.scrollY;
+    if(st > 2) return; // only activate at very top
+    _ptrActive = true;
+    _ptrStartY = e.touches[0].clientY;
+    _ptrDeltaY = 0;
+  }, {passive: true});
+
+  document.addEventListener('touchmove', function(e){
+    if(!_ptrActive || _ptrLoading) return;
+    var delta = e.touches[0].clientY - _ptrStartY;
+    if(delta <= 0){ _ptrActive = false; ptrSetState(null); return; }
+
+    // Check scroll position again — abort if user scrolled up
+    var st = _ptrScrollEl ? _ptrScrollEl.scrollTop : window.scrollY;
+    if(st > 2){ _ptrActive = false; ptrSetState(null); return; }
+
+    _ptrDeltaY = Math.min(delta, PTR_MAX);
+    var ratio  = Math.min(_ptrDeltaY / PTR_THRESHOLD, 1);
+
+    if(_ptrDeltaY > 4){
+      ptrSetState(_ptrDeltaY >= PTR_THRESHOLD ? 'ptr-ready' : 'ptr-visible');
+    }
+  }, {passive: true});
+
+  document.addEventListener('touchend', function(){
+    if(!_ptrActive || _ptrLoading){ _ptrActive=false; return; }
+    _ptrActive = false;
+
+    if(_ptrDeltaY < PTR_THRESHOLD){
+      ptrReset(); return;
+    }
+
+    // Triggered — show loading state
+    _ptrLoading = true;
+    ptrSetState('ptr-loading');
+
+    var done = ptrRefresh();
+    var p = (done && typeof done.then === 'function') ? done : Promise.resolve();
+    var minWait = new Promise(function(r){ setTimeout(r, 900); }); // min visual time
+    Promise.all([p, minWait]).then(function(){
+      ptrReset();
+    }).catch(function(){
+      ptrReset();
+    });
+  }, {passive: true});
+
+})();
+</script>
 
 </body>
 </html>
