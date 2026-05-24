@@ -4609,7 +4609,7 @@ window.addEventListener('online', function(){
     <!-- Stats strip -->
     <div class="dh-stats-wrap">
       <div class="dh-stats-row">
-        <div class="dh-stat"><div class="dh-stat-icon dh-si-blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 2l4 4-4 4M3 11V9a4 4 0 014-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 01-4 4H3"/></svg></div><div><div class="dh-stat-lbl">Flight Hours</div><div class="dh-stat-val" id="dh-hours-val">2.840 h</div></div></div>
+        <div class="dh-stat"><div class="dh-stat-icon dh-si-blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 2l4 4-4 4M3 11V9a4 4 0 014-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 01-4 4H3"/></svg></div><div><div class="dh-stat-lbl">Flight Hours</div><div class="dh-stat-val" id="dh-hours-val">— h</div></div></div>
         <div class="dh-stat"><div class="dh-stat-icon dh-si-blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div><div class="dh-stat-lbl">Next Flight</div><div class="dh-stat-val" id="dh-nf-val" style="font-size:12px">BCN–LIS</div><div class="dh-stat-sub" id="dh-nf-sub">24 MAY · 07:30</div></div></div>
         <div class="dh-stat"><div class="dh-stat-icon dh-si-blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="dh-stat-lbl">Duty Time</div><div class="dh-stat-val">05:35</div><div class="dh-stat-sub">UTC</div></div></div>
         <div class="dh-stat"><div class="dh-stat-icon dh-si-green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div><div class="dh-stat-lbl">Recurrent</div><div class="dh-stat-val" id="dh-rec-val">48d</div><div class="dh-stat-sub">A320</div></div></div>
@@ -15813,10 +15813,10 @@ async function pagDoAuth() {
         setTimeout(window._initLD, 300);
       }
       // FIX: subir al servidor entradas locales pendientes (guardadas offline o sin cuenta)
+      // No llamar ldLoad() aquí — _initLD() (300ms antes) ya lo hizo correctamente.
+      // Llamar ldLoad() de nuevo sobreescribiría los datos que el pull del servidor acaba de cargar.
       setTimeout(function(){
-        if (typeof ldLoad === 'function' && typeof ldSyncToServer === 'function') {
-          ldLoad(); ldSyncToServer();
-        }
+        if(typeof ldSyncToServer === 'function') ldSyncToServer();
       }, 600);
       // FIX: descargar roster del servidor tras login
       setTimeout(function(){
@@ -15851,10 +15851,17 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
   try { token = lsGet('cafi_auth_token',''); } catch(ex){}
   // Populate roster card on home as soon as DOM is ready
   setTimeout(function(){ if(typeof dhUpdateRosterCard === 'function') dhUpdateRosterCard(); }, 300);
-  // Populate logbook home card (hours + chart) from localStorage on first load
+  // Populate logbook home card (hours + chart) — use whatever is already in memory,
+  // never call ldLoad() here: _initLD() already does it and a redundant ldLoad()
+  // would overwrite server-pulled data with stale localStorage values.
   setTimeout(function(){
-    try { if(typeof ldLoad === 'function') ldLoad(); } catch(e){}
-    try { if(typeof ldStats === 'function') ldStats(); } catch(e){}
+    try {
+      // Only bootstrap from localStorage if ldEntries hasn't been loaded yet
+      if(typeof ldEntries !== 'undefined' && ldEntries.length === 0){
+        if(typeof ldLoad === 'function') ldLoad();
+      }
+      if(typeof ldStats === 'function') ldStats();
+    } catch(e){}
   }, 400);
   if (!token) {
     var gate = document.getElementById('pilot-auth-gate');
