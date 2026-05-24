@@ -4139,6 +4139,36 @@ input#ld_fl, input#ld_cond { display:none !important; }
 /* ════ END LOGBOOK ANALYTICS ════ */
 
 </style>
+
+<!-- PWA Manifest -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0D1428">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+<!-- Service Worker Registration -->
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('/sw.js')
+      .then(function(reg){
+        console.log('[SW] Registered, scope:', reg.scope);
+      })
+      .catch(function(err){
+        console.warn('[SW] Registration failed:', err);
+      });
+  });
+}
+// Offline/online banner
+window.addEventListener('offline', function(){
+  var b=document.getElementById('offline-banner');
+  if(b) b.style.display='flex';
+});
+window.addEventListener('online', function(){
+  var b=document.getElementById('offline-banner');
+  if(b) b.style.display='none';
+});
+</script>
 </head>
 <body>
 <div id="offline-banner" class="offline-banner">📡 Sin conexión · App funcionando offline</div>
@@ -11399,6 +11429,11 @@ function ldBackendUrl(){
   return lsGet('cafi_backend_url','https://happy-ambition-production-75eb.up.railway.app');
 }
 
+var LD_PENDING_KEY = 'pilotOS_sync_pending';
+function ldPendingSet(){ try{ localStorage.setItem(LD_PENDING_KEY,'1'); }catch(e){} }
+function ldPendingClear(){ try{ localStorage.removeItem(LD_PENDING_KEY); }catch(e){} }
+function ldPendingExists(){ return localStorage.getItem(LD_PENDING_KEY)==='1'; }
+
 // PUSH — enviar todos los vuelos al servidor (silent)
 var _ldSyncInProgress = false;
 async function ldSyncToServer(){
@@ -11422,8 +11457,8 @@ async function ldSyncToServer(){
       var body=await r.json();
       ldSetSyncStatus('ok');
       if(body.plan) lsSet('pilotOS_plan',body.plan);
-      // Clear successfully synced deletion queue
       if(pendingDel.length) ldDelClear(pendingDel);
+      ldPendingClear(); // push successful — no longer pending
     } else {
       var errBody=await r.json().catch(function(){return{};});
       if(errBody.error==='plan_limit'){
@@ -11431,13 +11466,31 @@ async function ldSyncToServer(){
         showPlanToast('limit');
       } else {
         ldSetSyncStatus('error');
+        ldPendingSet(); // mark as pending to retry when back online
         console.error('[Logbook sync] Server error:', errBody.error || r.status);
         if(r.status===500) showToast('⚠ Error al sincronizar logbook con el servidor','error');
       }
     }
-  }catch(e){ ldSetSyncStatus('error'); console.error('[Logbook sync] Network error:', e.message); }
+  }catch(e){
+    ldSetSyncStatus('error');
+    ldPendingSet(); // network error — mark pending for retry
+    console.error('[Logbook sync] Network error:', e.message);
+  }
   finally{ _ldSyncInProgress=false; }
 }
+
+// Retry pending push when browser comes back online
+window.addEventListener('online', function(){
+  if(ldPendingExists()){
+    console.log('[Sync] Back online — retrying pending push');
+    ldSetSyncStatus('syncing');
+    setTimeout(function(){
+      ldSyncToServer().then(function(){
+        if(!ldPendingExists()) showToast('☁ Logbook sincronizado','success');
+      });
+    }, 1500); // small delay to let network stabilise
+  }
+});
 
 function ldSetSyncStatus(status){
   var el=document.getElementById('ld-sync-indicator');
@@ -11454,6 +11507,11 @@ function ldSetSyncStatus(status){
 }
 
 // PULL — descargar desde el servidor y hacer merge
+// Reglas:
+//   1. Entrada solo en servidor                 → gana servidor (nueva en este device)
+//   2. Entrada en ambos, server.savedAt >= local → gana servidor (source of truth)
+//   3. Entrada en ambos, local.savedAt > server  → gana local   (edición offline no subida aún)
+//   4. Entrada solo en local (id no en servidor) → se conserva  (pendiente de subir)
 async function ldPullFromServer(){
   var token=ldAuthHeaders(); if(!token)return 0;
   try{
@@ -11461,7 +11519,6 @@ async function ldPullFromServer(){
       headers:{'Authorization':'Bearer '+token}
     });
     if(!r.ok){
-      // Try to get error detail
       var errBody={}; try{errBody=await r.json();}catch(ex){}
       console.warn('ldPullFromServer error', r.status, errBody);
       return -1;
@@ -11475,35 +11532,76 @@ async function ldPullFromServer(){
       var delSet=new Set(serverDeletedIds);
       var before=ldEntries.length;
       ldEntries=ldEntries.filter(function(e){ return !delSet.has(e.id); });
-      // Also clear from pending deletions queue (already propagated)
       ldDelClear(serverDeletedIds);
       if(ldEntries.length<before) ldSaveData();
     }
 
-    // Siempre sincronizar BD de matrículas, independientemente del plan
+    // Siempre sincronizar BD de matrículas
     ldAcDbMergeFromServer(serverEntries);
-    // Filter only real flight entries
+
     var realServerEntries=serverEntries.filter(function(e){
       return e&&e.id&&e.id!==LD_AC_DB_ENTRY_ID&&e.type!=='__ac_db__';
     });
     if(!realServerEntries.length) return 0;
-    // Merge: deduplicar por id, mantener el más reciente (savedAt)
-    var map={};
-    ldEntries.forEach(function(e){if(e.id)map[e.id]=e;});
-    var newCount=0;
+
+    // Build a map of current local entries
+    var localMap={};
+    ldEntries.forEach(function(e){ if(e&&e.id) localMap[e.id]=e; });
+
+    // Build server ID set to detect local-only entries (rule 4)
+    var serverIdSet=new Set(realServerEntries.map(function(e){return e.id;}));
+
+    // Merge
+    var merged={};
+    // Start with local entries (rules 3 & 4 baseline)
+    ldEntries.forEach(function(e){ if(e&&e.id) merged[e.id]=e; });
+
+    var changed=false;
     realServerEntries.forEach(function(se){
-      if(!se||!se.id)return;
-      var local=map[se.id];
-      if(!local){map[se.id]=se;newCount++;}
-      else if(se.savedAt&&local.savedAt&&se.savedAt>local.savedAt){map[se.id]=se;newCount++;}
+      if(!se||!se.id) return;
+      var local=merged[se.id];
+      if(!local){
+        // Rule 1: only on server → take server
+        merged[se.id]=se; changed=true;
+      } else {
+        var st=se.savedAt||'';
+        var lt=local.savedAt||'';
+        if(st>=lt){
+          // Rule 2: server same age or newer → server wins
+          if(st!==lt || JSON.stringify(se)!==JSON.stringify(local)){
+            merged[se.id]=se; changed=true;
+          }
+        }
+        // else Rule 3: local is newer (offline edit) → keep local as-is (already in merged)
+      }
     });
-    if(!newCount) return 0;
-    ldEntries=Object.values(map).sort(function(a,b){
+
+    // Also changed if server has fewer entries than what we'd expect
+    // (e.g. entries missing from server that local has — will be re-pushed)
+    var mergedArr=Object.values(merged);
+    if(!changed && mergedArr.length!==ldEntries.filter(function(e){return e&&e.type!=='__ac_db__';}).length){
+      changed=true;
+    }
+
+    if(!changed) return 0;
+
+    ldEntries=mergedArr.sort(function(a,b){
       return(b.date||'').localeCompare(a.date||'')||(b.savedAt||'').localeCompare(a.savedAt||'');
     });
     ldSaveData(); ldRender(); ldStats(); ldUpdatePlanBanners();
-    return newCount;
-  }catch(e){ return -1; }
+
+    // If any local entries are not on the server, re-push so server catches up
+    var localOnlyCount=0;
+    ldEntries.forEach(function(e){
+      if(e&&e.id&&e.type!=='__ac_db__'&&!serverIdSet.has(e.id)) localOnlyCount++;
+    });
+    if(localOnlyCount>0){
+      console.log('[Sync] '+localOnlyCount+' entrada(s) local(es) no están en servidor — re-pushing');
+      setTimeout(ldSyncToServer, 500);
+    }
+
+    return realServerEntries.length;
+  }catch(e){ console.error('[ldPullFromServer]',e); return -1; }
 }
 
 // Manual pull triggered by user (button / tap sync indicator)
@@ -12081,6 +12179,11 @@ window._initLD=function(){
         ldSetSyncStatus(isPro() ? 'ok' : 'local');
       } else {
         ldSetSyncStatus('error');
+      }
+      // 3. Si había push pendiente (fallo de red anterior), reintentarlo ahora
+      if(ldPendingExists() && navigator.onLine){
+        console.log('[Sync] Pending push detected on init — retrying');
+        await ldSyncToServer();
       }
     }catch(e){
       ldUpdatePlanBanners();
