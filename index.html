@@ -10189,6 +10189,7 @@ function ldSave(){
     ldEntries.unshift(e);
   }
   ldSaveData(); ldSyncToServer(); ldCloseModal(); ldRender(); ldStats(); ldUpdatePlanBanners();
+  ldBgSync({ delay: 2000 }); // sync automático tras guardar vuelo
   // Si el piloto tiene PayCheck abierto, refrescar automáticamente
   if (typeof curScreen !== 'undefined' && curScreen === 'pay' && typeof pcImportFromLogbook === 'function') pcImportFromLogbook();
   // Si el Roster tiene un día seleccionado, refrescar el detalle para que aparezca la L cyan
@@ -10566,6 +10567,7 @@ function ldDelete(id){
   ldDelMark([id]);
   ldSaveData(); ldRender(); ldStats(); ldUpdatePlanBanners();
   ldDeleteFromServer(id);
+  ldBgSync({ delay: 2000 }); // sync automático tras borrar vuelo
   showToast('Entrada eliminada','info');
 }
 
@@ -10622,6 +10624,7 @@ async function ldBulkDeleteSelected(){
   ldDelMark(ids);
   ldSaveData();
   ldBulkDeleteFromServer(ids);
+  ldBgSync({ delay: 2000 }); // sync automático tras borrado en masa
   var n=ids.length;
   ldExitSelectMode();
   ldRender(); ldStats(); ldUpdatePlanBanners();
@@ -11893,15 +11896,9 @@ async function ldSyncToServer(){
 
 // Retry pending push when browser comes back online
 window.addEventListener('online', function(){
-  if(ldPendingExists()){
-    console.log('[Sync] Back online — retrying pending push');
-    ldSetSyncStatus('syncing');
-    setTimeout(function(){
-      ldSyncToServer().then(function(){
-        if(!ldPendingExists()) showToast('☁ Logbook sincronizado','success');
-      });
-    }, 1500); // small delay to let network stabilise
-  }
+  // Al recuperar red: sync automático con toast de confirmación
+  console.log('[Sync] Back online — triggering bg sync');
+  ldBgSync({ delay: 1500, silent: false });
 });
 
 function ldSetSyncStatus(status){
@@ -11956,26 +11953,45 @@ async function ldPullFromServer(){
     });
     if(!realServerEntries.length) return 0;
 
-    // Merge: servidor gana para entries compartidos.
+    // Build a map of current local entries
+    var localMap={};
+    ldEntries.forEach(function(e){ if(e&&e.id) localMap[e.id]=e; });
+
+    // Build server ID set to detect local-only entries (rule 4)
     var serverIdSet=new Set(realServerEntries.map(function(e){return e.id;}));
-    var localRealCount=ldEntries.filter(function(e){return e&&e.type!=='__ac_db__';}).length;
+
+    // Merge
     var merged={};
+    // Start with local entries (rules 3 & 4 baseline)
     ldEntries.forEach(function(e){ if(e&&e.id) merged[e.id]=e; });
+
     var changed=false;
     realServerEntries.forEach(function(se){
       if(!se||!se.id) return;
       var local=merged[se.id];
       if(!local){
+        // Rule 1: only on server → take server
         merged[se.id]=se; changed=true;
       } else {
-        var st=se.savedAt||'', lt=local.savedAt||'';
-        if(st>=lt && (st!==lt||JSON.stringify(se)!==JSON.stringify(local))){
-          merged[se.id]=se; changed=true;
+        var st=se.savedAt||'';
+        var lt=local.savedAt||'';
+        if(st>=lt){
+          // Rule 2: server same age or newer → server wins
+          if(st!==lt || JSON.stringify(se)!==JSON.stringify(local)){
+            merged[se.id]=se; changed=true;
+          }
         }
+        // else Rule 3: local is newer (offline edit) → keep local as-is (already in merged)
       }
     });
+
+    // Also changed if server has fewer entries than what we'd expect
+    // (e.g. entries missing from server that local has — will be re-pushed)
     var mergedArr=Object.values(merged);
-    if(!changed && mergedArr.length!==localRealCount) changed=true;
+    if(!changed && mergedArr.length!==ldEntries.filter(function(e){return e&&e.type!=='__ac_db__';}).length){
+      changed=true;
+    }
+
     if(!changed) return 0;
 
     ldEntries=mergedArr.sort(function(a,b){
@@ -11998,14 +12014,73 @@ async function ldPullFromServer(){
 }
 
 // Manual pull triggered by user (button / tap sync indicator)
-// ── DELTA SYNC ──────────────────────────────────────────────────────────────
-// Solo se transfieren los cambios desde la última sync exitosa.
-// Primera sync (sin lastSyncAt): sube y baja todo — ocurre una sola vez.
-// Siguientes syncs: solo el delta → eficiente con 15.000h de logbook.
+// ── BACKGROUND SYNC ─────────────────────────────────────────────────────────
+// ldBgSync — sync silencioso en segundo plano. Sin toasts salvo que lleguen
+// entries nuevos desde otro dispositivo. Llamado automáticamente al:
+//   · añadir/editar/borrar un vuelo
+//   · volver a la app (visibilitychange)
+//   · recuperar red (online event)
 
-var LD_LAST_SYNC_KEY = 'pilotOS_lastSyncAt';
-function ldGetLastSync(){ return lsGet(LD_LAST_SYNC_KEY, null); }
-function ldSetLastSync(ts){ lsSet(LD_LAST_SYNC_KEY, ts); }
+var _bgSyncTimer = null;       // debounce timer
+var _bgSyncRunning = false;    // guard contra llamadas concurrentes
+
+function ldBgSync(opts){
+  opts = opts || {};
+  var silent = opts.silent !== false; // true por defecto
+  var delay  = opts.delay  !== undefined ? opts.delay : 1500;
+
+  // Debounce: si hay una sync pendiente la cancela y programa una nueva.
+  // Así si el usuario añade 3 vuelos seguidos solo se hace un sync.
+  if(_bgSyncTimer) clearTimeout(_bgSyncTimer);
+  _bgSyncTimer = setTimeout(function(){
+    _bgSyncTimer = null;
+    _ldBgSyncRun(silent);
+  }, delay);
+}
+
+async function _ldBgSyncRun(silent){
+  if(_bgSyncRunning) return;          // ya hay una sync en curso
+  if(!ldAuthHeaders()) return;        // sin sesión, nada que hacer
+  if(!navigator.onLine) return;       // sin red, se reintentará con el evento online
+  _bgSyncRunning = true;
+  try{
+    var lastSync  = ldGetLastSync();
+    var syncStart = new Date().toISOString();
+
+    // Push delta (solo lo cambiado desde lastSync)
+    var pushOk = await ldDeltaPush(lastSync);
+    if(!pushOk){ _bgSyncRunning=false; return; }
+
+    // Pull delta (solo lo cambiado en el servidor desde lastSync)
+    var result = await ldDeltaPull(lastSync);
+    if(!result){ _bgSyncRunning=false; return; }
+
+    // Actualizar timestamp de última sync exitosa
+    ldSetLastSync(syncStart);
+    ldSetSyncStatus('ok');
+
+    // Solo mostrar toast si llegaron entries nuevos desde otro dispositivo
+    if(!silent && result.newCount>0){
+      showToast('☁ '+result.newCount+' vuelo'+(result.newCount!==1?'s':'')+' nuevo'+(result.newCount!==1?'s':'')+' desde otro dispositivo','info');
+    } else if(result.newCount>0){
+      showToast('☁ '+result.newCount+' vuelo'+(result.newCount!==1?'s':'')+' sincronizado'+(result.newCount!==1?'s':''),'info');
+    }
+    if(result.deletedCount>0){
+      showToast('☁ '+result.deletedCount+' vuelo'+(result.deletedCount!==1?'s':'')+' eliminado'+(result.deletedCount!==1?'s':'')+' desde otro dispositivo','info');
+    }
+  }catch(ex){
+    console.warn('[BgSync] Error:',ex.message);
+  }finally{
+    _bgSyncRunning = false;
+  }
+}
+
+// Trigger: volver a la app después de tenerla en segundo plano
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'visible'){
+    ldBgSync({ delay: 500 });
+  }
+});
 
 async function ldManualPull(){
   var token=ldAuthHeaders();
@@ -12017,156 +12092,19 @@ async function ldManualPull(){
   var btn=document.getElementById('ld-menu-sync-btn');
   if(btn){ btn.style.opacity='.5'; btn.style.pointerEvents='none'; }
   try{
-    var lastSync = ldGetLastSync();          // null = primera vez → full sync
-    var syncStart = new Date().toISOString(); // timestamp del inicio de esta sync
-
-    // PASO 1: Push delta — solo entries modificados desde lastSync
-    var pushOk = await ldDeltaPush(lastSync);
-    if(!pushOk){
+    var n=await ldPullFromServer();
+    if(n>0){
+      showToast('☁ '+n+' vuelo'+(n!==1?'s':'')+' descargado'+(n!==1?'s':'')+' desde la nube','success');
+      ldSetSyncStatus('ok');
+    } else if(n===0){
+      showToast('☁ Todo al día — no hay vuelos nuevos en la nube','info');
+      ldSetSyncStatus('ok');
+    } else {
       showToast('⚠ No se pudo conectar con el servidor','error');
       ldSetSyncStatus('error');
-      return;
     }
-
-    // PASO 2: Pull delta — solo entries del servidor modificados desde lastSync
-    var result = await ldDeltaPull(lastSync);
-    if(result === null){
-      showToast('⚠ Error al descargar datos del servidor','error');
-      ldSetSyncStatus('error');
-      return;
-    }
-
-    // PASO 3: Guardar timestamp de sync exitosa
-    ldSetLastSync(syncStart);
-
-    ldSetSyncStatus('ok');
-    if(result.newCount > 0 || result.deletedCount > 0){
-      var parts=[];
-      if(result.newCount>0) parts.push(result.newCount+' vuelo'+(result.newCount!==1?'s':'')+' nuevo'+(result.newCount!==1?'s':''));
-      if(result.deletedCount>0) parts.push(result.deletedCount+' eliminado'+(result.deletedCount!==1?'s':''));
-      showToast('☁ '+parts.join(', '),'success');
-    } else {
-      showToast('☁ Logbook sincronizado','success');
-    }
-  }catch(ex){
-    console.error('[ManualPull]',ex);
-    showToast('⚠ Error al sincronizar','error');
-    ldSetSyncStatus('error');
   }finally{
     if(btn){ btn.style.opacity=''; btn.style.pointerEvents=''; }
-  }
-}
-
-// ldDeltaPush — sube al servidor solo los entries modificados desde `since`.
-// Si since===null (primera sync) sube todo.
-async function ldDeltaPush(since){
-  var token=ldAuthHeaders(); if(!token) return false;
-  try{
-    var realEntries=ldEntries.filter(function(e){
-      if(!e||e.id===LD_AC_DB_ENTRY_ID||e.type==='__ac_db__') return false;
-      if(!since) return true;                        // primera sync: todo
-      return (e.savedAt||'') > since;               // delta: solo los modificados
-    });
-    var pendingDel=Object.keys(ldDelLoad());
-    if(!realEntries.length && !pendingDel.length) return true; // nada que subir
-
-    // Subir en chunks de 100 para logbooks grandes
-    var CHUNK=100;
-    for(var i=0;i<realEntries.length||i===0;i+=CHUNK){
-      var chunk=realEntries.slice(i,i+CHUNK);
-      var syncBody={entries:chunk};
-      // Solo adjuntar deletions en el primer chunk para no duplicar
-      if(i===0 && pendingDel.length) syncBody.deletions=pendingDel;
-      var r=await fetch(ldBackendUrl()+'/api/logbook/sync',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-        body:JSON.stringify(syncBody)
-      });
-      if(!r.ok){
-        var errBody=await r.json().catch(function(){return{};});
-        if(errBody.error==='plan_limit'){ ldSetSyncStatus('limit'); showPlanToast('limit'); }
-        else console.error('[DeltaPush] Error:',errBody.error||r.status);
-        return false;
-      }
-      var body=await r.json();
-      if(body.plan) lsSet('pilotOS_plan',body.plan);
-      if(i===0 && pendingDel.length){ ldDelClear(pendingDel); ldPendingClear(); }
-      if(realEntries.length===0) break; // solo enviamos deletions
-    }
-    return true;
-  }catch(e){
-    console.error('[DeltaPush] Network error:',e.message);
-    return false;
-  }
-}
-
-// ldDeltaPull — baja del servidor los entries modificados desde `since`.
-// Si since===null hace un pull completo y reemplaza local.
-// Devuelve {newCount, deletedCount} o null si error.
-async function ldDeltaPull(since){
-  var token=ldAuthHeaders(); if(!token) return null;
-  try{
-    var url=ldBackendUrl()+'/api/logbook';
-    if(since) url+='?since='+encodeURIComponent(since);
-    var r=await fetch(url,{headers:{'Authorization':'Bearer '+token}});
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    var body=await r.json();
-    var serverEntries=body.entries||[];
-    var serverDeletedIds=body.deleted_ids||[];
-    var isFull=body.full||!since;
-
-    // Aplicar tombstones: eliminar de local los entries borrados en otro dispositivo
-    var deletedCount=0;
-    if(serverDeletedIds.length){
-      var delSet=new Set(serverDeletedIds);
-      var before=ldEntries.filter(function(e){return e&&e.type!=='__ac_db__';}).length;
-      ldEntries=ldEntries.filter(function(e){return !delSet.has(e&&e.id);});
-      deletedCount=before-ldEntries.filter(function(e){return e&&e.type!=='__ac_db__';}).length;
-      ldDelClear(serverDeletedIds);
-    }
-
-    ldAcDbMergeFromServer(serverEntries);
-
-    var realServer=serverEntries.filter(function(e){
-      return e&&e.id&&e.id!==LD_AC_DB_ENTRY_ID&&e.type!=='__ac_db__';
-    });
-
-    var newCount=0;
-    if(isFull){
-      // Full sync: reemplazar local completamente con estado del servidor
-      // (ya subimos todo en ldDeltaPush, el servidor tiene el estado correcto)
-      var localIds=new Set(ldEntries.filter(function(e){return e&&e.type!=='__ac_db__';}).map(function(e){return e&&e.id;}));
-      newCount=realServer.filter(function(e){return !localIds.has(e.id);}).length;
-      ldEntries=realServer.slice();
-    } else {
-      // Delta sync: mergear solo los entries recibidos en el local existente
-      var localMap={};
-      ldEntries.forEach(function(e){if(e&&e.id) localMap[e.id]=e;});
-      realServer.forEach(function(se){
-        if(!se||!se.id) return;
-        var local=localMap[se.id];
-        if(!local){
-          ldEntries.unshift(se); newCount++;
-        } else {
-          // Servidor gana si es más reciente
-          if((se.savedAt||'')>=(local.savedAt||'')){
-            var idx=ldEntries.indexOf(local);
-            if(idx>=0) ldEntries[idx]=se;
-          }
-        }
-      });
-    }
-
-    ldEntries.sort(function(a,b){
-      return(b.date||'').localeCompare(a.date||'')||(b.savedAt||'').localeCompare(a.savedAt||'');
-    });
-    ldSaveData(); ldRender(); ldStats(); ldUpdatePlanBanners();
-
-    console.log('[DeltaPull] since='+(since||'full')+' received='+realServer.length+' new='+newCount+' deleted='+deletedCount);
-    return {newCount:newCount, deletedCount:deletedCount};
-  }catch(e){
-    console.error('[DeltaPull] Error:',e.message);
-    return null;
   }
 }
 
@@ -12709,30 +12647,20 @@ window._initLD=function(){
       if(meR.ok){ var me=await meR.json(); if(me.plan) lsSet('pilotOS_plan',me.plan); }
       // Ahora los banners reflejan el plan real
       ldUpdatePlanBanners();
-      // 2. Delta sync al arrancar: push cambios locales + pull cambios del servidor
-      if(navigator.onLine){
-        var _lastSync=ldGetLastSync();
-        var _syncStart=new Date().toISOString();
-        var _pushOk=await ldDeltaPush(_lastSync);
-        if(_pushOk){
-          var _result=await ldDeltaPull(_lastSync);
-          if(_result){
-            ldSetLastSync(_syncStart);
-            if(_result.newCount>0){
-              ldSetSyncStatus('ok');
-              showToast('☁ '+_result.newCount+' vuelo'+(_result.newCount!==1?'s':'')+' cargado'+(_result.newCount!==1?'s':'')+' desde la nube','info');
-            } else {
-              ldSetSyncStatus(isPro()?'ok':'local');
-            }
-          } else { ldSetSyncStatus('error'); }
-        } else {
-          // Push falló — intentar solo pull para no perder datos del servidor
-          var _result=await ldDeltaPull(_lastSync);
-          if(_result) ldSetSyncStatus('error'); // sync parcial
-          else ldSetSyncStatus('error');
-        }
+      // 2. Pull logbook — siempre si hay token, independientemente del plan
+      var n=await ldPullFromServer();
+      if(n>0){
+        ldSetSyncStatus('ok');
+        showToast('☁ '+n+' vuelo'+(n!==1?'s':'')+' cargado'+(n!==1?'s':'')+' desde la nube','info');
+      } else if(n===0){
+        ldSetSyncStatus(isPro() ? 'ok' : 'local');
       } else {
-        ldSetSyncStatus(isPro()?'local':'local');
+        ldSetSyncStatus('error');
+      }
+      // 3. Si había push pendiente (fallo de red anterior), reintentarlo ahora
+      if(ldPendingExists() && navigator.onLine){
+        console.log('[Sync] Pending push detected on init — retrying');
+        await ldSyncToServer();
       }
     }catch(e){
       ldUpdatePlanBanners();
@@ -15869,6 +15797,7 @@ window.ldRosterImportConfirm = function(){
   });
   if(imported>0){
     ldSaveData(); ldSyncToServer(); ldRender(); ldStats(); ldUpdatePlanBanners();
+    ldBgSync({ delay: 3000 }); // sync automático tras importar desde roster
     ldRosterImportClose();
     showToast('✅ '+imported+' vuelo'+(imported===1?'':'s')+' importado'+(imported===1?'':'s')+' como borrador','success');
   } else if(skipped>0){
