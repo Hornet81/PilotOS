@@ -11968,12 +11968,13 @@ async function ldPullFromServer(){
     // Start with local entries (rules 3 & 4 baseline)
     ldEntries.forEach(function(e){ if(e&&e.id) merged[e.id]=e; });
 
+    var localRealCount=ldEntries.filter(function(e){return e&&e.type!=='__ac_db__';}).length;
     var changed=false;
     realServerEntries.forEach(function(se){
       if(!se||!se.id) return;
       var local=merged[se.id];
       if(!local){
-        // Rule 1: only on server → take server
+        // Rule 1: only on server → take server (entry missing in this browser)
         merged[se.id]=se; changed=true;
       } else {
         var st=se.savedAt||'';
@@ -11988,10 +11989,9 @@ async function ldPullFromServer(){
       }
     });
 
-    // Also changed if server has fewer entries than what we'd expect
-    // (e.g. entries missing from server that local has — will be re-pushed)
     var mergedArr=Object.values(merged);
-    if(!changed && mergedArr.length!==ldEntries.filter(function(e){return e&&e.type!=='__ac_db__';}).length){
+    // Also mark changed if counts differ in either direction
+    if(!changed && mergedArr.length!==localRealCount){
       changed=true;
     }
 
@@ -12027,7 +12027,12 @@ async function ldManualPull(){
   var btn=document.getElementById('ld-menu-sync-btn');
   if(btn){ btn.style.opacity='.5'; btn.style.pointerEvents='none'; }
   try{
+    // 1. Descargar del servidor y hacer merge
     var n=await ldPullFromServer();
+    // Siempre refrescar la UI tras el pull, aunque n===0,
+    // para que las horas del home card reflejen el estado real.
+    try{ ldStats(); }catch(e){}
+    try{ ldRender(); }catch(e){}
     if(n>0){
       showToast('☁ '+n+' vuelo'+(n!==1?'s':'')+' descargado'+(n!==1?'s':'')+' desde la nube','success');
       ldSetSyncStatus('ok');
@@ -12038,6 +12043,8 @@ async function ldManualPull(){
       showToast('⚠ No se pudo conectar con el servidor','error');
       ldSetSyncStatus('error');
     }
+    // 2. Subir lo que haya en local por si el servidor le falta alguna entrada
+    if(n>=0) await ldSyncToServer();
   }finally{
     if(btn){ btn.style.opacity=''; btn.style.pointerEvents=''; }
   }
