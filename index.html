@@ -11956,8 +11956,8 @@ async function ldPullFromServer(){
     });
     if(!realServerEntries.length) return 0;
 
-    // Merge: servidor es fuente de verdad.
-    // Entries solo en local se conservan (pueden estar pendientes de subir).
+    // Merge — servidor gana para entries compartidos.
+    // Entries solo en local se conservan (pueden ser creaciones offline pendientes).
     var serverIdSet=new Set(realServerEntries.map(function(e){return e.id;}));
     var localRealCount=ldEntries.filter(function(e){return e&&e.type!=='__ac_db__';}).length;
     var merged={};
@@ -11969,9 +11969,8 @@ async function ldPullFromServer(){
       if(!local){
         merged[se.id]=se; changed=true;
       } else {
-        var st=se.savedAt||'';
-        var lt=local.savedAt||'';
-        if(st>=lt && (st!==lt || JSON.stringify(se)!==JSON.stringify(local))){
+        var st=se.savedAt||'', lt=local.savedAt||'';
+        if(st>=lt && (st!==lt||JSON.stringify(se)!==JSON.stringify(local))){
           merged[se.id]=se; changed=true;
         }
       }
@@ -12010,20 +12009,24 @@ async function ldManualPull(){
   var btn=document.getElementById('ld-menu-sync-btn');
   if(btn){ btn.style.opacity='.5'; btn.style.pointerEvents='none'; }
   try{
-    // PASO 1: subir TODOS los entries locales al servidor
+    // PASO 1: Subir TODOS los entries locales al servidor.
+    // Esto garantiza que el servidor tiene el estado completo de este dispositivo,
+    // incluidos entries creados offline.
     var pushOk=await ldForceFullPush();
     if(!pushOk){
       showToast('⚠ No se pudo conectar con el servidor','error');
       ldSetSyncStatus('error');
       return;
     }
-    // PASO 2: bajar el estado completo del servidor y reemplazar local
+    // PASO 2: Reemplazar local con el estado del servidor.
+    // Como ya subimos todo en el paso 1, el servidor tiene todo lo que debe existir.
+    // Lo que NO está en el servidor fue eliminado en otro dispositivo → no lo recuperamos.
     var n=await ldPullAndReplace();
     ldSetSyncStatus('ok');
     if(n>0){
-      showToast('☁ '+n+' vuelo'+(n!==1?'s':'')+' sincronizado'+(n!==1?'s':'')+' desde la nube','success');
+      showToast('☁ Logbook sincronizado — '+n+' vuelo'+(n!==1?'s':'')+' nuevo'+(n!==1?'s':''),'success');
     } else {
-      showToast('☁ Todo sincronizado','success');
+      showToast('☁ Logbook sincronizado','success');
     }
   }catch(ex){
     console.error('[ManualPull]',ex);
@@ -12035,14 +12038,15 @@ async function ldManualPull(){
 }
 
 // Sube TODOS los entries locales al servidor (upsert completo).
+// Retorna true si el servidor respondió OK.
 async function ldForceFullPush(){
   var token=ldAuthHeaders(); if(!token) return false;
   try{
     var realEntries=ldEntries.filter(function(e){
       return e&&e.id!==LD_AC_DB_ENTRY_ID&&e.type!=='__ac_db__';
     });
-    if(!realEntries.length) return true;
     var pendingDel=Object.keys(ldDelLoad());
+    if(!realEntries.length && !pendingDel.length) return true;
     var syncBody={entries:realEntries};
     if(pendingDel.length) syncBody.deletions=pendingDel;
     var r=await fetch(ldBackendUrl()+'/api/logbook/sync',{
@@ -12059,7 +12063,7 @@ async function ldForceFullPush(){
     } else {
       var errBody=await r.json().catch(function(){return{};});
       if(errBody.error==='plan_limit'){ ldSetSyncStatus('limit'); showPlanToast('limit'); }
-      else console.error('[ForceFullPush] Server error:',errBody.error||r.status);
+      else console.error('[ForceFullPush] Error:',errBody.error||r.status);
       return false;
     }
   }catch(e){
@@ -12069,6 +12073,9 @@ async function ldForceFullPush(){
 }
 
 // Baja el estado completo del servidor y sustituye el local.
+// IMPORTANTE: no preserva entries locales ausentes del servidor —
+// si no están en el servidor es porque fueron eliminados en otro dispositivo.
+// (Los entries genuinamente nuevos ya fueron subidos por ldForceFullPush antes.)
 async function ldPullAndReplace(){
   var token=ldAuthHeaders(); if(!token) return 0;
   var r=await fetch(ldBackendUrl()+'/api/logbook',{
@@ -12076,29 +12083,33 @@ async function ldPullAndReplace(){
   });
   if(!r.ok) throw new Error('HTTP '+r.status);
   var body=await r.json();
-  var serverEntries=(body.entries||[]);
+  var serverEntries=body.entries||[];
   var serverDeletedIds=body.deleted_ids||[];
+
+  // Aplicar tombstones (por si el servidor usa soft-delete)
   if(serverDeletedIds.length){
     var delSet=new Set(serverDeletedIds);
     ldEntries=ldEntries.filter(function(e){return !delSet.has(e.id);});
     ldDelClear(serverDeletedIds);
   }
+
   ldAcDbMergeFromServer(serverEntries);
+
   var realServer=serverEntries.filter(function(e){
     return e&&e.id&&e.id!==LD_AC_DB_ENTRY_ID&&e.type!=='__ac_db__';
   });
-  if(!realServer.length) return 0;
+
+  // Calcular cuántos entries son nuevos respecto al local actual
   var localIds=new Set(ldEntries.filter(function(e){return e&&e.type!=='__ac_db__';}).map(function(e){return e&&e.id;}));
   var newCount=realServer.filter(function(e){return !localIds.has(e.id);}).length;
-  var serverIdSet=new Set(realServer.map(function(e){return e.id;}));
-  var localOnly=ldEntries.filter(function(e){
-    return e&&e.id&&e.type!=='__ac_db__'&&!serverIdSet.has(e.id);
-  });
-  ldEntries=realServer.concat(localOnly).sort(function(a,b){
+
+  // Reemplazar local con estado del servidor (sin preservar local-only).
+  // El servidor ya tiene todo tras ldForceFullPush.
+  ldEntries=realServer.slice().sort(function(a,b){
     return(b.date||'').localeCompare(a.date||'')||(b.savedAt||'').localeCompare(a.savedAt||'');
   });
   ldSaveData(); ldRender(); ldStats(); ldUpdatePlanBanners();
-  if(localOnly.length>0) setTimeout(ldForceFullPush,500);
+
   return newCount;
 }
 
@@ -12641,11 +12652,9 @@ window._initLD=function(){
       if(meR.ok){ var me=await meR.json(); if(me.plan) lsSet('pilotOS_plan',me.plan); }
       // Ahora los banners reflejan el plan real
       ldUpdatePlanBanners();
-      // 2. Push primero — subir lo local antes de bajar nada
-      if(navigator.onLine){
-        await ldSyncToServer();
-      }
-      // 3. Pull — el servidor tiene ahora nuestros datos + otros dispositivos
+      // 2. Push primero al arrancar — subir lo local antes de bajar nada
+      if(navigator.onLine){ await ldSyncToServer(); }
+      // 3. Pull con merge normal (conservador en arranque — preserva local si red falla)
       var n=await ldPullFromServer();
       try{ ldStats(); }catch(ex){}
       try{ ldRender(); }catch(ex){}
