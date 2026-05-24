@@ -9895,6 +9895,15 @@ window._utcClock = setInterval(function(){
 function ldLoad(){
   try{ ldEntries=JSON.parse(localStorage.getItem(LD_KEY)||'[]'); }
   catch(e){ ldEntries=[]; }
+  // Migration: entries without pendingSync flag are treated as pending
+  // so they get pushed to the server on next sync (one-time, harmless).
+  var _migrated=false;
+  ldEntries.forEach(function(e){
+    if(e&&e.id&&e.id!==LD_AC_DB_ENTRY_ID&&e.type!=='__ac_db__'&&e.pendingSync===undefined){
+      e.pendingSync=true; _migrated=true;
+    }
+  });
+  if(_migrated){ try{ localStorage.setItem(LD_KEY,JSON.stringify(ldEntries)); }catch(ex){} }
   ldFiltered=ldEntries.slice();
 }
 function ldSaveData(){
@@ -10149,6 +10158,7 @@ function ldSave(){
   }
   var e={
     id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),
+    pendingSync:true,
     savedAt:new Date().toISOString(),
     date:g('ld_date'),flight:g('ld_flight'),
     dep:g('ld_dep').toUpperCase(),arr:g('ld_arr').toUpperCase(),
@@ -11850,15 +11860,20 @@ function ldPendingExists(){ return localStorage.getItem(LD_PENDING_KEY)==='1'; }
 var _ldSyncInProgress = false;
 async function ldSyncToServer(){
   if(_ldSyncInProgress) return;
-  var token=ldAuthHeaders(); if(!token||!ldEntries.length)return;
+  var token=ldAuthHeaders(); if(!token) return;
   _ldSyncInProgress = true;
   try{
-    var realEntries=ldEntries.filter(function(e){
-      return e&&e.id!==LD_AC_DB_ENTRY_ID&&e.type!=='__ac_db__';
+    // Only push entries that haven't been confirmed by the server yet
+    var pendingEntries=ldEntries.filter(function(e){
+      return e&&e.id!==LD_AC_DB_ENTRY_ID&&e.type!=='__ac_db__'&&e.pendingSync;
     });
-    if(!realEntries.length){ _ldSyncInProgress=false; return; }
     var pendingDel=Object.keys(ldDelLoad());
-    var syncBody={entries:realEntries};
+    if(!pendingEntries.length && !pendingDel.length){ _ldSyncInProgress=false; return; }
+    // Strip pendingSync before sending — server doesn't need this flag
+    var entriesToSend=pendingEntries.map(function(e){
+      var c=Object.assign({},e); delete c.pendingSync; return c;
+    });
+    var syncBody={entries:entriesToSend};
     if(pendingDel.length) syncBody.deletions=pendingDel;
     var r=await fetch(ldBackendUrl()+'/api/logbook/sync',{
       method:'POST',
@@ -11867,10 +11882,14 @@ async function ldSyncToServer(){
     });
     if(r.ok){
       var body=await r.json();
+      // Mark pushed entries as synced — clear pendingSync flag
+      var syncedIds=new Set(pendingEntries.map(function(e){return e.id;}));
+      ldEntries.forEach(function(e){ if(e&&syncedIds.has(e.id)) delete e.pendingSync; });
+      ldSaveData();
       ldSetSyncStatus('ok');
       if(body.plan) lsSet('pilotOS_plan',body.plan);
       if(pendingDel.length) ldDelClear(pendingDel);
-      ldPendingClear(); // push successful — no longer pending
+      ldPendingClear();
     } else {
       var errBody=await r.json().catch(function(){return{};});
       if(errBody.error==='plan_limit'){
@@ -11878,14 +11897,14 @@ async function ldSyncToServer(){
         showPlanToast('limit');
       } else {
         ldSetSyncStatus('error');
-        ldPendingSet(); // mark as pending to retry when back online
+        ldPendingSet();
         console.error('[Logbook sync] Server error:', errBody.error || r.status);
         if(r.status===500) showToast('⚠ Error al sincronizar logbook con el servidor','error');
       }
     }
   }catch(e){
     ldSetSyncStatus('error');
-    ldPendingSet(); // network error — mark pending for retry
+    ldPendingSet();
     console.error('[Logbook sync] Network error:', e.message);
   }
   finally{ _ldSyncInProgress=false; }
@@ -11963,37 +11982,39 @@ async function ldPullFromServer(){
     // Build server ID set to detect local-only entries (rule 4)
     var serverIdSet=new Set(realServerEntries.map(function(e){return e.id;}));
 
-    // Merge
+    // Merge — offline-first rules:
+    //   1. Entry only on server             → add to local (new from another device)
+    //   2. Entry in both, local pendingSync → local wins (offline edit not pushed yet)
+    //   3. Entry in both, not pending       → server wins (already confirmed)
+    //   4. Entry only in local, pending     → keep (will be pushed next sync)
+    //   5. Entry only in local, not pending → keep (may be in server under diff conditions)
     var merged={};
-    // Start with local entries (rules 3 & 4 baseline)
+    var localRealCount=ldEntries.filter(function(e){return e&&e.type!=='__ac_db__';}).length;
     ldEntries.forEach(function(e){ if(e&&e.id) merged[e.id]=e; });
 
-    var localRealCount=ldEntries.filter(function(e){return e&&e.type!=='__ac_db__';}).length;
     var changed=false;
     realServerEntries.forEach(function(se){
       if(!se||!se.id) return;
       var local=merged[se.id];
       if(!local){
-        // Rule 1: only on server → take server (entry missing in this browser)
-        merged[se.id]=se; changed=true;
+        // Rule 1: server has entry this browser has never seen → take it
+        var imported=Object.assign({},se); delete imported.pendingSync;
+        merged[se.id]=imported; changed=true;
+      } else if(local.pendingSync){
+        // Rule 2: local is a pending offline edit → protect it, don't overwrite
       } else {
+        // Rule 3: both have it, local is confirmed → server is authoritative
         var st=se.savedAt||'';
         var lt=local.savedAt||'';
-        if(st>=lt){
-          // Rule 2: server same age or newer → server wins
-          if(st!==lt || JSON.stringify(se)!==JSON.stringify(local)){
-            merged[se.id]=se; changed=true;
-          }
+        if(st!==lt || JSON.stringify(se)!==JSON.stringify(local)){
+          var imported=Object.assign({},se); delete imported.pendingSync;
+          merged[se.id]=imported; changed=true;
         }
-        // else Rule 3: local is newer (offline edit) → keep local as-is (already in merged)
       }
     });
 
     var mergedArr=Object.values(merged);
-    // Also mark changed if counts differ in either direction
-    if(!changed && mergedArr.length!==localRealCount){
-      changed=true;
-    }
+    if(!changed && mergedArr.length!==localRealCount) changed=true;
 
     if(!changed) return 0;
 
@@ -12027,24 +12048,26 @@ async function ldManualPull(){
   var btn=document.getElementById('ld-menu-sync-btn');
   if(btn){ btn.style.opacity='.5'; btn.style.pointerEvents='none'; }
   try{
-    // 1. Descargar del servidor y hacer merge
+    // 1. Push primero: subir todo lo pendiente antes de descargar
+    var hasPending=ldEntries.some(function(e){return e&&e.pendingSync;});
+    if(hasPending || ldPendingExists()){
+      await ldSyncToServer();
+    }
+    // 2. Pull: servidor tiene ahora todo — descargar y mergear
     var n=await ldPullFromServer();
-    // Siempre refrescar la UI tras el pull, aunque n===0,
-    // para que las horas del home card reflejen el estado real.
+    // Siempre refrescar la UI
     try{ ldStats(); }catch(e){}
     try{ ldRender(); }catch(e){}
     if(n>0){
-      showToast('☁ '+n+' vuelo'+(n!==1?'s':'')+' descargado'+(n!==1?'s':'')+' desde la nube','success');
+      showToast('☁ '+n+' vuelo'+(n!==1?'s':'')+' sincronizado'+(n!==1?'s':'')+' desde la nube','success');
       ldSetSyncStatus('ok');
     } else if(n===0){
-      showToast('☁ Todo al día — no hay vuelos nuevos en la nube','info');
+      showToast('☁ Todo sincronizado','success');
       ldSetSyncStatus('ok');
     } else {
       showToast('⚠ No se pudo conectar con el servidor','error');
       ldSetSyncStatus('error');
     }
-    // 2. Subir lo que haya en local por si el servidor le falta alguna entrada
-    if(n>=0) await ldSyncToServer();
   }finally{
     if(btn){ btn.style.opacity=''; btn.style.pointerEvents=''; }
   }
@@ -12508,6 +12531,7 @@ function ldImportConfirm(){
       // New entry — add it
       var e={
         id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),
+        pendingSync:true,
         savedAt:new Date().toISOString(),
         date:r.date||'',flight:r.flight||'',
         dep:(r.dep||'').toUpperCase(),arr:(r.arr||'').toUpperCase(),
@@ -12587,10 +12611,18 @@ window._initLD=function(){
       // 1. Obtener plan real del servidor ANTES de pintar los banners
       var meR=await fetch(ldBackendUrl()+'/api/me',{headers:{'Authorization':'Bearer '+token}});
       if(meR.ok){ var me=await meR.json(); if(me.plan) lsSet('pilotOS_plan',me.plan); }
-      // Ahora los banners reflejan el plan real
       ldUpdatePlanBanners();
-      // 2. Pull logbook — siempre si hay token, independientemente del plan
+      // 2. Push primero: subir entradas pendientes (offline o nuevas) antes de bajar nada
+      var hasPending=ldEntries.some(function(e){return e&&e.pendingSync;});
+      if(hasPending || ldPendingExists()){
+        console.log('[Sync] Pushing pending entries before pull');
+        await ldSyncToServer();
+      }
+      // 3. Pull: el servidor ahora tiene nuestros datos + los de otros dispositivos
       var n=await ldPullFromServer();
+      // Siempre refrescar la UI — aunque n===0 el servidor puede haber actualizado algo
+      try{ ldStats(); }catch(ex){}
+      try{ ldRender(); }catch(ex){}
       if(n>0){
         ldSetSyncStatus('ok');
         showToast('☁ '+n+' vuelo'+(n!==1?'s':'')+' cargado'+(n!==1?'s':'')+' desde la nube','info');
@@ -12598,11 +12630,6 @@ window._initLD=function(){
         ldSetSyncStatus(isPro() ? 'ok' : 'local');
       } else {
         ldSetSyncStatus('error');
-      }
-      // 3. Si había push pendiente (fallo de red anterior), reintentarlo ahora
-      if(ldPendingExists() && navigator.onLine){
-        console.log('[Sync] Pending push detected on init — retrying');
-        await ldSyncToServer();
       }
     }catch(e){
       ldUpdatePlanBanners();
