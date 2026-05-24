@@ -11205,10 +11205,41 @@ function _ldGetLogoDataUrl(cb){
   }catch(e){cb(null);}
 }
 
+// ── SECURITY HELPERS: SHA-256 + QR CODE ────────────────────────────────
+function _ldSHA256(str){
+  if(window.crypto&&window.crypto.subtle){
+    return window.crypto.subtle.digest('SHA-256',new TextEncoder().encode(str)).then(function(buf){
+      return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
+    });
+  }
+  return Promise.resolve((function(s){var h=0;for(var i=0;i<s.length;i++)h=Math.imul(31,h)+s.charCodeAt(i)|0;return Math.abs(h).toString(16).padStart(8,'0').repeat(8).slice(0,64);})(str));
+}
+function _ldGenQRDataUrl(text,cb){
+  if(!window.QRCode){cb(null);return;}
+  try{
+    var d=document.createElement('div');
+    d.style.cssText='position:absolute;left:-9999px;top:-9999px;width:128px;height:128px';
+    document.body.appendChild(d);
+    new QRCode(d,{text:text,width:128,height:128,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
+    setTimeout(function(){
+      var c=d.querySelector('canvas'),url=c?c.toDataURL('image/png'):null;
+      try{document.body.removeChild(d);}catch(e){}
+      cb(url);
+    },200);
+  }catch(e){cb(null);}
+}
+function _ldBuildQRText(pilotName,entries,totalBlock){
+  return 'PilotOS Logbook\nPilot: '+(pilotName||'N/A')+'\nEntries: '+entries.length+'\nBlock: '+ldM2s(totalBlock)+'\npilotos.aero';
+}
+function _ldBuildHashInput(pilotName,entries,totalBlock){
+  return JSON.stringify({v:1,pilot:pilotName,n:entries.length,from:entries[0]&&entries[0].date,to:entries[entries.length-1]&&entries[entries.length-1].date,block:totalBlock,rows:entries.map(function(e){return(e.date||'')+'|'+(e.flight||'')+'|'+(e.dep||'')+'|'+(e.arr||'')+'|'+(e.block||'');}).join(';')});
+}
+// ── END SECURITY HELPERS ────────────────────────────────────────────────
+
 function _ldRunExportPDF(entries){
   showToast('Generando PDF\u2026','info');
 
-  function doGen(logoDataUrl){
+  function doGen(logoDataUrl,hashHex,qrDataUrl){
     try{
       var jspdfLib=window.jspdf||window.jsPDF;
       var JsPDF=(jspdfLib&&jspdfLib.jsPDF)?jspdfLib.jsPDF:jspdfLib;
@@ -11292,6 +11323,7 @@ function _ldRunExportPDF(entries){
         doc.text('PilotOS \u00b7 EASA FCL.050 Appendix 1',mg,pageH-4.5);
         doc.text('P\u00e1gina '+pg,pageW/2,pageH-4.5,{align:'center'});
         doc.text(entries.length+' vuelos \u00b7 '+ldM2s(totalBlock)+' block',pageW-mg,pageH-4.5,{align:'right'});
+        if(hashHex){doc.setFontSize(4.5);doc.setTextColor(203,213,225);doc.text('SHA-256: '+hashHex.slice(0,32)+'\u2026',mg,pageH-1.5);}
       }
 
       drawHeader(1);
@@ -11367,6 +11399,30 @@ function _ldRunExportPDF(entries){
       doc.setFont('helvetica','normal');doc.setFontSize(6);doc.setTextColor(148,163,184);
       doc.text('pilotos.aero',mg+3,fy+9);
 
+      // ── Certificación · Firma · QR · SHA-256 ──────────────────────
+      var sy=fy+18;
+      if(sy>pageH-34){doc.addPage();sy=22;drawHeader(++_pageN);drawFooter(_pageN);}
+      doc.setDrawColor(203,213,225);doc.setLineWidth(0.35);doc.line(mg,sy,pageW-mg,sy);
+      doc.setFont('helvetica','italic');doc.setFontSize(7);doc.setTextColor(51,65,85);
+      doc.text('Certifico que los datos introducidos en este logbook son v\u00e1lidos y completos.',mg,sy+5.5);
+      doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(100,116,139);
+      doc.text('I certify that the entries in this log are true.',mg,sy+10);
+      doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(30,41,59);
+      doc.text('FIRMA / SIGNATURE: ________________________________________________',mg,sy+17);
+      doc.text('Fecha / Date: ___________________________',mg,sy+23);
+      if(hashHex){
+        doc.setFont('helvetica','normal');doc.setFontSize(5);doc.setTextColor(148,163,184);
+        doc.text('SHA-256: '+hashHex,mg,sy+29);
+      }
+      if(qrDataUrl){
+        try{
+          var qrX=pageW-mg-26,qrY=sy+1;
+          doc.addImage(qrDataUrl,'PNG',qrX,qrY,25,25);
+          doc.setFont('helvetica','normal');doc.setFontSize(5);doc.setTextColor(148,163,184);
+          doc.text('Verificar',qrX+12.5,qrY+27,{align:'center'});
+        }catch(e){}
+      }
+
       doc.save('PilotOS_Logbook_'+ldToday()+'.pdf');
       showToast('\u2713 PDF generado — A4 landscape','success');
     }catch(err){
@@ -11392,7 +11448,19 @@ function _ldRunExportPDF(entries){
     document.head.appendChild(s1);
   }
   _ldGetLogoDataUrl(function(logoDataUrl){
-    withJsPDF(function(){doGen(logoDataUrl);});
+    withJsPDF(function(){
+      var _pn='';try{var _pau=JSON.parse(localStorage.getItem('cafi_auth_user')||'{}');_pn=_pau.name||_pau.email||'';}catch(e){}
+      var _tb=entries.reduce(function(s,e){return s+ldT2m(e.block);},0);
+      function _proceed(){
+        _ldSHA256(_ldBuildHashInput(_pn,entries,_tb)).then(function(hx){
+          _ldGenQRDataUrl(_ldBuildQRText(_pn,entries,_tb)+'\nSHA-256: '+hx.slice(0,32),function(qr){
+            doGen(logoDataUrl,hx,qr);
+          });
+        });
+      }
+      if(!window.QRCode){var sq=document.createElement('script');sq.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';sq.onload=_proceed;sq.onerror=_proceed;document.head.appendChild(sq);}
+      else _proceed();
+    });
   });
 }
 
@@ -11400,7 +11468,7 @@ function _ldRunExportPDF(entries){
 function _ldRunExportPDF_Jeppesen(entries){
   showToast('Generando PDF Jeppesen\u2026','info');
 
-  function doGen(logoDataUrl){
+  function doGen(logoDataUrl,hashHex,qrDataUrl){
     try{
       var jspdfLib=window.jspdf||window.jsPDF;
       var JsPDF=(jspdfLib&&jspdfLib.jsPDF)?jspdfLib.jsPDF:jspdfLib;
@@ -11612,10 +11680,24 @@ function _ldRunExportPDF_Jeppesen(entries){
       doc.setDrawColor(80,80,80);doc.setLineWidth(0.4);
       doc.line(mg,cy,pageW-mg,cy);
       doc.setFont('helvetica','italic');doc.setFontSize(7.5);doc.setTextColor(20,20,20);
-      doc.text('I certify that the entries in this log are true.',mg,cy+6);
-      doc.setFont('helvetica','normal');doc.setFontSize(7);
-      doc.text("PILOT\u2019S SIGNATURE: ________________________________________________",mg,cy+13);
-      doc.text('Date: ________________________',mg+152,cy+13);
+      doc.text('Certifico que los datos introducidos en este logbook son v\u00e1lidos y completos.',mg,cy+5.5);
+      doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(80,80,80);
+      doc.text('I certify that the entries in this log are true.',mg,cy+10);
+      doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(20,20,20);
+      doc.text("FIRMA / PILOT\u2019S SIGNATURE: ________________________________________________",mg,cy+17);
+      doc.text('Fecha / Date: ________________________',mg+152,cy+17);
+      if(hashHex){
+        doc.setFont('helvetica','normal');doc.setFontSize(5);doc.setTextColor(150,150,150);
+        doc.text('SHA-256: '+hashHex,mg,cy+23);
+      }
+      if(qrDataUrl){
+        try{
+          var qrX=pageW-mg-26,qrY=cy;
+          doc.addImage(qrDataUrl,'PNG',qrX,qrY,25,25);
+          doc.setFont('helvetica','normal');doc.setFontSize(5);doc.setTextColor(150,150,150);
+          doc.text('Verificar',qrX+12.5,qrY+27,{align:'center'});
+        }catch(e){}
+      }
 
       // ── Pie de página en todas las páginas ──
       var nPg=doc.internal.getNumberOfPages();
@@ -11627,6 +11709,7 @@ function _ldRunExportPDF_Jeppesen(entries){
         doc.text('pilotos.aero \u00b7 Jeppesen compatible format',mg,pageH-3.5);
         doc.text('Page '+p+' / '+nPg,pageW/2,pageH-3.5,{align:'center'});
         doc.text(entries.length+' flights \u00b7 '+ldM2s(totalBlock),pageW-mg,pageH-3.5,{align:'right'});
+        if(hashHex){doc.setFontSize(4.5);doc.setTextColor(180,180,180);doc.text('SHA-256: '+hashHex.slice(0,32)+'\u2026',mg,pageH-1);}
       }
 
       doc.save('PilotOS_Logbook_Jeppesen_'+ldToday()+'.pdf');
@@ -11654,7 +11737,19 @@ function _ldRunExportPDF_Jeppesen(entries){
     document.head.appendChild(s1);
   }
   _ldGetLogoDataUrl(function(logoDataUrl){
-    withJsPDF(function(){doGen(logoDataUrl);});
+    withJsPDF(function(){
+      var _pn='';try{var _pau=JSON.parse(localStorage.getItem('cafi_auth_user')||'{}');_pn=_pau.name||_pau.email||'';}catch(e){}
+      var _tb=entries.reduce(function(s,e){return s+ldT2m(e.block);},0);
+      function _proceed(){
+        _ldSHA256(_ldBuildHashInput(_pn,entries,_tb)).then(function(hx){
+          _ldGenQRDataUrl(_ldBuildQRText(_pn,entries,_tb)+'\nSHA-256: '+hx.slice(0,32),function(qr){
+            doGen(logoDataUrl,hx,qr);
+          });
+        });
+      }
+      if(!window.QRCode){var sq=document.createElement('script');sq.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';sq.onload=_proceed;sq.onerror=_proceed;document.head.appendChild(sq);}
+      else _proceed();
+    });
   });
 }
 // ── FIN JEPPESEN PDF EXPORT ─────────────────────────────────────────────
