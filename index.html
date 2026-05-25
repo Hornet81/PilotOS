@@ -18684,6 +18684,21 @@ function iataToIcao(iata) {
   return IATA_TO_ICAO[code] || (code.length === 4 ? code : 'LE' + code);
 }
 
+// Calcula pista en uso a partir del viento del METAR (dir viento → cabecera más cercana)
+function calcRwyFromMetar(metarRaw) {
+  if (!metarRaw) return null;
+  const m = metarRaw.match(/\b(\d{3}|VRB)(\d{2,3})(?:G\d{2,3})?KT\b/);
+  if (!m) return null;
+  if (m[1] === 'VRB') return 'VRB';
+  const spd = parseInt(m[2], 10);
+  if (spd < 3) return null; // calma — sin preferencia
+  const dir = parseInt(m[1], 10);
+  let rwy = Math.round(dir / 10);
+  if (rwy === 0) rwy = 36;
+  if (rwy > 36) rwy -= 36;
+  return String(rwy).padStart(2, '0');
+}
+
 /* ─── LEGS ─── */
 const LEGS = [{
   num: 1,
@@ -20356,12 +20371,12 @@ function NotamCard(_ref15) {
       borderRadius: 6,
       border: "1px solid rgba(126,251,254,0.09)",
       fontFamily: mono,
-      fontSize: 7.5,
-      color: "rgba(126,251,254,0.65)",
+      fontSize: 9.5,
+      color: "rgba(210,240,255,0.88)",
       whiteSpace: "pre-wrap",
       wordBreak: "break-all",
-      lineHeight: 1.5,
-      maxHeight: 180,
+      lineHeight: 1.6,
+      maxHeight: 200,
       overflowY: "auto"
     }
   }, n.raw))), /*#__PURE__*/React.createElement("span", {
@@ -21679,20 +21694,21 @@ function TafBlock(_ref24) {
     }
   }, "\u25B8 RAW TAF"), /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: 9,
-      color: "rgba(150,210,255,0.7)",
+      fontSize: 11,
+      color: "rgba(220,240,255,0.95)",
       fontFamily: mono,
-      lineHeight: 1.8,
-      wordBreak: "break-all"
+      lineHeight: 1.9,
+      wordBreak: "break-all",
+      letterSpacing: "0.3px"
     }
   }, taf.raw)), /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: 7,
-      color: C.dimmer,
+      fontSize: 8,
+      color: C.dim,
       fontFamily: mono,
       fontWeight: 700,
       letterSpacing: "1.5px",
-      marginBottom: 7
+      marginBottom: 8
     }
   }, "PER\xCDODOS DECODIFICADOS"), taf.periods.map((p, i) => {
     const ts = typeStyle[p.type] || typeStyle.BASE;
@@ -21734,8 +21750,8 @@ function TafBlock(_ref24) {
       }
     }, p.type), /*#__PURE__*/React.createElement("div", {
       style: {
-        fontSize: 7,
-        color: C.dimmer,
+        fontSize: 8,
+        color: C.dim,
         fontFamily: mono
       }
     }, p.label))), p.sig && /*#__PURE__*/React.createElement("span", {
@@ -21762,12 +21778,12 @@ function TafBlock(_ref24) {
       return /*#__PURE__*/React.createElement("span", {
         key: k,
         style: {
-          fontSize: 9,
+          fontSize: 11,
           fontFamily: mono
         }
       }, /*#__PURE__*/React.createElement("span", {
         style: {
-          color: C.dimmer
+          color: C.dim
         }
       }, k, ": "), /*#__PURE__*/React.createElement("span", {
         style: {
@@ -22371,11 +22387,12 @@ function TabMeteo(_ref29) {
     }
   }, "\u25B8 RAW METAR"), /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: 9,
-      color: "rgba(150,210,255,0.8)",
+      fontSize: 11,
+      color: "rgba(220,240,255,0.95)",
       fontFamily: mono,
-      lineHeight: 1.8,
-      wordBreak: "break-all"
+      lineHeight: 1.9,
+      wordBreak: "break-all",
+      letterSpacing: "0.3px"
     }
   }, m.raw)), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -22397,15 +22414,16 @@ function TabMeteo(_ref29) {
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
-        fontSize: 7,
-        color: "".concat(c, "88"),
+        fontSize: 8,
+        color: "".concat(c, "cc"),
         fontFamily: mono,
         fontWeight: 700,
-        marginBottom: 2
+        letterSpacing: "1px",
+        marginBottom: 3
       }
     }, l), /*#__PURE__*/React.createElement("div", {
       style: {
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: 700,
         color: C.white,
         fontFamily: mono
@@ -22464,6 +22482,58 @@ function TabMeteo(_ref29) {
     leg: leg
   }));
 }
+
+function RwyInUsePanel(_ref_rwy) {
+  const leg = _ref_rwy.leg;
+  const depMetarRaw = (leg.metar && leg.metar.raw) || '';
+  const arrMetarRaw = (leg.metarArr && leg.metarArr.raw) || '';
+  const rwyDep = leg.rwyDep || calcRwyFromMetar(depMetarRaw);
+  const rwyArr = leg.rwyArr || calcRwyFromMetar(arrMetarRaw);
+  const estimated = !leg.rwyDep || !leg.rwyArr;
+
+  // Extract wind string for display: e.g. "250/12kt"
+  function windStr(raw) {
+    const m = raw.match(/\b(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?KT\b/);
+    if (!m) return null;
+    const gust = m[3] ? 'G' + m[3] : '';
+    return m[1] + '°/' + m[2] + gust + 'kt';
+  }
+  const wDep = windStr(depMetarRaw);
+  const wArr = windStr(arrMetarRaw);
+
+  function RwyEntry(props) {
+    const label = props.label, icao = props.icao, rwy = props.rwy, wind = props.wind;
+    return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, flex: 1 } },
+      React.createElement("div", { style: { minWidth: 32 } },
+        React.createElement("div", { style: { fontSize: 7, color: C.dimmer, fontFamily: mono, fontWeight: 700, letterSpacing: "1px" } }, label),
+        React.createElement("div", { style: { fontSize: 11, fontWeight: 900, color: C.dim, fontFamily: mono } }, icao)
+      ),
+      React.createElement("div", { style: { flex: 1 } },
+        rwy
+          ? React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 5 } },
+              React.createElement("span", { style: { fontSize: 8, color: "#4dff91", fontFamily: mono, fontWeight: 700 } }, "RWY"),
+              React.createElement("span", { style: { fontSize: 22, fontWeight: 900, color: "#4dff91", fontFamily: mono, lineHeight: 1, textShadow: "0 0 10px #4dff9160" } }, rwy)
+            )
+          : React.createElement("span", { style: { fontSize: 10, color: C.dimmer, fontFamily: mono } }, "—"),
+        wind && React.createElement("div", { style: { fontSize: 8, color: C.dimmer, fontFamily: mono, marginTop: 1 } }, "VNT ", wind)
+      )
+    );
+  }
+
+  return React.createElement("div", null,
+    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 8 } },
+      React.createElement("span", { style: { fontSize: 16 } }, "🛬"),
+      React.createElement("span", { style: { fontSize: 8, color: C.cyan, fontFamily: mono, fontWeight: 700, letterSpacing: "1.5px" } }, "RUNWAY IN USE"),
+      estimated && React.createElement("span", { style: { fontSize: 7, color: "#FFB800", fontFamily: mono, fontWeight: 700, background: "rgba(255,184,0,0.12)", border: "1px solid rgba(255,184,0,0.3)", borderRadius: 4, padding: "1px 5px" } }, "ESTIMADO")
+    ),
+    React.createElement("div", { style: { display: "flex", gap: 12 } },
+      React.createElement(RwyEntry, { label: "DEP", icao: leg.dep, rwy: rwyDep, wind: wDep }),
+      React.createElement("div", { style: { width: 1, background: "rgba(126,251,254,0.08)", alignSelf: "stretch" } }),
+      React.createElement(RwyEntry, { label: "ARR", icao: leg.arr, rwy: rwyArr, wind: wArr })
+    )
+  );
+}
+
 function TabNotam(_ref32) {
   let leg = _ref32.leg;
   const _useState21 = useState(null),
@@ -22687,20 +22757,7 @@ function TabNotam(_ref32) {
     apTabsEl,
     React.createElement(Glass, {
       style: { padding: "10px 12px", marginBottom: 12, border: "1px solid " + C.cyan + "22" }
-    },
-      React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
-        React.createElement("span", { style: { fontSize: 20 } }, "🛬"),
-        React.createElement("div", null,
-          React.createElement("div", { style: { fontSize: 8, color: C.cyan, fontFamily: mono, fontWeight: 700, letterSpacing: "1.5px", marginBottom: 2 } }, "RUNWAY IN USE \xB7 PREDICCI\xD3N"),
-          React.createElement("div", { style: { fontSize: 10, color: C.white, fontFamily: sans } },
-            React.createElement("span", { style: { color: C.dimmer } }, leg.dep, " "),
-            React.createElement("span", { style: { color: "#4dff91", fontWeight: 700 } }, "RWY ", leg.rwyDep),
-            React.createElement("span", { style: { color: C.dimmer } }, " \xB7 ", leg.arr, " "),
-            React.createElement("span", { style: { color: "#4dff91", fontWeight: 700 } }, "RWY ", leg.rwyArr)
-          )
-        )
-      )
-    ),
+    }, React.createElement(RwyInUsePanel, { leg: leg })),
     sectionsEl,
     leg.alts.some(a => a.notams.length > 0) && React.createElement(React.Fragment, null,
       React.createElement(SecLabel, null, "NOTAMs Alternates"),
