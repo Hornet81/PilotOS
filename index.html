@@ -19281,11 +19281,7 @@ async function fetchLiveNotams(icao) {
     const r = await fetch(_wxUrl() + '/api/wx/notam/' + icao, { headers: _wxHdr() });
     if (!r.ok) return [];
     const d = await r.json();
-    return (Array.isArray(d) ? d : []).slice(0, 10).map(n => ({
-      id:    n.notamID  || n.icaoId || icao,
-      title: (n.traditionalMessage || n.notamText || '').slice(0, 150),
-      sev:   'info'
-    })).filter(n => n.title);
+    return Array.isArray(d) ? d : [];
   } catch { return []; }
 }
 
@@ -20340,16 +20336,35 @@ function NotamCard(_ref15) {
     style: {
       marginTop: 8,
       paddingTop: 8,
-      borderTop: "1px solid rgba(126,251,254,0.07)",
+      borderTop: "1px solid rgba(126,251,254,0.07)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
       display: "flex",
       gap: 4,
-      flexWrap: "wrap"
+      flexWrap: "wrap",
+      marginBottom: n.raw ? 8 : 0
     }
-  }, n.tags.map(t => /*#__PURE__*/React.createElement(Tag, {
+  }, n.tags && n.tags.map(t => /*#__PURE__*/React.createElement(Tag, {
     key: t,
     label: t,
     color: s.text
-  })))), /*#__PURE__*/React.createElement("span", {
+  }))), n.raw && /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "8px 10px",
+      background: "rgba(0,0,0,0.45)",
+      borderRadius: 6,
+      border: "1px solid rgba(126,251,254,0.09)",
+      fontFamily: mono,
+      fontSize: 7.5,
+      color: "rgba(126,251,254,0.65)",
+      whiteSpace: "pre-wrap",
+      wordBreak: "break-all",
+      lineHeight: 1.5,
+      maxHeight: 180,
+      overflowY: "auto"
+    }
+  }, n.raw))), /*#__PURE__*/React.createElement("span", {
     style: {
       color: C.dimmer,
       fontSize: 13,
