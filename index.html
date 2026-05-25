@@ -20701,8 +20701,8 @@ function FlightProfileSVG(_ref17) {
 
 /* ════════ WIND COMPONENT CALCULATOR ════════ */
 function calcWindComponents(windDir, windSpd, rwyHdg) {
-  // rwyHdg: e.g. "24L" → 240°, "32R" → 320°
-  const rwyNum = parseInt(rwyHdg.replace(/[LRC]/g, "")) * 10;
+  if (!rwyHdg || rwyHdg === 'VRB') return { headwind: 0, crosswind: 0, crossSide: 'R', tailwind: false };
+  const rwyNum = parseInt(String(rwyHdg).replace(/[LRC]/g, "")) * 10;
   const diff = (windDir - rwyNum + 360) % 360;
   const diffRad = diff * Math.PI / 180;
   const headwind = Math.round(windSpd * Math.cos(diffRad));
@@ -20801,7 +20801,7 @@ function WindCard(_ref19) {
   const xwColor = crosswind > 15 ? "#ff4d6d" : crosswind > 10 ? "#FFB800" : "#4dff91";
 
   // Compass needle angle: wind FROM dir rotated to show on runway axis
-  const rwyNum = parseInt(rwy.replace(/[LRC]/g, "")) * 10;
+  const rwyNum = rwy ? parseInt(String(rwy).replace(/[LRC]/g, "")) * 10 : 360;
   const relAngle = (dir - rwyNum + 360) % 360;
   return /*#__PURE__*/React.createElement("div", {
     style: {
