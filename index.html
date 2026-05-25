@@ -7701,7 +7701,12 @@ function goTo(key){
     var token = ''; try { token = lsGet('cafi_auth_token',''); } catch(ex) {}
     if (token && typeof pcImportFromLogbook === 'function') pcImportFromLogbook();
   }
-  if (key === 'skyview') { setTimeout(function(){ try{ if(window.__mountSkyView) window.__mountSkyView(); }catch(e){} },100); }
+  // SkyView: hide app bottom nav; all other screens: show it
+  var btabs = document.getElementById('btabs');
+  if (btabs) btabs.style.display = (key === 'skyview') ? 'none' : '';
+  if (key === 'skyview') { setTimeout(function(){ try{ if(window.__mountSkyView) window.__mountSkyView(); }catch(e){} }, 100); }
+  // Sync logbook hours on home
+  if (key === 'home' && typeof ldStats === 'function') { setTimeout(ldStats, 150); }
 }
 function goHome(){goTo('home');}
 function tabTo(key){goTo(key);}
@@ -12911,7 +12916,7 @@ var SW_CITIES=[{n:'Madrid',a:['MAD','LEMD'],lat:40.4165,lon:-3.7026,c:'España'}
 function swGeocode(q,ok,fail){var ql=q.trim().toLowerCase();var res=null;for(var i=0;i<SW_CITIES.length&&!res;i++){var c=SW_CITIES[i];if(c.n.toLowerCase()===ql)res=c;for(var j=0;j<c.a.length&&!res;j++)if(c.a[j].toLowerCase()===ql)res=c;}if(!res)for(var i=0;i<SW_CITIES.length&&!res;i++)if(SW_CITIES[i].n.toLowerCase().indexOf(ql)===0)res=SW_CITIES[i];if(!res)for(var i=0;i<SW_CITIES.length&&!res;i++)if(SW_CITIES[i].n.toLowerCase().indexOf(ql)>=0)res=SW_CITIES[i];if(res){ok(res.lat,res.lon,res.n+', '+res.c);return;}var xhr=new XMLHttpRequest();xhr.open('GET','https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(q)+'&count=1&language=es&format=json',true);xhr.timeout=6000;xhr.onload=function(){try{var d=JSON.parse(xhr.responseText);if(d.results&&d.results.length){var r=d.results[0];ok(r.latitude,r.longitude,r.name+(r.country?', '+r.country:''));}else fail('Ciudad no encontrada');}catch(e){fail('Ciudad no encontrada');}};xhr.onerror=xhr.ontimeout=function(){fail('Ciudad no encontrada');};xhr.send();}
 window.swSearch=function(){var q=document.getElementById('sw-city-inp').value.trim();if(!q)return;document.getElementById('sw-loading').style.display='flex';document.getElementById('sw-loading').innerHTML='<div class="sw-spin"></div><div style="font-size:14px;opacity:.7">Buscando…</div>';document.getElementById('sw-content').style.display='none';swGeocode(q,function(lat,lon,label){swFetch(lat,lon,label);},function(msg){document.getElementById('sw-loading').style.display='flex';document.getElementById('sw-loading').innerHTML='<div style="color:#fbbf24;font-size:14px">'+msg+'.<br>Prueba con otra ciudad.</div>';});};
 function swRender(d,city,lat,lon){try{var cur=d.current||{},daily=d.daily||{},hourly=d.hourly||{};var code=cur.weather_code||0,temp=Math.round(cur.temperature_2m||18),windKt=Math.round(cur.wind_speed_10m||0),windDir=cur.wind_direction_10m||0,pressure=Math.round(cur.surface_pressure||1013),hum=Math.round(cur.relative_humidity_2m||50);var hi=Math.round((daily.temperature_2m_max||[temp+4])[0]),lo=Math.round((daily.temperature_2m_min||[temp-4])[0]);var nowH=new Date().getHours(),isNight=(nowH>=21||nowH<6);var grads=skyGradient(code,isNight);var hero=document.getElementById('sw-hero');if(hero)hero.style.background='linear-gradient(180deg,'+grads[0]+' 0%,'+grads[1]+' 55%,'+grads[2]+' 100%)';document.getElementById('sw-city-name').textContent=city;document.getElementById('sw-temp').textContent=temp+'°';document.getElementById('sw-cond-txt').textContent=wmoInfo(code).d;document.getElementById('sw-hi').textContent=hi;document.getElementById('sw-lo').textContent=lo;var pop0=(daily.precipitation_probability_max||[0])[0]||0;document.getElementById('sw-summary').textContent=wmoInfo(code).d+' con temperaturas entre '+lo+'° y '+hi+'°. '+(pop0>20?'Prob. precipitación: '+pop0+'%. ':'')+' Viento '+swDegToCard(windDir)+' a '+windKt+' kt.';var htimes=hourly.time||[],htemps=hourly.temperature_2m||[],hcodes=hourly.weather_code||[],hpops=hourly.precipitation_probability||[];var nowStr=new Date().toISOString().slice(0,13);var nowIdx=0;for(var i=0;i<htimes.length;i++){if(htimes[i].slice(0,13)<=nowStr)nowIdx=i;}var hourlyHTML='';for(var h=0;h<12;h++){var idx=nowIdx+h;if(idx>=htimes.length)break;var hlabel=h===0?'Ahora':htimes[idx].slice(11,16);var hpop=hpops[idx]||0;hourlyHTML+='<div class="sw-hour-item"><div class="sw-hour-label">'+hlabel+'</div><div class="sw-hour-icon">'+wmoInfo(hcodes[idx]||0).e+'</div>'+(hpop>15?'<div class="sw-hour-pop">'+hpop+'%</div>':'<div style="height:16px"></div>')+'<div class="sw-hour-temp">'+Math.round(htemps[idx]||temp)+'°</div></div>';}document.getElementById('sw-hourly').innerHTML=hourlyHTML;startScene(code,isNight,windKt);document.getElementById('sw-loading').style.display='none';document.getElementById('sw-content').style.display='block';}catch(err){document.getElementById('sw-loading').style.display='flex';document.getElementById('sw-loading').innerHTML='<div style="color:#f87171;font-size:13px;text-align:center">Error al renderizar.<br><small style="opacity:.6">'+err.message+'</small></div>';}}
-// swInited hook removed - skyview handled in goTo;
+// swInited removed - skyview handled in goTo;
 window.swShowFlightEditor=function(){document.getElementById('sw-roster-prompt').style.display='none';var ed=document.getElementById('sw-edit-flight');ed.style.display='block';['fp-dep','fp-arr'].forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener('input',function(){this.value=this.value.toUpperCase();});});};
 })();
 
@@ -18548,7 +18553,7 @@ function laShareWrapped() {
 })();
 
 
-// ══ SkyView React Component (pre-compiled) ══
+// ══ SkyView React Component ══
 (function(){
 "use strict";
 try {
@@ -20113,7 +20118,7 @@ function AnimatedBg() {
   return /*#__PURE__*/React.createElement("canvas", {
     ref: ref,
     style: {
-      position: "fixed",
+      position: "absolute",
       inset: 0,
       width: "100%",
       height: "100%",
@@ -23811,13 +23816,15 @@ function SkyViewPilotOS() {
   const hasAlert = (NOTAMS_BY_LEG[leg.num] || []).some(n => n.sev === "danger");
   return /*#__PURE__*/React.createElement("div", {
     style: {
-      minHeight: "100vh",
+      height: "100%",
       background: BG,
       maxWidth: 430,
       margin: "0 auto",
       position: "relative",
       overflow: "hidden",
-      fontFamily: sans
+      fontFamily: sans,
+      display: "flex",
+      flexDirection: "column"
     }
   }, /*#__PURE__*/React.createElement(AnimatedBg, null), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -23840,6 +23847,22 @@ function SkyViewPilotOS() {
       gap: 7
     }
   }, /*#__PURE__*/React.createElement("div", {
+    onClick: () => window.goTo && window.goTo("home"),
+    style: {
+      width: 32,
+      height: 32,
+      borderRadius: 9,
+      background: "rgba(0,18,50,0.7)",
+      border: "1px solid ".concat(C.cyan, "30"),
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: 18,
+      color: C.cyan,
+      cursor: "pointer",
+      marginRight: 4
+    }
+  }, "\u2039"), /*#__PURE__*/React.createElement("div", {
     style: {
       width: 26,
       height: 26,
@@ -24004,7 +24027,10 @@ function SkyViewPilotOS() {
   }, leg.metarArr.cat, " \xB7 ", leg.metarArr.temp, " \xB7 ", leg.metarArr.qnh)))), /*#__PURE__*/React.createElement("div", {
     style: {
       position: "relative",
-      zIndex: 1
+      zIndex: 1,
+      flex: 1,
+      overflowY: "auto",
+      WebkitOverflowScrolling: "touch"
     }
   }, tab === "brief" && /*#__PURE__*/React.createElement(TabBrief, {
     leg: leg
@@ -24019,12 +24045,10 @@ function SkyViewPilotOS() {
     turbData: turbData
   })), /*#__PURE__*/React.createElement("div", {
     style: {
-      position: "fixed",
+      position: "sticky",
       bottom: 0,
-      left: "50%",
-      transform: "translateX(-50%)",
+      left: 0,
       width: "100%",
-      maxWidth: 430,
       zIndex: 30,
       background: "rgba(0,8,22,0.97)",
       borderTop: "1px solid rgba(126,251,254,0.09)",
