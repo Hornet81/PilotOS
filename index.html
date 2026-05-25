@@ -18636,6 +18636,54 @@ function routeKey(dep, arr) {
   return "".concat(dep, "-").concat(arr);
 }
 
+const IATA_TO_ICAO = {
+  // Spain
+  BCN:'LEBL', MAD:'LEMD', PMI:'LEPA', AGP:'LEMG', SVQ:'LEZL', VLC:'LEVC',
+  ALC:'LEAL', BIO:'LEBB', IBZ:'LEIB', MAH:'LEMH', GRX:'LEGR',
+  FUE:'GCFV', LPA:'GCLP', TFS:'GCTS', ACE:'GCRR', TFN:'GCXO', SPC:'GCLA',
+  SCQ:'LEST', OVD:'LEAS', VGO:'LEVX', SDR:'LEXJ', RJL:'LERJ', VIT:'LEVT',
+  REU:'LERS', GRO:'LEGE', LEI:'LEAM', MJV:'LELC', BJZ:'LEBZ', XRY:'LEJR',
+  LCG:'LECO', HSK:'LEHC',
+  // France
+  ORY:'LFPO', CDG:'LFPG', NCE:'LFMN', LYS:'LFLL', MRS:'LFML', TLS:'LFBO',
+  BOD:'LFBD', NTE:'LFRS', BIQ:'LFBZ', MPL:'LFMT', SXB:'LFST', LIL:'LFQQ',
+  // UK
+  LHR:'EGLL', LGW:'EGKK', LTN:'EGGW', STN:'EGSS', MAN:'EGCC', EDI:'EGPH',
+  GLA:'EGPF', BRS:'EGGD', BHX:'EGBB',
+  // Germany
+  FRA:'EDDF', MUC:'EDDM', DUS:'EDDL', BER:'EDDB', HAM:'EDDH', STR:'EDDS', CGN:'EDDK', NUE:'EDDN',
+  // Italy
+  FCO:'LIRF', MXP:'LIMC', LIN:'LIML', NAP:'LIRN', VCE:'LIPZ', GOA:'LIMJ',
+  FLR:'LIRQ', PSA:'LIRP', CAG:'LIEE', PMO:'LICJ', CTA:'LICC', BRI:'LIBD', BLQ:'LIPE',
+  // Portugal
+  LIS:'LPPT', OPO:'LPPR', FAO:'LPFR',
+  // Netherlands/Belgium
+  AMS:'EHAM', BRU:'EBBR',
+  // Switzerland/Austria
+  GVA:'LSGG', ZRH:'LSZH', BSL:'LFSB', VIE:'LOWW',
+  // Ireland/Nordic
+  DUB:'EIDW', HEL:'EFHK', ARN:'ESSA', OSL:'ENGM', CPH:'EKCH', KEF:'BIKF',
+  // Greece
+  ATH:'LGAV', HER:'LGIR', RHO:'LGRP', CFU:'LGKR', KGS:'LGKO', JTR:'LGSR', CHQ:'LGSA', SKG:'LGTS',
+  // Balkans
+  SPU:'LDSP', DBV:'LDDU', ZAG:'LDZA', TGD:'LYPG', TIA:'LATI', SKP:'LWSK', LJU:'LJLJ',
+  // Morocco
+  TNG:'GMTT', CMN:'GMMN', RAK:'GMMX', AGA:'GMAD', FEZ:'GMFF',
+  // Algeria
+  ALG:'DAAG', ORN:'DAOO',
+  // Tunisia/Egypt
+  TUN:'DTTA', MIR:'DTMB', DJE:'DTTJ', HRG:'HEGN', SSH:'HESH', CAI:'HECA',
+  // Turkey/Israel/Jordan
+  IST:'LTFM', AYT:'LTAI', ADB:'LTBJ', TLV:'LLBG', AMM:'OJAM',
+  // Eastern Europe
+  PRG:'LKPR', WAW:'EPWA', KRK:'EPKK', BUD:'LHBP', OTP:'LROP', SOF:'LBSF',
+};
+function iataToIcao(iata) {
+  if (!iata) return null;
+  const code = iata.replace(/^\*/, '').toUpperCase();
+  return IATA_TO_ICAO[code] || (code.length === 4 ? code : 'LE' + code);
+}
+
 /* ─── LEGS ─── */
 const LEGS = [{
   num: 1,
@@ -19162,6 +19210,74 @@ async function fetchTurbulenceProfile(coords, fl) {
       dist: Math.round(i / (coords.length - 1) * 100)
     }));
   }
+}
+
+/* ════════════════════════════════════════
+   LIVE WEATHER — aviationweather.gov
+════════════════════════════════════════ */
+
+function parseMetarObj(m) {
+  if (!m) return null;
+  const catMap = { VFR: 'VMC', MVFR: 'MVMC', IFR: 'IFR', LIFR: 'LIFR' };
+  const cat = catMap[m.flightCategory] || 'VMC';
+  const wdir = m.wdir === 'VRB' ? 'VRB' : String(m.wdir || 0).padStart(3, '0');
+  const wspd = m.wspd || 0;
+  const wgst = m.wgst ? 'G' + m.wgst : '';
+  const clouds = m.skyCondition && m.skyCondition.length
+    ? m.skyCondition.map(c => c.skyCover + (c.cloudBase != null ? String(Math.round(c.cloudBase / 100)).padStart(3, '0') : '')).join(' ')
+    : (m.skyCoverage || 'SKC');
+  let vis = '9999m';
+  if (m.visib) {
+    const vs = String(m.visib);
+    if (!vs.includes('+')) {
+      const num = parseFloat(vs.replace(/[^0-9.\/]/g, ''));
+      if (!isNaN(num)) {
+        vis = num > 100 ? Math.round(num) + 'm' : (num < 6 ? Math.round(num * 1609) + 'm' : '9999m');
+      }
+    }
+  }
+  return {
+    raw: m.rawOb || '',
+    wind: wdir + '°/' + wspd + wgst + 'kt',
+    vis,
+    temp: m.temp != null ? m.temp + '°C' : '—',
+    dew:  m.dewp != null ? m.dewp + '°C' : '—',
+    qnh:  m.altim ? String(Math.round(m.altim)) : '—',
+    cat,
+    clouds,
+    trend: m.wxString || ''
+  };
+}
+
+async function fetchLiveMetar(icao) {
+  try {
+    const r = await fetch('https://aviationweather.gov/api/data/metar?ids=' + icao + '&format=json&hours=2');
+    if (!r.ok) return null;
+    const d = await r.json();
+    return parseMetarObj(d && d[0]);
+  } catch { return null; }
+}
+
+async function fetchLiveTaf(icao) {
+  try {
+    const r = await fetch('https://aviationweather.gov/api/data/taf?ids=' + icao + '&format=json');
+    if (!r.ok) return '';
+    const d = await r.json();
+    return (d && d[0] && d[0].rawTAF) || '';
+  } catch { return ''; }
+}
+
+async function fetchLiveNotams(icao) {
+  try {
+    const r = await fetch('https://aviationweather.gov/api/data/notam?icaos=' + icao + '&format=json');
+    if (!r.ok) return [];
+    const d = await r.json();
+    return (Array.isArray(d) ? d : []).slice(0, 10).map(n => ({
+      id:    n.notamID  || n.icaoId || icao,
+      title: (n.traditionalMessage || n.notamText || '').slice(0, 150),
+      sev:   'info'
+    })).filter(n => n.title);
+  } catch { return []; }
 }
 
 /* ════════════════════════════════════════
@@ -23806,31 +23922,8 @@ function buildLegsFromRoster() {
     return upcoming.map(function (e, i) {
       var stdZ = e.std ? e.std + 'Z' : '—Z';
       var staZ = e.sta ? e.sta + 'Z' : '—Z';
-      // Convert IATA (3 chars) to ICAO best guess for Spain
-      var IATA2ICAO = {
-        BCN: 'LEBL',
-        MAD: 'LEMD',
-        PMI: 'LEPA',
-        AGP: 'LEMG',
-        SVQ: 'LEZL',
-        VLC: 'LEVC',
-        ALC: 'LEAL',
-        BIO: 'LEBB',
-        IBZ: 'LEIB',
-        GRX: 'LEGR',
-        FUE: 'GCFV',
-        LPA: 'GCLP',
-        TFS: 'GCTS',
-        ACE: 'GCRR',
-        LHR: 'EGLL',
-        LGW: 'EGKK',
-        CDG: 'LFPG',
-        FCO: 'LIRF',
-        AMS: 'EHAM',
-        MXP: 'LIMC'
-      };
-      var depIcao = IATA2ICAO[e.dep] || (e.dep.length === 4 ? e.dep : 'LE' + e.dep);
-      var arrIcao = IATA2ICAO[e.arr] || (e.arr.length === 4 ? e.arr : 'LE' + e.arr);
+      var depIcao = iataToIcao(e.dep);
+      var arrIcao = iataToIcao(e.arr);
       return {
         num: i + 1,
         flight: e.flightNum || '—',
@@ -23887,9 +23980,19 @@ function SkyViewPilotOS() {
     _useState40 = _slicedToArray(_useState39, 2),
     turbData = _useState40[0],
     setTurbData = _useState40[1];
+  const [liveWeather, setLiveWeather] = useState({});
+  const [liveTafs, setLiveTafs] = useState({});
   const _rosterLegs = buildLegsFromRoster();
   const EFFECTIVE_LEGS = _rosterLegs || LEGS;
-  const leg = EFFECTIVE_LEGS[legIdx];
+  const _baseLeg = EFFECTIVE_LEGS[legIdx];
+  const _depIcao = iataToIcao(_baseLeg.dep);
+  const _arrIcao = iataToIcao(_baseLeg.arr);
+  const leg = Object.assign({}, _baseLeg, {
+    metar:    liveWeather[_depIcao] || _baseLeg.metar,
+    metarArr: liveWeather[_arrIcao] || _baseLeg.metarArr,
+    tafDep:   liveTafs[_depIcao]   || '',
+    tafArr:   liveTafs[_arrIcao]   || ''
+  });
   const _useState41 = useState(0),
     _useState42 = _slicedToArray(_useState41, 2),
     tick = _useState42[0],
@@ -23898,6 +24001,29 @@ function SkyViewPilotOS() {
     const t = setInterval(() => setTick(x => x + 1), 1000);
     return () => clearInterval(t);
   }, []);
+  useEffect(() => {
+    if (!_depIcao || !_arrIcao) return;
+    (async () => {
+      const [dm, am, dt, at, dn, an] = await Promise.all([
+        fetchLiveMetar(_depIcao), fetchLiveMetar(_arrIcao),
+        fetchLiveTaf(_depIcao),   fetchLiveTaf(_arrIcao),
+        fetchLiveNotams(_depIcao),fetchLiveNotams(_arrIcao)
+      ]);
+      const wx = {};
+      if (dm) wx[_depIcao] = dm;
+      if (am) wx[_arrIcao] = am;
+      if (Object.keys(wx).length) setLiveWeather(prev => Object.assign({}, prev, wx));
+      const tf = {};
+      if (dt) tf[_depIcao] = dt;
+      if (at) tf[_arrIcao] = at;
+      if (Object.keys(tf).length) setLiveTafs(prev => Object.assign({}, prev, tf));
+      const notams = [
+        ...(dn || []).map(x => Object.assign({}, x, {airport: _depIcao})),
+        ...(an || []).map(x => Object.assign({}, x, {airport: _arrIcao}))
+      ];
+      if (notams.length) { NOTAMS_BY_LEG[_baseLeg.num] = notams; setTick(x => x + 1); }
+    })();
+  }, [legIdx]);
   const now = new Date();
   const utc = "".concat(String(now.getUTCHours()).padStart(2, "0"), ":").concat(String(now.getUTCMinutes()).padStart(2, "0"), "Z");
   const hasAlert = (NOTAMS_BY_LEG[leg.num] || []).some(n => n.sev === "danger");
@@ -23905,7 +24031,7 @@ function SkyViewPilotOS() {
     style: {
       height: "100%",
       background: BG,
-      maxWidth: 430,
+      maxWidth: "100%",
       margin: "0 auto",
       position: "relative",
       overflow: "hidden",
