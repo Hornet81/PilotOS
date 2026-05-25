@@ -10,6 +10,10 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
+<!-- React 18 + Babel for SkyView -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -5597,185 +5601,8 @@ window.addEventListener('online', function(){
 </div>
 
 <!-- ════════════ SKYVIEW ════════════ -->
-<div class="screen" id="scr-skyview">
-  <div class="scroll-body" id="sw-scrollbody" style="overflow-y:auto;overflow-x:hidden;height:100%;-webkit-overflow-scrolling:touch;padding-bottom:calc(80px + env(safe-area-inset-bottom,0px));">
-    <div style="position:-webkit-sticky;position:sticky;top:0;z-index:20;padding:10px 0 8px;background:transparent">
-      <div style="display:flex;align-items:center;padding:0 16px;gap:8px;">
-        <div onclick="goHome()" style="color:rgba(255,255,255,.8);font-size:22px;cursor:pointer;padding:4px 8px 4px 0;line-height:1">‹</div>
-        <input class="sw-search-inp" id="sw-city-inp" placeholder="Ciudad o ICAO (ej: Barcelona)" type="text" autocomplete="off"/>
-        <button class="sw-search-btn" onclick="swSearch()">Buscar</button>
-      </div>
-    </div>
-    <div class="sw-loading" id="sw-loading"><div class="sw-spin"></div><div style="font-size:14px;opacity:.7">Cargando datos meteorológicos…</div></div>
-    <div id="sw-content" style="display:none;padding-bottom:120px">
-      <div id="sw-hero">
-        <canvas id="sw-stars" width="400" height="340"></canvas>
-        <canvas id="sw-scene" width="400" height="340"></canvas>
-        <div class="sw-hero-text">
-          <div class="sw-city" id="sw-city-name">—</div>
-          <div class="sw-temp-big" id="sw-temp">—°</div>
-          <div class="sw-condition" id="sw-cond-txt">—</div>
-          <div class="sw-hi-lo">Máx. <span id="sw-hi">—</span>°&nbsp;&nbsp;Mín. <span id="sw-lo">—</span>°</div>
-        </div>
-      </div>
-      <div class="sw-summary-card">
-        <div class="sw-summary-text" id="sw-summary">Datos meteorológicos actualizados.</div>
-        <div class="sw-summary-divider"></div>
-        <div class="sw-hourly-row" id="sw-hourly"></div>
-      </div>
-      <!-- ✈ ROSTER IMPORT PROMPT -->
-      <div class="sw-roster-prompt" id="sw-roster-prompt">
-        <div class="sw-roster-row">
-          <div class="sw-roster-icon">✈️</div>
-          <div>
-            <div class="sw-roster-title">¿Importar tu vuelo de hoy?</div>
-            <div class="sw-roster-sub">Perfil de tiempo en cada fase del vuelo: despegue, crucero y llegada</div>
-          </div>
-        </div>
-        <div class="sw-roster-btns">
-          <button class="sw-roster-yes" onclick="swShowFlightEditor()">Sí, ver mi vuelo</button>
-          <button class="sw-roster-no" onclick="document.getElementById('sw-roster-prompt').style.display='none'">Ahora no</button>
-        </div>
-      </div>
-      <!-- ✈ FLIGHT EDITOR -->
-      <div class="sw-edit-flight" id="sw-edit-flight" style="display:none">
-        <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">✈ Tu vuelo de hoy</div>
-        <div class="sw-edit-row">
-          <div class="sw-edit-field"><div class="sw-edit-label">Origen</div><input class="sw-edit-inp" id="fp-dep" value="MAD" maxlength="4"/></div>
-          <div class="sw-edit-field"><div class="sw-edit-label">Destino</div><input class="sw-edit-inp" id="fp-arr" value="BCN" maxlength="4"/></div>
-          <div class="sw-edit-field"><div class="sw-edit-label">STD (UTC)</div><input class="sw-edit-inp sw-edit-time" id="fp-std" value="07:30"/></div>
-          <div class="sw-edit-field"><div class="sw-edit-label">STA (UTC)</div><input class="sw-edit-inp sw-edit-time" id="fp-sta" value="08:45"/></div>
-          <button class="sw-load-btn" onclick="swLoadFlightProfile()">Ver perfil</button>
-        </div>
-      </div>
-      <!-- ✈ FLIGHT PROFILE CARD -->
-      <div class="sw-profile-card" id="sw-profile-card" style="display:none">
-        <div class="sw-profile-header">
-          <div class="sw-profile-route">
-            <div class="sw-profile-icao" id="fp-dep-label">MAD</div>
-            <div class="sw-profile-arrow">✈</div>
-            <div class="sw-profile-icao" id="fp-arr-label">BCN</div>
-          </div>
-          <div class="sw-profile-meta">Block time <b id="fp-block">—</b>STD <b id="fp-std-label">—Z</b></div>
-        </div>
-        <div id="sw-profile-svg-wrap" style="height:195px;position:relative">
-          <svg id="sw-profile-svg" width="100%" height="195" viewBox="0 0 360 195" preserveAspectRatio="none" style="display:block;position:absolute;inset:0;z-index:1">
-            <defs>
-              <linearGradient id="fp-ground" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#1a3a1a" stop-opacity="0.8"/><stop offset="100%" stop-color="#0a1a0a" stop-opacity="0.9"/></linearGradient>
-              <linearGradient id="fp-path-grad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#67d7f5"/><stop offset="50%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#67d7f5"/></linearGradient>
-              <filter id="fp-glow2"><feGaussianBlur stdDeviation="5" result="blur"/><feComposite in="SourceGraphic" in2="blur" operator="over"/></filter>
-            </defs>
-            <rect id="fp-ground-rect" x="0" y="158" width="360" height="37" fill="url(#fp-ground)"/>
-            <path id="fp-area" fill="url(#fp-path-grad)" fill-opacity="0.07" d=""/>
-            <path id="fp-path-glow" fill="none" stroke="rgba(103,215,245,0.25)" stroke-width="8" stroke-linecap="round" filter="url(#fp-glow2)" d=""/>
-            <path id="fp-path-main" fill="none" stroke="url(#fp-path-grad)" stroke-width="2.5" stroke-linecap="round" d=""/>
-            <g id="fp-alt-lines"/>
-            <g id="fp-runways"/>
-            <g id="fp-aircraft" transform="translate(180,26)">
-              <ellipse cx="0" cy="5" rx="10" ry="2.5" fill="rgba(0,0,0,.3)"/>
-              <ellipse cx="0" cy="0" rx="11" ry="4" fill="#e8f4ff"/>
-              <ellipse cx="7" cy="-1" rx="4" ry="2.5" fill="#b0d8f5"/>
-              <path d="M-2,-3 L8,0 L-2,3 Z" fill="rgba(200,230,255,.9)"/>
-              <path d="M-2,-3 L-12,-8 L-6,0 Z" fill="rgba(180,210,255,.85)"/>
-              <path d="M-2,3 L-12,8 L-6,0 Z" fill="rgba(180,210,255,.85)"/>
-              <path d="M-9,-4 L-11,-9 L-7,-4 Z" fill="rgba(200,220,255,.8)"/>
-              <ellipse cx="-3" cy="-5" rx="3" ry="1.2" fill="rgba(160,190,220,.7)"/>
-              <ellipse cx="-3" cy="5" rx="3" ry="1.2" fill="rgba(160,190,220,.7)"/>
-            </g>
-            <g id="fp-vlines"/>
-            <g id="fp-dots"/>
-          </svg>
-          <div id="fp-pins" style="position:absolute;inset:0;z-index:10;pointer-events:none"></div>
-        </div>
-        <div class="sw-phase-row" id="fp-phase-row"></div>
-      </div>
-      <!-- ══ QRH AIRPORT TABS ══ -->
-      <div class="qrh-wrap" id="qrh-wrap" data-active="dep">
-        <div class="qrh-tabbar">
-          <div class="qrh-tab active" data-tab="dep"  onclick="qrhSwitchTab('dep')"><span id="tab-label-dep">DEP</span></div>
-          <div class="qrh-tab"        data-tab="arr"  onclick="qrhSwitchTab('arr')"><span id="tab-label-arr">ARR</span></div>
-          <div class="qrh-tab"        data-tab="alt1" onclick="qrhSwitchTab('alt1')"><span id="tab-label-alt1">ALTN 1</span></div>
-          <div class="qrh-tab"        data-tab="alt2" onclick="qrhSwitchTab('alt2')"><span id="tab-label-alt2">ALTN 2</span></div>
-          <div class="qrh-tab" data-tab="ai" onclick="qrhSwitchTab('ai')" style="flex:1.35;border-right:none;">
-            <span style="display:inline-flex;align-items:center;gap:4px;">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style="flex-shrink:0">
-                <path d="M12 2L13.8 8.2L20 10L13.8 11.8L12 18L10.2 11.8L4 10L10.2 8.2L12 2Z" fill="#bfdbfe"/>
-                <path d="M19 15L19.9 17.1L22 18L19.9 18.9L19 21L18.1 18.9L16 18L18.1 17.1L19 15Z" fill="#bfdbfe" opacity=".8"/>
-                <path d="M5 3L5.7 4.8L7.5 5.5L5.7 6.2L5 8L4.3 6.2L2.5 5.5L4.3 4.8L5 3Z" fill="#bfdbfe" opacity=".6"/>
-              </svg>
-              <span style="font-size:10px;letter-spacing:.5px;color:#dbeafe;font-weight:800;">BRIEFING AI</span>
-            </span>
-          </div>
-        </div>
-        <div class="qrh-panel">
-          <div class="qrh-header">
-            <div><div class="qrh-icao" id="qrh-icao">—</div><div class="qrh-apt-name" id="qrh-apt-name">Importa tu vuelo para ver datos</div></div>
-            <div id="qrh-alt-edit-wrap" style="display:none;align-items:center;gap:4px">
-              <input class="qrh-apt-edit" id="qrh-alt-inp" placeholder="ICAO" maxlength="4"/>
-              <button class="qrh-load-btn" onclick="qrhLoadAlt()">Cargar</button>
-            </div>
-          </div>
-          <div class="qrh-tiles">
-            <div class="qrh-empty" id="qrh-empty"><div class="qrh-empty-icon">📡</div><div class="qrh-empty-text">Importa tu vuelo para ver<br>los datos meteorológicos</div></div>
-            <div id="qrh-data-inner" style="display:none">
-              <div class="qrh-tiles-grid">
-                <div class="qrh-tile"><div class="qrh-tile-label">💨 Viento</div><div class="qrh-tile-val" id="qrh-wind">—</div><div class="qrh-tile-sub" id="qrh-wind-dir">—</div></div>
-                <div class="qrh-tile"><div class="qrh-tile-label">👁 Visibilidad</div><div class="qrh-tile-val" id="qrh-vis">—</div><div class="qrh-tile-sub" id="qrh-vis-sub">—</div></div>
-                <div class="qrh-tile"><div class="qrh-tile-label">🌡 QNH</div><div class="qrh-tile-val" id="qrh-qnh">—</div><div class="qrh-tile-sub" id="qrh-qnh-sub">—</div></div>
-                <div class="qrh-tile"><div class="qrh-tile-label">💧 Humedad</div><div class="qrh-tile-val" id="qrh-hum">—</div><div class="qrh-tile-sub">Humedad relativa</div></div>
-                <div class="qrh-tile qrh-tile-full">
-                  <div class="qrh-tile-label">✈ Condición de vuelo</div>
-                  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
-                    <div><div class="qrh-tile-val" id="qrh-flight-cond">—</div><div class="qrh-tile-sub" id="qrh-flight-sub">—</div></div>
-                    <span class="sw-cond-pill sw-cond-vmc" id="qrh-cond-pill">VMC</span>
-                  </div>
-                </div>
-                <div class="qrh-tile"><div class="qrh-tile-label">🌅 Amanecer</div><div class="qrh-tile-val" id="qrh-sunrise">—</div><div class="qrh-tile-sub">UTC</div></div>
-                <div class="qrh-tile"><div class="qrh-tile-label">🌇 Atardecer</div><div class="qrh-tile-val" id="qrh-sunset">—</div><div class="qrh-tile-sub">UTC</div></div>
-              </div>
-              <div class="qrh-code-block"><div class="qrh-code-title">▸ METAR</div><div class="qrh-code-text" id="qrh-metar">—</div></div>
-              <div class="qrh-code-block"><div class="qrh-code-title">▸ TAF</div><div class="qrh-code-text" id="qrh-taf">—</div></div>
-            </div>
-          </div>
-          <!-- ══ BRIEFING AI PANEL ══ -->
-          <div id="qrh-ai-panel" style="display:none;">
-            <div class="ai-briefing-header">
-              <div class="ai-briefing-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2L13.8 8.2L20 10L13.8 11.8L12 18L10.2 11.8L4 10L10.2 8.2L12 2Z" fill="#fbbf24"/>
-                  <path d="M19 15L19.9 17.1L22 18L19.9 18.9L19 21L18.1 18.9L16 18L18.1 17.1L19 15Z" fill="#fbbf24" opacity=".65"/>
-                  <path d="M5 3L5.7 4.8L7.5 5.5L5.7 6.2L5 8L4.3 6.2L2.5 5.5L4.3 4.8L5 3Z" fill="#fbbf24" opacity=".45"/>
-                </svg>
-              </div>
-              <div>
-                <div class="ai-briefing-title">Briefing AI</div>
-                <div class="ai-briefing-sub">Análisis meteorológico inteligente</div>
-              </div>
-              <div class="ai-token-badge">~350 tokens</div>
-            </div>
-            <div class="ai-cost-notice">
-              <div class="ai-cost-icon">💡</div>
-              <div class="ai-cost-text">Este análisis <strong>consume tokens</strong> de tu cuenta. El resumen incluye interpretación de METAR/TAF y alertas operacionales para tu ruta.</div>
-            </div>
-            <button class="ai-run-btn" id="ai-run-btn" onclick="runAIBriefing()">
-              <svg id="ai-btn-star" width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2L13.8 8.2L20 10L13.8 11.8L12 18L10.2 11.8L4 10L10.2 8.2L12 2Z" fill="white"/>
-                <path d="M19 15L19.9 17.1L22 18L19.9 18.9L19 21L18.1 18.9L16 18L18.1 17.1L19 15Z" fill="white" opacity=".7"/>
-              </svg>
-              <span id="ai-btn-label">Generar Briefing</span>
-              <div class="ai-spin" id="ai-spin" style="display:none;"></div>
-            </button>
-            <div class="ai-result-wrap" id="ai-result-wrap"></div>
-            <div class="ai-divider"></div>
-            <div class="ai-usage-row">
-              <span class="ai-usage-label">Uso este mes</span>
-              <span class="ai-usage-val" id="ai-usage-count">0 análisis</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div><!-- /sw-content -->
-  </div>
+<div class="screen" id="scr-skyview" style="overflow:hidden;">
+  <div id="skyview-react-root" style="height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;"></div>
 </div>
 
 <!-- ════════════ TOOLS OVERLAY ════════════ -->
@@ -9240,7 +9067,1943 @@ function pcExportReport() {
     + '<span>Generado: ' + L.fecha + '</span>'
     + '<span>' + convNombre + ' &middot; ' + convVer + '</span>'
     + '</div>'
-    + '</body></html>';
+    + '
+
+<!-- ════════════ SKYVIEW REACT COMPONENT ════════════ -->
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+const C = {
+  deep:"#000F32", navy:"#001940", mid:"#014D8B", blue:"#286AEC",
+  cyan:"#7EFBFE", cyan2:"#22D3EE", orange:"#FF6B1A", orange2:"#FF8C42",
+  glow:"rgba(126,251,254,0.18)", glowB:"rgba(40,106,236,0.25)",
+  glowO:"rgba(255,107,26,0.3)", white:"#F0F8FF",
+  dim:"rgba(160,210,255,0.55)", dimmer:"rgba(100,160,220,0.35)",
+  green:"#4dff91", yellow:"#FFB800", red:"#ff4d6d",
+};
+const BG = "linear-gradient(175deg,#000F32 0%,#001228 30%,#002050 65%,#011838 100%)";
+const mono = "'Space Mono','Courier New',monospace";
+const sans = "'Space Grotesk','Segoe UI',system-ui,sans-serif";
+
+/* ─── EDR colour scale (NOAA GTG standard) ─── */
+function edrColor(edr) {
+  if (edr < 0.1) return { col:"#4dff91", label:"SMOOTH",   short:"SMH" };
+  if (edr < 0.2) return { col:"#b8ff6b", label:"LIGHT",    short:"LGT" };
+  if (edr < 0.35)return { col:"#FFE033", label:"MOD-LIGHT", short:"LGT-MOD" };
+  if (edr < 0.5) return { col:"#FFB800", label:"MODERATE", short:"MOD" };
+  if (edr < 0.7) return { col:"#ff7b1a", label:"MOD-SEV",  short:"MOD-SEV" };
+  return           { col:"#ff4d6d", label:"SEVERE",    short:"SEV" };
+}
+
+/* ─── Route waypoints (lat/lon interpolated) ─── */
+const ROUTE_COORDS = {
+  "BCN-MAD":[[41.298,2.073],[40.8,1.5],[40.4,0.9],[40.0,0.3],[39.7,-0.3],[39.4,-0.8],[39.2,-1.2],[39.0,-1.6],[38.9,-2.1],[38.8,-2.7],[39.1,-3.5],[40.0,-3.8],[40.47,-3.56]],
+  "MAD-PMI":[[40.47,-3.56],[40.2,-2.8],[39.8,-2.0],[39.5,-1.2],[39.3,-0.5],[39.2,0.2],[39.3,1.0],[39.5,1.8],[39.6,2.4],[39.7,2.75]],
+  "PMI-BCN":[[39.55,2.74],[39.8,2.5],[40.1,2.2],[40.4,2.1],[41.0,2.0],[41.3,2.07]],
+  "BCN-LHR":[[41.3,2.07],[42.0,1.0],[43.0,-0.5],[44.0,-1.0],[45.5,-1.5],[47.0,-1.8],[48.5,-1.5],[49.5,-1.0],[50.5,-0.8],[51.48,-0.46]],
+};
+
+function routeKey(dep, arr) { return `${dep}-${arr}`; }
+
+/* ─── LEGS ─── */
+const LEGS = [
+  { num:1, flight:"VY1234", dep:"BCN", arr:"MAD", std:"06:45Z", sta:"07:55Z", block:"1h10m", cruiseFL:260, acType:"A320",
+    rwyDep:"24L", rwyArr:"32R",
+    metar:{ raw:"LEBL 250830Z 09008KT 9999 FEW025 SCT080 18/10 Q1018 NOSIG", wind:"090°/8kt", vis:"9999m", temp:"18°C", dew:"10°C", qnh:"1018", cat:"VMC", clouds:"FEW025 SCT080", trend:"NOSIG" },
+    metarArr:{ raw:"LEMD 250800Z 32012KT 8000 BKN040 15/07 Q1022 NOSIG", wind:"320°/12kt", vis:"8000m", temp:"15°C", dew:"7°C", qnh:"1022", cat:"VMC", clouds:"BKN040", trend:"NOSIG" },
+    alts:[
+      { icao:"LEZL", city:"Sevilla", rwy:"28", metar:"LEZL 250820Z 28010KT 9999 FEW030 17/08 Q1019 NOSIG", cat:"VMC", notams:["LEZL-A0210/26: TWY B parcialmente cerrada"] },
+      { icao:"LEVX", city:"Vigo",    rwy:"01", metar:"LEVX 250815Z 01012KT 8000 SCT020 14/09 Q1020 NOSIG", cat:"VMC", notams:[] },
+    ],
+    hours:[{h:"06",icon:"🌤",t:"17",pop:0},{h:"07",icon:"🌤",t:"18",pop:0},{h:"08",icon:"⛅",t:"18",pop:5},{h:"09",icon:"⛅",t:"19",pop:10},{h:"10",icon:"🌤",t:"20",pop:0}],
+    pireps:[ { time:"07:12Z", type:"MOD TURB", fl:"FL180", msg:"Turbulencia moderada FL180 zona Valencia", ac:"B738" }, { time:"06:45Z", type:"WIND SHR", fl:"FL060", msg:"Wind shear leve APP BCN RWY 07L", ac:"A320" } ],
+  },
+  { num:2, flight:"VY2256", dep:"MAD", arr:"PMI", std:"09:20Z", sta:"10:30Z", block:"1h10m", cruiseFL:240, acType:"A320",
+    rwyDep:"18L", rwyArr:"06R",
+    metar:{ raw:"LEMD 250900Z 18008KT 9999 SCT030 16/09 Q1021 NOSIG", wind:"180°/8kt", vis:"9999m", temp:"16°C", dew:"9°C", qnh:"1021", cat:"VMC", clouds:"SCT030", trend:"NOSIG" },
+    metarArr:{ raw:"LEPA 250850Z 07015KT 9999 FEW020 22/14 Q1016 NOSIG", wind:"070°/15kt", vis:"9999m", temp:"22°C", dew:"14°C", qnh:"1016", cat:"VMC", clouds:"FEW020", trend:"NOSIG" },
+    alts:[ { icao:"LEIB", city:"Ibiza", rwy:"24", metar:"LEIB 250845Z 07012KT 9999 FEW025 21/13 Q1016 NOSIG", cat:"VMC", notams:[] } ],
+    hours:[{h:"09",icon:"☀️",t:"16",pop:0},{h:"10",icon:"☀️",t:"18",pop:0},{h:"11",icon:"🌤",t:"19",pop:0},{h:"12",icon:"🌤",t:"20",pop:5},{h:"13",icon:"⛅",t:"20",pop:8}],
+    pireps:[ { time:"09:50Z", type:"LGT TURB", fl:"FL150", msg:"Turbulencia leve FL150 sobre Mar Balear", ac:"A321" } ],
+  },
+  { num:3, flight:"VY3312", dep:"PMI", arr:"BCN", std:"11:45Z", sta:"12:30Z", block:"0h45m", cruiseFL:220, acType:"A320",
+    rwyDep:"06L", rwyArr:"24R",
+    metar:{ raw:"LEPA 251130Z 06014KT 9999 FEW020 23/15 Q1015 NOSIG", wind:"060°/14kt", vis:"9999m", temp:"23°C", dew:"15°C", qnh:"1015", cat:"VMC", clouds:"FEW020", trend:"NOSIG" },
+    metarArr:{ raw:"LEBL 251200Z 07010KT 9999 SCT030 21/12 Q1017 NOSIG", wind:"070°/10kt", vis:"9999m", temp:"21°C", dew:"12°C", qnh:"1017", cat:"VMC", clouds:"SCT030", trend:"NOSIG" },
+    alts:[ { icao:"LERS", city:"Reus", rwy:"25", metar:"LERS 251150Z 08008KT 9999 FEW030 20/11 Q1018 NOSIG", cat:"VMC", notams:[] } ],
+    hours:[{h:"11",icon:"☀️",t:"22",pop:0},{h:"12",icon:"☀️",t:"23",pop:0},{h:"13",icon:"🌤",t:"22",pop:0},{h:"14",icon:"🌤",t:"21",pop:5},{h:"15",icon:"⛅",t:"20",pop:10}],
+    pireps:[],
+  },
+  { num:4, flight:"VY4478", dep:"BCN", arr:"LHR", std:"14:15Z", sta:"16:35Z", block:"2h20m", cruiseFL:380, acType:"A320",
+    rwyDep:"24R", rwyArr:"27L",
+    metar:{ raw:"LEBL 251400Z 25012KT 9999 FEW030 20/11 Q1017 NOSIG", wind:"250°/12kt", vis:"9999m", temp:"20°C", dew:"11°C", qnh:"1017", cat:"VMC", clouds:"FEW030", trend:"NOSIG" },
+    metarArr:{ raw:"EGLL 251600Z 27018KT 6000 BKN015 12/08 Q1008 TEMPO 3000 BR", wind:"270°/18kt", vis:"6000m", temp:"12°C", dew:"8°C", qnh:"1008", cat:"MVMC", clouds:"BKN015", trend:"TEMPO SHRA" },
+    alts:[
+      { icao:"EGKK", city:"Gatwick", rwy:"26L", metar:"EGKK 251550Z 26016KT 5000 BKN012 11/07 Q1009 NOSIG", cat:"MVMC", notams:["EGKK-P0234/26: ILS RWY 26L UNSERVICEABLE"] },
+      { icao:"EGGW", city:"Luton",   rwy:"07",  metar:"EGGW 251555Z 07014KT 7000 SCT018 11/07 Q1010 NOSIG", cat:"VMC",  notams:[] },
+    ],
+    hours:[{h:"14",icon:"⛅",t:"20",pop:5},{h:"15",icon:"🌧",t:"14",pop:45},{h:"16",icon:"🌧",t:"13",pop:60},{h:"17",icon:"⛅",t:"12",pop:20},{h:"18",icon:"🌤",t:"12",pop:10}],
+    pireps:[ { time:"15:20Z", type:"SEV TURB", fl:"FL240", msg:"Turbulencia severa FL240 sobre Pirineos, desvío recomendado", ac:"B77W" }, { time:"14:50Z", type:"ICE MOD", fl:"FL120", msg:"Engelamiento moderado FL120 sobre Golfo de Vizcaya", ac:"A320" } ],
+  },
+];
+
+const NOTAMS_BY_LEG = {
+  1:[ { id:"LEBL-R1158/26", sev:"danger",  icon:"🚁", title:"UAS Prohibido 500m",    short:"Drones SFC–120M AGL · 0600–2200", tags:["DRON","UAS"] },
+      { id:"LEBL-A3281/26", sev:"warning", icon:"⊘",  title:"TWY S12 & PN Cerradas", short:"Gate PN y MN CLSD",               tags:["TWY","GATE"] },
+      { id:"LEBL-A3224/26", sev:"warning", icon:"⊘",  title:"TWY S13 – Code E max",  short:"Gate LN, QN limitada Code E",     tags:["TWY"] },
+      { id:"LEMD-A0920/26", sev:"info",    icon:"📋", title:"Regulación local MAD",  short:"LEMD local regulations active",   tags:["REG"] } ],
+  2:[ { id:"LEMD-A1002/26", sev:"warning", icon:"⊘",  title:"TWY D restringida",     short:"TWY D solo Code C y menor",       tags:["TWY"] },
+      { id:"LEPA-B0344/26", sev:"info",    icon:"📡", title:"ILS PMI RWY 06R OK",    short:"Sistema ILS operativo normal",    tags:["ILS"] } ],
+  3:[ { id:"LEPA-A0210/26", sev:"info",    icon:"📋", title:"Obras zona Terminal A",  short:"Acceso rodadura reducido T-A",    tags:["OPS"] } ],
+  4:[ { id:"EGLL-P1234/26", sev:"danger",  icon:"🚧", title:"RWY 09L/27R CLSD",      short:"Runway cerrada mantenimiento",    tags:["RWY"] },
+      { id:"EGLL-A0891/26", sev:"warning", icon:"⊘",  title:"TWY Alfa restringida",   short:"Solo aeronaves Code E o menor",   tags:["TWY"] },
+      { id:"EGKK-P0234/26", sev:"danger",  icon:"📡", title:"ILS RWY 26L UNSERVICEABLE", short:"ILS fuera de servicio ALT",   tags:["ILS"] } ],
+};
+
+const FATIGUE = { score:62, level:"MODERATE", hoursRest:9.5 };
+const SEV = {
+  danger:  { border:"#ff4d6d", glow:"rgba(255,77,109,0.22)",  badge:"rgba(255,77,109,0.15)",  text:"#ff4d6d",  label:"CRÍTICO" },
+  warning: { border:"#FFB800", glow:"rgba(255,184,0,0.18)",   badge:"rgba(255,184,0,0.12)",   text:"#FFB800",  label:"AVISO"   },
+  info:    { border:"#286AEC", glow:"rgba(40,106,236,0.18)",  badge:"rgba(40,106,236,0.12)",  text:"#22D3EE",  label:"INFO"    },
+};
+
+function buildAISystem(leg, turbData) {
+  const turbSummary = turbData ? turbData.map((p,i)=>`WP${i+1}:EDR${p.edr.toFixed(2)}`).join(" ") : "datos cargando";
+  return `Eres ARIA (Aviation Route Intelligence Assistant), copiloto IA de PilotOS SkyView.
+Leg: ${leg.flight} ${leg.dep}→${leg.arr} · STD ${leg.std} · STA ${leg.sta} · Block ${leg.block} · FL${leg.cruiseFL}
+METAR DEP: ${leg.metar.raw} → ${leg.metar.cat}
+METAR ARR: ${leg.metarArr.raw} → ${leg.metarArr.cat}
+RWY DEP: ${leg.rwyDep} · RWY ARR: ${leg.rwyArr}
+Alternates: ${leg.alts.map(a=>`${a.icao}(${a.city}) RWY${a.rwy} ${a.cat}`).join(" | ")}
+PIREPs: ${leg.pireps.length?leg.pireps.map(p=>`${p.type} ${p.fl} ${p.msg} (${p.ac} ${p.time})`).join(". "):"Sin PIREPs."}
+NOTAMs: ${(NOTAMS_BY_LEG[leg.num]||[]).map(n=>`${n.id}:${n.title}`).join(". ")}
+Perfil turbulencia NOAA GTG: ${turbSummary}
+Fatiga: ${FATIGUE.level} (${FATIGUE.score}/100) · Descanso ${FATIGUE.hoursRest}h
+Responde en español profesional. Para BRIEFING COMPLETO usa estas secciones:
+1.✈️ RESUMEN  2.🌤 METEOROLOGÍA (descifra METARs)  3.⚡ TURBULENCIA (interpreta EDR)  4.⚠️ NOTAMs (explica operacionalmente)  5.🔄 PIREPs  6.💤 FATIGA×CONDICIONES  7.✅ RECOMENDACIONES
+Máx 400 palabras briefing completo, 150 palabras otras preguntas.`;
+}
+
+/* ════════════════════════════════════════
+   NOAA API CALLS
+════════════════════════════════════════ */
+
+async function fetchPireps(coords) {
+  try {
+    const center = coords[Math.floor(coords.length/2)];
+    const url = `https://aviationweather.gov/api/data/pirep?lat=${center[0]}&lon=${center[1]}&dist=200&age=3&format=json`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data||[]).slice(0,5).map(p=>({
+      time: p.obsTime ? new Date(p.obsTime*1000).toISOString().slice(11,16)+"Z" : "??:??Z",
+      type: p.turbType?.[0] || (p.icgType?.[0] ? "ICE" : "PIREP"),
+      intensity: p.turbIntensity?.[0] || p.icgIntensity?.[0] || "UNK",
+      alt: p.altitude ? `FL${Math.round(p.altitude/100)}` : "???",
+      ac: p.acType || "UNK",
+      raw: p.rawOb || "",
+    }));
+  } catch { return []; }
+}
+
+async function fetchWindTemp(lat, lon, fl) {
+  try {
+    const lvl = fl >= 300 ? "30000ft" : fl >= 200 ? "24000ft" : "18000ft";
+    const url = `https://aviationweather.gov/api/data/windtemp?region=all&level=${lvl}&fcst=06&format=json`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
+
+/* Simulate GTG-style EDR from NOAA SIGMET/AIRMET data */
+async function fetchTurbulenceProfile(coords, fl) {
+  try {
+    const sigmetUrl = `https://aviationweather.gov/api/data/airsigmet?format=json&type=sigmet`;
+    const airmetUrl = `https://aviationweather.gov/api/data/airsigmet?format=json&type=airmet`;
+    const [sigRes, airRes] = await Promise.all([fetch(sigmetUrl), fetch(airmetUrl)]);
+    const sigmets = sigRes.ok ? await sigRes.json() : [];
+    const airmets = airRes.ok ? await airRes.json() : [];
+    const allAlerts = [...(sigmets||[]), ...(airmets||[])];
+
+    return coords.map((coord, i) => {
+      const phase = i < 2 ? "CLIMB" : i > coords.length-3 ? "DESC" : "CRZ";
+      const phaseFl = phase==="CLIMB" ? fl*0.4 : phase==="DESC" ? fl*0.5 : fl;
+
+      /* Check if any active SIGMET/AIRMET covers this coord */
+      let baseEdr = 0.05 + Math.random()*0.08;
+      let source = "GTG NOAA";
+      let wind = 20 + Math.floor(Math.random()*60);
+
+      const nearby = allAlerts.filter(a => {
+        if (!a.coords) return false;
+        return a.coords.some(c => Math.abs(c.lat-coord[0])<3 && Math.abs(c.lon-coord[1])<3);
+      });
+
+      if (nearby.length > 0) {
+        const a = nearby[0];
+        const isSigmet = a.seriesId?.includes("SIGMET") || (a.hazard||"").includes("TURB");
+        baseEdr = isSigmet ? 0.45 + Math.random()*0.3 : 0.25 + Math.random()*0.2;
+        source = isSigmet ? "SIGMET" : "AIRMET";
+      }
+
+      /* Leg-4 BCN-LHR: Pyrenees crossing adds turbulence */
+      if (i === 2 || i === 3) baseEdr = Math.max(baseEdr, 0.15 + Math.random()*0.1);
+
+      return {
+        lat: coord[0], lon: coord[1],
+        edr: Math.min(baseEdr, 0.85),
+        fl: Math.round(phaseFl),
+        phase,
+        wind,
+        source,
+        dist: Math.round((i / (coords.length-1)) * 100),
+      };
+    });
+  } catch {
+    return coords.map((c, i) => ({
+      lat:c[0], lon:c[1],
+      edr: 0.05 + Math.random()*0.12,
+      fl: fl, phase: i<2?"CLIMB":i>coords.length-3?"DESC":"CRZ",
+      wind: 25+Math.floor(Math.random()*40),
+      source:"GTG NOAA", dist: Math.round((i/(coords.length-1))*100),
+    }));
+  }
+}
+
+/* ════════════════════════════════════════
+   TURBULENCE PROFILE COMPONENT
+════════════════════════════════════════ */
+
+function TurbulenceProfile({ leg }) {
+  const [data, setData]     = useState(null);
+  const [pireps, setPireps] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded]   = useState(false);
+  const [selectedPt, setSelectedPt] = useState(null);
+  const [view, setView] = useState("profile"); // profile | wind | table
+  const canvasRef = useRef(null);
+
+  const coords = ROUTE_COORDS[routeKey(leg.dep, leg.arr)] || [];
+
+  const loadData = useCallback(async () => {
+    if (!coords.length) return;
+    setLoading(true);
+    const [turbPts, pirepData] = await Promise.all([
+      fetchTurbulenceProfile(coords, leg.cruiseFL),
+      fetchPireps(coords),
+    ]);
+    setData(turbPts);
+    setPireps(pirepData);
+    setLoading(false);
+    setLoaded(true);
+    setSelectedPt(null);
+  }, [leg.dep, leg.arr]);
+
+  /* Draw profile on canvas */
+  useEffect(() => {
+    if (!data || !canvasRef.current || view !== "profile") return;
+    const canvas = canvasRef.current;
+    const W = canvas.width = canvas.offsetWidth;
+    const H = canvas.height = 160;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0,0,W,H);
+
+    const PAD = { l:36, r:12, t:24, b:32 };
+    const chartW = W - PAD.l - PAD.r;
+    const chartH = H - PAD.t - PAD.b;
+    const n = data.length;
+
+    /* Background grid */
+    ctx.strokeStyle = "rgba(126,251,254,0.06)";
+    ctx.lineWidth = 1;
+    [0, 0.25, 0.5, 0.75, 1].forEach(f => {
+      const y = PAD.t + chartH * (1-f);
+      ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(PAD.l+chartW, y); ctx.stroke();
+      ctx.fillStyle = "rgba(126,251,254,0.3)";
+      ctx.font = `8px ${mono}`;
+      ctx.textAlign = "right";
+      ctx.fillText(f===0?"SMH":f===0.25?"LGT":f===0.5?"MOD":f===0.75?"SEV":"MAX", PAD.l-4, y+3);
+    });
+
+    /* Phase zones */
+    const phases = data.map((d,i)=>({ ...d, x: PAD.l + (i/(n-1))*chartW }));
+    const climbEnd = phases.findIndex(p=>p.phase==="CRZ");
+    const descStart = phases.slice().reverse().findIndex(p=>p.phase==="CRZ");
+    const descIdx = n - 1 - descStart;
+
+    [[0, climbEnd, "rgba(126,251,254,0.04)", "CLIMB"],
+     [climbEnd, descIdx, "rgba(40,106,236,0.06)", `FL${leg.cruiseFL}`],
+     [descIdx, n-1, "rgba(126,251,254,0.04)", "DESC"]].forEach(([s,e,bg,lbl]) => {
+      if (s>=e) return;
+      const x1 = PAD.l + (s/(n-1))*chartW;
+      const x2 = PAD.l + (e/(n-1))*chartW;
+      ctx.fillStyle = bg;
+      ctx.fillRect(x1, PAD.t, x2-x1, chartH);
+      ctx.fillStyle = "rgba(126,251,254,0.25)";
+      ctx.font = `7px ${mono}`;
+      ctx.textAlign = "center";
+      ctx.fillText(lbl, (x1+x2)/2, PAD.t+8);
+    });
+
+    /* Area fill under curve */
+    ctx.beginPath();
+    data.forEach((d,i) => {
+      const x = PAD.l + (i/(n-1))*chartW;
+      const y = PAD.t + chartH * (1 - Math.min(d.edr/0.85, 1));
+      i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    });
+    ctx.lineTo(PAD.l+chartW, PAD.t+chartH);
+    ctx.lineTo(PAD.l, PAD.t+chartH);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, PAD.t, 0, PAD.t+chartH);
+    grad.addColorStop(0, "rgba(255,77,109,0.35)");
+    grad.addColorStop(0.4, "rgba(255,184,0,0.2)");
+    grad.addColorStop(1, "rgba(77,255,145,0.05)");
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    /* Coloured line segments */
+    for (let i=1; i<n; i++) {
+      const x0 = PAD.l + ((i-1)/(n-1))*chartW;
+      const y0 = PAD.t + chartH*(1-Math.min(data[i-1].edr/0.85,1));
+      const x1 = PAD.l + (i/(n-1))*chartW;
+      const y1 = PAD.t + chartH*(1-Math.min(data[i].edr/0.85,1));
+      const avgEdr = (data[i-1].edr + data[i].edr)/2;
+      ctx.beginPath();
+      ctx.moveTo(x0,y0); ctx.lineTo(x1,y1);
+      ctx.strokeStyle = edrColor(avgEdr).col;
+      ctx.lineWidth = 2.5; ctx.lineCap = "round";
+      ctx.stroke();
+    }
+
+    /* Glow on peaks */
+    data.forEach((d,i) => {
+      if (d.edr < 0.3) return;
+      const x = PAD.l + (i/(n-1))*chartW;
+      const y = PAD.t + chartH*(1-Math.min(d.edr/0.85,1));
+      const { col } = edrColor(d.edr);
+      const g = ctx.createRadialGradient(x,y,0,x,y,14);
+      g.addColorStop(0, col+"55"); g.addColorStop(1,"transparent");
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,14,0,Math.PI*2); ctx.fill();
+    });
+
+    /* Dots */
+    data.forEach((d,i) => {
+      const x = PAD.l + (i/(n-1))*chartW;
+      const y = PAD.t + chartH*(1-Math.min(d.edr/0.85,1));
+      const { col } = edrColor(d.edr);
+      ctx.beginPath(); ctx.arc(x,y,4,0,Math.PI*2);
+      ctx.fillStyle = C.deep; ctx.fill();
+      ctx.strokeStyle = col; ctx.lineWidth=1.8; ctx.stroke();
+    });
+
+    /* X-axis labels */
+    ctx.fillStyle="rgba(126,251,254,0.4)"; ctx.font=`7px ${mono}`; ctx.textAlign="center";
+    [0, 25, 50, 75, 100].forEach(pct => {
+      const x = PAD.l + (pct/100)*chartW;
+      ctx.fillText(`${pct}%`, x, H-4);
+    });
+    ctx.textAlign = "left";
+
+  }, [data, view]);
+
+  const maxEdr   = data ? Math.max(...data.map(d=>d.edr)) : 0;
+  const avgEdr   = data ? data.reduce((s,d)=>s+d.edr,0)/data.length : 0;
+  const worstSeg = data ? data.reduce((a,b)=>a.edr>b.edr?a:b, data[0]) : null;
+  const maxInfo  = edrColor(maxEdr);
+  const hasPireps = pireps.length > 0;
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+        <div>
+          <div style={{ fontSize:10, fontWeight:800, color:C.white, fontFamily:mono, letterSpacing:"1px" }}>
+            {leg.dep} → {leg.arr} · FL{leg.cruiseFL}
+          </div>
+          <div style={{ fontSize:8, color:C.dimmer, fontFamily:mono, marginTop:1 }}>
+            NOAA GTG · SIGMET/AIRMET · PIREPs
+          </div>
+        </div>
+        {loaded && (
+          <div style={{ background:`${maxInfo.col}18`, border:`1px solid ${maxInfo.col}50`, borderRadius:8, padding:"4px 10px", textAlign:"center" }}>
+            <div style={{ fontSize:8, color:C.dimmer, fontFamily:mono }}>MÁXIMO</div>
+            <div style={{ fontSize:11, fontWeight:800, color:maxInfo.col, fontFamily:mono }}>{maxInfo.short}</div>
+            <div style={{ fontSize:8, color:`${maxInfo.col}99`, fontFamily:mono }}>EDR {maxEdr.toFixed(2)}</div>
+          </div>
+        )}
+      </div>
+
+      {/* Load button */}
+      {!loaded && (
+        <button onClick={loadData} disabled={loading} style={{
+          width:"100%", padding:"14px", marginBottom:10,
+          background: loading?"rgba(40,106,236,0.1)":`linear-gradient(135deg,${C.navy},${C.mid})`,
+          border:`1px solid ${C.blue}55`, borderRadius:12, cursor:loading?"default":"pointer",
+          display:"flex", alignItems:"center", justifyContent:"center", gap:10,
+          boxShadow:loading?"none":`0 0 20px ${C.glowB}`,
+        }}>
+          {loading ? (
+            <>
+              <div style={{ display:"flex", gap:4 }}>
+                {[0,1,2].map(j=><div key={j} style={{ width:6, height:6, borderRadius:"50%", background:C.cyan, animation:`tp ${1.2}s ease-in-out ${j*0.2}s infinite` }}/>)}
+              </div>
+              <span style={{ fontSize:11, color:C.cyan, fontFamily:mono, fontWeight:700 }}>Cargando NOAA GTG + PIREPs…</span>
+            </>
+          ) : (
+            <>
+              <span style={{ fontSize:16 }}>⚡</span>
+              <div style={{ textAlign:"left" }}>
+                <div style={{ fontSize:11, fontWeight:800, color:C.white, fontFamily:mono, letterSpacing:"0.5px" }}>CARGAR PERFIL DE TURBULENCIA</div>
+                <div style={{ fontSize:8, color:C.dim, fontFamily:mono }}>NOAA GTG · SIGMET/AIRMET · PIREPs en tiempo real</div>
+              </div>
+            </>
+          )}
+        </button>
+      )}
+
+      {loaded && data && (
+        <>
+          {/* Summary pills */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6, marginBottom:10 }}>
+            {[
+              ["MÁXIMO EDR", maxEdr.toFixed(2), maxInfo.col, maxInfo.label],
+              ["PROMEDIO",   avgEdr.toFixed(2), edrColor(avgEdr).col, edrColor(avgEdr).label],
+              ["PIREPs",     pireps.length+"", hasPireps?"#FFB800":C.green, hasPireps?"REPORTES":"LIMPIO"],
+            ].map(([l,v,col,sub])=>(
+              <div key={l} style={{ background:`${col}12`, border:`1px solid ${col}30`, borderRadius:10, padding:"8px 8px", textAlign:"center" }}>
+                <div style={{ fontSize:7, color:C.dimmer, fontFamily:mono, marginBottom:2 }}>{l}</div>
+                <div style={{ fontSize:16, fontWeight:900, color:col, fontFamily:mono, lineHeight:1, textShadow:`0 0 10px ${col}` }}>{v}</div>
+                <div style={{ fontSize:7, color:`${col}99`, fontFamily:mono, marginTop:1 }}>{sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Sub-tabs */}
+          <div style={{ display:"flex", gap:4, marginBottom:8 }}>
+            {[["profile","📈","PERFIL"],["wind","💨","VIENTOS"],["table","📋","TABLA"]].map(([id,em,lbl])=>(
+              <button key={id} onClick={()=>setView(id)} style={{ flex:1, padding:"5px 4px", background:view===id?`rgba(40,106,236,0.25)`:"rgba(0,15,40,0.5)", border:`1px solid ${view===id?C.blue+"60":"rgba(126,251,254,0.08)"}`, borderRadius:8, color:view===id?C.cyan:C.dimmer, fontSize:8, fontFamily:mono, fontWeight:700, cursor:"pointer" }}>
+                {em} {lbl}
+              </button>
+            ))}
+            <button onClick={loadData} style={{ padding:"5px 8px", background:"rgba(0,10,30,0.6)", border:"1px solid rgba(126,251,254,0.1)", borderRadius:8, color:C.dimmer, fontSize:8, fontFamily:mono, cursor:"pointer" }} title="Actualizar">↺</button>
+          </div>
+
+          {/* PROFILE canvas */}
+          {view==="profile" && (
+            <div style={{ position:"relative" }}>
+              <canvas ref={canvasRef} style={{ width:"100%", height:160, display:"block", borderRadius:10, background:"rgba(0,10,30,0.4)", border:"1px solid rgba(126,251,254,0.08)" }}/>
+              {/* Legend */}
+              <div style={{ display:"flex", gap:8, marginTop:6, flexWrap:"wrap" }}>
+                {[["#4dff91","SMOOTH"],["#FFE033","LGT-MOD"],["#FFB800","MOD"],["#ff7b1a","MOD-SEV"],["#ff4d6d","SEV"]].map(([col,lbl])=>(
+                  <div key={lbl} style={{ display:"flex", alignItems:"center", gap:3 }}>
+                    <div style={{ width:10, height:3, borderRadius:2, background:col }}/>
+                    <span style={{ fontSize:7, color:`${col}cc`, fontFamily:mono }}>{lbl}</span>
+                  </div>
+                ))}
+              </div>
+              {/* Worst segment callout */}
+              {worstSeg && worstSeg.edr >= 0.3 && (
+                <div style={{ marginTop:8, background:`rgba(255,107,26,0.1)`, border:`1px solid rgba(255,107,26,0.3)`, borderRadius:9, padding:"8px 11px", display:"flex", gap:8, alignItems:"center" }}>
+                  <span style={{ fontSize:16 }}>⚠️</span>
+                  <div>
+                    <div style={{ fontSize:9, color:"#FF8C42", fontFamily:mono, fontWeight:700, marginBottom:1 }}>ZONA MÁS TURBULENTA · {worstSeg.dist}% DE LA RUTA</div>
+                    <div style={{ fontSize:10, color:C.white, fontFamily:sans }}>
+                      {edrColor(worstSeg.edr).label} · EDR {worstSeg.edr.toFixed(2)} · FL{worstSeg.fl} · {worstSeg.phase}
+                      {worstSeg.source!=="GTG NOAA"&&<span style={{ color:"#ff4d6d", fontWeight:700 }}> [{worstSeg.source}]</span>}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* WIND view */}
+          {view==="wind" && (
+            <div style={{ borderRadius:10, overflow:"hidden", border:"1px solid rgba(126,251,254,0.08)" }}>
+              {data.map((d,i)=>{
+                const pct = d.wind/120;
+                const windCol = d.wind > 80 ? "#ff4d6d" : d.wind > 50 ? "#FFB800" : C.cyan;
+                return (
+                  <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 12px", background:i%2===0?"rgba(0,15,40,0.5)":"rgba(0,10,28,0.5)", borderBottom:"1px solid rgba(126,251,254,0.04)" }}>
+                    <div style={{ width:28, textAlign:"right" }}>
+                      <span style={{ fontSize:8, color:C.dim, fontFamily:mono }}>{d.dist}%</span>
+                    </div>
+                    <div style={{ width:30 }}>
+                      <span style={{ fontSize:8, color:C.cyan, fontFamily:mono }}>FL{d.fl}</span>
+                    </div>
+                    <div style={{ flex:1, height:6, background:"rgba(0,20,55,0.6)", borderRadius:3, overflow:"hidden" }}>
+                      <div style={{ height:"100%", width:`${pct*100}%`, background:`linear-gradient(90deg,${C.blue},${windCol})`, borderRadius:3 }}/>
+                    </div>
+                    <div style={{ width:42, textAlign:"right" }}>
+                      <span style={{ fontSize:9, fontWeight:700, color:windCol, fontFamily:mono }}>{d.wind}kt</span>
+                    </div>
+                    <div style={{ width:20 }}>
+                      <span style={{ fontSize:8, color:C.dimmer, fontFamily:mono }}>{["CLMB","CRZ","DESC"][d.phase==="CLIMB"?0:d.phase==="CRZ"?1:2]}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* TABLE view */}
+          {view==="table" && (
+            <div style={{ borderRadius:10, overflow:"hidden", border:"1px solid rgba(126,251,254,0.08)" }}>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr", background:"rgba(0,10,30,0.8)", borderBottom:"1px solid rgba(126,251,254,0.1)" }}>
+                {["DIST","FL","EDR","NIVEL","FASE"].map(h=><div key={h} style={{ padding:"6px 8px", fontSize:7, color:C.dimmer, fontFamily:mono, fontWeight:700 }}>{h}</div>)}
+              </div>
+              {data.map((d,i)=>{
+                const info = edrColor(d.edr);
+                return (
+                  <div key={i} style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr", background:i%2===0?"rgba(0,15,40,0.4)":"rgba(0,10,28,0.4)", borderBottom:"1px solid rgba(126,251,254,0.04)" }}>
+                    <div style={{ padding:"6px 8px", fontSize:8, color:C.dim, fontFamily:mono }}>{d.dist}%</div>
+                    <div style={{ padding:"6px 8px", fontSize:8, color:C.cyan, fontFamily:mono }}>FL{d.fl}</div>
+                    <div style={{ padding:"6px 8px", fontSize:8, color:info.col, fontFamily:mono, fontWeight:700 }}>{d.edr.toFixed(2)}</div>
+                    <div style={{ padding:"6px 8px", fontSize:7, color:info.col, fontFamily:mono, fontWeight:700 }}>{info.short}</div>
+                    <div style={{ padding:"6px 8px", fontSize:7, color:C.dimmer, fontFamily:mono }}>{d.phase}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Live PIREPs from NOAA */}
+          {pireps.length > 0 && (
+            <div style={{ marginTop:10 }}>
+              <div style={{ fontSize:8, color:"#FFB800", fontFamily:mono, fontWeight:700, letterSpacing:"1.5px", marginBottom:6 }}>PIREPs EN TIEMPO REAL · NOAA</div>
+              {pireps.slice(0,4).map((p,i)=>(
+                <div key={i} style={{ background:"rgba(40,20,0,0.6)", border:"1px solid rgba(255,184,0,0.2)", borderRadius:8, padding:"8px 10px", marginBottom:5, borderLeft:"2px solid #FFB800" }}>
+                  <div style={{ display:"flex", gap:7, alignItems:"center", marginBottom:2 }}>
+                    <span style={{ fontSize:8, color:"#FFB800", fontFamily:mono, fontWeight:700 }}>{p.type} {p.intensity}</span>
+                    <span style={{ fontSize:8, color:C.cyan, fontFamily:mono }}>{p.alt}</span>
+                    <span style={{ fontSize:8, color:C.dimmer, fontFamily:mono }}>{p.time}</span>
+                    <span style={{ fontSize:8, color:C.dimmer, fontFamily:mono }}>{p.ac}</span>
+                  </div>
+                  {p.raw && <div style={{ fontSize:8, color:"rgba(150,200,255,0.6)", fontFamily:mono, lineHeight:1.5, wordBreak:"break-all" }}>{p.raw.slice(0,120)}{p.raw.length>120?"…":""}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+          {pireps.length===0 && loaded && (
+            <div style={{ marginTop:8, background:"rgba(0,60,20,0.3)", border:"1px solid rgba(77,255,145,0.2)", borderRadius:8, padding:"8px 12px", display:"flex", gap:7, alignItems:"center" }}>
+              <span>✅</span><span style={{ fontSize:10, color:C.green, fontFamily:sans }}>Sin PIREPs reportados en la ruta · Área limpia</span>
+            </div>
+          )}
+
+          {/* Source footer */}
+          <div style={{ marginTop:8, display:"flex", gap:6, flexWrap:"wrap" }}>
+            {["NOAA GTG","SIGMET/AIRMET","PIREPs AWC","GFS Winds"].map(s=>(
+              <span key={s} style={{ fontSize:7, color:C.dimmer, fontFamily:mono, background:"rgba(0,20,55,0.5)", border:"1px solid rgba(126,251,254,0.08)", borderRadius:4, padding:"2px 6px" }}>{s}</span>
+            ))}
+          </div>
+        </>
+      )}
+      <style>{`@keyframes tp{0%,100%{transform:translateY(0);opacity:0.35}50%{transform:translateY(-4px);opacity:1}}`}</style>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════
+   SHARED ATOMS
+════════════════════════════════════════ */
+function GlowDot({ color, size=8 }) {
+  return <div style={{ width:size, height:size, borderRadius:"50%", background:color, boxShadow:`0 0 ${size*1.5}px ${color},0 0 ${size*3}px ${color}44`, flexShrink:0 }}/>;
+}
+function Tag({ label, color }) {
+  return <span style={{ background:`${color}18`, border:`1px solid ${color}40`, color, borderRadius:5, padding:"2px 7px", fontSize:8, fontWeight:700, letterSpacing:"0.8px", fontFamily:mono }}>{label}</span>;
+}
+function Glass({ children, style={}, onClick }) {
+  return <div onClick={onClick} style={{ background:"rgba(0,18,50,0.72)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", border:"1px solid rgba(126,251,254,0.10)", borderRadius:16, ...style }}>{children}</div>;
+}
+function SecLabel({ children }) {
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+      <div style={{ width:3, height:14, borderRadius:2, background:`linear-gradient(180deg,${C.cyan},${C.blue})` }}/>
+      <span style={{ fontSize:9, fontWeight:700, letterSpacing:"2px", color:C.dimmer, fontFamily:mono, textTransform:"uppercase" }}>{children}</span>
+    </div>
+  );
+}
+
+/* ════════ LEG SELECTOR ════════ */
+function LegSelector({ activeLeg, onChange }) {
+  return (
+    <div style={{ display:"flex", gap:0, background:"rgba(0,10,28,0.95)", borderBottom:`1px solid rgba(126,251,254,0.08)`, overflowX:"auto" }}>
+      {LEGS.map((l,i)=>{
+        const active = activeLeg===i;
+        const hasDanger = (NOTAMS_BY_LEG[l.num]||[]).some(n=>n.sev==="danger");
+        return (
+          <button key={i} onClick={()=>onChange(i)} style={{ flex:"0 0 auto", minWidth:72, padding:"0", background:"none", border:"none", cursor:"pointer", borderBottom:active?`2px solid ${C.cyan}`:"2px solid transparent", transition:"all 0.18s", position:"relative" }}>
+            <div style={{ padding:"10px 8px 8px", display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
+              <div style={{ fontSize:7, fontFamily:mono, fontWeight:700, letterSpacing:"1px", color:active?C.cyan:C.dimmer }}>LEG {l.num}</div>
+              <div style={{ display:"flex", alignItems:"center", gap:3 }}>
+                <span style={{ fontSize:11, fontWeight:900, fontFamily:mono, color:active?C.white:"rgba(160,200,240,0.5)" }}>{l.dep}</span>
+                <span style={{ fontSize:8, color:active?C.cyan:C.dimmer }}>→</span>
+                <span style={{ fontSize:11, fontWeight:900, fontFamily:mono, color:active?C.white:"rgba(160,200,240,0.5)" }}>{l.arr}</span>
+              </div>
+              <div style={{ fontSize:7, color:active?C.dim:"rgba(100,140,200,0.3)", fontFamily:mono }}>{l.flight}</div>
+            </div>
+            {active && <div style={{ position:"absolute", bottom:0, left:0, right:0, height:2, background:`linear-gradient(90deg,transparent,${C.cyan},transparent)` }}/>}
+            {hasDanger && <div style={{ position:"absolute", top:6, right:8, width:5, height:5, borderRadius:"50%", background:"#ff4d6d", boxShadow:"0 0 5px #ff4d6d" }}/>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ════════ ANIMATED BG ════════ */
+function AnimatedBg() {
+  const ref = useRef(null);
+  useEffect(()=>{
+    const canvas=ref.current; if(!canvas) return;
+    const ctx=canvas.getContext("2d"); let raf;
+    const stars=Array.from({length:55},()=>({ x:Math.random(), y:Math.random()*0.7, r:Math.random()*1.2+0.3, a:Math.random(), speed:Math.random()*0.5+0.3, phase:Math.random()*Math.PI*2 }));
+    let t=0;
+    function draw(){
+      const W=canvas.width, H=canvas.height; ctx.clearRect(0,0,W,H);
+      [[0.2,0.15,180,"rgba(40,106,236,0.12)"],[0.75,0.25,200,"rgba(126,251,254,0.06)"],[0.5,0.5,240,"rgba(1,77,139,0.10)"]].forEach(([cx,cy,r,col])=>{
+        const g=ctx.createRadialGradient(cx*W,cy*H,0,cx*W,cy*H,r); g.addColorStop(0,col); g.addColorStop(1,"transparent");
+        ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx*W,cy*H,r,0,Math.PI*2); ctx.fill();
+      });
+      stars.forEach(s=>{ const f=0.4+0.6*Math.sin(t*s.speed+s.phase); ctx.beginPath(); ctx.arc(s.x*W,s.y*H,s.r,0,Math.PI*2); ctx.fillStyle=`rgba(200,235,255,${s.a*f})`; ctx.fill(); });
+      const hg=ctx.createLinearGradient(0,H*0.6,0,H); hg.addColorStop(0,"rgba(1,77,139,0.18)"); hg.addColorStop(1,"transparent");
+      ctx.fillStyle=hg; ctx.fillRect(0,H*0.6,W,H*0.4);
+      t+=0.012; raf=requestAnimationFrame(draw);
+    }
+    function resize(){ canvas.width=canvas.offsetWidth; canvas.height=canvas.offsetHeight; }
+    resize(); draw();
+    window.addEventListener("resize",resize);
+    return ()=>{ cancelAnimationFrame(raf); window.removeEventListener("resize",resize); };
+  },[]);
+  return <canvas ref={ref} style={{ position:"fixed",inset:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none" }}/>;
+}
+
+/* ════════ NOTAM CARD ════════ */
+function NotamCard({ n, expanded, onToggle }) {
+  const s=SEV[n.sev];
+  return (
+    <div onClick={onToggle} style={{ borderLeft:`3px solid ${s.border}`, background:expanded?"rgba(0,15,42,0.95)":"rgba(0,12,35,0.70)", border:`1px solid ${expanded?s.border+"55":"rgba(126,251,254,0.07)"}`, borderLeft:`3px solid ${s.border}`, borderRadius:11, padding:"10px 12px", marginBottom:7, cursor:"pointer", transition:"all 0.2s", boxShadow:expanded?`0 0 18px ${s.glow}`:"none" }}>
+      <div style={{ display:"flex", gap:9, alignItems:"flex-start" }}>
+        <div style={{ width:30, height:30, borderRadius:8, background:s.badge, border:`1px solid ${s.border}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, flexShrink:0 }}>{n.icon}</div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ display:"flex", gap:5, alignItems:"center", marginBottom:2, flexWrap:"wrap" }}>
+            <span style={{ fontSize:8, fontWeight:700, color:s.text, fontFamily:mono }}>{n.id}</span>
+            <span style={{ background:s.badge, border:`1px solid ${s.border}40`, color:s.text, borderRadius:4, padding:"1px 5px", fontSize:7, fontWeight:700 }}>{s.label}</span>
+          </div>
+          <div style={{ fontSize:11, fontWeight:700, color:C.white, fontFamily:sans, marginBottom:2 }}>{n.title}</div>
+          <div style={{ fontSize:9, color:C.dim, fontFamily:mono }}>{n.short}</div>
+          {expanded && <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid rgba(126,251,254,0.07)", display:"flex", gap:4, flexWrap:"wrap" }}>{n.tags.map(t=><Tag key={t} label={t} color={s.text}/>)}</div>}
+        </div>
+        <span style={{ color:C.dimmer, fontSize:13, transform:expanded?"rotate(90deg)":"none", transition:"0.18s", flexShrink:0 }}>›</span>
+      </div>
+    </div>
+  );
+}
+
+function MetarMini({ icao, city, metar, cat, rwy, notams=[] }) {
+  const [open,setOpen]=useState(false);
+  const cc=cat==="VMC"?"#4dff91":cat==="MVMC"?"#FFB800":"#ff4d6d";
+  return (
+    <Glass style={{ padding:"10px 12px", marginBottom:7, cursor:"pointer" }} onClick={()=>setOpen(o=>!o)}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+        <div>
+          <div style={{ display:"flex", gap:7, alignItems:"center", marginBottom:2 }}>
+            <span style={{ fontSize:13, fontWeight:900, color:C.white, fontFamily:mono }}>{icao}</span>
+            <span style={{ fontSize:9, color:C.dimmer }}>{city}</span>
+            {rwy && <span style={{ background:"rgba(126,251,254,0.1)", border:`1px solid ${C.cyan}30`, color:C.cyan, borderRadius:5, padding:"1px 6px", fontSize:8, fontFamily:mono, fontWeight:700 }}>RWY {rwy}</span>}
+          </div>
+          <div style={{ fontSize:9, color:cc, fontFamily:mono, fontWeight:700, display:"flex", alignItems:"center", gap:4 }}><GlowDot color={cc} size={5}/>{cat}</div>
+        </div>
+        <span style={{ color:C.dimmer, fontSize:13, transform:open?"rotate(90deg)":"none", transition:"0.18s" }}>›</span>
+      </div>
+      {open && (
+        <div style={{ marginTop:9, paddingTop:9, borderTop:"1px solid rgba(126,251,254,0.07)" }}>
+          <div style={{ fontSize:9, color:"rgba(150,210,255,0.75)", fontFamily:mono, lineHeight:1.7, marginBottom:notams.length?7:0 }}>{metar}</div>
+          {notams.map((n,i)=><div key={i} style={{ background:"rgba(255,184,0,0.08)", border:"1px solid rgba(255,184,0,0.25)", borderRadius:6, padding:"5px 8px", fontSize:9, color:"#FFB800", fontFamily:mono }}>{n}</div>)}
+        </div>
+      )}
+    </Glass>
+  );
+}
+
+/* ════════ FLIGHT PROFILE SVG ════════ */
+function FlightProfileSVG({ leg }) {
+  const alts=[0,35,100,55,0];
+  const pts=alts.map((a,i)=>({ x:28+i*71, y:82-a*0.52 }));
+  let d=`M ${pts[0].x},${pts[0].y}`;
+  for(let i=1;i<pts.length;i++) d+=` C ${pts[i-1].x+25},${pts[i-1].y} ${pts[i].x-25},${pts[i].y} ${pts[i].x},${pts[i].y}`;
+  const area=`${d} L${pts[4].x},82 L${pts[0].x},82 Z`;
+  const labels=["DEP","T/O","CRZ","T/D","ARR"], icons=["🌤","🌤","⛅","🌤","🌤"], temps=["18°","14°","-22°","8°","15°"];
+  return (
+    <div style={{ position:"relative", height:110 }}>
+      <svg width="100%" height="85" viewBox="0 0 340 85" preserveAspectRatio="xMidYMid meet" style={{ display:"block" }}>
+        <defs>
+          <linearGradient id="pg2" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor={C.cyan}/><stop offset="50%" stopColor={C.blue}/><stop offset="100%" stopColor={C.cyan}/></linearGradient>
+          <linearGradient id="pa2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C.blue} stopOpacity="0.28"/><stop offset="100%" stopColor={C.deep} stopOpacity="0"/></linearGradient>
+          <filter id="gf2"><feGaussianBlur stdDeviation="3"/></filter>
+        </defs>
+        <rect x="0" y="80" width="340" height="5" fill="rgba(0,20,60,0.5)"/>
+        {[20,45,68].map(y=><line key={y} x1="0" y1={y} x2="340" y2={y} stroke="rgba(126,251,254,0.05)" strokeWidth="1" strokeDasharray="4,6"/>)}
+        <path d={area} fill="url(#pa2)"/>
+        <path d={d} fill="none" stroke={C.cyan} strokeWidth="5" strokeOpacity="0.1" filter="url(#gf2)"/>
+        <path d={d} fill="none" stroke="url(#pg2)" strokeWidth="1.8" strokeLinecap="round"/>
+        {pts.map((p,i)=>(<g key={i}><circle cx={p.x} cy={p.y} r="4.5" fill={C.deep} stroke={C.cyan} strokeWidth="1.5"/><circle cx={p.x} cy={p.y} r="1.8" fill={C.cyan}/></g>))}
+      </svg>
+      <div style={{ position:"absolute", top:0, left:0, right:0, height:85, pointerEvents:"none" }}>
+        {pts.map((p,i)=><div key={i} style={{ position:"absolute", left:28+i*71, top:Math.max(0,p.y-44), transform:"translateX(-50%)", display:"flex", flexDirection:"column", alignItems:"center", gap:1 }}>
+          <div style={{ background:"rgba(0,12,35,0.92)", border:"1px solid rgba(126,251,254,0.2)", borderRadius:7, padding:"2px 5px", textAlign:"center", minWidth:34 }}>
+            <div style={{ fontSize:11 }}>{icons[i]}</div>
+            <div style={{ fontSize:7, color:C.dim, fontFamily:mono }}>{labels[i]}</div>
+          </div>
+          <div style={{ width:1, height:5, background:"rgba(126,251,254,0.2)" }}/>
+        </div>)}
+      </div>
+      <div style={{ display:"flex", marginTop:2 }}>
+        {labels.map((l,i)=><div key={i} style={{ flex:1, textAlign:"center", padding:"3px 2px", borderRight:i<4?"1px solid rgba(126,251,254,0.06)":"none" }}>
+          <div style={{ fontSize:7, color:C.cyan, fontFamily:mono, fontWeight:700 }}>{l}</div>
+          <div style={{ fontSize:8, fontWeight:700, color:C.white, fontFamily:mono }}>{temps[i]}</div>
+          <div style={{ fontSize:7, color:"#4dff91", fontFamily:mono }}>VMC</div>
+        </div>)}
+      </div>
+    </div>
+  );
+}
+
+/* ════════ WIND COMPONENT CALCULATOR ════════ */
+function calcWindComponents(windDir, windSpd, rwyHdg) {
+  // rwyHdg: e.g. "24L" → 240°, "32R" → 320°
+  const rwyNum = parseInt(rwyHdg.replace(/[LRC]/g,"")) * 10;
+  const diff = ((windDir - rwyNum) + 360) % 360;
+  const diffRad = diff * Math.PI / 180;
+  const headwind  = Math.round(windSpd * Math.cos(diffRad));
+  const crosswind = Math.round(Math.abs(windSpd * Math.sin(diffRad)));
+  const crossSide = (diff > 0 && diff < 180) ? "R" : "L";
+  return { headwind, crosswind, crossSide, tailwind: headwind < 0 };
+}
+
+function parseMetarWind(windStr) {
+  // e.g. "090°/8kt" → { dir:90, spd:8 }
+  const m = windStr.match(/(\d+)[°\/]+(\d+)/);
+  if (!m) return { dir:0, spd:0 };
+  return { dir: parseInt(m[1]), spd: parseInt(m[2]) };
+}
+
+function WindBar({ value, max, color, label, unit="" }) {
+  const pct = Math.min(Math.abs(value) / max * 100, 100);
+  return (
+    <div style={{ marginBottom:4 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
+        <span style={{ fontSize:7, color:C.dimmer, fontFamily:mono, fontWeight:700, letterSpacing:"0.8px" }}>{label}</span>
+        <span style={{ fontSize:11, fontWeight:900, color, fontFamily:mono }}>{Math.abs(value)}{unit}</span>
+      </div>
+      <div style={{ height:5, borderRadius:3, background:"rgba(255,255,255,0.06)", overflow:"hidden" }}>
+        <div style={{ height:"100%", width:`${pct}%`, borderRadius:3,
+          background:`linear-gradient(90deg,${color}88,${color})`,
+          boxShadow:`0 0 6px ${color}66`,
+          transition:"width 0.6s ease" }}/>
+      </div>
+    </div>
+  );
+}
+
+function WindCard({ label, icao, rwy, metar, cat }) {
+  const isDep = label.includes("DEP");
+  const { dir, spd } = parseMetarWind(metar.wind);
+  const { headwind, crosswind, crossSide, tailwind } = calcWindComponents(dir, spd, rwy);
+  const catColor = cat==="VMC"?"#4dff91":cat==="MVMC"?"#FFB800":"#ff4d6d";
+
+  // Colour coding
+  const hwColor  = tailwind ? "#ff4d6d" : headwind > 15 ? "#FFB800" : "#4dff91";
+  const xwColor  = crosswind > 15 ? "#ff4d6d" : crosswind > 10 ? "#FFB800" : "#4dff91";
+
+  // Compass needle angle: wind FROM dir rotated to show on runway axis
+  const rwyNum   = parseInt(rwy.replace(/[LRC]/g,"")) * 10;
+  const relAngle = ((dir - rwyNum) + 360) % 360;
+
+  return (
+    <div style={{
+      background:"linear-gradient(145deg,rgba(0,14,40,0.95),rgba(0,8,28,0.98))",
+      border:`1px solid ${catColor}28`,
+      borderRadius:16, padding:"13px 14px", flex:1,
+      boxShadow:`0 4px 20px rgba(0,0,0,0.4), inset 0 1px 0 rgba(126,251,254,0.05)`,
+      position:"relative", overflow:"hidden",
+    }}>
+      {/* Top row */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+        <div>
+          <div style={{ fontSize:7, color:C.dimmer, fontFamily:mono, fontWeight:700, letterSpacing:"1.5px", marginBottom:3 }}>
+            {isDep ? "🛫 DEP" : "ARR 🛬"}
+          </div>
+          <div style={{ fontSize:22, fontWeight:900, color:C.white, fontFamily:mono, letterSpacing:1, lineHeight:1 }}>{icao}</div>
+        </div>
+        {/* Mini wind compass */}
+        <div style={{ position:"relative", width:42, height:42, flexShrink:0 }}>
+          {/* Compass ring */}
+          <svg width="42" height="42" viewBox="0 0 42 42">
+            <circle cx="21" cy="21" r="19" fill="rgba(0,20,55,0.8)"
+              stroke="rgba(126,251,254,0.15)" strokeWidth="1"/>
+            {/* Tick marks */}
+            {[0,90,180,270].map(a => {
+              const rad = (a-90)*Math.PI/180;
+              return <line key={a}
+                x1={21+14*Math.cos(rad)} y1={21+14*Math.sin(rad)}
+                x2={21+18*Math.cos(rad)} y2={21+18*Math.sin(rad)}
+                stroke="rgba(126,251,254,0.25)" strokeWidth="1"/>;
+            })}
+            {/* Runway axis */}
+            {(() => {
+              const r1 = (rwyNum-90)*Math.PI/180;
+              const r2 = (rwyNum+180-90)*Math.PI/180;
+              return <>
+                <line x1={21+8*Math.cos(r1)} y1={21+8*Math.sin(r1)}
+                      x2={21+16*Math.cos(r1)} y2={21+16*Math.sin(r1)}
+                      stroke="rgba(126,251,254,0.5)" strokeWidth="2" strokeLinecap="round"/>
+                <line x1={21+8*Math.cos(r2)} y1={21+8*Math.sin(r2)}
+                      x2={21+16*Math.cos(r2)} y2={21+16*Math.sin(r2)}
+                      stroke="rgba(126,251,254,0.25)" strokeWidth="1.5" strokeLinecap="round"/>
+              </>;
+            })()}
+            {/* Wind arrow */}
+            {(() => {
+              const wRad = (dir-90)*Math.PI/180;
+              const x2 = 21+13*Math.cos(wRad), y2 = 21+13*Math.sin(wRad);
+              const x1 = 21-10*Math.cos(wRad), y1 = 21-10*Math.sin(wRad);
+              return <g>
+                <line x1={x1} y1={y1} x2={x2} y2={y2}
+                  stroke={xwColor} strokeWidth="2" strokeLinecap="round"/>
+                <polygon
+                  points={`${x2},${y2} ${x2-4*Math.cos(wRad-0.5)},${y2-4*Math.sin(wRad-0.5)} ${x2-4*Math.cos(wRad+0.5)},${y2-4*Math.sin(wRad+0.5)}`}
+                  fill={xwColor}/>
+              </g>;
+            })()}
+            {/* Center dot */}
+            <circle cx="21" cy="21" r="2" fill="rgba(126,251,254,0.4)"/>
+          </svg>
+          <div style={{ position:"absolute", bottom:-4, left:"50%", transform:"translateX(-50%)",
+            fontSize:7, color:"rgba(126,251,254,0.4)", fontFamily:mono, whiteSpace:"nowrap" }}>{dir}°/{spd}kt</div>
+        </div>
+      </div>
+
+      {/* RWY + CAT row */}
+      <div style={{ display:"flex", gap:5, alignItems:"center", marginBottom:10 }}>
+        <span style={{ background:`${catColor}15`, border:`1px solid ${catColor}45`,
+          color:catColor, borderRadius:6, padding:"3px 9px", fontSize:10, fontFamily:mono, fontWeight:800 }}>
+          RWY {rwy}
+        </span>
+        <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+          <GlowDot color={catColor} size={5}/>
+          <span style={{ fontSize:8, color:catColor, fontFamily:mono, fontWeight:700 }}>{cat}</span>
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div style={{ height:1, background:"rgba(126,251,254,0.06)", marginBottom:9 }}/>
+
+      {/* Wind components */}
+      <WindBar
+        value={headwind} max={40}
+        color={hwColor}
+        label={tailwind ? "⬇ VIENTO DE COLA" : "⬆ VIENTO DE CARA"}
+        unit="kt"
+      />
+      <WindBar
+        value={crosswind} max={25}
+        color={xwColor}
+        label={`↔ CRUZADO ${crossSide}`}
+        unit="kt"
+      />
+
+      {/* Limit indicator */}
+      {crosswind > 15 && (
+        <div style={{ marginTop:7, background:"rgba(255,77,109,0.1)", border:"1px solid rgba(255,77,109,0.3)",
+          borderRadius:7, padding:"5px 8px", display:"flex", gap:5, alignItems:"center" }}>
+          <span style={{ fontSize:10 }}>⚠️</span>
+          <span style={{ fontSize:8, color:"#ff4d6d", fontFamily:mono, fontWeight:700 }}>
+            XW {crosswind}kt · VERIF. LIMITACIONES A320
+          </span>
+        </div>
+      )}
+      {tailwind && (
+        <div style={{ marginTop:7, background:"rgba(255,184,0,0.1)", border:"1px solid rgba(255,184,0,0.3)",
+          borderRadius:7, padding:"5px 8px", display:"flex", gap:5, alignItems:"center" }}>
+          <span style={{ fontSize:10 }}>⚠️</span>
+          <span style={{ fontSize:8, color:"#FFB800", fontFamily:mono, fontWeight:700 }}>
+            TAILWIND {Math.abs(headwind)}kt · MÁX 10kt OPS
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WindCards({ leg }) {
+  return (
+    <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+      <WindCard label="DEP" icao={leg.dep} rwy={leg.rwyDep} metar={leg.metar}    cat={leg.metar.cat}    />
+      <WindCard label="ARR" icao={leg.arr} rwy={leg.rwyArr} metar={leg.metarArr} cat={leg.metarArr.cat} />
+    </div>
+  );
+}
+
+/* ════════ TABS ════════ */
+function TabBrief({ leg }) {
+  return (
+    <div style={{ padding:"12px 14px 100px" }}>
+      <Glass style={{ padding:"13px 14px", marginBottom:10, background:"linear-gradient(135deg,rgba(1,20,60,0.92),rgba(0,10,35,0.95))", border:`1px solid rgba(126,251,254,0.18)`, boxShadow:`0 0 36px rgba(1,77,139,0.28)` }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+          <div>
+            <div style={{ fontSize:8, fontFamily:mono, fontWeight:700, color:C.dim, letterSpacing:"2px", marginBottom:3 }}>LEG {leg.num} · ROSTER</div>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <span style={{ fontSize:26, fontWeight:900, fontFamily:mono, color:C.white }}>{leg.dep}</span>
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:1 }}>
+                <span style={{ fontSize:8, color:C.cyan, fontFamily:mono }}>{leg.flight}</span>
+                <div style={{ width:36, height:1, background:`linear-gradient(90deg,${C.blue},${C.cyan})` }}/>
+                <span style={{ fontSize:12 }}>✈</span>
+              </div>
+              <span style={{ fontSize:26, fontWeight:900, fontFamily:mono, color:C.white }}>{leg.arr}</span>
+            </div>
+          </div>
+          <div style={{ textAlign:"right" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:4, justifyContent:"flex-end", marginBottom:3 }}>
+              <GlowDot color="#4dff91"/><span style={{ fontSize:7, color:"#4dff91", fontFamily:mono, fontWeight:700 }}>ACTIVO</span>
+            </div>
+            <div style={{ fontSize:8, color:C.dim, fontFamily:mono }}>25 MAY 2026</div>
+          </div>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:5 }}>
+          {[["STD",leg.std],["STA",leg.sta],["BLOCK",leg.block],["FL",leg.cruiseFL]].map(([l,v])=>(
+            <div key={l} style={{ background:"rgba(0,20,60,0.6)", border:"1px solid rgba(126,251,254,0.09)", borderRadius:8, padding:"6px 7px" }}>
+              <div style={{ fontSize:6, color:C.dimmer, fontFamily:mono, marginBottom:1 }}>{l}</div>
+              <div style={{ fontSize:11, fontWeight:700, color:C.cyan, fontFamily:mono }}>{v}</div>
+            </div>
+          ))}
+        </div>
+      </Glass>
+
+      <WindCards leg={leg}/>
+
+      <Glass style={{ padding:"11px 13px", marginBottom:10, border:"1px solid rgba(255,184,0,0.2)", background:"rgba(40,20,0,0.7)" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+          <div style={{ width:36, height:36, borderRadius:10, background:"rgba(255,184,0,0.12)", border:"1px solid rgba(255,184,0,0.3)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>⚡</div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:8, color:"#FFB800", fontFamily:mono, fontWeight:700, letterSpacing:"1.5px", marginBottom:1 }}>FATIGA × METEO</div>
+            <div style={{ fontSize:10, color:C.white, fontFamily:sans, lineHeight:1.5 }}>Report {leg.std} · <span style={{ color:"#FFB800", fontWeight:700 }}>Fatiga {FATIGUE.level}</span> · {leg.pireps.length>0?`${leg.pireps.length} PIREP(s) en ruta`:"Ruta limpia"}</div>
+          </div>
+          <div style={{ background:"rgba(255,184,0,0.14)", border:"1px solid rgba(255,184,0,0.4)", borderRadius:7, padding:"4px 8px", textAlign:"center", flexShrink:0 }}>
+            <div style={{ fontSize:16, fontWeight:900, color:"#FFB800", fontFamily:mono }}>{FATIGUE.score}</div>
+            <div style={{ fontSize:6, color:"rgba(255,184,0,0.5)", fontFamily:mono }}>/100</div>
+          </div>
+        </div>
+        <div style={{ marginTop:8, height:4, borderRadius:2, background:"rgba(255,255,255,0.06)", overflow:"hidden" }}>
+          <div style={{ height:"100%", width:`${FATIGUE.score}%`, borderRadius:2, background:"linear-gradient(90deg,#4dff91,#FFB800,#ff4d6d)" }}/>
+        </div>
+      </Glass>
+
+      <SecLabel>Perfil de vuelo</SecLabel>
+      <Glass style={{ padding:"12px 14px", marginBottom:10 }}><FlightProfileSVG leg={leg}/></Glass>
+
+      {leg.pireps.length>0 && <>
+        <SecLabel>PIREPs en ruta</SecLabel>
+        {leg.pireps.map((p,i)=>(
+          <Glass key={i} style={{ padding:"9px 12px", marginBottom:7, borderLeft:`3px solid #FFB800`, borderRadius:11 }}>
+            <div style={{ display:"flex", gap:8 }}>
+              <span style={{ fontSize:16 }}>✈</span>
+              <div style={{ flex:1 }}>
+                <div style={{ display:"flex", gap:7, alignItems:"center", marginBottom:2 }}>
+                  <Tag label={p.type} color="#FFB800"/>
+                  <span style={{ fontSize:8, color:C.cyan, fontFamily:mono }}>{p.fl}</span>
+                  <span style={{ fontSize:8, color:C.dimmer, fontFamily:mono }}>{p.time}</span>
+                </div>
+                <div style={{ fontSize:10, color:C.white, fontFamily:sans }}>{p.msg}</div>
+              </div>
+            </div>
+          </Glass>
+        ))}
+      </>}
+    </div>
+  );
+}
+
+/* ── TAF PERIODS ── */
+const TAFS = {
+  BCN: {
+    raw:"LEBL 250500Z 2506/2612 09010KT 9999 FEW025 SCT080 TX22/2514Z TN14/2505Z TEMPO 2508/2512 09018KT 5000 SHRA BKN020 BECMG 2514/2516 07008KT",
+    periods:[
+      { label:"2506/2612", wind:"090°/10kt", vis:"9999m", sky:"FEW025 SCT080", type:"BASE",  icon:"🌤", sig:null },
+      { label:"TEMPO 2508/2512", wind:"090°/18kt", vis:"5000m", sky:"BKN020", type:"TEMPO", icon:"🌧", sig:"SHRA" },
+      { label:"BECMG 2514/2516", wind:"070°/8kt",  vis:"9999m", sky:"FEW025", type:"BECMG", icon:"🌤", sig:null },
+    ]
+  },
+  MAD: {
+    raw:"LEMD 250500Z 2506/2612 32012KT 9999 BKN040 TX19/2514Z TN10/2505Z TEMPO 2518/2522 33020KT 8000 BKN025 PROB30 2520/2522 TSRA",
+    periods:[
+      { label:"2506/2612", wind:"320°/12kt", vis:"9999m", sky:"BKN040", type:"BASE",  icon:"⛅", sig:null },
+      { label:"TEMPO 2518/2522", wind:"330°/20kt", vis:"8000m", sky:"BKN025", type:"TEMPO", icon:"🌧", sig:"SHRA" },
+      { label:"PROB30 2520/2522", wind:"330°/20kt", vis:"4000m", sky:"BKN015", type:"PROB30", icon:"⛈", sig:"TSRA" },
+    ]
+  },
+  PMI: {
+    raw:"LEPA 250500Z 2506/2612 07014KT 9999 FEW020 TX26/2514Z TN18/2504Z BECMG 2512/2514 09010KT",
+    periods:[
+      { label:"2506/2612", wind:"070°/14kt", vis:"9999m", sky:"FEW020", type:"BASE", icon:"☀️", sig:null },
+      { label:"BECMG 2512/2514", wind:"090°/10kt", vis:"9999m", sky:"FEW025", type:"BECMG", icon:"🌤", sig:null },
+    ]
+  },
+  LHR: {
+    raw:"EGLL 250500Z 2506/2612 27018KT 6000 BKN015 TX14/2514Z TN09/2505Z TEMPO 2506/2510 27025KT 3000 BR BKN008 BECMG 2514/2516 28012KT 9999 SCT020 PROB40 2518/2522 27020KT 4000 SHRA BKN012",
+    periods:[
+      { label:"2506/2612", wind:"270°/18kt", vis:"6000m", sky:"BKN015", type:"BASE",  icon:"🌧", sig:null },
+      { label:"TEMPO 2506/2510", wind:"270°/25kt", vis:"3000m", sky:"BKN008", type:"TEMPO", icon:"🌫", sig:"BR" },
+      { label:"BECMG 2514/2516", wind:"280°/12kt", vis:"9999m", sky:"SCT020", type:"BECMG", icon:"⛅", sig:null },
+      { label:"PROB40 2518/2522", wind:"270°/20kt", vis:"4000m", sky:"BKN012", type:"PROB40", icon:"🌧", sig:"SHRA" },
+    ]
+  },
+};
+
+const DEST_ALTS = {
+  1: {
+    destAlts:[
+      { icao:"LEZL", city:"Sevilla",   rwy:"28",  dist:"400nm", metar:"LEZL 250820Z 28010KT 9999 FEW030 17/08 Q1019 NOSIG", cat:"VMC",  notams:["TWY B parcialmente cerrada"] },
+      { icao:"LEVX", city:"Vigo",      rwy:"01",  dist:"510nm", metar:"LEVX 250815Z 01012KT 8000 SCT020 14/09 Q1020 NOSIG", cat:"VMC",  notams:[] },
+      { icao:"LEBB", city:"Bilbao",    rwy:"30",  dist:"490nm", metar:"LEBB 250810Z 30008KT 9999 FEW030 16/09 Q1021 NOSIG", cat:"VMC",  notams:[] },
+    ],
+    enRoute:[
+      { icao:"LEVC", city:"Valencia",  rwy:"12",  dist:"130nm", metar:"LEVC 250825Z 12006KT 9999 FEW025 19/11 Q1019 NOSIG", cat:"VMC",  notams:[] },
+      { icao:"LEAL", city:"Alicante",  rwy:"10",  dist:"220nm", metar:"LEAL 250820Z 09008KT 9999 FEW020 21/13 Q1017 NOSIG", cat:"VMC",  notams:[] },
+    ],
+  },
+  2: {
+    destAlts:[
+      { icao:"LEIB", city:"Ibiza",     rwy:"24",  dist:"80nm",  metar:"LEIB 250845Z 07012KT 9999 FEW025 21/13 Q1016 NOSIG", cat:"VMC",  notams:[] },
+      { icao:"LERS", city:"Reus",      rwy:"25",  dist:"180nm", metar:"LERS 250840Z 07008KT 9999 FEW030 20/11 Q1018 NOSIG", cat:"VMC",  notams:[] },
+      { icao:"LEBL", city:"Barcelona", rwy:"24L", dist:"220nm", metar:"LEBL 250830Z 09008KT 9999 FEW025 SCT080 18/10 Q1018 NOSIG", cat:"VMC", notams:[] },
+    ],
+    enRoute:[
+      { icao:"LEVC", city:"Valencia",  rwy:"12",  dist:"90nm",  metar:"LEVC 250825Z 12006KT 9999 FEW025 19/11 Q1019 NOSIG", cat:"VMC",  notams:[] },
+    ],
+  },
+  3: {
+    destAlts:[
+      { icao:"LERS", city:"Reus",      rwy:"25",  dist:"60nm",  metar:"LERS 250840Z 07008KT 9999 FEW030 20/11 Q1018 NOSIG", cat:"VMC",  notams:[] },
+      { icao:"LEVC", city:"Valencia",  rwy:"12",  dist:"180nm", metar:"LEVC 250825Z 12006KT 9999 FEW025 19/11 Q1019 NOSIG", cat:"VMC",  notams:[] },
+      { icao:"LEBL", city:"Barcelona", rwy:"24L", dist:"0nm",   metar:"LEBL 250830Z 09008KT 9999 FEW025 SCT080 18/10 Q1018 NOSIG", cat:"VMC", notams:[] },
+    ],
+    enRoute:[
+      { icao:"LEPA", city:"Palma",     rwy:"06L", dist:"30nm",  metar:"LEPA 251130Z 06014KT 9999 FEW020 23/15 Q1015 NOSIG", cat:"VMC",  notams:[] },
+    ],
+  },
+  4: {
+    destAlts:[
+      { icao:"EGKK", city:"Gatwick",   rwy:"26L", dist:"28nm",  metar:"EGKK 251550Z 26016KT 5000 BKN012 11/07 Q1009 NOSIG", cat:"MVMC", notams:["ILS RWY 26L UNSERVICEABLE — usar ILS 08R"] },
+      { icao:"EGGW", city:"Luton",     rwy:"07",  dist:"35nm",  metar:"EGGW 251555Z 07014KT 7000 SCT018 11/07 Q1010 NOSIG", cat:"VMC",  notams:[] },
+      { icao:"EGSS", city:"Stansted",  rwy:"22",  dist:"42nm",  metar:"EGSS 251550Z 25015KT 8000 SCT020 11/07 Q1010 NOSIG", cat:"VMC",  notams:[] },
+    ],
+    enRoute:[
+      { icao:"LFPG", city:"Paris CDG", rwy:"27L", dist:"240nm", metar:"LFPG 251530Z 27015KT 9999 SCT025 13/07 Q1012 NOSIG", cat:"VMC",  notams:[] },
+      { icao:"EBBR", city:"Bruselas",  rwy:"25L", dist:"290nm", metar:"EBBR 251525Z 26012KT 9999 FEW030 12/06 Q1013 NOSIG", cat:"VMC",  notams:[] },
+    ],
+  },
+};
+
+function TafBlock({ icao }) {
+  const [open, setOpen] = useState(false);
+  const taf = TAFS[icao];
+  if (!taf) return null;
+  const typeStyle = {
+    BASE:   { bg:"rgba(40,106,236,0.12)", border:`1px solid ${C.blue}40`,  text:C.cyan2  },
+    TEMPO:  { bg:"rgba(255,184,0,0.12)",  border:"1px solid rgba(255,184,0,0.4)", text:"#FFB800" },
+    BECMG:  { bg:"rgba(77,255,145,0.10)", border:"1px solid rgba(77,255,145,0.3)", text:"#4dff91" },
+    PROB30: { bg:"rgba(255,107,26,0.12)", border:"1px solid rgba(255,107,26,0.4)", text:C.orange2 },
+    PROB40: { bg:"rgba(255,77,109,0.12)", border:"1px solid rgba(255,77,109,0.4)", text:"#ff4d6d" },
+  };
+  return (
+    <Glass style={{ marginBottom:10, overflow:"hidden" }}>
+      {/* Header */}
+      <div onClick={()=>setOpen(o=>!o)} style={{ padding:"10px 13px", cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <div style={{ width:3, height:14, borderRadius:2, background:`linear-gradient(180deg,${C.cyan},${C.blue})` }}/>
+          <span style={{ fontSize:9, fontWeight:700, letterSpacing:"2px", color:C.dimmer, fontFamily:mono }}>TAF · {icao}</span>
+          {taf.periods.some(p=>p.type==="PROB30"||p.type==="PROB40"||p.type==="TEMPO") && (
+            <span style={{ background:"rgba(255,184,0,0.15)", border:"1px solid rgba(255,184,0,0.4)", color:"#FFB800", borderRadius:5, padding:"1px 6px", fontSize:7, fontFamily:mono, fontWeight:700 }}>CAMBIOS</span>
+          )}
+        </div>
+        <span style={{ color:C.dimmer, fontSize:13, transform:open?"rotate(90deg)":"none", transition:"0.18s" }}>›</span>
+      </div>
+
+      {/* Raw TAF */}
+      {open && (
+        <div style={{ padding:"0 13px 10px" }}>
+          <div style={{ background:"rgba(0,0,0,0.3)", borderRadius:8, padding:"8px 11px", marginBottom:10 }}>
+            <div style={{ fontSize:7, color:C.cyan, fontFamily:mono, fontWeight:700, letterSpacing:"1.5px", marginBottom:4 }}>▸ RAW TAF</div>
+            <div style={{ fontSize:9, color:"rgba(150,210,255,0.7)", fontFamily:mono, lineHeight:1.8, wordBreak:"break-all" }}>{taf.raw}</div>
+          </div>
+
+          {/* Timeline periods */}
+          <div style={{ fontSize:7, color:C.dimmer, fontFamily:mono, fontWeight:700, letterSpacing:"1.5px", marginBottom:7 }}>PERÍODOS DECODIFICADOS</div>
+          {taf.periods.map((p, i) => {
+            const ts = typeStyle[p.type] || typeStyle.BASE;
+            return (
+              <div key={i} style={{ background:ts.bg, border:ts.border, borderRadius:10, padding:"9px 11px", marginBottom:6, position:"relative", overflow:"hidden" }}>
+                {/* Type badge */}
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <span style={{ fontSize:16 }}>{p.icon}</span>
+                    <div>
+                      <div style={{ fontSize:8, fontWeight:700, color:ts.text, fontFamily:mono, letterSpacing:"0.8px" }}>{p.type}</div>
+                      <div style={{ fontSize:7, color:C.dimmer, fontFamily:mono }}>{p.label}</div>
+                    </div>
+                  </div>
+                  {p.sig && (
+                    <span style={{ background:`${ts.text}20`, border:`1px solid ${ts.text}50`, color:ts.text, borderRadius:5, padding:"2px 7px", fontSize:8, fontFamily:mono, fontWeight:700 }}>{p.sig}</span>
+                  )}
+                </div>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                  {[["VNT",p.wind],["VIS",p.vis],["SKY",p.sky]].map(([k,v])=>(
+                    <span key={k} style={{ fontSize:9, fontFamily:mono }}>
+                      <span style={{ color:C.dimmer }}>{k}: </span>
+                      <span style={{ color:C.white, fontWeight:600 }}>{v}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Glass>
+  );
+}
+
+/* ── ALTERNATE CARD ── */
+function AltCard({ a, tier }) {
+  const [open, setOpen] = useState(false);
+  const tierCfg = {
+    dest:   { color:"#FF8C42", label:"DEST ALT",  bg:"rgba(255,107,26,0.08)",  border:"rgba(255,107,26,0.3)"  },
+    enRoute:{ color:"#FFE033", label:"EN RUTA",   bg:"rgba(255,224,51,0.07)",  border:"rgba(255,224,51,0.3)"  },
+    plan:   { color:C.cyan2,   label:"PLAN ALT",  bg:"rgba(34,211,238,0.07)",  border:"rgba(34,211,238,0.25)" },
+  };
+  const tc = tierCfg[tier] || tierCfg.plan;
+  const cc = a.cat==="VMC"?"#4dff91":a.cat==="MVMC"?"#FFB800":"#ff4d6d";
+  return (
+    <div onClick={()=>setOpen(o=>!o)} style={{ background:tc.bg, border:`1px solid ${tc.border}`, borderLeft:`3px solid ${tc.color}`, borderRadius:12, padding:"10px 13px", marginBottom:7, cursor:"pointer", transition:"all 0.18s", boxShadow:open?`0 0 16px ${tc.color}18`:"none" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+        <div style={{ flex:1 }}>
+          <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:3, flexWrap:"wrap" }}>
+            <span style={{ fontSize:13, fontWeight:900, color:C.white, fontFamily:mono, letterSpacing:1 }}>{a.icao}</span>
+            <span style={{ fontSize:9, color:C.dimmer, fontFamily:sans }}>{a.city}</span>
+            <span style={{ background:`${tc.color}18`, border:`1px solid ${tc.color}40`, color:tc.color, borderRadius:4, padding:"1px 5px", fontSize:7, fontFamily:mono, fontWeight:700 }}>{tc.label}</span>
+          </div>
+          <div style={{ display:"flex", gap:7, alignItems:"center", flexWrap:"wrap" }}>
+            <span style={{ background:`${cc}15`, border:`1px solid ${cc}40`, color:cc, borderRadius:5, padding:"2px 7px", fontSize:9, fontFamily:mono, fontWeight:700 }}>RWY {a.rwy}</span>
+            <div style={{ display:"flex", alignItems:"center", gap:3 }}>
+              <GlowDot color={cc} size={5}/><span style={{ fontSize:8, color:cc, fontFamily:mono, fontWeight:700 }}>{a.cat}</span>
+            </div>
+            <span style={{ fontSize:8, color:C.dimmer, fontFamily:mono }}>✈ {a.dist}</span>
+          </div>
+        </div>
+        <span style={{ color:C.dimmer, fontSize:13, transform:open?"rotate(90deg)":"none", transition:"0.18s", flexShrink:0, marginLeft:8 }}>›</span>
+      </div>
+      {open && (
+        <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${tc.border}` }}>
+          <div style={{ fontSize:9, color:"rgba(150,210,255,0.75)", fontFamily:mono, lineHeight:1.7, marginBottom:a.notams.length?8:0 }}>{a.metar}</div>
+          {a.notams.map((n,i)=>(
+            <div key={i} style={{ background:"rgba(255,184,0,0.08)", border:"1px solid rgba(255,184,0,0.25)", borderRadius:7, padding:"5px 9px", fontSize:9, color:"#FFB800", fontFamily:mono, marginTop:4 }}>⚠ {n}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AlternatesSection({ leg }) {
+  const [open, setOpen] = useState(false); // collapsed by default
+  const alts = DEST_ALTS[leg.num] || { destAlts:[], enRoute:[] };
+  const arrIsBad = leg.metarArr.cat === "MVMC" || leg.metarArr.cat === "IMC";
+  const total = alts.destAlts.length + alts.enRoute.length + leg.alts.length;
+
+  return (
+    <div style={{ marginTop:4 }}>
+      {/* Single collapsible header */}
+      <div onClick={()=>setOpen(o=>!o)} style={{
+        display:"flex", alignItems:"center", justifyContent:"space-between",
+        background: open ? "rgba(0,18,50,0.9)" : "rgba(0,12,35,0.8)",
+        border:`1px solid ${open?"rgba(126,251,254,0.18)":"rgba(126,251,254,0.08)"}`,
+        borderRadius: open ? "12px 12px 0 0" : 12,
+        padding:"11px 14px", cursor:"pointer", transition:"all 0.2s",
+      }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <div style={{ width:3, height:14, borderRadius:2, background:"linear-gradient(180deg,#FF8C42,#FFE033,#22D3EE)" }}/>
+          <span style={{ fontSize:10, fontWeight:700, color:C.white, fontFamily:mono, letterSpacing:"1px" }}>ALTERNATES</span>
+          {arrIsBad && <span style={{ background:"rgba(255,107,26,0.2)", border:"1px solid rgba(255,107,26,0.5)", color:C.orange2, borderRadius:5, padding:"1px 6px", fontSize:7, fontFamily:mono, fontWeight:700 }}>⚠ ARIA</span>}
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          {/* Tier pills summary */}
+          <div style={{ display:"flex", gap:4 }}>
+            <span style={{ background:"rgba(255,107,26,0.15)", border:"1px solid rgba(255,107,26,0.35)", color:"#FF8C42", borderRadius:4, padding:"2px 6px", fontSize:7, fontFamily:mono, fontWeight:700 }}>{alts.destAlts.length} DEST</span>
+            <span style={{ background:"rgba(255,224,51,0.12)", border:"1px solid rgba(255,224,51,0.3)", color:"#FFE033", borderRadius:4, padding:"2px 6px", fontSize:7, fontFamily:mono, fontWeight:700 }}>{alts.enRoute.length} ERA</span>
+          </div>
+          <span style={{ color:C.dimmer, fontSize:14, transform:open?"rotate(90deg)":"none", transition:"0.2s" }}>›</span>
+        </div>
+      </div>
+
+      {/* Expanded content */}
+      {open && (
+        <div style={{
+          background:"rgba(0,10,28,0.85)",
+          border:"1px solid rgba(126,251,254,0.18)", borderTop:"none",
+          borderRadius:"0 0 12px 12px", padding:"12px 14px",
+        }}>
+          {/* AI suggestion if ARR is bad */}
+          {arrIsBad && (
+            <div style={{ background:"rgba(255,107,26,0.1)", border:"1px solid rgba(255,107,26,0.35)", borderRadius:10, padding:"9px 12px", marginBottom:12, display:"flex", gap:8, alignItems:"flex-start" }}>
+              <span style={{ fontSize:14, flexShrink:0 }}>🤖</span>
+              <div>
+                <div style={{ fontSize:8, color:C.orange2, fontFamily:mono, fontWeight:700, letterSpacing:"1px", marginBottom:2 }}>ARIA · SUGERENCIA ALTERNATES</div>
+                <div style={{ fontSize:10, color:C.white, fontFamily:sans, lineHeight:1.55 }}>
+                  Condiciones <span style={{ color:"#FFB800", fontWeight:700 }}>{leg.metarArr.cat}</span> en {leg.arr}. Se recomiendan mínimo 2 alternates VMC. Aeropuertos sugeridos abajo.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* DESTINATION ALTERNATES */}
+          <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:7 }}>
+            <div style={{ width:3, height:12, borderRadius:2, background:"linear-gradient(180deg,#FF8C42,#FF6B1A)" }}/>
+            <span style={{ fontSize:8, fontWeight:700, letterSpacing:"1.5px", color:"rgba(255,140,66,0.6)", fontFamily:mono }}>DESTINATION ALTERNATES</span>
+            <div style={{ flex:1, height:1, background:"rgba(255,107,26,0.12)" }}/>
+            <span style={{ fontSize:7, color:"rgba(255,140,66,0.4)", fontFamily:mono }}>{alts.destAlts.length}</span>
+          </div>
+          {alts.destAlts.map((a,i)=><AltCard key={i} a={a} tier="dest"/>)}
+
+          {/* ENROUTE ALTERNATES */}
+          <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:7, marginTop:10 }}>
+            <div style={{ width:3, height:12, borderRadius:2, background:"linear-gradient(180deg,#FFE033,#FFB800)" }}/>
+            <span style={{ fontSize:8, fontWeight:700, letterSpacing:"1.5px", color:"rgba(255,224,51,0.55)", fontFamily:mono }}>ENROUTE ALTERNATE</span>
+            <div style={{ flex:1, height:1, background:"rgba(255,224,51,0.1)" }}/>
+            <span style={{ fontSize:7, color:"rgba(255,224,51,0.4)", fontFamily:mono }}>{alts.enRoute.length}</span>
+          </div>
+          {alts.enRoute.map((a,i)=><AltCard key={i} a={a} tier="enRoute"/>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TabMeteo({ leg }) {
+  const [view,setView]=useState("dep");
+  const m=view==="dep"?leg.metar:leg.metarArr;
+  const rwy=view==="dep"?leg.rwyDep:leg.rwyArr;
+  const tafIcao=view==="dep"?leg.dep:leg.arr;
+  const cc=m.cat==="VMC"?"#4dff91":m.cat==="MVMC"?"#FFB800":"#ff4d6d";
+  return (
+    <div style={{ padding:"12px 14px 100px" }}>
+      {/* DEP / ARR — airport signage style */}
+      <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+        {[
+          { id:"dep", icao:leg.dep, label:"DEPARTURE", arrow:"↗", cat:leg.metar.cat,    rwy:leg.rwyDep },
+          { id:"arr", icao:leg.arr, label:"ARRIVAL",   arrow:"↙", cat:leg.metarArr.cat, rwy:leg.rwyArr },
+        ].map(s => {
+          const active = view === s.id;
+          const catC = s.cat==="VMC"?"#4dff91":s.cat==="MVMC"?"#FFB800":"#ff4d6d";
+          const amber = "#FFD700";
+          return (
+            <button key={s.id} onClick={()=>setView(s.id)} style={{
+              flex:1, cursor:"pointer", padding:0, border:"none", background:"none",
+              borderRadius:14, overflow:"hidden",
+              boxShadow: active ? `0 0 24px rgba(255,215,0,0.2), 0 4px 20px rgba(0,0,0,0.5)` : "0 2px 12px rgba(0,0,0,0.4)",
+              transform: active ? "scale(1.02)" : "scale(1)",
+              transition:"all 0.2s",
+            }}>
+              {/* Outer frame — brushed metal effect */}
+              <div style={{
+                background: active
+                  ? "linear-gradient(145deg,#1a1a1a,#0d0d0d)"
+                  : "linear-gradient(145deg,#111118,#080810)",
+                border: active ? `1.5px solid ${amber}55` : "1.5px solid rgba(126,251,254,0.08)",
+                borderRadius:14, padding:"10px 10px 9px",
+              }}>
+                {/* Top label bar */}
+                <div style={{
+                  background: active ? amber : "rgba(255,215,0,0.12)",
+                  borderRadius:7, padding:"3px 8px", marginBottom:8,
+                  display:"flex", alignItems:"center", justifyContent:"space-between",
+                }}>
+                  <span style={{ fontSize:8, fontWeight:900, color: active?"#000":"rgba(255,215,0,0.5)", fontFamily:mono, letterSpacing:"2px" }}>{s.label}</span>
+                  {/* Plane icon SVG */}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                    {s.id==="dep"
+                      ? <path d="M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill={active?"#000":"rgba(255,215,0,0.4)"}/>
+                      : <path d="M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill={active?"#000":"rgba(255,215,0,0.4)"} transform="scale(1,-1) translate(0,-24)"/>
+                    }
+                  </svg>
+                </div>
+                {/* ICAO code */}
+                <div style={{
+                  fontSize:30, fontWeight:900, color: active ? amber : "rgba(255,215,0,0.3)",
+                  fontFamily:mono, letterSpacing:3, lineHeight:1, marginBottom:6,
+                  textShadow: active ? `0 0 20px ${amber}66` : "none",
+                  textAlign:"center",
+                }}>
+                  {s.icao}
+                </div>
+                {/* Bottom info row */}
+                <div style={{ display:"flex", gap:5, justifyContent:"center", alignItems:"center" }}>
+                  <span style={{
+                    background: active?"rgba(255,215,0,0.15)":"rgba(255,255,255,0.04)",
+                    border:`1px solid ${active?amber+"40":"rgba(255,255,255,0.08)"}`,
+                    color: active ? amber : "rgba(255,215,0,0.3)",
+                    borderRadius:5, padding:"2px 7px", fontSize:9, fontFamily:mono, fontWeight:700,
+                  }}>RWY {s.rwy}</span>
+                  <div style={{ display:"flex", alignItems:"center", gap:3 }}>
+                    <GlowDot color={active?catC:`${catC}55`} size={5}/>
+                    <span style={{ fontSize:8, color:active?catC:`${catC}55`, fontFamily:mono, fontWeight:700 }}>{s.cat}</span>
+                  </div>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* CAT + RWY */}
+      <div style={{ display:"flex", gap:8, marginBottom:10, alignItems:"center" }}>
+        <div style={{ background:`${cc}15`, border:`1px solid ${cc}45`, borderRadius:20, padding:"5px 12px", display:"flex", alignItems:"center", gap:5 }}>
+          <GlowDot color={cc} size={6}/><span style={{ fontSize:10, fontWeight:800, color:cc, fontFamily:mono, letterSpacing:"2px" }}>{m.cat}</span>
+        </div>
+        <div style={{ background:"rgba(126,251,254,0.1)", border:`1px solid ${C.cyan}35`, borderRadius:8, padding:"5px 10px", display:"flex", gap:5, alignItems:"center" }}>
+          <span style={{ fontSize:8, color:C.dimmer, fontFamily:mono }}>RWY</span>
+          <span style={{ fontSize:13, fontWeight:900, color:C.cyan, fontFamily:mono }}>{rwy}</span>
+        </div>
+      </div>
+
+      {/* Raw METAR */}
+      <Glass style={{ padding:"10px 12px", marginBottom:10 }}>
+        <div style={{ fontSize:8, color:C.cyan, fontFamily:mono, fontWeight:700, letterSpacing:"2px", marginBottom:5 }}>▸ RAW METAR</div>
+        <div style={{ fontSize:9, color:"rgba(150,210,255,0.8)", fontFamily:mono, lineHeight:1.8, wordBreak:"break-all" }}>{m.raw}</div>
+      </Glass>
+
+      {/* Decoded grid */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7, marginBottom:10 }}>
+        {[["VIENTO",m.wind,C.cyan],["VISIBILIDAD",m.vis,"#4dff91"],["TEMPERATURA",m.temp,"#FFB800"],["PUNTO ROCÍO",m.dew,C.blue],["QNH",m.qnh+" hPa",C.cyan2],["TENDENCIA",m.trend,"#4dff91"]].map(([l,v,c])=>(
+          <Glass key={l} style={{ padding:"10px 11px", border:`1px solid ${c}18` }}>
+            <div style={{ fontSize:7, color:`${c}88`, fontFamily:mono, fontWeight:700, marginBottom:2 }}>{l}</div>
+            <div style={{ fontSize:13, fontWeight:700, color:C.white, fontFamily:mono }}>{v}</div>
+          </Glass>
+        ))}
+      </div>
+
+      {/* TAF — expandible */}
+      <TafBlock icao={tafIcao}/>
+
+      {/* Hourly */}
+      <SecLabel>Hora a hora</SecLabel>
+      <Glass style={{ padding:"10px 14px", marginBottom:10 }}>
+        <div style={{ display:"flex", overflowX:"auto", margin:"0 -14px", padding:"2px 14px" }}>
+          {leg.hours.map((h,i)=>(
+            <div key={i} style={{ flexShrink:0, width:52, display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"4px 0", borderRight:i<leg.hours.length-1?"1px solid rgba(126,251,254,0.07)":"none" }}>
+              <span style={{ fontSize:8, color:C.dimmer, fontFamily:mono }}>{h.h}Z</span>
+              <span style={{ fontSize:18 }}>{h.icon}</span>
+              <span style={{ fontSize:11, fontWeight:700, color:C.white, fontFamily:mono }}>{h.t}°</span>
+              {h.pop>0&&<span style={{ fontSize:8, color:C.cyan2, fontFamily:mono }}>{h.pop}%</span>}
+            </div>
+          ))}
+        </div>
+      </Glass>
+
+      {/* 3-tier alternates */}
+      <AlternatesSection leg={leg}/>
+    </div>
+  );
+}
+
+function TabNotam({ leg }) {
+  const [expanded,setExpanded]=useState(null);
+  const [filter,setFilter]=useState("TODOS");
+  const notams=NOTAMS_BY_LEG[leg.num]||[];
+  const fmap={TODOS:null,CRÍTICO:"danger",AVISO:"warning",INFO:"info"};
+  const visible=notams.filter(n=>!fmap[filter]||n.sev===fmap[filter]);
+  const counts={danger:notams.filter(n=>n.sev==="danger").length,warning:notams.filter(n=>n.sev==="warning").length,info:notams.filter(n=>n.sev==="info").length};
+  return (
+    <div style={{ padding:"12px 14px 100px" }}>
+      <div style={{ display:"flex", gap:7, marginBottom:12 }}>
+        {[["CRÍTICO",counts.danger,"#ff4d6d"],["AVISO",counts.warning,"#FFB800"],["INFO",counts.info,C.cyan2]].map(([l,c,col])=>(
+          <div key={l} style={{ flex:1, background:`${col}10`, border:`1px solid ${col}28`, borderRadius:11, padding:"9px 7px", textAlign:"center" }}>
+            <div style={{ fontSize:22, fontWeight:900, color:col, fontFamily:mono, lineHeight:1, textShadow:`0 0 12px ${col}` }}>{c}</div>
+            <div style={{ fontSize:7, color:`${col}80`, marginTop:2, fontFamily:mono }}>{l}</div>
+          </div>
+        ))}
+      </div>
+      <Glass style={{ padding:"10px 12px", marginBottom:10, border:`1px solid ${C.cyan}22` }}>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <span style={{ fontSize:20 }}>🛬</span>
+          <div>
+            <div style={{ fontSize:8, color:C.cyan, fontFamily:mono, fontWeight:700, letterSpacing:"1.5px", marginBottom:2 }}>RUNWAY IN USE · PREDICCIÓN</div>
+            <div style={{ fontSize:10, color:C.white, fontFamily:sans }}>
+              <span style={{ color:C.dimmer }}>{leg.dep} </span><span style={{ color:"#4dff91", fontWeight:700 }}>RWY {leg.rwyDep}</span>
+              <span style={{ color:C.dimmer }}> · {leg.arr} </span><span style={{ color:"#4dff91", fontWeight:700 }}>RWY {leg.rwyArr}</span>
+            </div>
+          </div>
+        </div>
+      </Glass>
+      <div style={{ display:"flex", gap:4, marginBottom:10 }}>
+        {["TODOS","CRÍTICO","AVISO","INFO"].map(f=>(
+          <button key={f} onClick={()=>setFilter(f)} style={{ background:filter===f?"rgba(40,106,236,0.2)":"rgba(0,15,40,0.6)", border:`1px solid ${filter===f?C.cyan+"50":"rgba(126,251,254,0.08)"}`, borderRadius:6, padding:"4px 10px", color:filter===f?C.cyan:C.dimmer, fontSize:8, fontWeight:700, cursor:"pointer", fontFamily:mono }}>{f}</button>
+        ))}
+      </div>
+      {visible.map(n=><NotamCard key={n.id} n={n} expanded={expanded===n.id} onToggle={()=>setExpanded(expanded===n.id?null:n.id)}/>)}
+      {leg.alts.some(a=>a.notams.length>0)&&<>
+        <SecLabel>NOTAMs Alternates</SecLabel>
+        {leg.alts.filter(a=>a.notams.length>0).map((a,i)=>(
+          <Glass key={i} style={{ padding:"10px 12px", marginBottom:8, borderLeft:"3px solid #FFB800" }}>
+            <div style={{ fontSize:9, fontWeight:700, color:"#FFB800", fontFamily:mono, marginBottom:4 }}>{a.icao} — {a.city}</div>
+            {a.notams.map((n,j)=><div key={j} style={{ fontSize:9, color:C.white, fontFamily:mono, lineHeight:1.6 }}>{n}</div>)}
+          </Glass>
+        ))}
+      </>}
+    </div>
+  );
+}
+
+/* ── MAP SUB-TAB SELECTOR — Airbus QRH style ── */
+function MapTabBar({ active, onChange }) {
+  const tabs = [
+    { id:"surface", icon:"🗺", label:"SUPERFICIE" },
+    { id:"radar",   icon:"🌧", label:"RADAR"      },
+    { id:"wind",    icon:"💨", label:"VIENTOS"    },
+    { id:"turb",    icon:"⚡", label:"TURB"       },
+  ];
+  return (
+    <div style={{ display:"flex", background:"rgba(0,8,24,0.95)", borderBottom:`2px solid rgba(126,251,254,0.08)`, marginBottom:0 }}>
+      {tabs.map(t => {
+        const act = active === t.id;
+        return (
+          <button key={t.id} onClick={() => onChange(t.id)} style={{
+            flex:1, padding:"10px 4px 8px", background:"none", border:"none",
+            cursor:"pointer", position:"relative",
+            borderBottom: act ? `2px solid ${C.cyan}` : "2px solid transparent",
+            marginBottom:-2, transition:"all 0.15s",
+          }}>
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
+              <span style={{ fontSize:14 }}>{t.icon}</span>
+              <span style={{ fontSize:7, fontFamily:mono, fontWeight:700, letterSpacing:"0.5px",
+                color: act ? C.cyan : C.dimmer, transition:"color 0.15s" }}>{t.label}</span>
+            </div>
+            {act && <div style={{ position:"absolute", bottom:-2, left:"20%", right:"20%", height:2,
+              background:`linear-gradient(90deg,transparent,${C.cyan},transparent)` }}/>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── SURFACE MAP ── */
+function MapSurface({ leg }) {
+  const route = ROUTE_COORDS[routeKey(leg.dep, leg.arr)] || [];
+  const centerLat = route.length ? route[Math.floor(route.length/2)][0] : 40;
+  const centerLon = route.length ? route[Math.floor(route.length/2)][1] : 0;
+  return (
+    <div>
+      <div style={{ fontSize:8, color:C.dimmer, fontFamily:mono, letterSpacing:"1.5px", marginBottom:8 }}>
+        ANÁLISIS SUPERFICIE · H+00 · ECMWF
+      </div>
+      {/* Map viewport */}
+      <div style={{ height:200, borderRadius:12, overflow:"hidden", position:"relative",
+        background:"linear-gradient(135deg,#000F32,#001940,#002a5c)", border:"1px solid rgba(126,251,254,0.1)",
+        marginBottom:10 }}>
+        {/* Grid */}
+        {[0,1,2,3,4].map(i=><div key={i} style={{ position:"absolute", left:0, right:0,
+          top:`${i*25}%`, height:1, background:"rgba(126,251,254,0.05)" }}/>)}
+        {[0,1,2,3].map(i=><div key={i} style={{ position:"absolute", top:0, bottom:0,
+          left:`${i*33}%`, width:1, background:"rgba(126,251,254,0.05)" }}/>)}
+        {/* Isobars */}
+        {[[25,30,80,55,"rgba(40,106,236,0.3)","1018"],[65,20,100,65,"rgba(40,106,236,0.22)","1014"],[45,70,70,45,"rgba(40,106,236,0.18)","1022"],
+          [15,60,55,35,"rgba(40,106,236,0.25)","1010"],[75,55,60,40,"rgba(40,106,236,0.2)","1020"]].map(([x,y,rx,ry,col,val],i)=>(
+          <div key={i} style={{ position:"absolute", left:`${x}%`, top:`${y}%`,
+            width:rx, height:ry, borderRadius:"50%", border:`1.5px solid ${col}`,
+            transform:"translate(-50%,-50%)" }}/>
+        ))}
+        {/* L/H labels */}
+        {[[22,28,"L","#ff4d6d","1008"],[68,22,"H","#4dff91","1024"],[48,72,"H","#4dff91","1022"]].map(([x,y,t,c,v],i)=>(
+          <div key={i} style={{ position:"absolute", left:`${x}%`, top:`${y}%`, transform:"translate(-50%,-50%)",
+            textAlign:"center" }}>
+            <div style={{ fontSize:14, fontWeight:900, color:c, fontFamily:mono,
+              textShadow:`0 0 10px ${c}` }}>{t}</div>
+            <div style={{ fontSize:8, color:`${c}99`, fontFamily:mono }}>{v}</div>
+          </div>
+        ))}
+        {/* Route overlay */}
+        <svg style={{ position:"absolute", inset:0, width:"100%", height:"100%", overflow:"visible" }}>
+          <defs>
+            <linearGradient id="rg" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor={C.cyan} stopOpacity="0.9"/>
+              <stop offset="100%" stopColor={C.blue} stopOpacity="0.9"/>
+            </linearGradient>
+          </defs>
+          <polyline
+            points={route.map((c,i)=>{
+              const minLat=Math.min(...route.map(r=>r[0]))-1, maxLat=Math.max(...route.map(r=>r[0]))+1;
+              const minLon=Math.min(...route.map(r=>r[1]))-1, maxLon=Math.max(...route.map(r=>r[1]))+1;
+              const px=((c[1]-minLon)/(maxLon-minLon))*90+5;
+              const py=(1-(c[0]-minLat)/(maxLat-minLat))*85+7;
+              return `${px}%,${py}%`;
+            }).join(" ")}
+            fill="none" stroke="url(#rg)" strokeWidth="2.5" strokeDasharray="6,3"
+          />
+          {route.filter((_,i)=>i===0||i===route.length-1).map((c,i)=>{
+            const minLat=Math.min(...route.map(r=>r[0]))-1, maxLat=Math.max(...route.map(r=>r[0]))+1;
+            const minLon=Math.min(...route.map(r=>r[1]))-1, maxLon=Math.max(...route.map(r=>r[1]))+1;
+            const px=((c[1]-minLon)/(maxLon-minLon))*90+5;
+            const py=(1-(c[0]-minLat)/(maxLat-minLat))*85+7;
+            return <circle key={i} cx={`${px}%`} cy={`${py}%`} r="5" fill={C.deep} stroke={C.cyan} strokeWidth="1.8"/>;
+          })}
+        </svg>
+        {/* Labels */}
+        <div style={{ position:"absolute", bottom:8, left:12, fontSize:10, fontWeight:700, color:C.cyan, fontFamily:mono }}>{leg.dep}</div>
+        <div style={{ position:"absolute", bottom:8, right:12, fontSize:10, fontWeight:700, color:C.cyan, fontFamily:mono }}>{leg.arr}</div>
+        <div style={{ position:"absolute", top:8, right:10, fontSize:7, color:"rgba(126,251,254,0.3)", fontFamily:mono }}>PLACEHOLDER · Windy/ECMWF</div>
+      </div>
+      {/* Pressure summary */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6 }}>
+        {[["QNH DEP",leg.metar.qnh+" hPa",C.cyan],["QNH ARR",leg.metarArr.qnh+" hPa",C.cyan2],["GRADIENTE","4 hPa/100nm","#FFB800"]].map(([l,v,c])=>(
+          <Glass key={l} style={{ padding:"8px 10px", border:`1px solid ${c}18` }}>
+            <div style={{ fontSize:7, color:`${c}88`, fontFamily:mono, marginBottom:2 }}>{l}</div>
+            <div style={{ fontSize:11, fontWeight:700, color:C.white, fontFamily:mono }}>{v}</div>
+          </Glass>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── RADAR MAP ── */
+function MapRadar({ leg }) {
+  const route = ROUTE_COORDS[routeKey(leg.dep, leg.arr)] || [];
+  return (
+    <div>
+      <div style={{ fontSize:8, color:C.dimmer, fontFamily:mono, letterSpacing:"1.5px", marginBottom:8 }}>
+        RADAR PRECIPITACIÓN · COMPOSITE · NOWCAST +30min
+      </div>
+      <div style={{ height:200, borderRadius:12, overflow:"hidden", position:"relative",
+        background:"linear-gradient(135deg,#050818,#060d1a,#081224)", border:"1px solid rgba(126,251,254,0.1)",
+        marginBottom:10 }}>
+        {/* Grid */}
+        {[0,1,2,3,4].map(i=><div key={i} style={{ position:"absolute", left:0, right:0, top:`${i*25}%`, height:1, background:"rgba(126,251,254,0.04)" }}/>)}
+        {[0,1,2,3].map(i=><div key={i} style={{ position:"absolute", top:0, bottom:0, left:`${i*33}%`, width:1, background:"rgba(126,251,254,0.04)" }}/>)}
+        {/* Precipitation blobs */}
+        {leg.num === 4 ? (
+          <>
+            <div style={{ position:"absolute", left:"55%", top:"15%", width:90, height:70,
+              background:"radial-gradient(ellipse,rgba(255,77,109,0.55),rgba(255,107,26,0.3),transparent)",
+              borderRadius:"50%", filter:"blur(6px)" }}/>
+            <div style={{ position:"absolute", left:"65%", top:"25%", width:60, height:50,
+              background:"radial-gradient(ellipse,rgba(255,184,0,0.45),transparent)",
+              borderRadius:"50%", filter:"blur(4px)" }}/>
+            <div style={{ position:"absolute", left:"45%", top:"35%", width:40, height:35,
+              background:"radial-gradient(ellipse,rgba(255,184,0,0.3),transparent)",
+              borderRadius:"50%", filter:"blur(3px)" }}/>
+          </>
+        ) : (
+          <>
+            <div style={{ position:"absolute", left:"20%", top:"60%", width:45, height:35,
+              background:"radial-gradient(ellipse,rgba(77,166,255,0.3),transparent)",
+              borderRadius:"50%", filter:"blur(4px)" }}/>
+            <div style={{ position:"absolute", left:"70%", top:"70%", width:30, height:25,
+              background:"radial-gradient(ellipse,rgba(77,255,145,0.2),transparent)",
+              borderRadius:"50%", filter:"blur(3px)" }}/>
+          </>
+        )}
+        {/* Route overlay */}
+        <svg style={{ position:"absolute", inset:0, width:"100%", height:"100%", overflow:"visible" }}>
+          <polyline
+            points={route.map((c,i)=>{
+              const minLat=Math.min(...route.map(r=>r[0]))-1, maxLat=Math.max(...route.map(r=>r[0]))+1;
+              const minLon=Math.min(...route.map(r=>r[1]))-1, maxLon=Math.max(...route.map(r=>r[1]))+1;
+              const px=((c[1]-minLon)/(maxLon-minLon))*90+5;
+              const py=(1-(c[0]-minLat)/(maxLat-minLat))*85+7;
+              return `${px}%,${py}%`;
+            }).join(" ")}
+            fill="none" stroke="rgba(126,251,254,0.7)" strokeWidth="2" strokeDasharray="5,3"
+          />
+        </svg>
+        {/* Intensity legend */}
+        <div style={{ position:"absolute", bottom:8, left:8, display:"flex", gap:4, alignItems:"center" }}>
+          {[["#4da6ff","LGT"],["#4dff91","MOD"],["#FFB800","HVY"],["#ff4d6d","EXTRM"]].map(([c,l])=>(
+            <div key={l} style={{ display:"flex", alignItems:"center", gap:2 }}>
+              <div style={{ width:8, height:8, borderRadius:2, background:c, opacity:0.8 }}/>
+              <span style={{ fontSize:6, color:`${c}cc`, fontFamily:mono }}>{l}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ position:"absolute", bottom:8, right:10, fontSize:7, color:"rgba(126,251,254,0.3)", fontFamily:mono }}>PLACEHOLDER · RainViewer</div>
+        <div style={{ position:"absolute", bottom:8, left:12, fontSize:10, fontWeight:700, color:C.cyan, fontFamily:mono }}>{leg.dep}</div>
+        <div style={{ position:"absolute", top:8, left:12, fontSize:10, fontWeight:700, color:C.cyan, fontFamily:mono }}>{leg.arr}</div>
+      </div>
+      {/* CB / TSRA alert */}
+      {leg.num === 4 ? (
+        <Glass style={{ padding:"10px 12px", marginBottom:8, border:"1px solid rgba(255,77,109,0.3)", background:"rgba(40,0,10,0.7)" }}>
+          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+            <span style={{ fontSize:18 }}>⛈</span>
+            <div>
+              <div style={{ fontSize:9, color:"#ff4d6d", fontFamily:mono, fontWeight:700, marginBottom:1 }}>TSRA / CB DETECTADO EN RUTA</div>
+              <div style={{ fontSize:10, color:C.white, fontFamily:sans }}>Actividad convectiva sobre Canal de la Mancha · Posible desvío +15nm norte</div>
+            </div>
+          </div>
+        </Glass>
+      ) : (
+        <Glass style={{ padding:"10px 12px", marginBottom:8, border:"1px solid rgba(77,255,145,0.2)", background:"rgba(0,30,15,0.5)" }}>
+          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+            <span style={{ fontSize:16 }}>✅</span>
+            <div style={{ fontSize:10, color:C.green, fontFamily:sans }}>Sin actividad convectiva significativa en ruta · Ruta limpia</div>
+          </div>
+        </Glass>
+      )}
+      {/* SIGWX summary */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+        {[["CB EN RUTA", leg.num===4?"DETECTADO":"NO","#ff4d6d","#4dff91"],
+          ["TSRA ARR", leg.num===4?"POSIBLE":"NO","#FFB800","#4dff91"]].map(([l,v,cBad,cOk])=>{
+          const isOk = v==="NO"; const c = isOk ? cOk : cBad;
+          return (
+            <Glass key={l} style={{ padding:"8px 10px", border:`1px solid ${c}25` }}>
+              <div style={{ fontSize:7, color:C.dimmer, fontFamily:mono, marginBottom:2 }}>{l}</div>
+              <div style={{ fontSize:12, fontWeight:800, color:c, fontFamily:mono }}>{v}</div>
+            </Glass>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── WIND MAP ── */
+function MapWind({ leg }) {
+  const route = ROUTE_COORDS[routeKey(leg.dep, leg.arr)] || [];
+  const flLevels = [100, 180, 240, 300, 340, 390];
+  const windData = flLevels.map(fl => ({
+    fl,
+    speed: 15 + Math.floor((fl/390)*110) + Math.floor(Math.random()*20),
+    dir: 240 + Math.floor(Math.random()*60),
+    temp: Math.round(15 - fl*0.065),
+    jet: fl >= 300 && fl <= 360,
+  }));
+  return (
+    <div>
+      <div style={{ fontSize:8, color:C.dimmer, fontFamily:mono, letterSpacing:"1.5px", marginBottom:8 }}>
+        VIENTOS EN ALTITUD · GFS MODEL · +06H
+      </div>
+      {/* Wind map */}
+      <div style={{ height:160, borderRadius:12, overflow:"hidden", position:"relative",
+        background:"linear-gradient(135deg,#000820,#001040,#001a50)", border:"1px solid rgba(126,251,254,0.1)",
+        marginBottom:10 }}>
+        {/* Grid */}
+        {[0,1,2,3,4].map(i=><div key={i} style={{ position:"absolute", left:0, right:0, top:`${i*25}%`, height:1, background:"rgba(126,251,254,0.04)" }}/>)}
+        {/* Jet stream */}
+        <svg style={{ position:"absolute", inset:0, width:"100%", height:"100%", overflow:"visible" }}>
+          <defs>
+            <linearGradient id="jg" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#FFB800" stopOpacity="0"/>
+              <stop offset="30%" stopColor="#FFB800" stopOpacity="0.8"/>
+              <stop offset="70%" stopColor="#ff7b1a" stopOpacity="0.8"/>
+              <stop offset="100%" stopColor="#ff4d6d" stopOpacity="0"/>
+            </linearGradient>
+            <filter id="jf"><feGaussianBlur stdDeviation="4"/></filter>
+          </defs>
+          {/* Jet stream glow */}
+          <path d="M -5%,38% Q 25%,30% 50%,35% T 105%,28%"
+            fill="none" stroke="url(#jg)" strokeWidth="18" filter="url(#jf)" opacity="0.5"/>
+          {/* Jet stream line */}
+          <path d="M -5%,38% Q 25%,30% 50%,35% T 105%,28%"
+            fill="none" stroke="url(#jg)" strokeWidth="2.5" strokeDasharray="8,4"/>
+          {/* Wind arrows */}
+          {[[10,55],[25,48],[40,42],[55,38],[70,35],[85,32]].map(([x,y],i)=>(
+            <g key={i} transform={`translate(${x}%,${y}%)`}>
+              <line x1="-10" y1="0" x2="10" y2="0" stroke="rgba(126,251,254,0.5)" strokeWidth="1.5"/>
+              <polygon points="7,-3 13,0 7,3" fill="rgba(126,251,254,0.5)"/>
+              {i%2===0&&<text x="-8" y="-5" fontSize="6" fill="rgba(126,251,254,0.5)" fontFamily={mono}>{110+i*15}kt</text>}
+            </g>
+          ))}
+          {/* Route */}
+          <polyline
+            points={route.map((c,i)=>{
+              const minLat=Math.min(...route.map(r=>r[0]))-1, maxLat=Math.max(...route.map(r=>r[0]))+1;
+              const minLon=Math.min(...route.map(r=>r[1]))-1, maxLon=Math.max(...route.map(r=>r[1]))+1;
+              const px=((c[1]-minLon)/(maxLon-minLon))*90+5;
+              const py=(1-(c[0]-minLat)/(maxLat-minLat))*85+7;
+              return `${px}%,${py}%`;
+            }).join(" ")}
+            fill="none" stroke="rgba(126,251,254,0.55)" strokeWidth="1.8" strokeDasharray="5,3"
+          />
+        </svg>
+        <div style={{ position:"absolute", top:6, right:8, fontSize:7, color:"rgba(255,184,0,0.6)", fontFamily:mono }}>▸ JET STREAM FL300-360</div>
+        <div style={{ position:"absolute", bottom:6, right:8, fontSize:7, color:"rgba(126,251,254,0.3)", fontFamily:mono }}>PLACEHOLDER · GFS/NOAA</div>
+        <div style={{ position:"absolute", bottom:6, left:10, fontSize:9, fontWeight:700, color:C.cyan, fontFamily:mono }}>{leg.dep}</div>
+        <div style={{ position:"absolute", top:6, left:10, fontSize:9, fontWeight:700, color:C.cyan, fontFamily:mono }}>{leg.arr}</div>
+      </div>
+      {/* Wind by FL table */}
+      <div style={{ fontSize:8, color:C.dimmer, fontFamily:mono, fontWeight:700, letterSpacing:"1.5px", marginBottom:6 }}>VIENTOS POR NIVEL · RUTA MEDIA</div>
+      <div style={{ borderRadius:10, overflow:"hidden", border:"1px solid rgba(126,251,254,0.08)" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr", background:"rgba(0,10,30,0.9)", borderBottom:"1px solid rgba(126,251,254,0.1)" }}>
+          {["FL","DIR","SPD","TEMP",""].map((h,i)=><div key={i} style={{ padding:"6px 8px", fontSize:7, color:C.dimmer, fontFamily:mono, fontWeight:700 }}>{h}</div>)}
+        </div>
+        {windData.map((d,i) => {
+          const isHL = d.fl === leg.cruiseFL;
+          const spdCol = d.speed > 100 ? "#ff4d6d" : d.speed > 70 ? "#FFB800" : C.cyan;
+          return (
+            <div key={i} style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",
+              background: isHL ? "rgba(40,106,236,0.15)" : i%2===0 ? "rgba(0,15,40,0.5)" : "rgba(0,10,28,0.5)",
+              borderBottom:"1px solid rgba(126,251,254,0.04)",
+              border: isHL ? `1px solid ${C.blue}40` : "none" }}>
+              <div style={{ padding:"7px 8px", fontSize:9, color: isHL ? C.cyan : C.dim, fontFamily:mono, fontWeight: isHL ? 700 : 400 }}>FL{d.fl}</div>
+              <div style={{ padding:"7px 8px", fontSize:9, color:C.white, fontFamily:mono }}>{d.dir}°</div>
+              <div style={{ padding:"7px 8px", fontSize:9, color:spdCol, fontFamily:mono, fontWeight:700 }}>{d.speed}kt</div>
+              <div style={{ padding:"7px 8px", fontSize:9, color:"rgba(150,200,255,0.6)", fontFamily:mono }}>{d.temp}°C</div>
+              <div style={{ padding:"7px 6px", display:"flex", alignItems:"center", gap:3 }}>
+                {isHL && <span style={{ fontSize:7, color:C.cyan, fontFamily:mono }}>◀ CRZ</span>}
+                {d.jet && <span style={{ fontSize:7, color:"#FFB800", fontFamily:mono }}>JET</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── FULL MAPS TAB ── */
+function TabMaps({ leg }) {
+  const [mapTab, setMapTab] = useState("surface");
+  return (
+    <div style={{ paddingBottom:100 }}>
+      {/* QRH sub-tab bar — sticky below main header strip */}
+      <div style={{ position:"sticky", top:0, zIndex:15, background:"rgba(0,6,18,0.98)",
+        backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)" }}>
+        <MapTabBar active={mapTab} onChange={setMapTab}/>
+      </div>
+      <div style={{ padding:"12px 14px 0" }}>
+        {mapTab === "surface" && <MapSurface leg={leg}/>}
+        {mapTab === "radar"   && <MapRadar   leg={leg}/>}
+        {mapTab === "wind"    && <MapWind    leg={leg}/>}
+        {mapTab === "turb"    && (
+          <Glass style={{ padding:"14px" }}>
+            <TurbulenceProfile leg={leg}/>
+          </Glass>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TabAria({ leg, turbData }) {
+  const [msgs,setMsgs]=useState([
+    { role:"assistant", content:`Buenos días ☀️ Soy **ARIA**, tu copiloto IA.\n\nTengo cargado **${leg.flight} ${leg.dep}→${leg.arr}** FL${leg.cruiseFL} con toda la información del leg.\n\nPulsa **"Generar Briefing IA"** para análisis completo de METARs, NOTAMs, PIREPs, turbulencia NOAA y fatiga.` }
+  ]);
+  const [input,setInput]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [uploadedDoc,setUploadedDoc]=useState(null);
+  const bottomRef=useRef(null);
+  const fileRef=useRef(null);
+  useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs]);
+
+  const SUGGESTIONS=["Briefing completo","¿Turbulencia en ruta?","Descifra METAR llegada","Analiza alternates","¿Riesgo fatiga?"];
+
+  async function send(text) {
+    const msg=(text||input).trim(); if(!msg||loading) return;
+    setInput("");
+    const content=uploadedDoc&&!text?`${msg}\n\n[Documento piloto]:\n${uploadedDoc}`:msg;
+    const history=[...msgs,{role:"user",content}];
+    setMsgs(history); setLoading(true);
+    try {
+      const _tkn=(function(){try{return localStorage.getItem('cafi_auth_token')||'';}catch(e){return '';}})();
+      const res=await fetch('/api/chat',{
+        method:"POST", headers:{"Content-Type":"application/json","Authorization":"Bearer "+_tkn},
+        body:JSON.stringify({ messages:history.map(m=>({role:m.role,content:m.content})), logbook_context:buildAISystem(leg,turbData) }),
+      });
+      const data=await res.json();
+      const reply=data.content?.map(b=>b.text||"").join("")||(data.message?"⚠️ "+data.message:"Error.");
+      setMsgs(prev=>[...prev,{role:"assistant",content:reply}]);
+    } catch { setMsgs(prev=>[...prev,{role:"assistant",content:"⚠️ Error de conexión con ARIA."}]); }
+    setLoading(false);
+  }
+
+  function renderMd(text) {
+    return text.split("\n").map((line,i)=>(
+      <div key={i} style={{ marginBottom:line===""?6:0 }}>
+        {line.split(/(\*\*[^*]+\*\*)/).map((p,j)=>p.startsWith("**")&&p.endsWith("**")?<strong key={j} style={{ color:C.orange2 }}>{p.slice(2,-2)}</strong>:<span key={j}>{p}</span>)}
+      </div>
+    ));
+  }
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"calc(100vh - 112px)", position:"relative", zIndex:1 }}>
+      <div style={{ padding:"9px 14px 7px", background:"rgba(30,12,0,0.97)", borderBottom:`1px solid rgba(255,107,26,0.2)`, flexShrink:0 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+          <div style={{ width:38, height:38, borderRadius:11, background:`linear-gradient(135deg,#7a2e00,${C.orange})`, border:`1px solid ${C.orange}55`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, position:"relative", boxShadow:`0 0 20px ${C.glowO}` }}>
+            🤖
+            <div style={{ position:"absolute", bottom:-1, right:-1, width:9, height:9, borderRadius:"50%", background:"#4dff91", border:"2px solid rgba(30,12,0,1)", boxShadow:"0 0 5px #4dff91" }}/>
+          </div>
+          <div>
+            <div style={{ fontSize:13, fontWeight:800, color:C.white, fontFamily:mono, letterSpacing:"1px" }}>ARIA</div>
+            <div style={{ fontSize:8, color:C.orange2, fontFamily:mono }}>Aviation Route Intelligence · {leg.flight}</div>
+          </div>
+          <div style={{ marginLeft:"auto", background:"rgba(255,107,26,0.1)", border:`1px solid ${C.orange}35`, borderRadius:7, padding:"3px 8px", textAlign:"center" }}>
+            <div style={{ fontSize:7, color:C.orange, fontFamily:mono, fontWeight:700 }}>⚡ TOKENS</div>
+            <div style={{ fontSize:7, color:"rgba(255,140,66,0.6)", fontFamily:mono }}>~800/msg</div>
+          </div>
+        </div>
+        <button onClick={()=>send("Genera un briefing operacional completo de este vuelo. Descifra y analiza todos los METARs, NOTAMs, PIREPs, perfil de turbulencia NOAA, aeropuertos alternativos y cruza con mi nivel de fatiga. Incluye recomendaciones operacionales claras.")} disabled={loading} style={{ width:"100%", marginTop:8, padding:"9px 14px", background:loading?"rgba(100,40,0,0.4)":`linear-gradient(135deg,#7a3000,${C.orange})`, border:`1px solid ${C.orange}55`, borderRadius:10, cursor:loading?"default":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, boxShadow:loading?"none":`0 0 20px ${C.glowO}`, transition:"all 0.2s" }}>
+          <span style={{ fontSize:14 }}>{loading?"⏳":"✦"}</span>
+          <span style={{ fontSize:11, fontWeight:800, color:C.white, fontFamily:mono, letterSpacing:"1px" }}>{loading?"Generando briefing…":"GENERAR BRIEFING IA COMPLETO"}</span>
+          <span style={{ fontSize:8, color:"rgba(255,200,150,0.6)", fontFamily:mono }}>~800 tokens</span>
+        </button>
+      </div>
+      <div style={{ padding:"5px 14px", background:"rgba(20,8,0,0.9)", borderBottom:`1px solid rgba(255,107,26,0.1)`, display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+        <button onClick={()=>fileRef.current.click()} style={{ background:"rgba(255,107,26,0.1)", border:`1px solid ${C.orange}30`, borderRadius:7, padding:"4px 10px", color:C.orange2, fontSize:9, fontFamily:mono, cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>
+          <span>📄</span><span>Subir OPS Manual / Briefing</span>
+        </button>
+        {uploadedDoc&&<span style={{ fontSize:8, color:"#4dff91", fontFamily:mono }}>✅ Doc cargado</span>}
+        <input ref={fileRef} type="file" accept=".txt,.pdf,.md" onChange={e=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>setUploadedDoc(ev.target.result.slice(0,3000)); r.readAsText(f); }} style={{ display:"none" }}/>
+      </div>
+      <div style={{ flex:1, overflowY:"auto", padding:"10px 13px 6px" }}>
+        {msgs.map((m,i)=>(
+          <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:m.role==="user"?"flex-end":"flex-start", marginBottom:12 }}>
+            {m.role==="assistant"&&<div style={{ width:20, height:20, borderRadius:6, background:`linear-gradient(135deg,#7a3000,${C.orange})`, border:`1px solid ${C.orange}35`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, marginBottom:3 }}>🤖</div>}
+            <div style={{ maxWidth:"90%", background:m.role==="user"?`linear-gradient(135deg,rgba(100,35,0,0.5),rgba(180,60,0,0.3))`:"rgba(20,8,0,0.9)", border:m.role==="user"?`1px solid ${C.orange}35`:`1px solid rgba(255,107,26,0.12)`, borderRadius:m.role==="user"?"13px 13px 4px 13px":"4px 13px 13px 13px", padding:"10px 13px", fontSize:11, color:C.white, lineHeight:1.65, fontFamily:sans }}>
+              {renderMd(m.content)}
+            </div>
+          </div>
+        ))}
+        {loading&&<div style={{ display:"flex", alignItems:"center", gap:7, padding:"6px 2px" }}>
+          <div style={{ width:20, height:20, borderRadius:6, background:`linear-gradient(135deg,#7a3000,${C.orange})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10 }}>🤖</div>
+          <div style={{ display:"flex", gap:4 }}>{[0,1,2].map(j=><div key={j} style={{ width:6, height:6, borderRadius:"50%", background:C.orange, animation:`ap2 1.2s ease-in-out ${j*0.2}s infinite` }}/>)}</div>
+        </div>}
+        <div ref={bottomRef}/>
+      </div>
+      {msgs.length<=2&&<div style={{ padding:"3px 13px 5px", display:"flex", gap:5, overflowX:"auto", flexShrink:0 }}>
+        {SUGGESTIONS.map(s=><button key={s} onClick={()=>send(s)} style={{ background:"rgba(100,35,0,0.25)", border:`1px solid ${C.orange}30`, borderRadius:18, padding:"5px 11px", color:`${C.orange2}cc`, fontSize:9, fontFamily:sans, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0 }}>{s}</button>)}
+      </div>}
+      <div style={{ padding:"7px 13px 14px", background:"rgba(15,5,0,0.97)", borderTop:`1px solid rgba(255,107,26,0.1)`, flexShrink:0 }}>
+        <div style={{ display:"flex", gap:7, alignItems:"center" }}>
+          <div style={{ flex:1, background:"rgba(30,10,0,0.9)", border:`1px solid ${C.orange}30`, borderRadius:13, padding:"9px 13px" }}>
+            <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="Pregunta a ARIA sobre este vuelo…" style={{ background:"none", border:"none", outline:"none", color:C.white, fontSize:11, fontFamily:sans, width:"100%", caretColor:C.orange }}/>
+          </div>
+          <button onClick={()=>send()} disabled={!input.trim()||loading} style={{ width:42, height:42, borderRadius:12, background:input.trim()&&!loading?`linear-gradient(135deg,#7a3000,${C.orange})`:"rgba(100,35,0,0.2)", border:`1px solid ${C.orange}35`, cursor:input.trim()&&!loading?"pointer":"default", color:C.white, fontSize:17, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.2s", boxShadow:input.trim()&&!loading?`0 0 14px ${C.glowO}`:"none" }}>↑</button>
+        </div>
+      </div>
+      <style>{`@keyframes ap2{0%,100%{transform:translateY(0);opacity:0.35}50%{transform:translateY(-5px);opacity:1}}`}</style>
+    </div>
+  );
+}
+
+/* ════════ BOTTOM NAV ════════ */
+const MAIN_TABS = [
+  { id:"brief", icon:"✦", label:"BRIEF" },
+  { id:"meteo", icon:"◈", label:"METEO" },
+  { id:"notam", icon:"◉", label:"NOTAM" },
+  { id:"maps",  icon:"◫", label:"MAPAS" },
+  { id:"aria",  icon:"🤖", label:"ARIA IA", ai:true },
+];
+
+/* ════════ APP ROOT ════════ */
+function SkyViewPilotOS() {
+  const [tab,setTab]=useState("brief");
+  const [legIdx,setLegIdx]=useState(0);
+  const [turbData,setTurbData]=useState(null);
+  const leg=LEGS[legIdx];
+  const [tick,setTick]=useState(0);
+  useEffect(()=>{ const t=setInterval(()=>setTick(x=>x+1),1000); return ()=>clearInterval(t); },[]);
+  const now=new Date();
+  const utc=`${String(now.getUTCHours()).padStart(2,"0")}:${String(now.getUTCMinutes()).padStart(2,"0")}Z`;
+  const hasAlert=(NOTAMS_BY_LEG[leg.num]||[]).some(n=>n.sev==="danger");
+
+  return (
+    <div style={{ minHeight:"100vh", background:BG, maxWidth:430, margin:"0 auto", position:"relative", overflow:"hidden", fontFamily:sans }}>
+      <AnimatedBg/>
+      {/* Status bar */}
+      <div style={{ position:"sticky", top:0, zIndex:30, background:"rgba(0,10,28,0.95)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", borderBottom:`1px solid rgba(126,251,254,0.10)`, padding:"9px 16px 7px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+          <div style={{ width:26, height:26, borderRadius:7, background:`linear-gradient(135deg,${C.deep},${C.mid})`, border:`1px solid ${C.cyan}40`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, boxShadow:`0 0 10px ${C.glowB}` }}>◎</div>
+          <span style={{ fontSize:10, fontWeight:800, color:C.cyan, fontFamily:mono, letterSpacing:"3px" }}>SKYVIEW</span>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+          {hasAlert&&<div style={{ display:"flex", alignItems:"center", gap:4 }}><GlowDot color="#ff4d6d" size={5}/><span style={{ fontSize:7, color:"#ff4d6d", fontFamily:mono, fontWeight:700 }}>CRÍTICO</span></div>}
+          <span style={{ fontSize:8, color:C.dimmer, fontFamily:mono }}>{utc}</span>
+        </div>
+      </div>
+      {/* Leg selector */}
+      <div style={{ position:"sticky", top:42, zIndex:25 }}>
+        <LegSelector activeLeg={legIdx} onChange={idx=>{ setLegIdx(idx); setTurbData(null); }}/>
+      </div>
+      {/* DEP/ARR strip */}
+      <div style={{ position:"sticky", top:42+44, zIndex:20, background:"rgba(0,8,22,0.88)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderBottom:`1px solid rgba(126,251,254,0.07)`, padding:"6px 14px" }}>
+        <div style={{ display:"flex", alignItems:"center", background:"rgba(0,20,55,0.6)", border:`1px solid rgba(126,251,254,0.11)`, borderRadius:10, overflow:"hidden" }}>
+          <div style={{ flex:1, padding:"7px 11px", borderRight:`1px solid rgba(126,251,254,0.09)` }}>
+            <div style={{ fontSize:6, color:C.cyan, fontFamily:mono, fontWeight:700, letterSpacing:"1.5px", marginBottom:1 }}>🛫 DEP · RWY {leg.rwyDep}</div>
+            <div style={{ fontSize:15, fontWeight:900, color:C.white, fontFamily:mono }}>{leg.dep}</div>
+            <div style={{ fontSize:7, color:"#4dff91", fontFamily:mono }}>{leg.metar.cat} · {leg.metar.temp} · {leg.metar.qnh}</div>
+          </div>
+          <div style={{ padding:"0 9px", textAlign:"center" }}>
+            <div style={{ fontSize:8, color:C.cyan, fontFamily:mono, fontWeight:700 }}>{leg.flight}</div>
+            <div style={{ fontSize:14, color:C.cyan, opacity:0.7 }}>→</div>
+            <div style={{ fontSize:7, color:C.dim, fontFamily:mono }}>FL{leg.cruiseFL}</div>
+          </div>
+          <div style={{ flex:1, padding:"7px 11px", textAlign:"right", borderLeft:`1px solid rgba(126,251,254,0.09)` }}>
+            <div style={{ fontSize:6, color:C.cyan2, fontFamily:mono, fontWeight:700, letterSpacing:"1.5px", marginBottom:1 }}>RWY {leg.rwyArr} · ARR 🛬</div>
+            <div style={{ fontSize:15, fontWeight:900, color:C.white, fontFamily:mono }}>{leg.arr}</div>
+            <div style={{ fontSize:7, color:"#4dff91", fontFamily:mono }}>{leg.metarArr.cat} · {leg.metarArr.temp} · {leg.metarArr.qnh}</div>
+          </div>
+        </div>
+      </div>
+      {/* Content */}
+      <div style={{ position:"relative", zIndex:1 }}>
+        {tab==="brief"&&<TabBrief leg={leg}/>}
+        {tab==="meteo"&&<TabMeteo leg={leg}/>}
+        {tab==="notam"&&<TabNotam leg={leg}/>}
+        {tab==="maps" &&<TabMaps leg={leg}/>}
+        {tab==="aria" &&<TabAria leg={leg} turbData={turbData}/>}
+      </div>
+      {/* Bottom nav */}
+      <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:430, zIndex:30, background:"rgba(0,8,22,0.97)", borderTop:`1px solid rgba(126,251,254,0.09)`, backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", display:"flex" }}>
+        {MAIN_TABS.map(t=>{
+          const active=tab===t.id;
+          const isAI=t.ai;
+          const isTurb=t.id==="maps";
+          const activeBg=isAI?`linear-gradient(135deg,#7a3000,${C.orange})`:isTurb?`linear-gradient(135deg,rgba(255,184,0,0.2),rgba(255,107,26,0.2))`:"rgba(40,106,236,0.22)";
+          const activeBorder=isAI?`${C.orange}55`:isTurb?`rgba(255,184,0,0.5)`:`${C.blue}50`;
+          const activeColor=isAI?C.orange2:isTurb?"#FFB800":C.cyan;
+          return (
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{ flex:1, padding:"9px 3px 13px", background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
+              <div style={{ width:isAI?32:28, height:isAI?32:28, borderRadius:isAI?10:8, background:active?activeBg:"rgba(0,20,55,0.5)", border:`1px solid ${active?activeBorder:"rgba(126,251,254,0.07)"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:isAI?15:12, color:active?activeColor:C.dimmer, boxShadow:active?`0 0 16px ${isAI?C.glowO:isTurb?"rgba(255,184,0,0.2)":C.glowB}`:"none", transition:"all 0.2s" }}>{t.icon}</div>
+              <span style={{ fontSize:6, fontFamily:mono, fontWeight:700, color:active?activeColor:C.dimmer, transition:"color 0.2s" }}>{t.label}</span>
+              {active&&<div style={{ width:isAI?18:12, height:2, borderRadius:1, background:isAI?`linear-gradient(90deg,#7a3000,${C.orange})`:isTurb?"#FFB800":C.blue, marginTop:-1 }}/>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
+// ══════════ MOUNT POINT ══════════
+window.__mountSkyView = function() {
+  var rootEl = document.getElementById('skyview-react-root');
+  if (rootEl && !rootEl._swMounted) {
+    rootEl._swMounted = true;
+    ReactDOM.createRoot(rootEl).render(React.createElement(SkyViewPilotOS));
+  }
+};
+// Auto-mount if skyview already visible
+(function(){
+  if(document.getElementById('scr-skyview') &&
+     window.getComputedStyle(document.getElementById('scr-skyview')).display !== 'none'){
+    window.__mountSkyView && window.__mountSkyView();
+  }
+})();
+
+</script>
+</body></html>';
 
   try {
     var win = window.open('', '_blank');
@@ -12783,7 +14546,7 @@ var SW_CITIES=[{n:'Madrid',a:['MAD','LEMD'],lat:40.4165,lon:-3.7026,c:'España'}
 function swGeocode(q,ok,fail){var ql=q.trim().toLowerCase();var res=null;for(var i=0;i<SW_CITIES.length&&!res;i++){var c=SW_CITIES[i];if(c.n.toLowerCase()===ql)res=c;for(var j=0;j<c.a.length&&!res;j++)if(c.a[j].toLowerCase()===ql)res=c;}if(!res)for(var i=0;i<SW_CITIES.length&&!res;i++)if(SW_CITIES[i].n.toLowerCase().indexOf(ql)===0)res=SW_CITIES[i];if(!res)for(var i=0;i<SW_CITIES.length&&!res;i++)if(SW_CITIES[i].n.toLowerCase().indexOf(ql)>=0)res=SW_CITIES[i];if(res){ok(res.lat,res.lon,res.n+', '+res.c);return;}var xhr=new XMLHttpRequest();xhr.open('GET','https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(q)+'&count=1&language=es&format=json',true);xhr.timeout=6000;xhr.onload=function(){try{var d=JSON.parse(xhr.responseText);if(d.results&&d.results.length){var r=d.results[0];ok(r.latitude,r.longitude,r.name+(r.country?', '+r.country:''));}else fail('Ciudad no encontrada');}catch(e){fail('Ciudad no encontrada');}};xhr.onerror=xhr.ontimeout=function(){fail('Ciudad no encontrada');};xhr.send();}
 window.swSearch=function(){var q=document.getElementById('sw-city-inp').value.trim();if(!q)return;document.getElementById('sw-loading').style.display='flex';document.getElementById('sw-loading').innerHTML='<div class="sw-spin"></div><div style="font-size:14px;opacity:.7">Buscando…</div>';document.getElementById('sw-content').style.display='none';swGeocode(q,function(lat,lon,label){swFetch(lat,lon,label);},function(msg){document.getElementById('sw-loading').style.display='flex';document.getElementById('sw-loading').innerHTML='<div style="color:#fbbf24;font-size:14px">'+msg+'.<br>Prueba con otra ciudad.</div>';});};
 function swRender(d,city,lat,lon){try{var cur=d.current||{},daily=d.daily||{},hourly=d.hourly||{};var code=cur.weather_code||0,temp=Math.round(cur.temperature_2m||18),windKt=Math.round(cur.wind_speed_10m||0),windDir=cur.wind_direction_10m||0,pressure=Math.round(cur.surface_pressure||1013),hum=Math.round(cur.relative_humidity_2m||50);var hi=Math.round((daily.temperature_2m_max||[temp+4])[0]),lo=Math.round((daily.temperature_2m_min||[temp-4])[0]);var nowH=new Date().getHours(),isNight=(nowH>=21||nowH<6);var grads=skyGradient(code,isNight);var hero=document.getElementById('sw-hero');if(hero)hero.style.background='linear-gradient(180deg,'+grads[0]+' 0%,'+grads[1]+' 55%,'+grads[2]+' 100%)';document.getElementById('sw-city-name').textContent=city;document.getElementById('sw-temp').textContent=temp+'°';document.getElementById('sw-cond-txt').textContent=wmoInfo(code).d;document.getElementById('sw-hi').textContent=hi;document.getElementById('sw-lo').textContent=lo;var pop0=(daily.precipitation_probability_max||[0])[0]||0;document.getElementById('sw-summary').textContent=wmoInfo(code).d+' con temperaturas entre '+lo+'° y '+hi+'°. '+(pop0>20?'Prob. precipitación: '+pop0+'%. ':'')+' Viento '+swDegToCard(windDir)+' a '+windKt+' kt.';var htimes=hourly.time||[],htemps=hourly.temperature_2m||[],hcodes=hourly.weather_code||[],hpops=hourly.precipitation_probability||[];var nowStr=new Date().toISOString().slice(0,13);var nowIdx=0;for(var i=0;i<htimes.length;i++){if(htimes[i].slice(0,13)<=nowStr)nowIdx=i;}var hourlyHTML='';for(var h=0;h<12;h++){var idx=nowIdx+h;if(idx>=htimes.length)break;var hlabel=h===0?'Ahora':htimes[idx].slice(11,16);var hpop=hpops[idx]||0;hourlyHTML+='<div class="sw-hour-item"><div class="sw-hour-label">'+hlabel+'</div><div class="sw-hour-icon">'+wmoInfo(hcodes[idx]||0).e+'</div>'+(hpop>15?'<div class="sw-hour-pop">'+hpop+'%</div>':'<div style="height:16px"></div>')+'<div class="sw-hour-temp">'+Math.round(htemps[idx]||temp)+'°</div></div>';}document.getElementById('sw-hourly').innerHTML=hourlyHTML;startScene(code,isNight,windKt);document.getElementById('sw-loading').style.display='none';document.getElementById('sw-content').style.display='block';}catch(err){document.getElementById('sw-loading').style.display='flex';document.getElementById('sw-loading').innerHTML='<div style="color:#f87171;font-size:13px;text-align:center">Error al renderizar.<br><small style="opacity:.6">'+err.message+'</small></div>';}}
-var swInited=false;var _origGoTo=window.goTo;window.goTo=function(key){if(_origGoTo)_origGoTo(key);if(key==='skyview'&&!swInited){swInited=true;document.getElementById('sw-city-inp').value='Barcelona';swFetch(41.3888,2.1590,'Barcelona');}};
+var swInited=false;var _origGoTo=window.goTo;window.goTo=function(key){if(_origGoTo)_origGoTo(key);if(key==='skyview'&&!swInited){swInited=true;if(window.__mountSkyView)window.__mountSkyView();}};
 window.swShowFlightEditor=function(){document.getElementById('sw-roster-prompt').style.display='none';var ed=document.getElementById('sw-edit-flight');ed.style.display='block';['fp-dep','fp-arr'].forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener('input',function(){this.value=this.value.toUpperCase();});});};
 })();
 
