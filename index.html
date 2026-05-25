@@ -19249,9 +19249,18 @@ function parseMetarObj(m) {
   };
 }
 
+function _wxUrl() {
+  try { return localStorage.getItem('cafi_backend_url') || 'https://happy-ambition-production-75eb.up.railway.app'; }
+  catch(e) { return 'https://happy-ambition-production-75eb.up.railway.app'; }
+}
+function _wxHdr() {
+  try { const t = localStorage.getItem('cafi_auth_token'); return t ? { 'Authorization': 'Bearer ' + t } : {}; }
+  catch(e) { return {}; }
+}
+
 async function fetchLiveMetar(icao) {
   try {
-    const r = await fetch('https://aviationweather.gov/api/data/metar?ids=' + icao + '&format=json&hours=2');
+    const r = await fetch(_wxUrl() + '/api/wx/metar/' + icao, { headers: _wxHdr() });
     if (!r.ok) return null;
     const d = await r.json();
     return parseMetarObj(d && d[0]);
@@ -19260,7 +19269,7 @@ async function fetchLiveMetar(icao) {
 
 async function fetchLiveTaf(icao) {
   try {
-    const r = await fetch('https://aviationweather.gov/api/data/taf?ids=' + icao + '&format=json');
+    const r = await fetch(_wxUrl() + '/api/wx/taf/' + icao, { headers: _wxHdr() });
     if (!r.ok) return '';
     const d = await r.json();
     return (d && d[0] && d[0].rawTAF) || '';
@@ -19269,7 +19278,7 @@ async function fetchLiveTaf(icao) {
 
 async function fetchLiveNotams(icao) {
   try {
-    const r = await fetch('https://aviationweather.gov/api/data/notam?icaos=' + icao + '&format=json');
+    const r = await fetch(_wxUrl() + '/api/wx/notam/' + icao, { headers: _wxHdr() });
     if (!r.ok) return [];
     const d = await r.json();
     return (Array.isArray(d) ? d : []).slice(0, 10).map(n => ({
