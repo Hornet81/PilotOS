@@ -22495,28 +22495,63 @@ function TabNotam(_ref32) {
     setCollapsed(prev => Object.assign({}, prev, { [key]: !prev[key] }));
   }
 
+  // Temporal classification: 'flight' | 'next24' | 'perm' | null(expired)
+  function classifyNotam(n) {
+    if (!n.timeStart) return 'flight'; // conservative: no time = assume active
+    const s = new Date(n.timeStart);
+    const e = n.timeEnd ? new Date(n.timeEnd) : null;
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    let fStart, fEnd;
+    const std = (leg.std && leg.std !== 'null') ? leg.std : null;
+    const sta = (leg.sta && leg.sta !== 'null') ? leg.sta : null;
+    if (std) {
+      fStart = new Date(today + 'T' + std + ':00Z');
+      fStart.setMinutes(fStart.getMinutes() - 30);
+    } else {
+      fStart = new Date(now.getTime() - 30 * 60000);
+    }
+    if (sta) {
+      fEnd = new Date(today + 'T' + sta + ':00Z');
+      fEnd.setMinutes(fEnd.getMinutes() + 30);
+      if (fEnd < fStart) fEnd = new Date(fEnd.getTime() + 86400000); // next day
+    } else {
+      fEnd = new Date(fStart.getTime() + 5 * 3600000);
+    }
+    if (!e) return 'perm';
+    if (e < now) return null; // expired
+    if (s <= fEnd && e >= fStart) return 'flight';
+    return 'next24';
+  }
+
   const depNotams = allNotams.filter(n => apOf(n) === _depIcao);
   const arrNotams = allNotams.filter(n => apOf(n) !== _depIcao);
   const activeNotams = activeAp === 'dep' ? depNotams : arrNotams;
   const activeIcao   = activeAp === 'dep' ? _depIcao : _arrIcao;
 
-  const groups = [
-    { key:'danger',  label:'CRÍTICO', color:'#ff4d6d', glow:'rgba(255,77,109,0.10)',  items: activeNotams.filter(n => n.sev==='danger')  },
-    { key:'warning', label:'AVISO',   color:'#FFB800', glow:'rgba(255,184,0,0.09)',   items: activeNotams.filter(n => n.sev==='warning') },
-    { key:'info',    label:'INFO',    color:'#286AEC', glow:'rgba(40,106,236,0.09)',  items: activeNotams.filter(n => n.sev==='info')    },
-  ].filter(g => g.items.length > 0);
+  const flightNs = activeNotams.filter(n => classifyNotam(n) === 'flight');
+  const next24Ns = activeNotams.filter(n => classifyNotam(n) === 'next24');
+  const permNs   = activeNotams.filter(n => classifyNotam(n) === 'perm');
+
+  // Per-airport counts: severity of flight NOTAMs + count of +24h for tabs
+  function apCounts(ns) {
+    const f   = ns.filter(n => classifyNotam(n) === 'flight');
+    const n24 = ns.filter(n => classifyNotam(n) === 'next24').length;
+    return { f: sevCount(f), n24 };
+  }
 
   const tabData = [
-    { key:'dep', icao:_depIcao, label:'DEP', notams:depNotams },
-    { key:'arr', icao:_arrIcao, label:'ARR', notams:arrNotams },
+    { key:'dep', icao:_depIcao, label:'DEP', notams:depNotams, counts: apCounts(depNotams) },
+    { key:'arr', icao:_arrIcao, label:'ARR', notams:arrNotams, counts: apCounts(arrNotams) },
   ];
 
-  // ── Airport tabs ──────────────────────────────────────────────
+  // Airport tabs
   const apTabsEl = React.createElement("div", { style:{ display:'flex', gap:8, marginBottom:12 } },
     tabData.map(tab => {
-      const c   = sevCount(tab.notams);
+      const fc  = tab.counts.f;
+      const n24 = tab.counts.n24;
       const isA = activeAp === tab.key;
-      const top = c.d > 0 ? '#ff4d6d' : c.w > 0 ? '#FFB800' : '#286AEC';
+      const top = fc.d > 0 ? '#ff4d6d' : fc.w > 0 ? '#FFB800' : n24 > 0 ? '#8899cc' : '#286AEC';
       return React.createElement("div", {
         key: tab.key,
         onClick: () => setActiveAp(tab.key),
@@ -22534,48 +22569,119 @@ function TabNotam(_ref32) {
           React.createElement("span", { style:{ fontSize:14, fontWeight:900, color: isA ? C.white : C.dim, fontFamily:mono, letterSpacing:'0.5px' } }, tab.icao)
         ),
         React.createElement("div", { style:{ display:'flex', gap:4, flexWrap:'wrap' } },
-          c.d > 0 && React.createElement("span", { style:{ background:'#ff4d6d18', border:'1px solid #ff4d6d38', color:'#ff4d6d', borderRadius:4, padding:'1px 6px', fontSize:7.5, fontWeight:700, fontFamily:mono } }, c.d + ' CRIT'),
-          c.w > 0 && React.createElement("span", { style:{ background:'#FFB80018', border:'1px solid #FFB80038', color:'#FFB800', borderRadius:4, padding:'1px 6px', fontSize:7.5, fontWeight:700, fontFamily:mono } }, c.w + ' AVISO'),
-          c.i > 0 && React.createElement("span", { style:{ background:'#286AEC18', border:'1px solid #286AEC38', color:'#286AEC', borderRadius:4, padding:'1px 6px', fontSize:7.5, fontWeight:700, fontFamily:mono } }, c.i + ' INFO'),
+          fc.d > 0 && React.createElement("span", { style:{ background:'#ff4d6d18', border:'1px solid #ff4d6d38', color:'#ff4d6d', borderRadius:4, padding:'1px 6px', fontSize:7.5, fontWeight:700, fontFamily:mono } }, fc.d + ' CRIT'),
+          fc.w > 0 && React.createElement("span", { style:{ background:'#FFB80018', border:'1px solid #FFB80038', color:'#FFB800', borderRadius:4, padding:'1px 6px', fontSize:7.5, fontWeight:700, fontFamily:mono } }, fc.w + ' AVISO'),
+          fc.i > 0 && React.createElement("span", { style:{ background:'#286AEC18', border:'1px solid #286AEC38', color:'#286AEC', borderRadius:4, padding:'1px 6px', fontSize:7.5, fontWeight:700, fontFamily:mono } }, fc.i + ' INFO'),
+          n24 > 0 && React.createElement("span", { style:{ background:'rgba(100,120,160,0.12)', border:'1px solid rgba(100,120,160,0.25)', color:'#8899bb', borderRadius:4, padding:'1px 6px', fontSize:7.5, fontWeight:700, fontFamily:mono } }, n24 + ' +24H'),
           tab.notams.length === 0 && React.createElement("span", { style:{ color:C.dimmer, fontSize:8, fontFamily:mono } }, 'Sin NOTAMs')
         )
       );
     })
   );
 
-  // ── Grouped sections ──────────────────────────────────────────
-  const sectionsEl = groups.length === 0
+  // Render severity sub-groups inside a temporal section
+  function renderSevGroups(ns, keyPfx) {
+    const gs = [
+      { key: keyPfx+'_d', label:'CRITICO', color:'#ff4d6d', glow:'rgba(255,77,109,0.10)',  items: ns.filter(n => n.sev==='danger')  },
+      { key: keyPfx+'_w', label:'AVISO',   color:'#FFB800', glow:'rgba(255,184,0,0.09)',   items: ns.filter(n => n.sev==='warning') },
+      { key: keyPfx+'_i', label:'INFO',    color:'#286AEC', glow:'rgba(40,106,236,0.09)',  items: ns.filter(n => n.sev==='info')    },
+    ].filter(g => g.items.length > 0);
+    if (!gs.length) return React.createElement("div", {
+      style:{ textAlign:'center', padding:'10px 0', color:C.dimmer, fontFamily:mono, fontSize:8 }
+    }, '✅ Sin NOTAMs');
+    return gs.map(g => React.createElement("div", { key:g.key, style:{ marginBottom:5 } },
+      React.createElement("div", {
+        onClick: () => toggleCollapse(g.key),
+        style:{
+          display:'flex', alignItems:'center', gap:9, padding:'6px 10px',
+          background: g.glow, border:'1px solid ' + g.color + '28',
+          borderLeft:'3px solid ' + g.color,
+          borderRadius: collapsed[g.key] ? 6 : '6px 6px 0 0',
+          cursor:'pointer', userSelect:'none',
+        }
+      },
+        React.createElement("span", { style:{ fontSize:14, fontWeight:900, color:g.color, fontFamily:mono, minWidth:14, textAlign:'center', textShadow:'0 0 8px '+g.color } }, g.items.length),
+        React.createElement("span", { style:{ fontSize:8, fontWeight:700, color:g.color, fontFamily:mono, letterSpacing:'1.5px', flex:1 } }, g.label),
+        React.createElement("span", { style:{ fontSize:8, color:g.color+'80', fontFamily:mono } }, g.items.length === 1 ? '1 notam' : g.items.length + ' notams'),
+        React.createElement("span", { style:{ color:g.color+'bb', fontSize:14, transform: collapsed[g.key] ? 'none' : 'rotate(90deg)', transition:'0.18s' } }, '›')
+      ),
+      !collapsed[g.key] && React.createElement("div", {
+        style:{ border:'1px solid '+g.color+'15', borderTop:'none', borderRadius:'0 0 6px 6px', overflow:'hidden' }
+      },
+        g.items.map(n => React.createElement(NotamCard, {
+          key: n.id, n: n,
+          expanded: expanded === n.id,
+          onToggle: () => setExpanded(expanded === n.id ? null : n.id)
+        }))
+      )
+    ));
+  }
+
+  // Temporal sections
+  const sectionsEl = activeNotams.length === 0
     ? React.createElement("div", { style:{ textAlign:'center', padding:'28px 16px', color:C.dimmer, fontFamily:mono, fontSize:9, background:'rgba(0,12,35,0.4)', borderRadius:10, border:'1px solid rgba(126,251,254,0.06)' } },
         React.createElement("div", { style:{ fontSize:22, marginBottom:6 } }, '✅'),
         'Sin NOTAMs activos para ' + activeIcao
       )
-    : groups.map(g => React.createElement("div", { key:g.key, style:{ marginBottom:8 } },
-        React.createElement("div", {
-          onClick: () => toggleCollapse(g.key),
-          style:{
-            display:'flex', alignItems:'center', gap:9, padding:'7px 12px',
-            background: g.glow,
-            border:'1px solid ' + g.color + '28',
-            borderLeft:'3px solid ' + g.color,
-            borderRadius: collapsed[g.key] ? 8 : '8px 8px 0 0',
-            cursor:'pointer', userSelect:'none',
-          }
-        },
-          React.createElement("span", { style:{ fontSize:16, fontWeight:900, color:g.color, fontFamily:mono, minWidth:16, textAlign:'center', textShadow:'0 0 8px ' + g.color } }, g.items.length),
-          React.createElement("span", { style:{ fontSize:8, fontWeight:700, color:g.color, fontFamily:mono, letterSpacing:'1.5px', flex:1 } }, g.label),
-          React.createElement("span", { style:{ fontSize:8, color:g.color + '80', fontFamily:mono } }, g.items.length === 1 ? '1 notam' : g.items.length + ' notams'),
-          React.createElement("span", { style:{ color:g.color + 'bb', fontSize:14, transform: collapsed[g.key] ? 'none' : 'rotate(90deg)', transition:'0.18s' } }, '›')
+    : React.createElement(React.Fragment, null,
+
+        React.createElement("div", { style:{ marginBottom:10 } },
+          React.createElement("div", {
+            onClick: () => toggleCollapse('sec_flight'),
+            style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px 8px 10px',
+              background:'rgba(40,106,236,0.08)', border:'1px solid rgba(40,106,236,0.22)',
+              borderLeft:'3px solid #286AEC',
+              borderRadius: collapsed['sec_flight'] ? 8 : '8px 8px 0 0',
+              cursor:'pointer', userSelect:'none' }
+          },
+            React.createElement("span", { style:{ fontSize:15 } }, '✈️'),
+            React.createElement("span", { style:{ fontSize:8, fontWeight:700, color:'#7efbfe', fontFamily:mono, letterSpacing:'1.5px', flex:1 } }, 'AFECTAN AL VUELO'),
+            flightNs.length > 0 && React.createElement("span", { style:{ fontSize:9, fontWeight:800, color:'#7efbfe', fontFamily:mono, background:'rgba(40,106,236,0.18)', padding:'1px 7px', borderRadius:4 } }, flightNs.length),
+            React.createElement("span", { style:{ color:'#286AECbb', fontSize:14, marginLeft:4, transform: collapsed['sec_flight'] ? 'none' : 'rotate(90deg)', transition:'0.18s' } }, '›')
+          ),
+          !collapsed['sec_flight'] && React.createElement("div", {
+            style:{ border:'1px solid rgba(40,106,236,0.14)', borderTop:'none', borderRadius:'0 0 8px 8px', padding:'8px 8px 4px' }
+          }, renderSevGroups(flightNs, 'f'))
         ),
-        !collapsed[g.key] && React.createElement("div", {
-          style:{ border:'1px solid ' + g.color + '15', borderTop:'none', borderRadius:'0 0 8px 8px', overflow:'hidden' }
-        },
-          g.items.map(n => React.createElement(NotamCard, {
-            key: n.id, n: n,
-            expanded: expanded === n.id,
-            onToggle: () => setExpanded(expanded === n.id ? null : n.id)
-          }))
+
+        next24Ns.length > 0 && React.createElement("div", { style:{ marginBottom:10 } },
+          React.createElement("div", {
+            onClick: () => toggleCollapse('sec_24h'),
+            style:{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px 8px 10px',
+              background:'rgba(100,120,160,0.07)', border:'1px solid rgba(100,120,160,0.20)',
+              borderLeft:'3px solid #8899bb',
+              borderRadius: collapsed['sec_24h'] ? 8 : '8px 8px 0 0',
+              cursor:'pointer', userSelect:'none' }
+          },
+            React.createElement("span", { style:{ fontSize:15 } }, '⏰'),
+            React.createElement("span", { style:{ fontSize:8, fontWeight:700, color:'#aabbcc', fontFamily:mono, letterSpacing:'1.5px', flex:1 } }, 'PRÓXIMAS 24H'),
+            React.createElement("span", { style:{ fontSize:9, fontWeight:800, color:'#8899bb', fontFamily:mono, background:'rgba(100,120,160,0.18)', padding:'1px 7px', borderRadius:4 } }, next24Ns.length),
+            React.createElement("span", { style:{ color:'#8899bbbb', fontSize:14, marginLeft:4, transform: collapsed['sec_24h'] ? 'none' : 'rotate(90deg)', transition:'0.18s' } }, '›')
+          ),
+          !collapsed['sec_24h'] && React.createElement("div", {
+            style:{ border:'1px solid rgba(100,120,160,0.13)', borderTop:'none', borderRadius:'0 0 8px 8px', padding:'8px 8px 4px', opacity:0.88 }
+          }, renderSevGroups(next24Ns, 'n'))
+        ),
+
+        permNs.length > 0 && React.createElement("div", { style:{ marginBottom:10 } },
+          React.createElement("div", {
+            onClick: () => toggleCollapse('sec_perm'),
+            style:{ display:'flex', alignItems:'center', gap:8, padding:'7px 12px 7px 10px',
+              background:'rgba(60,70,90,0.08)', border:'1px solid rgba(60,70,90,0.20)',
+              borderLeft:'3px solid #667788',
+              borderRadius: collapsed['sec_perm'] ? 8 : '8px 8px 0 0',
+              cursor:'pointer', userSelect:'none' }
+          },
+            React.createElement("span", { style:{ fontSize:14 } }, '∞'),
+            React.createElement("span", { style:{ fontSize:8, fontWeight:700, color:'#889aaa', fontFamily:mono, letterSpacing:'1.5px', flex:1 } }, 'PERMANENTES'),
+            React.createElement("span", { style:{ fontSize:9, fontWeight:800, color:'#667788', fontFamily:mono, background:'rgba(60,70,90,0.18)', padding:'1px 7px', borderRadius:4 } }, permNs.length),
+            React.createElement("span", { style:{ color:'#667788bb', fontSize:14, marginLeft:4, transform: collapsed['sec_perm'] ? 'none' : 'rotate(90deg)', transition:'0.18s' } }, '›')
+          ),
+          !collapsed['sec_perm'] && React.createElement("div", {
+            style:{ border:'1px solid rgba(60,70,90,0.15)', borderTop:'none', borderRadius:'0 0 8px 8px', padding:'8px 8px 4px', opacity:0.78 }
+          }, renderSevGroups(permNs, 'p'))
         )
-      ));
+      );
 
   return React.createElement("div", { style: { padding: "12px 14px 100px" } },
     apTabsEl,
