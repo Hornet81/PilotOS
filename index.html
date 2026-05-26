@@ -10335,33 +10335,30 @@ function ldFillOCR(d){
 // ══════════════════════════════════════════════════
 window._ldDelayCodes = [];
 
-(function ldLoadDelayCodes(){
+function ldLoadDelayCodes(){
   var CACHE_KEY = 'ld_delay_codes_cache';
-  var CACHE_TTL = 24 * 60 * 60 * 1000; // 24 h
+  var CACHE_TTL = 24 * 60 * 60 * 1000;
   try {
     var cached = JSON.parse(localStorage.getItem(CACHE_KEY)||'null');
     if(cached && cached.ts && Date.now()-cached.ts < CACHE_TTL && Array.isArray(cached.data) && cached.data.length>0){
       window._ldDelayCodes = cached.data; return;
     }
   } catch(e){}
-  // Fetch from server (non-blocking)
-  var tok = lsGet('cafi_auth_token','');
-  if(!tok) {
-    // Retry once the user logs in
-    setTimeout(function(){
-      if(!window._ldDelayCodes.length) ldLoadDelayCodes();
-    }, 3000);
-    return;
-  }
-  fetch('/api/delay-codes',{headers:{'Authorization':'Bearer '+tok}})
+  var tok = ''; try{ tok = lsGet('cafi_auth_token',''); }catch(e){}
+  if(!tok){ setTimeout(ldLoadDelayCodes, 3000); return; }
+  var baseUrl = ''; try{ baseUrl = lsGet('cafi_backend_url','https://happy-ambition-production-75eb.up.railway.app'); }catch(e){ baseUrl='https://happy-ambition-production-75eb.up.railway.app'; }
+  fetch(baseUrl + '/api/delay-codes', { headers:{ 'Authorization':'Bearer '+tok } })
     .then(function(r){ return r.json(); })
     .then(function(d){
       if(d && Array.isArray(d.codes) && d.codes.length>0){
         window._ldDelayCodes = d.codes;
         try{ localStorage.setItem(CACHE_KEY, JSON.stringify({ts:Date.now(),data:d.codes})); }catch(e){}
       }
-    }).catch(function(){});
-})();
+    }).catch(function(e){ console.warn('[delay-codes]',e.message); });
+}
+// Clear stale cache and reload fresh
+try{ localStorage.removeItem('ld_delay_codes_cache'); }catch(e){}
+ldLoadDelayCodes();
 
 // ── Resolve a code string like "61" or "61A" ──
 function ldResolveCode(raw){
