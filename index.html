@@ -2076,13 +2076,14 @@ select.ld-fi { appearance:none; -webkit-appearance:none; cursor:pointer; }
 .ldm-inp-center { text-align:center; }
 /* Delay field color states */
 .ldm-inp.delay-warn { color:#F59E0B !important; border-color:rgba(245,158,11,.4) !important; font-weight:600; }
-.ldm-inp.delay-err  { color:#EF4444 !important; border-color:rgba(239,68,68,.4)  !important; font-weight:600; }
+.ldm-inp.delay-err  { color:#F97316 !important; border-color:rgba(249,115,22,.4) !important; font-weight:600; }
+.ldm-inp.seq-error  { color:#EF4444 !important; border-color:rgba(239,68,68,.5)  !important; font-weight:600; box-shadow:0 0 0 2px rgba(239,68,68,.1) !important; }
 /* ─────────────────── DELAY PANEL ─────────────────── */
 @keyframes ldDelayIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
 .ldm-delay-wrap { border-radius:16px;overflow:hidden;animation:ldDelayIn .22s cubic-bezier(.4,0,.2,1); }
 .ldm-delay-hdr {
   display:flex;align-items:center;gap:10px;padding:11px 14px;
-  background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.22);
+  background:rgba(249,115,22,.07);border:1px solid rgba(249,115,22,.22);
   border-radius:16px 16px 0 0;
 }
 .ldm-delay-hdr.cota {
@@ -2090,7 +2091,7 @@ select.ld-fi { appearance:none; -webkit-appearance:none; cursor:pointer; }
 }
 .ldm-delay-min-big {
   font-family:'DM Mono','Space Mono',monospace;font-size:22px;font-weight:700;
-  color:#EF4444;letter-spacing:-1px;line-height:1;
+  color:#F97316;letter-spacing:-1px;line-height:1;
 }
 .ldm-delay-min-big.cota { color:#F59E0B; }
 .ldm-delay-sublbl {
@@ -2101,7 +2102,7 @@ select.ld-fi { appearance:none; -webkit-appearance:none; cursor:pointer; }
 .ldm-cota-pill {
   font-size:9px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;
   padding:3px 9px;border-radius:20px;white-space:nowrap;
-  background:rgba(239,68,68,.13);color:rgba(239,68,68,.9);border:1px solid rgba(239,68,68,.25);
+  background:rgba(249,115,22,.13);color:rgba(249,115,22,.9);border:1px solid rgba(249,115,22,.25);
 }
 .ldm-cota-pill.in {
   background:rgba(245,158,11,.13);color:rgba(245,158,11,.9);border-color:rgba(245,158,11,.25);
@@ -2112,7 +2113,7 @@ select.ld-fi { appearance:none; -webkit-appearance:none; cursor:pointer; }
 }
 .ldm-delay-body {
   padding:10px 12px 12px;
-  background:rgba(239,68,68,.03);border:1px solid rgba(239,68,68,.14);
+  background:rgba(249,115,22,.03);border:1px solid rgba(249,115,22,.14);
   border-top:none;border-radius:0 0 16px 16px;
 }
 .ldm-delay-body.cota {
@@ -7308,33 +7309,33 @@ window.addEventListener('online', function(){
         <div class="ldm-row2 ldm-sched-row" style="margin-bottom:6px">
           <div class="ldm-fg">
             <label class="ldm-lbl">SCHED OUT <span class="ldm-tag ldm-tag-sched">STD</span></label>
-            <input class="ldm-inp" type="time" id="ld_sched_out" oninput="ldCheckDelay()" onchange="ldCheckDelay()">
+            <input class="ldm-inp" type="time" id="ld_sched_out" oninput="ldCheckDelay();ldValidateSequence()" onchange="ldCheckDelay();ldValidateSequence()">
           </div>
           <div class="ldm-fg">
             <label class="ldm-lbl">SCHED IN <span class="ldm-tag ldm-tag-sched">STA</span></label>
-            <input class="ldm-inp" type="time" id="ld_sched_in">
+            <input class="ldm-inp" type="time" id="ld_sched_in" oninput="ldValidateSequence()" onchange="ldValidateSequence()">
           </div>
         </div>
         <!-- Fila 2: OUT (Blocks Off) + OFF (Takeoff) -->
         <div class="ldm-row2">
           <div class="ldm-fg">
             <label class="ldm-lbl">OUT <span class="ldm-tag ldm-tag-act">Blocks Off</span></label>
-            <input class="ldm-inp" type="time" id="ld_atd" oninput="ldAutoBlock();ldUpdateDayBadges();ldCheckDelay()" onchange="ldAutoBlock();ldUpdateDayBadges();ldCheckDelay()">
+            <input class="ldm-inp" type="time" id="ld_atd" oninput="ldAutoBlock();ldUpdateDayBadges();ldCheckDelay();ldValidateSequence()" onchange="ldAutoBlock();ldUpdateDayBadges();ldCheckDelay();ldValidateSequence()">
           </div>
           <div class="ldm-fg">
             <label class="ldm-lbl">OFF <span class="ldm-tag ldm-tag-off">Takeoff</span><span id="ld_std_p1" class="ldm-p1" style="display:none">+1</span></label>
-            <input class="ldm-inp" type="time" id="ld_std" oninput="ldAutoFlightTime();ldUpdateDayBadges()" onchange="ldAutoFlightTime();ldUpdateDayBadges()">
+            <input class="ldm-inp" type="time" id="ld_std" oninput="ldAutoFlightTime();ldUpdateDayBadges();ldValidateSequence()" onchange="ldAutoFlightTime();ldUpdateDayBadges();ldValidateSequence()">
           </div>
         </div>
         <!-- Fila 3: IN (Blocks ON) + ON (Landing) -->
         <div class="ldm-row2">
           <div class="ldm-fg">
             <label class="ldm-lbl">IN <span class="ldm-tag ldm-tag-act">Blocks ON</span><span id="ld_ata_p1" class="ldm-p1" style="display:none">+1</span></label>
-            <input class="ldm-inp" type="time" id="ld_ata" oninput="ldAutoBlock();ldUpdateDayBadges()" onchange="ldAutoBlock();ldUpdateDayBadges()">
+            <input class="ldm-inp" type="time" id="ld_ata" oninput="ldAutoBlock();ldUpdateDayBadges();ldValidateSequence()" onchange="ldAutoBlock();ldUpdateDayBadges();ldValidateSequence()">
           </div>
           <div class="ldm-fg">
             <label class="ldm-lbl">ON <span class="ldm-tag ldm-tag-off">Landing</span><span id="ld_sta_p1" class="ldm-p1" style="display:none">+1</span></label>
-            <input class="ldm-inp" type="time" id="ld_sta" oninput="ldAutoFlightTime();ldUpdateDayBadges()" onchange="ldAutoFlightTime();ldUpdateDayBadges()">
+            <input class="ldm-inp" type="time" id="ld_sta" oninput="ldAutoFlightTime();ldUpdateDayBadges();ldValidateSequence()" onchange="ldAutoFlightTime();ldUpdateDayBadges();ldValidateSequence()">
           </div>
         </div>
         <!-- Block Time + Flight Time row -->
@@ -10232,6 +10233,8 @@ function ldResetForm(){
   var de=document.getElementById('ld_delay_entries'); if(de) de.innerHTML='';
   var dr=document.getElementById('ld_delay_remain'); if(dr) dr.style.display='none';
   var atdEl=document.getElementById('ld_atd'); if(atdEl) atdEl.classList.remove('delay-warn','delay-err');
+  // Clear sequence errors
+  if(typeof ldSeqClearAll === 'function') ldSeqClearAll();
 }
 
 // Upload
@@ -10652,6 +10655,45 @@ function ldUpdateDelayRemain(total){
   }
 }
 
+// ══════════════════════════════════════════════════
+//  SEQUENCE VALIDATION — orden lógico de tiempos
+// ══════════════════════════════════════════════════
+var _ldSeqPairs = [
+  { a:'ld_sched_out', b:'ld_sched_in', label:'SCHED IN no puede ser anterior a SCHED OUT' },
+  { a:'ld_atd',       b:'ld_std',      label:'OFF (Takeoff) no puede ser anterior a OUT (Blocks Off)' },
+  { a:'ld_std',       b:'ld_sta',      label:'ON (Landing) no puede ser anterior a OFF (Takeoff)' },
+  { a:'ld_sta',       b:'ld_ata',      label:'IN (Blocks ON) no puede ser anterior a ON (Landing)' }
+];
+
+function ldSeqT2m(t){ if(!t) return null; var p=t.split(':'); return parseInt(p[0])*60+parseInt(p[1]); }
+
+function ldValidateSequence(){
+  // Returns array of error strings (empty = all good)
+  var errors = [];
+  _ldSeqPairs.forEach(function(pair){
+    var elA = document.getElementById(pair.a);
+    var elB = document.getElementById(pair.b);
+    if(!elA||!elB) return;
+    elB.classList.remove('seq-error');
+    if(!elA.value||!elB.value) return;
+    var mA = ldSeqT2m(elA.value), mB = ldSeqT2m(elB.value);
+    var diff = mB - mA;
+    if(diff < -120) diff += 1440; // midnight crossover
+    if(diff <= 0){
+      elB.classList.add('seq-error');
+      errors.push(pair.label);
+    }
+  });
+  return errors;
+}
+
+function ldSeqClearAll(){
+  _ldSeqPairs.forEach(function(pair){
+    var el = document.getElementById(pair.b);
+    if(el) el.classList.remove('seq-error');
+  });
+}
+
 // Auto block
 function ldAutoBlock(){
   var atd=document.getElementById('ld_atd').value, ata=document.getElementById('ld_ata').value;
@@ -10707,6 +10749,11 @@ function ldSave(){
   var n=function(id){var _e=document.getElementById(id);return parseInt(_e?_e.value:'0');};
   if(!g('ld_date')||!g('ld_dep')||!g('ld_arr')||!g('ld_block')){showToast('Fecha, ruta y block time son obligatorios','error');return;}
   if(!g('ld_atd')||!g('ld_ata')){showToast('OUT (Blocks Off) e IN (Blocks ON) son obligatorios','error');return;}
+  // Sequence validation (midnight-crossover aware)
+  var seqErrors = ldValidateSequence();
+  if(seqErrors.length){ showToast('⚠ ' + seqErrors[0], 'error'); return; }
+  // Close action menu if open
+  if(typeof ldCloseMenu === 'function') ldCloseMenu();
 
   // ── Plan limit: Free max 25 entradas ──
   var realCount = ldRealEntryCount();
