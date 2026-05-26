@@ -2200,6 +2200,18 @@ select.ld-fi { appearance:none; -webkit-appearance:none; cursor:pointer; }
   padding:12px 14px;font-family:'Space Grotesk',sans-serif;font-size:12px;
   color:rgba(248,250,252,.25);text-align:center;
 }
+/* Delay entry wrapper — code+mins row + resolved label below */
+.ldm-delay-entry-wrap { margin-bottom:8px; animation:ldDelayIn .18s ease; }
+.ldm-delay-entry-wrap:last-child { margin-bottom:0; }
+.ldc-resolved {
+  font-family:'Space Grotesk',sans-serif;font-size:10px;
+  color:rgba(248,250,252,.38);padding:2px 2px 0 4px;
+  min-height:14px;line-height:1.3;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;letter-spacing:.1px;
+}
+/* Subcode indent in dropdown */
+.ldc-item-sub { padding-left:22px; background:rgba(248,250,252,.015); }
+.ldc-code-sub { color:rgba(34,211,238,.55) !important; font-size:11px !important; }
 .ldm-sel { appearance:none; -webkit-appearance:none; cursor:pointer; padding-right:10px; }
 /* Date/time input icon color fix on dark bg */
 .ldm-inp[type="date"]::-webkit-calendar-picker-indicator,
@@ -10343,44 +10355,112 @@ window._ldDelayCodes = [];
     }).catch(function(){});
 })();
 
-// ── Autocomplete engine ──
-var _ldAcActive = null; // current open dropdown entry
+// ── Resolve a code string like "61" or "61A" ──
+function ldResolveCode(raw){
+  if(!raw) return { full:'', category:'', categoryName:'' };
+  var s = raw.trim().toUpperCase();
+  var m = s.match(/^(\d{2})([A-Z]?)$/);
+  if(!m) return { full:'', category:'', categoryName:'' };
+  var mainCode = m[1], subCode = m[2]||null;
+  var codes = window._ldDelayCodes||[];
+  var entry = codes.find(function(c){ return c.code===mainCode; });
+  if(!entry) return { full:'', category:'', categoryName:'' };
+  var desc = entry.description;
+  if(subCode && entry.subcodes && entry.subcodes[subCode])
+    desc = desc + ' · ' + entry.subcodes[subCode];
+  return { full: desc, category: entry.category, categoryName: entry.category_name };
+}
+
+// ── Build dropdown items for a query ──
+function ldBuildACItems(query){
+  var codes = window._ldDelayCodes||[];
+  if(!codes.length) return [];
+  var q = query.trim().toUpperCase();
+  var items = [];
+
+  if(!q){
+    // Show first 25 main codes
+    return codes.slice(0,25).map(function(c){ return {code:c.code, desc:c.description, cat:c.category_name, indent:false}; });
+  }
+
+  var m = q.match(/^(\d{1,2})([A-Z]?)$/);
+  if(m){
+    var num = m[1], sub = m[2]||'';
+    if(num.length===2 && sub){
+      // e.g. "61A" — show this specific subcode
+      var entry = codes.find(function(c){ return c.code===num; });
+      if(entry){
+        if(entry.subcodes && entry.subcodes[sub]){
+          items.push({ code:num+sub, desc:entry.description+' · '+entry.subcodes[sub], cat:entry.category_name, indent:false });
+        } else {
+          // Subcode not found, show main + available subcodes
+          items.push({ code:entry.code, desc:entry.description, cat:entry.category_name, indent:false });
+          if(entry.subcodes) Object.keys(entry.subcodes).sort().forEach(function(k){
+            items.push({ code:num+k, desc:entry.subcodes[k], cat:entry.category_name, indent:true, parent:entry.description });
+          });
+        }
+      }
+    } else if(num.length===2){
+      // e.g. "61" — show main + expand subcodes
+      var entry = codes.find(function(c){ return c.code===num; });
+      if(entry){
+        items.push({ code:entry.code, desc:entry.description, cat:entry.category_name, indent:false });
+        if(entry.subcodes) Object.keys(entry.subcodes).sort().forEach(function(k){
+          items.push({ code:num+k, desc:entry.subcodes[k], cat:entry.category_name, indent:true });
+        });
+      } else {
+        codes.filter(function(c){ return c.code.startsWith(num); }).slice(0,10).forEach(function(c){
+          items.push({ code:c.code, desc:c.description, cat:c.category_name, indent:false });
+        });
+      }
+    } else {
+      // 1-digit prefix e.g. "6" — all codes starting with that digit
+      codes.filter(function(c){ return c.code.startsWith(num); }).slice(0,20).forEach(function(c){
+        items.push({ code:c.code, desc:c.description, cat:c.category_name, indent:false });
+      });
+    }
+  } else {
+    // Text search across description, category
+    var lq = q.toLowerCase();
+    codes.filter(function(c){
+      return c.description.toLowerCase().includes(lq) || c.category.toLowerCase().includes(lq) || c.category_name.toLowerCase().includes(lq);
+    }).slice(0,20).forEach(function(c){
+      items.push({ code:c.code, desc:c.description, cat:c.category_name, indent:false });
+      // Also show matching subcodes
+      if(c.subcodes) Object.keys(c.subcodes).sort().forEach(function(k){
+        if(c.subcodes[k].toLowerCase().includes(lq))
+          items.push({ code:c.code+k, desc:c.subcodes[k], cat:c.category_name, indent:true });
+      });
+    });
+  }
+  return items;
+}
 
 function ldShowCodeAC(input, idx){
   ldHideCodeAC();
   var wrap = input.parentNode; wrap.style.position='relative';
-  var query = input.value.trim().toLowerCase();
-  var codes = window._ldDelayCodes;
-  if(!codes || !codes.length) return;
-
-  var filtered = query.length===0
-    ? codes.slice(0, 30)
-    : codes.filter(function(c){
-        return c.code.startsWith(query) ||
-               c.description.toLowerCase().includes(query) ||
-               c.category.toLowerCase().includes(query);
-      }).slice(0,20);
+  var items = ldBuildACItems(input.value);
 
   var dd = document.createElement('div');
   dd.className='ldc-dropdown'; dd.id='ldc-dd';
 
-  if(!filtered.length){
+  if(!items.length){
     dd.innerHTML='<div class="ldc-empty">Sin resultados — código personalizado</div>';
   } else {
-    filtered.forEach(function(c, i){
-      var item = document.createElement('div');
-      item.className='ldc-item'+(i===0?' active':'');
-      item.innerHTML=
-        '<span class="ldc-code-badge">'+c.code+'</span>'
+    items.forEach(function(it, i){
+      var div = document.createElement('div');
+      div.className='ldc-item'+(i===0?' active':'')+(it.indent?' ldc-item-sub':'');
+      div.innerHTML=
+        '<span class="ldc-code-badge'+(it.indent?' ldc-code-sub':'')+'">'+it.code+'</span>'
         +'<div class="ldc-item-text">'
-          +'<div class="ldc-desc">'+c.description+'</div>'
-          +'<div class="ldc-cat">'+c.category_name+'</div>'
+          +'<div class="ldc-desc">'+it.desc+'</div>'
+          +(it.indent?'':'<div class="ldc-cat">'+it.cat+'</div>')
         +'</div>';
-      item.addEventListener('mousedown', function(e){
+      div.addEventListener('mousedown', function(e){
         e.preventDefault();
-        ldSelectCode(input, idx, c);
+        ldSelectCode(input, idx, it.code, it.desc, it.cat);
       });
-      dd.appendChild(item);
+      dd.appendChild(div);
     });
   }
 
@@ -10388,19 +10468,18 @@ function ldShowCodeAC(input, idx){
   _ldAcActive = { dd:dd, wrap:wrap, items:dd.querySelectorAll('.ldc-item'), activeIdx:0 };
 }
 
-function ldSelectCode(input, idx, c){
-  input.value = c.code;
-  ldDelayCodes[idx].code = c.code;
-  // Auto-fill description if empty
+function ldSelectCode(input, idx, code, desc, cat){
+  input.value = code;
+  ldDelayCodes[idx].code = code;
+  // Update the resolved label
   var entry = input.closest('.ldm-delay-entry');
   if(entry){
-    var descInp = entry.querySelector('.ldm-dc-desc');
-    if(descInp && !descInp.value){
-      descInp.value = c.description;
-      ldDelayCodes[idx].desc = c.description;
-    }
+    var lbl = entry.querySelector('.ldc-resolved');
+    if(lbl) lbl.textContent = desc || ldResolveCode(code).full || '';
   }
   ldHideCodeAC();
+  // Move focus to mins
+  if(entry){ var mins = entry.querySelector('.ldm-dc-mins'); if(mins) setTimeout(function(){ mins.focus(); }, 60); }
 }
 
 function ldHideCodeAC(){
@@ -10424,16 +10503,10 @@ function ldCodeACKeydown(e, input, idx){
     var activeItem = items[_ldAcActive.activeIdx];
     if(activeItem){
       e.preventDefault();
-      var codeBadge = activeItem.querySelector('.ldc-code-badge');
-      var descEl    = activeItem.querySelector('.ldc-desc');
-      var catEl     = activeItem.querySelector('.ldc-cat');
-      if(codeBadge){
-        var c = { code:codeBadge.textContent, description:(descEl?descEl.textContent:''), category_name:(catEl?catEl.textContent:'') };
-        ldSelectCode(input, idx, c);
-        // Move focus to mins field
-        var entry = input.closest('.ldm-delay-entry');
-        if(entry){ var mins = entry.querySelector('.ldm-dc-mins'); if(mins) mins.focus(); }
-      }
+      var badge = activeItem.querySelector('.ldc-code-badge');
+      var desc  = activeItem.querySelector('.ldc-desc');
+      var cat   = activeItem.querySelector('.ldc-cat');
+      if(badge) ldSelectCode(input, idx, badge.textContent, desc?desc.textContent:'', cat?cat.textContent:'');
     }
   } else if(e.key==='Escape'){
     ldHideCodeAC();
@@ -10500,12 +10573,11 @@ function ldCheckDelay(){
 }
 
 function ldAddDelayCode(){
-  ldDelayCodes.push({code:'',mins:'',desc:''});
+  ldDelayCodes.push({code:'',mins:''});
   ldRenderDelayCodes();
-  // focus new code input
   setTimeout(function(){
-    var entries = document.querySelectorAll('#ld_delay_entries .ldm-dc-code');
-    if(entries.length) entries[entries.length-1].focus();
+    var wraps = document.querySelectorAll('#ld_delay_entries .ldm-delay-entry-wrap');
+    if(wraps.length){ var inp = wraps[wraps.length-1].querySelector('.ldm-dc-code'); if(inp) inp.focus(); }
   },60);
 }
 
@@ -10519,24 +10591,33 @@ function ldRenderDelayCodes(){
   var c = document.getElementById('ld_delay_entries'); if(!c) return;
   c.innerHTML='';
   ldDelayCodes.forEach(function(dc,i){
-    var d=document.createElement('div');
-    d.className='ldm-delay-entry';
-    d.innerHTML=
-      '<input class="ldm-dc-code" type="text" maxlength="6" placeholder="Cód" value="'+
-        (dc.code||'').replace(/"/g,'&quot;')+
-      '" oninput="ldDelayCodes['+i+'].code=this.value.toUpperCase();this.value=this.value.toUpperCase();ldShowCodeAC(this,'+i+')"'
+    var resolved = ldResolveCode(dc.code||'');
+    var d = document.createElement('div');
+    d.className = 'ldm-delay-entry-wrap';
+    d.innerHTML =
+      '<div class="ldm-delay-entry">'
+      +'<input class="ldm-dc-code" type="text" maxlength="6" placeholder="61A" value="'+(dc.code||'').replace(/"/g,'&quot;')+'"'
+      +' oninput="ldDelayCodes['+i+'].code=this.value.toUpperCase();this.value=this.value.toUpperCase();ldShowCodeAC(this,'+i+');ldUpdateResolvedLabel(this,'+i+')"'
       +' onfocus="ldShowCodeAC(this,'+i+')"'
       +' onkeydown="ldCodeACKeydown(event,this,'+i+')"'
-      +' onblur="setTimeout(ldHideCodeAC,150)">'
-      +'<input class="ldm-dc-mins" type="number" min="1" max="999" placeholder="min" value="'+
-        (dc.mins||'')+
-      '" oninput="ldDelayCodes['+i+'].mins=this.value;ldRecalcDelayRemain()">'
-      +'<input class="ldm-dc-desc" type="text" placeholder="Descripción / motivo..." value="'+
-        (dc.desc||'').replace(/"/g,'&quot;')+
-      '" oninput="ldDelayCodes['+i+'].desc=this.value">'
-      +'<button class="ldm-dc-rm" onclick="ldRemoveDelayCode('+i+')" title="Eliminar">×</button>';
+      +' onblur="setTimeout(function(){ldHideCodeAC();ldUpdateResolvedLabel(document.querySelector(\'#ld_delay_entries .ldm-delay-entry-wrap:nth-child('+(i+1)+') .ldm-dc-code\'),'+i+')},150)">'
+      +'<input class="ldm-dc-mins" type="number" min="1" max="999" placeholder="min" value="'+(dc.mins||'')+'"'
+      +' oninput="ldDelayCodes['+i+'].mins=this.value;ldRecalcDelayRemain()">'
+      +'<button class="ldm-dc-rm" onclick="ldRemoveDelayCode('+i+')" title="Eliminar">×</button>'
+      +'</div>'
+      +'<div class="ldc-resolved">'+(resolved.full||'')+'</div>';
     c.appendChild(d);
   });
+}
+
+function ldUpdateResolvedLabel(input, idx){
+  if(!input) return;
+  var wrap = input.closest('.ldm-delay-entry-wrap');
+  if(!wrap) return;
+  var lbl = wrap.querySelector('.ldc-resolved');
+  if(!lbl) return;
+  var resolved = ldResolveCode(ldDelayCodes[idx]?ldDelayCodes[idx].code:'');
+  lbl.textContent = resolved.full || '';
 }
 
 function ldRecalcDelayRemain(){
