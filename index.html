@@ -2047,6 +2047,7 @@ select.ld-fi { appearance:none; -webkit-appearance:none; cursor:pointer; }
 .ldm-sched-row .ldm-lbl { color:rgba(245,158,11,.85) !important; }
 .ldm-sched-row .ldm-inp { border-color:rgba(245,158,11,.25) !important; color:rgba(245,158,11,.9) !important; }
 .ldm-sched-row .ldm-inp:focus { border-color:rgba(245,158,11,.55) !important; box-shadow:0 0 0 3px rgba(245,158,11,.08) !important; }
+.ldm-sched-row .ldm-inp.seq-error { border-color:rgba(239,68,68,.5) !important; color:#EF4444 !important; box-shadow:0 0 0 2px rgba(239,68,68,.1) !important; }
 .ldm-p1 {
   font-size:8.5px; padding:1px 5px; border-radius:5px;
   background:rgba(245,158,11,.15); color:#F59E0B;
@@ -10196,6 +10197,7 @@ function ldOpenModal(manual){
       if(titleEl && f.flightNum) titleEl.textContent = 'Vuelo '+f.flightNum+' importado del Roster';
       var subEl2 = document.getElementById('ld-roster-prefill-sub');
       if(subEl2) subEl2.textContent = (f.dep||'')+'→'+(f.arr||'')+' · STD '+(f.std||'--:--')+' · STA '+(f.sta||'--:--');
+      setTimeout(function(){ ldValidateSequence(); ldCheckDelay(); }, 80);
     } catch(e){ /* silencioso */ }
   })();
   document.getElementById('ld_modal').classList.add('open');
@@ -10331,6 +10333,8 @@ function ldFillOCR(d){
     var wrap=document.getElementById('ldm-times-wrap');
     if(wrap) wrap.classList.add('mcdu-ok');
   }
+  // Validate sequence + delay after programmatic fill
+  setTimeout(function(){ ldValidateSequence(); ldCheckDelay(); }, 50);
 }
 
 // ══════════════════════════════════════════════════
@@ -11416,7 +11420,7 @@ function ldEditFlight(id){
   // Restore delay codes
   ldDelayCodes = Array.isArray(e.delayCodes) ? e.delayCodes.map(function(dc){ return {code:dc.code||'',mins:dc.mins||'',desc:dc.desc||''}; }) : [];
   ldRenderDelayCodes();
-  setTimeout(ldCheckDelay, 80);
+  setTimeout(function(){ ldCheckDelay(); ldValidateSequence(); }, 80);
   g2('ld_block',e.block); g2('ld_flight_time',e.flightTime);
   g2('ld_night_inp',e.night); g2('ld_cm1',e.cm1); g2('ld_cm2',e.cm2);
   g2('ld_notes',e.notes); g2('ld_ldgd',e.ldgDay||1); g2('ld_ldgn',e.ldgNight||0);
