@@ -4092,6 +4092,26 @@ input#ld_fl, input#ld_cond { display:none !important; }
 .la-crew-count{font-family:'DM Mono','Space Mono',monospace;font-size:18px;font-weight:500;color:#22D3EE;margin-left:auto;flex-shrink:0;text-shadow:0 0 14px rgba(34,211,238,.32)}
 .la-crew-count-lbl{font-size:9px;color:rgba(248,250,252,.24);font-family:'Space Mono',monospace;text-align:right}
 
+/* ── Micro-tabs dentro de sección "Rol & Función" ── */
+.ldm-sectab-wrap{display:flex;gap:2px;background:rgba(255,255,255,.05);padding:3px;border-radius:9px;margin-left:auto;flex-shrink:0}
+.ldm-sectab{font-size:10px;font-weight:700;letter-spacing:.3px;padding:4px 10px;border-radius:6px;border:none;background:transparent;color:rgba(248,250,252,.3);cursor:pointer;transition:all .2s;font-family:'Space Mono',monospace;white-space:nowrap}
+.ldm-sectab.on{background:rgba(34,211,238,.12);color:#22D3EE;box-shadow:0 0 8px rgba(34,211,238,.12)}
+
+/* ── Crew Profile inline ── */
+.ldm-cp-btn{width:48px;height:48px;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:rgba(248,250,252,.35);font-size:18px;cursor:pointer;flex-shrink:0;transition:all .2s;display:flex;align-items:center;justify-content:center}
+.ldm-cp-btn.ldm-cp-btn-on{background:rgba(34,211,238,.12);border-color:rgba(34,211,238,.28);color:#22D3EE}
+.ldm-cp-card{background:rgba(9,13,28,.9);border:1px solid rgba(34,211,238,.14);border-radius:14px;padding:14px;margin-top:8px;animation:cpFadeIn .18s ease}
+@keyframes cpFadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.ldm-cp-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.05)}
+.ldm-cp-avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#22D3EE,#7C3AED);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;flex-shrink:0;letter-spacing:0}
+.ldm-cp-name{font-size:13px;font-weight:600;color:rgba(248,250,252,.9)}
+.ldm-cp-role{font-size:10px;color:rgba(248,250,252,.28);font-family:'Space Mono',monospace;margin-top:2px;text-transform:uppercase;letter-spacing:.4px}
+.ldm-cp-saved-badge{margin-left:auto;font-size:9px;font-weight:700;color:#34D399;font-family:'Space Mono',monospace;letter-spacing:.4px;background:rgba(52,211,153,.1);padding:3px 7px;border-radius:6px;border:1px solid rgba(52,211,153,.2)}
+.ldm-cp-actions{display:flex;gap:8px;margin-top:10px}
+.ldm-cp-save{flex:1;height:42px;border-radius:10px;border:1px solid rgba(34,211,238,.2);background:linear-gradient(135deg,rgba(34,211,238,.1),rgba(124,58,237,.1));color:#22D3EE;font-size:11px;font-weight:700;letter-spacing:.5px;cursor:pointer;transition:all .2s;font-family:'Space Mono',monospace;text-transform:uppercase}
+.ldm-cp-save:active{transform:scale(.97)}
+.ldm-cp-del{height:42px;padding:0 14px;border-radius:10px;border:1px solid rgba(239,68,68,.18);background:rgba(239,68,68,.07);color:rgba(239,68,68,.55);font-size:11px;font-weight:700;cursor:pointer;font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:.4px}
+
 /* ── Career big number ── */
 .la-big-num{
   font-family:'DM Mono','Space Mono',monospace;font-size:52px;font-weight:300;
@@ -7180,46 +7200,68 @@ window.addEventListener('online', function(){
         </div><!-- /ldm-times-wrap -->
 
         <!-- ── ROL & FUNCIÓN ── -->
-        <div class="ldm-sec">Rol &amp; Función</div>
-        <div class="ldm-row2">
-          <div class="ldm-fg">
-            <label class="ldm-lbl">ROL</label>
-            <select class="ldm-inp ldm-sel" id="ld_role">
-              <option value="CPT">Comandante (CPT)</option><option value="FO" selected>Copiloto (FO)</option>
-            </select>
-          </div>
-          <div class="ldm-fg">
-            <label class="ldm-lbl">FUNCIÓN</label>
-            <select class="ldm-inp ldm-sel" id="ld_func">
-              <option value="PF">Pilot Flying (PF)</option><option value="PM">Pilot Monitoring (PM)</option>
-            </select>
+        <div class="ldm-sec">
+          Rol &amp; Función
+          <div class="ldm-sectab-wrap">
+            <button class="ldm-sectab on" id="ldst-vuelo" onclick="ldSectionTab('vuelo')" type="button">✈ Vuelo</button>
+            <button class="ldm-sectab" id="ldst-trip" onclick="ldSectionTab('trip')" type="button">👥 Tripulantes</button>
           </div>
         </div>
-        <div class="ldm-row2">
-          <div class="ldm-fg">
-            <label class="ldm-lbl">REGLAS</label>
-            <select class="ldm-inp ldm-sel" id="ld_rules"><option value="IFR">IFR</option><option value="VFR">VFR</option></select>
+
+        <!-- ── TAB: Vuelo ── -->
+        <div id="ldst-panel-vuelo">
+          <div class="ldm-row2">
+            <div class="ldm-fg">
+              <label class="ldm-lbl">ROL</label>
+              <select class="ldm-inp ldm-sel" id="ld_role">
+                <option value="CPT">Comandante (CPT)</option><option value="FO" selected>Copiloto (FO)</option>
+              </select>
+            </div>
+            <div class="ldm-fg">
+              <label class="ldm-lbl">FUNCIÓN</label>
+              <select class="ldm-inp ldm-sel" id="ld_func">
+                <option value="PF">Pilot Flying (PF)</option><option value="PM">Pilot Monitoring (PM)</option>
+              </select>
+            </div>
           </div>
-          <div class="ldm-fg">
-            <label class="ldm-lbl">OPERACIÓN</label>
-            <select class="ldm-inp ldm-sel" id="ld_optype">
-              <option value="COM">Comercial (AOC)</option><option value="TRNG">Training / OPC</option>
-              <option value="FERRY">Ferry</option><option value="OTH">Otro</option>
-            </select>
+          <div class="ldm-row2">
+            <div class="ldm-fg">
+              <label class="ldm-lbl">REGLAS</label>
+              <select class="ldm-inp ldm-sel" id="ld_rules"><option value="IFR">IFR</option><option value="VFR">VFR</option></select>
+            </div>
+            <div class="ldm-fg">
+              <label class="ldm-lbl">OPERACIÓN</label>
+              <select class="ldm-inp ldm-sel" id="ld_optype">
+                <option value="COM">Comercial (AOC)</option><option value="TRNG">Training / OPC</option>
+                <option value="FERRY">Ferry</option><option value="OTH">Otro</option>
+              </select>
+            </div>
           </div>
         </div>
-        <div class="ldm-row2">
-          <div class="ldm-fg" style="position:relative">
+
+        <!-- ── TAB: Tripulantes ── -->
+        <div id="ldst-panel-trip" style="display:none">
+          <!-- CM1 -->
+          <div class="ldm-fg" style="margin-bottom:10px;position:relative">
             <label class="ldm-lbl">CM1 <span style="font-size:9px;color:rgba(245,158,11,.6);text-transform:none;letter-spacing:0;font-weight:400">(Comandante)</span></label>
-            <input class="ldm-inp" type="text" id="ld_cm1" placeholder="Apellido..."
-              oninput="ldNameSuggest(this,'ld_cm1_list')" onfocus="ldNameSuggest(this,'ld_cm1_list')" onblur="setTimeout(function(){ldNameHide('ld_cm1_list')},150)">
+            <div style="display:flex;gap:8px">
+              <input class="ldm-inp" type="text" id="ld_cm1" placeholder="Apellido..." style="flex:1"
+                oninput="ldNameSuggest(this,'ld_cm1_list')" onfocus="ldNameSuggest(this,'ld_cm1_list')" onblur="setTimeout(function(){ldNameHide('ld_cm1_list')},150)">
+              <button class="ldm-cp-btn" id="ldcp-btn-cm1" onclick="ldCpToggle('cm1')" type="button" title="Perfil del tripulante">👤</button>
+            </div>
             <div class="ld-name-list" id="ld_cm1_list"></div>
+            <div class="ldm-cp-card" id="ldcp-card-cm1" style="display:none"></div>
           </div>
+          <!-- CM2 -->
           <div class="ldm-fg" style="position:relative">
             <label class="ldm-lbl">CM2 <span style="font-size:9px;color:rgba(34,211,238,.5);text-transform:none;letter-spacing:0;font-weight:400">(Copiloto)</span></label>
-            <input class="ldm-inp" type="text" id="ld_cm2" placeholder="Apellido..."
-              oninput="ldNameSuggest(this,'ld_cm2_list')" onfocus="ldNameSuggest(this,'ld_cm2_list')" onblur="setTimeout(function(){ldNameHide('ld_cm2_list')},150)">
+            <div style="display:flex;gap:8px">
+              <input class="ldm-inp" type="text" id="ld_cm2" placeholder="Apellido..." style="flex:1"
+                oninput="ldNameSuggest(this,'ld_cm2_list')" onfocus="ldNameSuggest(this,'ld_cm2_list')" onblur="setTimeout(function(){ldNameHide('ld_cm2_list')},150)">
+              <button class="ldm-cp-btn" id="ldcp-btn-cm2" onclick="ldCpToggle('cm2')" type="button" title="Perfil del tripulante">👤</button>
+            </div>
             <div class="ld-name-list" id="ld_cm2_list"></div>
+            <div class="ldm-cp-card" id="ldcp-card-cm2" style="display:none"></div>
           </div>
         </div>
 
@@ -9917,6 +9959,7 @@ function ldSaveData(){
 
 function ldOpenModal(manual){
   ldManual=manual; ldResetForm();
+  ldSectionTab('vuelo'); // siempre empieza en pestaña Vuelo
   document.getElementById('ld_date').value=new Date().toISOString().split('T')[0];
   document.getElementById('ld_zone').style.display=manual?'none':'';
   // Update header sub-label
@@ -11844,6 +11887,129 @@ document.addEventListener('click',function(e){if(!e.target.closest('.ld-fg'))doc
 ldNamesLoad();
 ldCrewDbLoad();
 ldCrewDbFetch(); // carga escalafón desde servidor
+
+// ════════════════════════════════════════════════════════════════════════
+// CREW PROFILES — base de datos personal de tripulantes
+// Clave localStorage: pilotOS_crew_profiles
+// Estructura: { "apellido garcia": { name, phone, email, cert, roster, notes, updatedAt } }
+// ════════════════════════════════════════════════════════════════════════
+var CP_KEY = 'pilotOS_crew_profiles';
+var cpDb = {};
+
+function cpLoad(){
+  try{ cpDb = JSON.parse(localStorage.getItem(CP_KEY)||'{}'); }catch(e){ cpDb={}; }
+}
+function cpPersist(){
+  localStorage.setItem(CP_KEY, JSON.stringify(cpDb));
+}
+function cpKey(name){ return (name||'').trim().toLowerCase(); }
+function cpGet(name){ return cpDb[cpKey(name)] || null; }
+function cpSet(name, data){
+  cpDb[cpKey(name)] = Object.assign({ name: name.trim(), updatedAt: Date.now() }, data);
+  cpPersist();
+}
+function cpDel(name){ delete cpDb[cpKey(name)]; cpPersist(); }
+
+// ── Conmutar visibilidad de la tarjeta de perfil ──────────────────────
+function ldCpToggle(slot){
+  var card = document.getElementById('ldcp-card-'+slot);
+  var btn  = document.getElementById('ldcp-btn-'+slot);
+  if(!card) return;
+  var open = card.style.display !== 'none';
+  card.style.display = open ? 'none' : 'block';
+  if(btn) btn.classList.toggle('ldm-cp-btn-on', !open);
+  if(!open) ldCpRender(slot);
+}
+
+// ── Renderizar el contenido de la tarjeta ────────────────────────────
+function ldCpRender(slot){
+  var nameEl = document.getElementById('ld_'+slot);
+  var card   = document.getElementById('ldcp-card-'+slot);
+  if(!card) return;
+  var name    = nameEl ? nameEl.value.trim() : '';
+  var profile = name ? cpGet(name) : null;
+  var initial = name ? name[0].toUpperCase() : '?';
+  var roleLabel = slot==='cm1' ? 'Comandante · CM1' : 'Copiloto · CM2';
+
+  card.innerHTML =
+    '<div class="ldm-cp-header">' +
+      '<div class="ldm-cp-avatar">'+initial+'</div>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div class="ldm-cp-name">'+(name||'Sin nombre')+'</div>' +
+        '<div class="ldm-cp-role">'+roleLabel+'</div>' +
+      '</div>' +
+      (profile ? '<div class="ldm-cp-saved-badge">✓ Guardado</div>' : '') +
+    '</div>' +
+
+    '<div class="ldm-fg" style="margin-bottom:8px">' +
+      '<label class="ldm-lbl">📞 Teléfono</label>' +
+      '<input class="ldm-inp" id="ldcp-'+slot+'-phone" type="tel" placeholder="+34 6XX XXX XXX" value="'+(profile&&profile.phone||'')+'">'+
+    '</div>' +
+
+    '<div class="ldm-fg" style="margin-bottom:8px">' +
+      '<label class="ldm-lbl">✉ Email</label>' +
+      '<input class="ldm-inp" id="ldcp-'+slot+'-email" type="email" placeholder="nombre@vueling.com" value="'+(profile&&profile.email||'')+'">'+
+    '</div>' +
+
+    '<div class="ldm-row2" style="margin-bottom:8px">' +
+      '<div class="ldm-fg">' +
+        '<label class="ldm-lbl">🏅 Certificado</label>' +
+        '<input class="ldm-inp" id="ldcp-'+slot+'-cert" type="text" placeholder="TRI / TRE / SFE" value="'+(profile&&profile.cert||'')+'">'+
+      '</div>' +
+      '<div class="ldm-fg">' +
+        '<label class="ldm-lbl">Roster Name</label>' +
+        '<input class="ldm-inp" id="ldcp-'+slot+'-roster" type="text" placeholder="Alias escalafón" value="'+(profile&&profile.roster||'')+'">'+
+      '</div>' +
+    '</div>' +
+
+    '<div class="ldm-fg" style="margin-bottom:10px">' +
+      '<label class="ldm-lbl">Notas</label>' +
+      '<input class="ldm-inp" id="ldcp-'+slot+'-notes" type="text" placeholder="Observaciones..." value="'+(profile&&profile.notes||'')+'">'+
+    '</div>' +
+
+    '<div class="ldm-cp-actions">' +
+      '<button class="ldm-cp-save" id="ldcp-'+slot+'-savebtn" onclick="ldCpSaveSlot(\''+slot+'\')" type="button">Guardar perfil</button>' +
+      (profile ? '<button class="ldm-cp-del" onclick="ldCpDelSlot(\''+slot+'\')" type="button">Eliminar</button>' : '') +
+    '</div>';
+}
+
+// ── Guardar perfil desde el formulario ───────────────────────────────
+function ldCpSaveSlot(slot){
+  var nameEl = document.getElementById('ld_'+slot);
+  if(!nameEl || !nameEl.value.trim()) return;
+  var name = nameEl.value.trim();
+  cpSet(name, {
+    phone:  (document.getElementById('ldcp-'+slot+'-phone')||{}).value  || '',
+    email:  (document.getElementById('ldcp-'+slot+'-email')||{}).value  || '',
+    cert:   (document.getElementById('ldcp-'+slot+'-cert')||{}).value   || '',
+    roster: (document.getElementById('ldcp-'+slot+'-roster')||{}).value || '',
+    notes:  (document.getElementById('ldcp-'+slot+'-notes')||{}).value  || '',
+  });
+  // Feedback visual
+  var btn = document.getElementById('ldcp-'+slot+'-savebtn');
+  if(btn){ btn.textContent='✓ Guardado'; setTimeout(function(){ ldCpRender(slot); },1400); }
+}
+
+// ── Eliminar perfil ──────────────────────────────────────────────────
+function ldCpDelSlot(slot){
+  var nameEl = document.getElementById('ld_'+slot);
+  if(!nameEl || !nameEl.value.trim()) return;
+  cpDel(nameEl.value.trim());
+  ldCpRender(slot);
+}
+
+// ── Conmutar entre sub-tabs "Vuelo" / "Tripulantes" ──────────────────
+function ldSectionTab(tab){
+  ['vuelo','trip'].forEach(function(t){
+    var panel = document.getElementById('ldst-panel-'+t);
+    var btn   = document.getElementById('ldst-'+t);
+    if(panel) panel.style.display = (t===tab) ? '' : 'none';
+    if(btn)   btn.classList.toggle('on', t===tab);
+  });
+}
+
+// Inicializar
+cpLoad();
 
 // ── CREW DB: Escalafón Técnico Vueling 31-DIC-2025 · 1533 tripulantes ──
 
