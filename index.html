@@ -11890,9 +11890,9 @@ ldCrewDbLoad();
 ldCrewDbFetch(); // carga escalafón desde servidor
 
 // ════════════════════════════════════════════════════════════════════════
-// CREW PROFILES — base de datos personal de tripulantes
-// Clave localStorage: pilotOS_crew_profiles
-// Estructura: { "apellido garcia": { name, phone, email, cert, roster, notes, updatedAt } }
+// CREW PROFILES — perfiles personales de tripulantes con sync a Supabase
+// localStorage: pilotOS_crew_profiles (caché local)
+// API: GET/PUT/DELETE /api/crew-profiles
 // ════════════════════════════════════════════════════════════════════════
 var CP_KEY = 'pilotOS_crew_profiles';
 var cpDb = {};
@@ -11910,6 +11910,44 @@ function cpSet(name, data){
   cpPersist();
 }
 function cpDel(name){ delete cpDb[cpKey(name)]; cpPersist(); }
+
+// ── Sync con servidor ────────────────────────────────────────────────
+async function cpSyncDown(){
+  var token = lsGet('cafi_auth_token','');
+  if(!token) return;
+  try{
+    var r = await fetch(ldBackendUrl()+'/api/crew-profiles', { headers:{ 'Authorization':'Bearer '+token } });
+    if(!r.ok) return;
+    var data = await r.json();
+    (data.profiles||[]).forEach(function(p){
+      cpDb[cpKey(p.name)] = { name:p.name, phone:p.phone||'', email:p.email||'', cert:p.cert||'', roster:p.roster||'', notes:p.notes||'', updatedAt: new Date(p.updated_at).getTime() };
+    });
+    cpPersist();
+  }catch(e){ console.warn('[CP] syncDown error:', e.message); }
+}
+
+async function cpSyncUp(name, data){
+  var token = lsGet('cafi_auth_token','');
+  if(!token) return;
+  try{
+    await fetch(ldBackendUrl()+'/api/crew-profiles', {
+      method:'PUT',
+      headers:{ 'Authorization':'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify(Object.assign({ name: name }, data))
+    });
+  }catch(e){ console.warn('[CP] syncUp error:', e.message); }
+}
+
+async function cpSyncDelete(name){
+  var token = lsGet('cafi_auth_token','');
+  if(!token) return;
+  try{
+    await fetch(ldBackendUrl()+'/api/crew-profiles/'+encodeURIComponent(name), {
+      method:'DELETE',
+      headers:{ 'Authorization':'Bearer '+token }
+    });
+  }catch(e){ console.warn('[CP] syncDelete error:', e.message); }
+}
 
 // ── Conmutar visibilidad de la tarjeta de perfil ──────────────────────
 function ldCpToggle(slot){
@@ -11974,28 +12012,31 @@ function ldCpRender(slot){
     '</div>';
 }
 
-// ── Guardar perfil desde el formulario ───────────────────────────────
-function ldCpSaveSlot(slot){
+// ── Guardar perfil (local + servidor) ───────────────────────────────
+async function ldCpSaveSlot(slot){
   var nameEl = document.getElementById('ld_'+slot);
   if(!nameEl || !nameEl.value.trim()) return;
   var name = nameEl.value.trim();
-  cpSet(name, {
+  var data = {
     phone:  (document.getElementById('ldcp-'+slot+'-phone')||{}).value  || '',
     email:  (document.getElementById('ldcp-'+slot+'-email')||{}).value  || '',
     cert:   (document.getElementById('ldcp-'+slot+'-cert')||{}).value   || '',
     roster: (document.getElementById('ldcp-'+slot+'-roster')||{}).value || '',
     notes:  (document.getElementById('ldcp-'+slot+'-notes')||{}).value  || '',
-  });
-  // Feedback visual
+  };
+  cpSet(name, data);
+  cpSyncUp(name, data);
   var btn = document.getElementById('ldcp-'+slot+'-savebtn');
   if(btn){ btn.textContent='✓ Guardado'; setTimeout(function(){ ldCpRender(slot); },1400); }
 }
 
-// ── Eliminar perfil ──────────────────────────────────────────────────
-function ldCpDelSlot(slot){
+// ── Eliminar perfil (local + servidor) ──────────────────────────────
+async function ldCpDelSlot(slot){
   var nameEl = document.getElementById('ld_'+slot);
   if(!nameEl || !nameEl.value.trim()) return;
-  cpDel(nameEl.value.trim());
+  var name = nameEl.value.trim();
+  cpDel(name);
+  cpSyncDelete(name);
   ldCpRender(slot);
 }
 
@@ -12009,8 +12050,9 @@ function ldSectionTab(tab){
   });
 }
 
-// Inicializar
+// Inicializar y sincronizar
 cpLoad();
+cpSyncDown();
 
 // ── CREW DB: Escalafón Técnico Vueling 31-DIC-2025 · 1533 tripulantes ──
 
