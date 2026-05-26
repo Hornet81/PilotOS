@@ -2130,6 +2130,7 @@ select.ld-fi { appearance:none; -webkit-appearance:none; cursor:pointer; }
   outline:none;transition:border-color .15s;
 }
 .ldm-dc-code:focus { border-color:rgba(34,211,238,.3);box-shadow:0 0 0 2px rgba(34,211,238,.07); }
+.ldm-dc-code::placeholder { color:rgba(248,250,252,.18); font-weight:400; }
 .ldm-dc-mins {
   width:52px;padding:8px 6px;background:rgba(13,18,35,.85);
   border:1px solid rgba(248,250,252,.1);border-radius:10px;
@@ -2137,6 +2138,7 @@ select.ld-fi { appearance:none; -webkit-appearance:none; cursor:pointer; }
   font-size:13px;font-weight:600;text-align:center;outline:none;transition:border-color .15s;
 }
 .ldm-dc-mins:focus { border-color:rgba(34,211,238,.3);box-shadow:0 0 0 2px rgba(34,211,238,.07); }
+.ldm-dc-mins::placeholder { color:rgba(248,250,252,.18); }
 .ldm-dc-mins::-webkit-inner-spin-button,.ldm-dc-mins::-webkit-outer-spin-button { -webkit-appearance:none; }
 .ldm-dc-desc {
   flex:1;padding:8px 10px;background:rgba(13,18,35,.85);
@@ -10343,8 +10345,14 @@ window._ldDelayCodes = [];
     }
   } catch(e){}
   // Fetch from server (non-blocking)
-  var tok = lsGet('token','');
-  if(!tok) return;
+  var tok = lsGet('cafi_auth_token','');
+  if(!tok) {
+    // Retry once the user logs in
+    setTimeout(function(){
+      if(!window._ldDelayCodes.length) ldLoadDelayCodes();
+    }, 3000);
+    return;
+  }
   fetch('/api/delay-codes',{headers:{'Authorization':'Bearer '+tok}})
     .then(function(r){ return r.json(); })
     .then(function(d){
