@@ -4788,10 +4788,16 @@ html.day .ld-fday-group{
   border-left:1px solid rgba(255,255,255,.55) !important;
   border-right:1px solid rgba(255,255,255,.55) !important;
   border-bottom:1px solid rgba(255,255,255,.55) !important;
-  border-top-width:4px !important;
+  border-top-width:5px !important;
   /* border-top-color viene del inline JS con clr.hex — NO sobreescribir */
-  background:rgba(255,255,255,.68) !important;
-  box-shadow:0 4px 16px rgba(15,23,42,.1) !important;
+  background:rgba(255,255,255,.72) !important;
+  box-shadow:0 4px 20px rgba(15,23,42,.12) !important;
+}
+/* Asegurar que el color inline del JS no quede tapado */
+html.day .ld-fday-group[style*="border-top-color"]{
+  border-top-style:solid !important;
+  border-top-width:5px !important;
+  opacity:1 !important;
 }
 /* La barra izquierda del card ya está en ::before violeta→cian — se mantiene */
 /* En día la hacemos más saturada y visible */
@@ -4800,11 +4806,20 @@ html.day .ld-fcard::before{
   width:4px !important;
   box-shadow:2px 0 8px rgba(124,58,237,.3) !important;
 }
-html.day .ld-fday-sl{color:rgba(15,23,42,.4) !important}
 html.day .ld-fday-sep{background:rgba(15,23,42,.15) !important}
-html.day .ld-fday-dow{color:#334155 !important;border-color:rgba(15,23,42,.2) !important;background:rgba(255,255,255,.6) !important}
-html.day .ld-fday-sv{color:#0A1628 !important}
+/* ── Todos los textos de la cabecera del grupo — forzar oscuro ── */
+html.day .ld-fday-date{color:#0A1628 !important;font-weight:700 !important}
+html.day .ld-fday-dow{
+  background:rgba(255,255,255,.88) !important;
+  color:#0A1628 !important;
+  font-weight:800 !important;
+  border-color:rgba(15,23,42,.2) !important;
+}
+html.day .ld-fday-sv{color:#0A1628 !important;font-weight:700 !important}
 html.day .ld-fday-sl{color:#475569 !important}
+/* Sobreescribir colores inline del JS en cabecera (clr.hex) */
+html.day .ld-fday-hdr .ld-fday-sv[style],
+html.day .ld-fday-hdr .ld-fday-dow[style]{color:#0A1628 !important}
 html.day .ld-fday-sep{background:rgba(15,23,42,.1) !important}
 
 /* Flight card */
@@ -9288,6 +9303,17 @@ function goTo(key){
   if (key === 'logbook') {
     if (window.ldSwitchTab) window.ldSwitchTab('vuelos');
     if (window._initLD) window._initLD();
+    // Activate title color cycle + enhance day group borders if day mode is on
+    setTimeout(function(){
+      if(document.documentElement.classList.contains('day')){
+        if(window._ldTitleColorCycle) _ldTitleColorCycle(true);
+        // Boost border-top visibility on day groups
+        document.querySelectorAll('.ld-fday-group').forEach(function(g){
+          var col = g.style.borderTopColor;
+          if(col) g.style.boxShadow = '0 -3px 12px ' + col.replace(')',', .4)').replace('rgb(','rgba(') + ', 0 4px 20px rgba(15,23,42,.1)';
+        });
+      }
+    }, 150);
   }
   if (key === 'upgrade') upgUpdateCards();
   if (key === 'roster' && window.rosterInit) window.rosterInit();
@@ -12695,6 +12721,20 @@ function ldRender(){
   var next=document.getElementById('ld_pag_next');
   if(prev){ prev.disabled=ldPage<=1; prev.style.opacity=ldPage<=1?'.25':'1'; prev.style.cursor=ldPage<=1?'default':'pointer'; }
   if(next){ next.disabled=ldPage>=pages; next.style.opacity=ldPage>=pages?'.25':'1'; next.style.cursor=ldPage>=pages?'default':'pointer'; }
+
+  // Day mode: boost top border glow on day groups + force dark header texts
+  if(document.documentElement.classList.contains('day')){
+    document.querySelectorAll('.ld-fday-group').forEach(function(g){
+      var col = g.style.borderTopColor;
+      if(col) g.style.boxShadow = '0 -4px 14px ' + col + ', 0 4px 20px rgba(15,23,42,.1)';
+      // Force dark text on inline-styled elements
+      g.querySelectorAll('.ld-fday-sv[style], .ld-fday-dow[style]').forEach(function(el){
+        el.style.color = '#0A1628';
+      });
+      var dateEl = g.querySelector('.ld-fday-date');
+      if(dateEl) dateEl.style.color = '#0A1628';
+    });
+  }
 }
 function ldGoPage(p){ldPage=p;ldRender();ldInitFabObserver();}
 function ldFilter(){ldPage=1;ldRender();ldInitFabObserver();}
