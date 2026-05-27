@@ -4773,7 +4773,22 @@ html.day .ld-fday-group{
   border-color:rgba(255,255,255,.9) !important;
   box-shadow:0 4px 16px rgba(15,23,42,.1) !important;
 }
-html.day .ld-fday-date{color:#0A1628 !important}
+/* ── Modo día: grupo día — borde superior más grueso y visible ── */
+html.day .ld-fday-group{
+  border:1px solid rgba(255,255,255,.55) !important;
+  border-top-width:4px !important;
+  background:rgba(255,255,255,.68) !important;
+  box-shadow:0 4px 16px rgba(15,23,42,.1) !important;
+}
+/* La barra izquierda del card ya está en ::before violeta→cian — se mantiene */
+/* En día la hacemos más saturada y visible */
+html.day .ld-fcard::before{
+  opacity:1 !important;
+  width:4px !important;
+  box-shadow:2px 0 8px rgba(124,58,237,.3) !important;
+}
+html.day .ld-fday-sl{color:rgba(15,23,42,.4) !important}
+html.day .ld-fday-sep{background:rgba(15,23,42,.15) !important}
 html.day .ld-fday-dow{color:#334155 !important;border-color:rgba(15,23,42,.2) !important;background:rgba(255,255,255,.6) !important}
 html.day .ld-fday-sv{color:#0A1628 !important}
 html.day .ld-fday-sl{color:#475569 !important}
@@ -9408,14 +9423,59 @@ function _updateDayLabel(isDay){
   if(sub) sub.textContent=isDay?'Volver al modo oscuro':'Activar para mayor visibilidad';
 }
 document.addEventListener('DOMContentLoaded',function(){
-  _updateDayLabel(document.documentElement.classList.contains('day'));
+  var isDay = document.documentElement.classList.contains('day');
+  _updateDayLabel(isDay);
+  if(isDay) _ldTitleColorCycle(true);
 });
 function toggleDayMode(){
   var isDay = document.documentElement.classList.toggle('day');
   try{ localStorage.setItem('pilotday', isDay?'1':'0'); }catch(e){}
   _updateDayLabel(isDay);
   if(navigator.vibrate) navigator.vibrate(isDay?[30,20,30]:20);
+  _ldTitleColorCycle(isDay);
 }
+
+/* ── Color cycling para título Logbook en modo día ── */
+var _ldTitleTimer = null;
+function _ldTitleColorCycle(isDay){
+  var el = document.getElementById('ld-logbook-title');
+  if(!el) return;
+  if(_ldTitleTimer){ clearInterval(_ldTitleTimer); _ldTitleTimer=null; }
+  if(!isDay){
+    // Restaurar modo noche
+    el.style.background = 'linear-gradient(90deg,#7C3AED 0%,#22D3EE 60%,#7C3AED 100%)';
+    el.style.backgroundSize = '200% 100%';
+    el.style.webkitBackgroundClip = 'text';
+    el.style.webkitTextFillColor = 'transparent';
+    el.style.filter = 'drop-shadow(0 0 18px rgba(34,211,238,.45)) drop-shadow(0 0 35px rgba(124,58,237,.3))';
+    el.style.animation = 'ldTitleShimmer 4s ease-in-out infinite';
+    return;
+  }
+  // Paleta de colores para modo día
+  var colors = [
+    {hex:'#1E3A8A', shadow:'rgba(30,58,138,.5)'},
+    {hex:'#0891B2', shadow:'rgba(8,145,178,.5)'},
+    {hex:'#4C1D95', shadow:'rgba(76,29,149,.5)'},
+    {hex:'#0369A1', shadow:'rgba(3,105,161,.5)'},
+    {hex:'#6D28D9', shadow:'rgba(109,40,217,.5)'},
+    {hex:'#0D6B6B', shadow:'rgba(13,107,107,.5)'},
+  ];
+  var idx = 0;
+  function applyColor(){
+    var c = colors[idx % colors.length];
+    el.style.background = 'none';
+    el.style.webkitBackgroundClip = 'unset';
+    el.style.webkitTextFillColor = c.hex;
+    el.style.color = c.hex;
+    el.style.filter = 'drop-shadow(0 2px 8px rgba(255,255,255,.6)) drop-shadow(0 0 14px '+c.shadow+')';
+    el.style.animation = 'none';
+    el.style.transition = 'color .8s ease, filter .8s ease';
+    idx++;
+  }
+  applyColor();
+  _ldTitleTimer = setInterval(applyColor, 1800);
+}
+
 function pilotLogout(){
   closePilotPanel();
   // Clear all stored intervals
