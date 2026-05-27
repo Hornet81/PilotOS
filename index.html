@@ -9052,12 +9052,12 @@ window.addEventListener('online', function(){
               <div style="flex:1;height:1px;background:rgba(8,145,178,.15)"></div>
             </div>
             <!-- Mobile: copy code -->
-            <div style="font-family:Space Mono,monospace;font-size:10px;color:rgba(248,250,252,.35);line-height:1.6;margin-bottom:8px">Guarda esta página como favorito, luego reemplaza la URL con el código:</div>
+            <div style="font-family:Space Mono,monospace;font-size:10px;color:rgba(248,250,252,.35);line-height:1.6;margin-bottom:8px">En Chrome: pega en la consola (F12). En Safari: guarda como favorito y reemplaza la URL.</div>
             <button id="ec-copy-bm-btn" onclick="ldECrewsCopyBookmarklet()" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:10px 14px;background:rgba(8,145,178,.12);border:1.5px solid rgba(8,145,178,.3);border-radius:10px;color:#67d7f5;font-family:Space Grotesk,sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
               <span id="ec-copy-bm-txt">Copiar código del bookmarklet</span>
             </button>
-            <div style="font-family:Space Mono,monospace;font-size:9px;color:rgba(248,250,252,.2);margin-top:7px;line-height:1.6">Pégalo como URL en el favorito que hayas guardado</div>
+            <div style="font-family:Space Mono,monospace;font-size:9px;color:rgba(248,250,252,.2);margin-top:7px;line-height:1.6">Chrome: pega en F12 → Consola y pulsa Enter · Safari: pega como URL en el favorito</div>
           </div>
         </div>
       </div>
@@ -18557,16 +18557,18 @@ function _ecBuildBookmarklet(){
 
 // ── Open/close overlay ───────────────────────────────────────────
 window.ldECrewsCopyBookmarklet = function(){
-  var code = _ecBuildBookmarklet();
+  // For console use: copy raw JS without 'javascript:' prefix and without URL encoding
+  var fullUrl = _ecBuildBookmarklet();
+  var rawCode = decodeURIComponent(fullUrl.replace('javascript:',''));
   if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(code).then(function(){
+    navigator.clipboard.writeText(rawCode).then(function(){
       var btn = document.getElementById('ec-copy-bm-txt');
       if(btn){ btn.textContent = '✓ Copiado'; setTimeout(function(){ btn.textContent = 'Copiar código del bookmarklet'; }, 2500); }
     }).catch(function(){
-      _ecCopyFallback(code);
+      _ecCopyFallback(rawCode);
     });
   } else {
-    _ecCopyFallback(code);
+    _ecCopyFallback(rawCode);
   }
 };
 
