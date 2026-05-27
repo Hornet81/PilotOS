@@ -9039,12 +9039,25 @@ window.addEventListener('online', function(){
           <div style="font-family:'Space Mono',monospace;font-size:11px;color:rgba(248,250,252,.45);line-height:1.6">En la pestaña de eCrews, pulsa <span style="color:#67d7f5;background:rgba(8,145,178,.12);padding:1px 6px;border-radius:5px;border:1px solid rgba(8,145,178,.25)">PilotOS Sync</span> en tus favoritos.</div>
           <!-- Bookmarklet install hint -->
           <div id="ec-bookmark-hint" style="margin-top:10px;padding:11px 13px;background:rgba(8,145,178,.07);border:1px solid rgba(8,145,178,.18);border-radius:12px">
-            <div style="font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:600;color:rgba(8,145,178,.8);margin-bottom:6px">¿No tienes el bookmarklet?</div>
-            <div style="font-family:'Space Mono',monospace;font-size:10px;color:rgba(248,250,252,.4);line-height:1.7;margin-bottom:8px">Arrastra este botón a tu barra de favoritos:</div>
-            <a id="ec-bookmarklet-link" href="#" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:linear-gradient(135deg,#0891B2,#0369A1);border-radius:10px;color:#fff;font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:700;text-decoration:none;cursor:grab;user-select:none;box-shadow:0 4px 14px rgba(8,145,178,.35)">
+            <div style="font-family:Space Grotesk,sans-serif;font-size:11px;font-weight:600;color:rgba(8,145,178,.8);margin-bottom:6px">¿No tienes el bookmarklet?</div>
+            <!-- Desktop: drag -->
+            <div id="ec-bm-desktop" style="font-family:Space Mono,monospace;font-size:10px;color:rgba(248,250,252,.4);line-height:1.7;margin-bottom:8px">Arrastra este botón a tu barra de favoritos:</div>
+            <a id="ec-bookmarklet-link" href="#" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:linear-gradient(135deg,#0891B2,#0369A1);border-radius:10px;color:#fff;font-family:Space Grotesk,sans-serif;font-size:12px;font-weight:700;text-decoration:none;cursor:grab;user-select:none;box-shadow:0 4px 14px rgba(8,145,178,.35)">
               🔗 PilotOS Sync
             </a>
-            <div style="font-family:'Space Mono',monospace;font-size:9px;color:rgba(248,250,252,.25);margin-top:8px;line-height:1.5">En móvil: copia el enlace → edita favorito → pega como URL</div>
+            <!-- Divider -->
+            <div style="display:flex;align-items:center;gap:8px;margin:10px 0 8px">
+              <div style="flex:1;height:1px;background:rgba(8,145,178,.15)"></div>
+              <span style="font-family:Space Mono,monospace;font-size:9px;color:rgba(248,250,252,.2);letter-spacing:.4px">SAFARI MÓVIL</span>
+              <div style="flex:1;height:1px;background:rgba(8,145,178,.15)"></div>
+            </div>
+            <!-- Mobile: copy code -->
+            <div style="font-family:Space Mono,monospace;font-size:10px;color:rgba(248,250,252,.35);line-height:1.6;margin-bottom:8px">Guarda esta página como favorito, luego reemplaza la URL con el código:</div>
+            <button id="ec-copy-bm-btn" onclick="ldECrewsCopyBookmarklet()" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:10px 14px;background:rgba(8,145,178,.12);border:1.5px solid rgba(8,145,178,.3);border-radius:10px;color:#67d7f5;font-family:Space Grotesk,sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              <span id="ec-copy-bm-txt">Copiar código del bookmarklet</span>
+            </button>
+            <div style="font-family:Space Mono,monospace;font-size:9px;color:rgba(248,250,252,.2);margin-top:7px;line-height:1.6">Pégalo como URL en el favorito que hayas guardado</div>
           </div>
         </div>
       </div>
@@ -9054,7 +9067,7 @@ window.addEventListener('online', function(){
         <div style="width:28px;height:28px;border-radius:50%;background:rgba(8,145,178,.15);border:1.5px solid rgba(8,145,178,.3);display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:rgba(8,145,178,.7);flex-shrink:0;margin-top:1px">3</div>
         <div>
           <div style="font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;color:#F0FFFE;margin-bottom:4px">Navega al mes</div>
-          <div style="font-family:'Space Mono',monospace;font-size:11px;color:rgba(248,250,252,.45);line-height:1.6">Ve a <strong style="color:rgba(248,250,252,.7)">My Schedule</strong> y selecciona el mes. Los datos se importarán automáticamente.</div>
+          <div style="font-family:'Space Mono',monospace;font-size:11px;color:rgba(248,250,252,.45);line-height:1.6">Ve a <strong style="color:rgba(248,250,252,.7)">My Schedule</strong> en el menú izquierdo. Los datos del mes actual se capturarán automáticamente.</div>
         </div>
       </div>
 
@@ -18460,12 +18473,53 @@ function _ecBuildBookmarklet(){
     '    });',
     '  });',
     '  iframeObs.observe(document.body,{childList:true,subtree:true});',
+'  // Trigger reload if already on My Schedule',
+'  setTimeout(function(){',
+'    var iframes=document.querySelectorAll("iframe");',
+'    iframes.forEach(function(f){',
+'      try{',
+'        var iw=f.contentWindow;',
+'        if(typeof iw.RenderMySchedule==="function"){iw.RenderMySchedule();}',
+'        else if(typeof iw.RenderSchedule==="function"){iw.RenderSchedule();}',
+'      }catch(e){}',
+'    });',
+'  },800);',
     '})()'
   ].join('');
   return 'javascript:'+encodeURIComponent(code);
 }
 
 // ── Open/close overlay ───────────────────────────────────────────
+window.ldECrewsCopyBookmarklet = function(){
+  var code = _ecBuildBookmarklet();
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(code).then(function(){
+      var btn = document.getElementById('ec-copy-bm-txt');
+      if(btn){ btn.textContent = '✓ Copiado'; setTimeout(function(){ btn.textContent = 'Copiar código del bookmarklet'; }, 2500); }
+    }).catch(function(){
+      _ecCopyFallback(code);
+    });
+  } else {
+    _ecCopyFallback(code);
+  }
+};
+
+function _ecCopyFallback(text){
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  try {
+    document.execCommand('copy');
+    var btn = document.getElementById('ec-copy-bm-txt');
+    if(btn){ btn.textContent = '✓ Copiado'; setTimeout(function(){ btn.textContent = 'Copiar código del bookmarklet'; }, 2500); }
+  } catch(e) {
+    showToast('No se pudo copiar automáticamente', 'info');
+  }
+  document.body.removeChild(ta);
+}
+
 window.ldECrewsSyncOpen = function(){
   // Set bookmarklet href
   var link = document.getElementById('ec-bookmarklet-link');
@@ -18494,7 +18548,7 @@ window.ldECrewsSyncClose = function(){
 
 // ── Open eCrews tab ──────────────────────────────────────────────
 window.ldECrewsOpenTab = function(){
-  _ecSyncTab = window.open('https://ecrews.vueling.com/eCrew/CrewSchedule', '_blank');
+  _ecSyncTab = window.open('https://ecrews.vueling.com/eCrew/Dashboard', '_blank');
   var btn = document.getElementById('ec-open-btn');
   if(btn){
     btn.style.opacity = '.5';
@@ -18502,7 +18556,7 @@ window.ldECrewsOpenTab = function(){
     btn.innerHTML = '✓ Abierto — pulsa el bookmarklet';
   }
   var wt = document.getElementById('ec-wait-text');
-  if(wt) wt.textContent = 'eCrews abierto. Pulsa el bookmarklet y navega a My Schedule…';
+  if(wt) wt.textContent = 'eCrews abierto. Pulsa el bookmarklet en el Dashboard y luego ve a My Schedule…';
 };
 
 // ── postMessage listener ─────────────────────────────────────────
