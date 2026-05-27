@@ -4767,12 +4767,18 @@ html.day .ld-fmonth.is-sticky{
   border-bottom-color:rgba(15,23,42,.08) !important;
 }
 
-/* Grupo de día */
+/* ── Grupo de día — fondo cristal + borde top de color del JS ── */
 html.day .ld-fday-group{
-  background:rgba(255,255,255,.68) !important;
-  border-color:rgba(255,255,255,.9) !important;
-  box-shadow:0 4px 16px rgba(15,23,42,.1) !important;
+  background:rgba(255,255,255,.72) !important;
+  border-left:1px solid rgba(255,255,255,.55) !important;
+  border-right:1px solid rgba(255,255,255,.55) !important;
+  border-bottom:1px solid rgba(255,255,255,.55) !important;
+  border-top-width:5px !important;
+  border-top-style:solid !important;
+  /* border-top-color: set by JS inline — DO NOT override here */
+  box-shadow:0 4px 20px rgba(15,23,42,.12) !important;
 }
+
 /* ── Paginación — botones y textos visibles en día ── */
 html.day #ld_pag [style*="background:rgba(17,24,39"]{
   background:rgba(255,255,255,.85) !important;
@@ -4783,24 +4789,7 @@ html.day #ld_pag [style*="color:rgba(34,211,238"]{color:#0369A1 !important}
 html.day #ld_pag [style*="color:rgba(248,250,252"]{color:#334155 !important}
 html.day #ld_pag [style*="background:rgba(34,211,238,.08)"]{background:rgba(30,58,164,.08) !important}
 
-/* ── Modo día: grupo día — borde superior más grueso y visible ── */
-html.day .ld-fday-group{
-  border-left:1px solid rgba(255,255,255,.55) !important;
-  border-right:1px solid rgba(255,255,255,.55) !important;
-  border-bottom:1px solid rgba(255,255,255,.55) !important;
-  border-top-width:5px !important;
-  /* border-top-color viene del inline JS con clr.hex — NO sobreescribir */
-  background:rgba(255,255,255,.72) !important;
-  box-shadow:0 4px 20px rgba(15,23,42,.12) !important;
-}
-/* Asegurar que el color inline del JS no quede tapado */
-html.day .ld-fday-group[style*="border-top-color"]{
-  border-top-style:solid !important;
-  border-top-width:5px !important;
-  opacity:1 !important;
-}
-/* La barra izquierda del card ya está en ::before violeta→cian — se mantiene */
-/* En día la hacemos más saturada y visible */
+/* ── La barra izquierda del card — más saturada en día ── */
 html.day .ld-fcard::before{
   opacity:1 !important;
   width:4px !important;
@@ -5061,17 +5050,6 @@ html.day [style*="Sincronizado"]{color:#0D6B6B !important}
   0%,100%{background-position:0% 0%}
   50%{background-position:100% 0%}
 }
-html.day #ld-logbook-title{
-  background:linear-gradient(90deg,#1E3A8A 0%,#0891B2 35%,#4C1D95 60%,#0891B2 80%,#1E3A8A 100%) !important;
-  background-size:300% 100% !important;
-  -webkit-background-clip:text !important;
-  background-clip:text !important;
-  -webkit-text-fill-color:transparent !important;
-  color:transparent !important;
-  filter:drop-shadow(0 2px 8px rgba(255,255,255,.5)) drop-shadow(0 0 16px rgba(8,145,178,.4)) !important;
-  animation:ldTitleShimmerDay 3s ease-in-out infinite !important;
-}
-
 /* ── Botón FAB "+ Añadir vuelo" ── */
 
 /* ── 2. Leyenda Completo/Parcial/Solo roster — más contraste ── */
@@ -9481,15 +9459,16 @@ function _ldTitleColorCycle(isDay){
   if(!el) return;
   if(_ldTitleTimer){ clearInterval(_ldTitleTimer); _ldTitleTimer=null; }
   if(!isDay){
-    el.style.cssText = [
-      'font-family:Outfit,Space Grotesk,sans-serif',
+    el.setAttribute('style', [
+      "font-family:'Outfit','Space Grotesk',sans-serif",
       'font-size:34px','font-weight:800','letter-spacing:-1px','line-height:1',
       'background:linear-gradient(90deg,#7C3AED 0%,#22D3EE 60%,#7C3AED 100%)',
       'background-size:200% 100%',
-      '-webkit-background-clip:text','-webkit-text-fill-color:transparent',
+      '-webkit-background-clip:text',
+      '-webkit-text-fill-color:transparent',
       'filter:drop-shadow(0 0 18px rgba(34,211,238,.45)) drop-shadow(0 0 35px rgba(124,58,237,.3))',
       'animation:ldTitleShimmer 4s ease-in-out infinite'
-    ].join(';');
+    ].join(';'));
     return;
   }
 
@@ -9506,23 +9485,24 @@ function _ldTitleColorCycle(isDay){
 
   function applyStep(){
     var s = steps[idx % steps.length];
-    el.style.backgroundImage = 'none';
-    el.style.background      = 'none';
-    el.style.webkitBackgroundClip = 'unset';
-    el.style.backgroundClip       = 'unset';
-    el.style.webkitTextFillColor  = s.fill;
-    el.style.color  = s.fill;
-    el.style.filter = [
+    var glowStr = [
       'drop-shadow(0 0 12px ' + s.glow1 + ')',
       'drop-shadow(0 0 28px ' + s.glow2 + ')',
       'drop-shadow(0 2px 4px rgba(0,0,0,.25))'
     ].join(' ');
-    el.style.animation  = 'none';
-    el.style.transition = [
-      'color 1.2s cubic-bezier(.4,0,.2,1)',
-      '-webkit-text-fill-color 1.2s cubic-bezier(.4,0,.2,1)',
-      'filter 1.4s cubic-bezier(.4,0,.2,1)'
-    ].join(',');
+    // Use setAttribute to fully replace inline style — avoids conflict with hardcoded -webkit-text-fill-color:transparent
+    el.setAttribute('style', [
+      "font-family:'Outfit','Space Grotesk',sans-serif",
+      'font-size:34px','font-weight:800','letter-spacing:-1px','line-height:1',
+      'background:none',
+      '-webkit-background-clip:unset',
+      'background-clip:unset',
+      '-webkit-text-fill-color:' + s.fill,
+      'color:' + s.fill,
+      'filter:' + glowStr,
+      'animation:none',
+      'transition:color 1.2s cubic-bezier(.4,0,.2,1),-webkit-text-fill-color 1.2s cubic-bezier(.4,0,.2,1),filter 1.4s cubic-bezier(.4,0,.2,1)'
+    ].join(';'));
     idx++;
   }
 
