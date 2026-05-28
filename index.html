@@ -23219,7 +23219,11 @@ window.rosterHandleFile = function(event){
   // Save file reference immediately before any DOM manipulation
   var inp = document.getElementById('rst-file-input');
   var file = (inp && inp.files && inp.files[0]) || (event.target.files && event.target.files[0]);
-  if(!file) return;
+  console.log('[Roster] handleFile called, file:', file ? file.name+' ('+file.type+', '+file.size+'b)' : 'NULL');
+  if(!file){
+    if(typeof showToast==='function') showToast('⚠️ No se detectó archivo. Inténtalo de nuevo.');
+    return;
+  }
 
   var proc = document.getElementById('rst-ai-proc');
   var status = document.getElementById('rst-ai-status');
@@ -23383,15 +23387,18 @@ async function rosterRunPDF(pdfBase64){
   var proc   = document.getElementById('rst-ai-proc');
   var zone   = document.getElementById('rst-upload-zone');
   rstSetProcMode('pdf');
+  console.log('[Roster] rosterRunPDF called, base64 length:', pdfBase64 ? pdfBase64.length : 0);
 
   var authToken = '';
   try { authToken = lsGet('cafi_auth_token',''); } catch(e){}
+  console.log('[Roster] auth token present:', !!authToken);
   if(!authToken){
     if(proc) proc.style.display='none';
     if(zone) zone.style.display='';
-    if(typeof showToast==='function') showToast('⚠️ Inicia sesión en CAFI primero');
+    if(typeof showToast==='function') showToast('⚠️ Inicia sesión en CAFI primero para subir el PDF');
     return;
   }
+  console.log('[Roster] sending PDF to backend:', cafiBackendUrl + '/roster/analyze');
 
   try {
     var res = await fetch(cafiBackendUrl + '/roster/analyze', {
@@ -23400,7 +23407,17 @@ async function rosterRunPDF(pdfBase64){
       body: JSON.stringify({ pdf_buffer: pdfBase64 })
     });
     var data = await res.json();
-    if(!res.ok) throw new Error(data.error || 'Error del servidor');
+    console.log('[Roster] server response status:', res.status, 'data:', JSON.stringify(data).slice(0,200));
+    if(!res.ok){
+      // Plan limit — show upgrade prompt
+      if(data.error === 'plan_limit'){
+        if(typeof showToast==='function') showToast('🔒 '+( data.message || 'Necesitas plan Pro para importar roster'));
+        // Show upgrade screen
+        setTimeout(function(){ if(typeof goTo==='function') goTo('upgrade'); }, 1500);
+        return;
+      }
+      throw new Error(data.message || data.error || 'Error del servidor ('+res.status+')');
+    }
     var parsed = data;
     if(!parsed.entries || !parsed.entries.length) throw new Error('No se encontraron entradas en el PDF');
 
@@ -23517,7 +23534,14 @@ async function rosterRunAIText(textContent){
       body: JSON.stringify({ text_content: textContent })
     });
     var data = await res.json();
-    if(!res.ok) throw new Error(data.error || 'Error del servidor');
+    if(!res.ok){
+      if(data.error === 'plan_limit'){
+        if(typeof showToast==='function') showToast('🔒 '+(data.message || 'Necesitas plan Pro para importar roster'));
+        setTimeout(function(){ if(typeof goTo==='function') goTo('upgrade'); }, 1500);
+        return;
+      }
+      throw new Error(data.message || data.error || 'Error del servidor');
+    }
     var parsed = data;
     if(!parsed.entries || !parsed.entries.length) throw new Error('No se encontraron entradas en el roster');
 
@@ -23649,7 +23673,14 @@ async function rosterRunAI(dataUrl, mimeType){
       body: JSON.stringify({ image_base64: b64, media_type: mt })
     });
     var data = await res.json();
-    if(!res.ok) throw new Error(data.error || 'Error del servidor');
+    if(!res.ok){
+      if(data.error === 'plan_limit'){
+        if(typeof showToast==='function') showToast('🔒 '+(data.message || 'Necesitas plan Pro para importar roster'));
+        setTimeout(function(){ if(typeof goTo==='function') goTo('upgrade'); }, 1500);
+        return;
+      }
+      throw new Error(data.message || data.error || 'Error del servidor');
+    }
     var parsed = data; // backend returns parsed JSON directly
     
 
@@ -23857,7 +23888,10 @@ function rosterShowCalendar(){
       _inner.innerHTML = '<div style="font-size:30px;margin-bottom:6px">🗓</div>'
         + '<div class="upload-title">Sube tu roster de ' + _vMonth + '</div>'
         + '<div class="upload-sub">PDF, TXT o foto del roster</div>'
-        + '<label class="upload-btn-main" onclick="document.getElementById(\'rst-file-input\').click()">📂 Subir archivo</label>';
+        + '<label class="upload-btn-main"><input type="file" id="rst-file-input" accept=".txt,image/*,application/pdf" style="display:none">📂 Subir archivo</label>';
+      // Re-wire event after innerHTML rebuild
+      var _inp = document.getElementById('rst-file-input');
+      if(_inp && !_inp._wired){ _inp._wired=true; _inp.addEventListener('change',function(e){ if(window.rosterHandleFile) window.rosterHandleFile(e); }); }
     }
     // Restore zone visibility and style
     zone.style.display = '';
@@ -23897,11 +23931,14 @@ function rosterShowCalendar(){
       + '</div>'
       + '</div>'
       + '<div style="display:flex;gap:8px;align-items:center">'
-      + '<button onclick="document.getElementById(\'rst-file-input\').click()" style="padding:7px 12px;background:rgba(20,184,166,.10);border:1px solid rgba(20,184,166,.32);border-radius:10px;color:#2dd4bf;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;-webkit-appearance:none">📂 Actualizar</button>'
+      + '<label style="padding:7px 12px;background:rgba(20,184,166,.10);border:1px solid rgba(20,184,166,.32);border-radius:10px;color:#2dd4bf;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;display:inline-flex;align-items:center;gap:5px"><input type="file" id="rst-file-input" accept=".txt,image/*,application/pdf" style="display:none">📂 Actualizar</label>'
       + '<button onclick="rosterConfirmDelete()" style="padding:7px 12px;background:rgba(239,68,68,.1);border:1px solid rgba(248,113,113,.3);border-radius:10px;color:#F87171;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;-webkit-appearance:none">🗑 Borrar</button>'
       + '<button onclick="ldECrewsSyncOpen()" style="padding:7px 12px;background:linear-gradient(135deg,rgba(8,145,178,.18),rgba(6,95,120,.14));border:1px solid rgba(8,145,178,.45);border-radius:10px;color:#67d7f5;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;-webkit-appearance:none;display:inline-flex;align-items:center;gap:5px">🔗 eCrews</button>'
       + '</div>'
       + '</div>';
+    // Re-wire input after innerHTML rebuild
+    var _inp2 = document.getElementById('rst-file-input');
+    if(_inp2 && !_inp2._wired){ _inp2._wired=true; _inp2.addEventListener('change',function(e){ if(window.rosterHandleFile) window.rosterHandleFile(e); }); }
   }
 }
 
@@ -25597,13 +25634,13 @@ function pagSignOut() {
 
     <!-- Upload zone -->
     <div id="rst-upload-zone">
-      <!-- Persistent input — lives OUTSIDE rst-upload-inner so innerHTML never destroys it -->
-      <input type="file" id="rst-file-input" accept=".txt,image/*,application/pdf" style="display:none">
       <div id="rst-upload-inner">
         <div style="font-size:30px;margin-bottom:6px">🗓</div>
         <div class="upload-title">Sube tu roster mensual</div>
         <div class="upload-sub">PDF, TXT o JPEG</div>
-        <label class="upload-btn-main" onclick="document.getElementById('rst-file-input').click()">
+        <div id="rst-auth-status" style="font-size:10px;color:rgba(240,255,254,.35);margin-bottom:8px;font-family:'Space Mono',monospace"></div>
+        <label class="upload-btn-main">
+          <input type="file" id="rst-file-input" accept=".txt,image/*,application/pdf" style="display:none">
           📂 Subir archivo
         </label>
       </div>
