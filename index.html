@@ -10362,7 +10362,7 @@ async function cafiSendMessage() {
 
   try {
     // ── RAG Backend ──────────────────────────────────────────────
-    const backendUrl = lsGet('cafi_backend_url','https://happy-ambition-production-75eb.up.railway.app');
+    const backendUrl = lsGet('cafi_backend_url','https://api.pilotos.aero');
     const authToken  = lsGet('cafi_auth_token', '');
 
     // Build logbook context for backend
@@ -11942,7 +11942,7 @@ async function ldRunOCR(dataUrl){
   ocr.innerHTML='<div class="ld-ocr-spin"></div>&nbsp;Analizando MCDU con IA...';
   var parts=dataUrl.split(','), mt=parts[0].match(/:(.*?);/)[1], b64=parts[1];
   var authToken=''; try{authToken=lsGet('cafi_auth_token','');}catch(e){}
-  var backendUrl=lsGet('cafi_backend_url','https://happy-ambition-production-75eb.up.railway.app');
+  var backendUrl=lsGet('cafi_backend_url','https://api.pilotos.aero');
   try{
     var res=await fetch(backendUrl+'/api/logbook/analyze',{
       method:'POST',
@@ -12015,7 +12015,7 @@ function ldLoadDelayCodes(){
   } catch(e){}
   var tok = ''; try{ tok = lsGet('cafi_auth_token',''); }catch(e){}
   if(!tok){ setTimeout(ldLoadDelayCodes, 3000); return; }
-  var baseUrl = ''; try{ baseUrl = lsGet('cafi_backend_url','https://happy-ambition-production-75eb.up.railway.app'); }catch(e){ baseUrl='https://happy-ambition-production-75eb.up.railway.app'; }
+  var baseUrl = ''; try{ baseUrl = lsGet('cafi_backend_url','https://api.pilotos.aero'); }catch(e){ baseUrl='https://api.pilotos.aero'; }
   fetch(baseUrl + '/api/delay-codes', { headers:{ 'Authorization':'Bearer '+tok } })
     .then(function(r){ return r.json(); })
     .then(function(d){
@@ -13224,7 +13224,7 @@ async function upgCheckout(priceId) {
   if (btn) { btn.disabled = true; btn.textContent = 'Redirigiendo…'; }
 
   try {
-    var backendUrl = lsGet('cafi_backend_url','https://happy-ambition-production-75eb.up.railway.app');
+    var backendUrl = lsGet('cafi_backend_url','https://api.pilotos.aero');
     var res = await fetch(backendUrl + '/api/stripe/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
@@ -13268,7 +13268,7 @@ function upgUpdateCards() {
     // Refrescar plan desde el servidor
     setTimeout(function() {
       var token = lsGet('cafi_auth_token', '');
-      var backendUrl = lsGet('cafi_backend_url','https://happy-ambition-production-75eb.up.railway.app');
+      var backendUrl = lsGet('cafi_backend_url','https://api.pilotos.aero');
       if (token) {
         fetch(backendUrl + '/api/user/plan', {
           headers: { 'Authorization': 'Bearer ' + token }
@@ -14366,7 +14366,7 @@ function ldAuthHeaders(){
   return t&&t!=='demo-bypass-token'?t:null;
 }
 function ldBackendUrl(){
-  return lsGet('cafi_backend_url','https://happy-ambition-production-75eb.up.railway.app');
+  return lsGet('cafi_backend_url','https://api.pilotos.aero');
 }
 
 var LD_PENDING_KEY = 'pilotOS_sync_pending';
@@ -16141,8 +16141,8 @@ function parseMetarObj(m) {
 }
 
 function _wxUrl() {
-  try { return localStorage.getItem('cafi_backend_url') || 'https://happy-ambition-production-75eb.up.railway.app'; }
-  catch(e) { return 'https://happy-ambition-production-75eb.up.railway.app'; }
+  try { return localStorage.getItem('cafi_backend_url') || 'https://api.pilotos.aero'; }
+  catch(e) { return 'https://api.pilotos.aero'; }
 }
 function _wxHdr() {
   try { const t = localStorage.getItem('cafi_auth_token'); return t ? { 'Authorization': 'Bearer ' + t } : {}; }
@@ -21308,7 +21308,7 @@ window.runAIBriefing = async function(){
   resultWrap.innerHTML=''; resultWrap.classList.remove('visible');
   var prompt='Eres un meteorólogo aeronáutico experto. Analiza los siguientes datos de vuelo y genera un briefing operacional conciso en español para un piloto de A320.\n\nRUTA: '+dep+' → '+arr+'\nMETAR (salida): '+metar+'\nTAF (salida): '+taf+'\nCódigo WMO salida: '+depCode+' | llegada: '+arrCode+'\nViento: '+windKt+' kt\n\nResponde ÚNICAMENTE con JSON sin markdown, con esta estructura exacta:\n{\n  "summary": "Resumen ejecutivo en 2 frases",\n  "dep_analysis": "Análisis condiciones salida (1-2 frases)",\n  "arr_analysis": "Análisis condiciones llegada (1-2 frases)",\n  "warnings": ["alerta1 si existe"],\n  "recommendation": "Recomendación operacional concreta",\n  "severity": "ok|caution|warning"\n}\nSi no hay alertas reales, warnings debe ser [].';
   var wxAuthToken=''; try{wxAuthToken=lsGet('cafi_auth_token','');}catch(e){}
-  var wxBackendUrl=lsGet('cafi_backend_url','https://happy-ambition-production-75eb.up.railway.app');
+  var wxBackendUrl=lsGet('cafi_backend_url','https://api.pilotos.aero');
   try{
     var resp=await fetch(wxBackendUrl+'/api/weather/analyze',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+wxAuthToken},body:JSON.stringify({prompt:prompt})});
     var data=await resp.json();
@@ -25161,7 +25161,7 @@ document.addEventListener('DOMContentLoaded', function(){
 // ══════════════════════════════════════════════════════════
 //  PILOT AUTH GATE — unified login / register for all PilotOS
 // ══════════════════════════════════════════════════════════
-var cafiBackendUrl = lsGet('cafi_backend_url','https://happy-ambition-production-75eb.up.railway.app');
+var cafiBackendUrl = lsGet('cafi_backend_url','https://api.pilotos.aero');
 
 // ── Airline card selector ──
 function pagSelectAirline(card, value) {
@@ -25354,6 +25354,28 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
       if(typeof ldStats === 'function') ldStats();
     } catch(e){}
   }, 400);
+  // Ping server and show status on login screen
+  (function(){
+    var statusEl = document.getElementById('pag-server-status');
+    if(!statusEl) return;
+    var url = lsGet('cafi_backend_url','https://api.pilotos.aero');
+    var ctrl = new AbortController();
+    setTimeout(function(){ ctrl.abort(); }, 8000);
+    fetch(url + '/health', { signal: ctrl.signal })
+      .then(function(r){
+        if(statusEl) statusEl.style.color = r.ok ? '#4ADE80' : '#FBBF24';
+        if(statusEl) statusEl.textContent = r.ok ? '✅ Servidor activo' : '⚠️ Servidor respondió con error ' + r.status;
+      })
+      .catch(function(e){
+        if(statusEl){
+          statusEl.style.color = '#F87171';
+          statusEl.textContent = e.name === 'AbortError'
+            ? '🔴 Servidor no responde (arrancando…)' 
+            : '🔴 No se puede conectar al servidor';
+        }
+      });
+  })();
+
   if (!token) {
     var gate = document.getElementById('pilot-auth-gate');
     if (gate) gate.classList.remove('hidden');
@@ -25365,7 +25387,7 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
     } catch(ex) {}
     // Verify token in background — don't block UI startup
     // User is let in immediately with cached data; validation happens silently
-    var backendUrl = lsGet('cafi_backend_url','https://happy-ambition-production-75eb.up.railway.app');
+    var backendUrl = lsGet('cafi_backend_url','https://api.pilotos.aero');
     var _ctrl = new AbortController();
     setTimeout(function(){ _ctrl.abort(); }, 12000); // 12s timeout — don't block forever
     fetch(backendUrl + '/api/user/plan', {
@@ -26064,6 +26086,7 @@ function pagSignOut() {
     <button class="pag-btn" id="pag-btn" onclick="pagDoAuth()">Entrar →</button>
 
     <!-- Footer -->
+    <div id="pag-server-status" style="font-size:10px;font-family:'Space Mono',monospace;text-align:center;margin-bottom:6px;color:rgba(240,255,254,.3)">Comprobando servidor…</div>
     <div class="pag-note">v24 · PilotOS RAG · A319/A320/A321</div>
   </div>
 </div>
