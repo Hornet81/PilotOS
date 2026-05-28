@@ -10151,23 +10151,29 @@ function refreshContext() {
   const kbChip = document.getElementById('kb-chip');
   const lbChip = document.getElementById('logbook-chip');
 
-  kbChip.textContent = `📖 FCOM KB: ${kbSize} entradas`;
-  kbChip.classList.toggle('empty', kbSize === 0);
+  if (kbChip) {
+    kbChip.textContent = `📖 FCOM KB: ${kbSize} entradas`;
+    kbChip.classList.toggle('empty', kbSize === 0);
+  }
 
-  if ((pilotData.logbook&&pilotData.logbook.length) > 0) {
-    const totalM = pilotData.logbook.reduce((s,e)=>s+t2m(e.block||'0:00'),0);
-    lbChip.textContent = `📋 Logbook: ${pilotData.logbook.length} vuelos · ${m2t(totalM)}h`;
-    lbChip.classList.remove('empty');
-  } else {
-    lbChip.textContent = '📋 Logbook: sin datos';
-    lbChip.classList.add('empty');
+  if (lbChip) {
+    if ((pilotData.logbook&&pilotData.logbook.length) > 0) {
+      const totalM = pilotData.logbook.reduce((s,e)=>s+t2m(e.block||'0:00'),0);
+      lbChip.textContent = `📋 Logbook: ${pilotData.logbook.length} vuelos · ${m2t(totalM)}h`;
+      lbChip.classList.remove('empty');
+    } else {
+      lbChip.textContent = '📋 Logbook: sin datos';
+      lbChip.classList.add('empty');
+    }
   }
 
   // Stats grid
   const kbSize2 = (window.KB && window.KB.length) || KB_SAMPLE.length;
   const totalM = (pilotData.logbook&&pilotData.logbook.reduce)((s,e)=>s+t2m(e.block||'0:00'),0)||0;
   const nightM = (pilotData.logbook&&pilotData.logbook.reduce)((s,e)=>s+t2m(e.night||'0:00'),0)||0;
-  document.getElementById('stats-grid').innerHTML = `
+  const _sg = document.getElementById('stats-grid');
+  if (!_sg) return;
+  _sg.innerHTML = `
     <div class="stat-card active">
       <div class="stat-label">FCOM KB</div>
       <div class="stat-val">${kbSize2}</div>
@@ -16155,7 +16161,7 @@ function _wxHdr() {
 
 async function fetchLiveMetar(icao) {
   try {
-    const r = await fetch('https://aviationweather.gov/api/data/metar?ids=' + icao + '&format=json&hours=2');
+    const r = await fetch(_wxUrl() + '/api/wx/metar/' + icao);
     if (!r.ok) return null;
     const d = await r.json();
     return parseMetarObj(d && d[0]);
@@ -16164,7 +16170,7 @@ async function fetchLiveMetar(icao) {
 
 async function fetchLiveTaf(icao) {
   try {
-    const r = await fetch('https://aviationweather.gov/api/data/taf?ids=' + icao + '&format=json');
+    const r = await fetch(_wxUrl() + '/api/wx/taf/' + icao);
     if (!r.ok) return '';
     const d = await r.json();
     return (d && d[0] && d[0].rawTAF) || '';
