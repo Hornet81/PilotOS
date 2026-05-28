@@ -25241,15 +25241,22 @@ async function pagDoAuth() {
 
   btn.disabled = true;
   btn.textContent = 'Conectando…';
+  var _h1 = setTimeout(function(){ if(btn.disabled) btn.textContent = 'Conectando con el servidor…'; }, 4000);
+  var _h2 = setTimeout(function(){ if(btn.disabled) btn.textContent = 'El servidor está arrancando…'; }, 10000);
+  var _h3 = setTimeout(function(){ if(btn.disabled) btn.textContent = 'Casi listo, un momento…'; }, 18000);
 
   try {
     var endpoint = isLogin ? '/auth/login' : '/auth/register';
     var body = isLogin ? { email, password: pass } : { email, password: pass, name: email.split('@')[0], airline };
+    var _ctrl = new AbortController();
+    var _timer = setTimeout(function(){ _ctrl.abort(); }, 35000);
     var res = await fetch(cafiBackendUrl + endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: _ctrl.signal
     });
+    clearTimeout(_timer); clearTimeout(_h1); clearTimeout(_h2); clearTimeout(_h3);
     var data = await res.json();
     if (!res.ok) {
       err.textContent = data.error || 'Error al autenticar. Inténtalo de nuevo.';
@@ -25296,7 +25303,12 @@ async function pagDoAuth() {
       }
     }
   } catch(e) {
-    err.textContent = 'No se puede conectar con el servidor. ¿Backend activo en ' + cafiBackendUrl.replace('https://','').replace('http://','') + '?';
+    clearTimeout(_h1); clearTimeout(_h2); clearTimeout(_h3);
+    if (e.name === 'AbortError') {
+      err.textContent = 'El servidor está tardando en arrancar. Espera 10 segundos y vuelve a pulsar Entrar.';
+    } else {
+      err.textContent = 'No se puede conectar con el servidor. ¿Backend activo en ' + cafiBackendUrl.replace('https://','').replace('http://','') + '?';
+    }
     err.classList.add('show');
   }
 
