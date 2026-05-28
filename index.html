@@ -25234,18 +25234,43 @@ async function pagDoAuth() {
 
   btn.disabled = true;
   btn.textContent = 'Conectando…';
+  // Progressive status messages during cold start
+  var _h1 = setTimeout(function(){ if(btn.disabled) btn.textContent = 'Conectando con el servidor…'; }, 4000);
+  var _h2 = setTimeout(function(){ if(btn.disabled) btn.textContent = 'El servidor está arrancando…'; }, 10000);
+  var _h3 = setTimeout(function(){ if(btn.disabled) btn.textContent = 'Casi listo, un momento…'; }, 18000);
 
   // demo bypass removed for security
 
   try {
     var endpoint = isLogin ? '/auth/login' : '/auth/register';
     var body = isLogin ? { email, password: pass } : { email, password: pass, name: email.split('@')[0], airline };
-    var res = await fetch(cafiBackendUrl + endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    var data = await res.json();
+    // 15s timeout — Railway puede tener cold starts de 10-30s
+    var _ctrl = new AbortController();
+    var _timer = setTimeout(function(){ _ctrl.abort(); }, 25000);
+    var res, data;
+    try {
+      res = await fetch(cafiBackendUrl + endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: _ctrl.signal
+      });
+      clearTimeout(_timer);
+      clearTimeout(_h1); clearTimeout(_h2); clearTimeout(_h3);
+      data = await res.json();
+    } catch(fetchErr) {
+      clearTimeout(_timer);
+      _clearWakeHint();
+      if(fetchErr.name === 'AbortError'){
+        err.textContent = 'El servidor está tardando en responder (está arrancando). Vuelve a pulsar Entrar en 5 segundos.';
+      } else {
+        err.textContent = 'No se puede conectar con el servidor. Comprueba tu conexión.';
+      }
+      err.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = isLogin ? 'Entrar →' : 'Crear cuenta →';
+      return;
+    }
     if (!res.ok) {
       err.textContent = data.error || 'Error al autenticar. Inténtalo de nuevo.';
       err.classList.add('show');
@@ -25338,10 +25363,14 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
       var stored = localStorage.getItem('cafi_auth_user');
       if (stored) updateUserAvatar(JSON.parse(stored));
     } catch(ex) {}
-    // Verify token is still valid with the server
+    // Verify token in background — don't block UI startup
+    // User is let in immediately with cached data; validation happens silently
     var backendUrl = lsGet('cafi_backend_url','https://happy-ambition-production-75eb.up.railway.app');
+    var _ctrl = new AbortController();
+    setTimeout(function(){ _ctrl.abort(); }, 12000); // 12s timeout — don't block forever
     fetch(backendUrl + '/api/user/plan', {
-      headers: { 'Authorization': 'Bearer ' + token }
+      headers: { 'Authorization': 'Bearer ' + token },
+      signal: _ctrl.signal
     }).then(function(r){
       if (r.status === 401 || r.status === 403) {
         // Token invalid/expired — force re-login
@@ -25360,7 +25389,7 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
         if (typeof sbUpdatePlanBadge === 'function') sbUpdatePlanBadge();
       }
     }).catch(function(){
-      // Network error — allow offline access with cached token (don't force logout)
+      // Network error or timeout — allow offline access with cached token (don't force logout)
     });
   }
 });
