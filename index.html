@@ -9644,12 +9644,14 @@ const QB=[
 
 let OS={cat:0,mode:'mc',q:0,pass:0,part:0,fail:0,idx:-1,answered:false,used:[],sh:null};
 
-document.getElementById('cats').addEventListener('click',e=>{
+var _catsEl = document.getElementById('cats');
+if(_catsEl) _catsEl.addEventListener('click',e=>{
   const b=e.target.closest('.chip');if(!b)return;
   document.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));
   b.classList.add('on');OS.cat=+b.dataset.cat;
 });
-document.getElementById('oes-ta').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&window.innerWidth>500){e.preventDefault();oesSend();}});
+var _oesTaEl = document.getElementById('oes-ta');
+if(_oesTaEl) _oesTaEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&window.innerWidth>500){e.preventDefault();oesSend();}});
 
 function setOesMode(m){
   OS.mode=m;
@@ -16151,7 +16153,7 @@ function _wxHdr() {
 
 async function fetchLiveMetar(icao) {
   try {
-    const r = await fetch(_wxUrl() + '/api/wx/metar/' + icao, { headers: _wxHdr() });
+    const r = await fetch('https://aviationweather.gov/api/data/metar?ids=' + icao + '&format=json&hours=2');
     if (!r.ok) return null;
     const d = await r.json();
     return parseMetarObj(d && d[0]);
@@ -16160,7 +16162,7 @@ async function fetchLiveMetar(icao) {
 
 async function fetchLiveTaf(icao) {
   try {
-    const r = await fetch(_wxUrl() + '/api/wx/taf/' + icao, { headers: _wxHdr() });
+    const r = await fetch('https://aviationweather.gov/api/data/taf?ids=' + icao + '&format=json');
     if (!r.ok) return '';
     const d = await r.json();
     return (d && d[0] && d[0].rawTAF) || '';
@@ -16169,7 +16171,10 @@ async function fetchLiveTaf(icao) {
 
 async function fetchLiveNotams(icao) {
   try {
-    const r = await fetch(_wxUrl() + '/api/wx/notam/' + icao, { headers: _wxHdr() });
+    // NOTAMs via backend (requires auth)
+    const t = localStorage.getItem('cafi_auth_token');
+    if (!t) return [];
+    const r = await fetch(_wxUrl() + '/api/wx/notam/' + icao, { headers: { 'Authorization': 'Bearer ' + t } });
     if (!r.ok) return [];
     const d = await r.json();
     return Array.isArray(d) ? d : [];
