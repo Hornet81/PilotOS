@@ -23216,8 +23216,10 @@ window.rosterSaveEdit = function(){
 
 // ── Handle file upload → Claude Vision ──
 window.rosterHandleFile = function(event){
-  var file = event.target.files[0];
+  var file = event.target.files && event.target.files[0];
   if(!file) return;
+  // Reset input so same file can be selected again
+  try { event.target.value = ''; } catch(e){}
   var proc = document.getElementById('rst-ai-proc');
   var status = document.getElementById('rst-ai-status');
   var zone = document.getElementById('rst-upload-zone');
@@ -23836,17 +23838,30 @@ function rosterShowCalendar(){
   if(!hasEntriesThisMonth){
     // No roster for this month — show upload form, hide the replace hint
     if(_hint) _hint.style.display = 'none';
-    zone.innerHTML = '<div style="font-size:30px;margin-bottom:6px">🗓</div>'
-      + '<div class="upload-title">Sube tu roster de ' + _vMonth + '</div>'
-      + '<div class="upload-sub">PDF, TXT o foto del roster</div>'
-      + '<label class="upload-btn-main"><input type="file" accept=".txt,image/*,application/pdf" onchange="rosterHandleFile(event)" style="display:none">📂 Subir archivo</label>';
-    zone.style.cssText = '';
+    // Update inner text only — don't recreate the input (breaks iOS change event)
+    var _inner = document.getElementById('rst-upload-inner');
+    if(_inner){
+      _inner.innerHTML = '<div style="font-size:30px;margin-bottom:6px">🗓</div>'
+        + '<div class="upload-title">Sube tu roster de ' + _vMonth + '</div>'
+        + '<div class="upload-sub">PDF, TXT o foto del roster</div>'
+        + '<label class="upload-btn-main" for="rst-file-input">📂 Subir archivo</label>';
+    }
+    // Restore zone visibility and style
+    zone.style.display = '';
+    zone.style.padding = '';
+    zone.style.background = '';
+    zone.style.borderStyle = '';
+    var _ecLink2 = document.getElementById('rst-ecrews-link');
+    if(_ecLink2) _ecLink2.style.display = '';
     return;
   }
 
   // Has entries for this month — show "Roster importado" banner + hint
   if(_hint) _hint.style.display = 'block';
-  zone.style.display = '';   // restore visibility (was hidden during upload processing)
+  zone.style.display = '';
+  zone.style.padding = '12px 14px';
+  zone.style.background = 'rgba(20,184,166,.07)';
+  zone.style.borderStyle = 'solid';
   var _ts = '';
   try {
     var _raw = localStorage.getItem('pilotOS_import_ts_'+_vMonth);
@@ -23855,23 +23870,26 @@ function rosterShowCalendar(){
       _ts = ' · '+_d.toLocaleDateString('es-ES',{day:'2-digit',month:'short'})+' '+_d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
     }
   } catch(e){}
-  zone.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">'
-    + '<div style="display:flex;align-items:center;gap:8px">'
-    + '<span style="font-size:16px">🗓</span>'
-    + '<div>'
-    + '<div style="font-size:12px;font-weight:700;color:#22D3EE">Roster importado</div>'
-    + '<div style="font-size:11px;color:rgba(240,255,254,.45)">Importado'+_ts+'</div>'
-    + '</div>'
-    + '</div>'
-    + '<div style="display:flex;gap:8px;align-items:center">'
-    + '<label style="padding:7px 12px;background:rgba(20,184,166,.10);border:1px solid rgba(20,184,166,.32);border-radius:10px;color:#2dd4bf;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;display:inline-flex;align-items:center;gap:5px"><input type="file" accept=".txt,image/*,application/pdf" onchange="rosterHandleFile(event)" style="display:none">📂 Actualizar</label>'
-    + '<button onclick="rosterConfirmDelete()" style="padding:7px 12px;background:rgba(239,68,68,.1);border:1px solid rgba(248,113,113,.3);border-radius:10px;color:#F87171;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;-webkit-appearance:none">🗑 Borrar</button>'
-    + '<button onclick="ldECrewsSyncOpen()" style="padding:7px 12px;background:linear-gradient(135deg,rgba(8,145,178,.18),rgba(6,95,120,.14));border:1px solid rgba(8,145,178,.45);border-radius:10px;color:#67d7f5;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;-webkit-appearance:none;display:inline-flex;align-items:center;gap:5px">🔗 eCrews</button>'
-    + '</div>'
-    + '</div>';
-  zone.style.padding = '12px 14px';
-  zone.style.background = 'rgba(20,184,166,.07)';
-  zone.style.borderStyle = 'solid';
+  // Update inner section (no input here — input is persistent outside)
+  var _inner2 = document.getElementById('rst-upload-inner');
+  var _ecLink = document.getElementById('rst-ecrews-link');
+  if(_ecLink) _ecLink.style.display = 'none';
+  if(_inner2){
+    _inner2.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">'
+      + '<div style="display:flex;align-items:center;gap:8px">'
+      + '<span style="font-size:16px">🗓</span>'
+      + '<div>'
+      + '<div style="font-size:12px;font-weight:700;color:#22D3EE">Roster importado</div>'
+      + '<div style="font-size:11px;color:rgba(240,255,254,.45)">Importado'+_ts+'</div>'
+      + '</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:8px;align-items:center">'
+      + '<label style="padding:7px 12px;background:rgba(20,184,166,.10);border:1px solid rgba(20,184,166,.32);border-radius:10px;color:#2dd4bf;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;display:inline-flex;align-items:center;gap:5px" for="rst-file-input">📂 Actualizar</label>'
+      + '<button onclick="rosterConfirmDelete()" style="padding:7px 12px;background:rgba(239,68,68,.1);border:1px solid rgba(248,113,113,.3);border-radius:10px;color:#F87171;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;-webkit-appearance:none">🗑 Borrar</button>'
+      + '<button onclick="ldECrewsSyncOpen()" style="padding:7px 12px;background:linear-gradient(135deg,rgba(8,145,178,.18),rgba(6,95,120,.14));border:1px solid rgba(8,145,178,.45);border-radius:10px;color:#67d7f5;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;-webkit-appearance:none;display:inline-flex;align-items:center;gap:5px">🔗 eCrews</button>'
+      + '</div>'
+      + '</div>';
+  }
 }
 
 window.rosterConfirmDelete = function(){
@@ -24052,6 +24070,16 @@ window.rosterInit = function(){
       if(n>0 && typeof showToast==='function'){
         showToast('☁ '+n+' entrada'+(n!==1?'s':'')+' de roster cargada'+(n!==1?'s':'')+' desde la nube','info');
       }
+    });
+  }
+
+  // FIX: Wire persistent file input via addEventListener (not inline onchange)
+  // This is the only reliable way to handle file input in iOS Safari/WebView
+  var _persistInput = document.getElementById('rst-file-input');
+  if(_persistInput && !_persistInput._wired){
+    _persistInput._wired = true;
+    _persistInput.addEventListener('change', function(e){
+      if(window.rosterHandleFile) window.rosterHandleFile(e);
     });
   }
 };
@@ -25556,13 +25584,27 @@ function pagSignOut() {
 
     <!-- Upload zone -->
     <div id="rst-upload-zone">
-      <div style="font-size:30px;margin-bottom:6px">🗓</div>
-      <div class="upload-title">Sube tu roster mensual</div>
-      <div class="upload-sub">PDF, TXT o JPEG</div>
-      <label class="upload-btn-main">
-        <input type="file" accept=".txt,image/*,application/pdf" onchange="rosterHandleFile(event)" style="display:none">
-        📂 Subir archivo
-      </label>
+      <div id="rst-upload-inner">
+        <div style="font-size:30px;margin-bottom:6px">🗓</div>
+        <div class="upload-title">Sube tu roster mensual</div>
+        <div class="upload-sub">PDF, TXT o JPEG</div>
+        <label class="upload-btn-main" for="rst-file-input">
+          📂 Subir archivo
+        </label>
+      </div>
+      <input type="file" id="rst-file-input" accept=".txt,image/*,application/pdf" style="display:none">
+      <div id="rst-ecrews-link" style="margin-top:12px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <div style="flex:1;height:1px;background:rgba(34,211,238,.12)"></div>
+          <span style="font-family:'Space Mono',monospace;font-size:10px;color:rgba(240,255,254,.25);letter-spacing:.5px">O SINCRONIZA</span>
+          <div style="flex:1;height:1px;background:rgba(34,211,238,.12)"></div>
+        </div>
+        <button onclick="ldECrewsSyncOpen()" style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:13px 20px;background:linear-gradient(135deg,rgba(8,145,178,.18),rgba(6,95,120,.14));border:1.5px solid rgba(8,145,178,.45);border-radius:14px;color:#67d7f5;font-family:Space Grotesk,sans-serif;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 0 16px rgba(8,145,178,.12);-webkit-tap-highlight-color:transparent">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          Importar desde eCrews
+        </button>
+        <div style="font-family:Space Mono,monospace;font-size:10px;color:rgba(240,255,254,.3);margin-top:8px;line-height:1.6;text-align:center">Sincronización directa con ecrews.vueling.com</div>
+      </div>
       <div style="display:flex;align-items:center;gap:10px;margin:14px 0 12px">
         <div style="flex:1;height:1px;background:rgba(34,211,238,.12)"></div>
         <span style="font-family:&apos;Space Mono&apos;,monospace;font-size:10px;color:rgba(240,255,254,.25);letter-spacing:.5px">O SINCRONIZA</span>
