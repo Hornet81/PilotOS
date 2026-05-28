@@ -23216,10 +23216,11 @@ window.rosterSaveEdit = function(){
 
 // ── Handle file upload → Claude Vision ──
 window.rosterHandleFile = function(event){
-  var file = event.target.files && event.target.files[0];
+  // Save file reference immediately before any DOM manipulation
+  var inp = document.getElementById('rst-file-input');
+  var file = (inp && inp.files && inp.files[0]) || (event.target.files && event.target.files[0]);
   if(!file) return;
-  // Reset input so same file can be selected again
-  try { event.target.value = ''; } catch(e){}
+
   var proc = document.getElementById('rst-ai-proc');
   var status = document.getElementById('rst-ai-status');
   var zone = document.getElementById('rst-upload-zone');
@@ -23227,38 +23228,50 @@ window.rosterHandleFile = function(event){
   if(zone) zone.style.display='none';
   if(status) status.textContent = 'Leyendo archivo…';
 
-  var isTxt = file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt');
+  // Determine file type
+  var fileName = (file.name || '').toLowerCase();
+  var fileType = file.type || '';
+
+  var isTxt = fileType === 'text/plain' || fileName.endsWith('.txt');
   if(isTxt){
     var tr = new FileReader();
-    tr.onload = function(e){ rosterRunAIText(e.target.result); };
+    tr.onload = function(e){
+      // Reset input after read is complete
+      try { if(inp) inp.value = ''; } catch(ex){}
+      rosterRunAIText(e.target.result);
+    };
+    tr.onerror = function(){ if(proc) proc.style.display='none'; if(zone) zone.style.display=''; };
     tr.readAsText(file, 'UTF-8');
-    event.target.value = '';
     return;
   }
 
-  // FIX: on iOS/Android the PDF MIME type is often 'application/octet-stream', '',
-  // or missing entirely. Always prefer the deterministic PDF parser when the filename
-  // ends in .pdf OR the MIME type contains 'pdf' — regardless of what the OS reports.
-  var isPDF = file.type === 'application/pdf'
-    || file.type === 'application/octet-stream'
-    || file.type === ''
-    || file.name.toLowerCase().endsWith('.pdf');
+  // PDF detection: prefer filename extension (most reliable on iOS)
+  var isPDF = fileName.endsWith('.pdf') || fileType === 'application/pdf' || fileType.indexOf('pdf') !== -1;
   if(isPDF){
-    if(status) status.textContent = 'Procesando PDF con parser determinista…';
+    if(status) status.textContent = 'Procesando PDF…';
     var pdfReader = new FileReader();
     pdfReader.onload = function(e){
+      try { if(inp) inp.value = ''; } catch(ex){}
       var b64 = e.target.result.split(',')[1];
       rosterRunPDF(b64);
     };
+    pdfReader.onerror = function(){
+      if(proc) proc.style.display='none';
+      if(zone) zone.style.display='';
+      if(typeof showToast==='function') showToast('❌ Error leyendo el PDF');
+    };
     pdfReader.readAsDataURL(file);
-    event.target.value = '';
     return;
   }
 
+  // Image → AI Vision
   var reader = new FileReader();
-  reader.onload = function(e){ rosterRunAI(e.target.result, file.type); };
+  reader.onload = function(e){
+    try { if(inp) inp.value = ''; } catch(ex){}
+    rosterRunAI(e.target.result, fileType || 'image/jpeg');
+  };
+  reader.onerror = function(){ if(proc) proc.style.display='none'; if(zone) zone.style.display=''; };
   reader.readAsDataURL(file);
-  event.target.value = '';
 };
 
 // ── Smart merge: preserves std/sta when importing actual (A) times ──
@@ -25584,12 +25597,13 @@ function pagSignOut() {
 
     <!-- Upload zone -->
     <div id="rst-upload-zone">
+      <!-- Persistent input — lives OUTSIDE rst-upload-inner so innerHTML never destroys it -->
+      <input type="file" id="rst-file-input" accept=".txt,image/*,application/pdf" style="display:none">
       <div id="rst-upload-inner">
         <div style="font-size:30px;margin-bottom:6px">🗓</div>
         <div class="upload-title">Sube tu roster mensual</div>
         <div class="upload-sub">PDF, TXT o JPEG</div>
-        <label class="upload-btn-main">
-          <input type="file" id="rst-file-input" accept=".txt,image/*,application/pdf" style="display:none">
+        <label class="upload-btn-main" onclick="document.getElementById('rst-file-input').click()">
           📂 Subir archivo
         </label>
       </div>
