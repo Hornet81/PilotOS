@@ -25241,43 +25241,16 @@ async function pagDoAuth() {
 
   btn.disabled = true;
   btn.textContent = 'Conectando…';
-  // Progressive status messages during cold start
-  var _h1 = setTimeout(function(){ if(btn.disabled) btn.textContent = 'Conectando con el servidor…'; }, 4000);
-  var _h2 = setTimeout(function(){ if(btn.disabled) btn.textContent = 'El servidor está arrancando…'; }, 10000);
-  var _h3 = setTimeout(function(){ if(btn.disabled) btn.textContent = 'Casi listo, un momento…'; }, 18000);
-
-  // demo bypass removed for security
 
   try {
     var endpoint = isLogin ? '/auth/login' : '/auth/register';
     var body = isLogin ? { email, password: pass } : { email, password: pass, name: email.split('@')[0], airline };
-    // 15s timeout — Railway puede tener cold starts de 10-30s
-    var _ctrl = new AbortController();
-    var _timer = setTimeout(function(){ _ctrl.abort(); }, 25000);
-    var res, data;
-    try {
-      res = await fetch(cafiBackendUrl + endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: _ctrl.signal
-      });
-      clearTimeout(_timer);
-      clearTimeout(_h1); clearTimeout(_h2); clearTimeout(_h3);
-      data = await res.json();
-    } catch(fetchErr) {
-      clearTimeout(_timer);
-      clearTimeout(_h1); clearTimeout(_h2); clearTimeout(_h3);
-      if(fetchErr.name === 'AbortError'){
-        err.textContent = 'El servidor está tardando en responder (está arrancando). Vuelve a pulsar Entrar en 5 segundos.';
-      } else {
-        err.textContent = 'No se puede conectar con el servidor. Comprueba tu conexión.';
-      }
-      err.classList.add('show');
-      btn.disabled = false;
-      btn.textContent = isLogin ? 'Entrar →' : 'Crear cuenta →';
-      return;
-    }
+    var res = await fetch(cafiBackendUrl + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    var data = await res.json();
     if (!res.ok) {
       err.textContent = data.error || 'Error al autenticar. Inténtalo de nuevo.';
       err.classList.add('show');
@@ -25304,19 +25277,13 @@ async function pagDoAuth() {
       if (airline) lsSet('pag_airline', airline);
       updateUserAvatar(data.user);
       pagHide();
-      // FIX: resetear flag atascado (se queda en true si el usuario visitó el logbook antes de loguearse)
       window._ldInitRunning = false;
-      // Refrescar logbook siempre tras login, no solo si ya estamos en esa pantalla
       if (typeof window._initLD === 'function') {
         setTimeout(window._initLD, 300);
       }
-      // FIX: subir al servidor entradas locales pendientes (guardadas offline o sin cuenta)
-      // No llamar ldLoad() aquí — _initLD() (300ms antes) ya lo hizo correctamente.
-      // Llamar ldLoad() de nuevo sobreescribiría los datos que el pull del servidor acaba de cargar.
       setTimeout(function(){
         if(typeof ldSyncToServer === 'function') ldSyncToServer();
       }, 600);
-      // FIX: descargar roster del servidor tras login
       setTimeout(function(){
         if (typeof rstPullFromServer === 'function') {
           rstPullFromServer();
@@ -25392,14 +25359,10 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
       var stored = localStorage.getItem('cafi_auth_user');
       if (stored) updateUserAvatar(JSON.parse(stored));
     } catch(ex) {}
-    // Verify token in background — don't block UI startup
-    // User is let in immediately with cached data; validation happens silently
+    // Verify token with server — wait for real response (no timeout, Railway cold starts ~30s)
     var backendUrl = lsGet('cafi_backend_url','https://api.pilotos.aero');
-    var _ctrl = new AbortController();
-    setTimeout(function(){ _ctrl.abort(); }, 12000); // 12s timeout — don't block forever
     fetch(backendUrl + '/api/user/plan', {
-      headers: { 'Authorization': 'Bearer ' + token },
-      signal: _ctrl.signal
+      headers: { 'Authorization': 'Bearer ' + token }
     }).then(function(r){
       if (r.status === 401 || r.status === 403) {
         // Token invalid/expired — force re-login
@@ -25418,7 +25381,7 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
         if (typeof sbUpdatePlanBadge === 'function') sbUpdatePlanBadge();
       }
     }).catch(function(){
-      // Network error or timeout — allow offline access with cached token (don't force logout)
+      // Network error — allow offline access with cached token (don't force logout)
     });
   }
 });
