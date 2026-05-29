@@ -1,4 +1,4 @@
-/* PilotOS — eCrews Sync Script v8.3
+/* PilotOS — eCrews Sync Script v9
  * Floating pill → bottom sheet (mobile-first).
  * Sends payload in the format PilotOS expects: {SchedulerEvents, BlockDutyTimes, PeriodStart}
  */
@@ -31,27 +31,32 @@
       mutations.forEach(function(m){
         m.addedNodes.forEach(function(node){
           if(node.nodeType !== 1) return;
-          var html = node.innerHTML || '';
-          // Look for "Tail EC-XXX" pattern in popup
-          var tailM = (node.innerText||node.textContent||'').match(/Tail\s+([A-Z]{1,2}-[A-Z0-9]{3,4})/);
+          var txt = node.innerText||node.textContent||'';
+          var tailM = txt.match(/Tail\s+([A-Z]{1,2}-[A-Z0-9]{3,4})/);
           if(!tailM) return;
           var tail = tailM[1];
-          // Find flight number in same popup (e.g. "| 8002")
-          var fnM  = (node.innerText||node.textContent||'').match(/\|\s*(\d{3,4})\b/g);
+          var fnM  = txt.match(/\|\s*(\d{3,4})\b/g);
           if(fnM){
             fnM.forEach(function(f){
               var num = f.replace(/\|\s*/,'').trim();
               _tailMap['VY'+num] = tail;
-              console.log('[PilotOS] Tail capturada: VY'+num+' → '+tail);
+              console.log('[PilotOS] Matrícula: VY'+num+' → '+tail);
+              // Update already-captured entries
+              _allEntries.forEach(function(e){
+                if(e.type!=='flight') return;
+                e.legs.forEach(function(l){
+                  if(l.fNum==='VY'+num){ l.tail=tail; if(!e.reg) e.reg=tail; }
+                });
+              });
             });
           }
-          // Also try without flight number: store as last seen tail
           _tailMap['_last'] = tail;
+          // Refresh sheet counter
+          if(_sheetOpen) renderSheet();
         });
       });
     });
     _observer.observe(document.body, { childList: true, subtree: true });
-    // Also observe any iframes
     document.querySelectorAll('iframe').forEach(function(f){
       try{ if(f.contentDocument && f.contentDocument.body)
         _observer.observe(f.contentDocument.body, {childList:true, subtree:true});
@@ -311,99 +316,12 @@
     console.log('[PilotOS] Matrícula capturada:', tail, fns.map(function(f){ return 'VY'+f.replace(/\|\s*/,'').trim(); }));
   }
 
-  // ── Auto-click all flights to capture tails ───────────────────────
+  // ── Auto-capture tails (passive — eCrews bloquea clicks programáticos) ──
   function autoCaptureTails(flights, onDone){
-    if(!flights.length){ onDone(); return; }
-
-    // Overlay — visible pero pointer-events:none para no bloquear clicks del script
-    var ov = mkEl('div',
-      'position:fixed;inset:0;z-index:2147483647;pointer-events:none;'+
-      'background:rgba(5,10,25,.97);display:flex;flex-direction:column;'+
-      'align-items:center;justify-content:center;font-family:system-ui,sans-serif;'+
-      'gap:12px');
-    ov.id = '_ecImportOv';
-
-    var spin = mkEl('div','font-size:52px;animation:_ecSpin 1.5s linear infinite','✈');
-    var style = document.createElement('style');
-    style.textContent = '@keyframes _ecSpin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}';
-    document.head.appendChild(style);
-
-    var ttl  = mkEl('div','font-size:20px;font-weight:700;color:#F0FFFE','Importando tu roster…');
-    var prog = mkEl('div','font-size:13px;color:rgba(8,145,178,.8)','Preparando…');
-    prog.id  = '_ecProgTxt';
-    var bar  = mkEl('div','width:200px;height:3px;background:rgba(8,145,178,.2);border-radius:2px;overflow:hidden');
-    var fill = mkEl('div','height:100%;background:#0891B2;width:0%;transition:width .3s ease;border-radius:2px');
-    fill.id  = '_ecProgFill';
-    bar.appendChild(fill);
-
-    [spin,ttl,prog,bar].forEach(function(el){ ov.appendChild(el); });
-    document.body.appendChild(ov);
-
-    console.log('[PilotOS] autoCaptureTails: '+flights.length+' flights to process');
-
-    // Get iframe window for scheduler access
-    var _iframeWin = null;
-    try{
-      var _iframes = document.querySelectorAll('iframe');
-      for(var _fi=0; _fi<_iframes.length; _fi++){
-        try{
-          var _iw = _iframes[_fi].contentWindow;
-          if(_iw && (_iw.scheduler||_iw.Scheduler)){ _iframeWin = _iw; break; }
-          if(_iw && _iw.document && _iw.document.querySelector('[class*="dhx"]')){ _iframeWin = _iw; }
-        }catch(e){}
-      }
-      if(!_iframeWin && _iframes.length){ _iframeWin = _iframes[_iframes.length-1].contentWindow; }
-    }catch(e){}
-    console.log('[PilotOS] iframe win:', !!_iframeWin, 'scheduler:', !!(_iframeWin&&(_iframeWin.scheduler||_iframeWin.Scheduler)));
-
-    var idx = 0;
-
-    function next(){
-      if(idx >= flights.length){
-        console.log('[PilotOS] autoCaptureTails done. _tailMap:', JSON.stringify(_tailMap));
-        ov.remove();
-        style.remove();
-        onDone();
-        return;
-      }
-      var ev = flights[idx++];
-      var pct = Math.round((idx/flights.length)*100);
-      var pt = $('_ecProgTxt');  if(pt)  pt.textContent  = idx+' / '+flights.length+' vuelos';
-      var pf = $('_ecProgFill'); if(pf)  pf.style.width  = pct+'%';
-
-      var el = findEventEl(ev);
-      if(!el){ setTimeout(next, 80); return; }
-
-      var done = false;
-      var obs = new MutationObserver(function(muts){
-        if(done) return;
-        muts.forEach(function(m){
-          if(done) return;
-          m.addedNodes.forEach(function(node){
-            if(done||node.nodeType!==1) return;
-            var t = node.innerText||node.textContent||'';
-            var tm = t.match(/Tail\s+([A-Z]{1,2}-[A-Z0-9]{3,4})/);
-            if(!tm) return;
-            done = true; obs.disconnect();
-            storeTailText(t, tm[1]);
-            setTimeout(function(){ closePopup(); setTimeout(next, 350); }, 150);
-          });
-        });
-      });
-      // Observe main doc AND all iframes
-      getSearchDocs().forEach(function(d){
-        try{ obs.observe(d.body||d.documentElement,{childList:true,subtree:true}); }catch(e){}
-      });
-
-      triggerEventClick(el, ev.id, _iframeWin);
-
-      // Timeout if popup doesn't open
-      setTimeout(function(){
-        if(!done){ done=true; obs.disconnect(); closePopup(); setTimeout(next,300); }
-      }, 2500);
-    }
-
-    setTimeout(next, 300);
+    // eCrews intercepta todos los clicks con isTrusted check → no se puede auto-click.
+    // Las matrículas se capturan pasivamente con _observer cuando el usuario
+    // abre los popups manualmente. Procedemos de inmediato.
+    onDone();
   }
 
   // ── CAPTURAR action ───────────────────────────────────────────────
@@ -443,6 +361,16 @@
   function sendSelected(ids){
     // Reconstruct payload in the format PilotOS expects
     var selectedEntries = _allEntries.filter(function(e){ return ids.indexOf(e._id) !== -1; });
+
+    // Refresh tails from _tailMap at send time (user may have opened popups after capture)
+    selectedEntries.forEach(function(e){
+      if(e.type !== 'flight') return;
+      e.legs.forEach(function(l){
+        if(_tailMap[l.fNum]) l.tail = _tailMap[l.fNum];
+      });
+      if(!e.reg && e.legs.length && e.legs[0].tail) e.reg = e.legs[0].tail;
+    });
+
     var rawEvents = selectedEntries.map(function(e){ return e.rawEv; });
 
     // Merge BlockDutyTimes from all captured months
@@ -504,9 +432,24 @@
       body.appendChild(chips);
     }
 
-    // Hint
-    var hint = mkEl('div','font-size:12px;color:rgba(248,250,252,.4);margin-bottom:12px;line-height:1.5',
-      'Navega al mes en eCrews y pulsa CAPTURAR.');
+    // Hint — shows tail capture progress if entries exist
+    var _flights   = _allEntries.filter(function(e){ return e.type==='flight'; });
+    var _withTail  = _flights.filter(function(e){ return e.reg||(e.legs.length&&e.legs[0].tail); }).length;
+    var hintTxt, hintCol;
+    if(!_capturedMonths.length){
+      hintTxt = 'Navega al mes en eCrews y pulsa CAPTURAR.';
+      hintCol = 'rgba(248,250,252,.4)';
+    } else if(_flights.length && _withTail < _flights.length){
+      hintTxt = '✈ Pulsa los vuelos en el calendario para capturar matrículas  ('+_withTail+'/'+_flights.length+')';
+      hintCol = 'rgba(8,145,178,.8)';
+    } else if(_flights.length && _withTail === _flights.length){
+      hintTxt = '✅ '+_withTail+'/'+_flights.length+' matrículas capturadas';
+      hintCol = 'rgba(74,222,128,.8)';
+    } else {
+      hintTxt = '✓ '+_capturedMonths.length+' mes(es) capturado(s).';
+      hintCol = 'rgba(248,250,252,.4)';
+    }
+    var hint = mkEl('div','font-size:12px;margin-bottom:12px;line-height:1.5;color:'+hintCol, hintTxt);
     hint.id = '_ecHint';
     body.appendChild(hint);
 
