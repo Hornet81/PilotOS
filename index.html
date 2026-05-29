@@ -23004,13 +23004,66 @@ function rosterRenderActivitiesList(dateStr, entries){
   var others  = entries.filter(function(e){ return e.type!=='flight'; });
   var cfg = TC['flight'] || {bg:'#c0392b', tx:'#fff'};
 
+  // Load logbook once for cross-check
+  var _lbAll = [];
+  try { _lbAll = JSON.parse(localStorage.getItem('ld_entries') || lsGet('logbook_entries','[]')); } catch(ex){}
+  var _RST_IATA_ICAO = window.RST_IATA_ICAO || {};
+  var _ICAO_IATA = {};
+  Object.keys(_RST_IATA_ICAO).forEach(function(k){ _ICAO_IATA[_RST_IATA_ICAO[k]] = k; });
+  var _normApt = function(c){ return _ICAO_IATA[c||''] || c || ''; };
+  var _t2m = function(t){ if(!t) return -1; var p=String(t).split(':'); return (parseInt(p[0])||0)*60+(parseInt(p[1])||0); };
+
   // Show each leg individually with leg number + edit button
   flights.forEach(function(f, i){
     var row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:9px 12px;background:#fff;border:1px solid rgba(30,58,164,.12);border-radius:10px;margin-bottom:6px';
     var legLabel = flights.length > 1 ? 'Leg '+(i+1) : 'Vuelo';
     var route = (f.dep&&f.arr) ? f.dep+'→'+f.arr : '';
-    var timeStr = (f.std&&f.sta) ? f.std+'–'+f.sta : (f.std||'');
+
+    // ── Cross-check logbook ──────────────────────────────────────────────
+    var lbEntry = _lbAll.find(function(lb){
+      if(!lb.date || lb.date !== f.date) return false;
+      // Match by flight number (strip VY prefix for comparison)
+      if(lb.flight && f.flightNum){
+        var lbF = String(lb.flight).replace(/^VY/i,'').toUpperCase();
+        var rF  = String(f.flightNum).replace(/^VY/i,'').toUpperCase();
+        if(lbF && rF && lbF === rF) return true;
+      }
+      // Match by dep+arr (normalize IATA↔ICAO)
+      return _normApt(lb.dep) === _normApt(f.dep) && _normApt(lb.arr) === _normApt(f.arr);
+    });
+
+    var timeStr = '', mismatch = false, timeCls = '#475569';
+
+    if(lbEntry){
+      // Show logbook times (what pilot logged)
+      var lbStd = lbEntry.std || '';
+      var lbSta = lbEntry.sta || '';
+      timeStr = (lbStd && lbSta) ? lbStd+'–'+lbSta
+              : (lbEntry.block ? '⏱ '+lbEntry.block : '');
+
+      // Compare logbook block vs eCrews calzos (std_actual/sta_actual)
+      var ecStd = f.std_actual || f.std, ecSta = f.sta_actual || f.sta;
+      if(ecStd && ecSta && lbEntry.block){
+        var ecBlkM = _t2m(ecSta) - _t2m(ecStd);
+        if(ecBlkM < 0) ecBlkM += 1440;
+        var lbBlkM = _t2m(lbEntry.block);
+        if(lbBlkM >= 0 && Math.abs(ecBlkM - lbBlkM) > 10) mismatch = true;
+      }
+      timeCls = '#15803D'; // green = confirmed in logbook
+    } else {
+      // Not yet in logbook — show eCrews times (std_actual or std) in amber as pending
+      var ecS = f.std_actual || f.std, ecE = f.sta_actual || f.sta;
+      if(ecS && ecE) timeStr = ecS+'–'+ecE;
+      timeCls = '#92400E'; // amber = pending logbook entry
+    }
+
+    var timeHTML = timeStr
+      ? '<div style="font-size:10px;color:'+timeCls+';font-family:\'Space Mono\',monospace">'
+        + (lbEntry?'':'⏳ ') + timeStr + (mismatch?' <span title="No coincide con calzos eCrews">⚠️</span>':'')
+        + '</div>'
+      : '';
+
     // Store index on entry for editing
     var entryIdx = RST.entries.indexOf(f);
     row.innerHTML =
@@ -23018,7 +23071,7 @@ function rosterRenderActivitiesList(dateStr, entries){
       + '<div style="flex:1;min-width:0">'
       + '<div style="font-size:11px;font-weight:800;color:'+cfg.bg+';text-transform:uppercase;letter-spacing:.5px">'+legLabel+'</div>'
       + '<div style="font-size:12px;font-weight:700;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(f.flightNum||'—')+(route?' · '+route:'')+'</div>'
-      + (timeStr?'<div style="font-size:10px;color:#475569;font-family:\'Space Mono\',monospace">'+timeStr+'</div>':'')
+      + timeHTML
       + '</div>'
       + '<button onclick="rosterEditLeg(\''+dateStr+'\','+entryIdx+')" style="width:30px;height:30px;border-radius:8px;background:#F0F6FF;border:1px solid rgba(30,58,164,.12);color:#0369A1;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">⋯</button>'
       + '<button onclick="rosterRemoveLegByIdx('+entryIdx+')" style="width:24px;height:24px;border-radius:50%;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.25);color:#B91C1C;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>';
@@ -24865,6 +24918,21 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
   var entries = [];
   var RST_ICAO_TO_IATA = window.RST_ICAO_IATA || {};
 
+  // Helper: extract code from eCrews text, skipping HHMM/HH:MM time lines
+  // eCrews sometimes puts the start time on the first line before the code, e.g.:
+  //   "1800\nHSBY\nHotel standby" → should return 'HSBY', not '1800'
+  function _extractCode(txt){
+    var lines = (txt||'').split('\n');
+    for(var _i=0; _i<lines.length; _i++){
+      var _l = lines[_i].trim().toUpperCase().split(/\s+/)[0];
+      if(!_l) continue;
+      if(/^\d{3,4}$/.test(_l)) continue;      // skip HHMM / HMM
+      if(/^\d{1,2}[:.]\d{2}/.test(_l)) continue; // skip HH:MM / HH.MM
+      return _l;
+    }
+    return (lines[0]||'').trim().toUpperCase().split(/\s+/)[0] || '';
+  }
+
   events.forEach(function(ev){
     var date = (ev.start||'').slice(0,10);
     if(!date) return;
@@ -24875,14 +24943,14 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
 
     // ── OFF / free day ──
     if(type === 'off'){
-      var code = text.split('\n')[0].trim();
+      var code = _extractCode(text);
       entries.push({ date:date, type:'off', code:code, source:'ECREWS' });
       return;
     }
 
     // ── Standby ──
     if(type === 'standby'){
-      var sbCode = text.split('\n')[0].trim();
+      var sbCode = _extractCode(text);
       var sbStart = (ev.start||'').slice(11,16);
       var sbEnd   = (ev.end||'').slice(11,16);
       entries.push({ date:date, type:'standby', code:sbCode, std:sbStart, sta:sbEnd, source:'ECREWS' });
@@ -24993,7 +25061,7 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
     // ── Ground duty — mapping de códigos eCrews/Vueling ──────────────
     if(type === 'groundduty' || type === 'dayoff' || type === 'vacation' ||
        type === 'sick'       || type === 'leave'   || type === 'meeting'  || type === 'other'){
-      var gCode  = text.split('\n')[0].trim().toUpperCase();
+      var gCode  = _extractCode(text);
       var gStart = (ev.start||'').slice(11,16);
       var gEnd   = (ev.end||'').slice(11,16);
 
