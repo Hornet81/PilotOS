@@ -91,7 +91,7 @@
           this.addEventListener('load', function(){
             try{
               var d = JSON.parse(this.responseText);
-              if(d && d.SchedulerEvents){ _lastPayload = d; onNewPayload(); }
+              if(d && d.SchedulerEvents){ _lastPayload = d; window._ecDbg = d; onNewPayload(); }
             }catch(e){}
           });
         }
@@ -111,7 +111,7 @@
         if(url.indexOf('SchedulerEvents') !== -1){
           p.then(function(r){
             r.clone().json().then(function(d){
-              if(d && d.SchedulerEvents){ _lastPayload = d; onNewPayload(); }
+              if(d && d.SchedulerEvents){ _lastPayload = d; window._ecDbg = d; onNewPayload(); }
             }).catch(function(){});
           }).catch(function(){});
         }
