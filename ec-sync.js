@@ -189,6 +189,127 @@
     if(hint){ hint.textContent = '✓ Mes listo — pulsa CAPTURAR o navega a otro.'; hint.style.color = 'rgba(74,222,128,.8)'; }
   }
 
+  // ── Find calendar event DOM element ──────────────────────────────
+  function findEventEl(ev){
+    var dutyCode = (ev.text||'').split(/\r\n|\n/)[0].trim();
+    // 1. DHTMLX attribute event_id (numeric part of id)
+    var numId = (ev.id||'').match(/_(\d+)$/);
+    if(numId){
+      var el = document.querySelector('[event_id="'+numId[1]+'"]');
+      if(el) return el;
+    }
+    // 2. Full event_id
+    var el2 = document.querySelector('[event_id="'+ev.id+'"]');
+    if(el2) return el2;
+    // 3. Text search in calendar cells
+    var candidates = document.querySelectorAll('div,td,span');
+    for(var i=0; i<candidates.length; i++){
+      var node = candidates[i];
+      if(node.children.length > 4) continue; // skip containers
+      var t = (node.firstChild && node.firstChild.nodeType===3)
+              ? node.firstChild.textContent.trim()
+              : (node.innerText||node.textContent||'').split('\n')[0].trim();
+      if(t === dutyCode) return node;
+    }
+    return null;
+  }
+
+  // ── Close Pairing Details popup ───────────────────────────────────
+  function closePopup(){
+    // Look for Exit link/button
+    var all = document.querySelectorAll('a,button,span');
+    for(var i=0; i<all.length; i++){
+      var t = (all[i].innerText||all[i].textContent||'').trim();
+      if(t==='Exit'||t.indexOf('Exit')!==-1){
+        all[i].click(); return;
+      }
+    }
+    // Fallback: Escape key
+    document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',keyCode:27,bubbles:true}));
+  }
+
+  // ── Store tail from popup text ────────────────────────────────────
+  function storeTailText(text, tail){
+    var fns = text.match(/\|\s*(\d{3,4})/g)||[];
+    fns.forEach(function(f){ _tailMap['VY'+f.replace(/\|\s*/,'').trim()] = tail; });
+    _tailMap['_last'] = tail;
+    console.log('[PilotOS] Matrícula capturada:', tail, fns.map(function(f){ return 'VY'+f.replace(/\|\s*/,'').trim(); }));
+  }
+
+  // ── Auto-click all flights to capture tails ───────────────────────
+  function autoCaptureTails(flights, onDone){
+    if(!flights.length){ onDone(); return; }
+
+    // Overlay — visible pero pointer-events:none para no bloquear clicks del script
+    var ov = mkEl('div',
+      'position:fixed;inset:0;z-index:2147483647;pointer-events:none;'+
+      'background:rgba(5,10,25,.97);display:flex;flex-direction:column;'+
+      'align-items:center;justify-content:center;font-family:system-ui,sans-serif;'+
+      'gap:12px');
+    ov.id = '_ecImportOv';
+
+    var spin = mkEl('div','font-size:52px;animation:_ecSpin 1.5s linear infinite','✈');
+    var style = document.createElement('style');
+    style.textContent = '@keyframes _ecSpin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}';
+    document.head.appendChild(style);
+
+    var ttl  = mkEl('div','font-size:20px;font-weight:700;color:#F0FFFE','Importando tu roster…');
+    var prog = mkEl('div','font-size:13px;color:rgba(8,145,178,.8)','Preparando…');
+    prog.id  = '_ecProgTxt';
+    var bar  = mkEl('div','width:200px;height:3px;background:rgba(8,145,178,.2);border-radius:2px;overflow:hidden');
+    var fill = mkEl('div','height:100%;background:#0891B2;width:0%;transition:width .3s ease;border-radius:2px');
+    fill.id  = '_ecProgFill';
+    bar.appendChild(fill);
+
+    [spin,ttl,prog,bar].forEach(function(el){ ov.appendChild(el); });
+    document.body.appendChild(ov);
+
+    var idx = 0;
+
+    function next(){
+      if(idx >= flights.length){
+        ov.remove();
+        style.remove();
+        onDone();
+        return;
+      }
+      var ev = flights[idx++];
+      var pct = Math.round((idx/flights.length)*100);
+      var pt = $('_ecProgTxt');  if(pt)  pt.textContent  = idx+' / '+flights.length+' vuelos';
+      var pf = $('_ecProgFill'); if(pf)  pf.style.width  = pct+'%';
+
+      var el = findEventEl(ev);
+      if(!el){ setTimeout(next, 80); return; }
+
+      var done = false;
+      var obs = new MutationObserver(function(muts){
+        if(done) return;
+        muts.forEach(function(m){
+          if(done) return;
+          m.addedNodes.forEach(function(node){
+            if(done||node.nodeType!==1) return;
+            var t = node.innerText||node.textContent||'';
+            var tm = t.match(/Tail\s+([A-Z]{1,2}-[A-Z0-9]{3,4})/);
+            if(!tm) return;
+            done = true; obs.disconnect();
+            storeTailText(t, tm[1]);
+            setTimeout(function(){ closePopup(); setTimeout(next, 350); }, 150);
+          });
+        });
+      });
+      obs.observe(document.body,{childList:true,subtree:true});
+
+      el.click();
+
+      // Timeout if popup doesn't open
+      setTimeout(function(){
+        if(!done){ done=true; obs.disconnect(); closePopup(); setTimeout(next,300); }
+      }, 2500);
+    }
+
+    setTimeout(next, 300);
+  }
+
   // ── CAPTURAR action ───────────────────────────────────────────────
   function doCapture(){
     if(!_lastPayload) return;
@@ -198,22 +319,28 @@
       if(hint){ hint.textContent = period+' ya capturado. Navega a otro mes.'; hint.style.color = 'rgba(251,146,60,.8)'; }
       return;
     }
-    var uid = _allEntries.length;
-    var newEntries = (_lastPayload.SchedulerEvents||[]).map(function(ev, i){ return parseEvent(ev, uid+i); });
-    _allEntries     = _allEntries.concat(newEntries);
-    _rawPayloads.push(_lastPayload);
-    _capturedMonths.push(period);
-    _lastPayload = null;
 
-    // Reset pill
-    var pill = $('_ecPill');
-    if(pill){
-      pill.style.background = 'linear-gradient(135deg,#1e3a5f,#0f2040)';
-      pill.style.boxShadow  = 'none';
-      $('_ecPillTxt').textContent = '✈ PilotOS · ' + _capturedMonths.length + ' mes' + (_capturedMonths.length===1?'':'es');
-    }
+    var flights = (_lastPayload.SchedulerEvents||[]).filter(function(e){
+      return (e.type||'').toLowerCase()==='flight';
+    });
 
-    renderSheet();
+    // Auto-click all flights to collect tails, then capture
+    autoCaptureTails(flights, function(){
+      var uid = _allEntries.length;
+      var newEntries = (_lastPayload.SchedulerEvents||[]).map(function(ev,i){ return parseEvent(ev,uid+i); });
+      _allEntries     = _allEntries.concat(newEntries);
+      _rawPayloads.push(_lastPayload);
+      _capturedMonths.push(period);
+      _lastPayload = null;
+
+      var pill = $('_ecPill');
+      if(pill){
+        pill.style.background = 'linear-gradient(135deg,#1e3a5f,#0f2040)';
+        pill.style.boxShadow  = 'none';
+        $('_ecPillTxt').textContent = '✈ PilotOS · '+_capturedMonths.length+' mes'+(_capturedMonths.length===1?'':'es');
+      }
+      renderSheet();
+    });
   }
 
   // ── Send selected entries to PilotOS ─────────────────────────────
