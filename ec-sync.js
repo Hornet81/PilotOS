@@ -18,11 +18,40 @@
 
   var isMobile = window.innerWidth < 680 || ('ontouchstart' in window);
 
-  var _lastPayload    = null;   // most recent XHR payload (not yet captured)
-  var _allEntries     = [];     // parsed entries accumulated across months
-  var _rawPayloads    = [];     // raw payloads per captured month (for sending)
+  var _lastPayload    = null;
+  var _allEntries     = [];
+  var _rawPayloads    = [];
   var _capturedMonths = [];
   var _sheetOpen      = false;
+  var _tailMap        = {};   // {flightNum: 'EC-NDB'} captured from popups
+
+  // ── MutationObserver: capture tail from Pairing Details popup ────
+  try {
+    var _observer = new MutationObserver(function(mutations){
+      mutations.forEach(function(m){
+        m.addedNodes.forEach(function(node){
+          if(node.nodeType !== 1) return;
+          var html = node.innerHTML || '';
+          // Look for "Tail EC-XXX" pattern in popup
+          var tailM = (node.innerText||node.textContent||'').match(/Tail\s+([A-Z]{1,2}-[A-Z0-9]{3,4})/);
+          if(!tailM) return;
+          var tail = tailM[1];
+          // Find flight number in same popup (e.g. "| 8002")
+          var fnM  = (node.innerText||node.textContent||'').match(/\|\s*(\d{3,4})\b/g);
+          if(fnM){
+            fnM.forEach(function(f){
+              var num = f.replace(/\|\s*/,'').trim();
+              _tailMap['VY'+num] = tail;
+              console.log('[PilotOS] Tail capturada: VY'+num+' → '+tail);
+            });
+          }
+          // Also try without flight number: store as last seen tail
+          _tailMap['_last'] = tail;
+        });
+      });
+    });
+    _observer.observe(document.body, { childList: true, subtree: true });
+  } catch(e){}
 
   // ── Helpers ──────────────────────────────────────────────────────
   function mkEl(tag, css, txt){
@@ -66,10 +95,17 @@
       details.split('\n').forEach(function(line){
         line = line.trim();
         var m = line.match(/^([A-Z0-9]+)\s+-\s+([A-Z]{3})\s+\(A?(\d{4})\)\s+-\s+([A-Z]{3})\s+\(A?(\d{4})\)/);
-        if(m) legs.push({ fNum:'VY'+m[1], dep:m[2],
-          std: m[3].slice(0,2)+':'+m[3].slice(2),
-          arr: m[4], sta: m[5].slice(0,2)+':'+m[5].slice(2) });
+        if(m){
+          var fNum = 'VY'+m[1];
+          var tail = _tailMap[fNum] || _tailMap['_last'] || '';
+          legs.push({ fNum:fNum, dep:m[2],
+            std: m[3].slice(0,2)+':'+m[3].slice(2),
+            arr: m[4], sta: m[5].slice(0,2)+':'+m[5].slice(2),
+            tail: tail });
+        }
       });
+      // If reg not found in details text, use tailMap
+      if(!reg && legs.length) reg = legs[0].tail || '';
     }
 
     return {
