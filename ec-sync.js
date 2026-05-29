@@ -436,9 +436,13 @@
     var _flights   = _allEntries.filter(function(e){ return e.type==='flight'; });
     var _withTail  = _flights.filter(function(e){ return e.reg||(e.legs.length&&e.legs[0].tail); }).length;
     var hintTxt, hintCol;
-    if(!_capturedMonths.length){
-      hintTxt = 'Navega al mes en eCrews y pulsa CAPTURAR.';
-      hintCol = 'rgba(248,250,252,.4)';
+    if(!hasPayload && !_capturedMonths.length){
+      // Nothing loaded yet — most common first-time state
+      hintTxt = '👉 En eCrews pulsa "Previous Period" o "Next Period" — el botón se activará automáticamente.';
+      hintCol = 'rgba(251,191,36,.9)';
+    } else if(!hasPayload && _capturedMonths.length){
+      hintTxt = '👉 Navega a otro mes en eCrews para seguir capturando.';
+      hintCol = 'rgba(251,191,36,.9)';
     } else if(_flights.length && _withTail < _flights.length){
       hintTxt = '✈ Pulsa los vuelos en el calendario para capturar matrículas  ('+_withTail+'/'+_flights.length+')';
       hintCol = 'rgba(8,145,178,.8)';
