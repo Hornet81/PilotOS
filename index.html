@@ -5642,6 +5642,8 @@ html.day #rst-month-banner{
   border-color:rgba(217,119,6,.45) !important;
 }
 html.day #rst-month-banner-text{color:#92400E !important}
+html.day #rst-month-banner-text+div{color:#92400E !important}
+html.day #rst-today-ref{color:#0369A1 !important}
 
 /* ── Detalle de día ── */
 html.day #rst-day-detail{
@@ -21888,20 +21890,40 @@ function rstRenderStats(){
     else if(e.type !== 'flight' && e.type !== 'lm') off++;
   });
 
-  // Duty hours: per operating day = (last STA - first STD) + 90min overhead
+  // Duty hours: per operating day
+  // Priority: 1) eCrews dutyH field  2) checkin→debrief  3) (lastSTA-firstSTD)+90min
   Object.keys(dayFlights).forEach(function(date){
     var legs = dayFlights[date].sort(function(a,b){
       var aT = t2m(a.std_actual||a.std||'00:00');
       var bT = t2m(b.std_actual||b.std||'00:00');
       return aT - bT;
     });
-    var first = legs[0], last = legs[legs.length-1];
-    var firstStd = first.std_actual || first.std;
-    var lastSta  = last.sta_actual  || last.sta;
-    if(firstStd && lastSta){
-      var span = t2m(lastSta) - t2m(firstStd);
-      if(span < 0) span += 1440;
-      dutyMin += span + 90;
+    // 1. eCrews dutyH (BlockDutyTimes.Item2) — most accurate
+    var ecDutyH = '';
+    for(var _dli=0; _dli<legs.length; _dli++){
+      if(legs[_dli].dutyH){ ecDutyH = legs[_dli].dutyH; break; }
+    }
+    if(ecDutyH){
+      dutyMin += t2m(ecDutyH);
+    } else {
+      // 2. checkin/debrief times
+      var firstCheckin = legs[0].checkin;
+      var lastDebrief  = legs[legs.length-1].debrief;
+      if(firstCheckin && firstCheckin.indexOf(':')>-1 && lastDebrief && lastDebrief.indexOf(':')>-1){
+        var dSpan = t2m(lastDebrief) - t2m(firstCheckin);
+        if(dSpan < 0) dSpan += 1440;
+        dutyMin += dSpan;
+      } else {
+        // 3. fallback: (lastSTA - firstSTD) + 90 min overhead
+        var first = legs[0], last = legs[legs.length-1];
+        var firstStd = first.std_actual || first.std;
+        var lastSta  = last.sta_actual  || last.sta;
+        if(firstStd && lastSta){
+          var span = t2m(lastSta) - t2m(firstStd);
+          if(span < 0) span += 1440;
+          dutyMin += span + 90;
+        }
+      }
     }
     dutyDays++;
   });
@@ -23048,7 +23070,7 @@ function rosterRenderActivitiesList(dateStr, entries){
         var ecBlkM = _t2m(ecSta) - _t2m(ecStd);
         if(ecBlkM < 0) ecBlkM += 1440;
         var lbBlkM = _t2m(lbEntry.block);
-        if(lbBlkM >= 0 && Math.abs(ecBlkM - lbBlkM) > 10) mismatch = true;
+        if(lbBlkM >= 0 && ecBlkM !== lbBlkM) mismatch = true;
       }
       timeCls = '#15803D'; // green = confirmed in logbook
     } else {
@@ -23727,11 +23749,7 @@ async function rosterRunPDF(pdfBase64){
       }
     }
     if(newMonth){
-      var firstEntry = parsed.entries.find(function(e){ return e.type==='flight'; });
-      var isActualImport = firstEntry && !firstEntry.std && firstEntry.std_actual;
-      if(!isActualImport){
-        RST.entries = RST.entries.filter(function(e){ return e.date.slice(0,7) !== newMonth; });
-      }
+      RST.entries = RST.entries.filter(function(e){ return e.date.slice(0,7) !== newMonth; });
     }
     rstSmartMerge(parsed.entries, newMonth);
     rstSave();
@@ -23841,11 +23859,7 @@ async function rosterRunAIText(textContent){
       }
     }
     if(newMonth){
-      var firstEntry = parsed.entries.find(function(e){ return e.type==='flight'; });
-      var isActualImport = firstEntry && !firstEntry.std && firstEntry.std_actual;
-      if(!isActualImport){
-        RST.entries = RST.entries.filter(function(e){ return e.date.slice(0,7) !== newMonth; });
-      }
+      RST.entries = RST.entries.filter(function(e){ return e.date.slice(0,7) !== newMonth; });
     }
     rstSmartMerge(parsed.entries, newMonth);
     rstSave();
