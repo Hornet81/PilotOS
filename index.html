@@ -24976,35 +24976,133 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
       var gStart = (ev.start||'').slice(11,16);
       var gEnd   = (ev.end||'').slice(11,16);
 
-      // Vueling eCrews → PilotOS
+      // Vueling eCrews → PilotOS  (códigos completos Vueling)
       var EC_MAP = {
-        // Standby
+        // ── STANDBY ──────────────────────────────────────────────────
         'ASBY': {type:'standby', code:'ASBY'},  // Airport standby
         'OSBY': {type:'standby', code:'OSBY'},  // Off standby — sacado de guardia
         'OSB3': {type:'standby', code:'OSB3'},  // Off standby bloque 3 días
         'HSBY': {type:'standby', code:'HSBY'},  // Hotel standby
-        'CSBY': {type:'standby', code:'CSBY'},  // Cabin standby
-        // Días libres
-        'NROF': {type:'off', code:'NROF'},      // No ganado en subasta
-        'SROF': {type:'off', code:'SROF'},      // Ganado en subasta (requested off)
-        'OFF':  {type:'off', code:'OFF'},       // Día libre
+        'SBY':  {type:'standby', code:'ASBY'},  // Home standby genérico
+        'FSBY': {type:'standby', code:'ASBY'},  // 5 stand-by in a row
+        'XSBY': {type:'standby', code:'ASBY'},  // Stand-by cnx antes 12LT
+        'ZSBY': {type:'standby', code:'ASBY'},  // Stand-by cnx partir 12LT
+        'TSBY': {type:'standby', code:'ASBY'},  // Junior standby
+        'AA':   {type:'standby', code:'ASBY'},  // Actividad aeroportuaria
+        'AAI':  {type:'standby', code:'ASBY'},  // Actividad aeroportuaria internacional
+
+        // ── DÍAS LIBRES / DESCANSO ───────────────────────────────────
+        'OFF':  {type:'off', code:'OFF'},
+        'ROFF': {type:'off', code:'ROFF'},      // Día libre solicitado
+        'VOFF': {type:'off', code:'OFF'},       // Off en bloque vacacional
+        '>OFF': {type:'off', code:'OFF'},       // Post-flight rest/day off
+        'REST': {type:'off', code:'OFF'},       // Día de descanso compensable
+        'XSOF': {type:'off', code:'OFF'},       // Libre Navidad sin prioridad
+        'CDOF': {type:'off', code:'OFF'},       // Libre recuperado mes siguiente
+        'NOFF': {type:'off', code:'NOFF'},      // Descanso no compensable
+        'LOFF': {type:'off', code:'OFF'},       // Día off en línea
+        'DOFF': {type:'off', code:'OFF'},       // Día off en destacamento
+        'AOFF': {type:'off', code:'OFF'},       // Día libre anual
+        'PAOF': {type:'off', code:'OFF'},       // AOFF pendiente
+        'DCOF': {type:'off', code:'OFF'},       // Día cedido devuelto
+        'SOFF': {type:'off', code:'OFF'},       // Office staff ROFF
+        'HIGH': {type:'off', code:'OFF'},       // High hours — DO NOT USE
+        'XOF1': {type:'off', code:'OFF'},       // Libre Navidad prioridad 1
+        'XOF2': {type:'off', code:'OFF'},       // Libre Navidad prioridad 2
+        'XOF3': {type:'off', code:'OFF'},       // Libre Navidad prioridad 3
         'DIA LIBRE': {type:'off', code:'OFF'},
-        // Vacaciones / bajas
-        'AL':   {type:'off', code:'AL'},        // Annual leave — vacaciones
-        'SICK': {type:'off', code:'SICK'},      // Baja médica
-        'ILL':  {type:'off', code:'SICK'},
-        // Formación
-        'SIM':  {type:'training', code:'SIM'},  // Simulador
-        'TR':   {type:'training', code:'TR'},   // Training
+
+        // ── DÍAS LIBRES SUBASTA ──────────────────────────────────────
+        'NROF': {type:'off', code:'NROF'},      // ROFF no ganado en subasta
+        'SROF': {type:'off', code:'SROF'},      // ROFF ganado en subasta
+        'FR':   {type:'off', code:'OFF'},       // Servicio de franco
+        'F2':   {type:'off', code:'OFF'},       // Franco
+
+        // ── VACACIONES ───────────────────────────────────────────────
+        'VAC':  {type:'off', code:'VAC'},       // Vacaciones forzosas
+        'RVAC': {type:'off', code:'VAC'},       // Vacaciones voluntarias
+        'PVAC': {type:'off', code:'VAC'},       // Vacaciones pendientes
+        'AL':   {type:'off', code:'AL'},        // Annual leave
+
+        // ── PERMISOS / AUSENCIAS ─────────────────────────────────────
+        'BOD':  {type:'off', code:'OFF'},       // Permiso boda
+        'EMB':  {type:'off', code:'OFF'},       // Embarazo
+        'LAC':  {type:'off', code:'OFF'},       // Lactancia
+        'MAT':  {type:'off', code:'MAT'},       // Permiso maternidad
+        'PAT':  {type:'off', code:'PAT'},       // Permiso paternidad
+        'MUD':  {type:'off', code:'OFF'},       // Permiso por mudanza
+        'PER':  {type:'off', code:'OFF'},       // Permiso no retribuido
+        'RPER': {type:'off', code:'OFF'},       // Permiso retribuido
+        'PT':   {type:'off', code:'OFF'},       // Part time crew (off duty days)
+        'FZ':   {type:'off', code:'OFF'},       // Cambio forzoso
+        'FALT': {type:'off', code:'OFF'},       // Falta (día de sanción)
+        'NQ':   {type:'off', code:'OFF'},       // Not qualified
+        'RSV':  {type:'off', code:'OFF'},       // Pre-roster period
+        'NAVL': {type:'off', code:'OFF'},       // Not available for duty
+        'IERT': {type:'off', code:'OFF'},       // Invaded ERTE/FERT/CIGS
+        'INC':  {type:'off', code:'OFF'},       // Incidencias
+
+        // ── ENFERMEDAD ───────────────────────────────────────────────
+        'SICK': {type:'off', code:'SICK'},      // Enfermedad
+        'SICD': {type:'off', code:'SICK'},      // Sick from duty
+        'LSIC': {type:'off', code:'SICK'},      // Enfermedad en línea
+        'DSIC': {type:'off', code:'SICK'},      // Enfermedad en destacamento
+        'ERSK': {type:'off', code:'SICK'},      // Sick on ERTE day
+
+        // ── VACUNACIÓN / MÉDICO ──────────────────────────────────────
+        'VCCN': {type:'off', code:'OFF'},       // Vaccination
+        'VCC':  {type:'off', code:'OFF'},       // Repetición vacunas
+        'RVCC': {type:'off', code:'OFF'},       // Revacunación
+
+        // ── NO SHOW ──────────────────────────────────────────────────
+        'N/S':  {type:'off', code:'N/S'},       // No show
+
+        // ── FORMACIÓN / TRAINING ─────────────────────────────────────
+        'SIM':  {type:'training', code:'SIM'},  // Simulator practice
+        'LPC':  {type:'training', code:'SIM'},  // License proficiency check
+        'OPC':  {type:'training', code:'SIM'},  // Operating proficiency check
         'ART':  {type:'training', code:'ART'},  // Annual recurrent training
         'SPAR': {type:'training', code:'SPAR'}, // Sparring
+        'RFSV': {type:'training', code:'SIM'},  // Covid extraordinary refresher
+        'RFSM': {type:'training', code:'SIM'},  // Refresher course
+        'LM2S': {type:'training', code:'TR'},   // E-learning: fatigue training
+        'LMEF': {type:'training', code:'TR'},   // E-learning: EFB refresh
+        'LMSS': {type:'training', code:'TR'},   // E-learning: special courses
+        'LMSC': {type:'training', code:'TR'},   // E-learning: CBT
+        'LMSD': {type:'training', code:'TR'},   // E-learning: LVO
+        'LMAF': {type:'training', code:'LMAF'}, // E-learning (genérico)
+        'LPRL': {type:'training', code:'TR'},   // E-learning: prev. riesgos laborales
+        'IET':  {type:'training', code:'TR'},   // Instructor en tierra
+        'CUR':  {type:'training', code:'TR'},   // Curso
+        'MED':  {type:'training', code:'TR'},   // Medical check
+        'ASEP': {type:'training', code:'TR'},   // Reconocimiento médico Asepeyo
+        'DANG': {type:'training', code:'TR'},   // Dangerous goods
+        'RFT':  {type:'training', code:'TR'},   // Reserved for training
+        'MTG':  {type:'training', code:'REU'},  // Meeting
         'REU':  {type:'training', code:'REU'},  // Reunión
-        'LMAF': {type:'training', code:'LMAF'}, // E-learning
-        'GRND': {type:'training', code:'GRND'}, // Ground training
+        'E':    {type:'training', code:'TR'},   // Actividad corporativa
+        'OFIT': {type:'training', code:'TR'},   // Office for training dept
+        'GRM':  {type:'training', code:'TR'},   // Grooming
+        'OFIC': {type:'training', code:'TR'},   // Oficina
+        'SIND': {type:'training', code:'TR'},   // Horas sindicales
+        'TR':   {type:'training', code:'TR'},   // Training genérico
+        'GRND': {type:'training', code:'TR'},   // Ground training
+
+        // ── TRABAJO / POSICIONAMIENTO (día de trabajo, no volando) ───
+        'POS':  {type:'flight', code:'POS', isPositioning:true},   // Posicionamiento
+        'PTA':  {type:'flight', code:'PTA', isPositioning:true},   // Pilot taxiing airplanes
+        'TEC':  {type:'flight', code:'TEC', isPositioning:true},   // Test flight
+        'FLT':  {type:'flight', code:'FLT', isPositioning:false},  // Flight duty (uploaded)
       };
 
       var gMap   = EC_MAP[gCode] || {type:'off', code:gCode};
-      var gEntry = { date:date, type:gMap.type, code:gMap.code, source:'ECREWS' };
+      var gEntry = {
+        date:   date,
+        type:   gMap.type,
+        code:   gMap.code,
+        source: 'ECREWS'
+      };
+      if(gMap.isPositioning) gEntry.isPositioning = true;
       if(gStart) gEntry.std = gStart;
       if(gEnd)   gEntry.sta = gEnd;
       entries.push(gEntry);
