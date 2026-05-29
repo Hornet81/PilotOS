@@ -1,4 +1,4 @@
-/* PilotOS — eCrews Sync Script v7
+/* PilotOS — eCrews Sync Script v8.1
  * Floating pill → bottom sheet (mobile-first).
  * Sends payload in the format PilotOS expects: {SchedulerEvents, BlockDutyTimes, PeriodStart}
  */
@@ -191,26 +191,54 @@
 
   // ── Find calendar event DOM element ──────────────────────────────
   function findEventEl(ev){
-    var dutyCode = (ev.text||'').split(/\r\n|\n/)[0].trim();
-    // 1. DHTMLX attribute event_id (numeric part of id)
-    var numId = (ev.id||'').match(/_(\d+)$/);
-    if(numId){
-      var el = document.querySelector('[event_id="'+numId[1]+'"]');
-      if(el) return el;
+    var text0   = (ev.text||'').split(/\r\n|\n/)[0].trim();
+    var evId    = (ev.id||'').toString();
+    console.log('[PilotOS] findEventEl id='+evId+' text0="'+text0+'"');
+
+    // 1. DHTMLX renders <div id="event_XXXXX"> — try full id and numeric suffix
+    var idVariants = ['event_'+evId, evId];
+    var nums = evId.match(/\d+/g)||[];
+    nums.forEach(function(n){ idVariants.push('event_'+n); });
+    for(var v=0; v<idVariants.length; v++){
+      var found = document.getElementById(idVariants[v]);
+      if(found){ console.log('[PilotOS] ✓ getElementById:'+idVariants[v]); return found; }
     }
-    // 2. Full event_id
-    var el2 = document.querySelector('[event_id="'+ev.id+'"]');
-    if(el2) return el2;
-    // 3. Text search in calendar cells
-    var candidates = document.querySelectorAll('div,td,span');
-    for(var i=0; i<candidates.length; i++){
-      var node = candidates[i];
-      if(node.children.length > 4) continue; // skip containers
-      var t = (node.firstChild && node.firstChild.nodeType===3)
-              ? node.firstChild.textContent.trim()
-              : (node.innerText||node.textContent||'').split('\n')[0].trim();
-      if(t === dutyCode) return node;
+
+    // 2. Attribute-based: event_id / data-id / data-event-id
+    var attrSelectors = [
+      '[event_id="'+evId+'"]', '[data-id="'+evId+'"]', '[data-event-id="'+evId+'"]'
+    ];
+    nums.forEach(function(n){
+      attrSelectors.push('[event_id="'+n+'"]');
+      attrSelectors.push('[data-id="'+n+'"]');
+    });
+    for(var a=0; a<attrSelectors.length; a++){
+      var found2 = document.querySelector(attrSelectors[a]);
+      if(found2){ console.log('[PilotOS] ✓ attr:'+attrSelectors[a]); return found2; }
     }
+
+    // 3. DHTMLX class-based search (.dhx_cal_event, .dhx_cal_event_line, etc.)
+    var dhxEls = document.querySelectorAll('[class*="dhx_cal_event"],[class*="dhx_event"]');
+    console.log('[PilotOS] dhx elements found:'+dhxEls.length);
+    for(var d=0; d<dhxEls.length; d++){
+      var inner = (dhxEls[d].innerText||dhxEls[d].textContent||'');
+      if(text0 && inner.indexOf(text0)!==-1){
+        console.log('[PilotOS] ✓ dhx class text match "'+text0+'"'); return dhxEls[d];
+      }
+    }
+
+    // 4. Generic text search — first line of text0 in any small element
+    if(text0){
+      var all = document.querySelectorAll('div,td,a,span');
+      for(var i=0; i<all.length; i++){
+        var node = all[i];
+        if(node.children.length > 6) continue;
+        var t = (node.innerText||node.textContent||'').split('\n')[0].trim();
+        if(t === text0){ console.log('[PilotOS] ✓ generic text match "'+text0+'"'); return node; }
+      }
+    }
+
+    console.log('[PilotOS] ✗ not found for id='+evId+' text0="'+text0+'"');
     return null;
   }
 
@@ -264,10 +292,13 @@
     [spin,ttl,prog,bar].forEach(function(el){ ov.appendChild(el); });
     document.body.appendChild(ov);
 
+    console.log('[PilotOS] autoCaptureTails: '+flights.length+' flights to process');
+
     var idx = 0;
 
     function next(){
       if(idx >= flights.length){
+        console.log('[PilotOS] autoCaptureTails done. _tailMap:', JSON.stringify(_tailMap));
         ov.remove();
         style.remove();
         onDone();
