@@ -21749,9 +21749,15 @@ function rstRenderCalendar(){
       var nonFlights = dayEntries.filter(function(e){ return e.type!=='flight'; });
       if(flights.length){
         var fc = TC['flight'];
-        var firstStd = flights[0].std_actual || flights[0].std;
+        // For eCrews: use checkin (firma real). Fallback: STD − 55 min
+        var _realFlights = flights.filter(function(f){ return !f.isPositioning; });
+        var _flightRef = _realFlights.length ? _realFlights[0] : flights[0];
+        var checkinDirect = _flightRef.checkin;
+        var firstStd = _flightRef.std_actual || _flightRef.std;
         var timeStr;
-        if(firstStd && firstStd.indexOf(':') > -1){
+        if(checkinDirect && checkinDirect.indexOf(':') > -1){
+          timeStr = '✈ ' + checkinDirect;
+        } else if(firstStd && firstStd.indexOf(':') > -1){
           var repM = parseInt(firstStd.split(':')[0])*60 + parseInt(firstStd.split(':')[1]) - 55;
           if(repM < 0) repM += 1440;
           var repStr = String(Math.floor(repM/60)).padStart(2,'0') + ':' + String(repM%60).padStart(2,'0');
@@ -21763,8 +21769,9 @@ function rstRenderCalendar(){
       }
       nonFlights.forEach(function(e){
         var tc2 = TC[e.type]||TC.other;
-        var typeLabels = {standby:'STBY',osb:'OSB',off:'OFF',f:'F',ef:'EF',srof:'SROF',noff:'NOFF',aoff:'AOFF',nrof:'NROF',meof:'MEOF',ebt:'SIM',eva:'SIM',lm:'LM',training:'SIM',sick:'SICK',other:'?'};
-        barItems.push({ bg:tc2.bg, tx:tc2.tx, lbl: typeLabels[e.type]||e.type });
+        // Use e.code when available (shows SPAR, ART, REU, NROF… instead of generic type)
+        var typeLabels = {standby:'STBY',osb:'OSB',off:'OFF',f:'F',ef:'EF',srof:'SROF',noff:'NOFF',aoff:'AOFF',nrof:'NROF',meof:'MEOF',ebt:'SIM',eva:'SIM',lm:'LM',training:'TR',sick:'SICK',other:'?'};
+        barItems.push({ bg:tc2.bg, tx:tc2.tx, lbl: e.code || typeLabels[e.type] || e.type });
       });
       glowCol = (TC[dayEntries[0].type]||TC.other).gl;
     }
@@ -23023,8 +23030,8 @@ function rosterRenderActivitiesList(dateStr, entries){
     var cfg2 = TC[e.type] || {bg:'#bdc3c7', tx:'#fff'};
     var row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:#fff;border:1px solid rgba(30,58,164,.12);border-radius:10px;margin-bottom:6px';
-    var typeLabels = {standby:'STBY',osb:'OSB',off:'OFF',f:'F',ef:'EF',srof:'SROF',noff:'NOFF',lm:'LM',training:'SIM',sick:'SICK',other:'Otro'};
-    var lbl = typeLabels[e.type]||e.type;
+    var typeLabels = {standby:'STBY',osb:'OSB',off:'OFF',f:'F',ef:'EF',srof:'SROF',noff:'NOFF',lm:'LM',training:'TR',sick:'SICK',other:'Otro'};
+    var lbl = e.code || typeLabels[e.type] || e.type;
     var timeStr = (e.std&&e.sta) ? ' · '+e.std+'–'+e.sta : (e.std ? ' · '+e.std : '');
     row.innerHTML = '<div style="display:flex;align-items:center;gap:8px">'
       + '<div style="width:4px;height:28px;border-radius:3px;background:'+cfg2.bg+'"></div>'
