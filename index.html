@@ -24928,8 +24928,19 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
         var depIATA = RST_ICAO_TO_IATA[dep] || dep;
         var arrIATA = RST_ICAO_TO_IATA[arr] || arr;
 
-        // Skip positioning legs (OSBY, OSB3) unless user wants them
-        if(fNum === 'OSBY' || fNum === 'OSB3') return;
+        // OSBY/OSB3: Posicionamiento — sacado de guardia. Insertar como leg especial
+        if(fNum === 'OSBY' || fNum === 'OSB3'){
+          entries.push({
+            date: date, type: 'flight',
+            flightNum: fNum, dep: depIATA, arr: arrIATA,
+            std: std, sta: sta,
+            checkin: report, debrief: debrief,
+            dutyCode: dutyCode,
+            isPositioning: true,
+            source: 'ECREWS'
+          });
+          return;
+        }
 
         entries.push({
           date:    date,
@@ -24943,9 +24954,54 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
           debrief: debrief,
           delay:   delay,
           dutyCode: dutyCode,
+          blockH:  blockH,
+          dutyH:   bdt.Item2 || '',
           source:  'ECREWS'
         });
       });
+      return;
+    }
+
+    // ── Ground duty — mapping de códigos eCrews/Vueling ──────────────
+    if(type === 'groundduty' || type === 'dayoff' || type === 'vacation' ||
+       type === 'sick'       || type === 'leave'   || type === 'meeting'  || type === 'other'){
+      var gCode  = text.split('\n')[0].trim().toUpperCase();
+      var gStart = (ev.start||'').slice(11,16);
+      var gEnd   = (ev.end||'').slice(11,16);
+
+      // Vueling eCrews → PilotOS
+      var EC_MAP = {
+        // Standby
+        'ASBY': {type:'standby', code:'ASBY'},  // Airport standby
+        'OSBY': {type:'standby', code:'OSBY'},  // Off standby — sacado de guardia
+        'OSB3': {type:'standby', code:'OSB3'},  // Off standby bloque 3 días
+        'HSBY': {type:'standby', code:'HSBY'},  // Hotel standby
+        'CSBY': {type:'standby', code:'CSBY'},  // Cabin standby
+        // Días libres
+        'NROF': {type:'off', code:'NROF'},      // No ganado en subasta
+        'SROF': {type:'off', code:'SROF'},      // Ganado en subasta (requested off)
+        'OFF':  {type:'off', code:'OFF'},       // Día libre
+        'DIA LIBRE': {type:'off', code:'OFF'},
+        // Vacaciones / bajas
+        'AL':   {type:'off', code:'AL'},        // Annual leave — vacaciones
+        'SICK': {type:'off', code:'SICK'},      // Baja médica
+        'ILL':  {type:'off', code:'SICK'},
+        // Formación
+        'SIM':  {type:'training', code:'SIM'},  // Simulador
+        'TR':   {type:'training', code:'TR'},   // Training
+        'ART':  {type:'training', code:'ART'},  // Annual recurrent training
+        'SPAR': {type:'training', code:'SPAR'}, // Sparring
+        'REU':  {type:'training', code:'REU'},  // Reunión
+        'LMAF': {type:'training', code:'LMAF'}, // E-learning
+        'GRND': {type:'training', code:'GRND'}, // Ground training
+      };
+
+      var gMap   = EC_MAP[gCode] || {type:'off', code:gCode};
+      var gEntry = { date:date, type:gMap.type, code:gMap.code, source:'ECREWS' };
+      if(gStart) gEntry.std = gStart;
+      if(gEnd)   gEntry.sta = gEnd;
+      entries.push(gEntry);
+      return;
     }
   });
 
