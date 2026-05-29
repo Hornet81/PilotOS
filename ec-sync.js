@@ -627,4 +627,20 @@
   var poll = setInterval(installAll, 1000);
   setTimeout(function(){ clearInterval(poll); }, 120000);
 
+  // Auto-reload current month: click Prev then Next so the XHR fires again
+  // (bookmarklet often loads after the initial XHR already fired)
+  setTimeout(function(){
+    var prevBtn = null, nextBtn = null;
+    var allEls = document.querySelectorAll('button,a,input[type=button],span');
+    for(var i=0; i<allEls.length; i++){
+      var t = (allEls[i].innerText||allEls[i].value||allEls[i].textContent||'').trim();
+      if(!prevBtn && /Previous\s*Period/i.test(t)) prevBtn = allEls[i];
+      if(!nextBtn && /Next\s*Period/i.test(t)) nextBtn = allEls[i];
+    }
+    if(prevBtn && nextBtn){
+      prevBtn.click();
+      setTimeout(function(){ nextBtn.click(); }, 1400);
+    }
+  }, 600);
+
 })();
