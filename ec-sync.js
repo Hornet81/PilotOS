@@ -1,6 +1,6 @@
-/* PilotOS — eCrews Sync Script v5
- * Floating widget. User presses CAPTURAR to save current month.
- * Can capture multiple months, then select entries and send.
+/* PilotOS — eCrews Sync Script v6
+ * Mobile-first: floating pill → bottom sheet.
+ * Desktop: corner widget.
  */
 (function(){
 
@@ -16,25 +16,28 @@
     }
   }catch(e){}
 
-  var _lastPayload = null;   // most recent XHR response (updated silently)
-  var _allEntries  = [];     // accumulated across captures
-  var _capturedMonths = [];  // e.g. ['2026-04','2026-05']
+  var isMobile = window.innerWidth < 680 || ('ontouchstart' in window);
+
+  var _lastPayload    = null;
+  var _allEntries     = [];
+  var _capturedMonths = [];
+  var _sheetOpen      = false;
 
   // ── Helpers ──────────────────────────────────────────────────────
-  function mkEl(tag,css,txt){
-    var el=document.createElement(tag);
-    if(css) el.style.cssText=css;
-    if(txt!==undefined) el.textContent=txt;
+  function mkEl(tag, css, txt){
+    var el = document.createElement(tag);
+    if(css) el.style.cssText = css;
+    if(txt !== undefined) el.textContent = txt;
     return el;
   }
   function $(id){ return document.getElementById(id); }
-  var DAY=['Do','Lu','Ma','Mi','Ju','Vi','Sa'];
+  var DAY = ['Do','Lu','Ma','Mi','Ju','Vi','Sa'];
   function fmtDate(d){
-    var o=new Date(d+'T12:00:00Z');
+    var o = new Date(d+'T12:00:00Z');
     return DAY[o.getUTCDay()]+' '+o.getUTCDate();
   }
 
-  // ── Parse one event ──────────────────────────────────────────────
+  // ── Parse event ──────────────────────────────────────────────────
   function parseEvent(ev, uid){
     var type    = (ev.type||'').toLowerCase();
     var text    = (ev.text||'').trim();
@@ -46,53 +49,51 @@
     var reg = regMatch ? regMatch[1] : '';
 
     var crew = [];
-    if(Array.isArray(ev.crew))       crew = ev.crew.map(function(c){ return typeof c==='string'?c:(c.name||c.Name||''); });
-    else if(Array.isArray(ev.Crew))  crew = ev.Crew.map(function(c){ return typeof c==='string'?c:(c.name||c.Name||''); });
-    else if(ev.crewMembers)          crew = [].concat(ev.crewMembers);
-    else if(ev.CrewMembers)          crew = [].concat(ev.CrewMembers);
+    if(Array.isArray(ev.crew))      crew = ev.crew.map(function(c){ return typeof c==='string'?c:(c.name||c.Name||''); });
+    else if(Array.isArray(ev.Crew)) crew = ev.Crew.map(function(c){ return typeof c==='string'?c:(c.name||c.Name||''); });
+    else if(ev.crewMembers)         crew = [].concat(ev.crewMembers);
+    else if(ev.CrewMembers)         crew = [].concat(ev.CrewMembers);
     if(!crew.length && details){
       details.split('\n').forEach(function(l){
-        l=l.trim();
+        l = l.trim();
         if(/^[A-ZÁÉÍÓÚÑ]{2,},\s*[A-ZÁÉÍÓÚÑ]/.test(l)) crew.push(l);
       });
     }
 
     var legs = [];
-    if(type==='flight'){
+    if(type === 'flight'){
       details.split('\n').forEach(function(line){
-        line=line.trim();
-        var m=line.match(/^([A-Z0-9]+)\s+-\s+([A-Z]{3})\s+\(A?(\d{4})\)\s+-\s+([A-Z]{3})\s+\(A?(\d{4})\)/);
+        line = line.trim();
+        var m = line.match(/^([A-Z0-9]+)\s+-\s+([A-Z]{3})\s+\(A?(\d{4})\)\s+-\s+([A-Z]{3})\s+\(A?(\d{4})\)/);
         if(m) legs.push({ fNum:'VY'+m[1], dep:m[2],
-          std:m[3].slice(0,2)+':'+m[3].slice(2),
-          arr:m[4], sta:m[5].slice(0,2)+':'+m[5].slice(2) });
+          std: m[3].slice(0,2)+':'+m[3].slice(2),
+          arr: m[4], sta: m[5].slice(0,2)+':'+m[5].slice(2) });
       });
     }
-
-    return { _id:uid, date:date, type:type, text:text,
-             legs:legs, reg:reg, crew:crew,
+    return { _id:uid, date:date, type:type, text:text, legs:legs, reg:reg, crew:crew,
              report:ev.report||'', debrief:ev.debrief||'' };
   }
 
-  // ── XHR interceptor (silent — just stores last payload) ──────────
+  // ── Interceptors ─────────────────────────────────────────────────
   function installXHR(win){
     if(!win||win._ecXhr) return;
     try{
-      win._ecXhr=true;
-      var orig=win.XMLHttpRequest.prototype.open;
-      win.XMLHttpRequest.prototype.open=function(m,u){
-        if(u&&u.toString().indexOf('SchedulerEvents')!==-1){
-          this.addEventListener('load',function(){
+      win._ecXhr = true;
+      var orig = win.XMLHttpRequest.prototype.open;
+      win.XMLHttpRequest.prototype.open = function(m,u){
+        if(u && u.toString().indexOf('SchedulerEvents') !== -1){
+          this.addEventListener('load', function(){
             try{
-              var d=JSON.parse(this.responseText);
-              if(d&&d.SchedulerEvents){
-                _lastPayload=d;
-                console.log('[PilotOS] payload disponible:', JSON.stringify(d,null,2));
-                updateReadyState();
+              var d = JSON.parse(this.responseText);
+              if(d && d.SchedulerEvents){
+                _lastPayload = d;
+                console.log('[PilotOS] payload:', JSON.stringify(d, null, 2));
+                onNewPayload();
               }
             }catch(e){}
           });
         }
-        return orig.apply(this,arguments);
+        return orig.apply(this, arguments);
       };
     }catch(e){}
   }
@@ -100,19 +101,17 @@
   function installFetch(win){
     if(!win||win._ecFetch||!win.fetch) return;
     try{
-      win._ecFetch=true;
-      var orig=win.fetch.bind(win);
-      win.fetch=function(input,init){
-        var url=(typeof input==='string')?input:(input&&input.url)||'';
-        var p=orig(input,init);
-        if(url.indexOf('SchedulerEvents')!==-1){
-          p.then(function(r){ r.clone().json().then(function(d){
-            if(d&&d.SchedulerEvents){
-              _lastPayload=d;
-              console.log('[PilotOS] payload disponible:', JSON.stringify(d,null,2));
-              updateReadyState();
-            }
-          }).catch(function(){}); }).catch(function(){});
+      win._ecFetch = true;
+      var orig = win.fetch.bind(win);
+      win.fetch = function(input, init){
+        var url = (typeof input==='string') ? input : (input&&input.url)||'';
+        var p = orig(input, init);
+        if(url.indexOf('SchedulerEvents') !== -1){
+          p.then(function(r){
+            r.clone().json().then(function(d){
+              if(d && d.SchedulerEvents){ _lastPayload = d; console.log('[PilotOS] payload:', JSON.stringify(d,null,2)); onNewPayload(); }
+            }).catch(function(){});
+          }).catch(function(){});
         }
         return p;
       };
@@ -126,204 +125,259 @@
     });
   }
 
-  // ── UI state updates ─────────────────────────────────────────────
-  function updateReadyState(){
+  // ── Payload ready → update UI ─────────────────────────────────────
+  function onNewPayload(){
     var period = (_lastPayload.PeriodStart||'').slice(0,7);
     var nf = (_lastPayload.SchedulerEvents||[]).filter(function(e){ return (e.type||'').toLowerCase()==='flight'; }).length;
 
+    // Update pill
+    var pill = $('_ecPill');
+    if(pill){
+      pill.style.background = 'linear-gradient(135deg,#0891B2,#0369A1)';
+      pill.style.boxShadow  = '0 0 0 3px rgba(8,145,178,.35)';
+      pill.querySelector('#_ecPillTxt').textContent = '📥 ' + period + ' listo';
+    }
+
+    // Update CAPTURAR button in sheet
     var capBtn = $('_ecCapBtn');
     if(capBtn){
       capBtn.disabled = false;
       capBtn.style.opacity = '1';
-      capBtn.textContent = '📥 CAPTURAR  ' + period + ' (' + nf + ' vuelos)';
+      capBtn.textContent = '📥  CAPTURAR  ' + period + '  (' + nf + ' vuelos)';
     }
     var hint = $('_ecHint');
-    if(hint){ hint.textContent = 'Mes listo. Pulsa CAPTURAR o navega a otro mes.'; hint.style.color='rgba(74,222,128,.8)'; }
+    if(hint){ hint.textContent = '✓ Mes cargado. Pulsa CAPTURAR o navega a otro.'; hint.style.color = 'rgba(74,222,128,.8)'; }
   }
 
-  // ── CAPTURAR button action ───────────────────────────────────────
+  // ── CAPTURAR action ───────────────────────────────────────────────
   function doCapture(){
     if(!_lastPayload) return;
     var period = (_lastPayload.PeriodStart||'').slice(0,7);
-    if(_capturedMonths.indexOf(period)!==-1){
-      var hint=$('_ecHint');
-      if(hint){ hint.textContent='Ya capturaste '+period+'. Navega a otro mes.'; hint.style.color='rgba(251,146,60,.8)'; }
+    if(_capturedMonths.indexOf(period) !== -1){
+      var hint = $('_ecHint');
+      if(hint){ hint.textContent = period+' ya capturado. Navega a otro mes.'; hint.style.color = 'rgba(251,146,60,.8)'; }
       return;
     }
-
     var uid = _allEntries.length;
     var newEntries = (_lastPayload.SchedulerEvents||[]).map(function(ev,i){ return parseEvent(ev, uid+i); });
     _allEntries = _allEntries.concat(newEntries);
     _capturedMonths.push(period);
-    _lastPayload = null; // reset so next navigation loads fresh
+    _lastPayload = null;
 
-    renderWidget();
+    // Reset pill
+    var pill = $('_ecPill');
+    if(pill){
+      pill.style.background = 'linear-gradient(135deg,#1e3a5f,#0f2040)';
+      pill.style.boxShadow  = 'none';
+      pill.querySelector('#_ecPillTxt').textContent = '✈ PilotOS · '+_capturedMonths.length+' mes'+ (_capturedMonths.length===1?'':'es');
+    }
+
+    renderSheet();
   }
 
-  // ── Render full widget ───────────────────────────────────────────
-  function renderWidget(){
-    var body = $('_ecBody'); if(!body) return;
+  // ── Send ──────────────────────────────────────────────────────────
+  function sendSelected(ids){
+    var toSend = _allEntries.filter(function(e){ return ids.indexOf(e._id) !== -1; });
+    var payload = { _selected: toSend, _months: _capturedMonths };
+    if(window.opener){ try{ window.opener.postMessage({type:'ECREWS_DATA',payload:payload},TARGET); }catch(e){} }
+    try{ window.postMessage({type:'ECREWS_DATA',payload:payload},'*'); }catch(e){}
+
+    var body = $('_ecSheetBody'); if(!body) return;
+    body.innerHTML = '';
+    var ok = mkEl('div','text-align:center;padding:24px 0');
+    ok.appendChild(mkEl('div','font-size:48px;margin-bottom:10px','✅'));
+    ok.appendChild(mkEl('div','font-size:16px;font-weight:700;color:#F0FFFE;margin-bottom:6px',
+      toSend.length+' entrada'+(toSend.length===1?'':'s')+' enviada'+(toSend.length===1?'':'s')));
+    ok.appendChild(mkEl('div','font-size:13px;color:rgba(248,250,252,.4)','Vuelve a PilotOS para confirmar'));
+    body.appendChild(ok);
+  }
+
+  // ── Render sheet body ─────────────────────────────────────────────
+  function renderSheet(){
+    var body = $('_ecSheetBody'); if(!body) return;
     body.innerHTML = '';
 
     // Captured months chips
     if(_capturedMonths.length){
-      var chips = mkEl('div','display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px');
+      var chips = mkEl('div','display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px');
       _capturedMonths.forEach(function(m){
         chips.appendChild(mkEl('span',
-          'font-size:10px;padding:2px 8px;background:rgba(8,145,178,.2);border:1px solid rgba(8,145,178,.3);border-radius:10px;color:#7DD3FC',
+          'font-size:11px;padding:3px 10px;background:rgba(8,145,178,.2);border:1px solid rgba(8,145,178,.35);border-radius:12px;color:#7DD3FC',
           '✓ '+m));
       });
       body.appendChild(chips);
     }
 
     // Hint
-    var hint = mkEl('div','font-size:10px;color:rgba(248,250,252,.4);margin-bottom:8px;line-height:1.5',
-      _capturedMonths.length ? 'Navega a otro mes para seguir acumulando.' : 'Navega al mes que quieres en eCrews.');
+    var hint = mkEl('div','font-size:12px;color:rgba(248,250,252,.4);margin-bottom:12px;line-height:1.5',
+      'Navega al mes que quieres en eCrews y pulsa CAPTURAR.');
     hint.id = '_ecHint';
     body.appendChild(hint);
 
-    // CAPTURAR button
+    // CAPTURAR button — big and touch-friendly
     var capBtn = mkEl('button',
-      'width:100%;padding:11px;background:linear-gradient(135deg,#0891B2,#0369A1);border:none;border-radius:10px;'+
-      'color:#fff;font-size:12px;font-weight:800;cursor:pointer;margin-bottom:10px;opacity:.4',
-      '📥 CAPTURAR MES');
+      'width:100%;padding:16px;background:linear-gradient(135deg,#0891B2,#0369A1);border:none;border-radius:14px;'+
+      'color:#fff;font-size:'+(isMobile?'16':'14')+'px;font-weight:800;cursor:pointer;margin-bottom:16px;'+
+      'opacity:'+(  _lastPayload?'1':'.35')+';min-height:54px;letter-spacing:.3px',
+      _lastPayload ? '📥  CAPTURAR  '+(_lastPayload.PeriodStart||'').slice(0,7) : '📥  CAPTURAR MES');
     capBtn.id = '_ecCapBtn';
-    capBtn.disabled = true;
+    capBtn.disabled = !_lastPayload;
     capBtn.onclick = doCapture;
     body.appendChild(capBtn);
 
-    // If we have entries, show list
-    if(_allEntries.length){
-      widget.style.width    = '340px';
-      widget.style.maxHeight= '520px';
+    if(_lastPayload) onNewPayload();
 
-      var sep = mkEl('div','border-top:1px solid rgba(8,145,178,.15);margin:0 0 8px');
+    // Entry list
+    if(_allEntries.length){
+      var sep = mkEl('div','border-top:1px solid rgba(8,145,178,.15);margin-bottom:12px');
       body.appendChild(sep);
 
-      // Select all / none
-      var bar = mkEl('div','display:flex;justify-content:space-between;align-items:center;margin-bottom:6px');
-      var count = mkEl('span','font-size:10px;color:rgba(248,250,252,.4)',
-        _allEntries.length+' entradas · '+_allEntries.filter(function(e){return e.type==='flight';}).length+' vuelos');
-      var btnRow = mkEl('div','display:flex;gap:4px');
-      var sa = mkEl('button','font-size:10px;background:none;border:none;color:rgba(8,145,178,.8);cursor:pointer','Todo');
-      var sn = mkEl('button','font-size:10px;background:none;border:none;color:rgba(248,250,252,.3);cursor:pointer','Ninguno');
-      sa.onclick=function(){ document.querySelectorAll('._ecCb').forEach(function(c){c.checked=true;}); };
-      sn.onclick=function(){ document.querySelectorAll('._ecCb').forEach(function(c){c.checked=false;}); };
+      var bar = mkEl('div','display:flex;justify-content:space-between;align-items:center;margin-bottom:8px');
+      bar.appendChild(mkEl('span','font-size:11px;color:rgba(248,250,252,.4)',
+        _allEntries.length+' entradas · '+_allEntries.filter(function(e){return e.type==='flight';}).length+' vuelos'));
+      var btnRow = mkEl('div','display:flex;gap:8px');
+      var sa = mkEl('button','font-size:11px;background:none;border:none;color:rgba(8,145,178,.8);cursor:pointer;padding:4px 8px','Todo');
+      var sn = mkEl('button','font-size:11px;background:none;border:none;color:rgba(248,250,252,.3);cursor:pointer;padding:4px 8px','Ninguno');
+      sa.onclick = function(){ document.querySelectorAll('._ecCb').forEach(function(c){c.checked=true;}); };
+      sn.onclick = function(){ document.querySelectorAll('._ecCb').forEach(function(c){c.checked=false;}); };
       btnRow.appendChild(sa); btnRow.appendChild(sn);
-      bar.appendChild(count); bar.appendChild(btnRow);
+      bar.appendChild(btnRow);
       body.appendChild(bar);
 
-      // Entry list
-      var list = mkEl('div','max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;margin-bottom:10px');
+      var list = mkEl('div','display:flex;flex-direction:column;gap:5px;margin-bottom:14px;max-height:'+(isMobile?'35vh':'240px')+';overflow-y:auto;-webkit-overflow-scrolling:touch');
       _allEntries.forEach(function(e){
-        var row = mkEl('label','display:flex;align-items:flex-start;gap:6px;padding:5px 7px;background:rgba(8,145,178,.05);border:1px solid rgba(8,145,178,.1);border-radius:7px;cursor:pointer');
-        var cb = document.createElement('input');
+        var row = mkEl('label','display:flex;align-items:flex-start;gap:10px;padding:'+(isMobile?'10px 10px':'6px 8px')+';background:rgba(8,145,178,.05);border:1px solid rgba(8,145,178,.12);border-radius:10px;cursor:pointer');
+        var cb  = document.createElement('input');
         cb.type='checkbox'; cb.className='_ecCb'; cb.dataset.id=e._id; cb.checked=true;
-        cb.style.cssText='margin-top:2px;accent-color:#0891B2;flex-shrink:0';
+        cb.style.cssText = 'margin-top:3px;accent-color:#0891B2;flex-shrink:0;width:'+(isMobile?'18px':'14px')+';height:'+(isMobile?'18px':'14px');
 
         var info = mkEl('div','flex:1;min-width:0');
-        var top  = mkEl('div','display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin-bottom:1px');
-        top.appendChild(mkEl('span','font-size:10px;color:rgba(8,145,178,.7);font-family:monospace',fmtDate(e.date)));
-        top.appendChild(mkEl('span','font-size:9px;padding:1px 4px;background:rgba(8,145,178,.15);border-radius:3px;color:#7DD3FC',e.type.toUpperCase()));
-        if(e.reg) top.appendChild(mkEl('span','font-size:9px;padding:1px 4px;background:rgba(245,158,11,.12);border-radius:3px;color:#FCD34D',e.reg));
+        var top  = mkEl('div','display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:2px');
+        top.appendChild(mkEl('span','font-size:'+(isMobile?'11':'10')+'px;color:rgba(8,145,178,.7);font-family:monospace',fmtDate(e.date)+' · '+e.date));
+        top.appendChild(mkEl('span','font-size:9px;padding:1px 5px;background:rgba(8,145,178,.15);border-radius:4px;color:#7DD3FC',e.type.toUpperCase()));
+        if(e.reg) top.appendChild(mkEl('span','font-size:9px;padding:1px 5px;background:rgba(245,158,11,.12);border-radius:4px;color:#FCD34D',e.reg));
         info.appendChild(top);
 
         if(e.legs.length){
           e.legs.forEach(function(l){
-            info.appendChild(mkEl('div','font-size:11px;font-family:monospace;color:#F0FFFE',
-              l.fNum+' '+l.dep+'→'+l.arr+' '+l.std+'–'+l.sta));
+            info.appendChild(mkEl('div','font-size:'+(isMobile?'13':'11')+'px;font-family:monospace;color:#F0FFFE',
+              l.fNum+' '+l.dep+'→'+l.arr+'  '+l.std+'–'+l.sta));
           });
         } else {
-          info.appendChild(mkEl('div','font-size:10px;color:rgba(248,250,252,.4)',e.text.split('\n')[0].slice(0,38)));
+          info.appendChild(mkEl('div','font-size:'+(isMobile?'12':'10')+'px;color:rgba(248,250,252,.4)',e.text.split('\n')[0].slice(0,40)));
         }
         if(e.crew.length){
-          info.appendChild(mkEl('div','font-size:9px;color:rgba(248,250,252,.3);margin-top:1px',
+          info.appendChild(mkEl('div','font-size:'+(isMobile?'11':'9')+'px;color:rgba(248,250,252,.3);margin-top:2px',
             '👥 '+e.crew.slice(0,2).join(' · ')+(e.crew.length>2?' +'+(e.crew.length-2):'')));
         }
-
         row.appendChild(cb); row.appendChild(info);
         list.appendChild(row);
       });
       body.appendChild(list);
 
-      // Send button
       var sendBtn = mkEl('button',
-        'width:100%;padding:11px;background:linear-gradient(135deg,#059669,#047857);border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:800;cursor:pointer',
+        'width:100%;padding:'+(isMobile?'18px':'13px')+';background:linear-gradient(135deg,#059669,#047857);border:none;border-radius:14px;'+
+        'color:#fff;font-size:'+(isMobile?'16':'13')+'px;font-weight:800;cursor:pointer;min-height:'+(isMobile?'58px':'44px'),
         'ENVIAR A PILOTOS →');
       sendBtn.onclick = function(){
-        var ids=[];
+        var ids = [];
         document.querySelectorAll('._ecCb:checked').forEach(function(c){ ids.push(parseInt(c.dataset.id)); });
         if(!ids.length) return;
         sendSelected(ids);
       };
       body.appendChild(sendBtn);
     }
-
-    // Re-enable capBtn if lastPayload available
-    if(_lastPayload) updateReadyState();
   }
 
-  // ── Send ─────────────────────────────────────────────────────────
-  function sendSelected(ids){
-    var toSend = _allEntries.filter(function(e){ return ids.indexOf(e._id)!==-1; });
-    var payload = { _selected: toSend, _months: _capturedMonths };
-    if(window.opener){
-      try{ window.opener.postMessage({type:'ECREWS_DATA',payload:payload},TARGET); }catch(e){}
+  // ── Toggle sheet ──────────────────────────────────────────────────
+  function toggleSheet(){
+    _sheetOpen = !_sheetOpen;
+    var sheet   = $('_ecSheet');
+    var overlay = $('_ecOverlay');
+    if(!sheet) return;
+
+    if(_sheetOpen){
+      renderSheet();
+      sheet.style.transform   = 'translateY(0)';
+      sheet.style.opacity     = '1';
+      if(overlay) overlay.style.display = 'block';
+    } else {
+      sheet.style.transform = 'translateY(100%)';
+      sheet.style.opacity   = '0';
+      if(overlay) overlay.style.display = 'none';
     }
-    try{ window.postMessage({type:'ECREWS_DATA',payload:payload},'*'); }catch(e){}
-
-    var body=$('_ecBody'); if(!body) return;
-    body.innerHTML='';
-    var ok=mkEl('div','text-align:center;padding:12px 0');
-    ok.appendChild(mkEl('div','font-size:36px;margin-bottom:6px','✅'));
-    ok.appendChild(mkEl('div','font-size:12px;font-weight:700;color:#F0FFFE;margin-bottom:4px',
-      toSend.length+' entrada'+(toSend.length===1?'':'s')+' enviada'+(toSend.length===1?'':'s')));
-    ok.appendChild(mkEl('div','font-size:10px;color:rgba(248,250,252,.35)','Vuelve a PilotOS para confirmar'));
-    body.appendChild(ok);
   }
 
-  // ── Build floating widget ────────────────────────────────────────
-  var existing=$('_ecWidget'); if(existing) existing.remove();
+  // ── Build UI ──────────────────────────────────────────────────────
+  ['_ecPill','_ecSheet','_ecOverlay'].forEach(function(id){ var el=$(id); if(el) el.remove(); });
 
-  var widget = mkEl('div',
-    'position:fixed;bottom:20px;right:16px;z-index:999999;width:220px;'+
-    'background:linear-gradient(180deg,#0A1628,#060E1C);'+
-    'border:1.5px solid rgba(8,145,178,.4);border-radius:16px;'+
-    'box-shadow:0 4px 24px rgba(0,0,0,.6);font-family:system-ui,sans-serif;'+
-    'transition:width .25s ease,max-height .3s ease;overflow:hidden');
-  widget.id = '_ecWidget';
+  // Dim overlay (mobile tap-outside to close)
+  var overlay = mkEl('div',
+    'display:none;position:fixed;inset:0;z-index:999997;background:rgba(0,0,0,.4)');
+  overlay.id = '_ecOverlay';
+  overlay.onclick = function(){ if(_sheetOpen) toggleSheet(); };
+  document.body.appendChild(overlay);
 
-  // Header
-  var hdr = mkEl('div','display:flex;align-items:center;justify-content:space-between;padding:10px 12px;cursor:pointer;user-select:none');
-  var hl  = mkEl('div','display:flex;align-items:center;gap:7px');
-  hl.appendChild(mkEl('span','font-size:16px','✈'));
-  var titles = mkEl('div');
-  titles.appendChild(mkEl('div','font-size:12px;font-weight:700;color:#F0FFFE','PilotOS Sync'));
-  titles.appendChild(mkEl('div','font-size:10px;color:rgba(8,145,178,.6)','eCrews → PilotOS'));
-  hl.appendChild(titles); hdr.appendChild(hl);
+  // Floating pill
+  var pill = mkEl('div',
+    'position:fixed;bottom:'+(isMobile?'80':'20')+'px;right:16px;z-index:999999;'+
+    'background:linear-gradient(135deg,#1e3a5f,#0f2040);'+
+    'border:1.5px solid rgba(8,145,178,.5);border-radius:24px;'+
+    'padding:'+(isMobile?'12px 18px':'8px 14px')+';'+
+    'display:flex;align-items:center;gap:8px;cursor:pointer;'+
+    'box-shadow:0 4px 20px rgba(0,0,0,.5);user-select:none;'+
+    'font-family:system-ui,sans-serif;transition:box-shadow .2s,background .2s');
+  pill.id = '_ecPill';
+  pill.appendChild(mkEl('span','font-size:'+(isMobile?'20':'16')+'px;line-height:1','✈'));
+  var pillTxt = mkEl('span','font-size:'+(isMobile?'14':'12')+'px;font-weight:700;color:#F0FFFE;white-space:nowrap','✈ PilotOS Sync');
+  pillTxt.id = '_ecPillTxt';
+  pill.appendChild(pillTxt);
+  pill.onclick = toggleSheet;
+  document.body.appendChild(pill);
 
-  var closeBtn = mkEl('button','background:none;border:none;color:rgba(248,250,252,.35);font-size:18px;cursor:pointer;padding:0 4px;line-height:1','×');
-  closeBtn.onclick=function(e){ e.stopPropagation(); widget.remove(); };
-  hdr.appendChild(closeBtn);
+  // Bottom sheet
+  var sheet = mkEl('div',
+    'position:fixed;bottom:0;left:0;right:0;z-index:999998;'+
+    'background:linear-gradient(180deg,#0D1E35,#060E1C);'+
+    'border-top:2px solid rgba(8,145,178,.4);border-radius:22px 22px 0 0;'+
+    'padding:0 16px env(safe-area-inset-bottom,16px);'+
+    'font-family:system-ui,sans-serif;'+
+    'transform:translateY(100%);opacity:0;'+
+    'transition:transform .3s ease,opacity .25s ease;'+
+    'max-height:85vh;overflow-y:auto;-webkit-overflow-scrolling:touch');
+  sheet.id = '_ecSheet';
 
-  var _open = true;
-  hdr.onclick=function(){
-    _open=!_open;
-    body.style.display=_open?'block':'none';
-  };
+  // Handle bar
+  var handle = mkEl('div','display:flex;justify-content:center;padding:12px 0 6px');
+  handle.appendChild(mkEl('div','width:36px;height:4px;background:rgba(8,145,178,.4);border-radius:2px'));
+  sheet.appendChild(handle);
 
-  widget.appendChild(hdr);
+  // Sheet header
+  var shHdr = mkEl('div','display:flex;align-items:center;justify-content:space-between;margin-bottom:16px');
+  var shLeft = mkEl('div','display:flex;align-items:center;gap:10px');
+  shLeft.appendChild(mkEl('span','font-size:'+(isMobile?'24':'20')+'px','✈'));
+  var shTitles = mkEl('div');
+  shTitles.appendChild(mkEl('div','font-size:'+(isMobile?'16':'14')+'px;font-weight:700;color:#F0FFFE','PilotOS Sync'));
+  shTitles.appendChild(mkEl('div','font-size:11px;color:rgba(8,145,178,.6)','eCrews → PilotOS'));
+  shLeft.appendChild(shTitles);
+  shHdr.appendChild(shLeft);
+  var closeBtn = mkEl('button',
+    'background:rgba(255,255,255,.06);border:none;color:rgba(248,250,252,.5);'+
+    'font-size:18px;cursor:pointer;padding:6px 10px;border-radius:8px;line-height:1','×');
+  closeBtn.onclick = toggleSheet;
+  shHdr.appendChild(closeBtn);
+  sheet.appendChild(shHdr);
 
-  var body = mkEl('div','padding:0 12px 12px');
-  body.id='_ecBody';
-  widget.appendChild(body);
-  document.body.appendChild(widget);
+  // Body container
+  var shBody = mkEl('div','padding-bottom:8px');
+  shBody.id = '_ecSheetBody';
+  sheet.appendChild(shBody);
 
-  renderWidget();
+  document.body.appendChild(sheet);
 
-  // Install interceptors + keep polling for iframes
+  // Install interceptors
   installAll();
-  var poll=setInterval(installAll, 1000);
+  var poll = setInterval(installAll, 1000);
   setTimeout(function(){ clearInterval(poll); }, 120000);
 
 })();
