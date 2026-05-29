@@ -1,4 +1,4 @@
-/* PilotOS — eCrews Sync Script v8.2
+/* PilotOS — eCrews Sync Script v8.3
  * Floating pill → bottom sheet (mobile-first).
  * Sends payload in the format PilotOS expects: {SchedulerEvents, BlockDutyTimes, PeriodStart}
  */
@@ -270,6 +270,39 @@
     document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',keyCode:27,bubbles:true}));
   }
 
+  // ── Trigger click bypassing isTrusted check ──────────────────────
+  function triggerEventClick(el, evId, iframeWin){
+    // Strategy 1: DHTMLX scheduler.callEvent — bypasses DOM isTrusted check entirely
+    if(iframeWin){
+      var sched = iframeWin.scheduler || iframeWin.Scheduler;
+      if(sched && typeof sched.callEvent === 'function'){
+        var nums = (evId||'').match(/\d+/g)||[];
+        var fakeEv = {isTrusted:true, type:'click', target:el,
+          stopPropagation:function(){}, preventDefault:function(){}};
+        // Try most likely IDs (last number in id string is usually the pairing ID)
+        for(var j=nums.length-1; j>=0; j--){
+          try{
+            sched.callEvent('onEventClick', [nums[j], fakeEv]);
+            sched.callEvent('onClick',       [nums[j], fakeEv]);
+            console.log('[PilotOS] scheduler.callEvent id='+nums[j]);
+          }catch(e){}
+        }
+        return;
+      }
+    }
+    // Strategy 2: call onclick handler directly as function (no DOM event bubbling)
+    if(el && typeof el.onclick === 'function'){
+      try{
+        el.onclick.call(el, {isTrusted:true, type:'click', target:el,
+          stopPropagation:function(){}, preventDefault:function(){}});
+        console.log('[PilotOS] direct el.onclick()');
+        return;
+      }catch(e){}
+    }
+    // Strategy 3: standard click (will likely be blocked, but try anyway)
+    if(el) el.click();
+  }
+
   // ── Store tail from popup text ────────────────────────────────────
   function storeTailText(text, tail){
     var fns = text.match(/\|\s*(\d{3,4})/g)||[];
@@ -307,6 +340,21 @@
     document.body.appendChild(ov);
 
     console.log('[PilotOS] autoCaptureTails: '+flights.length+' flights to process');
+
+    // Get iframe window for scheduler access
+    var _iframeWin = null;
+    try{
+      var _iframes = document.querySelectorAll('iframe');
+      for(var _fi=0; _fi<_iframes.length; _fi++){
+        try{
+          var _iw = _iframes[_fi].contentWindow;
+          if(_iw && (_iw.scheduler||_iw.Scheduler)){ _iframeWin = _iw; break; }
+          if(_iw && _iw.document && _iw.document.querySelector('[class*="dhx"]')){ _iframeWin = _iw; }
+        }catch(e){}
+      }
+      if(!_iframeWin && _iframes.length){ _iframeWin = _iframes[_iframes.length-1].contentWindow; }
+    }catch(e){}
+    console.log('[PilotOS] iframe win:', !!_iframeWin, 'scheduler:', !!(_iframeWin&&(_iframeWin.scheduler||_iframeWin.Scheduler)));
 
     var idx = 0;
 
@@ -347,7 +395,7 @@
         try{ obs.observe(d.body||d.documentElement,{childList:true,subtree:true}); }catch(e){}
       });
 
-      el.click();
+      triggerEventClick(el, ev.id, _iframeWin);
 
       // Timeout if popup doesn't open
       setTimeout(function(){
