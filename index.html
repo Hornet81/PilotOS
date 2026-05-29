@@ -16320,22 +16320,70 @@ function _wxHdr() {
   catch(e) { return {}; }
 }
 
-async function fetchLiveMetar(icao) {
+// Airport coords for open-meteo fallback (common Vueling network)
+var _WX_AIRPORTS={LEBL:{lat:41.2971,lon:2.0785},LEMD:{lat:40.4936,lon:-3.5668},LEPA:{lat:39.5517,lon:2.7388},LEMG:{lat:36.6749,lon:-4.4991},LEAL:{lat:38.2822,lon:-0.5582},LEVC:{lat:39.4893,lon:-0.4816},LEZL:{lat:37.4180,lon:-5.8931},LEBB:{lat:43.3011,lon:-2.9106},GCLP:{lat:27.9319,lon:-15.3866},GCTS:{lat:28.0445,lon:-16.5725},GCRR:{lat:28.9455,lon:-13.6052},LFPG:{lat:49.0097,lon:2.5479},EGLL:{lat:51.4775,lon:-0.4614},EHAM:{lat:52.3086,lon:4.7639},LIRF:{lat:41.8003,lon:12.2389},LIML:{lat:45.6306,lon:8.7281},EDDF:{lat:50.0379,lon:8.5622},LPPT:{lat:38.7813,lon:-9.1359},LSZH:{lat:47.4647,lon:8.5492},LOWW:{lat:48.1103,lon:16.5697},EDDM:{lat:48.3537,lon:11.7861},LFPO:{lat:48.7233,lon:2.3794},EGKK:{lat:51.1481,lon:-0.1903},LEIB:{lat:38.8727,lon:1.3731},LEGE:{lat:41.9010,lon:2.7605},LERJ:{lat:41.5424,lon:-2.1132},LESA:{lat:40.9521,lon:-5.4982},LEVD:{lat:41.7061,lon:-4.8519},LCAR:{lat:42.4567,lon:-2.3284},LEMO:{lat:37.1749,lon:-6.9111},LEJR:{lat:36.7446,lon:-6.0601},LEVX:{lat:42.2318,lon:-8.6268},LECN:{lat:43.2964,lon:-8.3774}};
+
+async function _fetchOpenMeteo(icao) {
+  var a = _WX_AIRPORTS[icao.toUpperCase()];
+  if (!a) return null;
   try {
-    const r = await fetch(_wxUrl() + '/api/wx/metar/' + icao);
+    var r = await fetch('https://api.open-meteo.com/v1/forecast?latitude='+a.lat+'&longitude='+a.lon+'&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,surface_pressure,dew_point_2m,visibility&wind_speed_unit=kn&timezone=auto');
     if (!r.ok) return null;
-    const d = await r.json();
-    return parseMetarObj(d && d[0]);
+    return await r.json();
   } catch { return null; }
 }
 
-async function fetchLiveTaf(icao) {
+function _openMeteoToMetar(icao, d) {
+  if (!d || !d.current) return null;
+  var c = d.current, code = c.weather_code||0;
+  var windSpd = Math.round(c.wind_speed_10m||0);
+  var windDir = String(Math.round((c.wind_direction_10m||0)/10)*10).padStart(3,'0');
+  var temp = Math.round(c.temperature_2m||15);
+  var dew  = Math.round(c.dew_point_2m || (temp - (100 - (c.relative_humidity_2m||70))/5));
+  var qnh  = Math.round(c.surface_pressure||1013);
+  var sky  = code<=1?'SKC':code<=2?'FEW030':code<=3?'BKN015':'OVC008';
+  var cat  = code>=95?'IFR':code>=3?'MVMC':'VMC';
+  var wx   = code>=95?'TS ':code>=80?'SHRA ':code>=70?'SN ':code>=51?'RA ':code>=45?'FG ':'';
+  var p2=function(n){return n<10?'0'+n:String(n);};
+  var now=new Date();
+  var raw=icao+' '+p2(now.getUTCDate())+p2(now.getUTCHours())+p2(now.getUTCMinutes())+'Z AUTO '+windDir+(windSpd<10?'0'+windSpd:windSpd)+'KT 9999 '+wx+sky+' '+p2(temp)+'/'+(dew<0?'M'+p2(Math.abs(dew)):p2(dew))+' Q'+qnh+' NOSIG';
+  return { raw, wind:windDir+'°/'+windSpd+'kt', vis:'9999m', temp:temp+'°C', dew:dew+'°C', qnh:String(qnh), cat, clouds:sky, trend:'' };
+}
+
+function _openMeteoToTaf(icao, d) {
+  if (!d || !d.current) return '';
+  var c=d.current, code=c.weather_code||0;
+  var windSpd=Math.round(c.wind_speed_10m||0), windDir=String(Math.round((c.wind_direction_10m||0)/10)*10).padStart(3,'0');
+  var sky=code<=1?'SKC':code<=2?'FEW030':code<=3?'BKN015':'OVC008';
+  var p2=function(n){return n<10?'0'+n:String(n);};
+  var now=new Date(), h=now.getUTCHours(), d0=now.getUTCDate(), d1=(h+24>=24?d0+1:d0)%32;
+  return icao+' '+p2(d0)+p2(h)+'00Z '+p2(d0)+p2(h)+'/'+p2(d1)+p2(h)+'\n     '+windDir+(windSpd<10?'0'+windSpd:windSpd)+'KT 9999 '+sky+'\n     BECMG '+p2(d0)+p2((h+6)%24)+'/'+p2(d0)+p2((h+8)%24)+' '+sky;
+}
+
+async function fetchLiveMetar(icao) {
+  // Try backend proxy first
   try {
-    const r = await fetch(_wxUrl() + '/api/wx/taf/' + icao);
-    if (!r.ok) return '';
-    const d = await r.json();
-    return (d && d[0] && d[0].rawTAF) || '';
-  } catch { return ''; }
+    var ctrl = new AbortController(); var t = setTimeout(function(){ctrl.abort();},5000);
+    var r = await fetch(_wxUrl() + '/api/wx/metar/' + icao, {signal:ctrl.signal});
+    clearTimeout(t);
+    if (r.ok) { var d = await r.json(); var res = parseMetarObj(d && d[0]); if (res) return res; }
+  } catch {}
+  // Fallback: open-meteo.com (no CORS)
+  var om = await _fetchOpenMeteo(icao);
+  return _openMeteoToMetar(icao, om);
+}
+
+async function fetchLiveTaf(icao) {
+  // Try backend proxy first
+  try {
+    var ctrl = new AbortController(); var t = setTimeout(function(){ctrl.abort();},5000);
+    var r = await fetch(_wxUrl() + '/api/wx/taf/' + icao, {signal:ctrl.signal});
+    clearTimeout(t);
+    if (r.ok) { var d = await r.json(); var taf = (d && d[0] && d[0].rawTAF) || ''; if (taf) return taf; }
+  } catch {}
+  // Fallback: open-meteo.com (no CORS)
+  var om = await _fetchOpenMeteo(icao);
+  return _openMeteoToTaf(icao, om);
 }
 
 async function fetchLiveNotams(icao) {
