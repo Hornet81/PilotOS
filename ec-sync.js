@@ -1,7 +1,6 @@
-/* PilotOS — eCrews Sync Script v3
- * Intercepts SchedulerEvents XHR/fetch.
- * Lets user pick individual days before sending to PilotOS.
- * Logs raw JSON to console for debugging (matrícula, tripulantes).
+/* PilotOS — eCrews Sync Script v4
+ * Floating widget — no blocking overlay.
+ * User can use eCrews normally while the script listens.
  */
 (function(){
 
@@ -17,97 +16,79 @@
     }
   }catch(e){}
 
-  var _data    = null;   // raw payload
-  var _entries = [];     // parsed entries
+  var _data    = null;
+  var _entries = [];
+  var _minimized = false;
 
-  // ── Send selected entries to PilotOS ────────────────────────────
-  function sendSelected(ids){
-    var toSend = _entries.filter(function(e){ return ids.indexOf(e._id)!==-1; });
-    var payload = {
-      SchedulerEvents: _data.SchedulerEvents,
-      BlockDutyTimes:  _data.BlockDutyTimes||{},
-      PeriodStart:     _data.PeriodStart||'',
-      _selected:       toSend
-    };
-    if(window.opener){
-      try{ window.opener.postMessage({type:'ECREWS_DATA',payload:payload},TARGET); }catch(e){}
-    }
-    try{ window.postMessage({type:'ECREWS_DATA',payload:payload},'*'); }catch(e){}
-    showSent(toSend.length);
+  // ── mk helpers ───────────────────────────────────────────────────
+  function mkEl(tag,css,txt){
+    var el=document.createElement(tag);
+    if(css) el.style.cssText=css;
+    if(txt!==undefined) el.textContent=txt;
+    return el;
+  }
+  function $(id){ return document.getElementById(id); }
+  var DAY=['Do','Lu','Ma','Mi','Ju','Vi','Sa'];
+  function fmtDate(d){
+    var o=new Date(d+'T12:00:00Z');
+    return DAY[o.getUTCDay()]+' '+o.getUTCDate();
   }
 
-  // ── Parse raw event into display entry ──────────────────────────
+  // ── Parse event ──────────────────────────────────────────────────
   function parseEvent(ev, idx){
     var type    = (ev.type||'').toLowerCase();
     var text    = (ev.text||'').trim();
     var details = (ev.details||'').trim();
     var date    = (ev.start||'').slice(0,10);
 
-    // ── Try to extract aircraft registration (EC-XXX) ──
-    var regMatch = (details+' '+(ev.registration||'')+(ev.aircraft||'')+(ev.acType||'')+(ev.tail||''))
-                   .match(/\b([A-Z]{1,2}-[A-Z]{3,4})\b/);
-    var reg = regMatch ? regMatch[1] : (ev.registration||ev.tail||ev.aircraft||'');
+    // Aircraft registration: look for XX-XXX pattern
+    var regSrc  = [details, ev.registration||'', ev.aircraft||'', ev.acType||'', ev.tail||'', ev.reg||''].join(' ');
+    var regMatch = regSrc.match(/\b([A-Z]{1,2}-[A-Z0-9]{3,4})\b/);
+    var reg = regMatch ? regMatch[1] : '';
 
-    // ── Try to extract crew names ──
-    // Common formats: "Name, Surname" or in a dedicated array
+    // Crew names
     var crew = [];
-    if(Array.isArray(ev.crew))       crew = ev.crew;
-    else if(Array.isArray(ev.Crew))  crew = ev.Crew;
-    else if(ev.crewMembers)          crew = ev.crewMembers;
-    else if(ev.CrewMembers)          crew = ev.CrewMembers;
-    // Fallback: scan details for name-like lines (SURNAME, Name pattern)
+    if(Array.isArray(ev.crew))         crew = ev.crew.map(function(c){ return typeof c==='string'?c:(c.name||c.Name||JSON.stringify(c)); });
+    else if(Array.isArray(ev.Crew))    crew = ev.Crew.map(function(c){ return typeof c==='string'?c:(c.name||c.Name||JSON.stringify(c)); });
+    else if(ev.crewMembers)            crew = [].concat(ev.crewMembers);
+    else if(ev.CrewMembers)            crew = [].concat(ev.CrewMembers);
+    // Scan details lines for SURNAME, Name pattern
     if(!crew.length && details){
-      var lines = details.split('\n');
-      lines.forEach(function(l){
-        l = l.trim();
+      details.split('\n').forEach(function(l){
+        l=l.trim();
         if(/^[A-ZÁÉÍÓÚÑ]{2,},\s*[A-ZÁÉÍÓÚÑ]/.test(l)) crew.push(l);
       });
     }
 
-    // ── Flight legs from details ──
+    // Flight legs
     var legs = [];
     if(type==='flight'){
-      (details.split('\n')||[]).forEach(function(line){
+      details.split('\n').forEach(function(line){
         line=line.trim();
         var m=line.match(/^([A-Z0-9]+)\s+-\s+([A-Z]{3})\s+\(A?(\d{4})\)\s+-\s+([A-Z]{3})\s+\(A?(\d{4})\)/);
         if(m) legs.push({
-          fNum: 'VY'+m[1], dep:m[2],
-          std: m[3].slice(0,2)+':'+m[3].slice(2),
-          arr: m[4],
-          sta: m[5].slice(0,2)+':'+m[5].slice(2)
+          fNum:'VY'+m[1], dep:m[2],
+          std:m[3].slice(0,2)+':'+m[3].slice(2),
+          arr:m[4],
+          sta:m[5].slice(0,2)+':'+m[5].slice(2)
         });
       });
     }
 
-    return {
-      _id:     idx,
-      date:    date,
-      type:    type,
-      text:    text,
-      legs:    legs,
-      reg:     reg,
-      crew:    crew,
-      report:  ev.report||'',
-      debrief: ev.debrief||'',
-      raw:     ev
-    };
+    return { _id:idx, date:date, type:type, text:text, legs:legs, reg:reg, crew:crew,
+             report:ev.report||'', debrief:ev.debrief||'', raw:ev };
   }
 
-  // ── Handle captured data ─────────────────────────────────────────
+  // ── Receive data ─────────────────────────────────────────────────
   function onData(d){
-    if(_data) return; // already captured
+    if(_data) return;
     _data = d;
-
-    // Log raw JSON so we can inspect all fields
-    console.log('[PilotOS] eCrews raw payload:', JSON.stringify(d, null, 2));
-    console.log('[PilotOS] First 3 SchedulerEvents:',
-      (d.SchedulerEvents||[]).slice(0,3).map(function(e){ return JSON.stringify(e); }).join('\n'));
-
+    console.log('[PilotOS] raw payload:', JSON.stringify(d, null, 2));
     _entries = (d.SchedulerEvents||[]).map(function(ev,i){ return parseEvent(ev,i); });
-    renderList();
+    showList();
   }
 
-  // ── XHR interceptor ─────────────────────────────────────────────
+  // ── XHR interceptor ──────────────────────────────────────────────
   function installXHR(win){
     if(!win||win._ecXhr) return;
     try{
@@ -148,152 +129,174 @@
     });
   }
 
-  // ── UI helpers ───────────────────────────────────────────────────
-  function mkEl(tag,css,txt){
-    var el=document.createElement(tag);
-    if(css) el.style.cssText=css;
-    if(txt!==undefined) el.textContent=txt;
-    return el;
-  }
-  function $(id){ return document.getElementById(id); }
-
-  var DAY=['Do','Lu','Ma','Mi','Ju','Vi','Sa'];
-  function fmtDate(d){
-    var o=new Date(d+'T12:00:00Z');
-    return DAY[o.getUTCDay()]+' '+o.getUTCDate();
+  // ── Widget body: waiting state ───────────────────────────────────
+  function showWaiting(){
+    var body = $('_ecBody'); if(!body) return;
+    body.innerHTML = '';
+    body.style.display = 'block';
+    var d = mkEl('div','padding:10px 0 4px;text-align:center');
+    d.appendChild(mkEl('div','font-size:11px;color:rgba(8,145,178,.8);margin-bottom:6px','⏳ Escuchando eCrews…'));
+    d.appendChild(mkEl('div','font-size:10px;color:rgba(248,250,252,.35);line-height:1.6','Navega por My Schedule\ny capturaré automáticamente.'));
+    body.appendChild(d);
   }
 
-  // ── Render selection list ─────────────────────────────────────────
-  function renderList(){
-    var panel=$('_ecPanel');
-    if(!panel) return;
-    panel.innerHTML='';
+  // ── Widget body: entry list ──────────────────────────────────────
+  function showList(){
+    var widget = $('_ecWidget'); if(!widget) return;
+    // Expand widget when data arrives
+    widget.style.width  = '340px';
+    widget.style.maxHeight = '500px';
 
-    // Header
-    var hdr=mkEl('div','display:flex;align-items:center;justify-content:space-between;margin-bottom:12px');
-    var ht=mkEl('div','font-size:13px;font-weight:700;color:#F0FFFE');
-    var period=(_data.PeriodStart||'').slice(0,7);
-    var flights=_entries.filter(function(e){return e.type==='flight';}).length;
-    ht.textContent='✓ '+period+' · '+_entries.length+' eventos · '+flights+' vuelos';
-    var selAll=mkEl('button','font-size:10px;background:none;border:none;color:rgba(8,145,178,.8);cursor:pointer;padding:2px 6px','Todo');
-    var selNone=mkEl('button','font-size:10px;background:none;border:none;color:rgba(248,250,252,.3);cursor:pointer;padding:2px 6px','Ninguno');
-    selAll.onclick=function(){ document.querySelectorAll('._ecCb').forEach(function(c){c.checked=true;}); };
-    selNone.onclick=function(){ document.querySelectorAll('._ecCb').forEach(function(c){c.checked=false;}); };
-    hdr.appendChild(ht);
-    var btns=mkEl('div','display:flex;gap:2px');
-    btns.appendChild(selAll); btns.appendChild(selNone);
-    hdr.appendChild(btns);
-    panel.appendChild(hdr);
+    var titleEl = $('_ecTitle');
+    if(titleEl){
+      var period = (_data.PeriodStart||'').slice(0,7);
+      var nf = _entries.filter(function(e){ return e.type==='flight'; }).length;
+      titleEl.textContent = '✓ '+period+' · '+nf+' vuelos';
+    }
 
-    // List
-    var list=mkEl('div','max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;margin-bottom:12px');
+    var body = $('_ecBody'); if(!body) return;
+    body.innerHTML = '';
+    body.style.display = 'block';
+
+    // Select all / none
+    var bar = mkEl('div','display:flex;justify-content:flex-end;gap:4px;margin-bottom:6px');
+    var sa = mkEl('button','font-size:10px;background:none;border:none;color:rgba(8,145,178,.8);cursor:pointer;padding:2px 5px','Todo');
+    var sn = mkEl('button','font-size:10px;background:none;border:none;color:rgba(248,250,252,.3);cursor:pointer;padding:2px 5px','Ninguno');
+    sa.onclick=function(){ document.querySelectorAll('._ecCb').forEach(function(c){c.checked=true;}); };
+    sn.onclick=function(){ document.querySelectorAll('._ecCb').forEach(function(c){c.checked=false;}); };
+    bar.appendChild(sa); bar.appendChild(sn);
+    body.appendChild(bar);
+
+    // Scrollable list
+    var list = mkEl('div','max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;margin-bottom:10px');
     _entries.forEach(function(e){
-      var row=mkEl('label','display:flex;align-items:flex-start;gap:8px;padding:7px 9px;background:rgba(8,145,178,.06);border:1px solid rgba(8,145,178,.14);border-radius:10px;cursor:pointer');
-      var cb=document.createElement('input');
+      var row = mkEl('label','display:flex;align-items:flex-start;gap:7px;padding:6px 8px;background:rgba(8,145,178,.06);border:1px solid rgba(8,145,178,.12);border-radius:8px;cursor:pointer');
+      var cb  = document.createElement('input');
       cb.type='checkbox'; cb.className='_ecCb'; cb.dataset.id=e._id; cb.checked=true;
       cb.style.cssText='margin-top:2px;accent-color:#0891B2;flex-shrink:0';
 
-      var info=mkEl('div','flex:1;min-width:0');
-      var top=mkEl('div','display:flex;align-items:center;gap:6px;flex-wrap:wrap');
-      var day=mkEl('span','font-size:10px;color:rgba(8,145,178,.7);font-family:monospace',fmtDate(e.date)+' · '+e.date);
-      var typ=mkEl('span','font-size:10px;padding:1px 5px;background:rgba(8,145,178,.15);border-radius:4px;color:#7DD3FC',e.type.toUpperCase());
-      top.appendChild(day); top.appendChild(typ);
-
-      if(e.reg){
-        var rg=mkEl('span','font-size:10px;padding:1px 5px;background:rgba(245,158,11,.12);border-radius:4px;color:#FCD34D',e.reg);
-        top.appendChild(rg);
-      }
+      var info = mkEl('div','flex:1;min-width:0');
+      var top  = mkEl('div','display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:2px');
+      top.appendChild(mkEl('span','font-size:10px;color:rgba(8,145,178,.7);font-family:monospace',fmtDate(e.date)+' · '+e.date));
+      top.appendChild(mkEl('span','font-size:9px;padding:1px 4px;background:rgba(8,145,178,.15);border-radius:3px;color:#7DD3FC',e.type.toUpperCase()));
+      if(e.reg) top.appendChild(mkEl('span','font-size:9px;padding:1px 4px;background:rgba(245,158,11,.15);border-radius:3px;color:#FCD34D',e.reg));
       info.appendChild(top);
 
       if(e.legs.length){
         e.legs.forEach(function(l){
-          var leg=mkEl('div','font-size:11px;font-family:monospace;color:#F0FFFE;margin-top:3px',
-            l.fNum+' '+l.dep+'→'+l.arr+' '+l.std+'–'+l.sta);
-          info.appendChild(leg);
+          info.appendChild(mkEl('div','font-size:11px;font-family:monospace;color:#F0FFFE',
+            l.fNum+' '+l.dep+'→'+l.arr+' '+l.std+'–'+l.sta));
         });
       } else {
-        var tx=mkEl('div','font-size:11px;color:rgba(248,250,252,.45);margin-top:2px',e.text.split('\n')[0]);
-        info.appendChild(tx);
+        info.appendChild(mkEl('div','font-size:10px;color:rgba(248,250,252,.4)',e.text.split('\n')[0].slice(0,40)));
       }
-
       if(e.crew.length){
-        var cr=mkEl('div','font-size:10px;color:rgba(248,250,252,.35);margin-top:2px',
-          '👥 '+e.crew.slice(0,3).join(' · ')+(e.crew.length>3?' +'+( e.crew.length-3):''));
-        info.appendChild(cr);
+        info.appendChild(mkEl('div','font-size:9px;color:rgba(248,250,252,.3);margin-top:1px',
+          '👥 '+e.crew.slice(0,2).join(' · ')+(e.crew.length>2?' +'+(e.crew.length-2):'')));
       }
 
       row.appendChild(cb); row.appendChild(info);
       list.appendChild(row);
     });
-    panel.appendChild(list);
+    body.appendChild(list);
 
     // Send button
-    var sendBtn=mkEl('button',
-      'width:100%;padding:13px;background:linear-gradient(135deg,#0891B2,#0369A1);border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:800;cursor:pointer',
+    var btn = mkEl('button',
+      'width:100%;padding:11px;background:linear-gradient(135deg,#0891B2,#0369A1);border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:800;cursor:pointer',
       'ENVIAR A PILOTOS →');
-    sendBtn.onclick=function(){
-      var ids=[];
+    btn.onclick = function(){
+      var ids = [];
       document.querySelectorAll('._ecCb:checked').forEach(function(c){ ids.push(parseInt(c.dataset.id)); });
-      if(!ids.length){ return; }
+      if(!ids.length) return;
       sendSelected(ids);
     };
-    panel.appendChild(sendBtn);
+    body.appendChild(btn);
   }
 
-  // ── Sent confirmation ────────────────────────────────────────────
-  function showSent(n){
-    var ov=$('_ecOv'); if(!ov) return;
-    ov.innerHTML='';
-    var box=mkEl('div','background:#0A1628;border:1.5px solid rgba(8,145,178,.45);border-radius:24px;padding:32px 24px;text-align:center;max-width:280px;width:88%');
-    box.appendChild(mkEl('div','font-size:48px;margin-bottom:10px','✅'));
-    box.appendChild(mkEl('div','font-size:16px;font-weight:700;color:#F0FFFE;margin-bottom:6px',n+' entrada'+(n===1?'':'s')+' enviada'+(n===1?'':'s')));
-    box.appendChild(mkEl('div','font-size:12px;color:rgba(248,250,252,.4);margin-bottom:20px','Vuelve a PilotOS para confirmar'));
-    var cl=mkEl('button','padding:10px 24px;background:rgba(8,145,178,.2);border:1px solid rgba(8,145,178,.35);border-radius:10px;color:#7DD3FC;font-size:13px;cursor:pointer','Cerrar');
-    cl.onclick=function(){ ov.remove(); };
-    box.appendChild(cl);
-    ov.appendChild(box);
+  // ── Send ─────────────────────────────────────────────────────────
+  function sendSelected(ids){
+    var toSend = _entries.filter(function(e){ return ids.indexOf(e._id)!==-1; });
+    var payload = {
+      SchedulerEvents: _data.SchedulerEvents,
+      BlockDutyTimes:  _data.BlockDutyTimes||{},
+      PeriodStart:     _data.PeriodStart||'',
+      _selected:       toSend
+    };
+    if(window.opener){
+      try{ window.opener.postMessage({type:'ECREWS_DATA',payload:payload},TARGET); }catch(e){}
+    }
+    try{ window.postMessage({type:'ECREWS_DATA',payload:payload},'*'); }catch(e){}
+
+    // Confirmation in widget
+    var body=$('_ecBody'); if(!body) return;
+    body.innerHTML='';
+    var ok=mkEl('div','text-align:center;padding:10px 0');
+    ok.appendChild(mkEl('div','font-size:32px;margin-bottom:6px','✅'));
+    ok.appendChild(mkEl('div','font-size:12px;font-weight:700;color:#F0FFFE;margin-bottom:4px',
+      toSend.length+' entrada'+(toSend.length===1?'':'s')+' enviada'+(toSend.length===1?'':'s')));
+    ok.appendChild(mkEl('div','font-size:10px;color:rgba(248,250,252,.35)','Vuelve a PilotOS para confirmar'));
+    body.appendChild(ok);
   }
 
-  // ── Build overlay ────────────────────────────────────────────────
-  var existing=$('_ecOv'); if(existing) existing.remove();
+  // ── Build floating widget ─────────────────────────────────────────
+  var existing=$('_ecWidget'); if(existing) existing.remove();
 
-  var ov=mkEl('div','position:fixed;inset:0;z-index:999999;background:rgba(3,8,18,.92);display:flex;align-items:flex-end;justify-content:center;font-family:system-ui,sans-serif;padding-bottom:20px');
-  ov.id='_ecOv';
+  var widget = mkEl('div',
+    'position:fixed;bottom:20px;right:16px;z-index:999999;'+
+    'width:200px;max-height:60px;overflow:hidden;'+
+    'background:linear-gradient(180deg,#0A1628,#060E1C);'+
+    'border:1.5px solid rgba(8,145,178,.4);border-radius:16px;'+
+    'box-shadow:0 4px 24px rgba(0,0,0,.6);'+
+    'font-family:system-ui,sans-serif;'+
+    'transition:width .25s ease,max-height .3s ease');
+  widget.id = '_ecWidget';
 
-  var sheet=mkEl('div','width:100%;max-width:400px;background:linear-gradient(180deg,#0A1628,#060E1C);border:1.5px solid rgba(8,145,178,.3);border-radius:22px;padding:20px 18px;box-shadow:0 -8px 40px rgba(0,0,0,.6)');
+  // Header (always visible, click to minimize/expand)
+  var hdr = mkEl('div',
+    'display:flex;align-items:center;justify-content:space-between;'+
+    'padding:10px 12px;cursor:pointer;user-select:none');
+  var hl  = mkEl('div','display:flex;align-items:center;gap:7px');
+  hl.appendChild(mkEl('span','font-size:16px','✈'));
+  var titles = mkEl('div');
+  var t1 = mkEl('div','font-size:12px;font-weight:700;color:#F0FFFE','PilotOS Sync');
+  t1.id = '_ecTitle';
+  var t2 = mkEl('div','font-size:10px;color:rgba(8,145,178,.6)','eCrews → PilotOS');
+  titles.appendChild(t1); titles.appendChild(t2);
+  hl.appendChild(titles);
+  hdr.appendChild(hl);
 
-  // Title bar
-  var tbar=mkEl('div','display:flex;align-items:center;justify-content:space-between;margin-bottom:16px');
-  var tl=mkEl('div','display:flex;align-items:center;gap:8px');
-  tl.appendChild(mkEl('span','font-size:22px','✈'));
-  var ttl=mkEl('div');
-  ttl.appendChild(mkEl('div','font-size:15px;font-weight:700;color:#F0FFFE','PilotOS Sync'));
-  ttl.appendChild(mkEl('div','font-size:11px;color:rgba(8,145,178,.7)',TARGET));
-  tl.appendChild(ttl);
-  tbar.appendChild(tl);
-  var cl=mkEl('button','background:none;border:none;color:rgba(248,250,252,.3);font-size:20px;cursor:pointer;padding:4px 8px','×');
-  cl.onclick=function(){ ov.remove(); };
-  tbar.appendChild(cl);
-  sheet.appendChild(tbar);
+  var minBtn = mkEl('button',
+    'background:none;border:none;color:rgba(248,250,252,.35);font-size:16px;cursor:pointer;padding:0 4px;line-height:1',
+    '×');
+  minBtn.onclick = function(e){
+    e.stopPropagation();
+    widget.remove();
+  };
+  hdr.appendChild(minBtn);
 
-  // Main panel (waiting or list)
-  var panel=mkEl('div'); panel.id='_ecPanel';
+  hdr.onclick = function(){
+    _minimized = !_minimized;
+    var body = $('_ecBody');
+    if(body) body.style.display = _minimized ? 'none' : 'block';
+    widget.style.maxHeight = _minimized ? '44px' : '500px';
+  };
 
-  // Waiting state
-  var wait=mkEl('div','text-align:center;padding:20px 0');
-  var dot=mkEl('div','font-size:11px;color:rgba(8,145,178,.7);margin-bottom:16px');
-  dot.innerHTML='⏳ Esperando datos de eCrews&hellip;';
-  wait.appendChild(dot);
-  wait.appendChild(mkEl('div','font-size:12px;color:rgba(248,250,252,.35);line-height:1.7',
-    'Navega entre meses en eCrews\no pulsa cualquier vuelo.\nEl script captura automáticamente.'));
-  panel.appendChild(wait);
-  sheet.appendChild(panel);
-  ov.appendChild(sheet);
-  document.body.appendChild(ov);
+  widget.appendChild(hdr);
 
-  // Install interceptors immediately + poll iframes
+  // Body
+  var body = mkEl('div','padding:0 12px 12px');
+  body.id = '_ecBody';
+  widget.appendChild(body);
+
+  document.body.appendChild(widget);
+  showWaiting();
+
+  // Expand widget
+  widget.style.maxHeight = '500px';
+
+  // Install interceptors + poll
   installAll();
-  var poll=setInterval(installAll, 800);
-  setTimeout(function(){ clearInterval(poll); }, 30000);
+  var poll = setInterval(installAll, 800);
+  setTimeout(function(){ clearInterval(poll); }, 60000);
 
 })();
