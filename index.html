@@ -21885,8 +21885,15 @@ function rstRenderStats(){
       }
       if(!dayFlights[e.date]) dayFlights[e.date]=[];
       dayFlights[e.date].push(e); // positioning still contributes to duty span
-    } else if(e.type==='standby'||e.type==='osb') standby++;
-    else if(e.type==='sick') { /* count separately if needed */ }
+    } else if(e.type==='standby'||e.type==='osb'){
+      standby++;
+      // OSBY / OSB3 = sacado de guardia = día volado → computa duty
+      if((e.code==='OSBY'||e.code==='OSB3') && e.std && e.sta){
+        var _osbyS = t2m(e.std), _osbyE = t2m(e.sta);
+        var _osbyD = _osbyE - _osbyS; if(_osbyD < 0) _osbyD += 1440;
+        if(_osbyD > 0){ dutyMin += _osbyD; dutyDays++; }
+      }
+    } else if(e.type==='sick') { /* count separately if needed */ }
     else if(e.type !== 'flight' && e.type !== 'lm') off++;
   });
 
@@ -23099,6 +23106,12 @@ function rosterRenderActivitiesList(dateStr, entries){
         + '</div>'
       : '';
 
+    // Firma (report time) for this leg
+    var reportHTML = '';
+    if(f.checkin && f.checkin.indexOf(':') > -1){
+      reportHTML = '<div style="font-size:10px;color:#0369A1;font-weight:700;margin-top:1px">🕐 '+f.checkin+' UTC</div>';
+    }
+
     // Store index on entry for editing
     var entryIdx = RST.entries.indexOf(f);
     row.innerHTML =
@@ -23106,6 +23119,7 @@ function rosterRenderActivitiesList(dateStr, entries){
       + '<div style="flex:1;min-width:0">'
       + '<div style="font-size:11px;font-weight:800;color:'+cfg.bg+';text-transform:uppercase;letter-spacing:.5px">'+legLabel+'</div>'
       + '<div style="font-size:12px;font-weight:700;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(f.flightNum||'—')+(route?' · '+route:'')+'</div>'
+      + reportHTML
       + timeHTML
       + '</div>'
       + '<button onclick="rosterEditLeg(\''+dateStr+'\','+entryIdx+')" style="width:30px;height:30px;border-radius:8px;background:#F0F6FF;border:1px solid rgba(30,58,164,.12);color:#0369A1;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">⋯</button>'
@@ -24361,10 +24375,10 @@ window.rstPullFromServer = async function(){
       try{
         if(localStorage.getItem('pilotOS_deleted_month_'+_seMonth)==='1') return;
       }catch(e){}
-      // ── Guard 2: skip months importados localmente DESPUÉS de que empezó este pull ──
+      // ── Guard 2: skip months con import local — el dato local siempre gana ──
+      // (el guard de timing anterior fallaba cuando el pull arrancaba DESPUÉS del import)
       try{
-        var _localTs = localStorage.getItem('pilotOS_import_ts_'+_seMonth);
-        if(_localTs && new Date(_localTs).getTime() >= _pullStartTs) return;
+        if(localStorage.getItem('pilotOS_import_ts_'+_seMonth)) return;
       }catch(e){}
       var key=se.id||(se.date+'_'+(se.type||'')+'_'+(se.flightNum||''));
       if(!map[key]){ map[key]=se; added++; }
