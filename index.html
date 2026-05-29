@@ -21868,9 +21868,9 @@ function rstRenderStats(){
     if(parseInt(_dp[0])!==y || parseInt(_dp[1])-1!==mo) return;
     if(e.type==='flight'){
       flights++;
-      // Positioning flights (*BCN, e.positioning=true) count for duty and total VUELOS
+      // Positioning flights (*BCN, e.isPositioning=true) count for duty and total VUELOS
       // but NOT for block hours — the pilot flies as passenger, no block credit.
-      var isPos = (e.dep && e.dep.charAt(0) === '*') || e.positioning === true;
+      var isPos = (e.dep && e.dep.charAt(0) === '*') || e.isPositioning === true || e.positioning === true;
       if(!isPos){
         // Block hours: prefer actual times (already flown), fallback to scheduled
         var effStd = e.std_actual || e.std;
@@ -22629,9 +22629,9 @@ window.rosterSelectDay = function(dateStr){
         if (arrDiff > 720) arrDiff = 1440 - arrDiff;
         return depDiff > 1 || arrDiff > 1;
       })();
-      var isPos = (e.dep && e.dep.charAt(0) === '*') || e.positioning === true;
+      var isPos = (e.dep && e.dep.charAt(0) === '*') || e.isPositioning === true || e.positioning === true;
       // Block time
-      var _bStd = e.std || e.std_actual, _bSta = e.sta || e.sta_actual;
+      var _bStd = e.std_actual || e.std, _bSta = e.sta_actual || e.sta;
       var blockMin = 0;
       if(_bStd && _bSta && String(_bStd).indexOf(':')>-1 && String(_bSta).indexOf(':')>-1){
         var _bsm=parseInt(_bStd.split(':')[0])*60+parseInt(_bStd.split(':')[1]);
@@ -24938,6 +24938,20 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
         var depIATA = RST_ICAO_TO_IATA[dep] || dep;
         var arrIATA = RST_ICAO_TO_IATA[arr] || arr;
 
+        // Mismo aeropuerto origen=destino (BCN→BCN) → evento de tierra/training
+        // eCrews representa ground training como legs A→A en el mismo aeropuerto
+        if(depIATA === arrIATA){
+          var sameAptEntry = {
+            date: date, type: 'training',
+            code: fNum,   // 'LMF1', 'LMSK', 'REU', etc.
+            source: 'ECREWS'
+          };
+          if(actualDep) sameAptEntry.std_actual = tDep; else sameAptEntry.std = tDep;
+          if(actualArr) sameAptEntry.sta_actual = tArr; else sameAptEntry.sta = tArr;
+          entries.push(sameAptEntry);
+          return;
+        }
+
         // OSBY/OSB3: Posicionamiento — sacado de guardia. Insertar como leg especial
         if(fNum === 'OSBY' || fNum === 'OSB3'){
           var posEntry = {
@@ -25168,7 +25182,9 @@ function _ecHandleData(payload){
         html += '<span style="font-family:\'Space Mono\',monospace;font-size:12px;font-weight:600;color:#F0FFFE">'+f.dep+' › '+f.arr+'</span>';
         html += '<span style="font-family:\'Space Mono\',monospace;font-size:10px;color:rgba(248,250,252,.35)">'+f.flightNum+'</span>';
         html += '</div>';
-        html += '<span style="font-family:\'Space Mono\',monospace;font-size:10px;color:rgba(8,145,178,.7)">'+f.std+' → '+f.sta+'</span>';
+        var _fStd = f.std_actual ? '(A)'+f.std_actual : (f.std||'?');
+        var _fSta = f.sta_actual ? '(A)'+f.sta_actual : (f.sta||'?');
+        html += '<span style="font-family:\'Space Mono\',monospace;font-size:10px;color:rgba(8,145,178,.7)">'+_fStd+' → '+_fSta+'</span>';
         html += '</div>';
       });
       html += '</div>';
@@ -25190,33 +25206,58 @@ window.ldECrewsConfirm = function(){
   var imported = 0, skipped = 0;
 
   _ecParsedEntries.forEach(function(e){
-    // Check if already exists in RST
-    var exists = RST.entries.some(function(r){
+    // Check if already exists in RST by date+type+(flightNum/code)
+    var existingIdx = RST.entries.findIndex(function(r){
       if(r.date !== e.date || r.type !== e.type) return false;
       if(e.type === 'flight') return r.flightNum === e.flightNum && r.dep === e.dep && r.arr === e.arr;
       return r.code === e.code;
     });
-    if(exists){ skipped++; return; }
+
+    if(existingIdx >= 0){
+      // Entry already exists — merge actual times and eCrews data into existing
+      var ex = RST.entries[existingIdx];
+      if(e.std_actual && !ex.std_actual) ex.std_actual = e.std_actual;
+      if(e.sta_actual && !ex.sta_actual) ex.sta_actual = e.sta_actual;
+      if(e.std && !ex.std) ex.std = e.std;
+      if(e.sta && !ex.sta) ex.sta = e.sta;
+      if(e.blockH  && !ex.blockH)  ex.blockH  = e.blockH;
+      if(e.dutyH   && !ex.dutyH)   ex.dutyH   = e.dutyH;
+      if(e.checkin && !ex.checkin) ex.checkin = e.checkin;
+      if(e.debrief && !ex.debrief) ex.debrief = e.debrief;
+      if(e.isPositioning) ex.isPositioning = true;
+      skipped++;
+      return;
+    }
 
     var entry = {
-      id: Date.now().toString(36)+Math.random().toString(36).slice(2,5)+'_ec'+imported,
-      date:     e.date,
-      type:     e.type,
-      source:   'ECREWS'
+      id:     Date.now().toString(36)+Math.random().toString(36).slice(2,5)+'_ec'+imported,
+      date:   e.date,
+      type:   e.type,
+      source: 'ECREWS'
     };
 
     if(e.type === 'flight'){
       entry.flightNum = e.flightNum;
       entry.dep       = e.dep;
       entry.arr       = e.arr;
-      entry.std       = e.std;
-      entry.sta       = e.sta;
-      entry.checkin   = e.checkin;
-      entry.debrief   = e.debrief;
+      // Copy BOTH scheduled (std/sta) AND actual (std_actual/sta_actual) times
+      if(e.std)         entry.std         = e.std;
+      if(e.sta)         entry.sta         = e.sta;
+      if(e.std_actual)  entry.std_actual  = e.std_actual;
+      if(e.sta_actual)  entry.sta_actual  = e.sta_actual;
+      if(e.checkin)     entry.checkin     = e.checkin;
+      if(e.debrief)     entry.debrief     = e.debrief;
+      if(e.blockH)      entry.blockH      = e.blockH;
+      if(e.dutyH)       entry.dutyH       = e.dutyH;
+      if(e.delay)       entry.delay       = e.delay;
+      if(e.dutyCode)    entry.dutyCode    = e.dutyCode;
+      if(e.isPositioning) entry.isPositioning = true;
     } else {
       entry.code = e.code;
-      entry.std  = e.std || '';
-      entry.sta  = e.sta || '';
+      if(e.std)  entry.std  = e.std;
+      if(e.sta)  entry.sta  = e.sta;
+      if(e.std_actual) entry.std_actual = e.std_actual;
+      if(e.sta_actual) entry.sta_actual = e.sta_actual;
     }
 
     RST.entries.push(entry);
@@ -25226,7 +25267,12 @@ window.ldECrewsConfirm = function(){
   // Sort by date
   RST.entries.sort(function(a,b){ return a.date.localeCompare(b.date); });
   rstSave();
+
+  // Re-render everything including stats
   if(typeof rstRenderCalendar === 'function') rstRenderCalendar();
+  if(typeof rstRenderStats    === 'function') rstRenderStats();
+  if(typeof rstRenderFlights  === 'function') rstRenderFlights();
+  if(typeof ldUpdateRosterBtn === 'function') ldUpdateRosterBtn();
   ldECrewsSyncClose();
 
   if(imported > 0){
