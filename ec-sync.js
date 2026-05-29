@@ -1,6 +1,6 @@
-/* PilotOS — eCrews Sync Script v6
- * Mobile-first: floating pill → bottom sheet.
- * Desktop: corner widget.
+/* PilotOS — eCrews Sync Script v7
+ * Floating pill → bottom sheet (mobile-first).
+ * Sends payload in the format PilotOS expects: {SchedulerEvents, BlockDutyTimes, PeriodStart}
  */
 (function(){
 
@@ -18,8 +18,9 @@
 
   var isMobile = window.innerWidth < 680 || ('ontouchstart' in window);
 
-  var _lastPayload    = null;
-  var _allEntries     = [];
+  var _lastPayload    = null;   // most recent XHR payload (not yet captured)
+  var _allEntries     = [];     // parsed entries accumulated across months
+  var _rawPayloads    = [];     // raw payloads per captured month (for sending)
   var _capturedMonths = [];
   var _sheetOpen      = false;
 
@@ -37,14 +38,14 @@
     return DAY[o.getUTCDay()]+' '+o.getUTCDate();
   }
 
-  // ── Parse event ──────────────────────────────────────────────────
+  // ── Parse one event (keep rawEv reference) ───────────────────────
   function parseEvent(ev, uid){
     var type    = (ev.type||'').toLowerCase();
     var text    = (ev.text||'').trim();
     var details = (ev.details||'').trim();
     var date    = (ev.start||'').slice(0,10);
 
-    var regSrc  = [details, ev.registration||'', ev.aircraft||'', ev.acType||'', ev.tail||'', ev.reg||''].join(' ');
+    var regSrc   = [details, ev.registration||'', ev.aircraft||'', ev.acType||'', ev.tail||'', ev.reg||''].join(' ');
     var regMatch = regSrc.match(/\b([A-Z]{1,2}-[A-Z0-9]{3,4})\b/);
     var reg = regMatch ? regMatch[1] : '';
 
@@ -70,8 +71,13 @@
           arr: m[4], sta: m[5].slice(0,2)+':'+m[5].slice(2) });
       });
     }
-    return { _id:uid, date:date, type:type, text:text, legs:legs, reg:reg, crew:crew,
-             report:ev.report||'', debrief:ev.debrief||'' };
+
+    return {
+      _id: uid, date: date, type: type, text: text,
+      legs: legs, reg: reg, crew: crew,
+      report: ev.report||'', debrief: ev.debrief||'',
+      rawEv: ev   // ← keep raw event for sending
+    };
   }
 
   // ── Interceptors ─────────────────────────────────────────────────
@@ -80,16 +86,12 @@
     try{
       win._ecXhr = true;
       var orig = win.XMLHttpRequest.prototype.open;
-      win.XMLHttpRequest.prototype.open = function(m,u){
+      win.XMLHttpRequest.prototype.open = function(m, u){
         if(u && u.toString().indexOf('SchedulerEvents') !== -1){
           this.addEventListener('load', function(){
             try{
               var d = JSON.parse(this.responseText);
-              if(d && d.SchedulerEvents){
-                _lastPayload = d;
-                console.log('[PilotOS] payload:', JSON.stringify(d, null, 2));
-                onNewPayload();
-              }
+              if(d && d.SchedulerEvents){ _lastPayload = d; onNewPayload(); }
             }catch(e){}
           });
         }
@@ -109,7 +111,7 @@
         if(url.indexOf('SchedulerEvents') !== -1){
           p.then(function(r){
             r.clone().json().then(function(d){
-              if(d && d.SchedulerEvents){ _lastPayload = d; console.log('[PilotOS] payload:', JSON.stringify(d,null,2)); onNewPayload(); }
+              if(d && d.SchedulerEvents){ _lastPayload = d; onNewPayload(); }
             }).catch(function(){});
           }).catch(function(){});
         }
@@ -125,20 +127,22 @@
     });
   }
 
-  // ── Payload ready → update UI ─────────────────────────────────────
+  // ── New payload available ─────────────────────────────────────────
   function onNewPayload(){
     var period = (_lastPayload.PeriodStart||'').slice(0,7);
-    var nf = (_lastPayload.SchedulerEvents||[]).filter(function(e){ return (e.type||'').toLowerCase()==='flight'; }).length;
+    var nf = (_lastPayload.SchedulerEvents||[]).filter(function(e){
+      return (e.type||'').toLowerCase()==='flight';
+    }).length;
 
     // Update pill
     var pill = $('_ecPill');
     if(pill){
       pill.style.background = 'linear-gradient(135deg,#0891B2,#0369A1)';
-      pill.style.boxShadow  = '0 0 0 3px rgba(8,145,178,.35)';
-      pill.querySelector('#_ecPillTxt').textContent = '📥 ' + period + ' listo';
+      pill.style.boxShadow  = '0 0 0 3px rgba(8,145,178,.4)';
+      $('_ecPillTxt').textContent = '📥 ' + period + ' listo';
     }
 
-    // Update CAPTURAR button in sheet
+    // Update capBtn if sheet is open
     var capBtn = $('_ecCapBtn');
     if(capBtn){
       capBtn.disabled = false;
@@ -146,7 +150,7 @@
       capBtn.textContent = '📥  CAPTURAR  ' + period + '  (' + nf + ' vuelos)';
     }
     var hint = $('_ecHint');
-    if(hint){ hint.textContent = '✓ Mes cargado. Pulsa CAPTURAR o navega a otro.'; hint.style.color = 'rgba(74,222,128,.8)'; }
+    if(hint){ hint.textContent = '✓ Mes listo — pulsa CAPTURAR o navega a otro.'; hint.style.color = 'rgba(74,222,128,.8)'; }
   }
 
   // ── CAPTURAR action ───────────────────────────────────────────────
@@ -159,8 +163,9 @@
       return;
     }
     var uid = _allEntries.length;
-    var newEntries = (_lastPayload.SchedulerEvents||[]).map(function(ev,i){ return parseEvent(ev, uid+i); });
-    _allEntries = _allEntries.concat(newEntries);
+    var newEntries = (_lastPayload.SchedulerEvents||[]).map(function(ev, i){ return parseEvent(ev, uid+i); });
+    _allEntries     = _allEntries.concat(newEntries);
+    _rawPayloads.push(_lastPayload);
     _capturedMonths.push(period);
     _lastPayload = null;
 
@@ -169,26 +174,58 @@
     if(pill){
       pill.style.background = 'linear-gradient(135deg,#1e3a5f,#0f2040)';
       pill.style.boxShadow  = 'none';
-      pill.querySelector('#_ecPillTxt').textContent = '✈ PilotOS · '+_capturedMonths.length+' mes'+ (_capturedMonths.length===1?'':'es');
+      $('_ecPillTxt').textContent = '✈ PilotOS · ' + _capturedMonths.length + ' mes' + (_capturedMonths.length===1?'':'es');
     }
 
     renderSheet();
   }
 
-  // ── Send ──────────────────────────────────────────────────────────
+  // ── Send selected entries to PilotOS ─────────────────────────────
   function sendSelected(ids){
-    var toSend = _allEntries.filter(function(e){ return ids.indexOf(e._id) !== -1; });
-    var payload = { _selected: toSend, _months: _capturedMonths };
-    if(window.opener){ try{ window.opener.postMessage({type:'ECREWS_DATA',payload:payload},TARGET); }catch(e){} }
-    try{ window.postMessage({type:'ECREWS_DATA',payload:payload},'*'); }catch(e){}
+    // Reconstruct payload in the format PilotOS expects
+    var selectedEntries = _allEntries.filter(function(e){ return ids.indexOf(e._id) !== -1; });
+    var rawEvents = selectedEntries.map(function(e){ return e.rawEv; });
 
+    // Merge BlockDutyTimes from all captured months
+    var bdt = {};
+    _rawPayloads.forEach(function(p){
+      var b = p.BlockDutyTimes || {};
+      Object.keys(b).forEach(function(k){ bdt[k] = b[k]; });
+    });
+
+    var payload = {
+      SchedulerEvents: rawEvents,
+      BlockDutyTimes:  bdt,
+      PeriodStart:     _capturedMonths[0] ? _capturedMonths[0]+'-01' : ''
+    };
+
+    function doSend(win){
+      try{ win.postMessage({type:'ECREWS_DATA', payload:payload}, TARGET); return true; }catch(e){ return false; }
+    }
+
+    if(window.opener && doSend(window.opener)){
+      // sent to opener (eCrews opened from PilotOS) — done
+    } else {
+      // No opener: open PilotOS and send after it loads its listener
+      var w = window.open(TARGET, '_pilotosSync');
+      if(w){
+        var attempts = 0;
+        var interval = setInterval(function(){
+          attempts++;
+          try{ w.postMessage({type:'ECREWS_DATA', payload:payload}, TARGET); }catch(e){}
+          if(attempts >= 8) clearInterval(interval);
+        }, 800);
+      }
+    }
+
+    // Confirm in sheet
     var body = $('_ecSheetBody'); if(!body) return;
     body.innerHTML = '';
     var ok = mkEl('div','text-align:center;padding:24px 0');
     ok.appendChild(mkEl('div','font-size:48px;margin-bottom:10px','✅'));
     ok.appendChild(mkEl('div','font-size:16px;font-weight:700;color:#F0FFFE;margin-bottom:6px',
-      toSend.length+' entrada'+(toSend.length===1?'':'s')+' enviada'+(toSend.length===1?'':'s')));
-    ok.appendChild(mkEl('div','font-size:13px;color:rgba(248,250,252,.4)','Vuelve a PilotOS para confirmar'));
+      selectedEntries.length+' entrada'+(selectedEntries.length===1?'':'s')+' enviada'+(selectedEntries.length===1?'':'s')));
+    ok.appendChild(mkEl('div','font-size:13px;color:rgba(248,250,252,.4)','Confirma la importación en PilotOS'));
     body.appendChild(ok);
   }
 
@@ -197,7 +234,7 @@
     var body = $('_ecSheetBody'); if(!body) return;
     body.innerHTML = '';
 
-    // Captured months chips
+    // Captured month chips
     if(_capturedMonths.length){
       var chips = mkEl('div','display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px');
       _capturedMonths.forEach(function(m){
@@ -210,46 +247,53 @@
 
     // Hint
     var hint = mkEl('div','font-size:12px;color:rgba(248,250,252,.4);margin-bottom:12px;line-height:1.5',
-      'Navega al mes que quieres en eCrews y pulsa CAPTURAR.');
+      'Navega al mes en eCrews y pulsa CAPTURAR.');
     hint.id = '_ecHint';
     body.appendChild(hint);
 
-    // CAPTURAR button — big and touch-friendly
+    // CAPTURAR button
+    var hasPayload = !!_lastPayload;
+    var period     = hasPayload ? (_lastPayload.PeriodStart||'').slice(0,7) : '';
+    var nf         = hasPayload ? (_lastPayload.SchedulerEvents||[]).filter(function(e){ return (e.type||'').toLowerCase()==='flight'; }).length : 0;
+
     var capBtn = mkEl('button',
       'width:100%;padding:16px;background:linear-gradient(135deg,#0891B2,#0369A1);border:none;border-radius:14px;'+
       'color:#fff;font-size:'+(isMobile?'16':'14')+'px;font-weight:800;cursor:pointer;margin-bottom:16px;'+
-      'opacity:'+(  _lastPayload?'1':'.35')+';min-height:54px;letter-spacing:.3px',
-      _lastPayload ? '📥  CAPTURAR  '+(_lastPayload.PeriodStart||'').slice(0,7) : '📥  CAPTURAR MES');
+      'opacity:'+(hasPayload?'1':'.35')+';min-height:54px',
+      hasPayload ? '📥  CAPTURAR  '+period+'  ('+nf+' vuelos)' : '📥  CAPTURAR MES');
     capBtn.id = '_ecCapBtn';
-    capBtn.disabled = !_lastPayload;
-    capBtn.onclick = doCapture;
+    capBtn.disabled = !hasPayload;
+    capBtn.onclick  = doCapture;
     body.appendChild(capBtn);
 
-    if(_lastPayload) onNewPayload();
-
-    // Entry list
+    // Entry list (if any captured)
     if(_allEntries.length){
-      var sep = mkEl('div','border-top:1px solid rgba(8,145,178,.15);margin-bottom:12px');
-      body.appendChild(sep);
+      body.appendChild(mkEl('div','border-top:1px solid rgba(8,145,178,.15);margin-bottom:12px'));
 
       var bar = mkEl('div','display:flex;justify-content:space-between;align-items:center;margin-bottom:8px');
       bar.appendChild(mkEl('span','font-size:11px;color:rgba(248,250,252,.4)',
-        _allEntries.length+' entradas · '+_allEntries.filter(function(e){return e.type==='flight';}).length+' vuelos'));
-      var btnRow = mkEl('div','display:flex;gap:8px');
+        _allEntries.length+' entradas · '+_allEntries.filter(function(e){ return e.type==='flight'; }).length+' vuelos'));
+      var bRow = mkEl('div','display:flex;gap:8px');
       var sa = mkEl('button','font-size:11px;background:none;border:none;color:rgba(8,145,178,.8);cursor:pointer;padding:4px 8px','Todo');
       var sn = mkEl('button','font-size:11px;background:none;border:none;color:rgba(248,250,252,.3);cursor:pointer;padding:4px 8px','Ninguno');
-      sa.onclick = function(){ document.querySelectorAll('._ecCb').forEach(function(c){c.checked=true;}); };
-      sn.onclick = function(){ document.querySelectorAll('._ecCb').forEach(function(c){c.checked=false;}); };
-      btnRow.appendChild(sa); btnRow.appendChild(sn);
-      bar.appendChild(btnRow);
+      sa.onclick = function(){ document.querySelectorAll('._ecCb').forEach(function(c){ c.checked=true; }); };
+      sn.onclick = function(){ document.querySelectorAll('._ecCb').forEach(function(c){ c.checked=false; }); };
+      bRow.appendChild(sa); bRow.appendChild(sn);
+      bar.appendChild(bRow);
       body.appendChild(bar);
 
-      var list = mkEl('div','display:flex;flex-direction:column;gap:5px;margin-bottom:14px;max-height:'+(isMobile?'35vh':'240px')+';overflow-y:auto;-webkit-overflow-scrolling:touch');
+      var list = mkEl('div',
+        'display:flex;flex-direction:column;gap:5px;margin-bottom:14px;'+
+        'max-height:'+(isMobile?'35vh':'220px')+';overflow-y:auto;-webkit-overflow-scrolling:touch');
+
       _allEntries.forEach(function(e){
-        var row = mkEl('label','display:flex;align-items:flex-start;gap:10px;padding:'+(isMobile?'10px 10px':'6px 8px')+';background:rgba(8,145,178,.05);border:1px solid rgba(8,145,178,.12);border-radius:10px;cursor:pointer');
-        var cb  = document.createElement('input');
+        var row = mkEl('label',
+          'display:flex;align-items:flex-start;gap:10px;padding:'+(isMobile?'10px':'6px 8px')+';'+
+          'background:rgba(8,145,178,.05);border:1px solid rgba(8,145,178,.12);border-radius:10px;cursor:pointer');
+
+        var cb = document.createElement('input');
         cb.type='checkbox'; cb.className='_ecCb'; cb.dataset.id=e._id; cb.checked=true;
-        cb.style.cssText = 'margin-top:3px;accent-color:#0891B2;flex-shrink:0;width:'+(isMobile?'18px':'14px')+';height:'+(isMobile?'18px':'14px');
+        cb.style.cssText='margin-top:3px;accent-color:#0891B2;flex-shrink:0;width:'+(isMobile?'18':'14')+'px;height:'+(isMobile?'18':'14')+'px';
 
         var info = mkEl('div','flex:1;min-width:0');
         var top  = mkEl('div','display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:2px');
@@ -270,14 +314,15 @@
           info.appendChild(mkEl('div','font-size:'+(isMobile?'11':'9')+'px;color:rgba(248,250,252,.3);margin-top:2px',
             '👥 '+e.crew.slice(0,2).join(' · ')+(e.crew.length>2?' +'+(e.crew.length-2):'')));
         }
+
         row.appendChild(cb); row.appendChild(info);
         list.appendChild(row);
       });
       body.appendChild(list);
 
       var sendBtn = mkEl('button',
-        'width:100%;padding:'+(isMobile?'18px':'13px')+';background:linear-gradient(135deg,#059669,#047857);border:none;border-radius:14px;'+
-        'color:#fff;font-size:'+(isMobile?'16':'13')+'px;font-weight:800;cursor:pointer;min-height:'+(isMobile?'58px':'44px'),
+        'width:100%;padding:'+(isMobile?'18':'13')+'px;background:linear-gradient(135deg,#059669,#047857);border:none;border-radius:14px;'+
+        'color:#fff;font-size:'+(isMobile?'16':'13')+'px;font-weight:800;cursor:pointer;min-height:'+(isMobile?'58':'44')+'px',
         'ENVIAR A PILOTOS →');
       sendBtn.onclick = function(){
         var ids = [];
@@ -295,11 +340,10 @@
     var sheet   = $('_ecSheet');
     var overlay = $('_ecOverlay');
     if(!sheet) return;
-
     if(_sheetOpen){
       renderSheet();
-      sheet.style.transform   = 'translateY(0)';
-      sheet.style.opacity     = '1';
+      sheet.style.transform = 'translateY(0)';
+      sheet.style.opacity   = '1';
       if(overlay) overlay.style.display = 'block';
     } else {
       sheet.style.transform = 'translateY(100%)';
@@ -308,25 +352,24 @@
     }
   }
 
-  // ── Build UI ──────────────────────────────────────────────────────
+  // ── Build floating UI ─────────────────────────────────────────────
   ['_ecPill','_ecSheet','_ecOverlay'].forEach(function(id){ var el=$(id); if(el) el.remove(); });
 
-  // Dim overlay (mobile tap-outside to close)
-  var overlay = mkEl('div',
-    'display:none;position:fixed;inset:0;z-index:999997;background:rgba(0,0,0,.4)');
-  overlay.id = '_ecOverlay';
+  // Backdrop
+  var overlay = mkEl('div','display:none;position:fixed;inset:0;z-index:999997;background:rgba(0,0,0,.4)');
+  overlay.id  = '_ecOverlay';
   overlay.onclick = function(){ if(_sheetOpen) toggleSheet(); };
   document.body.appendChild(overlay);
 
-  // Floating pill
+  // Pill
   var pill = mkEl('div',
-    'position:fixed;bottom:'+(isMobile?'80':'20')+'px;right:16px;z-index:999999;'+
+    'position:fixed;bottom:'+(isMobile?'88':'20')+'px;right:16px;z-index:999999;'+
     'background:linear-gradient(135deg,#1e3a5f,#0f2040);'+
     'border:1.5px solid rgba(8,145,178,.5);border-radius:24px;'+
     'padding:'+(isMobile?'12px 18px':'8px 14px')+';'+
     'display:flex;align-items:center;gap:8px;cursor:pointer;'+
     'box-shadow:0 4px 20px rgba(0,0,0,.5);user-select:none;'+
-    'font-family:system-ui,sans-serif;transition:box-shadow .2s,background .2s');
+    'font-family:system-ui,sans-serif;transition:background .25s,box-shadow .25s');
   pill.id = '_ecPill';
   pill.appendChild(mkEl('span','font-size:'+(isMobile?'20':'16')+'px;line-height:1','✈'));
   var pillTxt = mkEl('span','font-size:'+(isMobile?'14':'12')+'px;font-weight:700;color:#F0FFFE;white-space:nowrap','✈ PilotOS Sync');
@@ -340,7 +383,7 @@
     'position:fixed;bottom:0;left:0;right:0;z-index:999998;'+
     'background:linear-gradient(180deg,#0D1E35,#060E1C);'+
     'border-top:2px solid rgba(8,145,178,.4);border-radius:22px 22px 0 0;'+
-    'padding:0 16px env(safe-area-inset-bottom,16px);'+
+    'padding:0 16px env(safe-area-inset-bottom,20px);'+
     'font-family:system-ui,sans-serif;'+
     'transform:translateY(100%);opacity:0;'+
     'transition:transform .3s ease,opacity .25s ease;'+
@@ -348,7 +391,7 @@
   sheet.id = '_ecSheet';
 
   // Handle bar
-  var handle = mkEl('div','display:flex;justify-content:center;padding:12px 0 6px');
+  var handle = mkEl('div','display:flex;justify-content:center;padding:12px 0 4px');
   handle.appendChild(mkEl('div','width:36px;height:4px;background:rgba(8,145,178,.4);border-radius:2px'));
   sheet.appendChild(handle);
 
@@ -368,14 +411,12 @@
   shHdr.appendChild(closeBtn);
   sheet.appendChild(shHdr);
 
-  // Body container
   var shBody = mkEl('div','padding-bottom:8px');
   shBody.id = '_ecSheetBody';
   sheet.appendChild(shBody);
-
   document.body.appendChild(sheet);
 
-  // Install interceptors
+  // Install interceptors + poll for iframes
   installAll();
   var poll = setInterval(installAll, 1000);
   setTimeout(function(){ clearInterval(poll); }, 120000);
