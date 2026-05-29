@@ -24915,41 +24915,44 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
       legLines.forEach(function(line){
         line = line.trim();
         // Match: flightNum - DEP (Atime) - ARR (Atime)
-        var m = line.match(/^([A-Z0-9]+)\s+-\s+([A-Z]{3})\s+\(A?(\d{4})\)\s+-\s+([A-Z]{3})\s+\(A?(\d{4})\)/);
+        // (A?) capturado: sin A = programado (std/sta), con A = real (std_actual/sta_actual)
+        var m = line.match(/^([A-Z0-9]+)\s+-\s+([A-Z]{3})\s+\((A?)(\d{4})\)\s+-\s+([A-Z]{3})\s+\((A?)(\d{4})\)/);
         if(!m) return;
 
-        var fNum = m[1];
-        var dep  = m[2];
-        var std  = m[3].slice(0,2)+':'+m[3].slice(2);
-        var arr  = m[4];
-        var sta  = m[5].slice(0,2)+':'+m[5].slice(2);
+        var fNum       = m[1];
+        var dep        = m[2];
+        var actualDep  = m[3] === 'A';
+        var tDep       = m[4].slice(0,2)+':'+m[4].slice(2);
+        var arr        = m[5];
+        var actualArr  = m[6] === 'A';
+        var tArr       = m[7].slice(0,2)+':'+m[7].slice(2);
 
-        // Convert ICAO to IATA if needed (BCN stays BCN, LEBL → BCN)
+        // Convert ICAO to IATA if needed
         var depIATA = RST_ICAO_TO_IATA[dep] || dep;
         var arrIATA = RST_ICAO_TO_IATA[arr] || arr;
 
         // OSBY/OSB3: Posicionamiento — sacado de guardia. Insertar como leg especial
         if(fNum === 'OSBY' || fNum === 'OSB3'){
-          entries.push({
+          var posEntry = {
             date: date, type: 'flight',
             flightNum: fNum, dep: depIATA, arr: arrIATA,
-            std: std, sta: sta,
             checkin: report, debrief: debrief,
             dutyCode: dutyCode,
             isPositioning: true,
             source: 'ECREWS'
-          });
+          };
+          if(actualDep) posEntry.std_actual = tDep; else posEntry.std = tDep;
+          if(actualArr) posEntry.sta_actual = tArr; else posEntry.sta = tArr;
+          entries.push(posEntry);
           return;
         }
 
-        entries.push({
+        var legEntry = {
           date:    date,
           type:    'flight',
           flightNum: 'VY'+fNum,
           dep:     depIATA,
           arr:     arrIATA,
-          std:     std,
-          sta:     sta,
           checkin: report,
           debrief: debrief,
           delay:   delay,
@@ -24957,7 +24960,11 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
           blockH:  blockH,
           dutyH:   bdt.Item2 || '',
           source:  'ECREWS'
-        });
+        };
+        // Programado vs real según prefijo A
+        if(actualDep) legEntry.std_actual = tDep; else legEntry.std = tDep;
+        if(actualArr) legEntry.sta_actual = tArr; else legEntry.sta = tArr;
+        entries.push(legEntry);
       });
       return;
     }
