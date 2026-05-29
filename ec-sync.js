@@ -1,4 +1,4 @@
-/* PilotOS — eCrews Sync Script v8.1
+/* PilotOS — eCrews Sync Script v8.2
  * Floating pill → bottom sheet (mobile-first).
  * Sends payload in the format PilotOS expects: {SchedulerEvents, BlockDutyTimes, PeriodStart}
  */
@@ -51,7 +51,23 @@
       });
     });
     _observer.observe(document.body, { childList: true, subtree: true });
+    // Also observe any iframes
+    document.querySelectorAll('iframe').forEach(function(f){
+      try{ if(f.contentDocument && f.contentDocument.body)
+        _observer.observe(f.contentDocument.body, {childList:true, subtree:true});
+      }catch(e){}
+    });
   } catch(e){}
+
+  // ── Get all searchable documents (main + iframes) ────────────────
+  function getSearchDocs(){
+    var docs = [document];
+    var frames = document.querySelectorAll('iframe');
+    for(var i=0; i<frames.length; i++){
+      try{ var d = frames[i].contentDocument; if(d) docs.push(d); }catch(e){}
+    }
+    return docs;
+  }
 
   // ── Helpers ──────────────────────────────────────────────────────
   function mkEl(tag, css, txt){
@@ -189,70 +205,68 @@
     if(hint){ hint.textContent = '✓ Mes listo — pulsa CAPTURAR o navega a otro.'; hint.style.color = 'rgba(74,222,128,.8)'; }
   }
 
-  // ── Find calendar event DOM element ──────────────────────────────
+  // ── Find calendar event DOM element (searches main doc + iframes) ─
   function findEventEl(ev){
-    var text0   = (ev.text||'').split(/\r\n|\n/)[0].trim();
-    var evId    = (ev.id||'').toString();
-    console.log('[PilotOS] findEventEl id='+evId+' text0="'+text0+'"');
+    var text0 = (ev.text||'').split(/\r\n|\n/)[0].trim();
+    var evId  = (ev.id||'').toString();
+    var docs  = getSearchDocs();
+    console.log('[PilotOS] findEventEl "'+text0+'" — docs:'+docs.length);
 
-    // 1. DHTMLX renders <div id="event_XXXXX"> — try full id and numeric suffix
     var idVariants = ['event_'+evId, evId];
     var nums = evId.match(/\d+/g)||[];
     nums.forEach(function(n){ idVariants.push('event_'+n); });
-    for(var v=0; v<idVariants.length; v++){
-      var found = document.getElementById(idVariants[v]);
-      if(found){ console.log('[PilotOS] ✓ getElementById:'+idVariants[v]); return found; }
-    }
 
-    // 2. Attribute-based: event_id / data-id / data-event-id
-    var attrSelectors = [
-      '[event_id="'+evId+'"]', '[data-id="'+evId+'"]', '[data-event-id="'+evId+'"]'
-    ];
-    nums.forEach(function(n){
-      attrSelectors.push('[event_id="'+n+'"]');
-      attrSelectors.push('[data-id="'+n+'"]');
-    });
-    for(var a=0; a<attrSelectors.length; a++){
-      var found2 = document.querySelector(attrSelectors[a]);
-      if(found2){ console.log('[PilotOS] ✓ attr:'+attrSelectors[a]); return found2; }
-    }
+    for(var di=0; di<docs.length; di++){
+      var doc = docs[di];
 
-    // 3. DHTMLX class-based search (.dhx_cal_event, .dhx_cal_event_line, etc.)
-    var dhxEls = document.querySelectorAll('[class*="dhx_cal_event"],[class*="dhx_event"]');
-    console.log('[PilotOS] dhx elements found:'+dhxEls.length);
-    for(var d=0; d<dhxEls.length; d++){
-      var inner = (dhxEls[d].innerText||dhxEls[d].textContent||'');
-      if(text0 && inner.indexOf(text0)!==-1){
-        console.log('[PilotOS] ✓ dhx class text match "'+text0+'"'); return dhxEls[d];
+      // 1. getElementById variants
+      for(var v=0; v<idVariants.length; v++){
+        var f1 = doc.getElementById(idVariants[v]);
+        if(f1){ console.log('[PilotOS] ✓ id:'+idVariants[v]+' iframe:'+di); return f1; }
+      }
+
+      // 2. Attribute selectors
+      for(var j=0; j<nums.length; j++){
+        var f2 = doc.querySelector('[event_id="'+nums[j]+'"]') ||
+                 doc.querySelector('[data-id="'+nums[j]+'"]');
+        if(f2){ console.log('[PilotOS] ✓ attr iframe:'+di); return f2; }
+      }
+
+      // 3. DHTMLX class search
+      var dhxEls = doc.querySelectorAll('[class*="dhx_cal_event"],[class*="dhx_event"]');
+      console.log('[PilotOS] dhx els iframe:'+di+' → '+dhxEls.length);
+      for(var d=0; d<dhxEls.length; d++){
+        if(text0 && (dhxEls[d].innerText||dhxEls[d].textContent||'').indexOf(text0)!==-1){
+          console.log('[PilotOS] ✓ dhx iframe:'+di); return dhxEls[d];
+        }
+      }
+
+      // 4. Generic text search
+      if(text0){
+        var all = doc.querySelectorAll('div,td,a,span');
+        for(var i=0; i<all.length; i++){
+          var node = all[i];
+          if(node.children.length > 6) continue;
+          var t = (node.innerText||node.textContent||'').split('\n')[0].trim();
+          if(t === text0){ console.log('[PilotOS] ✓ text iframe:'+di); return node; }
+        }
       }
     }
 
-    // 4. Generic text search — first line of text0 in any small element
-    if(text0){
-      var all = document.querySelectorAll('div,td,a,span');
-      for(var i=0; i<all.length; i++){
-        var node = all[i];
-        if(node.children.length > 6) continue;
-        var t = (node.innerText||node.textContent||'').split('\n')[0].trim();
-        if(t === text0){ console.log('[PilotOS] ✓ generic text match "'+text0+'"'); return node; }
-      }
-    }
-
-    console.log('[PilotOS] ✗ not found for id='+evId+' text0="'+text0+'"');
+    console.log('[PilotOS] ✗ not found "'+text0+'"');
     return null;
   }
 
   // ── Close Pairing Details popup ───────────────────────────────────
   function closePopup(){
-    // Look for Exit link/button
-    var all = document.querySelectorAll('a,button,span');
-    for(var i=0; i<all.length; i++){
-      var t = (all[i].innerText||all[i].textContent||'').trim();
-      if(t==='Exit'||t.indexOf('Exit')!==-1){
-        all[i].click(); return;
+    var docs = getSearchDocs();
+    for(var di=0; di<docs.length; di++){
+      var all = docs[di].querySelectorAll('a,button,span');
+      for(var i=0; i<all.length; i++){
+        var t = (all[i].innerText||all[i].textContent||'').trim();
+        if(t==='Exit'||t.indexOf('Exit')!==-1){ all[i].click(); return; }
       }
     }
-    // Fallback: Escape key
     document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',keyCode:27,bubbles:true}));
   }
 
@@ -328,7 +342,10 @@
           });
         });
       });
-      obs.observe(document.body,{childList:true,subtree:true});
+      // Observe main doc AND all iframes
+      getSearchDocs().forEach(function(d){
+        try{ obs.observe(d.body||d.documentElement,{childList:true,subtree:true}); }catch(e){}
+      });
 
       el.click();
 
