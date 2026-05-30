@@ -21853,6 +21853,7 @@ function rstRenderCalendar(){
 // ── Stats ──
 function rstRenderStats(){
   var flights=0, blockMin=0, standby=0, off=0, dutyDays=0, dutyMin=0;
+  var _lmDutyDates={}; // tracks which dates already have LM duty counted
   var y=RST.viewYear, mo=RST.viewMonth;
 
   // Check if PDF-extracted totals are stored for this month
@@ -21887,12 +21888,15 @@ function rstRenderStats(){
       dayFlights[e.date].push(e); // positioning still contributes to duty span
     } else if(e.type==='standby'||e.type==='osb'){
       standby++;
-      // Any standby with checkin/checkout → count as duty (covers 3SBY, SBY, OSB, OSBY…)
-      // OSB3/OSBY days that generated flights are handled via dayFlights (flight checkin used)
-      var _sbCode = e.code||'';
-      var _sbHasFlights = e.type==='osb' && dayFlights[e.date] && dayFlights[e.date].length>0;
-      if(!_sbHasFlights){
-        var _sbStart = e.checkin||e.std, _sbEnd = e.checkout||e.sta;
+      // type='osb' (OSB1..OSB5): the OSB entry has no real duty of its own —
+      // when activated it generates flights, and duty is captured via dayFlights
+      // using the first flight's checkin (= OSB checkout = actual report time).
+      // Do NOT count the standby window here to avoid double-counting.
+      //
+      // type='standby' (3SBY, SBY, HSBY, OSBY, etc.): no activation flights →
+      // count checkin→checkout as the full duty period.
+      if(e.type==='standby'){
+        var _sbStart = e.checkin, _sbEnd = e.checkout;
         if(_sbStart && _sbEnd && _sbStart.indexOf(':')>-1 && _sbEnd.indexOf(':')>-1){
           var _sbD = t2m(_sbEnd) - t2m(_sbStart);
           if(_sbD < 0) _sbD += 1440;
@@ -21900,12 +21904,17 @@ function rstRenderStats(){
         }
       }
     } else if(e.type==='lm'){
-      // eLearning / training: count session duration as duty
+      // eLearning / training: accumulate session duration as duty.
+      // Multiple LM codes on the same day (LMF2+LMCC+LMFE) each add their
+      // own duration; dutyDays is only bumped for the first session of the day.
       var _lmS = e.start, _lmE = e.end;
       if(_lmS && _lmE && _lmS.indexOf(':')>-1 && _lmE.indexOf(':')>-1){
         var _lmD = t2m(_lmE) - t2m(_lmS);
         if(_lmD < 0) _lmD += 1440;
-        if(_lmD > 0){ dutyMin += _lmD; dutyDays++; }
+        if(_lmD > 0){
+          dutyMin += _lmD;
+          if(!_lmDutyDates[e.date]){ _lmDutyDates[e.date]=true; dutyDays++; }
+        }
       }
     } else if(e.type==='sick') { /* count separately if needed */ }
     else if(e.type !== 'flight') off++;
