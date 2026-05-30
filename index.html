@@ -21957,7 +21957,23 @@ function rstRenderStats(){
     }
   }
   var displayBlock = _pdfBlockSafe > 0 ? _pdfBlockSafe : blockMin;
-  var displayDuty  = pdfDuty  > 0 ? pdfDuty  : dutyMin;
+
+  // Safety guard for pdfDuty — same logic as pdfBlock.
+  // If pdfDuty exceeds dutyMin by more than 12h it's a misread (B/D row contamination).
+  // Also discard if pdfDuty > 744h (impossible: more than 31 × 24h).
+  var _pdfDutySafe = pdfDuty;
+  if(pdfDuty > 0){
+    if(pdfDuty > 44640){ // 744h × 60min
+      _pdfDutySafe = 0;
+      console.warn('[RosterStats] pdfDuty ('+Math.floor(pdfDuty/60)+'h) imposible — descartado.');
+      try { localStorage.removeItem('pilotOS_pdf_duty_'+monthKey); } catch(e){}
+    } else if(dutyMin > 0 && (pdfDuty - dutyMin) > 720){
+      _pdfDutySafe = 0;
+      console.warn('[RosterStats] pdfDuty ('+Math.floor(pdfDuty/60)+'h'+pdfDuty%60+'m) parece corrupto — excede dutyMin en más de 12h. Usando dutyMin.');
+      try { localStorage.removeItem('pilotOS_pdf_duty_'+monthKey); } catch(e){}
+    }
+  }
+  var displayDuty  = _pdfDutySafe > 0 ? _pdfDutySafe : dutyMin;
 
   var sf=document.getElementById('rst-s-flights');
   var sh=document.getElementById('rst-s-hours');
