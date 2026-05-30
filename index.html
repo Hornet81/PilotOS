@@ -23822,24 +23822,8 @@ async function rosterRunPDF(pdfBase64){
     rstSmartMerge(parsed.entries, newMonth);
     rstSave();
     // ── Paso 2: persistir roster en Supabase — SOLO el mes importado ──
-    // DELETE primero para borrar datos previos del mes (ej. eCrews que quedarían solapados),
-    // luego POST con los datos nuevos del PDF. Esto evita que rstPullFromServer restaure
-    // entradas antiguas de otro origen sobre la importación reciente.
-    (function(){
-      var _tk=''; try{ _tk=lsGet('cafi_auth_token',''); }catch(e){}
-      if(!_tk||!newMonth) return;
-      var _monthEntries = RST.entries.filter(function(e){ return e.date && e.date.slice(0,7)===newMonth; });
-      if(!_monthEntries.length) return;
-      fetch(ldBackendUrl()+'/api/roster?month='+newMonth,{
-        method:'DELETE', headers:{'Authorization':'Bearer '+_tk}
-      }).then(function(){
-        return fetch(ldBackendUrl()+'/api/roster/save',{
-          method:'POST',
-          headers:{'Content-Type':'application/json','Authorization':'Bearer '+_tk},
-          body:JSON.stringify({entries:_monthEntries, month: newMonth})
-        });
-      }).catch(function(){/* offline — localStorage tiene los datos */});
-    })();
+    // Offline-first: rstPushMonth maneja fallos y los reintenta al reconectar.
+    window.rstPushMonth(newMonth);
 
     // Save PDF-extracted block/duty totals for accurate stats display
     if(newMonth){
@@ -23934,22 +23918,8 @@ async function rosterRunAIText(textContent){
     }
     rstSmartMerge(parsed.entries, newMonth);
     rstSave();
-    // Persistir en Supabase — DELETE primero, luego POST (evita solapamiento con datos viejos)
-    (function(){
-      var _tk=''; try{ _tk=lsGet('cafi_auth_token',''); }catch(e){}
-      if(!_tk||!newMonth) return;
-      var _monthEntries = RST.entries.filter(function(e){ return e.date && e.date.slice(0,7)===newMonth; });
-      if(!_monthEntries.length) return;
-      fetch(ldBackendUrl()+'/api/roster?month='+newMonth,{
-        method:'DELETE', headers:{'Authorization':'Bearer '+_tk}
-      }).then(function(){
-        return fetch(ldBackendUrl()+'/api/roster/save',{
-          method:'POST',
-          headers:{'Content-Type':'application/json','Authorization':'Bearer '+_tk},
-          body:JSON.stringify({entries:_monthEntries, month: newMonth})
-        });
-      }).catch(function(){});
-    })();
+    // Persistir en Supabase — Offline-first: rstPushMonth maneja fallos y los reintenta al reconectar.
+    window.rstPushMonth(newMonth);
 
     if(newMonth){ var p=newMonth.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1; }
     if(newMonth){
@@ -24075,23 +24045,8 @@ async function rosterRunAI(dataUrl, mimeType){
     }
     rstSmartMerge(parsed.entries, newMonth);
     rstSave();
-    // Persistir en Supabase — SOLO el mes importado
-    // DELETE primero para borrar datos viejos (ej. eCrews), luego POST con datos nuevos
-    (function(){
-      var _tk=''; try{ _tk=lsGet('cafi_auth_token',''); }catch(e){}
-      if(!_tk||!newMonth) return;
-      var _monthEntries = RST.entries.filter(function(e){ return e.date && e.date.slice(0,7)===newMonth; });
-      if(!_monthEntries.length) return;
-      fetch(ldBackendUrl()+'/api/roster?month='+newMonth,{
-        method:'DELETE', headers:{'Authorization':'Bearer '+_tk}
-      }).then(function(){
-        return fetch(ldBackendUrl()+'/api/roster/save',{
-          method:'POST',
-          headers:{'Content-Type':'application/json','Authorization':'Bearer '+_tk},
-          body:JSON.stringify({entries:_monthEntries, month: newMonth})
-        });
-      }).catch(function(){});
-    })();
+    // Persistir en Supabase — Offline-first: rstPushMonth maneja fallos y los reintenta al reconectar.
+    window.rstPushMonth(newMonth);
 
     // Set view to detected month and re-render calendar
     if(newMonth){
@@ -24306,11 +24261,23 @@ function rosterShowCalendar(){
       + '<label style="padding:7px 12px;background:rgba(20,184,166,.10);border:1px solid rgba(20,184,166,.32);border-radius:10px;color:#2dd4bf;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;display:inline-flex;align-items:center;gap:5px"><input type="file" id="rst-file-input" accept=".txt,image/*,application/pdf" style="display:none">📂 Actualizar</label>'
       + '<button onclick="rosterConfirmDelete()" style="padding:7px 12px;background:rgba(239,68,68,.1);border:1px solid rgba(248,113,113,.3);border-radius:10px;color:#F87171;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;-webkit-appearance:none">🗑 Borrar</button>'
       + '<button onclick="ldECrewsSyncOpen()" style="padding:7px 12px;background:linear-gradient(135deg,rgba(8,145,178,.18),rgba(6,95,120,.14));border:1px solid rgba(8,145,178,.45);border-radius:10px;color:#67d7f5;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;-webkit-appearance:none;display:inline-flex;align-items:center;gap:5px">🔗 eCrews</button>'
+      + '<span id="rst-sync-badge" style="display:none"></span>'
       + '</div>'
       + '</div>';
     // Re-wire input after innerHTML rebuild
     var _inp2 = document.getElementById('rst-file-input');
     if(_inp2 && !_inp2._wired){ _inp2._wired=true; _inp2.addEventListener('change',function(e){ if(window.rosterHandleFile) window.rosterHandleFile(e); }); }
+    // Restore sync badge state for current month
+    (function(){
+      var _vm = (RST.viewYear||new Date().getFullYear())+'-'+String(((RST.viewMonth!=null?RST.viewMonth:new Date().getMonth())+1)).padStart(2,'0');
+      var _state = 'idle';
+      try{
+        var _pending = JSON.parse(localStorage.getItem('pilotOS_sync_pending_v2')||'[]');
+        if(_pending.indexOf(_vm)>=0){ _state = navigator.onLine ? 'error' : 'pending'; }
+        else if(localStorage.getItem('pilotOS_sync_ts_'+_vm)){ _state = 'synced'; }
+      }catch(e){}
+      rstSyncUpdateBadge(_vm, _state);
+    })();
   }
 }
 
@@ -24384,6 +24351,101 @@ window.rosterClearAll = function(){
   if(panel) panel.style.display = 'none';
   if(typeof showToast==='function') showToast('🗑 Roster de '+monthToDelete+' borrado');
 };
+
+// ── Cloud Sync ────────────────────────────────────────────────────
+// Offline-first: localStorage is always source of truth.
+// Supabase is synced in background; failures are queued & retried on reconnect.
+
+// pending queue key
+var _SYNC_PENDING_KEY = 'pilotOS_sync_pending_v2';
+var _SYNC_TS_PREFIX   = 'pilotOS_sync_ts_';
+
+// Get/set pending months queue
+function rstSyncGetPending(){
+  try{ return JSON.parse(localStorage.getItem(_SYNC_PENDING_KEY)||'[]'); }catch(e){ return []; }
+}
+function rstSyncSetPending(arr){
+  try{ localStorage.setItem(_SYNC_PENDING_KEY, JSON.stringify(arr)); }catch(e){}
+}
+function rstSyncAddPending(month){
+  var q=rstSyncGetPending(); if(q.indexOf(month)<0){ q.push(month); rstSyncSetPending(q); }
+}
+function rstSyncRemovePending(month){
+  rstSyncSetPending(rstSyncGetPending().filter(function(m){ return m!==month; }));
+}
+
+// Update the sync badge for the currently viewed month
+function rstSyncUpdateBadge(month, state){
+  var badge = document.getElementById('rst-sync-badge');
+  if(!badge) return;
+  var cfg = {
+    synced:  {icon:'☁',  label:'Sync OK',    color:'#34D399', bg:'rgba(52,211,153,.12)',  border:'rgba(52,211,153,.3)'},
+    syncing: {icon:'⟳',  label:'Syncing…',   color:'#67D7F5', bg:'rgba(8,145,178,.12)',   border:'rgba(8,145,178,.35)'},
+    pending: {icon:'📵', label:'Sin red',     color:'#94A3B8', bg:'rgba(100,116,139,.12)', border:'rgba(100,116,139,.3)'},
+    error:   {icon:'⚠',  label:'Sync error', color:'#FBBF24', bg:'rgba(251,191,36,.12)',  border:'rgba(251,191,36,.3)'},
+    idle:    {icon:'☁',  label:'',           color:'rgba(255,255,255,.3)', bg:'transparent', border:'transparent'},
+  };
+  var c = cfg[state] || cfg.idle;
+  badge.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:5px 9px;'
+    +'background:'+c.bg+';border:1px solid '+c.border+';border-radius:8px;'
+    +'font-size:11px;font-weight:600;color:'+c.color+';white-space:nowrap;font-family:\'Space Grotesk\',sans-serif;'
+    +'transition:all .3s';
+  badge.innerHTML = '<span style="'+(state==='syncing'?'display:inline-block;animation:spin 1s linear infinite':'')+'">'+c.icon+'</span>'
+    +(c.label ? '<span>'+c.label+'</span>' : '');
+  // Store badge state for this month
+  try{ if(month) localStorage.setItem('pilotOS_sync_state_'+month, state); }catch(e){}
+}
+
+// Push one month to Supabase (DELETE old + POST new), with pending queue on failure
+window.rstPushMonth = async function(month){
+  var token=''; try{ token=lsGet('cafi_auth_token',''); }catch(e){}
+  if(!token||!month) return;
+  var entries = RST.entries.filter(function(e){ return e.date && e.date.slice(0,7)===month; });
+  if(!entries.length) return;
+  var viewed = (RST.viewYear+'-'+String(RST.viewMonth+1).padStart(2,'0') === month);
+  if(viewed) rstSyncUpdateBadge(month, 'syncing');
+  try{
+    var r1 = await fetch(ldBackendUrl()+'/api/roster?month='+month,{
+      method:'DELETE', headers:{'Authorization':'Bearer '+token}
+    });
+    if(!r1.ok && r1.status !== 404) throw new Error('DELETE '+r1.status);
+    var r2 = await fetch(ldBackendUrl()+'/api/roster/save',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({entries:entries, month:month})
+    });
+    if(!r2.ok) throw new Error('POST '+r2.status);
+    rstSyncRemovePending(month);
+    try{ localStorage.setItem(_SYNC_TS_PREFIX+month, new Date().toISOString()); }catch(e){}
+    if(viewed) rstSyncUpdateBadge(month, 'synced');
+  }catch(err){
+    var isOffline = !navigator.onLine || err.message.includes('Failed to fetch') || err.message.includes('NetworkError');
+    rstSyncAddPending(month);
+    if(viewed) rstSyncUpdateBadge(month, isOffline ? 'pending' : 'error');
+  }
+};
+
+// Retry all pending months (called on reconnect)
+window.rstSyncRetryPending = async function(){
+  var pending = rstSyncGetPending();
+  if(!pending.length) return;
+  var token=''; try{ token=lsGet('cafi_auth_token',''); }catch(e){}
+  if(!token) return;
+  for(var _pi=0; _pi<pending.length; _pi++){
+    await window.rstPushMonth(pending[_pi]);
+  }
+};
+
+// Reconnect: retry any pending syncs
+window.addEventListener('online', function(){
+  setTimeout(window.rstSyncRetryPending, 2000); // short delay for network to stabilise
+  var badge = document.getElementById('rst-sync-badge');
+  if(badge){ var _vm=(RST.viewYear||'')+'-'+String(((RST.viewMonth||0)+1)).padStart(2,'0'); rstSyncUpdateBadge(_vm,'syncing'); }
+});
+window.addEventListener('offline', function(){
+  var _vm=(RST.viewYear||'')+'-'+String(((RST.viewMonth||0)+1)).padStart(2,'0');
+  rstSyncUpdateBadge(_vm,'pending');
+});
 
 // ── Pull roster desde el servidor (equivalente a ldPullFromServer del logbook) ──
 window.rstPullFromServer = async function(){
