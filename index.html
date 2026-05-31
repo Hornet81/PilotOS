@@ -26406,6 +26406,62 @@ document.addEventListener('keydown', function(e){
 document.addEventListener('DOMContentLoaded', function pagInit(){
   var token = '';
   try { token = lsGet('cafi_auth_token',''); } catch(ex){}
+
+  // ── eCrews roster sync via iOS Shortcut ──
+  // El Atajo navega a pilotos.aero?rosterSync=BASE64 con las actividades extraídas
+  (function(){
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var raw = params.get('rosterSync');
+      if (!raw) return;
+      window.history.replaceState({}, '', window.location.pathname);
+      var payload;
+      try { payload = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(raw))))); } catch(ex) { return; }
+      if (!payload || !payload.ok || !Array.isArray(payload.entries) || !payload.entries.length) return;
+      var incoming = payload.entries;
+
+      var banner = document.createElement('div');
+      banner.id = '_rstSyncBanner';
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:linear-gradient(135deg,#0891B2,#0369A1);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-family:Space Grotesk,system-ui,sans-serif;box-shadow:0 4px 20px rgba(0,0,0,.5);padding-top:calc(14px + env(safe-area-inset-top,0px))';
+      banner.innerHTML = '<div><div style="font-size:14px;font-weight:700">✈ ' + incoming.length + ' actividades de eCrews</div><div style="font-size:11px;opacity:.7;margin-top:2px">¿Importar al Roster de PilotOS?</div></div>'
+        + '<div style="display:flex;gap:8px;flex-shrink:0">'
+        + '<button id="_rstSyncYes" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);border-radius:10px;color:#fff;padding:8px 16px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit">Importar</button>'
+        + '<button id="_rstSyncNo" style="background:transparent;border:1px solid rgba(255,255,255,.2);border-radius:10px;color:rgba(255,255,255,.6);padding:8px 12px;font-size:16px;cursor:pointer;line-height:1">×</button>'
+        + '</div>';
+      document.body.appendChild(banner);
+
+      document.getElementById('_rstSyncNo').onclick = function() { banner.remove(); };
+      document.getElementById('_rstSyncYes').onclick = function() {
+        try {
+          var existing = [];
+          try { var s = localStorage.getItem('pilotOS_roster'); if(s) existing = JSON.parse(s); } catch(e){}
+          if (!Array.isArray(existing)) existing = [];
+          var keys = {};
+          existing.forEach(function(e){ keys[e.date+'|'+(e.flightNum||e.type)] = true; });
+          var added = 0;
+          incoming.forEach(function(e){
+            var k = e.date+'|'+(e.flightNum||e.type);
+            if (!keys[k]) { existing.push(e); keys[k] = true; added++; }
+          });
+          localStorage.setItem('pilotOS_roster', JSON.stringify(existing));
+          localStorage.removeItem('pilotOS_roster_cleared');
+          banner.style.background = 'linear-gradient(135deg,#059669,#047857)';
+          banner.querySelector('div').innerHTML = '<div style="font-size:14px;font-weight:700">✅ ' + added + ' actividades importadas</div><div style="font-size:11px;opacity:.7;margin-top:2px">Abriendo Roster…</div>';
+          banner.querySelector('div:last-child').remove();
+          setTimeout(function(){
+            banner.remove();
+            if(typeof goTo === 'function') goTo('roster');
+            if(typeof rstLoad === 'function'){ rstLoad(); }
+            if(typeof rstRenderCalendar === 'function') rstRenderCalendar();
+          }, 1500);
+        } catch(ex) {
+          banner.querySelector('div').innerHTML = '<div style="font-size:14px;font-weight:700">❌ Error al importar</div>';
+          setTimeout(function(){ banner.remove(); }, 2000);
+        }
+      };
+    } catch(ex) {}
+  })();
+
   // Populate roster card on home as soon as DOM is ready
   setTimeout(function(){ if(typeof dhUpdateRosterCard === 'function') dhUpdateRosterCard(); }, 300);
   // Populate logbook home card (hours + chart) — use whatever is already in memory,
