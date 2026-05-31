@@ -4094,7 +4094,7 @@ html.day .btab-pill svg{color:#FFFFFF!important}
 #rst-day-detail{
   display:none;
   background:rgba(240,252,250,0.98);
-  -webkit-backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);backdrop-filter:blur(28px);
+  -webkit-backdrop-filter:blur(28px);backdrop-filter:blur(28px);
   border:1.5px solid rgba(13,148,136,0.35) !important;
   border-radius:20px;padding:16px;margin-bottom:14px;
   box-shadow:0 4px 24px rgba(13,148,136,.12),0 1px 6px rgba(0,0,0,.08);
@@ -5651,12 +5651,47 @@ html.day #rst-today-ref{color:#0369A1 !important}
 /* ── Roster importado banner (day mode) ── */
 html.day #rst-upload-inner .day-mode-title{color:#0E7490 !important}
 html.day #rst-upload-inner .day-mode-sub{color:#374151 !important}
-html.day .rst-ecrew-sync-btn{
-  background:rgba(8,145,178,.10) !important;
-  border-color:rgba(8,145,178,.5) !important;
-  color:#0369A1 !important;
-  font-weight:700 !important;
+html.day .rst-options-btn{
+  background:rgba(0,0,0,.06) !important;
+  border-color:rgba(0,0,0,.15) !important;
+  color:#374151 !important;
 }
+/* ── Options bottom sheet ── */
+#rst-options-overlay{
+  position:fixed;inset:0;z-index:9999;
+  background:rgba(0,0,0,.45);
+  display:flex;align-items:flex-end;justify-content:center;
+  animation:fadeIn .18s ease;
+}
+#rst-options-sheet{
+  width:100%;max-width:480px;
+  background:#1E293B;
+  border-radius:20px 20px 0 0;
+  padding:8px 0 32px;
+  animation:slideUp .22s ease;
+}
+html.day #rst-options-sheet{background:#FFFFFF;}
+#rst-options-sheet .rst-opt-item{
+  display:flex;align-items:center;gap:14px;
+  padding:14px 22px;font-size:15px;font-weight:600;
+  color:rgba(255,255,255,.9);cursor:pointer;
+  font-family:'Space Grotesk',sans-serif;
+  border:none;background:none;width:100%;text-align:left;
+  -webkit-appearance:none;transition:background .12s;
+}
+#rst-options-sheet .rst-opt-item:active{background:rgba(255,255,255,.07)}
+html.day #rst-options-sheet .rst-opt-item{color:#1E293B;}
+html.day #rst-options-sheet .rst-opt-item:active{background:rgba(0,0,0,.06)}
+#rst-options-sheet .rst-opt-sep{height:1px;background:rgba(255,255,255,.08);margin:4px 0}
+html.day #rst-options-sheet .rst-opt-sep{background:rgba(0,0,0,.08)}
+#rst-options-sheet .rst-opt-handle{
+  width:40px;height:4px;border-radius:2px;
+  background:rgba(255,255,255,.2);margin:6px auto 14px;
+}
+html.day #rst-options-sheet .rst-opt-handle{background:rgba(0,0,0,.15)}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes bellRing{0%,100%{transform:rotate(0)}15%{transform:rotate(14deg)}30%{transform:rotate(-10deg)}45%{transform:rotate(8deg)}60%{transform:rotate(-5deg)}75%{transform:rotate(3deg)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 
 /* ── Detalle de día ── */
 html.day #rst-day-detail{
@@ -22172,15 +22207,16 @@ function rstCalcFDP(flights){
   if(repLocalMin < 6*60+30){ fdpMaxMin -= 30; }
   var fmm = function(m){ m=((m%1440)+1440)%1440; return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); };
   var dur = function(m){ var s=m<0?'-':''; m=Math.abs(m); return s+Math.floor(m/60)+'h'+(m%60?' '+String(m%60).padStart(2,'0')+'m':''); };
+  var marginMin = fdpMaxMin - fdpMin;
   return {
     report: fmm(reportMin),
     fdpDur: dur(fdpMin), fdpEnd: fmm(staMin%1440),
     fdpMax: dur(fdpMaxMin), fdpMaxEnd: fmm((reportMin+fdpMaxMin)%1440),
-    fdpM20: dur(fdpMaxMin-20), fdpM20End: fmm((reportMin+fdpMaxMin-20)%1440),
+    fdpMargin: dur(marginMin), fdpMarginMin: marginMin,
     dpDur:  dur(dpMin),  dpEnd:  fmm((staMin+20)%1440),
     dpMax:  dur(fdpMaxMin+20),
     sectors: sectors,
-    warn: fdpMin>fdpMaxMin?'exceed':fdpMin>(fdpMaxMin-20)?'near':'ok'
+    warn: fdpMin>fdpMaxMin?'exceed':marginMin<20?'near':'ok'
   };
 }
 
@@ -22545,21 +22581,61 @@ function rstRenderFatigue(){
           var staDisp = f.sta ? f.sta.slice(0,5) : (f.sta_actual?f.sta_actual.slice(0,5):'--:--');
           var isPos = f.positioning===true || !!(f.dep && f.dep.charAt(0)==='*');
           var depDisp = f.dep || '?';
-          return '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:'+(isPos?'#FFFBEB':'#F8FAFF')+';border-radius:10px;border:1px solid '+(isPos?'rgba(252,211,77,.4)':'rgba(30,58,164,.06)')+'">'
-            + '<div style="width:20px;height:20px;background:'+(isPos?'#FEF3C7':'#c0392b')+';border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0">'+(isPos?'🎫':'✈')+'</div>'
+          return '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(13,148,166,.08);border-radius:10px;border:1px solid rgba(34,211,238,.14);margin-bottom:4px">'
+            + '<div style="width:22px;height:22px;background:'+(isPos?'rgba(245,158,11,.2)':'rgba(34,211,238,.15)')+';border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">'+(isPos?'🎫':'✈')+'</div>'
             + '<div style="flex:1;min-width:0">'
-            + '<div style="font-size:12px;font-weight:800;color:#0F172A">'+depDisp+' → '+(f.arr||'?')
-            + (isPos ? ' <span style="font-size:9px;font-weight:700;background:#FEF3C7;color:#92400E;border:1px solid #FCD34D;border-radius:4px;padding:1px 4px;margin-left:4px">★ VUELO POSICIONAL</span>' : '')
+            + '<div style="font-size:13px;font-weight:800;color:#F0FFFE;font-family:\'Space Grotesk\',sans-serif">'+depDisp+' → '+(f.arr||'?')
+            + (isPos ? ' <span style="font-size:9px;font-weight:700;background:rgba(245,158,11,.15);color:#FBB040;border:1px solid rgba(245,158,11,.3);border-radius:4px;padding:1px 5px">POSICIONAL</span>' : '')
             + '</div>'
-            + '<div style="font-size:9px;color:#94A3B8">VY'+(f.flightNum||'?')+(f.acType?' · '+f.acType:'')+'</div>'
+            + '<div style="font-size:10px;color:rgba(34,211,238,.55);font-family:\'Space Mono\',monospace">VY'+(f.flightNum||'?')+(f.acType?' · '+f.acType:'')+'</div>'
             + '</div>'
             + '<div style="text-align:right;flex-shrink:0">'
-            + '<div style="font-size:11px;font-weight:800;color:#0369A1;font-family:\'Space Mono\',monospace">'+stdDisp+'</div>'
-            + '<div style="font-size:9px;color:#94A3B8">→ '+staDisp+'</div>'
+            + '<div style="font-size:12px;font-weight:800;color:#22D3EE;font-family:\'Space Mono\',monospace">'+stdDisp+'</div>'
+            + '<div style="font-size:10px;color:rgba(240,255,254,.35);font-family:\'Space Mono\',monospace">→ '+staDisp+'</div>'
             + '</div>'
             + '</div>';
         }).join('');
         ndLegs.innerHTML = legsHTML;
+      }
+
+      // FDP limits box under next duty legs
+      var ndFdpLimits = document.getElementById('rst-next-fdp-limits');
+      if(ndFdpLimits){
+        try {
+          var fdpNd = rstCalcFDP(nextDutyFlights);
+          if(fdpNd){
+            var mcNd = fdpNd.fdpMarginMin < 0 ? '#F87171' : fdpNd.fdpMarginMin < 20 ? '#FBB040' : '#34D399';
+            var mbNd = fdpNd.fdpMarginMin < 0 ? 'rgba(248,113,113,.25)' : fdpNd.fdpMarginMin < 20 ? 'rgba(251,176,64,.25)' : 'rgba(52,211,153,.25)';
+            var _fdpMaxRawNd = fdpNd.fdpMarginMin + (function(){ var p=(fdpNd.fdpDur||'0h').split('h'); return (+p[0]||0)*60+(+(p[1]||'').replace('m','')||0); })();
+            var mpNd = _fdpMaxRawNd > 0 ? Math.max(0,Math.min(100,Math.round(fdpNd.fdpMarginMin/_fdpMaxRawNd*100))) : 0;
+            ndFdpLimits.style.display = 'block';
+            ndFdpLimits.innerHTML =
+              '<div style="margin-top:12px;border-radius:14px;overflow:hidden;border:1px solid '+mbNd+'">'
+              +'<div style="background:rgba('+( fdpNd.warn==='exceed'?'239,68,68':fdpNd.warn==='near'?'245,158,11':'16,185,129')+',.10);padding:7px 12px;display:flex;align-items:center;gap:6px">'
+              +'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="'+mcNd+'" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'
+              +'<span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:'+mcNd+';font-family:\'Space Grotesk\',sans-serif">Límites FTL · ORO.FTL.205</span>'
+              +'</div>'
+              +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;background:rgba(0,0,0,.25)">'
+              // FDP
+              +'<div style="background:rgba(6,22,36,.9);padding:9px 11px;border-right:1px solid rgba(255,255,255,.05)">'
+              +'<div style="font-size:9px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:rgba(240,255,254,.35);margin-bottom:3px;font-family:\'Space Grotesk\',sans-serif">FDP</div>'
+              +'<div style="font-size:15px;font-weight:900;color:#F0FFFE;font-family:\'Space Mono\',monospace">'+fdpNd.fdpDur+'</div>'
+              +'</div>'
+              // FDP Máx
+              +'<div style="background:rgba(6,22,36,.9);padding:9px 11px;border-right:1px solid rgba(255,255,255,.05)">'
+              +'<div style="font-size:9px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:rgba(240,255,254,.35);margin-bottom:3px;font-family:\'Space Grotesk\',sans-serif">FDP Máx</div>'
+              +'<div style="font-size:15px;font-weight:900;color:'+mcNd+';font-family:\'Space Mono\',monospace">'+fdpNd.fdpMax+'</div>'
+              +'</div>'
+              // Margen
+              +'<div style="background:rgba(6,22,36,.9);padding:9px 11px">'
+              +'<div style="font-size:9px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:rgba(240,255,254,.35);margin-bottom:3px;font-family:\'Space Grotesk\',sans-serif">Margen</div>'
+              +'<div style="font-size:15px;font-weight:900;color:'+mcNd+';font-family:\'Space Mono\',monospace">'+fdpNd.fdpMargin+'</div>'
+              +'<div style="height:3px;border-radius:2px;margin-top:5px;background:rgba(255,255,255,.08);overflow:hidden"><div style="height:100%;border-radius:2px;width:'+mpNd+'%;background:'+mcNd+'"></div></div>'
+              +'</div>'
+              +'</div>'
+              +'</div>';
+          } else { ndFdpLimits.style.display='none'; }
+        } catch(e){ ndFdpLimits.style.display='none'; }
       }
     } else if(ndCard){
       ndCard.style.display='none';
@@ -22821,6 +22897,9 @@ window.rosterSelectDay = function(dateStr){
     if(flights.length > 0){
       try {
         rstDetectTZ();
+        var sorted = flights.slice().sort(function(a,b){
+          return (a.std_actual||a.std||'').localeCompare(b.std_actual||b.std||'');
+        });
         var fdp = rstCalcFDP(flights);
         if(fdp){
           var warnColor = fdp.warn==='exceed'?'#991B1B':fdp.warn==='near'?'#92400E':'#065F46';
@@ -22829,14 +22908,14 @@ window.rosterSelectDay = function(dateStr){
           var tzLabel   = RST.useLT ? 'LT' : 'UTC';
           var repDisp      = fdp.report;
           var fdpEndDisp   = fdp.fdpEnd;
-          var fdpM20Disp   = fdp.fdpM20End;
           var fdpMaxDisp   = fdp.fdpMaxEnd;
           var dpEndDisp    = fdp.dpEnd;
           if(RST.useLT){
             repDisp=rstFormatTime(fdp.report); fdpEndDisp=rstFormatTime(fdp.fdpEnd);
-            fdpM20Disp=rstFormatTime(fdp.fdpM20End); fdpMaxDisp=rstFormatTime(fdp.fdpMaxEnd);
+            fdpMaxDisp=rstFormatTime(fdp.fdpMaxEnd);
             dpEndDisp=rstFormatTime(fdp.dpEnd);
           }
+          var marginColor = fdp.fdpMarginMin < 0 ? '#991B1B' : fdp.fdpMarginMin < 20 ? '#92400E' : '#065F46';
           html += '<div style="background:'+warnBg+';border:1.5px solid '+warnBd+';border-radius:12px;padding:12px 13px;margin-top:2px">'
             + '<div style="font-size:12px;font-weight:800;color:'+warnColor+';text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📋 Límites FTL · ORO.FTL.205</div>'
             + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
@@ -22856,9 +22935,9 @@ window.rosterSelectDay = function(dateStr){
             + '<div style="font-size:11px;color:#475569;margin-top:1px">'+fdpMaxDisp+' '+tzLabel+' · '+fdp.sectors+' sector'+(fdp.sectors>1?'es':'')+'</div>'
             + '</div>'
             + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px">'
-            + '<div style="font-size:11px;font-weight:700;color:#B45309;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">FDP − 20min</div>'
-            + '<div style="font-size:16px;font-weight:800;color:#B45309;font-family:\'Space Mono\',monospace">'+fdp.fdpM20+'</div>'
-            + '<div style="font-size:11px;color:#475569;margin-top:1px">Aviso '+fdpM20Disp+' '+tzLabel+'</div>'
+            + '<div style="font-size:11px;font-weight:700;color:'+marginColor+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Margen FDP</div>'
+            + '<div style="font-size:16px;font-weight:800;color:'+marginColor+';font-family:\'Space Mono\',monospace">'+fdp.fdpMargin+'</div>'
+            + '<div style="font-size:11px;color:#475569;margin-top:1px">FDP Máx − FDP real</div>'
             + '</div>'
             + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px;grid-column:span 2;display:flex;align-items:center;justify-content:space-between">'
             + '<div><div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">DP (Duty Period)</div>'
@@ -22869,7 +22948,7 @@ window.rosterSelectDay = function(dateStr){
             + '</div>'
             + '</div>';
         }
-      } catch(fdpErr){}
+      } catch(fdpErr){ console.warn('FDP panel error:', fdpErr); }
     }
 
     // ── Non-flight activities as color banners ──
@@ -24302,11 +24381,10 @@ function rosterShowCalendar(){
       + '<div class="day-mode-sub" style="font-size:11px;color:rgba(240,255,254,.45)">Importado'+_ts+'</div>'
       + '</div>'
       + '</div>'
-      + '<div style="display:flex;gap:8px;align-items:center">'
-      + '<label style="padding:7px 12px;background:rgba(20,184,166,.10);border:1px solid rgba(20,184,166,.32);border-radius:10px;color:#2dd4bf;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;display:inline-flex;align-items:center;gap:5px"><input type="file" id="rst-file-input" accept=".txt,image/*,application/pdf" style="display:none">📂 Actualizar</label>'
-      + '<button onclick="rosterConfirmDelete()" style="padding:7px 12px;background:rgba(239,68,68,.1);border:1px solid rgba(248,113,113,.3);border-radius:10px;color:#F87171;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;-webkit-appearance:none">🗑 Borrar</button>'
-      + '<button onclick="ldECrewsSyncOpen()" class="rst-ecrew-sync-btn" style="padding:7px 12px;background:linear-gradient(135deg,rgba(8,145,178,.18),rgba(6,95,120,.14));border:1px solid rgba(8,145,178,.45);border-radius:10px;color:#67d7f5;font-size:11px;font-weight:600;cursor:pointer;font-family:\'Space Grotesk\',sans-serif;white-space:nowrap;-webkit-appearance:none;display:inline-flex;align-items:center;gap:5px">🔗 eCrews</button>'
-      + '<span id="rst-sync-badge" style="display:none"></span>'
+      + '<div style="display:flex;gap:8px;align-items:center;flex-shrink:0">'
+      + '<span id="rst-sync-badge"></span>'
+      + '<button onclick="rstShowOptionsMenu()" aria-label="Opciones" style="width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.8);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-appearance:none;flex-shrink:0;font-family:sans-serif;line-height:1" class="rst-options-btn">⋯</button>'
+      + '<input type="file" id="rst-file-input" accept=".txt,image/*,application/pdf" style="display:none">'
       + '</div>'
       + '</div>';
     // Re-wire input after innerHTML rebuild
@@ -24354,6 +24432,67 @@ window.rosterConfirmDelete = function(){
   modal.addEventListener('click', function(ev){ if(ev.target===modal) modal.style.display='none'; });
   document.body.appendChild(modal);
 };
+
+// ── Options bottom sheet ────────────────────────────────────────────────────
+window.rstShowOptionsMenu = function(){
+  if(document.getElementById('rst-options-overlay')) return;
+  var overlay = document.createElement('div');
+  overlay.id = 'rst-options-overlay';
+  var isDayMode = document.documentElement.classList.contains('day');
+
+  var _notifOn = (typeof Notification !== 'undefined' && Notification.permission === 'granted');
+  var items = [
+    { icon:'📂', label:'Actualizar roster',   action:'document.getElementById("rst-file-input").click()' },
+    { icon:'🔗', label:'Sincronizar eCrews',  action:'ldECrewsSyncOpen()' },
+    { icon:'📊', label:'Exportar calendario', action:'rosterExportICS()' },
+    { notif: true },
+    { sep: true },
+    { icon:'🗑', label:'Borrar mes',           action:'rosterConfirmDelete()', danger:true },
+  ];
+
+  var itemsHTML = items.map(function(it){
+    if(it.sep) return '<div class="rst-opt-sep"></div>';
+    if(it.notif){
+      var bellHTML = _notifOn
+        ? '<span style="position:relative;display:inline-flex;width:28px;justify-content:center">'
+          + '<span style="font-size:20px;animation:bellRing 2.5s ease infinite;display:inline-block;color:#F59E0B">🔔</span>'
+          + '<span style="position:absolute;top:-1px;right:0;width:8px;height:8px;border-radius:50%;background:#22C55E;box-shadow:0 0 5px rgba(34,197,94,.8);animation:pulse 1.8s ease infinite"></span>'
+          + '</span>'
+        : '<span style="font-size:20px;width:28px;text-align:center;opacity:.5">🔕</span>';
+      var bellLabel = _notifOn
+        ? '<span style="display:flex;flex-direction:column;line-height:1.3">'
+          + '<span>Alertas de vuelo</span>'
+          + '<span style="font-size:10px;color:#22C55E;font-weight:700;font-family:\'Space Mono\',monospace">✓ activadas</span>'
+          + '</span>'
+        : '<span>Alertas de vuelo</span>';
+      return '<button class="rst-opt-item" id="rst-notif-btn" style="'
+        + (_notifOn ? 'color:#F59E0B !important' : '') + '" '
+        + 'onclick="rstCloseOptionsMenu();setTimeout(function(){rosterSetupNotifications()},80)">'
+        + bellHTML + bellLabel + '</button>';
+    }
+    var style = it.danger ? 'color:#EF4444 !important' : '';
+    return '<button class="rst-opt-item" '+(it.id?'id="'+it.id+'"':'')+' style="'+style+'" onclick="rstCloseOptionsMenu();setTimeout(function(){'+it.action+'},80)">'
+      + '<span style="font-size:20px;width:28px;text-align:center">'+it.icon+'</span>'
+      + '<span>'+it.label+'</span>'
+      + '</button>';
+  }).join('');
+
+  overlay.innerHTML = '<div id="rst-options-sheet">'
+    + '<div class="rst-opt-handle"></div>'
+    + itemsHTML
+    + '</div>';
+
+  overlay.addEventListener('click', function(e){
+    if(e.target === overlay) rstCloseOptionsMenu();
+  });
+  document.body.appendChild(overlay);
+};
+
+window.rstCloseOptionsMenu = function(){
+  var el = document.getElementById('rst-options-overlay');
+  if(el) el.remove();
+};
+// ────────────────────────────────────────────────────────────────────────────
 
 window.rosterClearAll = function(){
   // FIX: only delete the CURRENTLY VIEWED month — not all months.
@@ -24423,18 +24562,19 @@ function rstSyncRemovePending(month){
 function rstSyncUpdateBadge(month, state){
   var badge = document.getElementById('rst-sync-badge');
   if(!badge) return;
+  var isDayMode = document.documentElement.classList.contains('day');
   var cfg = {
-    synced:  {icon:'☁',  label:'Sync OK',    color:'#34D399', bg:'rgba(52,211,153,.12)',  border:'rgba(52,211,153,.3)'},
-    syncing: {icon:'⟳',  label:'Syncing…',   color:'#67D7F5', bg:'rgba(8,145,178,.12)',   border:'rgba(8,145,178,.35)'},
-    pending: {icon:'📵', label:'Sin red',     color:'#94A3B8', bg:'rgba(100,116,139,.12)', border:'rgba(100,116,139,.3)'},
-    error:   {icon:'⚠',  label:'Sync error', color:'#FBBF24', bg:'rgba(251,191,36,.12)',  border:'rgba(251,191,36,.3)'},
-    idle:    {icon:'☁',  label:'',           color:'rgba(255,255,255,.3)', bg:'transparent', border:'transparent'},
+    synced:  {icon:'☁',  label:'Sync OK',    color: isDayMode?'#059669':'#34D399', bg: isDayMode?'rgba(5,150,105,.10)':'rgba(52,211,153,.12)',  border: isDayMode?'rgba(5,150,105,.3)':'rgba(52,211,153,.3)'},
+    syncing: {icon:'⟳',  label:'Syncing…',   color: isDayMode?'#0369A1':'#67D7F5', bg: isDayMode?'rgba(3,105,161,.08)':'rgba(8,145,178,.12)',   border: isDayMode?'rgba(3,105,161,.3)':'rgba(8,145,178,.35)'},
+    pending: {icon:'📵', label:'Sin red',     color: isDayMode?'#374151':'#94A3B8', bg: isDayMode?'rgba(55,65,81,.08)':'rgba(100,116,139,.12)',  border: isDayMode?'rgba(55,65,81,.2)':'rgba(100,116,139,.3)'},
+    error:   {icon:'⚠',  label:'Sync error', color: isDayMode?'#B45309':'#FBBF24', bg: isDayMode?'rgba(180,83,9,.08)':'rgba(251,191,36,.12)',   border: isDayMode?'rgba(180,83,9,.3)':'rgba(251,191,36,.3)'},
+    idle:    {icon:'☁',  label:'',            color: isDayMode?'rgba(55,65,81,.35)':'rgba(255,255,255,.25)', bg:'transparent', border:'transparent'},
   };
   var c = cfg[state] || cfg.idle;
-  badge.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:5px 9px;'
+  badge.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:5px 8px;'
     +'background:'+c.bg+';border:1px solid '+c.border+';border-radius:8px;'
     +'font-size:11px;font-weight:600;color:'+c.color+';white-space:nowrap;font-family:\'Space Grotesk\',sans-serif;'
-    +'transition:all .3s';
+    +'transition:all .3s;flex-shrink:0';
   badge.innerHTML = '<span style="'+(state==='syncing'?'display:inline-block;animation:spin 1s linear infinite':'')+'">'+c.icon+'</span>'
     +(c.label ? '<span>'+c.label+'</span>' : '');
   // Store badge state for this month
@@ -26467,18 +26607,7 @@ function pagSignOut() {
       </div>
     </div>
 
-    <!-- Export & Notifications -->
-    <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-bottom:14px;margin-top:-4px">
-      <button onclick="rosterExportICS()" class="rst-export-btn">
-        <span style="font-size:13px">📅</span><span>Exportar</span>
-      </button>
-      <button onclick="rosterSetupNotifications()" id="rst-notif-btn" class="rst-export-btn">
-        <span style="font-size:13px">🔔</span><span>Alertas</span>
-      </button>
-      <button onclick="ldECrewsSyncOpen()" class="rst-export-btn" style="background:linear-gradient(135deg,rgba(8,145,178,.18),rgba(6,95,120,.14));border-color:rgba(8,145,178,.45);color:#67d7f5">
-        <span style="font-size:13px">🔗</span><span>eCrews</span>
-      </button>
-    </div>
+    <!-- Action buttons moved to ⋯ options menu in header -->
 
     <!-- Month nav -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:6px">
@@ -26593,6 +26722,7 @@ function pagSignOut() {
           </div>
         </div>
         <div id="rst-next-legs" style="display:flex;flex-direction:column;gap:6px"></div>
+        <div id="rst-next-fdp-limits" style="display:none"></div>
       </div>
 
       <!-- Compat IDs -->
