@@ -567,14 +567,18 @@
   overlay.onclick = function(){ if(_sheetOpen) toggleSheet(); };
   document.body.appendChild(overlay);
 
-  // Pill
+  // Pill — bottom uses env(safe-area-inset-bottom) to clear Chrome/Safari nav bar
+  var pillBottom = isMobile
+    ? 'calc(env(safe-area-inset-bottom, 16px) + 72px)'
+    : '20px';
   var pill = mkEl('div',
-    'position:fixed;bottom:'+(isMobile?'88':'20')+'px;right:16px;z-index:999999;'+
+    'position:fixed;bottom:'+pillBottom+';right:16px;z-index:2147483647;'+
     'background:linear-gradient(135deg,#1e3a5f,#0f2040);'+
     'border:1.5px solid rgba(8,145,178,.5);border-radius:24px;'+
     'padding:'+(isMobile?'12px 18px':'8px 14px')+';'+
     'display:flex;align-items:center;gap:8px;cursor:pointer;'+
     'box-shadow:0 4px 20px rgba(0,0,0,.5);user-select:none;'+
+    '-webkit-tap-highlight-color:transparent;'+
     'font-family:system-ui,sans-serif;transition:background .25s,box-shadow .25s');
   pill.id = '_ecPill';
   pill.appendChild(mkEl('span','font-size:'+(isMobile?'20':'16')+'px;line-height:1','✈'));
