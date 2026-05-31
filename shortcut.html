@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>PilotOS Sync — Atajo iOS</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'Space Grotesk',system-ui,sans-serif;
+  background:#07131C;
+  color:#F0FFFE;
+  min-height:100vh;
+  padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0);
+}
+
+.header{
+  background:linear-gradient(180deg,rgba(8,22,40,.98),rgba(4,14,28,.99));
+  border-bottom:1px solid rgba(34,211,238,.15);
+  padding:20px 20px 16px;
+  display:flex;align-items:center;gap:14px;
+}
+.header-icon{
+  width:48px;height:48px;border-radius:16px;
+  background:linear-gradient(135deg,#0891B2,#0369A1);
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;flex-shrink:0;
+  box-shadow:0 4px 16px rgba(8,145,178,.4);
+}
+.header-title{font-size:20px;font-weight:900;color:#F0FFFE;line-height:1}
+.header-sub{font-size:11px;color:rgba(34,211,238,.6);font-family:'Space Mono',monospace;margin-top:3px}
+
+.content{padding:20px 16px;max-width:480px;margin:0 auto}
+
+.intro{
+  background:rgba(8,145,178,.10);
+  border:1px solid rgba(34,211,238,.20);
+  border-radius:16px;padding:16px;margin-bottom:24px;
+  font-size:13px;color:rgba(240,255,254,.7);line-height:1.6;
+}
+.intro strong{color:#22D3EE}
+
+/* Copy button */
+.copy-btn{
+  width:100%;padding:18px;margin-bottom:28px;
+  background:linear-gradient(135deg,#0891B2,#0369A1);
+  border:none;border-radius:16px;
+  color:#fff;font-family:'Space Grotesk',sans-serif;
+  font-size:16px;font-weight:800;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  box-shadow:0 4px 24px rgba(8,145,178,.4);
+  -webkit-tap-highlight-color:transparent;
+  transition:opacity .15s;
+}
+.copy-btn:active{opacity:.8}
+.copy-btn.copied{background:linear-gradient(135deg,#059669,#047857)}
+
+/* Steps */
+.steps-title{
+  font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;
+  color:rgba(34,211,238,.5);font-family:'Space Mono',monospace;margin-bottom:14px;
+}
+
+.step{
+  display:flex;gap:14px;align-items:flex-start;
+  margin-bottom:16px;
+}
+.step-num{
+  width:32px;height:32px;border-radius:50%;
+  background:linear-gradient(135deg,rgba(8,145,178,.3),rgba(6,95,120,.25));
+  border:1.5px solid rgba(8,145,178,.4);
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:800;color:#22D3EE;
+  flex-shrink:0;margin-top:2px;
+}
+.step-body{}
+.step-title{font-size:14px;font-weight:700;color:#F0FFFE;margin-bottom:3px}
+.step-desc{font-size:12px;color:rgba(240,255,254,.5);font-family:'Space Mono',monospace;line-height:1.6}
+.step-desc strong{color:rgba(240,255,254,.8)}
+.step-img{
+  margin-top:10px;border-radius:12px;overflow:hidden;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);
+  padding:12px 14px;
+}
+.step-code{
+  font-family:'Space Mono',monospace;font-size:11px;
+  color:rgba(34,211,238,.8);
+  background:rgba(8,145,178,.08);border:1px solid rgba(8,145,178,.2);
+  border-radius:8px;padding:8px 12px;margin-top:8px;
+  word-break:break-all;line-height:1.5;
+}
+
+.divider{
+  height:1px;
+  background:linear-gradient(90deg,transparent,rgba(34,211,238,.15),transparent);
+  margin:24px 0;
+}
+
+.tip{
+  background:rgba(245,158,11,.08);
+  border:1px solid rgba(245,158,11,.25);
+  border-radius:12px;padding:14px;
+  font-size:12px;color:rgba(252,211,77,.8);
+  line-height:1.6;
+}
+.tip strong{color:#FCD34D}
+
+.back-btn{
+  display:flex;align-items:center;gap:8px;
+  margin-top:28px;padding:14px;
+  background:rgba(8,145,178,.10);border:1px solid rgba(34,211,238,.2);
+  border-radius:14px;color:#67d7f5;
+  font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;
+  text-decoration:none;justify-content:center;
+  -webkit-tap-highlight-color:transparent;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-icon">✈</div>
+  <div>
+    <div class="header-title">PilotOS Sync</div>
+    <div class="header-sub">Atajo de iOS — instalación</div>
+  </div>
+</div>
+
+<div class="content">
+
+  <div class="intro">
+    Instala el <strong>Atajo de Siri</strong> una vez y tendrás un botón en el menú compartir de Safari.<br>
+    Cuando estés en eCrews, pulsa Compartir → <strong>PilotOS Sync</strong> → listo.
+  </div>
+
+  <!-- STEP 0: Copy script -->
+  <button class="copy-btn" id="copyBtn" onclick="copyScript()">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+    <span id="copyTxt">PASO 1 — Copiar script</span>
+  </button>
+
+  <div class="steps-title">Pasos de instalación</div>
+
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <div class="step-title">Copia el script</div>
+      <div class="step-desc">Pulsa el botón azul de arriba. El código queda en el portapapeles.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <div class="step-title">Abre la app Atajos</div>
+      <div class="step-desc">Búscala en tu iPhone — icono naranja con un cuadrado. Pulsa <strong>+</strong> arriba a la derecha para crear un atajo nuevo.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <div class="step-title">Añade la acción</div>
+      <div class="step-desc">Pulsa <strong>Añadir acción</strong> → busca <strong>"JavaScript"</strong> → selecciona <strong>"Ejecutar JavaScript en página web"</strong>.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-body">
+      <div class="step-title">Pega el script</div>
+      <div class="step-desc">Dentro del bloque de la acción verás un campo de código. <strong>Mantén pulsado → Pegar</strong> el código copiado en el paso 1.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">5</div>
+    <div class="step-body">
+      <div class="step-title">Nómbralo y activa en compartir</div>
+      <div class="step-desc">Pulsa el nombre arriba → escribe <strong>"PilotOS Sync"</strong>.<br>Luego pulsa <strong>⋯</strong> (tres puntos) → activa <strong>"Mostrar en panel Compartir"</strong>.<br>Toca <strong>OK</strong> y guarda.</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="step">
+    <div class="step-num">✓</div>
+    <div class="step-body">
+      <div class="step-title">Cómo usarlo</div>
+      <div class="step-desc">En Safari, abre eCrews → <strong>My Schedule</strong>.<br>Pulsa el botón compartir
+        <svg style="display:inline;vertical-align:middle" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        → <strong>PilotOS Sync</strong>.<br>Aparecerá la pastilla azul ✈ en la página. Pulsa <strong>CAPTURAR</strong> y luego <strong>ENVIAR A PILOTOS</strong>.</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="tip">
+    💡 <strong>Solo necesitas instalar el atajo una vez.</strong> Después funciona en cualquier pestaña de eCrews con un solo tap en Compartir.
+  </div>
+
+  <a href="/" class="back-btn">
+    ← Volver a PilotOS
+  </a>
+
+</div>
+
+<script>
+var ECREWS_URL = 'https://ecrews.vueling.com/eCrew/Dashboard';
+var TARGET = window.location.origin;
+
+// Full inline script to be pasted in the Shortcut
+var SCRIPT = `(function(){
+  var TARGET="${window.location.origin}";
+  var _lastPayload=null,_allEntries=[],_rawPayloads=[],_capturedMonths=[],_sheetOpen=false;
+  var isMobile=window.innerWidth<680||('ontouchstart' in window);
+  function mkEl(t,c,x){var e=document.createElement(t);if(c)e.style.cssText=c;if(x!==undefined)e.textContent=x;return e;}
+  function $(i){return document.getElementById(i);}
+  function installXHR(w){if(!w||w._ecXhr)return;try{w._ecXhr=true;var o=w.XMLHttpRequest.prototype.open;w.XMLHttpRequest.prototype.open=function(m,u){if(u&&u.toString().indexOf('SchedulerEvents')!==-1){this.addEventListener('load',function(){try{var d=JSON.parse(this.responseText);if(d&&d.SchedulerEvents){_lastPayload=d;onNew();}}catch(e){}});}return o.apply(this,arguments);};}catch(e){}}
+  function installFetch(w){if(!w||w._ecFetch||!w.fetch)return;try{w._ecFetch=true;var o=w.fetch.bind(w);w.fetch=function(input,init){var url=(typeof input==='string')?input:(input&&input.url)||'';var p=o(input,init);if(url.indexOf('SchedulerEvents')!==-1){p.then(function(r){r.clone().json().then(function(d){if(d&&d.SchedulerEvents){_lastPayload=d;onNew();}}).catch(function(){});}).catch(function(){});}return p;};}catch(e){}}
+  function installAll(){installXHR(window);installFetch(window);document.querySelectorAll('iframe').forEach(function(f){try{installXHR(f.contentWindow);installFetch(f.contentWindow);}catch(e){}});}
+  function onNew(){var period=(_lastPayload.PeriodStart||'').slice(0,7);var nf=(_lastPayload.SchedulerEvents||[]).filter(function(e){return(e.type||'').toLowerCase()==='flight';}).length;var p=$('_ecPill');if(p){p.style.background='linear-gradient(135deg,#0891B2,#0369A1)';p.style.boxShadow='0 0 0 3px rgba(8,145,178,.4)';$('_ecPillTxt').textContent='📥 '+period+' listo ('+nf+'v)';}var c=$('_ecCapBtn');if(c){c.disabled=false;c.style.opacity='1';c.textContent='📥 CAPTURAR '+period+' ('+nf+' vuelos)';}var h=$('_ecHint');if(h){h.textContent='✓ Mes listo — pulsa CAPTURAR.';h.style.color='rgba(74,222,128,.8)';}}
+  function parseLegs(ev){var legs=[];(ev.details||'').split('\\n').forEach(function(line){line=line.trim();var m=line.match(/^([A-Z0-9]+)\\s+-\\s+([A-Z]{3})\\s+\\(A?(\\d{4})\\)\\s+-\\s+([A-Z]{3})\\s+\\(A?(\\d{4})\\)/);if(m)legs.push({fNum:'VY'+m[1],dep:m[2],std:m[3].slice(0,2)+':'+m[3].slice(2),arr:m[4],sta:m[5].slice(0,2)+':'+m[5].slice(2)});});return legs;}
+  function doCapture(){if(!_lastPayload)return;var period=(_lastPayload.PeriodStart||'').slice(0,7);if(_capturedMonths.indexOf(period)!==-1){var h=$('_ecHint');if(h){h.textContent=period+' ya capturado.';h.style.color='rgba(251,146,60,.8)';}return;}var uid=_allEntries.length;var newE=(_lastPayload.SchedulerEvents||[]).map(function(ev,i){return{_id:uid+i,date:(ev.start||'').slice(0,10),type:(ev.type||'').toLowerCase(),text:(ev.text||'').trim(),legs:parseLegs(ev),report:ev.report||'',debrief:ev.debrief||'',rawEv:ev};});_allEntries=_allEntries.concat(newE);_rawPayloads.push(_lastPayload);_capturedMonths.push(period);_lastPayload=null;var p=$('_ecPill');if(p){p.style.background='linear-gradient(135deg,#1e3a5f,#0f2040)';p.style.boxShadow='none';$('_ecPillTxt').textContent='✈ PilotOS · '+_capturedMonths.length+'m';}renderSheet();}
+  function sendAll(){var bdt={};_rawPayloads.forEach(function(p){Object.assign(bdt,p.BlockDutyTimes||{});});var payload={SchedulerEvents:_allEntries.map(function(e){return e.rawEv;}),BlockDutyTimes:bdt,PeriodStart:_capturedMonths[0]?_capturedMonths[0]+'-01':''};function doSend(w){try{w.postMessage({type:'ECREWS_DATA',payload:payload},TARGET);return true;}catch(e){return false;}}if(window.opener&&doSend(window.opener)){}else{var w=window.open(TARGET,'_pilotosSync');if(w){var n=0,iv=setInterval(function(){n++;try{w.postMessage({type:'ECREWS_DATA',payload:payload},TARGET);}catch(e){}if(n>=8)clearInterval(iv);},800);}}var body=$('_ecSheetBody');if(!body)return;body.innerHTML='';var ok=mkEl('div','text-align:center;padding:24px 0');ok.appendChild(mkEl('div','font-size:44px;margin-bottom:10px','✅'));ok.appendChild(mkEl('div','font-size:15px;font-weight:700;color:#F0FFFE;margin-bottom:4px',_allEntries.length+' entradas enviadas'));ok.appendChild(mkEl('div','font-size:12px;color:rgba(248,250,252,.4)','Confirma en PilotOS'));body.appendChild(ok);}
+  function renderSheet(){var body=$('_ecSheetBody');if(!body)return;body.innerHTML='';var hasP=!!_lastPayload;var period=hasP?(_lastPayload.PeriodStart||'').slice(0,7):'';var nf=hasP?(_lastPayload.SchedulerEvents||[]).filter(function(e){return(e.type||'').toLowerCase()==='flight';}).length:0;var hintTxt=!hasP&&!_capturedMonths.length?'👉 Navega a My Schedule en eCrews — el botón se activará.':!hasP?'👉 Navega a otro mes para seguir capturando.':'✓ Mes listo.';var hint=mkEl('div','font-size:12px;margin-bottom:12px;line-height:1.5;color:rgba(251,191,36,.9)',hintTxt);hint.id='_ecHint';body.appendChild(hint);var cap=mkEl('button','width:100%;padding:16px;background:linear-gradient(135deg,#0891B2,#0369A1);border:none;border-radius:14px;color:#fff;font-size:16px;font-weight:800;cursor:pointer;margin-bottom:14px;opacity:'+(hasP?'1':'.35')+';min-height:52px',hasP?'📥 CAPTURAR '+period+' ('+nf+' vuelos)':'📥 CAPTURAR MES');cap.id='_ecCapBtn';cap.disabled=!hasP;cap.onclick=doCapture;body.appendChild(cap);if(_allEntries.length){var sep=mkEl('div','border-top:1px solid rgba(8,145,178,.15);margin-bottom:12px');body.appendChild(sep);var info=mkEl('div','font-size:11px;color:rgba(248,250,252,.4);margin-bottom:10px',_allEntries.length+' entradas · '+_capturedMonths.join(', '));body.appendChild(info);var send=mkEl('button','width:100%;padding:18px;background:linear-gradient(135deg,#059669,#047857);border:none;border-radius:14px;color:#fff;font-size:16px;font-weight:800;cursor:pointer;min-height:58px','ENVIAR A PILOTOS →');send.onclick=sendAll;body.appendChild(send);}}
+  function toggleSheet(){_sheetOpen=!_sheetOpen;var s=$('_ecSheet'),o=$('_ecOverlay');if(!s)return;if(_sheetOpen){renderSheet();s.style.transform='translateY(0)';s.style.opacity='1';if(o)o.style.display='block';}else{s.style.transform='translateY(100%)';s.style.opacity='0';if(o)o.style.display='none';}}
+  ['_ecPill','_ecSheet','_ecOverlay'].forEach(function(id){var el=$(id);if(el)el.remove();});
+  var ov=mkEl('div','display:none;position:fixed;inset:0;z-index:999997;background:rgba(0,0,0,.4)');ov.id='_ecOverlay';ov.onclick=function(){if(_sheetOpen)toggleSheet();};document.body.appendChild(ov);
+  var bottom=isMobile?'calc(env(safe-area-inset-bottom,16px) + 72px)':'20px';
+  var pill=mkEl('div','position:fixed;bottom:'+bottom+';right:16px;z-index:2147483647;background:linear-gradient(135deg,#1e3a5f,#0f2040);border:1.5px solid rgba(8,145,178,.5);border-radius:24px;padding:'+(isMobile?'12px 18px':'8px 14px')+';display:flex;align-items:center;gap:8px;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.5);-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif');
+  pill.id='_ecPill';pill.appendChild(mkEl('span','font-size:'+(isMobile?'20':'16')+'px;line-height:1','✈'));var pt=mkEl('span','font-size:'+(isMobile?'14':'12')+'px;font-weight:700;color:#F0FFFE;white-space:nowrap','✈ PilotOS Sync');pt.id='_ecPillTxt';pill.appendChild(pt);pill.onclick=toggleSheet;document.body.appendChild(pill);
+  var sheet=mkEl('div','position:fixed;bottom:0;left:0;right:0;z-index:999998;background:linear-gradient(180deg,#0D1E35,#060E1C);border-top:2px solid rgba(8,145,178,.4);border-radius:22px 22px 0 0;padding:0 16px env(safe-area-inset-bottom,20px);font-family:system-ui,sans-serif;transform:translateY(100%);opacity:0;transition:transform .3s ease,opacity .25s ease;max-height:85vh;overflow-y:auto;-webkit-overflow-scrolling:touch');
+  sheet.id='_ecSheet';
+  var handle=mkEl('div','display:flex;justify-content:center;padding:12px 0 4px');handle.appendChild(mkEl('div','width:36px;height:4px;background:rgba(8,145,178,.4);border-radius:2px'));sheet.appendChild(handle);
+  var hdr=mkEl('div','display:flex;align-items:center;justify-content:space-between;margin-bottom:16px');var hl=mkEl('div','display:flex;align-items:center;gap:10px');hl.appendChild(mkEl('span','font-size:24px','✈'));var ht=mkEl('div');ht.appendChild(mkEl('div','font-size:16px;font-weight:700;color:#F0FFFE','PilotOS Sync'));ht.appendChild(mkEl('div','font-size:11px;color:rgba(8,145,178,.6)','eCrews → PilotOS'));hl.appendChild(ht);hdr.appendChild(hl);var cb=mkEl('button','background:rgba(255,255,255,.06);border:none;color:rgba(248,250,252,.5);font-size:18px;cursor:pointer;padding:6px 10px;border-radius:8px;line-height:1','×');cb.onclick=toggleSheet;hdr.appendChild(cb);sheet.appendChild(hdr);
+  var sb=mkEl('div','padding-bottom:8px');sb.id='_ecSheetBody';sheet.appendChild(sb);document.body.appendChild(sheet);
+  installAll();var poll=setInterval(installAll,1000);setTimeout(function(){clearInterval(poll);},120000);
+  setTimeout(function(){var prev=null,next=null;var els=document.querySelectorAll('button,a,input[type=button],span');for(var i=0;i<els.length;i++){var t=(els[i].innerText||els[i].value||els[i].textContent||'').trim();if(!prev&&/Previous\\s*Period/i.test(t))prev=els[i];if(!next&&/Next\\s*Period/i.test(t))next=els[i];}if(prev&&next){prev.click();setTimeout(function(){next.click();},1400);}},600);
+})();`;
+
+function copyScript(){
+  var btn = document.getElementById('copyBtn');
+  var txt = document.getElementById('copyTxt');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(SCRIPT).then(function(){
+      btn.classList.add('copied');
+      txt.textContent = '✓ Script copiado — ve al paso 2';
+    }).catch(fallback);
+  } else { fallback(); }
+}
+
+function fallback(){
+  var ta = document.createElement('textarea');
+  ta.value = SCRIPT;
+  ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;font-size:16px';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  try{
+    document.execCommand('copy');
+    document.getElementById('copyBtn').classList.add('copied');
+    document.getElementById('copyTxt').textContent = '✓ Script copiado — ve al paso 2';
+  }catch(e){
+    document.getElementById('copyTxt').textContent = 'No se pudo copiar — intenta de nuevo';
+  }
+  document.body.removeChild(ta);
+}
+</script>
+</body>
+</html>
