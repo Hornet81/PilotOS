@@ -5657,41 +5657,125 @@ html.day .rst-options-btn{
   color:#374151 !important;
 }
 /* ── Options bottom sheet ── */
+/* ── Options menu overlay ── */
 #rst-options-overlay{
   position:fixed;inset:0;z-index:9999;
-  background:rgba(0,0,0,.45);
+  background:rgba(2,8,20,.60);
+  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);
   display:flex;align-items:flex-end;justify-content:center;
-  animation:fadeIn .18s ease;
+  animation:fadeIn .2s ease;
 }
 #rst-options-sheet{
   width:100%;max-width:480px;
-  background:#1E293B;
-  border-radius:20px 20px 0 0;
-  padding:8px 0 32px;
-  animation:slideUp .22s ease;
+  background:linear-gradient(180deg,rgba(8,22,40,.97) 0%,rgba(4,14,28,.99) 100%);
+  -webkit-backdrop-filter:blur(40px);backdrop-filter:blur(40px);
+  border-radius:28px 28px 0 0;
+  border-top:1.5px solid rgba(34,211,238,.25);
+  border-left:1px solid rgba(34,211,238,.10);
+  border-right:1px solid rgba(34,211,238,.10);
+  box-shadow:0 -8px 48px rgba(8,145,178,.20),0 -2px 16px rgba(0,0,0,.6),inset 0 1px 0 rgba(34,211,238,.10);
+  padding:0 0 calc(env(safe-area-inset-bottom,0px) + 20px);
+  animation:sheetUp .32s cubic-bezier(.16,1,.3,1);
+  overflow:hidden;
 }
-html.day #rst-options-sheet{background:#FFFFFF;}
+/* Day mode */
+html.day #rst-options-overlay{background:rgba(10,22,48,.50)}
+html.day #rst-options-sheet{
+  background:linear-gradient(180deg,rgba(240,252,255,.97) 0%,rgba(224,244,255,.99) 100%);
+  border-top-color:rgba(13,148,136,.30);
+  border-left-color:rgba(13,148,136,.12);
+  border-right-color:rgba(13,148,136,.12);
+  box-shadow:0 -8px 48px rgba(13,148,136,.14),0 -2px 20px rgba(0,0,0,.12),inset 0 1px 0 rgba(13,148,136,.15);
+}
+
+/* Handle */
+#rst-options-sheet .rst-opt-handle{
+  width:44px;height:5px;border-radius:3px;
+  background:linear-gradient(90deg,rgba(34,211,238,.55),rgba(20,184,166,.55));
+  margin:12px auto 16px;
+}
+html.day #rst-options-sheet .rst-opt-handle{
+  background:linear-gradient(90deg,rgba(13,148,136,.4),rgba(8,145,178,.4));
+}
+
+/* Sheet title */
+#rst-options-sheet .rst-opt-title{
+  font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;
+  color:rgba(34,211,238,.5);font-family:'Space Mono',monospace;
+  padding:0 22px 12px;
+}
+html.day #rst-options-sheet .rst-opt-title{color:rgba(8,145,178,.55)}
+
+/* Items */
 #rst-options-sheet .rst-opt-item{
   display:flex;align-items:center;gap:14px;
-  padding:14px 22px;font-size:15px;font-weight:600;
-  color:rgba(255,255,255,.9);cursor:pointer;
+  padding:11px 20px;cursor:pointer;
   font-family:'Space Grotesk',sans-serif;
   border:none;background:none;width:100%;text-align:left;
-  -webkit-appearance:none;transition:background .12s;
+  -webkit-appearance:none;transition:background .15s;
+  position:relative;
 }
-#rst-options-sheet .rst-opt-item:active{background:rgba(255,255,255,.07)}
-html.day #rst-options-sheet .rst-opt-item{color:#1E293B;}
-html.day #rst-options-sheet .rst-opt-item:active{background:rgba(0,0,0,.06)}
-#rst-options-sheet .rst-opt-sep{height:1px;background:rgba(255,255,255,.08);margin:4px 0}
-html.day #rst-options-sheet .rst-opt-sep{background:rgba(0,0,0,.08)}
-#rst-options-sheet .rst-opt-handle{
-  width:40px;height:4px;border-radius:2px;
-  background:rgba(255,255,255,.2);margin:6px auto 14px;
+#rst-options-sheet .rst-opt-item:active{background:rgba(34,211,238,.07)}
+html.day #rst-options-sheet .rst-opt-item:active{background:rgba(13,148,136,.08)}
+
+/* Icon container */
+#rst-options-sheet .rst-opt-icon{
+  width:42px;height:42px;border-radius:14px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;
+  border:1px solid rgba(255,255,255,.06);
+  transition:transform .15s;
 }
-html.day #rst-options-sheet .rst-opt-handle{background:rgba(0,0,0,.15)}
-@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
-@keyframes bellRing{0%,100%{transform:rotate(0)}15%{transform:rotate(14deg)}30%{transform:rotate(-10deg)}45%{transform:rotate(8deg)}60%{transform:rotate(-5deg)}75%{transform:rotate(3deg)}}
+#rst-options-sheet .rst-opt-item:active .rst-opt-icon{transform:scale(.92)}
+
+/* Label block */
+#rst-options-sheet .rst-opt-label{display:flex;flex-direction:column;gap:2px;flex:1}
+#rst-options-sheet .rst-opt-label .ol-main{
+  font-size:15px;font-weight:700;color:rgba(240,255,254,.92);
+  font-family:'Space Grotesk',sans-serif;line-height:1;
+}
+#rst-options-sheet .rst-opt-label .ol-sub{
+  font-size:10px;font-weight:600;color:rgba(34,211,238,.45);
+  font-family:'Space Mono',monospace;letter-spacing:.3px;
+}
+html.day #rst-options-sheet .rst-opt-label .ol-main{color:#0A1628}
+html.day #rst-options-sheet .rst-opt-label .ol-sub{color:rgba(8,145,178,.55)}
+
+/* Chevron */
+#rst-options-sheet .rst-opt-chevron{
+  font-size:14px;color:rgba(34,211,238,.25);flex-shrink:0;
+}
+html.day #rst-options-sheet .rst-opt-chevron{color:rgba(13,148,136,.3)}
+
+/* Separator */
+#rst-options-sheet .rst-opt-sep{
+  height:1px;margin:6px 20px;
+  background:linear-gradient(90deg,transparent,rgba(34,211,238,.15),transparent);
+}
+html.day #rst-options-sheet .rst-opt-sep{
+  background:linear-gradient(90deg,transparent,rgba(13,148,136,.18),transparent);
+}
+
+/* Danger item */
+#rst-options-sheet .rst-opt-item.rst-opt-danger .ol-main{color:#F87171 !important}
+#rst-options-sheet .rst-opt-item.rst-opt-danger .rst-opt-icon{border-color:rgba(239,68,68,.18)}
+#rst-options-sheet .rst-opt-item.rst-opt-danger .rst-opt-chevron{color:rgba(248,113,113,.3)}
+html.day #rst-options-sheet .rst-opt-item.rst-opt-danger .ol-main{color:#DC2626 !important}
+
+@keyframes sheetUp{
+  from{transform:translateY(100%);opacity:.4}
+  to{transform:translateY(0);opacity:1}
+}
+@keyframes bellRing{
+  0%,100%{transform:rotate(0)}
+  15%{transform:rotate(14deg)}
+  30%{transform:rotate(-10deg)}
+  45%{transform:rotate(8deg)}
+  60%{transform:rotate(-5deg)}
+  75%{transform:rotate(3deg)}
+}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
 
 /* ── Detalle de día ── */
 html.day #rst-day-detail{
@@ -24441,44 +24525,88 @@ window.rstShowOptionsMenu = function(){
   var isDayMode = document.documentElement.classList.contains('day');
 
   var _notifOn = (typeof Notification !== 'undefined' && Notification.permission === 'granted');
+  var isDayMode = document.documentElement.classList.contains('day');
+
+  // item def: icon, iconBg (night), iconBgDay, label, sub, action, id, notif, sep, danger
   var items = [
-    { icon:'📂', label:'Actualizar roster',   action:'document.getElementById("rst-file-input").click()' },
-    { icon:'🔗', label:'Sincronizar eCrews',  action:'ldECrewsSyncOpen()' },
-    { icon:'📊', label:'Exportar calendario', action:'rosterExportICS()' },
+    {
+      icon:'📂',
+      iconBg:'rgba(8,145,178,.18)', iconBgDay:'rgba(8,145,178,.12)',
+      label:'Actualizar roster',
+      sub:'PDF · TXT · Foto',
+      action:'document.getElementById("rst-file-input").click()'
+    },
+    {
+      icon:'🔗',
+      iconBg:'rgba(20,184,166,.18)', iconBgDay:'rgba(13,148,136,.12)',
+      label:'Sincronizar eCrews',
+      sub:'ecrews.vueling.com',
+      action:'ldECrewsSyncOpen()'
+    },
+    {
+      icon:'📊',
+      iconBg:'rgba(99,102,241,.18)', iconBgDay:'rgba(99,102,241,.12)',
+      label:'Exportar calendario',
+      sub:'ICS · Calendario del sistema',
+      action:'rosterExportICS()'
+    },
     { notif: true },
     { sep: true },
-    { icon:'🗑', label:'Borrar mes',           action:'rosterConfirmDelete()', danger:true },
+    {
+      icon:'🗑',
+      iconBg:'rgba(239,68,68,.15)', iconBgDay:'rgba(220,38,38,.10)',
+      label:'Borrar mes',
+      sub:'Elimina todos los vuelos del mes',
+      action:'rosterConfirmDelete()',
+      danger:true
+    },
   ];
 
-  var itemsHTML = items.map(function(it){
+  function makeItem(it){
     if(it.sep) return '<div class="rst-opt-sep"></div>';
+
     if(it.notif){
-      var bellHTML = _notifOn
-        ? '<span style="position:relative;display:inline-flex;width:28px;justify-content:center">'
-          + '<span style="font-size:20px;animation:bellRing 2.5s ease infinite;display:inline-block;color:#F59E0B">🔔</span>'
-          + '<span style="position:absolute;top:-1px;right:0;width:8px;height:8px;border-radius:50%;background:#22C55E;box-shadow:0 0 5px rgba(34,197,94,.8);animation:pulse 1.8s ease infinite"></span>'
-          + '</span>'
-        : '<span style="font-size:20px;width:28px;text-align:center;opacity:.5">🔕</span>';
-      var bellLabel = _notifOn
-        ? '<span style="display:flex;flex-direction:column;line-height:1.3">'
-          + '<span>Alertas de vuelo</span>'
-          + '<span style="font-size:10px;color:#22C55E;font-weight:700;font-family:\'Space Mono\',monospace">✓ activadas</span>'
-          + '</span>'
-        : '<span>Alertas de vuelo</span>';
-      return '<button class="rst-opt-item" id="rst-notif-btn" style="'
-        + (_notifOn ? 'color:#F59E0B !important' : '') + '" '
-        + 'onclick="rstCloseOptionsMenu();setTimeout(function(){rosterSetupNotifications()},80)">'
-        + bellHTML + bellLabel + '</button>';
+      var bg = _notifOn
+        ? (isDayMode ? 'rgba(34,197,94,.12)' : 'rgba(34,197,94,.18)')
+        : (isDayMode ? 'rgba(100,116,139,.10)' : 'rgba(100,116,139,.15)');
+      var bellIcon = _notifOn
+        ? '<span style="font-size:19px;display:inline-block;animation:bellRing 2.5s ease infinite">🔔</span>'
+          + '<span style="position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:#22C55E;border:1.5px solid '+(isDayMode?'rgba(224,244,255,.9)':'rgba(8,22,40,.9)')+';box-shadow:0 0 6px rgba(34,197,94,.7);animation:pulse 1.8s ease infinite"></span>'
+        : '<span style="font-size:19px;opacity:.45">🔕</span>';
+      var mainColor = _notifOn ? (_notifOn&&isDayMode?'#15803D':'#4ADE80') : '';
+      var subText = _notifOn ? '✓ Activadas' : 'Toca para activar';
+      var subColor = _notifOn ? (_notifOn&&isDayMode?'#15803D':'#22C55E') : '';
+      return '<button class="rst-opt-item" id="rst-notif-btn" onclick="rstCloseOptionsMenu();setTimeout(function(){rosterSetupNotifications()},80)">'
+        + '<div class="rst-opt-icon" style="background:'+bg+';position:relative">'
+        + bellIcon
+        + '</div>'
+        + '<div class="rst-opt-label">'
+        + '<span class="ol-main"'+(mainColor?' style="color:'+mainColor+'"':'')+'>Alertas de vuelo</span>'
+        + '<span class="ol-sub"'+(subColor?' style="color:'+subColor+';font-weight:800"':'')+'>'+subText+'</span>'
+        + '</div>'
+        + '<span class="rst-opt-chevron">›</span>'
+        + '</button>';
     }
-    var style = it.danger ? 'color:#EF4444 !important' : '';
-    return '<button class="rst-opt-item" '+(it.id?'id="'+it.id+'"':'')+' style="'+style+'" onclick="rstCloseOptionsMenu();setTimeout(function(){'+it.action+'},80)">'
-      + '<span style="font-size:20px;width:28px;text-align:center">'+it.icon+'</span>'
-      + '<span>'+it.label+'</span>'
+
+    var iconBg = isDayMode ? it.iconBgDay : it.iconBg;
+    var dangerClass = it.danger ? ' rst-opt-danger' : '';
+    return '<button class="rst-opt-item'+dangerClass+'" '+(it.id?'id="'+it.id+'"':'')+' onclick="rstCloseOptionsMenu();setTimeout(function(){'+it.action+'},80)">'
+      + '<div class="rst-opt-icon" style="background:'+iconBg+'">'
+      + '<span style="font-size:20px">'+it.icon+'</span>'
+      + '</div>'
+      + '<div class="rst-opt-label">'
+      + '<span class="ol-main">'+it.label+'</span>'
+      + '<span class="ol-sub">'+it.sub+'</span>'
+      + '</div>'
+      + '<span class="rst-opt-chevron">›</span>'
       + '</button>';
-  }).join('');
+  }
+
+  var itemsHTML = items.map(makeItem).join('');
 
   overlay.innerHTML = '<div id="rst-options-sheet">'
     + '<div class="rst-opt-handle"></div>'
+    + '<div class="rst-opt-title">Opciones del roster</div>'
     + itemsHTML
     + '</div>';
 
