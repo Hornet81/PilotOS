@@ -21853,7 +21853,7 @@ function rstRenderCalendar(){
 // ── Stats ──
 function rstRenderStats(){
   var flights=0, blockMin=0, standby=0, off=0, dutyDays=0, dutyMin=0;
-  var _lmDutyDates={}; // tracks which dates already have LM duty counted
+  var _lmBlocks={}; // tracks {start,end} per date for LM sessions → first→last block
   var y=RST.viewYear, mo=RST.viewMonth;
 
   // Check if PDF-extracted totals are stored for this month
@@ -21904,16 +21904,18 @@ function rstRenderStats(){
         }
       }
     } else if(e.type==='lm'){
-      // eLearning / training: accumulate session duration as duty.
-      // Multiple LM codes on the same day (LMF2+LMCC+LMFE) each add their
-      // own duration; dutyDays is only bumped for the first session of the day.
+      // eLearning / training: track the earliest start and latest end across
+      // all LM sessions on this date. eCrews counts duty as the full block
+      // from first session start to last session end (not the sum of durations),
+      // so 1-min gaps between sessions (LMF2 07:00-07:30 / LMCC 07:31-07:51)
+      // are included. Accumulated in _lmBlocks; added to dutyMin after the loop.
       var _lmS = e.start, _lmE = e.end;
       if(_lmS && _lmE && _lmS.indexOf(':')>-1 && _lmE.indexOf(':')>-1){
-        var _lmD = t2m(_lmE) - t2m(_lmS);
-        if(_lmD < 0) _lmD += 1440;
-        if(_lmD > 0){
-          dutyMin += _lmD;
-          if(!_lmDutyDates[e.date]){ _lmDutyDates[e.date]=true; dutyDays++; }
+        if(!_lmBlocks[e.date]){
+          _lmBlocks[e.date] = {start:_lmS, end:_lmE};
+        } else {
+          if(t2m(_lmS) < t2m(_lmBlocks[e.date].start)) _lmBlocks[e.date].start = _lmS;
+          if(t2m(_lmE) > t2m(_lmBlocks[e.date].end))   _lmBlocks[e.date].end   = _lmE;
         }
       }
     } else if(e.type==='sick') { /* count separately if needed */ }
@@ -21957,11 +21959,25 @@ function rstRenderStats(){
         if(dutyStart && lastSta){
           var span = t2m(lastSta) - t2m(dutyStart);
           if(span < 0) span += 1440;
-          dutyMin += span + 20;
+          // +20 min debrief only when last sector is OPERATIONAL.
+          // Positioning last leg (isPositioning / dep starts with *): pilot is
+          // a passenger — no post-flight debrief obligation (ORO.FTL / Vueling art.13.10).
+          var _lastIsPos = last.isPositioning || last.positioning ||
+            (last.dep && last.dep.charAt(0)==='*');
+          dutyMin += span + (_lastIsPos ? 0 : 20);
         }
       }
     }
     dutyDays++;
+  });
+
+  // Add LM training duty: first-session-start → last-session-end per day
+  // (eCrews counts the full block, including any gaps between sessions)
+  Object.keys(_lmBlocks).forEach(function(date){
+    var b = _lmBlocks[date];
+    var d = t2m(b.end) - t2m(b.start);
+    if(d < 0) d += 1440;
+    if(d > 0){ dutyMin += d; dutyDays++; }
   });
 
   // Use PDF-extracted totals if available (more accurate — includes OSB/STBY/LM duty)
