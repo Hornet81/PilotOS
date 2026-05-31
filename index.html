@@ -4143,6 +4143,7 @@ html.day .btab-pill svg{color:#FFFFFF!important}
 /* BH card has dark bg — keep its value white */
 #rst-bh-card #rst-bh-val,
 #rst-bh-card span[style*="Space Mono"]{color:#FFFFFF !important}
+#rst-bh-card .lbl-micro{color:rgba(34,211,238,.9) !important}
 
 /* ── Block hours card ── */
 #rst-bh-card{
@@ -22660,22 +22661,34 @@ function rstRenderFatigue(){
 
       // Legs list
       if(ndLegs){
+        var _isDay = document.documentElement.classList.contains('day');
+        var _legBg      = _isDay ? 'rgba(8,145,178,.07)'       : 'rgba(13,148,166,.08)';
+        var _legBd      = _isDay ? 'rgba(13,148,136,.18)'      : 'rgba(34,211,238,.14)';
+        var _routeClr   = _isDay ? '#0A1628'                   : '#F0FFFE';
+        var _metaClr    = _isDay ? 'rgba(3,105,161,.70)'       : 'rgba(34,211,238,.55)';
+        var _stdClr     = _isDay ? '#0369A1'                   : '#22D3EE';
+        var _staClr     = _isDay ? 'rgba(15,23,42,.45)'        : 'rgba(240,255,254,.35)';
+        var _iconBg     = _isDay ? 'rgba(8,145,178,.12)'       : 'rgba(34,211,238,.15)';
+        var legColors   = _isDay
+          ? ['rgba(8,145,178,.75)','rgba(13,148,136,.75)','rgba(99,102,241,.75)','rgba(124,58,237,.75)']
+          : ['rgba(34,211,238,.65)','rgba(20,184,166,.65)','rgba(99,102,241,.65)','rgba(167,139,250,.65)'];
         var legsHTML = nextDutyFlights.map(function(f,idx){
           var stdDisp = f.std ? f.std.slice(0,5) : (f.std_actual?f.std_actual.slice(0,5):'--:--');
           var staDisp = f.sta ? f.sta.slice(0,5) : (f.sta_actual?f.sta_actual.slice(0,5):'--:--');
           var isPos = f.positioning===true || !!(f.dep && f.dep.charAt(0)==='*');
           var depDisp = f.dep || '?';
-          return '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(13,148,166,.08);border-radius:10px;border:1px solid rgba(34,211,238,.14);margin-bottom:4px">'
-            + '<div style="width:22px;height:22px;background:'+(isPos?'rgba(245,158,11,.2)':'rgba(34,211,238,.15)')+';border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">'+(isPos?'🎫':'✈')+'</div>'
+          var lc = legColors[idx % legColors.length];
+          return '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px 8px 13px;background:'+_legBg+';border-radius:10px;border:1px solid '+_legBd+';border-left:3px solid '+lc+';margin-bottom:4px;box-shadow:inset 3px 0 0 0 '+lc+'">'
+            + '<div style="width:22px;height:22px;background:'+_iconBg+';border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">'+(isPos?'🎫':'✈')+'</div>'
             + '<div style="flex:1;min-width:0">'
-            + '<div style="font-size:13px;font-weight:800;color:#F0FFFE;font-family:\'Space Grotesk\',sans-serif">'+depDisp+' → '+(f.arr||'?')
-            + (isPos ? ' <span style="font-size:9px;font-weight:700;background:rgba(245,158,11,.15);color:#FBB040;border:1px solid rgba(245,158,11,.3);border-radius:4px;padding:1px 5px">POSICIONAL</span>' : '')
+            + '<div style="font-size:13px;font-weight:800;color:'+_routeClr+';font-family:\'Space Grotesk\',sans-serif">'+depDisp+' → '+(f.arr||'?')
+            + (isPos ? ' <span style="font-size:9px;font-weight:700;background:rgba(245,158,11,.15);color:'+(isPos&&_isDay?'#92400E':'#FBB040')+';border:1px solid rgba(245,158,11,.3);border-radius:4px;padding:1px 5px">POSICIONAL</span>' : '')
             + '</div>'
-            + '<div style="font-size:10px;color:rgba(34,211,238,.55);font-family:\'Space Mono\',monospace">VY'+(f.flightNum||'?')+(f.acType?' · '+f.acType:'')+'</div>'
+            + '<div style="font-size:10px;color:'+_metaClr+';font-family:\'Space Mono\',monospace">VY'+(f.flightNum||'?')+(f.acType?' · '+f.acType:'')+'</div>'
             + '</div>'
             + '<div style="text-align:right;flex-shrink:0">'
-            + '<div style="font-size:12px;font-weight:800;color:#22D3EE;font-family:\'Space Mono\',monospace">'+stdDisp+'</div>'
-            + '<div style="font-size:10px;color:rgba(240,255,254,.35);font-family:\'Space Mono\',monospace">→ '+staDisp+'</div>'
+            + '<div style="font-size:12px;font-weight:800;color:'+_stdClr+';font-family:\'Space Mono\',monospace">'+stdDisp+'</div>'
+            + '<div style="font-size:10px;color:'+_staClr+';font-family:\'Space Mono\',monospace">→ '+staDisp+'</div>'
             + '</div>'
             + '</div>';
         }).join('');
@@ -22692,6 +22705,12 @@ function rstRenderFatigue(){
             var mbNd = fdpNd.fdpMarginMin < 0 ? 'rgba(248,113,113,.25)' : fdpNd.fdpMarginMin < 20 ? 'rgba(251,176,64,.25)' : 'rgba(52,211,153,.25)';
             var _fdpMaxRawNd = fdpNd.fdpMarginMin + (function(){ var p=(fdpNd.fdpDur||'0h').split('h'); return (+p[0]||0)*60+(+(p[1]||'').replace('m','')||0); })();
             var mpNd = _fdpMaxRawNd > 0 ? Math.max(0,Math.min(100,Math.round(fdpNd.fdpMarginMin/_fdpMaxRawNd*100))) : 0;
+            var _isDayFtl  = document.documentElement.classList.contains('day');
+            var _ftlCellBg = _isDayFtl ? 'rgba(240,253,250,.9)'  : 'rgba(6,22,36,.9)';
+            var _ftlLblClr = _isDayFtl ? 'rgba(15,23,42,.4)'     : 'rgba(240,255,254,.35)';
+            var _ftlValClr = _isDayFtl ? '#0A1628'                : '#F0FFFE';
+            var _ftlBdr    = _isDayFtl ? 'rgba(13,148,136,.12)'  : 'rgba(255,255,255,.05)';
+            var _ftlBarBg  = _isDayFtl ? 'rgba(0,0,0,.08)'       : 'rgba(255,255,255,.08)';
             ndFdpLimits.style.display = 'block';
             ndFdpLimits.innerHTML =
               '<div style="margin-top:12px;border-radius:14px;overflow:hidden;border:1px solid '+mbNd+'">'
@@ -22699,22 +22718,19 @@ function rstRenderFatigue(){
               +'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="'+mcNd+'" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'
               +'<span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:'+mcNd+';font-family:\'Space Grotesk\',sans-serif">Límites FTL · ORO.FTL.205</span>'
               +'</div>'
-              +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;background:rgba(0,0,0,.25)">'
-              // FDP
-              +'<div style="background:rgba(6,22,36,.9);padding:9px 11px;border-right:1px solid rgba(255,255,255,.05)">'
-              +'<div style="font-size:9px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:rgba(240,255,254,.35);margin-bottom:3px;font-family:\'Space Grotesk\',sans-serif">FDP</div>'
-              +'<div style="font-size:15px;font-weight:900;color:#F0FFFE;font-family:\'Space Mono\',monospace">'+fdpNd.fdpDur+'</div>'
+              +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;background:rgba(0,0,0,.10)">'
+              +'<div style="background:'+_ftlCellBg+';padding:9px 11px;border-right:1px solid '+_ftlBdr+'">'
+              +'<div style="font-size:9px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:'+_ftlLblClr+';margin-bottom:3px;font-family:\'Space Grotesk\',sans-serif">FDP</div>'
+              +'<div style="font-size:15px;font-weight:900;color:'+_ftlValClr+';font-family:\'Space Mono\',monospace">'+fdpNd.fdpDur+'</div>'
               +'</div>'
-              // FDP Máx
-              +'<div style="background:rgba(6,22,36,.9);padding:9px 11px;border-right:1px solid rgba(255,255,255,.05)">'
-              +'<div style="font-size:9px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:rgba(240,255,254,.35);margin-bottom:3px;font-family:\'Space Grotesk\',sans-serif">FDP Máx</div>'
+              +'<div style="background:'+_ftlCellBg+';padding:9px 11px;border-right:1px solid '+_ftlBdr+'">'
+              +'<div style="font-size:9px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:'+_ftlLblClr+';margin-bottom:3px;font-family:\'Space Grotesk\',sans-serif">FDP Máx</div>'
               +'<div style="font-size:15px;font-weight:900;color:'+mcNd+';font-family:\'Space Mono\',monospace">'+fdpNd.fdpMax+'</div>'
               +'</div>'
-              // Margen
-              +'<div style="background:rgba(6,22,36,.9);padding:9px 11px">'
-              +'<div style="font-size:9px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:rgba(240,255,254,.35);margin-bottom:3px;font-family:\'Space Grotesk\',sans-serif">Margen</div>'
+              +'<div style="background:'+_ftlCellBg+';padding:9px 11px">'
+              +'<div style="font-size:9px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:'+_ftlLblClr+';margin-bottom:3px;font-family:\'Space Grotesk\',sans-serif">Margen</div>'
               +'<div style="font-size:15px;font-weight:900;color:'+mcNd+';font-family:\'Space Mono\',monospace">'+fdpNd.fdpMargin+'</div>'
-              +'<div style="height:3px;border-radius:2px;margin-top:5px;background:rgba(255,255,255,.08);overflow:hidden"><div style="height:100%;border-radius:2px;width:'+mpNd+'%;background:'+mcNd+'"></div></div>'
+              +'<div style="height:3px;border-radius:2px;margin-top:5px;background:'+_ftlBarBg+';overflow:hidden"><div style="height:100%;border-radius:2px;width:'+mpNd+'%;background:'+mcNd+'"></div></div>'
               +'</div>'
               +'</div>'
               +'</div>';
