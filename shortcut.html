@@ -74,9 +74,13 @@ body{font-family:'Space Grotesk',system-ui,sans-serif;background:#07131C;color:#
 var SCRIPT = `(function(){
 var F=typeof completion==='function'?completion:null;
 var entries=[];
+
+// ── Helpers ──
 function pad(n){return String(n).padStart(2,'0');}
 function fmtD(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
 function fmtT(d){return pad(d.getHours())+':'+pad(d.getMinutes());}
+function fmtUS(d){return pad(d.getMonth()+1)+'-'+pad(d.getDate())+'-'+d.getFullYear();}
+
 function parseEntry(text,start,end){
   text=(text||'').trim().replace(/\\s+/g,' ');
   var e={date:fmtD(start),type:'other',flightNum:'',dep:'',arr:'',std:fmtT(start),sta:fmtT(end||start)};
@@ -89,27 +93,100 @@ function parseEntry(text,start,end){
   if(da){e.dep=da[1];e.arr=da[2];}
   return e;
 }
-// === Intento 1: dhtmlX Scheduler API (instantáneo) ===
-try{
-  var sc=window.scheduler||window.dhtmlXScheduler;
-  if(sc&&typeof sc.getEvents==='function'){
-    sc.getEvents().forEach(function(ev){
-      if(!ev.start_date)return;
-      var e=parseEntry(ev.text||ev.title,ev.start_date,ev.end_date);
-      // eCrews puede tener campos dep/arr personalizados
-      ['dep','departure','origin','from'].forEach(function(k){if(ev[k]&&ev[k].length===3)e.dep=ev[k];});
-      ['arr','arrival','destination','to'].forEach(function(k){if(ev[k]&&ev[k].length===3)e.arr=ev[k];});
-      entries.push(e);
+
+// ── Convierte respuesta JSON de la API Vueling People a entries ──
+function apiResponseToEntries(json){
+  var out=[];
+  try{
+    // CalendarResponse → array de CalendarDayResponse
+    var days=json.days||json.Days||json.calendarDays||json.CalendarDays||[];
+    if(!Array.isArray(days))days=[];
+    days.forEach(function(day){
+      var dateStr=day.date||day.Date||day.activityDate||'';
+      if(!dateStr)return;
+      // Normalize date to YYYY-MM-DD
+      var d=new Date(dateStr);
+      if(isNaN(d.getTime()))return;
+      var ds=fmtD(d);
+      var activities=day.activities||day.Activities||day.dailyActivities||[day];
+      if(!Array.isArray(activities))activities=[activities];
+      activities.forEach(function(act){
+        var code=act.activityCode||act.ActivityCode||act.code||act.Code||act.flightNumber||act.FlightNumber||'';
+        var dep=act.departureStation||act.DepartureStation||act.origin||act.Origin||act.dep||'';
+        var arr=act.arrivalStation||act.ArrivalStation||act.destination||act.Destination||act.arr||'';
+        var std=act.scheduledTimeOfDeparture||act.std||act.STD||'';
+        var sta=act.scheduledTimeOfArrival||act.sta||act.STA||'';
+        if(std&&std.length>5)std=std.slice(11,16);
+        if(sta&&sta.length>5)sta=sta.slice(11,16);
+        var type='other';
+        var m=(code||'').match(/(VY|UX|VLG)\\s*(\\d+)/i);
+        if(m){type='flight';}
+        else if(/libre|off|rest|descanso/i.test(code))type='off';
+        else if(/stand|sby|sbt/i.test(code))type='standby';
+        else if(/sim|lft|recur|opc/i.test(code))type='training';
+        out.push({date:ds,type:type,flightNum:m?(m[1].toUpperCase()+m[2]):'',dep:dep.slice(0,3),arr:arr.slice(0,3),std:std,sta:sta,code:code});
+      });
     });
+  }catch(ex){}
+  return out;
+}
+
+// ── MÉTODO 1: API Vueling People (pub.vueling.com) ──
+// Intenta las 2 variantes con credentials:include (SSO compartido con eCrews)
+function tryVuelingAPI(callback){
+  var now=new Date();
+  var begin=new Date(now.getFullYear(),now.getMonth(),1);
+  var endDt=new Date(now.getFullYear(),now.getMonth()+1,0);
+  var qs='?beginDate='+fmtUS(begin)+'&endDate='+fmtUS(endDt);
+  var BASE='https://pub.vueling.com/Vueling.VuelingUp.WebAPI/api/v1/crew-calendar/';
+  var urls=[BASE+'get-technical-crew-schedule'+qs, BASE+'get-cabin-crew-schedule'+qs];
+  var tried=0;
+  function tryNext(){
+    if(tried>=urls.length){callback(false);return;}
+    var url=urls[tried++];
+    var ctrl=typeof AbortController!=='undefined'?new AbortController():null;
+    var tid=ctrl?setTimeout(function(){ctrl.abort();},5000):null;
+    fetch(url,{credentials:'include',signal:ctrl?ctrl.signal:undefined})
+      .then(function(r){
+        clearTimeout(tid);
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        return r.json();
+      })
+      .then(function(json){
+        var got=apiResponseToEntries(json);
+        if(got.length){entries=got;callback(true);}
+        else{tryNext();}
+      })
+      .catch(function(){clearTimeout(tid);tryNext();});
   }
-}catch(ex){}
-// === Intento 2: DOM scraping si el scheduler no tiene datos ===
-if(!entries.length){
+  tryNext();
+}
+
+// ── MÉTODO 2: dhtmlX Scheduler API (instantáneo) ──
+function tryScheduler(){
+  try{
+    var sc=window.scheduler||window.dhtmlXScheduler;
+    if(sc&&typeof sc.getEvents==='function'){
+      var evts=sc.getEvents();
+      evts.forEach(function(ev){
+        if(!ev.start_date)return;
+        var e=parseEntry(ev.text||ev.title,ev.start_date,ev.end_date);
+        ['dep','departure','origin','from'].forEach(function(k){if(ev[k]&&ev[k].length===3)e.dep=ev[k];});
+        ['arr','arrival','destination','to'].forEach(function(k){if(ev[k]&&ev[k].length===3)e.arr=ev[k];});
+        entries.push(e);
+      });
+    }
+  }catch(ex){}
+  return entries.length>0;
+}
+
+// ── MÉTODO 3: DOM scraping ──
+function tryDOM(){
   var yr=new Date().getFullYear(),mo=new Date().getMonth();
   var pt=document.body.innerText||'';
-  var SM={enero:0,febrero:1,marzo:2,abril:3,mayo:4,junio:5,julio:6,agosto:7,septiembre:8,octubre:9,noviembre:10,diciembre:11};
-  var hm=pt.match(/\\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\\s+(20\\d\\d)/i);
-  if(hm){yr=parseInt(hm[2]);mo=SM[hm[1].toLowerCase()]||0;}
+  var SM={january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11,enero:0,febrero:1,marzo:2,abril:3,mayo:4,junio:5,julio:6,agosto:7,septiembre:8,octubre:9,noviembre:10,diciembre:11};
+  var hm=pt.match(/\\b(january|february|march|april|may|june|july|august|september|october|november|december|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\\s+(20\\d\\d)/i);
+  if(hm){yr=parseInt(hm[2]);mo=SM[hm[1].toLowerCase()];}
   else{var dm=pt.match(/\\d{2}\\/(\\d{2})\\/(20\\d\\d)/);if(dm){yr=parseInt(dm[2]);mo=parseInt(dm[1])-1;}}
   var cells=document.querySelectorAll('.dhx_month_body,[data-date],[class*="monthCell"],[class*="calDay"]');
   if(!cells.length)cells=document.querySelectorAll('td');
@@ -127,14 +204,28 @@ if(!entries.length){
   });
   var seen={};
   entries=entries.filter(function(e){var k=e.date+e.type+e.flightNum;return seen[k]?false:(seen[k]=1,true);});
+  return entries.length>0;
 }
-// === Enviar a PilotOS ===
-var payload=JSON.stringify({ok:entries.length>0,entries:entries});
-var b64='';
-try{b64=btoa(unescape(encodeURIComponent(payload)));}catch(ex){try{b64=btoa(payload);}catch(e2){}}
-if(F)F(null);
-if(b64)window.location.href='https://pilotos.aero?rosterSync='+encodeURIComponent(b64);
-else if(F)F('ERROR: no se pudo codificar');
+
+// ── Enviar resultado a PilotOS ──
+function send(){
+  var payload=JSON.stringify({ok:entries.length>0,entries:entries});
+  var b64='';
+  try{b64=btoa(unescape(encodeURIComponent(payload)));}catch(ex){try{b64=btoa(payload);}catch(e2){}}
+  if(F)F(null);
+  if(b64)window.location.href='https://pilotos.aero?rosterSync='+encodeURIComponent(b64);
+}
+
+// ── Secuencia: API → Scheduler → DOM ──
+// El scheduler y DOM son síncronos (ms); la API asíncrona (hasta 5s)
+if(tryScheduler()){
+  send();
+}else{
+  tryVuelingAPI(function(ok){
+    if(!ok)tryDOM();
+    send();
+  });
+}
 })();`;
 
 function copyScript(){
