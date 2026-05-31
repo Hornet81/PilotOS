@@ -23655,11 +23655,15 @@ function rstSmartMerge(newEntries, newMonth){
   newEntries.forEach(function(newE){
     if(!newE.date || !newE.type) return;
 
-    // For non-flight entries: simple replace by date+type
+    // For non-flight entries: replace by date+type
+    // EXCEPTION: type='lm' (eLearning sessions) — multiple sessions can exist on the same
+    // day (e.g. LMF2 + LMCC + LMFE). Deduplicate by date+type+code so each session is
+    // kept independently. Without this, only the last session survives the merge.
     if(newE.type !== 'flight'){
-      RST.entries = RST.entries.filter(function(e){
-        return !(e.date === newE.date && e.type === newE.type);
-      });
+      var dedupeKey = newE.type === 'lm' && newE.code
+        ? function(e){ return e.date === newE.date && e.type === newE.type && e.code === newE.code; }
+        : function(e){ return e.date === newE.date && e.type === newE.type; };
+      RST.entries = RST.entries.filter(function(e){ return !dedupeKey(e); });
       RST.entries.push(newE);
       return;
     }
