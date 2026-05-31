@@ -154,57 +154,75 @@ function navigate(){
 }
 setTimeout(navigate,9000);
 
-// Buscar URL exacta de RunReport en Performance API (main + iframe)
-var rrUrl='';
+// Buscar URL exacta de PrintReport (AIMS) en Performance API
+var aimsUrl='',rrCallUrl='';
 [window,iWin].forEach(function(w){
-  if(!w||rrUrl)return;
+  if(!w)return;
   try{w.performance.getEntriesByType('resource').forEach(function(r){
-    if(!rrUrl&&r.name.indexOf('RunReport')>-1)rrUrl=r.name;
+    if(r.name.indexOf('RunReport')>-1&&!rrCallUrl)rrCallUrl=r.name;
+    if(r.name.indexOf('PrintReport')>-1&&r.name.indexOf('AIMS')>-1&&!aimsUrl)aimsUrl=r.name;
   });}catch(e){}
 });
-log('RunReport='+(rrUrl?rrUrl:'NOT FOUND'));
+log('RunReportCall='+(rrCallUrl||'none'));
+log('AIMSPrint='+(aimsUrl||'none'));
 
-// Intentos: GET con URL exacta del Performance API + POST fallback + guesses
 var fmBody='eCrewHeader='+enc(hdr)+'&from='+from+'&to='+to;
-var attempts=[];
-if(rrUrl){
-  attempts.push({u:rrUrl,m:'GET'});
-  // POST al mismo endpoint base con los query params como body
-  var rrBase=rrUrl.split('?')[0];
-  var rrQs=rrUrl.indexOf('?')>-1?rrUrl.split('?')[1]:'';
-  attempts.push({u:rrBase,m:'POST',ct:'application/x-www-form-urlencoded',b:rrQs||fmBody});
-}
-// Guesses si no encontramos la URL o como complemento
-attempts.push({u:BASE+'Reports/RunReport?eCrewHeader='+enc(hdr)+'&from='+from+'&to='+to,m:'GET'});
-attempts.push({u:BASE+'Reports/RunReport',m:'POST',ct:'application/x-www-form-urlencoded',b:fmBody});
-attempts.push({u:BASE+'Reports/RunReport',m:'POST',ct:'application/json',b:JSON.stringify({eCrewHeader:hdr,from:from,to:to})});
-
-var pend=attempts.length;
+var pend=0;
 function done(){if((E.length>0||--pend<=0)&&!navigated)navigate();}
 
-attempts.forEach(function(a){
+function tryFetch(url,method,body,ct,label){
+  pend++;
   var ctrl=new AbortController();
-  var tid=setTimeout(function(){ctrl.abort();},6000);
-  var hdrs={Accept:'text/html,application/xhtml+xml,*/*',eCrewHeader:hdr};
-  if(a.ct)hdrs['Content-Type']=a.ct;
-  log(a.m+' '+a.u.replace('https://ecrews.vueling.com','').slice(0,70));
-  fetch(a.u,{method:a.m,credentials:'include',headers:hdrs,body:a.b||undefined,signal:ctrl.signal})
+  var tid=setTimeout(function(){ctrl.abort();},7000);
+  var hdrs={Accept:'text/html,application/json,*/*',eCrewHeader:hdr};
+  if(ct)hdrs['Content-Type']=ct;
+  log(method+' '+label);
+  fetch(url,{method:method,credentials:'include',headers:hdrs,body:body||undefined,signal:ctrl.signal})
     .then(function(r){
       clearTimeout(tid);
-      var ct=r.headers.get('content-type')||'';
-      log('status='+r.status+' ct='+ct.slice(0,40));
-      // Leer el body siempre — éxito O error — para ver qué devuelve el servidor
-      return r.text().then(function(t){return {ok:r.ok,text:t};});
+      var ct2=r.headers.get('content-type')||'';
+      log('=> '+r.status+' '+ct2.slice(0,35));
+      return r.text().then(function(t){return {ok:r.ok,s:r.status,t:t};});
     })
     .then(function(res){
-      log('body('+res.text.length+')='+res.text.slice(0,250));
+      // Log del body completo — clave para entender la respuesta
+      log('body['+res.t.length+']='+res.t.slice(0,300));
       if(!res.ok){done();return;}
-      var got=parseHTML(res.text);
-      log('parsed='+got.length);
-      if(got.length){E=E.concat(got);navigate();}else done();
+      // Intentar parsear como HTML (tabla del reporte)
+      var got=parseHTML(res.t);
+      log('items='+got.length);
+      if(got.length){E=E.concat(got);navigate();}
+      else{
+        // Puede ser JSON con URL del reporte
+        try{
+          var j=JSON.parse(res.t);
+          log('JSON='+JSON.stringify(j).slice(0,200));
+          var reportUrl=j.url||j.reportUrl||j.link||j.href||j.data||'';
+          if(reportUrl&&reportUrl.indexOf('http')>-1){
+            tryFetch(reportUrl,'GET',null,'','AIMS-from-JSON');
+          }else done();
+        }catch(e){done();}
+      }
     })
-    .catch(function(ex){clearTimeout(tid);log('FAIL:'+ex.message);done();});
-});
+    .catch(function(ex){clearTimeout(tid);log('FAIL '+label+':'+ex.message);done();});
+}
+
+// Paso 1: POST a RunReport para obtener URL fresca del reporte
+// Probar distintos formatos de body (form-encoded y JSON)
+tryFetch(BASE+'Reports/RunReport',
+  'POST',fmBody,'application/x-www-form-urlencoded','RunReport form');
+tryFetch(BASE+'Reports/RunReport',
+  'POST',JSON.stringify({eCrewHeader:hdr,from:from,to:to}),'application/json','RunReport json');
+
+// Paso 2: Si tenemos la URL del AIMS del Performance API, intentar directamente
+// (podría funcionar si el token no ha expirado)
+if(aimsUrl){
+  tryFetch(aimsUrl,'GET',null,'','AIMS-cached');
+}
+
+// Fallback: datos del scheduler (por si RunReport no funciona)
+tryFetch(BASE+'CrewSchedule/SchedulerEvents?eCrewHeader='+enc(hdr),
+  'POST','from='+from+'&to='+to,'application/x-www-form-urlencoded','Scheduler form');
 })();`;
 
 function copyScript(){
