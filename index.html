@@ -21888,19 +21888,31 @@ function rstRenderStats(){
       dayFlights[e.date].push(e); // positioning still contributes to duty span
     } else if(e.type==='standby'||e.type==='osb'){
       standby++;
-      // type='osb' (OSB1..OSB5): the OSB entry has no real duty of its own —
-      // when activated it generates flights, and duty is captured via dayFlights
-      // using the first flight's checkin (= OSB checkout = actual report time).
-      // Do NOT count the standby window here to avoid double-counting.
+      // ── Vueling CBA standby duty rules ──────────────────────────────────
+      // type='standby' (3SBY, SBY, HSBY, etc.) — NOT activated:
+      //   Duty credit = 25% of the standby period (checkin → checkout).
+      //   The remaining 75% is availability time, not duty.
       //
-      // type='standby' (3SBY, SBY, HSBY, OSBY, etc.): no activation flights →
-      // count checkin→checkout as the full duty period.
+      // type='osb' (OSB1..OSB5) — activated standby with flights:
+      //   - Flight duty already captured via dayFlights (report → lastSTA ± debrief).
+      //   - ADDITIONALLY: 25% of the standby window (checkin → checkout = activation
+      //     time) counts as monthly duty credit (appears only in total, not per-day row).
       if(e.type==='standby'){
         var _sbStart = e.checkin, _sbEnd = e.checkout;
         if(_sbStart && _sbEnd && _sbStart.indexOf(':')>-1 && _sbEnd.indexOf(':')>-1){
           var _sbD = t2m(_sbEnd) - t2m(_sbStart);
           if(_sbD < 0) _sbD += 1440;
-          if(_sbD > 0){ dutyMin += _sbD; dutyDays++; }
+          // 25% credit (non-activated standby)
+          if(_sbD > 0){ dutyMin += Math.round(_sbD * 0.25); dutyDays++; }
+        }
+      } else if(e.type==='osb'){
+        var _osbStart = e.checkin, _osbEnd = e.checkout;
+        if(_osbStart && _osbEnd && _osbStart.indexOf(':')>-1 && _osbEnd.indexOf(':')>-1){
+          var _osbD = t2m(_osbEnd) - t2m(_osbStart);
+          if(_osbD < 0) _osbD += 1440;
+          // 25% monthly credit for the standby window before activation
+          // dutyDays NOT incremented — the flight entries handle the day count
+          if(_osbD > 0) dutyMin += Math.round(_osbD * 0.25);
         }
       }
     } else if(e.type==='lm'){
