@@ -72,12 +72,13 @@ body{font-family:'Space Grotesk',system-ui,sans-serif;background:#07131C;color:#
 // llama a completion() de inmediato (evita el timeout de iOS),
 // y navega a pilotos.aero?rosterSync=BASE64 con los datos.
 var SCRIPT = `(function(){
-var F=typeof completion==='function'?completion:null;
+// completion() inmediato — evita timeout iOS ~10s
+if(typeof completion==='function')completion(null);
 var E=[],L=[];
 function p2(n){return('0'+n).slice(-2);}
 function fD(d){return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());}
 function fT(d){return p2(d.getHours())+':'+p2(d.getMinutes());}
-function log(s){L.push(String(s).slice(0,120));}
+function log(s){L.push(String(s).slice(0,200));}
 function isD(d){return d instanceof Date&&!isNaN(d.getTime());}
 function parseAct(txt,sd,ed){
   var t=(txt||'').trim().replace(/\\s+/g,' ');
@@ -161,84 +162,76 @@ scanWebix(window,'wx-main');
 if(iWin)scanWebix(iWin,'wx-iframe');
 log('webixE='+E.length);
 
-// Fetch API — intenta GET y POST para cada candidato
-function doFetch(cb){
-  var now=new Date(),y=now.getFullYear(),mo=now.getMonth();
-  var from=y+'-'+p2(mo+1)+'-01';
-  var to=y+'-'+p2(mo+1)+'-'+p2(new Date(y,mo+1,0).getDate());
-  var BASE='https://ecrews.vueling.com/eCrew/';
+// Construir y lanzar todos los fetches en paralelo
+var now=new Date(),y=now.getFullYear(),mo=now.getMonth();
+var from=y+'-'+p2(mo+1)+'-01';
+var to=y+'-'+p2(mo+1)+'-'+p2(new Date(y,mo+1,0).getDate());
+var BASE='https://ecrews.vueling.com/eCrew/';
 
-  // Candidatos conocidos (endpoints reales del iframe)
-  var known=[
-    BASE+'CrewSchedule/SchedulerEvents',
-    BASE+'CrewSchedule/Retrieve',
-  ];
-  // Los XHR reales pueden tener query params — usarlos tal cual también
-  // Combinamos: known + xhrUrls (dedup)
-  var seen2={};
-  var candidates=[];
-  known.concat(xhrUrls).forEach(function(u){
-    var base=u.split('?')[0];
-    if(!seen2[base]){seen2[base]=1;candidates.push(u);}
-  });
+// URLs completas de Performance API que contienen datos de schedule
+var schedXhr=xhrUrls.filter(function(u){return u.indexOf('SchedulerEvents')>-1||u.indexOf('Retrieve')>-1;});
+schedXhr.forEach(function(u){log('FULL:'+u);});  // log URL completa — crucial para debug
 
-  // Cuerpos POST a probar para endpoints de schedule
-  var postBodies=[
-    JSON.stringify({eCrewHeader:hdr,from:from,to:to}),
-    JSON.stringify({eCrewHeader:hdr,startDate:from,endDate:to}),
-    JSON.stringify({eCrewHeader:hdr}),
-    null, // también probar sin body (GET)
-  ];
+// Si ya tenemos la URL exacta del XHR, úsarla como GET (era la llamada original)
+// Más guesses con distintos formatos
+var enc=encodeURIComponent;
+var attempts=[];
+// 1. GET con URL exacta del Performance API (reproducción exacta del original)
+schedXhr.forEach(function(u){attempts.push({url:u,method:'GET',ct:'',body:null});});
+// 2. POST form-encoded (ASP.NET MVC más común)
+var formBody='eCrewHeader='+enc(hdr)+'&from='+from+'&to='+to;
+attempts.push({url:BASE+'CrewSchedule/SchedulerEvents',method:'POST',ct:'application/x-www-form-urlencoded',body:formBody});
+attempts.push({url:BASE+'CrewSchedule/Retrieve',method:'POST',ct:'application/x-www-form-urlencoded',body:formBody});
+// 3. GET con params en URL (fallback)
+var getUrl=BASE+'CrewSchedule/SchedulerEvents?eCrewHeader='+enc(hdr)+'&from='+from+'&to='+to;
+attempts.push({url:getUrl,method:'GET',ct:'',body:null});
 
-  var ci=0,bi=0;
-  function next(){
-    if(ci>=candidates.length){cb();return;}
-    var url=candidates[ci];
-    var body=postBodies[bi];
-    bi++;
-    if(bi>=postBodies.length){bi=0;ci++;}
-    var method=body?'POST':'GET';
-    var ctrl=typeof AbortController!=='undefined'?new AbortController():null;
-    var tid=ctrl?setTimeout(function(){ctrl.abort();},3500):null;
-    var hdrs={Accept:'application/json',eCrewHeader:hdr};
-    if(body)hdrs['Content-Type']='application/json';
-    log('try:'+method+' '+url.replace(BASE,'').slice(0,40)+(body?' body':''));
-    fetch(url,{method:method,credentials:'include',headers:hdrs,body:body||undefined,signal:ctrl?ctrl.signal:undefined})
-      .then(function(r){clearTimeout(tid);if(!r.ok)throw new Error(r.status);return r.json();})
-      .then(function(json){
-        log('OK:'+method+' '+url.replace(BASE,'').slice(0,40));
-        log('shape:'+JSON.stringify(json).slice(0,200));
-        var arr=Array.isArray(json)?json:
-          (json.data||json.events||json.result||json.days||json.activities||json.items||[]);
-        if(!Array.isArray(arr))arr=[];
-        log('items='+arr.length);
-        arr.forEach(function(ev){
-          var sd=new Date(ev.start_date||ev.date||ev.day||ev.from||ev.activityDate||'');
-          if(!isD(sd))return;
-          var ed=ev.end_date?new Date(ev.end_date):sd;
-          var txt=ev.text||ev.code||ev.activityCode||ev.title||'';
-          var dep=(ev.dep||ev.departure||ev.departureStation||'').slice(0,3);
-          var arr2=(ev.arr||ev.arrival||ev.arrivalStation||'').slice(0,3);
-          var e=parseAct(txt+' '+dep+'-'+arr2,sd,ed);
-          if(dep)e.dep=dep;
-          if(arr2)e.arr=arr2;
-          E.push(e);
-        });
-        if(E.length)cb();else next();
-      })
-      .catch(function(ex){clearTimeout(tid);log('F:'+method+' '+url.replace(BASE,'').slice(0,30)+' '+ex.message);next();});
-  }
-  next();
-}
-
-doFetch(function(){
+// Navegar (con o sin datos)
+var navigated=false;
+function navigate(){
+  if(navigated)return;navigated=true;
   var seen={};
   E=E.filter(function(e){var k=e.date+'|'+e.type+'|'+e.flightNum;return seen[k]?false:(seen[k]=1,true);});
   var payload=JSON.stringify({ok:E.length>0,entries:E,dbg:L.join('\\n')});
   var b64='';
   try{b64=btoa(unescape(encodeURIComponent(payload)));}catch(ex){}
-  if(F)F(null);
   window.location.href='https://pilotos.aero?rosterSync='+(b64?encodeURIComponent(b64):'err');
+}
+// Deadline de seguridad: navegar tras 9s pase lo que pase
+setTimeout(navigate,9000);
+
+// Lanzar en paralelo
+var pending=attempts.length;
+function onDone(){if(E.length>0||--pending<=0)navigate();}
+attempts.forEach(function(a){
+  var ctrl=new AbortController();
+  var tid=setTimeout(function(){ctrl.abort();},4000);
+  var hdrs={Accept:'application/json',eCrewHeader:hdr};
+  if(a.ct)hdrs['Content-Type']=a.ct;
+  log('>>'+a.method+' '+a.url.replace(BASE,'').slice(0,50));
+  fetch(a.url,{method:a.method,credentials:'include',headers:hdrs,body:a.body||undefined,signal:ctrl.signal})
+    .then(function(r){clearTimeout(tid);if(!r.ok)throw new Error(r.status);return r.json();})
+    .then(function(json){
+      log('OK:'+a.url.replace(BASE,'').slice(0,50));
+      log('shape:'+JSON.stringify(json).slice(0,200));
+      var arr=Array.isArray(json)?json:(json.data||json.events||json.result||json.days||json.activities||json.items||[]);
+      if(!Array.isArray(arr))arr=[];
+      log('items='+arr.length);
+      arr.forEach(function(ev){
+        var sd=new Date(ev.start_date||ev.date||ev.day||ev.from||ev.activityDate||'');
+        if(!isD(sd))return;
+        var ed=ev.end_date?new Date(ev.end_date):sd;
+        var txt=ev.text||ev.code||ev.activityCode||ev.title||'';
+        var dep=(ev.dep||ev.departure||ev.departureStation||'').slice(0,3);
+        var arr2=(ev.arr||ev.arrival||ev.arrivalStation||'').slice(0,3);
+        var e=parseAct(txt+' '+dep+'-'+arr2,sd,ed);
+        if(dep)e.dep=dep;
+        if(arr2)e.arr=arr2;
+        E.push(e);
+      });
+      onDone();
+    })
+    .catch(function(ex){clearTimeout(tid);log('F:'+a.method+' '+a.url.replace(BASE,'').slice(0,30)+' '+ex.message);onDone();});
 });
 })();`;
 
