@@ -207,24 +207,63 @@ function tryDOM(){
   return entries.length>0;
 }
 
-// ── Enviar resultado a PilotOS ──
-function send(){
-  var payload=JSON.stringify({ok:entries.length>0,entries:entries});
+// ── Diagnóstico DOM (siempre incluido para depuración) ──
+function buildDiag(apiStatus){
+  var lines=[];
+  lines.push('URL: '+window.location.href);
+  lines.push('scheduler: '+(typeof window.scheduler)+' | dhtmlX: '+(typeof window.dhtmlXScheduler));
+  lines.push('API: '+apiStatus);
+  // Tables en la página
+  var tables=document.querySelectorAll('table');
+  lines.push('Tables: '+tables.length);
+  tables.forEach(function(t,i){
+    var rows=t.querySelectorAll('tr');
+    var cls=t.className||t.id||'(sin clase)';
+    lines.push('  tabla['+i+'] cls="'+cls.slice(0,60)+'" rows='+rows.length);
+    // Primera fila con contenido
+    for(var r=0;r<Math.min(rows.length,4);r++){
+      var cells=rows[r].querySelectorAll('th,td');
+      var sample=Array.from(cells).slice(0,8).map(function(c){return c.textContent.trim().slice(0,12)||'.'}).join('|');
+      lines.push('    row['+r+']: '+sample);
+    }
+  });
+  // Divs con clases relacionadas con calendario
+  var calEls=document.querySelectorAll('[class*="cal"],[class*="Cal"],[class*="schedule"],[class*="Schedule"],[class*="event"],[class*="Event"],[class*="activity"],[class*="Activity"]');
+  lines.push('Cal/Schedule/Event elements: '+calEls.length);
+  var clsSeen={};
+  calEls.forEach(function(el){
+    var c=(el.className||'').split(' ').filter(function(x){return x.length>2;});
+    c.forEach(function(cls){if(!clsSeen[cls]){clsSeen[cls]=0;}clsSeen[cls]++;});
+  });
+  Object.keys(clsSeen).slice(0,20).forEach(function(k){lines.push('  .'+k+' ('+clsSeen[k]+'x)');});
+  // iframes
+  var iframes=document.querySelectorAll('iframe');
+  lines.push('iframes: '+iframes.length);
+  iframes.forEach(function(f,i){lines.push('  ['+i+'] '+f.src.slice(0,80));});
+  return lines.join('\\n');
+}
+
+// ── Secuencia: Scheduler → API → DOM → siempre envía ──
+var apiStatus='not-tried';
+if(tryScheduler()){
+  var diag=buildDiag('skipped-scheduler-ok');
+  send(diag,'scheduler');
+}else{
+  tryVuelingAPI(function(apiOk){
+    apiStatus=apiOk?'ok':'failed';
+    if(!apiOk)tryDOM();
+    var diag=buildDiag(apiStatus);
+    send(diag,apiOk?'api':entries.length?'dom':'none');
+  });
+}
+
+function send(diag,src){
+  var payload=JSON.stringify({ok:entries.length>0,entries:entries,src:src||'none',api:apiStatus,dbg:diag||''});
   var b64='';
   try{b64=btoa(unescape(encodeURIComponent(payload)));}catch(ex){try{b64=btoa(payload);}catch(e2){}}
   if(F)F(null);
-  if(b64)window.location.href='https://pilotos.aero?rosterSync='+encodeURIComponent(b64);
-}
-
-// ── Secuencia: API → Scheduler → DOM ──
-// El scheduler y DOM son síncronos (ms); la API asíncrona (hasta 5s)
-if(tryScheduler()){
-  send();
-}else{
-  tryVuelingAPI(function(ok){
-    if(!ok)tryDOM();
-    send();
-  });
+  // Siempre navega aunque no haya entradas (para mostrar diagnóstico)
+  window.location.href='https://pilotos.aero?rosterSync='+(b64?encodeURIComponent(b64):'err');
 }
 })();`;
 

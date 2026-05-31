@@ -26417,7 +26417,22 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
       window.history.replaceState({}, '', window.location.pathname);
       var payload;
       try { payload = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(raw))))); } catch(ex) { return; }
-      if (!payload || !payload.ok || !Array.isArray(payload.entries) || !payload.entries.length) return;
+      if (!payload) return;
+
+      // Diagnóstico: mostrar info aunque entries = 0
+      if (!payload.ok || !Array.isArray(payload.entries) || !payload.entries.length) {
+        var dbg = document.createElement('div');
+        dbg.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:#07131C;color:#F0FFFE;padding:20px;overflow-y:auto;font-family:Space Mono,monospace;font-size:11px;padding-top:calc(20px + env(safe-area-inset-top,0px))';
+        dbg.innerHTML = '<div style="font-size:16px;font-weight:700;color:#22D3EE;margin-bottom:12px">PilotOS Sync — Diagnóstico</div>'
+          + '<div style="color:#F87171;margin-bottom:8px">0 actividades extraídas de eCrews</div>'
+          + '<div style="color:rgba(240,255,254,.5);margin-bottom:16px">Fuente: ' + (payload.src||'desconocida') + ' | API: ' + (payload.api||'—') + '</div>'
+          + '<div style="background:rgba(255,255,255,.05);border-radius:8px;padding:12px;margin-bottom:16px;white-space:pre-wrap;word-break:break-all;color:rgba(240,255,254,.7);max-height:60vh;overflow-y:auto">'
+          + (payload.dbg ? payload.dbg.replace(/</g,'&lt;') : 'Sin datos de diagnóstico')
+          + '</div>'
+          + '<button onclick="this.parentElement.remove()" style="background:rgba(8,145,178,.3);border:1px solid rgba(34,211,238,.4);border-radius:10px;color:#22D3EE;padding:10px 20px;font-family:Space Mono,monospace;font-size:13px;cursor:pointer">Cerrar</button>';
+        document.body.appendChild(dbg);
+        return;
+      }
       var incoming = payload.entries;
 
       var banner = document.createElement('div');
