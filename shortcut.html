@@ -161,32 +161,52 @@ scanWebix(window,'wx-main');
 if(iWin)scanWebix(iWin,'wx-iframe');
 log('webixE='+E.length);
 
-// Fetch API — XHR reales del iframe/página + guesses
+// Fetch API — intenta GET y POST para cada candidato
 function doFetch(cb){
   var now=new Date(),y=now.getFullYear(),mo=now.getMonth();
   var from=y+'-'+p2(mo+1)+'-01';
   var to=y+'-'+p2(mo+1)+'-'+p2(new Date(y,mo+1,0).getDate());
   var BASE='https://ecrews.vueling.com/eCrew/';
-  var guesses=hdr?[
-    BASE+'api/SchedulerEvents?eCrewHeader='+hdr+'&from='+from+'&to='+to,
-    BASE+'api/Schedule?eCrewHeader='+hdr+'&from='+from+'&to='+to,
-    BASE+'api/CrewCalendar?eCrewHeader='+hdr+'&from='+from+'&to='+to,
-    BASE+'api/SchedulerEvents?eCrewHeader='+hdr,
-    BASE+'SchedulerData?eCrewHeader='+hdr+'&from='+from+'&to='+to,
-  ]:[];
-  var candidates=xhrUrls.concat(guesses);
-  var tried=0;
+
+  // Candidatos conocidos (endpoints reales del iframe)
+  var known=[
+    BASE+'CrewSchedule/SchedulerEvents',
+    BASE+'CrewSchedule/Retrieve',
+  ];
+  // Los XHR reales pueden tener query params — usarlos tal cual también
+  // Combinamos: known + xhrUrls (dedup)
+  var seen2={};
+  var candidates=[];
+  known.concat(xhrUrls).forEach(function(u){
+    var base=u.split('?')[0];
+    if(!seen2[base]){seen2[base]=1;candidates.push(u);}
+  });
+
+  // Cuerpos POST a probar para endpoints de schedule
+  var postBodies=[
+    JSON.stringify({eCrewHeader:hdr,from:from,to:to}),
+    JSON.stringify({eCrewHeader:hdr,startDate:from,endDate:to}),
+    JSON.stringify({eCrewHeader:hdr}),
+    null, // también probar sin body (GET)
+  ];
+
+  var ci=0,bi=0;
   function next(){
-    if(tried>=candidates.length||tried>=10){cb();return;}
-    var url=candidates[tried++];
+    if(ci>=candidates.length){cb();return;}
+    var url=candidates[ci];
+    var body=postBodies[bi];
+    bi++;
+    if(bi>=postBodies.length){bi=0;ci++;}
+    var method=body?'POST':'GET';
     var ctrl=typeof AbortController!=='undefined'?new AbortController():null;
     var tid=ctrl?setTimeout(function(){ctrl.abort();},3500):null;
-    var hdrs={Accept:'application/json'};
-    if(hdr)hdrs.eCrewHeader=hdr;
-    fetch(url,{credentials:'include',headers:hdrs,signal:ctrl?ctrl.signal:undefined})
+    var hdrs={Accept:'application/json',eCrewHeader:hdr};
+    if(body)hdrs['Content-Type']='application/json';
+    log('try:'+method+' '+url.replace(BASE,'').slice(0,40)+(body?' body':''));
+    fetch(url,{method:method,credentials:'include',headers:hdrs,body:body||undefined,signal:ctrl?ctrl.signal:undefined})
       .then(function(r){clearTimeout(tid);if(!r.ok)throw new Error(r.status);return r.json();})
       .then(function(json){
-        log('OK:'+url.slice(0,60));
+        log('OK:'+method+' '+url.replace(BASE,'').slice(0,40));
         log('shape:'+JSON.stringify(json).slice(0,200));
         var arr=Array.isArray(json)?json:
           (json.data||json.events||json.result||json.days||json.activities||json.items||[]);
@@ -206,7 +226,7 @@ function doFetch(cb){
         });
         if(E.length)cb();else next();
       })
-      .catch(function(ex){clearTimeout(tid);log('F:'+url.slice(0,40)+' '+ex.message);next();});
+      .catch(function(ex){clearTimeout(tid);log('F:'+method+' '+url.replace(BASE,'').slice(0,30)+' '+ex.message);next();});
   }
   next();
 }
