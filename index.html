@@ -25342,6 +25342,21 @@ function _ecBuildBookmarkletFull(){
 }
 
 // ── Open/close overlay ───────────────────────────────────────────
+window.ldECrewsCopyUrl = function(){
+  var url = 'https://ecrews.vueling.com/eCrew/Dashboard';
+  var btn = document.getElementById('ec-copy-url-txt');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(function(){
+      if(btn){ btn.textContent = '✓ URL copiada — pégala en Safari'; }
+      setTimeout(function(){ if(btn) btn.textContent = 'Copiar URL de eCrews'; }, 3000);
+    }).catch(function(){
+      if(btn){ btn.textContent = url; }
+    });
+  } else {
+    if(btn){ btn.textContent = url; }
+  }
+};
+
 window.ldECrewsCopyBookmarklet = function(){
   // Use full inline version — avoids CSP blocking on eCrews
   var fullUrl = _ecBuildBookmarkletFull();
@@ -25398,8 +25413,37 @@ window.ldECrewsSyncOpen = function(){
   var link = document.getElementById('ec-bookmarklet-link');
   if(link) link.href = _ecBuildBookmarkletFull();
 
-  // Auto-select mobile tab on touch devices
+  // Detect Chrome on iOS (CriOS = Chrome iOS)
+  var isChromeiOS = /CriOS/.test(navigator.userAgent);
   var isMobile = ('ontouchstart' in window) || window.innerWidth < 768;
+
+  // Show/hide Chrome iOS warning banner
+  var existingBanner = document.getElementById('ec-chrome-ios-banner');
+  if(existingBanner) existingBanner.remove();
+  if(isChromeiOS){
+    var ws2 = document.getElementById('ec-state-waiting');
+    if(ws2){
+      var banner = document.createElement('div');
+      banner.id = 'ec-chrome-ios-banner';
+      banner.style.cssText = 'margin:0 0 18px;padding:14px 16px;background:rgba(245,158,11,.10);border:1.5px solid rgba(245,158,11,.35);border-radius:14px;';
+      banner.innerHTML =
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+        + '<span style="font-size:18px">⚠️</span>'
+        + '<span style="font-family:\'Space Grotesk\',sans-serif;font-size:13px;font-weight:700;color:#FCD34D">Chrome en iPhone no ejecuta bookmarklets</span>'
+        + '</div>'
+        + '<div style="font-family:\'Space Mono\',monospace;font-size:11px;color:rgba(252,211,77,.65);line-height:1.6;margin-bottom:12px">'
+        + 'Para usar la sincronización debes abrir eCrews en <strong style="color:#FCD34D">Safari</strong>.<br>'
+        + 'Pulsa el botón de abajo para copiar la URL y ábrela en Safari.'
+        + '</div>'
+        + '<button onclick="ldECrewsCopyUrl()" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px;background:rgba(245,158,11,.15);border:1.5px solid rgba(245,158,11,.4);border-radius:10px;color:#FCD34D;font-family:\'Space Grotesk\',sans-serif;font-size:13px;font-weight:700;cursor:pointer">'
+        + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>'
+        + '<span id="ec-copy-url-txt">Copiar URL de eCrews</span>'
+        + '</button>';
+      ws2.insertBefore(banner, ws2.firstChild);
+    }
+  }
+
+  // Auto-select mobile tab on touch devices
   setTimeout(function(){ window.ecShowTab(isMobile ? 'mobile' : 'desktop'); }, 0);
 
   // Reset state
