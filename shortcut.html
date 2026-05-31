@@ -93,36 +93,45 @@ function parseAct(txt,sd,ed){
   return e;
 }
 
-// eCrewHeader: buscar en URL o en iframes
-var hdr='';
+// eCrewHeader + iframe access
+var hdr='',iWin=null,ifrSrc='';
 var hm1=(window.location.href+'').match(/eCrewHeader=([^&\\s#]+)/);
 if(hm1)hdr=hm1[1];
-if(!hdr){
+try{
   var frs=document.querySelectorAll('iframe');
   for(var fi=0;fi<frs.length;fi++){
-    var hm2=(frs[fi].src||'').match(/eCrewHeader=([^&\\s#]+)/);
-    if(hm2){hdr=hm2[1];break;}
+    var fsrc=frs[fi].src||'';
+    var hm2=fsrc.match(/eCrewHeader=([^&\\s#]+)/);
+    if(hm2){if(!hdr)hdr=hm2[1];ifrSrc=fsrc;iWin=frs[fi].contentWindow;break;}
   }
-}
+}catch(ex){log('ifr:'+ex.message);}
 log('hdr='+hdr.slice(0,10));
 log('page='+window.location.pathname);
+log('iWin='+(iWin?'ok':'null'));
 
-// Performance API
+// Performance API — main window + iframe
 var xhrUrls=[];
-try{
-  performance.getEntriesByType('resource').forEach(function(e){
-    if(e.initiatorType==='xmlhttprequest'||e.initiatorType==='fetch'){
-      xhrUrls.push(e.name);
-    }
-  });
-}catch(ex){log('perf:'+ex);}
+function scanPerf(win,label){
+  try{
+    win.performance.getEntriesByType('resource').forEach(function(e){
+      if(e.initiatorType==='xmlhttprequest'||e.initiatorType==='fetch'){
+        xhrUrls.push(e.name);
+      }
+    });
+  }catch(ex){log(label+':'+ex.message);}
+}
+scanPerf(window,'perf-main');
+if(iWin)scanPerf(iWin,'perf-iframe');
+// Filter static assets
+xhrUrls=xhrUrls.filter(function(u){return !(/[.](js|css|png|woff|ttf|ico|svg|jpg|jpeg)($|\\?)/i.test(u));});
 log('xhr='+xhrUrls.length);
-xhrUrls.slice(0,6).forEach(function(u){log(u.replace('https://ecrews.vueling.com',''));});
+xhrUrls.slice(0,8).forEach(function(u){log(u.replace('https://ecrews.vueling.com',''));});
 
-// Webix global data
-try{
-  var wx=window.webix;
-  if(wx&&wx.ui&&wx.ui.views){
+// Webix data store — main window + iframe
+function scanWebix(win,label){
+  try{
+    var wx=win.webix;
+    if(!wx||!wx.ui||!wx.ui.views)return;
     Object.keys(wx.ui.views).forEach(function(id){
       try{
         var v=wx.$$(id);
@@ -131,7 +140,7 @@ try{
         if(!items.length)return;
         var s0=items[0];
         if(!(s0.start_date||s0.date||s0.text||s0.activityCode))return;
-        log('webix['+id+']='+items.length);
+        log(label+'['+id+']='+items.length);
         items.forEach(function(ev){
           var sd=new Date(ev.start_date||ev.date||ev.from||'');
           if(!isD(sd))return;
@@ -146,23 +155,29 @@ try{
         });
       }catch(ex){}
     });
-  }
-}catch(ex){log('wx:'+ex);}
+  }catch(ex){log(label+':'+ex.message);}
+}
+scanWebix(window,'wx-main');
+if(iWin)scanWebix(iWin,'wx-iframe');
 log('webixE='+E.length);
 
-// Fetch API — primero URLs reales, luego guesses
+// Fetch API — XHR reales del iframe/página + guesses
 function doFetch(cb){
-  var candidates=xhrUrls.filter(function(u){
-    return !(/[.](js|css|png|woff|ttf|ico|svg|jpg)$/i.test(u));
-  });
-  if(hdr){
-    candidates.push('https://ecrews.vueling.com/eCrew/api/SchedulerEvents?eCrewHeader='+hdr);
-    candidates.push('https://ecrews.vueling.com/eCrew/api/Schedule?eCrewHeader='+hdr);
-    candidates.push('https://ecrews.vueling.com/eCrew/api/CrewCalendar?eCrewHeader='+hdr);
-  }
+  var now=new Date(),y=now.getFullYear(),mo=now.getMonth();
+  var from=y+'-'+p2(mo+1)+'-01';
+  var to=y+'-'+p2(mo+1)+'-'+p2(new Date(y,mo+1,0).getDate());
+  var BASE='https://ecrews.vueling.com/eCrew/';
+  var guesses=hdr?[
+    BASE+'api/SchedulerEvents?eCrewHeader='+hdr+'&from='+from+'&to='+to,
+    BASE+'api/Schedule?eCrewHeader='+hdr+'&from='+from+'&to='+to,
+    BASE+'api/CrewCalendar?eCrewHeader='+hdr+'&from='+from+'&to='+to,
+    BASE+'api/SchedulerEvents?eCrewHeader='+hdr,
+    BASE+'SchedulerData?eCrewHeader='+hdr+'&from='+from+'&to='+to,
+  ]:[];
+  var candidates=xhrUrls.concat(guesses);
   var tried=0;
   function next(){
-    if(tried>=candidates.length||tried>=5){cb();return;}
+    if(tried>=candidates.length||tried>=10){cb();return;}
     var url=candidates[tried++];
     var ctrl=typeof AbortController!=='undefined'?new AbortController():null;
     var tid=ctrl?setTimeout(function(){ctrl.abort();},3500):null;
@@ -172,7 +187,7 @@ function doFetch(cb){
       .then(function(r){clearTimeout(tid);if(!r.ok)throw new Error(r.status);return r.json();})
       .then(function(json){
         log('OK:'+url.slice(0,60));
-        log('shape:'+JSON.stringify(json).slice(0,150));
+        log('shape:'+JSON.stringify(json).slice(0,200));
         var arr=Array.isArray(json)?json:
           (json.data||json.events||json.result||json.days||json.activities||json.items||[]);
         if(!Array.isArray(arr))arr=[];
@@ -189,7 +204,7 @@ function doFetch(cb){
           if(arr2)e.arr=arr2;
           E.push(e);
         });
-        cb();
+        if(E.length)cb();else next();
       })
       .catch(function(ex){clearTimeout(tid);log('F:'+url.slice(0,40)+' '+ex.message);next();});
   }
