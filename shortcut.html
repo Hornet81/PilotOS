@@ -132,21 +132,47 @@ function apiResponseToEntries(json){
 }
 
 // ── MÉTODO 1: API Vueling People (pub.vueling.com) ──
-// Intenta las 2 variantes con credentials:include (SSO compartido con eCrews)
+// Estrategia A: token MSAL de localStorage (SSO Azure AD compartido)
+// Estrategia B: credentials:include (cookies SSO)
 function tryVuelingAPI(callback){
   var now=new Date();
   var begin=new Date(now.getFullYear(),now.getMonth(),1);
   var endDt=new Date(now.getFullYear(),now.getMonth()+1,0);
   var qs='?beginDate='+fmtUS(begin)+'&endDate='+fmtUS(endDt);
   var BASE='https://pub.vueling.com/Vueling.VuelingUp.WebAPI/api/v1/crew-calendar/';
-  var urls=[BASE+'get-technical-crew-schedule'+qs, BASE+'get-cabin-crew-schedule'+qs];
+  var PATHS=['get-technical-crew-schedule','get-cabin-crew-schedule'];
+
+  // Buscar token MSAL en localStorage (Azure AD tenant de Vueling)
+  var TENANT='7092f324-5b8d-44e1-bb7a-4c14c647727c';
+  var CLIENT='d7333765-2449-4c4c-bda3-15fa5149f69c';
+  var msalToken='';
+  try{
+    var keys=Object.keys(localStorage);
+    // MSAL v2 keys: "accesstoken" entries with tenant/client match
+    var tokenKey=keys.find(function(k){
+      return k.indexOf('accesstoken')>-1&&(k.indexOf(TENANT)>-1||k.indexOf(CLIENT)>-1);
+    });
+    if(!tokenKey){
+      // MSAL v1 format: msal.<clientId>.idtoken or msal.idtoken
+      tokenKey=keys.find(function(k){return k.indexOf('msal')>-1&&k.indexOf('token')>-1;});
+    }
+    if(tokenKey){
+      var raw=localStorage.getItem(tokenKey);
+      var parsed=JSON.parse(raw);
+      msalToken=parsed.secret||parsed.access_token||parsed.token||'';
+    }
+  }catch(ex){}
+
   var tried=0;
   function tryNext(){
-    if(tried>=urls.length){callback(false);return;}
-    var url=urls[tried++];
+    if(tried>=PATHS.length){callback(false,'all-failed');return;}
+    var path=PATHS[tried++];
+    var url=BASE+path+qs;
+    var hdrs={'Accept':'application/json'};
+    if(msalToken)hdrs['Authorization']='Bearer '+msalToken;
     var ctrl=typeof AbortController!=='undefined'?new AbortController():null;
     var tid=ctrl?setTimeout(function(){ctrl.abort();},5000):null;
-    fetch(url,{credentials:'include',signal:ctrl?ctrl.signal:undefined})
+    fetch(url,{credentials:'include',headers:hdrs,signal:ctrl?ctrl.signal:undefined})
       .then(function(r){
         clearTimeout(tid);
         if(!r.ok)throw new Error('HTTP '+r.status);
@@ -154,10 +180,10 @@ function tryVuelingAPI(callback){
       })
       .then(function(json){
         var got=apiResponseToEntries(json);
-        if(got.length){entries=got;callback(true);}
+        if(got.length){entries=got;callback(true,path+(msalToken?'+token':'+cookies'));}
         else{tryNext();}
       })
-      .catch(function(){clearTimeout(tid);tryNext();});
+      .catch(function(e){clearTimeout(tid);tryNext();});
   }
   tryNext();
 }
