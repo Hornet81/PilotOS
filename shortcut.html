@@ -72,48 +72,39 @@ body{font-family:'Space Grotesk',system-ui,sans-serif;background:#07131C;color:#
 // llama a completion() de inmediato (evita el timeout de iOS),
 // y navega a pilotos.aero?rosterSync=BASE64 con los datos.
 var SCRIPT = `(function(){
-// completion() inmediato — evita timeout iOS ~10s
 if(typeof completion==='function')completion(null);
 var E=[],L=[];
 function p2(n){return('0'+n).slice(-2);}
 function fD(d){return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());}
-function fT(d){return p2(d.getHours())+':'+p2(d.getMinutes());}
-function log(s){L.push(String(s).slice(0,200));}
+function log(s){L.push(String(s).slice(0,160));}
 function isD(d){return d instanceof Date&&!isNaN(d.getTime());}
 
-// Parsear tabla HTML del reporte de impresión
-// Columnas: Date | Duties | Details | Report times | Actual times | Debrief | Block | Duty | Indicators
-function parseHTMLReport(html){
+// Parser tabla HTML del reporte (columnas: Date|Duties|Details|ReportT|ActualT|...)
+function parseHTML(html){
   var out=[];
   try{
     var doc=new DOMParser().parseFromString(html,'text/html');
-    var rows=doc.querySelectorAll('tr');
     var curDate='';
-    rows.forEach(function(row){
-      var cells=[];
-      row.querySelectorAll('td,th').forEach(function(c){cells.push((c.textContent||'').trim().replace(/\\s+/g,' '));});
-      if(cells.length<2)return;
-      // Detectar fecha en primera celda: "01/05/2026 Fri" o "01/05/2026"
-      var dm=cells[0].match(/(\\d{2})\\/(\\d{2})\\/(\\d{4})/);
+    doc.querySelectorAll('tr').forEach(function(row){
+      var cc=[];
+      row.querySelectorAll('td,th').forEach(function(c){cc.push((c.textContent||'').trim().replace(/\\s+/g,' '));});
+      if(cc.length<2)return;
+      var dm=cc[0].match(/(\\d{2})\\/(\\d{2})\\/(\\d{4})/);
       if(dm)curDate=dm[3]+'-'+dm[2]+'-'+dm[1];
       if(!curDate)return;
-      var duty=cells[1]||'';
-      var detail=cells[2]||'';
-      var sd=new Date(curDate);
-      // Vuelo: duty = "8478[320]" o "8478"
+      var duty=cc[1]||'',det=cc[2]||'';
       var fm=duty.match(/^(\\d{3,5})/);
       if(fm){
-        var rm=detail.match(/([A-Z]{3})\\s*[-–]\\s*([A-Z]{3})/);
-        var e={date:curDate,type:'flight',flightNum:fm[1],dep:rm?rm[1]:'',arr:rm?rm[2]:'',std:'',sta:''};
-        // Tiempos: cells[3]=report, cells[4]="A06:22-A07:18" o "06:22-07:18"
-        if(cells[3]){var t1=cells[3].match(/(\\d{2}:\\d{2})/);if(t1)e.std=t1[1];}
-        if(cells[4]){var t2=cells[4].match(/A?(\\d{2}:\\d{2}).*?A?(\\d{2}:\\d{2})/);if(t2){if(!e.std)e.std=t2[1];e.sta=t2[2];}}
-        out.push(e);
-      } else if(/^OFF$|SROF|^LI$|libre|day.off/i.test(duty)){
+        var rm=det.match(/([A-Z]{3})\\s*[-]\\s*([A-Z]{3})/);
+        var std='',sta='';
+        if(cc[3]){var t1=cc[3].match(/(\\d{2}:\\d{2})/);if(t1)std=t1[1];}
+        if(cc[4]){var t2=cc[4].match(/A?(\\d{2}:\\d{2}).*?A?(\\d{2}:\\d{2})/);if(t2){if(!std)std=t2[1];sta=t2[2];}}
+        out.push({date:curDate,type:'flight',flightNum:fm[1],dep:rm?rm[1]:'',arr:rm?rm[2]:'',std:std,sta:sta});
+      } else if(/^OFF$|SROF|^LI$|libre/i.test(duty)){
         out.push({date:curDate,type:'off',flightNum:'',dep:'',arr:'',std:'',sta:''});
-      } else if(/SBY|standby|stand.by/i.test(duty)||/SBY/i.test(detail)){
+      } else if(/SBY|standby/i.test(duty)||/SBY/i.test(det)){
         out.push({date:curDate,type:'standby',flightNum:'',dep:'',arr:'',std:'',sta:''});
-      } else if(/SIM|LFT|OPC|simulator/i.test(duty)){
+      } else if(/SIM|LFT|OPC/i.test(duty)){
         out.push({date:curDate,type:'training',flightNum:'',dep:'',arr:'',std:'',sta:''});
       } else if(/SICK/i.test(duty)){
         out.push({date:curDate,type:'other',flightNum:'SICK',dep:'',arr:'',std:'',sta:''});
@@ -123,159 +114,107 @@ function parseHTMLReport(html){
   return out;
 }
 
-// eCrewHeader + iframe access
+// eCrewHeader + iframe
 var hdr='',iWin=null;
-var hm1=(window.location.href+'').match(/eCrewHeader=([^&\\s#]+)/);
-if(hm1)hdr=hm1[1];
+try{var m1=(window.location.href+'').match(/eCrewHeader=([^&\\s#]+)/);if(m1)hdr=m1[1];}catch(e){}
 try{
   var frs=document.querySelectorAll('iframe');
   for(var fi=0;fi<frs.length;fi++){
-    var fsrc=frs[fi].src||'';
-    var hm2=fsrc.match(/eCrewHeader=([^&\\s#]+)/);
-    if(hm2){if(!hdr)hdr=hm2[1];iWin=frs[fi].contentWindow;break;}
+    var m2=(frs[fi].src||'').match(/eCrewHeader=([^&\\s#]+)/);
+    if(m2){if(!hdr)hdr=m2[1];iWin=frs[fi].contentWindow;break;}
   }
-}catch(ex){log('ifr:'+ex.message);}
+}catch(e){log('ifr:'+e.message);}
 log('hdr='+hdr.slice(0,12));
 log('page='+window.location.pathname);
 log('iWin='+(iWin?'ok':'null'));
 
-// Performance API — main + iframe — capturar TODAS las URLs no-estáticas
-var xhrUrls=[];
-[window,iWin].forEach(function(win){
-  if(!win)return;
-  try{win.performance.getEntriesByType('resource').forEach(function(r){
-    if(/[.](js|css|png|woff|ttf|ico|svg|jpg|jpeg)($|\\?)/i.test(r.name))return;
-    if(xhrUrls.indexOf(r.name)<0)xhrUrls.push(r.name);
-  });}catch(ex){}
+// Performance API — main + iframe
+var allUrls=[];
+[window,iWin].forEach(function(w){
+  if(!w)return;
+  try{w.performance.getEntriesByType('resource').forEach(function(r){
+    if(allUrls.indexOf(r.name)<0&&!/[.](js|css|png|woff|ttf|ico|svg|jpg)($|\\?)/i.test(r.name))allUrls.push(r.name);
+  });}catch(e){}
 });
-log('xhr='+xhrUrls.length);
-// Log URLs relevantes (schedule, report, print, PDF)
-xhrUrls.forEach(function(u){
-  if(/Scheduler|Retrieve|Print|Report|PDF|Export|Schedule(?!r)/i.test(u))
-    log('URL:'+u);
+log('res='+allUrls.length);
+allUrls.forEach(function(u){
+  if(/Scheduler|Retrieve|Print|Report|PDF|Export/i.test(u))log('URL:'+u);
 });
 
-// Navegación (siempre)
+// Navegar
 var navigated=false;
 var now=new Date(),y=now.getFullYear(),mo=now.getMonth();
-var from=y+'-'+p2(mo+1)+'-01';
-var to=y+'-'+p2(mo+1)+'-'+p2(new Date(y,mo+1,0).getDate());
-var BASE='https://ecrews.vueling.com/eCrew/';
-var enc=encodeURIComponent;
+var from=y+'-'+p2(mo+1)+'-01',to=y+'-'+p2(mo+1)+'-'+p2(new Date(y,mo+1,0).getDate());
+var BASE='https://ecrews.vueling.com/eCrew/',enc=encodeURIComponent;
 function navigate(){
   if(navigated)return;navigated=true;
-  var seen={};
-  E=E.filter(function(e){var k=e.date+'|'+e.type+'|'+e.flightNum;return seen[k]?false:(seen[k]=1,true);});
-  var payload=JSON.stringify({ok:E.length>0,entries:E,dbg:L.join('\\n')});
-  var b64='';
-  try{b64=btoa(unescape(encodeURIComponent(payload)));}catch(ex){}
-  window.location.href='https://pilotos.aero?rosterSync='+(b64?encodeURIComponent(b64):'err');
+  var seen={};E=E.filter(function(e){var k=e.date+'|'+e.flightNum;return seen[k]?false:(seen[k]=1,true);});
+  var b64='';try{b64=btoa(unescape(encodeURIComponent(JSON.stringify({ok:E.length>0,entries:E,dbg:L.join('\\n')}))));}catch(e){}
+  window.location.href='https://pilotos.aero?rosterSync='+(b64?enc(b64):'err');
 }
 setTimeout(navigate,9000);
 
-// Attempts — MÉTODO 1: Reporte HTML (tabla de impresión)
-// Fecha en formato que usa eCrews: DD/MM/YYYY o YYYY-MM-DD
-var fromEU=p2(1)+'/'+p2(mo+1)+'/'+y;
-var toEU=p2(new Date(y,mo+1,0).getDate())+'/'+p2(mo+1)+'/'+y;
-var reportUrls=[
-  BASE+'CrewSchedule/GetReport?eCrewHeader='+enc(hdr)+'&from='+from+'&to='+to,
-  BASE+'CrewSchedule/PrintReport?eCrewHeader='+enc(hdr)+'&from='+from+'&to='+to,
-  BASE+'CrewSchedule/ExportReport?eCrewHeader='+enc(hdr)+'&from='+from+'&to='+to,
-  BASE+'CrewSchedule/GetReport?eCrewHeader='+enc(hdr)+'&from='+fromEU+'&to='+toEU,
-  BASE+'MySchedule/Print?eCrewHeader='+enc(hdr)+'&from='+from+'&to='+to,
-];
-// Añadir URLs del Performance API que parezcan de report/print
-xhrUrls.filter(function(u){return /Print|Report|PDF|Export/i.test(u);}).forEach(function(u){reportUrls.unshift(u);});
-
-// Attempts — MÉTODO 2: JSON API scheduler
-var schedXhr=xhrUrls.filter(function(u){return /SchedulerEvents|Retrieve/i.test(u);});
+// Fetches — paralelo
+var fmBody='eCrewHeader='+enc(hdr)+'&from='+from+'&to='+to;
+var jsBody=JSON.stringify({eCrewHeader:hdr,from:from,to:to});
+// URLs del Performance API que ya llamó el iframe
+var schedXhr=allUrls.filter(function(u){return /SchedulerEvents|Retrieve/i.test(u);});
 schedXhr.forEach(function(u){log('FULL:'+u);});
-var formBody='eCrewHeader='+enc(hdr)+'&from='+from+'&to='+to;
-var jsonBody=JSON.stringify({eCrewHeader:hdr,from:from,to:to});
-var jsonAttempts=[
-  {url:BASE+'CrewSchedule/SchedulerEvents',method:'POST',ct:'application/x-www-form-urlencoded',body:formBody},
-  {url:BASE+'CrewSchedule/SchedulerEvents',method:'POST',ct:'application/json',body:jsonBody},
-  {url:BASE+'CrewSchedule/SchedulerEvents?eCrewHeader='+enc(hdr)+'&from='+from+'&to='+to,method:'GET',ct:'',body:null},
+var reportXhr=allUrls.filter(function(u){return /Print|Report|PDF|Export/i.test(u);});
+
+var attempts=[
+  // Reporte HTML — más sencillo de parsear
+  {u:BASE+'CrewSchedule/GetReport?eCrewHeader='+enc(hdr)+'&from='+from+'&to='+to,m:'GET',html:true},
+  {u:BASE+'CrewSchedule/PrintReport?eCrewHeader='+enc(hdr)+'&from='+from+'&to='+to,m:'GET',html:true},
+  {u:BASE+'CrewSchedule/ExportReport?eCrewHeader='+enc(hdr)+'&from='+from+'&to='+to,m:'GET',html:true},
+  // JSON scheduler — POST con eCrewHeader en URL (nueva variante)
+  {u:BASE+'CrewSchedule/SchedulerEvents?eCrewHeader='+enc(hdr),m:'POST',ct:'application/x-www-form-urlencoded',b:'from='+from+'&to='+to},
+  {u:BASE+'CrewSchedule/SchedulerEvents?eCrewHeader='+enc(hdr),m:'POST',ct:'application/json',b:JSON.stringify({from:from,to:to})},
+  // JSON scheduler — variantes anteriores
+  {u:BASE+'CrewSchedule/SchedulerEvents',m:'POST',ct:'application/x-www-form-urlencoded',b:fmBody},
+  {u:BASE+'CrewSchedule/SchedulerEvents',m:'POST',ct:'application/json',b:jsBody},
 ];
-schedXhr.forEach(function(u){jsonAttempts.unshift({url:u,method:'GET',ct:'',body:null});});
+// Prepend URLs conocidas del iframe
+reportXhr.forEach(function(u){attempts.unshift({u:u,m:'GET',html:true});});
+schedXhr.forEach(function(u){attempts.unshift({u:u,m:'GET',html:false});});
 
-var pending=reportUrls.length+jsonAttempts.length;
-function onDone(){if((E.length>0||--pending<=0)&&!navigated)navigate();}
+var pend=attempts.length;
+function done(){if((E.length>0||--pend<=0)&&!navigated)navigate();}
 
-function doFetch(url,method,ct,body,isHTML){
-  var ctrl=new AbortController();
-  var tid=setTimeout(function(){ctrl.abort();},4000);
-  var hdrs={Accept:isHTML?'text/html':'application/json',eCrewHeader:hdr};
-  if(ct)hdrs['Content-Type']=ct;
-  log('>>'+(isHTML?'HTML':'JSON')+' '+method+' '+url.replace(BASE,'').slice(0,60));
-  fetch(url,{method:method,credentials:'include',headers:hdrs,body:body||undefined,signal:ctrl.signal})
-    .then(function(r){
-      clearTimeout(tid);
-      if(!r.ok)throw new Error(r.status);
-      return isHTML?r.text():r.json();
-    })
-    .then(function(data){
-      if(isHTML){
-        var got=parseHTMLReport(data);
-        log('HTML items='+got.length);
-        if(got.length){E=E.concat(got);navigate();}else{log('HTML 0 items, content='+data.slice(0,100));onDone();}
-      }else{
-        log('JSON OK shape='+JSON.stringify(data).slice(0,100));
-        var arr=Array.isArray(data)?data:(data.data||data.events||data.result||data.days||data.activities||data.items||[]);
-        if(!Array.isArray(arr))arr=[];
-        log('JSON items='+arr.length);
-        arr.forEach(function(ev){
-          var sd=new Date(ev.start_date||ev.date||ev.day||ev.activityDate||'');
-          if(!isD(sd))return;
-          var ed=ev.end_date?new Date(ev.end_date):sd;
-          var dep=(ev.dep||ev.departure||ev.departureStation||'').slice(0,3);
-          var arr2=(ev.arr||ev.arrival||ev.arrivalStation||'').slice(0,3);
-          var txt=ev.text||ev.code||ev.activityCode||ev.title||'';
-          var e={date:fD(sd),type:'flight',flightNum:txt,dep:dep,arr:arr2,std:fT(sd),sta:fT(ed)};
-          E.push(e);
-        });
-        onDone();
-      }
-    })
-    .catch(function(ex){clearTimeout(tid);log('F '+method+' '+url.replace(BASE,'').slice(0,30)+':'+ex.message);onDone();});
-}
-
-// Lanzar en paralelo
-reportUrls.forEach(function(u){doFetch(u,'GET','',null,true);});
-jsonAttempts.forEach(function(a){doFetch(a.url,a.method,a.ct,a.body,false);});
-
-// Lanzar en paralelo
-var pending=attempts.length;
-function onDone(){if(E.length>0||--pending<=0)navigate();}
 attempts.forEach(function(a){
   var ctrl=new AbortController();
   var tid=setTimeout(function(){ctrl.abort();},4000);
-  var hdrs={Accept:'application/json',eCrewHeader:hdr};
+  var hdrs={Accept:a.html?'text/html,*/*':'application/json',eCrewHeader:hdr};
   if(a.ct)hdrs['Content-Type']=a.ct;
-  log('>>'+a.method+' '+a.url.replace(BASE,'').slice(0,50));
-  fetch(a.url,{method:a.method,credentials:'include',headers:hdrs,body:a.body||undefined,signal:ctrl.signal})
-    .then(function(r){clearTimeout(tid);if(!r.ok)throw new Error(r.status);return r.json();})
-    .then(function(json){
-      log('OK:'+a.url.replace(BASE,'').slice(0,50));
-      log('shape:'+JSON.stringify(json).slice(0,200));
-      var arr=Array.isArray(json)?json:(json.data||json.events||json.result||json.days||json.activities||json.items||[]);
-      if(!Array.isArray(arr))arr=[];
-      log('items='+arr.length);
-      arr.forEach(function(ev){
-        var sd=new Date(ev.start_date||ev.date||ev.day||ev.from||ev.activityDate||'');
-        if(!isD(sd))return;
-        var ed=ev.end_date?new Date(ev.end_date):sd;
-        var txt=ev.text||ev.code||ev.activityCode||ev.title||'';
-        var dep=(ev.dep||ev.departure||ev.departureStation||'').slice(0,3);
-        var arr2=(ev.arr||ev.arrival||ev.arrivalStation||'').slice(0,3);
-        var e=parseAct(txt+' '+dep+'-'+arr2,sd,ed);
-        if(dep)e.dep=dep;
-        if(arr2)e.arr=arr2;
-        E.push(e);
-      });
-      onDone();
+  log(a.m+(a.html?' H':' J')+' '+a.u.replace(BASE,'').slice(0,55));
+  fetch(a.u,{method:a.m,credentials:'include',headers:hdrs,body:a.b||undefined,signal:ctrl.signal})
+    .then(function(r){
+      clearTimeout(tid);
+      if(!r.ok){
+        r.text().then(function(t){log('ERR'+r.status+':'+t.slice(0,120));}).catch(function(){});
+        throw new Error(r.status);
+      }
+      return a.html?r.text():r.json();
     })
-    .catch(function(ex){clearTimeout(tid);log('F:'+a.method+' '+a.url.replace(BASE,'').slice(0,30)+' '+ex.message);onDone();});
+    .then(function(data){
+      if(a.html){
+        var got=parseHTML(data);
+        log('HTML='+got.length+' '+data.slice(0,80));
+        if(got.length){E=E.concat(got);navigate();}else done();
+      }else{
+        log('JSON='+JSON.stringify(data).slice(0,120));
+        var arr=Array.isArray(data)?data:(data.data||data.events||data.result||data.days||data.activities||[]);
+        (arr||[]).forEach(function(ev){
+          var sd=new Date(ev.start_date||ev.date||ev.day||ev.activityDate||'');
+          if(!isD(sd))return;
+          var dep=(ev.dep||ev.departure||ev.departureStation||'').slice(0,3);
+          var ar2=(ev.arr||ev.arrival||ev.arrivalStation||'').slice(0,3);
+          E.push({date:fD(sd),type:'flight',flightNum:ev.text||ev.activityCode||ev.code||'',dep:dep,arr:ar2,std:'',sta:''});
+        });
+        done();
+      }
+    })
+    .catch(function(ex){clearTimeout(tid);log('F '+a.m+' '+a.u.replace(BASE,'').slice(0,25)+':'+ex.message);done();});
 });
 })();`;
 
