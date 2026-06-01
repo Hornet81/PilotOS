@@ -76,7 +76,7 @@ if(typeof completion==='function')completion(null);
 var E=[],L=[];
 function p2(n){return('0'+n).slice(-2);}
 function log(s){L.push(String(s).slice(0,250));}
-log('v=iwxhr01');
+log('v=iwxhr02');
 
 // Parser tabla HTML del reporte (Date|Duties|Details|ReportT|ActualT|...)
 function parseHTML(html){
@@ -152,43 +152,67 @@ if(aimsUrl){
   var ifr=document.createElement('iframe');
   ifr.style.cssText='position:fixed;top:-9999px;left:-9999px;width:800px;height:600px;opacity:0;pointer-events:none';
   ifr.src=aimsUrl;
+
+  // Hookear XHR del iframe ANTES de que cargue → capturar bodies reales SPA
+  window.__pilotOS_spa=[];
+  ifr.addEventListener('load',function once(){
+    try{
+      var iw=ifr.contentWindow;
+      var XP=iw.XMLHttpRequest.prototype;
+      var oOpen=XP.open,oSend=XP.send,oSRH=XP.setRequestHeader;
+      XP.open=function(m,u){this.__m=m;this.__u=u;this.__h={};return oOpen.apply(this,arguments);};
+      XP.setRequestHeader=function(k,v){try{this.__h[k]=v;}catch(e){}return oSRH.apply(this,arguments);};
+      XP.send=function(b){
+        try{
+          if(this.__u&&this.__u.indexOf('ViewerInvoke')>-1){
+            window.__pilotOS_spa.push({m:this.__m,u:String(this.__u).slice(0,80),ct:this.__h&&this.__h['Content-Type'],b:String(b||'').slice(0,250)});
+          }
+        }catch(e){}
+        return oSend.apply(this,arguments);
+      };
+    }catch(e){}
+  });
   document.body.appendChild(ifr);
 
-  // Estrategia: new iw.XMLHttpRequest() desde el padre
-  // → corre en contexto padre (sin restricción CSP del iframe)
-  // → usa constructor del iframe → cookies AIMS incluidas automáticamente
   setTimeout(function(){
     try{
       var iw=ifr.contentWindow;
       log('ifr_url='+iw.location.href.slice(0,80));
 
-      // Ver qué requests hizo la SPA (diagnóstico)
-      try{iw.performance.getEntriesByType('resource').forEach(function(r){
-        if(r.name.indexOf('ViewerInvoke')>-1)log('spa='+r.name.slice(-100));
-      });}catch(e){}
+      // Volcar requests reales que hizo la SPA (URL, Content-Type, body)
+      var spa=window.__pilotOS_spa||[];
+      log('spa_n='+spa.length);
+      for(var k=0;k<Math.min(spa.length,5);k++){
+        log('s'+k+'m='+spa[k].m+' ct='+(spa[k].ct||'-'));
+        log('s'+k+'b='+(spa[k].b||'').slice(0,200));
+      }
 
       var WDVU='https://ecrews.vueling.com/AIMS/CrewScheduleReport/WebDocumentViewerInvoke';
       var loc=iw.location.href;
-      var bds=[
-        {action:'OpenReport',args:{reportUrl:loc}},
-        {action:'OpenReport',args:{reportName:'CrewScheduleReport'}},
-        {action:'openReport',args:{reportUrl:loc}},
-        {action:'OpenReport',args:{url:loc}}
+      var enc=encodeURIComponent;
+
+      // 4 formatos a probar (form-encoded con actionKey, distintos arg)
+      var attempts=[
+        {ct:'application/x-www-form-urlencoded',b:'actionKey=OpenReport&arg='+enc(JSON.stringify({reportUrl:loc}))},
+        {ct:'application/x-www-form-urlencoded',b:'actionKey=OpenReport&arg='+enc(JSON.stringify({}))},
+        {ct:'application/x-www-form-urlencoded; charset=UTF-8',b:'actionKey=OpenReport&arg='+enc(JSON.stringify({reportUrl:loc,initialPaperKind:'Auto'}))},
+        {ct:'application/x-www-form-urlencoded',u:WDVU+'?actionKey=OpenReport',b:'arg='+enc(JSON.stringify({reportUrl:loc}))}
       ];
 
       var XC=iw.XMLHttpRequest;
       log('xc='+(typeof XC));
       var iors=[];
-      bds.forEach(function(b,i){
+      attempts.forEach(function(a,i){
         try{
           var xhr=new XC();
-          xhr.open('POST',WDVU,true);
+          xhr.open('POST',a.u||WDVU,true);
           xhr.withCredentials=true;
-          xhr.setRequestHeader('Content-Type','application/json');
+          xhr.setRequestHeader('Content-Type',a.ct);
           xhr.setRequestHeader('X-Requested-With','XMLHttpRequest');
-          xhr.onreadystatechange=function(){if(xhr.readyState===4)iors[i]=xhr.status+'||'+xhr.responseText.slice(0,400);};
+          xhr.setRequestHeader('Accept','application/json, text/javascript, */*; q=0.01');
+          xhr.onreadystatechange=function(){if(xhr.readyState===4)iors[i]=xhr.status+'||'+xhr.responseText.slice(0,500);};
           xhr.onerror=function(){iors[i]='XERR';};
-          xhr.send(JSON.stringify(b));
+          xhr.send(a.b);
         }catch(e){iors[i]='EX||'+e.message;}
       });
 
