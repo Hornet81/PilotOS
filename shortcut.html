@@ -76,7 +76,7 @@ if(typeof completion==='function')completion(null);
 var E=[],L=[];
 function p2(n){return('0'+n).slice(-2);}
 function log(s){L.push(String(s).slice(0,250));}
-log('v=reuse03');
+log('v=reuse04');
 
 // Parser tabla HTML del reporte (Date|Duties|Details|ReportT|ActualT|...)
 function parseHTML(html){
@@ -174,38 +174,55 @@ if(aimsUrl){
   });
   document.body.appendChild(ifr);
 
-  setTimeout(function(){
+  // Polling: esperar a que la SPA del iframe haga getPage (hasta 12s)
+  var WDVU='https://ecrews.vueling.com/AIMS/CrewScheduleReport/WebDocumentViewerInvoke';
+  function tryCapture(){
     try{
       var iw=ifr.contentWindow;
-      log('ifr_url='+iw.location.href.slice(0,80));
-
-      // ESTRATEGIA NUEVA: reutilizar unifier de la SPA
-      // La SPA solo pidió pageIndex=0 → unifier ACTIVO para páginas 1 y 2
-      // arg de SPA: {pageIndex, documentId, resolution, includeBricks:true}
-      var WDVU='https://ecrews.vueling.com/AIMS/CrewScheduleReport/WebDocumentViewerInvoke';
-      var enc=encodeURIComponent;
-
-      // Capturar unifier+documentId del Performance API GET URL
       var spaUni='',spaDId='';
-      try{
-        iw.performance.getEntriesByType('resource').forEach(function(r){
-          if(r.name.indexOf('ViewerInvoke')>-1 && r.name.indexOf('getPage')>-1){
-            var decoded=decodeURIComponent(r.name);
-            if(!spaUni){
-              var um=decoded.match(/unifier=([a-f0-9-]+)/);
-              if(um)spaUni=um[1];
-            }
-            if(!spaDId){
-              var dm=decoded.match(/"documentId":"([a-f0-9]+)"/);
-              if(dm)spaDId=dm[1];
-            }
-          }
-        });
-      }catch(e){log('cap_ex='+e.message);}
+      iw.performance.getEntriesByType('resource').forEach(function(r){
+        if(r.name.indexOf('ViewerInvoke')>-1 && r.name.indexOf('getPage')>-1){
+          var d=decodeURIComponent(r.name);
+          if(!spaUni){var um=d.match(/unifier=([a-f0-9-]+)/);if(um)spaUni=um[1];}
+          if(!spaDId){var dm=d.match(/"documentId":"([a-f0-9]+)"/);if(dm)spaDId=dm[1];}
+        }
+      });
+      return spaUni&&spaDId?{u:spaUni,d:spaDId}:null;
+    }catch(e){return null;}
+  }
+  var pollStart=Date.now(),pollMax=12000,session=null;
+  function poll(){
+    session=tryCapture();
+    if(session){proceed(session.u,session.d);return;}
+    if(Date.now()-pollStart>pollMax){onTimeout();return;}
+    setTimeout(poll,500);
+  }
+  function onTimeout(){
+    // Diagnóstico: cuántos recursos tiene el iframe y URLs principales
+    try{
+      var iw=ifr.contentWindow;
+      var res=iw.performance.getEntriesByType('resource');
+      log('poll_to_n='+res.length);
+      var vi=0;
+      res.forEach(function(r){
+        if(r.name.indexOf('ViewerInvoke')>-1){
+          vi++;
+          if(vi<=3)log('vi'+vi+'='+decodeURIComponent(r.name).slice(-150));
+        }
+      });
+      log('poll_vi='+vi);
+    }catch(e){log('to_ex='+e.message);}
+    navigate();
+  }
+  setTimeout(poll,1500); // dar 1.5s antes del primer intento
+
+  function proceed(spaUni,spaDId){
+    try{
+      var iw=ifr.contentWindow;
       log('uni='+spaUni.slice(0,40));
       log('dId='+spaDId.slice(0,40));
-
-      if(!spaUni||!spaDId){log('no_session');navigate();return;}
+      log('poll_t='+(Date.now()-pollStart)+'ms');
+      var enc=encodeURIComponent;
 
       // Parser DevExpress: brick.bricks[].bricks[]... → cada brick con content[]
       // content[i] = {Key:'text', Value:'TXT'}. Coordenadas relativas al padre.
@@ -338,7 +355,7 @@ if(aimsUrl){
         if(!navigated)navigate();
       },8000);
     }catch(ex){log('ex='+ex.message);navigate();}
-  },3500);
+  }
 
 } else {
   // Sin aimsUrl: el usuario no abrió el popup de impresión.
