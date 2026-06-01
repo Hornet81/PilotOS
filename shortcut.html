@@ -191,42 +191,60 @@ if(aimsUrl){
       log('unifier='+unifier.slice(0,60));
       log('docId='+docId.slice(0,80));
 
-      // Si tenemos unifier + docId → export via DevExpress getExportedDocument
+      // Explorar respuesta de getPage (puede ser SVG/JSON/HTML con datos del reporte)
       if(unifier&&wdvBase){
         var enc=encodeURIComponent;
-        var pend2=3;
+        var pend2=2;
         function done2(){if(--pend2<=0&&!navigated)navigate();}
 
-        function tryExport(fmt,label){
-          var arg=enc(JSON.stringify({documentId:docId,format:fmt,exportOptions:{}}));
-          fetch(wdvBase+'?actionKey=getExportedDocument&unifier='+enc(unifier)+'&arg='+arg,
-            {credentials:'include',headers:{Accept:'*/*',eCrewHeader:hdr}})
-            .then(function(r){log(label+'='+r.status+' '+r.headers.get('content-type'));return r.text();})
-            .then(function(t){
-              log(label+'_len='+t.length);
-              if(fmt==='html'){
-                var got=parseHTML(t);
-                log(label+'_items='+got.length);
-                if(got.length){E=E.concat(got);navigate();}
-                else{log(label+'_body='+t.slice(0,300));done2();}
-              }else{
-                log(label+'_body='+t.slice(0,300));
-                done2();
+        // getPage pag 0 — ver formato de respuesta
+        var pgArg=enc(JSON.stringify({pageIndex:0,documentId:docId}));
+        fetch(wdvBase+'?actionKey=getPage&unifier='+enc(unifier)+'&arg='+pgArg,
+          {credentials:'include',headers:{Accept:'*/*',eCrewHeader:hdr}})
+          .then(function(r){
+            log('gp0='+r.status+' '+(r.headers.get('content-type')||'').slice(0,40));
+            return r.text();
+          })
+          .then(function(t){
+            log('gp0_len='+t.length);
+            log('gp0_head='+t.slice(0,200));
+            // ¿Es JSON?
+            try{
+              var j=JSON.parse(t);
+              log('gp0_keys='+Object.keys(j).join(','));
+              // Buscar SVG o HTML dentro del JSON
+              Object.keys(j).forEach(function(k){
+                var v=String(j[k]);
+                log('gp0_'+k+'='+v.slice(0,150));
+                if(v.indexOf('<svg')>-1||v.indexOf('<table')>-1||v.indexOf('<tr')>-1){
+                  var got=parseHTML(v);
+                  log('gp0_'+k+'_items='+got.length);
+                  if(got.length){E=E.concat(got);}
+                }
+              });
+            }catch(e){
+              // No es JSON — puede ser SVG/HTML directo
+              if(t.indexOf('<svg')>-1){
+                log('gp0_is_svg');
+                // Extraer texto de elementos <text> del SVG
+                var doc2=new DOMParser().parseFromString(t,'image/svg+xml');
+                var texts=doc2.querySelectorAll('text,tspan');
+                var flat='';
+                texts.forEach(function(el){flat+=(el.textContent||'').trim()+' ';});
+                log('gp0_svgtxt='+flat.slice(0,200));
               }
-            }).catch(function(e){log(label+'_err='+e.message);done2();});
-        }
+            }
+            if(E.length>0)navigate(); else done2();
+          }).catch(function(e){log('gp0_err='+e.message);done2();});
 
-        tryExport('html','exp_html');
-        tryExport('csv','exp_csv');
-
-        // También probar POST JSON (algunas versiones DevExpress lo requieren)
+        // POST getDocumentData — puede devolver estructura del reporte
         fetch(wdvBase,{
           method:'POST',credentials:'include',
-          headers:{Accept:'*/*','Content-Type':'application/json',eCrewHeader:hdr},
-          body:JSON.stringify({action:'ExportTo',args:{unifier:unifier,documentId:docId,format:'csv'}})
-        }).then(function(r){log('post_exp='+r.status);return r.text();})
-          .then(function(t){log('post_exp_body='+t.slice(0,300));done2();})
-          .catch(function(e){log('post_exp_err='+e.message);done2();});
+          headers:{'Content-Type':'application/json',Accept:'*/*',eCrewHeader:hdr},
+          body:JSON.stringify({action:'getDocumentData',args:{unifier:unifier,documentId:docId}})
+        }).then(function(r){log('gdd='+r.status);return r.text();})
+          .then(function(t){log('gdd_len='+t.length);log('gdd_body='+t.slice(0,200));done2();})
+          .catch(function(e){log('gdd_err='+e.message);done2();});
 
       } else {
         log('no_unifier');
