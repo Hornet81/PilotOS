@@ -153,72 +153,90 @@ if(aimsUrl){
   ifr.src=aimsUrl;
   document.body.appendChild(ifr);
 
-  // Polling cada 300ms — llamar getPage INMEDIATAMENTE cuando la SPA lo llame
-  // (la sesión expira rápido; no podemos esperar 7s)
-  var pollFound=false,pollStart=Date.now();
-  var pollId=setInterval(function(){
-    if(pollFound||Date.now()-pollStart>11000){clearInterval(pollId);return;}
-    try{
-      var entries=ifr.contentWindow.performance.getEntriesByType('resource');
-      for(var pi=0;pi<entries.length;pi++){
-        var r=entries[pi];
-        if(r.name.indexOf('getPage')>-1&&!pollFound){
-          pollFound=true;clearInterval(pollId);
-          log('poll_hit='+(Date.now()-pollStart)+'ms');
-          // Extraer unifier + docId del URL COMPLETO (r.name no truncado)
-          var fu=r.name,wBase=fu.split('?')[0];
-          var um=fu.match(/[?&]unifier=([^&]+)/),am=fu.match(/[?&]arg=([^&]*)/);
-          var uni=um?decodeURIComponent(um[1]):'',dId='';
-          if(am){try{dId=JSON.parse(decodeURIComponent(am[1])).documentId||'';}catch(e){}}
-          log('uni='+uni.slice(0,40));
-          log('dId='+dId.slice(0,60));
-          var enc=encodeURIComponent;
+  // Estrategia: openReport propio → crear sesión propia → getPage con nuestro unifier
+  // La SPA agota su propia sesión; necesitamos una nueva independiente.
+  setTimeout(function(){
+    // Extraer taskId + token del aimsUrl (generados cuando el usuario abrió el popup)
+    var wdvBase='https://ecrews.vueling.com/AIMS/CrewScheduleReport/WebDocumentViewerInvoke';
+    var tidM=aimsUrl.match(/taskid=([^&]+)/),tokM=aimsUrl.match(/[?&]token=([^&]+)/);
+    var taskId=tidM?decodeURIComponent(tidM[1]):'',tok=tokM?tokM[1]:'';
+    log('taskId='+taskId.slice(0,40));log('tok='+tok);
+    var enc=encodeURIComponent;
 
-          function fetchPage(pgIdx,lbl,last){
-            var pgA=enc(JSON.stringify({pageIndex:pgIdx,documentId:dId}));
-            fetch(wBase+'?actionKey=getPage&unifier='+enc(uni)+'&arg='+pgA,
-              {credentials:'include',headers:{Accept:'*/*',eCrewHeader:hdr}})
-              .then(function(rr){log(lbl+'='+rr.status);return rr.text();})
-              .then(function(t){
-                log(lbl+'_len='+t.length);
-                try{
-                  var j2=JSON.parse(t);
-                  log(lbl+'_ok='+j2.success);
-                  if(j2.success&&j2.result){
-                    var res=j2.result;
-                    log(lbl+'_rkeys='+Object.keys(res).join(','));
-                    Object.keys(res).forEach(function(k){
-                      var v=String(res[k]||'');
-                      if(v.length>50){
-                        log(lbl+'_'+k+'['+v.length+']='+v.slice(0,120));
-                        // Intentar parsear como HTML
-                        var got=parseHTML(v);
-                        if(got.length){E=E.concat(got);log(lbl+'_items='+got.length);}
-                        // Intentar parsear SVG
-                        if(v.indexOf('<svg')>-1){
-                          var sd=new DOMParser().parseFromString(v,'image/svg+xml');
-                          var txts=sd.querySelectorAll('text,tspan');
-                          var fl='';txts.forEach(function(el){fl+=(el.textContent||'').trim()+' ';});
-                          log(lbl+'_svg='+fl.slice(0,200));
-                        }
-                      }
-                    });
-                  } else {
-                    log(lbl+'_err='+JSON.stringify(j2).slice(0,150));
+    // Función para llamar getPage una vez tenemos nuestro propio unifier/docId
+    function ownGetPage(myUni,myDId,prefix){
+      function fpg(pgIdx,lbl,last){
+        var pgA=enc(JSON.stringify({pageIndex:pgIdx,documentId:myDId}));
+        fetch(wdvBase+'?actionKey=getPage&unifier='+enc(myUni)+'&arg='+pgA,
+          {credentials:'include',headers:{Accept:'*/*',eCrewHeader:hdr}})
+          .then(function(rr){return rr.text();})
+          .then(function(t){
+            log(lbl+'_len='+t.length);
+            try{
+              var j2=JSON.parse(t);
+              log(lbl+'_ok='+j2.success);
+              if(j2.success&&j2.result){
+                var res=j2.result;
+                log(lbl+'_rkeys='+Object.keys(res).join(','));
+                Object.keys(res).forEach(function(k){
+                  var v=String(res[k]||'');
+                  if(v.length>50){
+                    log(lbl+'_'+k+'='+v.slice(0,120));
+                    var got=parseHTML(v);if(got.length){E=E.concat(got);log(lbl+'_items='+got.length);}
+                    if(v.indexOf('<svg')>-1){
+                      var sd=new DOMParser().parseFromString(v,'image/svg+xml');
+                      var txts=sd.querySelectorAll('text,tspan'),fl='';
+                      txts.forEach(function(el){fl+=(el.textContent||'').trim()+' ';});
+                      log(lbl+'_svg='+fl.slice(0,200));
+                    }
                   }
-                }catch(e){log(lbl+'_raw='+t.slice(0,150));}
-                if(E.length>0)navigate();
-                else if(last&&!navigated)navigate();
-              }).catch(function(e){log(lbl+'_fail='+e.message);if(last&&!navigated)navigate();});
-          }
-          fetchPage(0,'gp0',false);
-          fetchPage(1,'gp1',false);
-          fetchPage(2,'gp2',true);
-          break;
-        }
+                });
+              }else{log(lbl+'_fail='+JSON.stringify(j2).slice(0,150));}
+            }catch(e){log(lbl+'_raw='+t.slice(0,150));}
+            if(E.length>0)navigate(); else if(last&&!navigated)navigate();
+          }).catch(function(e){log(lbl+'_err='+e.message);if(last&&!navigated)navigate();});
       }
-    }catch(e){}
-  },300);
+      fpg(0,prefix+'0',false);fpg(1,prefix+'1',false);fpg(2,prefix+'2',true);
+    }
+
+    // Intentar openReport con distintos formatos de body
+    var orBodies=[
+      {action:'OpenReport',args:{reportUrl:aimsUrl}},
+      {action:'OpenReport',args:{reportUrl:'/AIMS/CrewScheduleReport/PrintReport?taskid='+taskId+'&token='+tok}},
+      {action:'OpenReport',args:{taskId:taskId,token:tok}},
+      {action:'openReport',args:{reportUrl:aimsUrl}}
+    ];
+    var orPend=orBodies.length,orDone=false;
+    orBodies.forEach(function(body,idx){
+      fetch(wdvBase,{method:'POST',credentials:'include',
+        headers:{'Content-Type':'application/json',Accept:'application/json',eCrewHeader:hdr},
+        body:JSON.stringify(body)
+      }).then(function(r){return r.text();})
+      .then(function(t){
+        log('or'+idx+'='+t.slice(0,200));
+        if(orDone){if(--orPend<=0&&!navigated)navigate();return;}
+        try{
+          var j=JSON.parse(t);
+          if(j.success&&j.result){
+            orDone=true;
+            var myUni=j.result.unifier||'';
+            // docId puede estar en distintos campos según la versión de DevExpress
+            var myDId=j.result.documentId||
+              (j.result.document&&j.result.document.id)||
+              (j.result.documentData&&j.result.documentData.documentId)||'';
+            log('or'+idx+'_uni='+myUni.slice(0,40));
+            log('or'+idx+'_dId='+myDId.slice(0,40));
+            log('or'+idx+'_rkeys='+Object.keys(j.result).join(','));
+            if(myUni)ownGetPage(myUni,myDId,'gp');
+            else{log('or'+idx+'_nouri');if(--orPend<=0&&!navigated)navigate();}
+          }else{
+            log('or'+idx+'_err='+JSON.stringify(j).slice(0,120));
+            if(--orPend<=0&&!navigated)navigate();
+          }
+        }catch(e){if(--orPend<=0&&!navigated)navigate();}
+      }).catch(function(e){log('or'+idx+'_fail='+e.message);if(--orPend<=0&&!navigated)navigate();});
+    });
+  },3000); // Esperar 3s a que la SPA establezca el contexto de sesión primero
 
 } else {
   // Sin aimsUrl: el usuario no abrió el popup de impresión.
