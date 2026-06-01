@@ -76,7 +76,7 @@ if(typeof completion==='function')completion(null);
 var E=[],L=[];
 function p2(n){return('0'+n).slice(-2);}
 function log(s){L.push(String(s).slice(0,250));}
-log('v=iwxhr02');
+log('v=iwxhr03');
 
 // Parser tabla HTML del reporte (Date|Duties|Details|ReportT|ActualT|...)
 function parseHTML(html){
@@ -179,24 +179,36 @@ if(aimsUrl){
       var iw=ifr.contentWindow;
       log('ifr_url='+iw.location.href.slice(0,80));
 
-      // Volcar requests reales que hizo la SPA (URL, Content-Type, body)
-      var spa=window.__pilotOS_spa||[];
-      log('spa_n='+spa.length);
-      for(var k=0;k<Math.min(spa.length,5);k++){
-        log('s'+k+'m='+spa[k].m+' ct='+(spa[k].ct||'-'));
-        log('s'+k+'b='+(spa[k].b||'').slice(0,200));
-      }
+      // Capturar URLs completas del SPA con sus query strings (sin truncar)
+      // → necesitamos ver actionKey, unifier y arg que usa la SPA
+      try{
+        var seen={};
+        iw.performance.getEntriesByType('resource').forEach(function(r){
+          if(r.name.indexOf('ViewerInvoke')>-1){
+            var qs=r.name.indexOf('?')>-1?r.name.split('?')[1]:'';
+            if(qs&&!seen[qs.slice(0,40)]){
+              seen[qs.slice(0,40)]=1;
+              log('q='+decodeURIComponent(qs).slice(0,240));
+            }
+          }
+        });
+      }catch(e){}
 
       var WDVU='https://ecrews.vueling.com/AIMS/CrewScheduleReport/WebDocumentViewerInvoke';
       var loc=iw.location.href;
       var enc=encodeURIComponent;
 
-      // 4 formatos a probar (form-encoded con actionKey, distintos arg)
+      // 400 con "Index was outside the bounds of the array" → arg debe ser ARRAY
+      // Probar 4 formatos con arg como array
+      var argA1=JSON.stringify([loc]);
+      var argA2=JSON.stringify([loc,'Auto']);
+      var argA3=JSON.stringify([{reportUrl:loc}]);
+      var argA4=JSON.stringify([loc,'',{}]);
       var attempts=[
-        {ct:'application/x-www-form-urlencoded',b:'actionKey=OpenReport&arg='+enc(JSON.stringify({reportUrl:loc}))},
-        {ct:'application/x-www-form-urlencoded',b:'actionKey=OpenReport&arg='+enc(JSON.stringify({}))},
-        {ct:'application/x-www-form-urlencoded; charset=UTF-8',b:'actionKey=OpenReport&arg='+enc(JSON.stringify({reportUrl:loc,initialPaperKind:'Auto'}))},
-        {ct:'application/x-www-form-urlencoded',u:WDVU+'?actionKey=OpenReport',b:'arg='+enc(JSON.stringify({reportUrl:loc}))}
+        {ct:'application/x-www-form-urlencoded',b:'actionKey=OpenReport&arg='+enc(argA1)},
+        {ct:'application/x-www-form-urlencoded',b:'actionKey=OpenReport&arg='+enc(argA2)},
+        {ct:'application/x-www-form-urlencoded',b:'actionKey=OpenReport&arg='+enc(argA3)},
+        {ct:'application/x-www-form-urlencoded',b:'actionKey=OpenReport&arg='+enc(argA4)}
       ];
 
       var XC=iw.XMLHttpRequest;
@@ -210,7 +222,7 @@ if(aimsUrl){
           xhr.setRequestHeader('Content-Type',a.ct);
           xhr.setRequestHeader('X-Requested-With','XMLHttpRequest');
           xhr.setRequestHeader('Accept','application/json, text/javascript, */*; q=0.01');
-          xhr.onreadystatechange=function(){if(xhr.readyState===4)iors[i]=xhr.status+'||'+xhr.responseText.slice(0,500);};
+          xhr.onreadystatechange=function(){if(xhr.readyState===4)iors[i]=xhr.status+'||'+xhr.responseText.slice(0,1500);};
           xhr.onerror=function(){iors[i]='XERR';};
           xhr.send(a.b);
         }catch(e){iors[i]='EX||'+e.message;}
@@ -221,7 +233,10 @@ if(aimsUrl){
         var enc=encodeURIComponent;
         for(var i=0;i<4;i++){
           var r=iors[i]||'pending';
-          log('ior'+i+'='+r.slice(0,200));
+          // log en chunks de 240 (3 chunks = 720 chars del response)
+          log('ior'+i+'='+r.slice(0,240));
+          if(r.length>240)log('ior'+i+'b='+r.slice(240,480));
+          if(r.length>480)log('ior'+i+'c='+r.slice(480,720));
           if(r.indexOf('"success":true')>-1){
             try{
               var t=r.split('||').slice(1).join('||');
