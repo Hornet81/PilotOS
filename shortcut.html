@@ -143,7 +143,7 @@ function navigate(){
   var b64='';try{b64=btoa(unescape(encodeURIComponent(JSON.stringify({ok:E.length>0,entries:E,dbg:L.join('\\n')}))));}catch(e){}
   window.location.href='https://pilotos.aero?rosterSync='+(b64?enc(b64):'err');
 }
-setTimeout(navigate,13000);
+setTimeout(navigate,16000);
 
 if(aimsUrl){
   // Inyectar iframe oculto: el browser lo carga con todas las cookies/headers
@@ -164,30 +164,40 @@ if(aimsUrl){
       log('ifr_url='+iw.location.href.slice(0,80));
 
       // Script que corre DENTRO del iframe (Referer = PrintReport URL)
+      // Usa XMLHttpRequest en vez de fetch (más difícil que la SPA lo sobreescriba)
+      iw.__pilotOS=[];
+      iw.__pilotOS_ran=false;
       var sc=iDoc.createElement('script');
       sc.textContent='(function(){'+
+        'window.__pilotOS_ran=true;'+  // marca de ejecución
         'var u="/AIMS/CrewScheduleReport/WebDocumentViewerInvoke";'+
         'var loc=location.href;'+
         'var bds=['+
           '{action:"OpenReport",args:{reportUrl:loc}},'+
-          '{action:"OpenReport",args:{reportUrl:loc.split("?")[0]+"?"+loc.split("?")[1]}},'+
-          '{action:"openReport",args:{url:loc}},'+
-          '{action:"OpenReport",args:{}}'+
+          '{action:"OpenReport",args:{reportName:"CrewScheduleReport"}},'+
+          '{action:"openReport",args:{reportUrl:loc}},'+
+          '{action:"OpenReport",args:{url:loc}}'+
         '];'+
         'bds.forEach(function(b,i){'+
-          'fetch(u,{method:"POST",credentials:"include",'+
-            'headers:{"Content-Type":"application/json","Accept":"application/json"},'+
-            'body:JSON.stringify(b)'+
-          '}).then(function(r){return r.text().then(function(t){return{s:r.status,t:t};});})'+
-          '.then(function(res){window.__pilotOS[i]=res.s+"||"+res.t;})'+
-          '.catch(function(e){window.__pilotOS[i]="ERR||"+e.message;});'+
+          'var xhr=new XMLHttpRequest();'+
+          'xhr.open("POST",u,true);'+
+          'xhr.withCredentials=true;'+
+          'xhr.setRequestHeader("Content-Type","application/json");'+
+          'xhr.setRequestHeader("Accept","application/json");'+
+          'xhr.onreadystatechange=function(){'+
+            'if(xhr.readyState===4){'+
+              'window.__pilotOS[i]=xhr.status+"||"+xhr.responseText.slice(0,500);'+
+            '}'+
+          '};'+
+          'xhr.onerror=function(){window.__pilotOS[i]="XERR||network";};'+
+          'try{xhr.send(JSON.stringify(b));}catch(e){window.__pilotOS[i]="XERR||"+e.message;}'+
         '});'+
       '})()';
-      iDoc.body.appendChild(sc);
-      log('sc_ok');
+      try{iDoc.body.appendChild(sc);log('sc_ok');}catch(ex){log('sc_err2='+ex.message);}
 
-      // Leer resultados tras 5s
+      // Leer resultados tras 7s
       setTimeout(function(){
+        log('sc_ran='+(iw.__pilotOS_ran?'yes':'no'));
         var rs=iw.__pilotOS||[];
         var enc=encodeURIComponent,wdvBase='https://ecrews.vueling.com/AIMS/CrewScheduleReport/WebDocumentViewerInvoke';
         for(var i=0;i<4;i++){
