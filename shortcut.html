@@ -76,7 +76,7 @@ if(typeof completion==='function')completion(null);
 var E=[],L=[];
 function p2(n){return('0'+n).slice(-2);}
 function log(s){L.push(String(s).slice(0,250));}
-log('v=reuse01');
+log('v=reuse02');
 
 // Parser tabla HTML del reporte (Date|Duties|Details|ReportT|ActualT|...)
 function parseHTML(html){
@@ -213,7 +213,7 @@ if(aimsUrl){
         function collect(obj,d){
           if(!obj||typeof obj!=='object'||d>8)return;
           if(typeof obj.text==='string'&&typeof obj.left==='number'&&typeof obj.top==='number'){
-            var t=obj.text.replace(/\s+/g,' ').trim();
+            var t=obj.text.replace(/\\s+/g,' ').trim();
             if(t)bricks.push({x:obj.left,y:obj.top,t:t});
           }
           if(Array.isArray(obj)){obj.forEach(function(v){collect(v,d+1);});return;}
@@ -239,7 +239,7 @@ if(aimsUrl){
           if(!r.cells.length)return;
           var dateCell=null,duty='',det='',std='',sta='';
           r.cells.forEach(function(c){
-            var dm=c.t.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+            var dm=c.t.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/);
             if(dm){dateCell=dm[3]+'-'+dm[2]+'-'+dm[1];}
           });
           if(dateCell)curDate=dateCell;
@@ -247,17 +247,17 @@ if(aimsUrl){
           // ignorar celdas de fecha y dia de semana, primera no-fecha=duty
           for(var i=0;i<r.cells.length;i++){
             var t=r.cells[i].t;
-            if(/^\d{2}\/\d{2}\/\d{4}$/.test(t))continue;
+            if(/^\\d{2}\\/\\d{2}\\/\\d{4}$/.test(t))continue;
             if(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)$/.test(t))continue;
             if(!duty){duty=t;continue;}
             if(!det&&/[A-Z]{3}.*[A-Z]{3}/.test(t)){det=t;continue;}
-            var tm=t.match(/^A?(\d{2}:\d{2})/);
+            var tm=t.match(/^A?(\\d{2}:\\d{2})/);
             if(tm){if(!std)std=tm[1];else if(!sta)sta=tm[1];}
           }
           if(!duty)return;
-          var fm=duty.match(/^(\d{3,5})/);
+          var fm=duty.match(/^(\\d{3,5})/);
           if(fm){
-            var rm=det.match(/([A-Z]{3})\s*[-]\s*([A-Z]{3})/);
+            var rm=det.match(/([A-Z]{3})\\s*[-]\\s*([A-Z]{3})/);
             out.push({date:curDate,type:'flight',flightNum:fm[1],dep:rm?rm[1]:'',arr:rm?rm[2]:'',std:std,sta:sta});
           } else if(/^OFF$|SROF|^LI$|libre/i.test(duty)){
             out.push({date:curDate,type:'off',flightNum:'',dep:'',arr:'',std:'',sta:''});
