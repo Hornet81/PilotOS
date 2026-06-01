@@ -160,47 +160,65 @@ if(aimsUrl){
       var html=iDoc.documentElement.innerHTML||'';
       log('ifr_len='+html.length);
 
-      // Capturar APIs internas — extraer unifier del WebDocumentViewerInvoke
-      var unifier='',wdvBase='';
+      // Capturar APIs internas — extraer unifier + documentId del WebDocumentViewerInvoke
+      var unifier='',docId='',wdvBase='';
       try{ifr.contentWindow.performance.getEntriesByType('resource').forEach(function(r){
         if(!/[.](js|css|png|woff|ttf|ico|svg|jpg)($|\\?)/i.test(r.name)){
-          log('spaAPI='+r.name.slice(0,200));
+          log('spaAPI='+r.name.slice(0,400));
           if(r.name.indexOf('WebDocumentViewerInvoke')>-1){
             if(!wdvBase)wdvBase=r.name.split('?')[0];
             var um=r.name.match(/[?&]unifier=([^&]+)/);
             if(um&&!unifier)unifier=decodeURIComponent(um[1]);
+            // Extraer documentId del arg JSON
+            var am=r.name.match(/[?&]arg=([^&]*)/);
+            if(am&&!docId){
+              try{
+                var argJ=JSON.parse(decodeURIComponent(am[1]));
+                if(argJ.documentId)docId=argJ.documentId;
+              }catch(e){}
+            }
           }
         }
       });}catch(e){log('spaPerf:'+e.message);}
       log('unifier='+unifier.slice(0,60));
+      log('docId='+docId.slice(0,60));
 
-      // Si tenemos unifier → intentar export HTML y CSV via DevExpress
+      // Si tenemos unifier + docId → export via DevExpress getExportedDocument
       if(unifier&&wdvBase){
         var enc=encodeURIComponent;
-        var pend2=2;
+        var pend2=3;
         function done2(){if(--pend2<=0&&!navigated)navigate();}
 
-        // Export HTML
-        fetch(wdvBase+'?actionKey=getExportDocument&unifier='+enc(unifier)+'&format=html',
-          {credentials:'include',headers:{Accept:'text/html,*/*',eCrewHeader:hdr}})
-          .then(function(r){log('exp_html='+r.status);return r.text();})
-          .then(function(t){
-            log('exp_html_len='+t.length);
-            var got=parseHTML(t);
-            log('exp_html_items='+got.length);
-            if(got.length){E=E.concat(got);navigate();}
-            else{log('exp_html_body='+t.slice(0,200));done2();}
-          }).catch(function(e){log('exp_html_err='+e.message);done2();});
+        function tryExport(fmt,label){
+          var arg=enc(JSON.stringify({documentId:docId,format:fmt,exportOptions:{}}));
+          fetch(wdvBase+'?actionKey=getExportedDocument&unifier='+enc(unifier)+'&arg='+arg,
+            {credentials:'include',headers:{Accept:'*/*',eCrewHeader:hdr}})
+            .then(function(r){log(label+'='+r.status+' '+r.headers.get('content-type'));return r.text();})
+            .then(function(t){
+              log(label+'_len='+t.length);
+              if(fmt==='html'){
+                var got=parseHTML(t);
+                log(label+'_items='+got.length);
+                if(got.length){E=E.concat(got);navigate();}
+                else{log(label+'_body='+t.slice(0,300));done2();}
+              }else{
+                log(label+'_body='+t.slice(0,300));
+                done2();
+              }
+            }).catch(function(e){log(label+'_err='+e.message);done2();});
+        }
 
-        // Export CSV (más fácil de parsear)
-        fetch(wdvBase+'?actionKey=getExportDocument&unifier='+enc(unifier)+'&format=csv',
-          {credentials:'include',headers:{Accept:'text/csv,text/plain,*/*',eCrewHeader:hdr}})
-          .then(function(r){log('exp_csv='+r.status);return r.text();})
-          .then(function(t){
-            log('exp_csv_len='+t.length);
-            log('exp_csv_body='+t.slice(0,300));
-            done2();
-          }).catch(function(e){log('exp_csv_err='+e.message);done2();});
+        tryExport('html','exp_html');
+        tryExport('csv','exp_csv');
+
+        // También probar POST JSON (algunas versiones DevExpress lo requieren)
+        fetch(wdvBase,{
+          method:'POST',credentials:'include',
+          headers:{Accept:'*/*','Content-Type':'application/json',eCrewHeader:hdr},
+          body:JSON.stringify({action:'ExportTo',args:{unifier:unifier,documentId:docId,format:'csv'}})
+        }).then(function(r){log('post_exp='+r.status);return r.text();})
+          .then(function(t){log('post_exp_body='+t.slice(0,300));done2();})
+          .catch(function(e){log('post_exp_err='+e.message);done2();});
 
       } else {
         log('no_unifier');
