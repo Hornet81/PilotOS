@@ -153,108 +153,72 @@ if(aimsUrl){
   ifr.src=aimsUrl;
   document.body.appendChild(ifr);
 
-  // Leer DOM + Performance API tras 7s
-  setTimeout(function(){
+  // Polling cada 300ms — llamar getPage INMEDIATAMENTE cuando la SPA lo llame
+  // (la sesión expira rápido; no podemos esperar 7s)
+  var pollFound=false,pollStart=Date.now();
+  var pollId=setInterval(function(){
+    if(pollFound||Date.now()-pollStart>11000){clearInterval(pollId);return;}
     try{
-      var iDoc=ifr.contentDocument||ifr.contentWindow.document;
-      var html=iDoc.documentElement.innerHTML||'';
-      log('ifr_len='+html.length);
+      var entries=ifr.contentWindow.performance.getEntriesByType('resource');
+      for(var pi=0;pi<entries.length;pi++){
+        var r=entries[pi];
+        if(r.name.indexOf('getPage')>-1&&!pollFound){
+          pollFound=true;clearInterval(pollId);
+          log('poll_hit='+(Date.now()-pollStart)+'ms');
+          // Extraer unifier + docId del URL COMPLETO (r.name no truncado)
+          var fu=r.name,wBase=fu.split('?')[0];
+          var um=fu.match(/[?&]unifier=([^&]+)/),am=fu.match(/[?&]arg=([^&]*)/);
+          var uni=um?decodeURIComponent(um[1]):'',dId='';
+          if(am){try{dId=JSON.parse(decodeURIComponent(am[1])).documentId||'';}catch(e){}}
+          log('uni='+uni.slice(0,40));
+          log('dId='+dId.slice(0,60));
+          var enc=encodeURIComponent;
 
-      // Capturar APIs internas — guardar URL COMPLETA en variable (no pasar por log que corta a 250)
-      var unifier='',docId='',wdvBase='',fullWdvUrl='';
-      try{ifr.contentWindow.performance.getEntriesByType('resource').forEach(function(r){
-        if(!/[.](js|css|png|woff|ttf|ico|svg|jpg)($|\\?)/i.test(r.name)){
-          log('spaAPI='+r.name.slice(0,200)); // solo para display
-          if(r.name.indexOf('WebDocumentViewerInvoke')>-1){
-            if(!wdvBase)wdvBase=r.name.split('?')[0];
-            // Guardar URL completa sin truncar (para extraer docId correctamente)
-            if(r.name.indexOf('getPage')>-1&&!fullWdvUrl)fullWdvUrl=r.name;
+          function fetchPage(pgIdx,lbl,last){
+            var pgA=enc(JSON.stringify({pageIndex:pgIdx,documentId:dId}));
+            fetch(wBase+'?actionKey=getPage&unifier='+enc(uni)+'&arg='+pgA,
+              {credentials:'include',headers:{Accept:'*/*',eCrewHeader:hdr}})
+              .then(function(rr){log(lbl+'='+rr.status);return rr.text();})
+              .then(function(t){
+                log(lbl+'_len='+t.length);
+                try{
+                  var j2=JSON.parse(t);
+                  log(lbl+'_ok='+j2.success);
+                  if(j2.success&&j2.result){
+                    var res=j2.result;
+                    log(lbl+'_rkeys='+Object.keys(res).join(','));
+                    Object.keys(res).forEach(function(k){
+                      var v=String(res[k]||'');
+                      if(v.length>50){
+                        log(lbl+'_'+k+'['+v.length+']='+v.slice(0,120));
+                        // Intentar parsear como HTML
+                        var got=parseHTML(v);
+                        if(got.length){E=E.concat(got);log(lbl+'_items='+got.length);}
+                        // Intentar parsear SVG
+                        if(v.indexOf('<svg')>-1){
+                          var sd=new DOMParser().parseFromString(v,'image/svg+xml');
+                          var txts=sd.querySelectorAll('text,tspan');
+                          var fl='';txts.forEach(function(el){fl+=(el.textContent||'').trim()+' ';});
+                          log(lbl+'_svg='+fl.slice(0,200));
+                        }
+                      }
+                    });
+                  } else {
+                    log(lbl+'_err='+JSON.stringify(j2).slice(0,150));
+                  }
+                }catch(e){log(lbl+'_raw='+t.slice(0,150));}
+                if(E.length>0)navigate();
+                else if(last&&!navigated)navigate();
+              }).catch(function(e){log(lbl+'_fail='+e.message);if(last&&!navigated)navigate();});
           }
-        }
-      });}catch(e){log('spaPerf:'+e.message);}
-
-      // Extraer unifier + docId del URL COMPLETO (r.name no está truncado)
-      if(fullWdvUrl){
-        var um=fullWdvUrl.match(/[?&]unifier=([^&]+)/);
-        if(um)unifier=decodeURIComponent(um[1]);
-        var am=fullWdvUrl.match(/[?&]arg=([^&]*)/);
-        if(am){
-          try{
-            var argJ=JSON.parse(decodeURIComponent(am[1]));
-            docId=argJ.documentId||'';
-          }catch(ex){
-            log('argErr='+ex.message);
-            log('argRaw='+am[1].slice(0,150));
-          }
+          fetchPage(0,'gp0',false);
+          fetchPage(1,'gp1',false);
+          fetchPage(2,'gp2',true);
+          break;
         }
       }
-      log('unifier='+unifier.slice(0,60));
-      log('docId='+docId.slice(0,80));
-
-      // Explorar respuesta de getPage (puede ser SVG/JSON/HTML con datos del reporte)
-      if(unifier&&wdvBase){
-        var enc=encodeURIComponent;
-        var pend2=2;
-        function done2(){if(--pend2<=0&&!navigated)navigate();}
-
-        // getPage pag 0 — ver formato de respuesta
-        var pgArg=enc(JSON.stringify({pageIndex:0,documentId:docId}));
-        fetch(wdvBase+'?actionKey=getPage&unifier='+enc(unifier)+'&arg='+pgArg,
-          {credentials:'include',headers:{Accept:'*/*',eCrewHeader:hdr}})
-          .then(function(r){
-            log('gp0='+r.status+' '+(r.headers.get('content-type')||'').slice(0,40));
-            return r.text();
-          })
-          .then(function(t){
-            log('gp0_len='+t.length);
-            log('gp0_head='+t.slice(0,200));
-            // ¿Es JSON?
-            try{
-              var j=JSON.parse(t);
-              log('gp0_keys='+Object.keys(j).join(','));
-              // Buscar SVG o HTML dentro del JSON
-              Object.keys(j).forEach(function(k){
-                var v=String(j[k]);
-                log('gp0_'+k+'='+v.slice(0,150));
-                if(v.indexOf('<svg')>-1||v.indexOf('<table')>-1||v.indexOf('<tr')>-1){
-                  var got=parseHTML(v);
-                  log('gp0_'+k+'_items='+got.length);
-                  if(got.length){E=E.concat(got);}
-                }
-              });
-            }catch(e){
-              // No es JSON — puede ser SVG/HTML directo
-              if(t.indexOf('<svg')>-1){
-                log('gp0_is_svg');
-                // Extraer texto de elementos <text> del SVG
-                var doc2=new DOMParser().parseFromString(t,'image/svg+xml');
-                var texts=doc2.querySelectorAll('text,tspan');
-                var flat='';
-                texts.forEach(function(el){flat+=(el.textContent||'').trim()+' ';});
-                log('gp0_svgtxt='+flat.slice(0,200));
-              }
-            }
-            if(E.length>0)navigate(); else done2();
-          }).catch(function(e){log('gp0_err='+e.message);done2();});
-
-        // POST getDocumentData — puede devolver estructura del reporte
-        fetch(wdvBase,{
-          method:'POST',credentials:'include',
-          headers:{'Content-Type':'application/json',Accept:'*/*',eCrewHeader:hdr},
-          body:JSON.stringify({action:'getDocumentData',args:{unifier:unifier,documentId:docId}})
-        }).then(function(r){log('gdd='+r.status);return r.text();})
-          .then(function(t){log('gdd_len='+t.length);log('gdd_body='+t.slice(0,200));done2();})
-          .catch(function(e){log('gdd_err='+e.message);done2();});
-
-      } else {
-        log('no_unifier');
-        navigate();
-      }
-    }catch(ex){
-      log('ifr_err='+ex.message);
-      navigate();
-    }
-  },7000);
+    }catch(e){}
+  },300);
 
 } else {
   // Sin aimsUrl: el usuario no abrió el popup de impresión.
