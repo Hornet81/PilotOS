@@ -160,28 +160,36 @@ if(aimsUrl){
       var html=iDoc.documentElement.innerHTML||'';
       log('ifr_len='+html.length);
 
-      // Capturar APIs internas — extraer unifier + documentId del WebDocumentViewerInvoke
-      var unifier='',docId='',wdvBase='';
+      // Capturar APIs internas — guardar URL COMPLETA en variable (no pasar por log que corta a 250)
+      var unifier='',docId='',wdvBase='',fullWdvUrl='';
       try{ifr.contentWindow.performance.getEntriesByType('resource').forEach(function(r){
         if(!/[.](js|css|png|woff|ttf|ico|svg|jpg)($|\\?)/i.test(r.name)){
-          log('spaAPI='+r.name.slice(0,400));
+          log('spaAPI='+r.name.slice(0,200)); // solo para display
           if(r.name.indexOf('WebDocumentViewerInvoke')>-1){
             if(!wdvBase)wdvBase=r.name.split('?')[0];
-            var um=r.name.match(/[?&]unifier=([^&]+)/);
-            if(um&&!unifier)unifier=decodeURIComponent(um[1]);
-            // Extraer documentId del arg JSON
-            var am=r.name.match(/[?&]arg=([^&]*)/);
-            if(am&&!docId){
-              try{
-                var argJ=JSON.parse(decodeURIComponent(am[1]));
-                if(argJ.documentId)docId=argJ.documentId;
-              }catch(e){}
-            }
+            // Guardar URL completa sin truncar (para extraer docId correctamente)
+            if(r.name.indexOf('getPage')>-1&&!fullWdvUrl)fullWdvUrl=r.name;
           }
         }
       });}catch(e){log('spaPerf:'+e.message);}
+
+      // Extraer unifier + docId del URL COMPLETO (r.name no está truncado)
+      if(fullWdvUrl){
+        var um=fullWdvUrl.match(/[?&]unifier=([^&]+)/);
+        if(um)unifier=decodeURIComponent(um[1]);
+        var am=fullWdvUrl.match(/[?&]arg=([^&]*)/);
+        if(am){
+          try{
+            var argJ=JSON.parse(decodeURIComponent(am[1]));
+            docId=argJ.documentId||'';
+          }catch(ex){
+            log('argErr='+ex.message);
+            log('argRaw='+am[1].slice(0,150));
+          }
+        }
+      }
       log('unifier='+unifier.slice(0,60));
-      log('docId='+docId.slice(0,60));
+      log('docId='+docId.slice(0,80));
 
       // Si tenemos unifier + docId → export via DevExpress getExportedDocument
       if(unifier&&wdvBase){
