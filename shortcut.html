@@ -76,7 +76,7 @@ if(typeof completion==='function')completion(null);
 var E=[],L=[];
 function p2(n){return('0'+n).slice(-2);}
 function log(s){L.push(String(s).slice(0,250));}
-log('v=reuse04');
+log('v=reuse05');
 
 // Parser tabla HTML del reporte (Date|Duties|Details|ReportT|ActualT|...)
 function parseHTML(html){
@@ -263,43 +263,53 @@ if(aimsUrl){
         return {bricks:bricks,rows:rows};
       }
 
+      // Analiza el TEXTO COMPLETO de cada fila (no celda a celda).
+      // Los bricks DevExpress vienen muy fragmentados — combinar es mas robusto.
       function rowsToEntries(rows){
-        var out=[],curDate='';
+        var out=[],curDate='',skipped=0;
+        var SKIP=/Personal Crew Schedule|Vueling Airlines|Generated on|Page \\d+ of|All times in UTC|Schedule Details|Total Hours|Block Hours|Duty Hours|Report times|Actual times|Debrief times|Indicators|BALCELLS|Captain|^Date$|^Duties$|^Details$/i;
         rows.forEach(function(r){
           if(!r.cells.length)return;
-          var dateCell=null,duty='',det='',std='',sta='';
-          r.cells.forEach(function(c){
-            var dm=c.t.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/);
-            if(dm){dateCell=dm[3]+'-'+dm[2]+'-'+dm[1];}
-          });
-          if(dateCell)curDate=dateCell;
-          if(!curDate)return;
-          // ignorar celdas de fecha y dia de semana, primera no-fecha=duty
-          for(var i=0;i<r.cells.length;i++){
-            var t=r.cells[i].t;
-            if(/^\\d{2}\\/\\d{2}\\/\\d{4}$/.test(t))continue;
-            if(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)$/.test(t))continue;
-            if(!duty){duty=t;continue;}
-            if(!det&&/[A-Z]{3}.*[A-Z]{3}/.test(t)){det=t;continue;}
-            var tm=t.match(/^A?(\\d{2}:\\d{2})/);
-            if(tm){if(!std)std=tm[1];else if(!sta)sta=tm[1];}
+          r.cells.sort(function(a,b){return a.x-b.x;});
+          var ft=r.cells.map(function(c){return c.t;}).join(' ').replace(/\\s+/g,' ').trim();
+          if(!ft){skipped++;return;}
+          if(SKIP.test(ft)){skipped++;return;}
+          // Fecha (DD/MM/YYYY)
+          var dm=ft.match(/(\\d{2})\\/(\\d{2})\\/(\\d{4})/);
+          if(dm){
+            var dd=+dm[1],mm=+dm[2],yy=+dm[3];
+            if(dd>=1&&dd<=31&&mm>=1&&mm<=12&&yy>=2020&&yy<=2100){
+              curDate=dm[3]+'-'+dm[2]+'-'+dm[1];
+            }
           }
-          if(!duty)return;
-          var fm=duty.match(/^(\\d{3,5})/);
-          if(fm){
-            var rm=det.match(/([A-Z]{3})\\s*[-]\\s*([A-Z]{3})/);
-            out.push({date:curDate,type:'flight',flightNum:fm[1],dep:rm?rm[1]:'',arr:rm?rm[2]:'',std:std,sta:sta});
-          } else if(/^OFF$|SROF|^LI$|libre/i.test(duty)){
+          if(!curDate){skipped++;return;}
+          // Vuelo: numero (3-5 dig) + ruta AAA-BBB
+          var fm=ft.match(/(?:^|\\s)(\\d{3,5})(?:\\[\\w+\\])?(?:\\s|$)/);
+          var rm=ft.match(/\\b([A-Z]{3})\\s*[-\\u2013]\\s*([A-Z]{3})\\b/);
+          var tms=ft.match(/\\b(\\d{2}:\\d{2})\\b/g)||[];
+          if(fm&&rm){
+            out.push({date:curDate,type:'flight',flightNum:fm[1],dep:rm[1],arr:rm[2],std:tms[0]||'',sta:tms[1]||''});
+          } else if(/\\b(OFF|SROF|libre|Dia libre|D[ií]a libre)\\b/i.test(ft)){
             out.push({date:curDate,type:'off',flightNum:'',dep:'',arr:'',std:'',sta:''});
-          } else if(/SBY|standby|OSBS|OSB3/i.test(duty)){
+          } else if(/\\b(SBY|standby|OSBS|OSB3)\\b/i.test(ft)){
             out.push({date:curDate,type:'standby',flightNum:'',dep:'',arr:'',std:'',sta:''});
-          } else if(/SIM|LFT|OPC/i.test(duty)){
+          } else if(/\\b(SIM|LFT|OPC)\\b/i.test(ft)){
             out.push({date:curDate,type:'training',flightNum:'',dep:'',arr:'',std:'',sta:''});
-          } else if(/SICK/i.test(duty)){
+          } else if(/\\b(SICK|Enfermedad|enfermedad)\\b/i.test(ft)){
             out.push({date:curDate,type:'other',flightNum:'SICK',dep:'',arr:'',std:'',sta:''});
+          } else {
+            skipped++;
           }
         });
-        return out;
+        log('rte_sk='+skipped+' ok='+out.length);
+        // Dedup por date+flightNum (o date+type para non-flight)
+        var seen={},ded=[];
+        out.forEach(function(e){
+          var k=e.date+'|'+(e.flightNum||e.type);
+          if(seen[k])return;
+          seen[k]=1;ded.push(e);
+        });
+        return ded;
       }
 
       var XC=iw.XMLHttpRequest;
