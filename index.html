@@ -1991,6 +1991,19 @@ select.ld-fi { appearance:none; -webkit-appearance:none; cursor:pointer; }
 }
 .ldm-close:active { background:rgba(124,58,237,.3); color:#F8FAFC; }
 
+/* ADS-B strip */
+.ldm-adsb-strip {
+  display:none; align-items:center; gap:8px;
+  margin:6px 20px 0; padding:8px 13px;
+  background:rgba(34,197,94,.07); border:1px solid rgba(34,197,94,.25);
+  border-radius:11px;
+}
+.ldm-adsb-strip-icon { font-size:13px; flex-shrink:0; }
+.ldm-adsb-strip-text { font-size:11px; color:rgba(134,239,172,.9); font-family:'Space Mono',monospace; flex:1; }
+.ldm-adsb-strip-clear { font-size:10px; color:rgba(134,239,172,.5); cursor:pointer; font-family:'Space Grotesk',sans-serif; }
+html.day .ldm-adsb-strip { background:rgba(22,163,74,.07) !important; border-color:rgba(22,163,74,.25) !important; }
+html.day .ldm-adsb-strip-text { color:#15803D !important; }
+
 /* OCR strip */
 .ldm-ocr-strip {
   display:flex; align-items:center; gap:8px;
@@ -9122,6 +9135,13 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
         </button>
       </div>
 
+      <!-- ADS-B strip (visible cuando datos importados de ADS-B) -->
+      <div id="ld-adsb-strip" class="ldm-adsb-strip">
+        <span class="ldm-adsb-strip-icon">✈</span>
+        <span class="ldm-adsb-strip-text" id="ld-adsb-strip-text">ADS-B</span>
+        <span class="ldm-adsb-strip-clear" onclick="ldAdsbStripClear()">✕</span>
+      </div>
+
       <!-- OCR strip (solo visible en modo manual) -->
       <div id="ld-ocr-avail-strip" class="ldm-ocr-strip">
         <div class="ldm-ocr-dot"></div>
@@ -12333,6 +12353,17 @@ async function ldFetchAdsb(){
     }
     // Recalcular bloque
     if(typeof ldAutoBlock === 'function') ldAutoBlock();
+    // Mostrar strip ADS-B
+    var stripEl = document.getElementById('ld-adsb-strip');
+    var stripTxt = document.getElementById('ld-adsb-strip-text');
+    if(stripEl && stripTxt){
+      var info = 'ADS-B';
+      if(body.atd || body.ata) info += ' · OUT '+(body.atd||'--')+' IN '+(body.ata||'--');
+      if(body.actype) info += ' · '+body.actype;
+      if(body.reg) info += ' · '+body.reg;
+      stripTxt.textContent = info;
+      stripEl.style.display = 'flex';
+    }
     showToast('✈ Datos ADS-B importados','success');
   } catch(e){
     console.error('[ADS-B]',e);
@@ -12439,7 +12470,11 @@ function ldCloseModal(){
   document.body.style.overflow='';
   ldResetUpload();
 }
+function ldAdsbStripClear(){
+  var s=document.getElementById('ld-adsb-strip'); if(s) s.style.display='none';
+}
 function ldResetForm(){
+  ldAdsbStripClear();
   ['ld_date','ld_flight','ld_dep','ld_arr','ld_reg','ld_fl','ld_std','ld_atd','ld_sta','ld_ata','ld_block','ld_flight_time','ld_night_inp','ld_notes','ld_cm1','ld_cm2','ld_roster_entry_id','ld_sched_out','ld_sched_in'].forEach(function(id){
     var el=document.getElementById(id); if(el){el.value='';el.classList.remove('af');}
   });
