@@ -24251,6 +24251,14 @@ window.rosterConfirmDelete = function(){
 };
 
 // ── Options bottom sheet ────────────────────────────────────────────────────
+window.rstTriggerUpload = function(){
+  var inputs = document.querySelectorAll('#rst-file-input');
+  var target = null;
+  inputs.forEach(function(inp){ if(inp._wired) target = inp; });
+  if(!target && inputs.length) target = inputs[inputs.length-1];
+  if(target) target.click();
+};
+
 window.rstShowOptionsMenu = function(){
   if(document.getElementById('rst-options-overlay')) return;
   var overlay = document.createElement('div');
@@ -24267,7 +24275,7 @@ window.rstShowOptionsMenu = function(){
       iconBg:'rgba(8,145,178,.18)', iconBgDay:'rgba(8,145,178,.12)',
       label:'Actualizar roster',
       sub:'PDF · TXT · Foto',
-      action:'document.getElementById("rst-file-input").click()'
+      action:'rstTriggerUpload()'
     },
     {
       icon:'🔗',
@@ -24601,6 +24609,8 @@ window.rosterInit = function(){
         showToast('☁ '+n+' entrada'+(n!==1?'s':'')+' de roster cargada'+(n!==1?'s':'')+' desde la nube','info');
       }
     });
+    // Retry any pushes that failed in a previous session (network error, server down, etc.)
+    setTimeout(rstSyncRetryPending, 3000);
   }
 
   // FIX: Wire persistent file input via addEventListener (not inline onchange)
