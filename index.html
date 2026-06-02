@@ -5348,6 +5348,14 @@ html.day #ld-card-sheet [style*="border-top:1px solid rgba(255,255,255"]{
 html.day #ld-card-sheet .ldm-lbl{color:#334155 !important}
 html.day #ld-card-sheet [style*="color:rgba(248,250,252"]{color:#334155 !important}
 
+/* ── Botón ADS-B — modo día ── */
+html.day #ld-adsb-quick-btn{
+  background:rgba(255,255,255,.85) !important;
+  border-color:rgba(8,145,178,.45) !important;
+  color:#0369A1 !important;
+}
+html.day #ld-adsb-quick-btn svg{ filter:none !important; color:#0369A1 !important; }
+
 /* ── Botón cámara OCR — visible en día ── */
 html.day button[onclick="ldQuickCamera()"],
 html.day button[title="Foto MCDU · OCR directo"]{
@@ -8592,6 +8600,24 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
           color:#67d7f5;font-size:18px;transition:all .15s;
           -webkit-tap-highlight-color:transparent;
         ">🗓</button>
+        <!-- Quick: ADS-B autofill -->
+        <button id="ld-adsb-quick-btn" onclick="ldQuickAdsb()" title="Rellenar desde ADS-B" style="
+          width:40px;height:40px;flex-shrink:0;border-radius:12px;
+          background:rgba(34,211,238,.07);border:1.5px solid rgba(34,211,238,.22);
+          cursor:pointer;display:flex;align-items:center;justify-content:center;
+          color:#22D3EE;transition:all .15s;
+          -webkit-tap-highlight-color:transparent;
+        ">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="filter:drop-shadow(0 0 3px rgba(34,211,238,.5))">
+            <!-- Airplane top-view pointing upper-left -->
+            <g transform="rotate(-45 12 12)">
+              <polygon points="12,2 13.5,9 21,13 13,11.5 13,18.5 16.5,21.5 12,23 7.5,21.5 11,18.5 11,11.5 3,13 10.5,9"/>
+            </g>
+            <!-- Signal arcs bottom-right -->
+            <path d="M16,18.5 A3,3 0 0,1 19,15.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            <path d="M15,21 A5.5,5.5 0 0,1 21.5,15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+          </svg>
+        </button>
         <!-- Quick: Camera OCR -->
         <button onclick="ldQuickCamera()" title="Foto MCDU · OCR directo" style="
           width:40px;height:40px;flex-shrink:0;border-radius:12px;
@@ -9160,9 +9186,16 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
             <label class="ldm-lbl">FECHA <span class="ldm-tag ldm-tag-ocr">OCR</span></label>
             <input class="ldm-inp" type="date" id="ld_date">
           </div>
-          <div class="ldm-fg">
+          <div class="ldm-fg" style="position:relative">
             <label class="ldm-lbl">Nº VUELO <span class="ldm-tag ldm-tag-ocr">OCR</span></label>
-            <input class="ldm-inp" type="text" id="ld_flight" placeholder="VY1234">
+            <div style="display:flex;gap:6px;align-items:center">
+              <input class="ldm-inp" type="text" id="ld_flight" placeholder="VY1234" style="flex:1;min-width:0">
+              <button type="button" id="ld_adsb_btn" onclick="ldFetchAdsb()"
+                title="Rellenar desde ADS-B"
+                style="flex-shrink:0;height:38px;padding:0 10px;border-radius:10px;border:1px solid rgba(34,211,238,.25);background:rgba(8,145,178,.13);color:#22D3EE;font-size:11px;font-family:'Space Grotesk',sans-serif;font-weight:700;cursor:pointer;white-space:nowrap;letter-spacing:.3px;transition:background .15s">
+                ✈ ADS-B
+              </button>
+            </div>
           </div>
         </div>
 
@@ -12240,8 +12273,64 @@ function showPlanToast(feature){
     export: '🔒 Exportar disponible en Pro · Actualiza tu plan',
     roster: '🔒 Import de Roster disponible en Pro · Actualiza tu plan',
     limit:  '🔒 Límite de ' + PLAN_FREE_LOGBOOK_LIMIT + ' vuelos en Free · Actualiza a Pro',
+    adsb:   '🔒 Búsqueda ADS-B disponible en Pro · Actualiza tu plan',
   };
   showToast(msgs[feature] || '🔒 Disponible en plan Pro', 'warning');
+}
+// ─────────────────────────────────────────────────────────────────
+async function ldFetchAdsb(){
+  var flightEl = document.getElementById('ld_flight');
+  var dateEl   = document.getElementById('ld_date');
+  var number   = (flightEl && flightEl.value || '').trim();
+  var date     = (dateEl   && dateEl.value   || '').trim();
+  if(!number){ showToast('Introduce primero el número de vuelo','warning'); return; }
+  if(!date)  { showToast('Introduce primero la fecha','warning'); return; }
+  var btn = document.getElementById('ld_adsb_btn');
+  if(btn){ btn.disabled=true; btn.textContent='…'; }
+  try{
+    var token = localStorage.getItem('pilotToken') || '';
+    var baseUrl = lsGet('cafi_backend_url','https://api.pilotos.aero');
+    var r = await fetch(
+      baseUrl + '/api/adsb/flight?number=' + encodeURIComponent(number) + '&date=' + encodeURIComponent(date),
+      { headers: { 'Authorization': 'Bearer ' + token } }
+    );
+    var body = await r.json().catch(function(){ return {}; });
+    if(!r.ok){
+      if(body.error === 'plan_limit'){ showPlanToast('adsb'); return; }
+      showToast(body.error || 'Error ADS-B (' + r.status + ')','error'); return;
+    }
+    // Rellenar campos
+    if(body.atd){
+      var atdEl = document.getElementById('ld_atd');
+      if(atdEl){ atdEl.value = body.atd; atdEl.classList.add('af'); }
+    }
+    if(body.ata){
+      var ataEl = document.getElementById('ld_ata');
+      if(ataEl){ ataEl.value = body.ata; ataEl.classList.add('af'); }
+    }
+    if(body.reg){
+      var regEl = document.getElementById('ld_reg');
+      if(regEl){ regEl.value = body.reg.toUpperCase(); regEl.classList.add('af'); ldRegInput(regEl); }
+    }
+    if(body.actype){
+      var actEl = document.getElementById('ld_actype');
+      if(actEl){ actEl.value = body.actype; actEl.classList.add('af'); }
+    }
+    if(body.dep && !document.getElementById('ld_dep').value){
+      document.getElementById('ld_dep').value = body.dep;
+    }
+    if(body.arr && !document.getElementById('ld_arr').value){
+      document.getElementById('ld_arr').value = body.arr;
+    }
+    // Recalcular bloque
+    if(typeof ldAutoBlock === 'function') ldAutoBlock();
+    showToast('✈ Datos ADS-B importados','success');
+  } catch(e){
+    console.error('[ADS-B]',e);
+    showToast('Error consultando ADS-B','error');
+  } finally{
+    if(btn){ btn.disabled=false; btn.textContent='✈ ADS-B'; }
+  }
 }
 // ─────────────────────────────────────────────────────────────────
 var ldEntries = [];
@@ -25720,6 +25809,15 @@ window.ldQuickCamera = function(){
     var cam = document.getElementById('ld_file_cam');
     if(cam) cam.click();
   }, 280);
+};
+
+// Quick ADS-B shortcut — opens manual modal and focuses flight number field
+window.ldQuickAdsb = function(){
+  ldOpenModal(true);
+  setTimeout(function(){
+    var fl = document.getElementById('ld_flight');
+    if(fl) fl.focus();
+  }, 320);
 };
 
 // Hook into logbook screen init to show roster button
