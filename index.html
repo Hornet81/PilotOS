@@ -21423,7 +21423,8 @@ function rstRenderCalendar(){
     lm:       { bg:'#7f8c8d', bd:'#6c7a7d',             tx:'#FFFFFF', lbl:'🖥LM',   gl:'rgba(127,140,141,.5)' },
     training: { bg:'#566573', bd:'#4a5964',             tx:'#FFFFFF', lbl:'🖥SIM',  gl:'rgba(86,101,115,.5)' },
     sick:     { bg:'#e67e22', bd:'#d35400',             tx:'#FFFFFF', lbl:'🏠SICK', gl:'rgba(230,126,34,.5)' },
-    other:    { bg:'#bdc3c7', bd:'#a8b2b8',             tx:'#555',    lbl:'?',      gl:'rgba(189,195,199,.5)' }
+    other:    { bg:'#bdc3c7', bd:'#a8b2b8',             tx:'#555',    lbl:'?',      gl:'rgba(189,195,199,.5)' },
+    overnight_continuation: { bg:'#0e7490', bd:'#0c6f87', tx:'#FFFFFF', lbl:'↓',   gl:'rgba(14,116,144,.4)' }
   };
   var cells = '';
   // Pre-load logbook entries once outside loop (performance fix)
@@ -21500,7 +21501,7 @@ function rstRenderCalendar(){
     if(hasEntry){
       var barItems = [];
       var flights = dayEntries.filter(function(e){ return e.type==='flight'; });
-      var nonFlights = dayEntries.filter(function(e){ return e.type!=='flight'; });
+      var nonFlights = dayEntries.filter(function(e){ return e.type!=='flight' && e.type!=='overnight_continuation'; });
       if(flights.length){
         var fc = TC['flight'];
         // For eCrews: use checkin (firma real). Fallback: STD − 55 min
@@ -21683,7 +21684,7 @@ function rstRenderStats(){
         }
       }
     } else if(e.type==='sick') { /* count separately if needed */ }
-    else if(e.type !== 'flight') off++;
+    else if(e.type !== 'flight' && e.type !== 'overnight_continuation') off++;
   });
 
   // Duty hours: per operating day
@@ -21892,7 +21893,8 @@ function rstCalcFDP(flights){
     : (toMin(firstStd)-55+1440)%1440;
   var staMin = toMin(lastSta); if(staMin<reportMin) staMin+=1440;
   var fdpMin = staMin-reportMin;
-  var dpMin  = fdpMin+20;
+  var _lastPosFlag = last.isPositioning || last.positioning || (last.dep && last.dep.charAt(0)==='*');
+  var dpMin  = fdpMin + (_lastPosFlag ? 0 : 20);
   var sectors = sorted.length;
   // Local hour for table lookup — always use BCN base time (CEST UTC+2 May-Oct, CET UTC+1 Nov-Apr)
   // The ORO.FTL.205 table must use the local time of the crew base, not the device timezone
@@ -21917,7 +21919,7 @@ function rstCalcFDP(flights){
     fdpDur: dur(fdpMin), fdpEnd: fmm(staMin%1440),
     fdpMax: dur(fdpMaxMin), fdpMaxEnd: fmm((reportMin+fdpMaxMin)%1440),
     fdpMargin: dur(marginMin), fdpMarginMin: marginMin,
-    dpDur:  dur(dpMin),  dpEnd:  fmm((staMin+20)%1440),
+    dpDur:  dur(dpMin),  dpEnd:  fmm((staMin+(_lastPosFlag?0:20))%1440),
     dpMax:  dur(fdpMaxMin+20),
     sectors: sectors,
     warn: fdpMin>fdpMaxMin?'exceed':marginMin<20?'near':'ok'
@@ -22444,7 +22446,7 @@ window.rosterSelectDay = function(dateStr){
     // Separate flights and non-flights — always sort legs earliest→latest
     var flights    = dayEntries.filter(function(e){ return e.type==='flight'; });
     flights.sort(function(a,b){ return t2m(a.std_actual||a.std||'00:00') - t2m(b.std_actual||b.std||'00:00'); });
-    var nonFlights = dayEntries.filter(function(e){ return e.type!=='flight'; });
+    var nonFlights = dayEntries.filter(function(e){ return e.type!=='flight' && e.type!=='overnight_continuation'; });
 
     // ── Render flights with legs + stopover ──
     flights.forEach(function(e, i){
@@ -22619,6 +22621,22 @@ window.rosterSelectDay = function(dateStr){
         var sorted = flights.slice().sort(function(a,b){
           return (a.std_actual||a.std||'').localeCompare(b.std_actual||b.std||'');
         });
+        // Block hours del día (solo vuelos operacionales, no posicionales)
+        var _dayBlockMin = 0;
+        flights.forEach(function(f){
+          var _fp = f.isPositioning||f.positioning||(f.dep&&f.dep.charAt(0)==='*');
+          if(!_fp){
+            var _fs=f.std_actual||f.std, _fa=f.sta_actual||f.sta;
+            if(_fs&&_fa&&_fs.indexOf(':')>-1&&_fa.indexOf(':')>-1){
+              var _fm=t2m(_fa)-t2m(_fs); if(_fm<0) _fm+=1440; _dayBlockMin+=_fm;
+            }
+          }
+        });
+        var _dayBlockStr = _dayBlockMin>0 ? Math.floor(_dayBlockMin/60)+'h'+(('0'+(_dayBlockMin%60)).slice(-2))+'m' : '—';
+        // Detect if last flight is positional (no debrief)
+        var _sortedFTL = flights.slice().sort(function(a,b){ return (a.std_actual||a.std||'').localeCompare(b.std_actual||b.std||''); });
+        var _lastFTL = _sortedFTL[_sortedFTL.length-1];
+        var _lastFTLIsPos = _lastFTL && (_lastFTL.isPositioning||_lastFTL.positioning||(_lastFTL.dep&&_lastFTL.dep.charAt(0)==='*'));
         var fdp = rstCalcFDP(flights);
         if(fdp){
           var warnColor = fdp.warn==='exceed'?'#991B1B':fdp.warn==='near'?'#92400E':'#065F46';
@@ -22662,7 +22680,12 @@ window.rosterSelectDay = function(dateStr){
             + '<div><div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">DP (Duty Period)</div>'
             + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+fdp.dpDur+' <span style="font-size:11px;font-weight:500;color:#475569">/ máx '+fdp.dpMax+'</span></div></div>'
             + '<div style="text-align:right"><div style="font-size:11px;color:#475569">Fin '+dpEndDisp+' '+tzLabel+'</div>'
-            + '<div style="font-size:11px;color:#64748B">FDP + 20min debrief</div></div>'
+            + '<div style="font-size:11px;color:#64748B">'+(_lastFTLIsPos?'Vuelo posicional (sin debrief)':'FDP + 20min debrief')+'</div></div>'
+            + '</div>'
+            + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px;grid-column:span 2;display:flex;align-items:center;justify-content:space-between">'
+            + '<div><div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Vuelo</div>'
+            + '<div style="font-size:20px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+_dayBlockStr+'</div></div>'
+            + '<div style="text-align:right"><div style="font-size:11px;color:#475569">Block hours del día</div><div style="font-size:11px;color:#64748B">Vuelos operacionales</div></div>'
             + '</div>'
             + '</div>'
             + '</div>';
@@ -22695,6 +22718,65 @@ window.rosterSelectDay = function(dateStr){
         + '</div>'
         + '</div>';
     });
+
+    // ── Panel FTL para días de STANDBY (sin vuelos activados) ──
+    var _sbEntries = dayEntries.filter(function(e){ return (e.type==='standby'||e.type==='osb') && e.checkin && e.checkout; });
+    if(_sbEntries.length > 0 && flights.length === 0){
+      var _sbE = _sbEntries[0];
+      var _sbD = t2m(_sbE.checkout) - t2m(_sbE.checkin);
+      if(_sbD < 0) _sbD += 1440;
+      var _sbDutyMin = Math.round(_sbD * 0.25);
+      var _durF = function(m){ return Math.floor(m/60)+'h'+String(m%60).padStart(2,'0')+'m'; };
+      html += '<div style="background:#EFF6FF;border:1.5px solid rgba(30,58,164,.2);border-radius:12px;padding:12px 13px;margin-top:2px">'
+        + '<div style="font-size:12px;font-weight:800;color:#1E3A5F;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📋 Límites FTL · ORO.FTL.205</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
+        + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px">'
+        + '<div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Inicio</div>'
+        + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+_sbE.checkin+' UTC</div>'
+        + '<div style="font-size:11px;color:#475569;margin-top:1px">Check-in standby</div>'
+        + '</div>'
+        + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px">'
+        + '<div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Fin</div>'
+        + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+_sbE.checkout+' UTC</div>'
+        + '<div style="font-size:11px;color:#475569;margin-top:1px">Check-out standby</div>'
+        + '</div>'
+        + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px;grid-column:span 2;display:flex;align-items:center;justify-content:space-between">'
+        + '<div><div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">DP (Duty Period)</div>'
+        + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+_durF(_sbDutyMin)+' <span style="font-size:11px;font-weight:500;color:#475569">(25% standby)</span></div></div>'
+        + '<div style="text-align:right"><div style="font-size:11px;color:#475569">Ventana: '+_durF(_sbD)+'</div><div style="font-size:11px;color:#64748B">ORO.FTL standby</div></div>'
+        + '</div>'
+        + '</div>'
+        + '</div>';
+    }
+
+    // ── Panel para día de continuación (aterrizaje nocturno del día anterior) ──
+    var _contEntry = dayEntries.find(function(e){ return e.type==='overnight_continuation'; });
+    if(_contEntry && _contEntry.arr_time){
+      var _arrM = t2m(_contEntry.arr_time);
+      var _contDutyMin = _arrM + 20; // 00:00 → aterrizaje + 20 min debrief
+      var _contBlockStr = _contEntry.arr_time; // vuelo desde medianoche = 00:00→arr
+      var _durF2 = function(m){ return Math.floor(m/60)+'h'+String(m%60).padStart(2,'0')+'m'; };
+      html += '<div style="background:#F0FDF4;border:1.5px solid rgba(34,197,94,.25);border-radius:12px;padding:12px 13px;margin-top:2px">'
+        + '<div style="font-size:12px;font-weight:800;color:#065F46;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">↓ Aterrizaje nocturno</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
+        + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px">'
+        + '<div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Aterrizaje</div>'
+        + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+_contEntry.arr_time+' UTC</div>'
+        + '<div style="font-size:11px;color:#475569;margin-top:1px">Continuación día anterior</div>'
+        + '</div>'
+        + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px">'
+        + '<div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Vuelo (este día)</div>'
+        + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+_contBlockStr+'</div>'
+        + '<div style="font-size:11px;color:#475569;margin-top:1px">00:00 → '+_contEntry.arr_time+'</div>'
+        + '</div>'
+        + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px;grid-column:span 2;display:flex;align-items:center;justify-content:space-between">'
+        + '<div><div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">DP (este día)</div>'
+        + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+_durF2(_contDutyMin)+'</div></div>'
+        + '<div style="text-align:right"><div style="font-size:11px;color:#475569">00:00 → '+_contEntry.arr_time+' +20\'</div></div>'
+        + '</div>'
+        + '</div>'
+        + '</div>';
+    }
 
     html += '</div>';
     bodyEl.innerHTML = html;
