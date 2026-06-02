@@ -3017,6 +3017,12 @@ input#ld_fl, input#ld_cond { display:none !important; }
 .qrh-wrap[data-active="alt1"] .qrh-icao{color:#34d399;}
 .qrh-wrap[data-active="alt2"] .qrh-icao{color:#f472b6;}
 
+/* Optimización móvil: escala global del contenido SkyView (mantiene diseño idéntico) */
+#skyview-react-root{ zoom:1.35; }
+@supports not (zoom:1){
+  #skyview-react-root{ transform:scale(1.35); transform-origin:top left; width:calc(100%/1.35); height:calc(100%/1.35); }
+}
+
 /* ── CAFI DARK THEME ── */
 
   .cafi-dark-screen {
@@ -7869,7 +7875,7 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
 
 <!-- ════════════ SKYVIEW ════════════ -->
 <div class="screen" id="scr-skyview" style="overflow:hidden;">
-  <div id="skyview-react-root" style="height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;"></div>
+  <div id="skyview-react-root" style="height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;zoom:1.35;"></div>
 </div>
 
 <!-- ════════════ PAY ════════════ -->
@@ -23868,6 +23874,25 @@ window.rosterHandleFile = function(event){
     return;
   }
 
+  // HTML detection (eCrews "Personal Crew Schedule Report" exportado en HTML)
+  var isHTML = fileName.endsWith('.html') || fileName.endsWith('.htm') || fileName.endsWith('.mht')
+    || fileType === 'text/html' || fileType.indexOf('html') !== -1;
+  if(isHTML){
+    if(status) status.textContent = 'Procesando HTML…';
+    var htmlReader = new FileReader();
+    htmlReader.onload = function(e){
+      try { if(inp) inp.value = ''; } catch(ex){}
+      rosterRunHTML(e.target.result);
+    };
+    htmlReader.onerror = function(){
+      if(proc) proc.style.display='none';
+      if(zone) zone.style.display='';
+      if(typeof showToast==='function') showToast('❌ Error leyendo el HTML');
+    };
+    htmlReader.readAsText(file, 'UTF-8');
+    return;
+  }
+
   // PDF detection: prefer filename extension (most reliable on iOS)
   var isPDF = fileName.endsWith('.pdf') || fileType === 'application/pdf' || fileType.indexOf('pdf') !== -1;
   if(isPDF){
@@ -24004,6 +24029,85 @@ function rstSetProcMode(mode){
     if(label){ label.textContent='CLAUDE VISION · OCR · VALIDACIÓN'; }
   }
   proc.style.display='block';
+}
+
+// ── HTML eCrews — "Personal Crew Schedule Report" exportado en HTML ──
+// Parser determinista en backend (no IA), igual flujo que rosterRunPDF
+async function rosterRunHTML(htmlText){
+  var proc = document.getElementById('rst-ai-proc');
+  var zone = document.getElementById('rst-upload-zone');
+  rstSetProcMode('pdf');
+  console.log('[Roster] rosterRunHTML, html length:', htmlText ? htmlText.length : 0);
+
+  var authToken = '';
+  try { authToken = lsGet('cafi_auth_token',''); } catch(e){}
+  if(!authToken){
+    if(proc) proc.style.display='none';
+    if(zone) zone.style.display='';
+    if(typeof showToast==='function') showToast('⚠️ Inicia sesión en CAFI primero');
+    return;
+  }
+
+  try {
+    var res = await fetch(cafiBackendUrl + '/roster/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+      body: JSON.stringify({ html_content: htmlText })
+    });
+    var data = await res.json();
+    if(!res.ok){
+      if(data.error === 'plan_limit'){
+        if(typeof showToast==='function') showToast('🔒 '+(data.message || 'Necesitas plan Pro para importar roster'));
+        setTimeout(function(){ if(typeof goTo==='function') goTo('upgrade'); }, 1500);
+        return;
+      }
+      throw new Error(data.message || data.error || 'Error del servidor ('+res.status+')');
+    }
+    var parsed = data;
+    if(!parsed.entries || !parsed.entries.length) throw new Error('No se encontraron entradas en el HTML');
+
+    var newMonth = parsed.month || (parsed.entries[0] && parsed.entries[0].date ? parsed.entries[0].date.slice(0,7) : null);
+    if(!newMonth || !/^\d{4}-\d{2}$/.test(newMonth)){
+      var _fallback = RST.viewYear && RST.viewMonth!=null
+        ? RST.viewYear+'-'+String(RST.viewMonth+1).padStart(2,'0') : null;
+      if(_fallback){
+        parsed.entries = parsed.entries.map(function(e){
+          return e.date && e.date.startsWith('????') ? Object.assign({},e,{date:_fallback+'-'+e.date.slice(-2)}) : e;
+        });
+        newMonth = _fallback;
+      } else {
+        throw new Error('No se pudo detectar el mes del roster.');
+      }
+    }
+    if(newMonth){
+      RST.entries = RST.entries.filter(function(e){ return e.date.slice(0,7) !== newMonth; });
+    }
+    rstSmartMerge(parsed.entries, newMonth);
+    rstSave();
+    window.rstPushMonth(newMonth);
+
+    if(newMonth){ var p=newMonth.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1; }
+    if(newMonth){
+      try { localStorage.setItem('pilotOS_import_ts_'+newMonth, new Date().toISOString()); } catch(e){}
+      try { localStorage.removeItem('pilotOS_deleted_month_'+newMonth); } catch(e){}
+    }
+    try { rosterShowCalendar(); } catch(e){}
+    try { rstRenderCalendar(); } catch(e){}
+    try { rstRenderStats();    } catch(e){}
+    try { rstRenderFlights();  } catch(e){}
+    try { if(typeof ldUpdateRosterBtn==='function') ldUpdateRosterBtn(); } catch(e){}
+    try { rstUpdateWarningsBanner(); } catch(e){}
+
+    var _nF = parsed.entries.filter(function(e){ return e.type==='flight'; }).length;
+    if(typeof showToast==='function') showToast('✅ HTML importado · '+_nF+' vuelos');
+
+  } catch(err){
+    console.error('rosterRunHTML error:',err);
+    if(typeof showToast==='function') showToast('❌ Error HTML: '+err.message);
+  } finally {
+    var _hp=document.getElementById('rst-ai-proc'); if(_hp) _hp.style.display='none';
+    if(RST.entries.length){ try{ rosterShowCalendar(); }catch(e){} } else { var _hz=document.getElementById('rst-upload-zone'); if(_hz) _hz.style.display=''; }
+  }
 }
 
 async function rosterRunPDF(pdfBase64){
@@ -24466,7 +24570,7 @@ function rosterShowCalendar(){
       _inner.innerHTML = '<div style="font-size:30px;margin-bottom:6px">🗓</div>'
         + '<div class="upload-title">Sube tu roster de ' + _vMonth + '</div>'
         + '<div class="upload-sub">PDF, TXT o foto del roster</div>'
-        + '<label class="upload-btn-main"><input type="file" id="rst-file-input" accept=".txt,image/*,application/pdf" style="display:none">📂 Subir archivo</label>';
+        + '<label class="upload-btn-main"><input type="file" id="rst-file-input" accept=".txt,.html,.htm,image/*,application/pdf,text/html" style="display:none">📂 Subir archivo</label>';
       // Re-wire event after innerHTML rebuild
       var _inp = document.getElementById('rst-file-input');
       if(_inp && !_inp._wired){ _inp._wired=true; _inp.addEventListener('change',function(e){ if(window.rosterHandleFile) window.rosterHandleFile(e); }); }
@@ -24511,7 +24615,7 @@ function rosterShowCalendar(){
       + '<div style="display:flex;gap:8px;align-items:center;flex-shrink:0">'
       + '<span id="rst-sync-badge"></span>'
       + '<button onclick="rstShowOptionsMenu()" aria-label="Opciones" style="width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.8);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-appearance:none;flex-shrink:0;font-family:sans-serif;line-height:1" class="rst-options-btn">⋯</button>'
-      + '<input type="file" id="rst-file-input" accept=".txt,image/*,application/pdf" style="display:none">'
+      + '<input type="file" id="rst-file-input" accept=".txt,.html,.htm,image/*,application/pdf,text/html" style="display:none">'
       + '</div>'
       + '</div>';
     // Re-wire input after innerHTML rebuild
@@ -26824,7 +26928,7 @@ function pagSignOut() {
         <div class="upload-sub">PDF, TXT o JPEG</div>
         <div id="rst-auth-status" style="font-size:10px;color:rgba(240,255,254,.35);margin-bottom:8px;font-family:'Space Mono',monospace"></div>
         <label class="upload-btn-main">
-          <input type="file" id="rst-file-input" accept=".txt,image/*,application/pdf" style="display:none">
+          <input type="file" id="rst-file-input" accept=".txt,.html,.htm,image/*,application/pdf,text/html" style="display:none">
           📂 Subir archivo
         </label>
       </div>
