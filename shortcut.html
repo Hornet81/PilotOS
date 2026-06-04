@@ -71,7 +71,7 @@ var SCRIPT = `(function(){
 if(typeof completion==='function')completion(null);
 var E=[],L=[];
 function log(s){L.push(String(s).slice(0,250));}
-log('v=export05');
+log('v=export06');
 
 var hdr='';
 try{var m1=(window.location.href+'').match(/eCrewHeader=([^&\\s#]+)/);if(m1)hdr=m1[1];}catch(e){}
@@ -294,7 +294,12 @@ if(aimsUrl){
       if(!ft)return;
       if(SKIP.test(ft))return;
       var dm=ft.match(/(\\d{2})\\/(\\d{2})\\/(\\d{4})/);
-      if(dm){var dd=+dm[1],mm=+dm[2],yy=+dm[3];if(dd>=1&&dd<=31&&mm>=1&&mm<=12&&yy>=2020)curDate=dm[3]+'-'+dm[2]+'-'+dm[1];}
+      if(dm){
+        var dd=+dm[1],mm=+dm[2],yy=+dm[3];
+        if(dd>=1&&dd<=31&&mm>=1&&mm<=12&&yy>=2020)curDate=dm[3]+'-'+dm[2]+'-'+dm[1];
+        // Eliminar la fecha del texto para que el año "2026" no sea capturado como número de vuelo
+        ft=ft.replace(/(\\d{2})\\/(\\d{2})\\/(\\d{4})(\\s+\\w+)?/,'').trim();
+      }
       if(!curDate)return;
       // Actividades conocidas primero
       if(/\\bOFF\\b/i.test(ft)&&!/\\d{3,5}/.test(ft)){out.push({date:curDate,type:'off',flightNum:'',dep:'',arr:'',std:'',sta:''});return;}
