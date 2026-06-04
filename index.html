@@ -5473,12 +5473,18 @@ html.day .ld-fab{
   color:#FFFFFF !important;
 }
 
+/* ── Bottom sheet open state ── */
+#ld-action-menu.ld-sheet-open{transform:translateY(0)!important}
+#ld-menu-backdrop{background:rgba(0,0,0,.52)!important;backdrop-filter:blur(3px)!important;-webkit-backdrop-filter:blur(3px)!important}
+
 /* ── Menú de acciones (botón 3 puntos) ── */
 html.day #ld-action-menu{
-  background:rgba(248,252,255,.97) !important;
+  background:rgba(246,250,255,.98) !important;
   border-color:rgba(30,58,164,.18) !important;
-  box-shadow:0 16px 48px rgba(15,23,42,.2),0 0 0 1px rgba(255,255,255,.9) !important;
+  box-shadow:0 -8px 32px rgba(15,23,42,.15),0 -1px 0 rgba(15,23,42,.08) !important;
 }
+html.day #ld-action-menu .ld-sheet-handle{background:rgba(15,23,42,.15)!important}
+html.day #ld-menu-backdrop{background:rgba(15,23,42,.4)!important;backdrop-filter:blur(3px)!important;-webkit-backdrop-filter:blur(3px)!important}
 /* Header sección AÑADIR VUELO / GESTIÓN */
 html.day #ld-action-menu [style*="color:rgba(34,211,238,.4)"]{color:#64748B !important}
 /* Botón MCDU OCR */
@@ -8533,11 +8539,16 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
       <!-- Popup menu -->
       <div id="ld-action-menu" style="
         display:none;position:fixed;z-index:9990;
+        bottom:0;left:0;right:0;
         background:rgba(13,18,35,.96);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-        border:1px solid rgba(34,211,238,.18);border-radius:18px;
-        box-shadow:0 16px 48px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.04),0 -4px 20px rgba(124,58,237,.18);
-        padding:8px;width:240px;overflow:hidden
+        border-top:1px solid rgba(34,211,238,.18);border-radius:24px 24px 0 0;
+        box-shadow:0 -8px 40px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.04),0 -4px 20px rgba(124,58,237,.18);
+        padding:8px 12px;overflow-y:auto;-webkit-overflow-scrolling:touch;max-height:82svh;
+        transform:translateY(105%);transition:transform .35s cubic-bezier(.32,.72,0,1);will-change:transform
       ">
+        <div style="display:flex;justify-content:center;padding:10px 0 6px;cursor:grab;flex-shrink:0">
+          <div style="width:40px;height:4px;border-radius:2px;background:rgba(255,255,255,.18)"></div>
+        </div>
         <!-- Menu header -->
         <div style="padding:8px 12px 6px;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1.4px;text-transform:uppercase;color:rgba(34,211,238,.4)">Añadir vuelo</div>
         <!-- MCDU OCR -->
@@ -14135,27 +14146,20 @@ function ldStats(){
   ldExtendedStats();
 }
 
-// Glass action menu
+// Glass action menu — bottom sheet
 function ldToggleMenu(){
   var menu=document.getElementById('ld-action-menu');
   var back=document.getElementById('ld-menu-backdrop');
   var btn=document.getElementById('ld-glass-menu-btn');
-  var open=menu.style.display==='block';
+  var open=menu.classList.contains('ld-sheet-open');
   if(open){
-    menu.style.display='none';
+    menu.classList.remove('ld-sheet-open');
+    setTimeout(function(){menu.style.display='none';},360);
     back.style.display='none';
     btn.style.boxShadow='0 4px 20px rgba(124,58,237,.35),0 0 0 1px rgba(255,255,255,.05),inset 0 1px 0 rgba(255,255,255,.08)';
-  } else {
-    // Position menu fixed relative to button
-    var rect=btn.getBoundingClientRect();
-    var menuW=240;
-    var marginRight=14;
-    var left=Math.max(marginRight, rect.right - menuW);
-    var top=rect.bottom + 10;
-    menu.style.left=left+'px';
-    menu.style.top=top+'px';
-    menu.style.right='auto';
+  }else{
     menu.style.display='block';
+    requestAnimationFrame(function(){requestAnimationFrame(function(){menu.classList.add('ld-sheet-open');});});
     back.style.display='block';
     btn.style.boxShadow='0 4px 28px rgba(124,58,237,.55),0 0 0 2px rgba(34,211,238,.25),inset 0 1px 0 rgba(255,255,255,.12)';
   }
@@ -14164,9 +14168,9 @@ function ldCloseMenu(){
   var menu=document.getElementById('ld-action-menu');
   var back=document.getElementById('ld-menu-backdrop');
   var btn=document.getElementById('ld-glass-menu-btn');
-  if(menu) menu.style.display='none';
-  if(back) back.style.display='none';
-  if(btn) btn.style.boxShadow='0 4px 20px rgba(124,58,237,.35),0 0 0 1px rgba(255,255,255,.05),inset 0 1px 0 rgba(255,255,255,.08)';
+  if(menu){menu.classList.remove('ld-sheet-open');setTimeout(function(){if(menu)menu.style.display='none';},360);}
+  if(back)back.style.display='none';
+  if(btn)btn.style.boxShadow='0 4px 20px rgba(124,58,237,.35),0 0 0 1px rgba(255,255,255,.05),inset 0 1px 0 rgba(255,255,255,.08)';
 }
 
 // ── STRIPE UPGRADE ───────────────────────────────────────────────
