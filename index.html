@@ -26759,6 +26759,17 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
 
   // Populate roster card on home as soon as DOM is ready
   setTimeout(function(){ if(typeof dhUpdateRosterCard === 'function') dhUpdateRosterCard(); }, 300);
+  // Pull roster desde servidor al arrancar (sincroniza entre dispositivos)
+  setTimeout(function(){
+    if(typeof rstPullFromServer === 'function'){
+      rstPullFromServer().then(function(n){
+        if(n > 0){
+          if(typeof dhUpdateRosterCard === 'function') dhUpdateRosterCard();
+          if(typeof showToast === 'function') showToast('☁ Roster actualizado desde la nube','info');
+        }
+      });
+    }
+  }, 1500);
   // Populate logbook home card (hours + chart) — use whatever is already in memory,
   // never call ldLoad() here: _initLD() already does it and a redundant ldLoad()
   // would overwrite server-pulled data with stale localStorage values.
