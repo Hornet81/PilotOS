@@ -71,7 +71,7 @@ var SCRIPT = `(function(){
 if(typeof completion==='function')completion(null);
 var E=[],L=[];
 function log(s){L.push(String(s).slice(0,250));}
-log('v=export02');
+log('v=export03');
 
 var hdr='';
 try{var m1=(window.location.href+'').match(/eCrewHeader=([^&\\s#]+)/);if(m1)hdr=m1[1];}catch(e){}
@@ -260,29 +260,71 @@ if(aimsUrl){
       var XC=iw.XMLHttpRequest;
       log('xc='+(typeof XC));
 
-      var argObj=JSON.stringify({unifier:spaUni,documentId:spaDId,format:'HTML',customExportOptions:null,isPrinting:false});
-      var body='actionKey=Export&arg='+enc(argObj);
-      var xhr=new XC();
-      xhr.open('POST',WDVU,true);
-      xhr.withCredentials=true;
-      xhr.setRequestHeader('Content-Type','application/x-www-form-urlencoded; charset=UTF-8');
-      xhr.setRequestHeader('Accept','text/html,application/json,*/*');
-      xhr.setRequestHeader('X-Requested-With','XMLHttpRequest');
-      xhr.onreadystatechange=function(){
-        if(xhr.readyState!==4)return;
-        log('exp_s='+xhr.status);
-        var ct=xhr.getResponseHeader('Content-Type')||'';
-        log('exp_ct='+ct.slice(0,80));
-        log('exp_len='+xhr.responseText.length);
-        log('exp_head='+xhr.responseText.slice(0,400));
-        if(xhr.status===200){
+      // Probar formatos en cascada: Mht → Html → Pdf
+      // customExportOptions:{} en vez de null (evita NullReferenceException en ASP.NET)
+      var FORMATS=['Mht','Html','Pdf'];
+      var fIdx=0;
+
+      function tryExport(){
+        if(fIdx>=FORMATS.length){log('exp_all_failed');navigate();return;}
+        var fmt=FORMATS[fIdx++];
+        log('exp_try='+fmt);
+        var argObj=JSON.stringify({unifier:spaUni,documentId:spaDId,format:fmt,customExportOptions:{},isPrinting:false});
+        var body='actionKey=Export&arg='+enc(argObj);
+        var xhr=new XC();
+        xhr.open('POST',WDVU,true);
+        xhr.withCredentials=true;
+        xhr.setRequestHeader('Content-Type','application/x-www-form-urlencoded; charset=UTF-8');
+        xhr.setRequestHeader('Accept','text/html,application/json,application/octet-stream,*/*');
+        xhr.setRequestHeader('X-Requested-With','XMLHttpRequest');
+        xhr.onreadystatechange=function(){
+          if(xhr.readyState!==4)return;
+          log('exp_s='+fmt+'='+xhr.status);
+          var ct=xhr.getResponseHeader('Content-Type')||'';
+          log('exp_ct='+ct.slice(0,80));
+          log('exp_len='+xhr.responseText.length);
+          if(xhr.status!==200){
+            // Loguear headers completos para diagnóstico
+            var hdrs=(xhr.getAllResponseHeaders()||'').replace(/\\r?\\n/g,'|').slice(0,200);
+            log('exp_hdrs='+hdrs);
+            log('exp_body='+xhr.responseText.slice(0,200));
+            tryExport(); // siguiente formato
+            return;
+          }
+          // 200: procesar respuesta
           var resp=xhr.responseText;
-          if(ct.indexOf('text/html')>-1||resp.indexOf('<nobr')>-1||resp.indexOf('<!DOCTYPE')>-1||resp.indexOf('<html')>-1){
+          log('exp_ok='+fmt+' len='+resp.length);
+          log('exp_head='+resp.slice(0,300));
+          // HTML/MHT directo
+          if(ct.indexOf('text/html')>-1||ct.indexOf('mht')>-1||ct.indexOf('mhtml')>-1||
+             resp.indexOf('<nobr')>-1||resp.indexOf('<!DOCTYPE')>-1||resp.indexOf('<html')>-1||
+             resp.indexOf('MIME-Version')>-1){
             log('exp_html_direct');
             E=parseNobrHTML(resp);
             navigate();
             return;
           }
+          // PDF: enviar al backend
+          if(fmt==='Pdf'||ct.indexOf('pdf')>-1){
+            log('exp_pdf');
+            var b64='';
+            try{
+              // Intentar leer como binary (si responseType soportado)
+              b64=btoa(resp.slice(0,20000));
+            }catch(e2){}
+            log('exp_pdf_b64='+b64.slice(0,80));
+            // Navegamos con el PDF base64 en el payload para que el backend lo parsee
+            var b64full='';
+            try{b64full=btoa(unescape(encodeURIComponent(resp)));}catch(e3){}
+            if(b64full.length>100){
+              var payload={ok:false,pdf:b64full,dbg:L.join('\\n')};
+              var enc2=encodeURIComponent;
+              var b64p='';try{b64p=btoa(unescape(encodeURIComponent(JSON.stringify(payload))));}catch(e4){}
+              if(!navigated){navigated=true;window.location.href='https://pilotos.aero?rosterSync='+enc2(b64p);}
+            }else{navigate();}
+            return;
+          }
+          // JSON con token de descarga
           try{
             var j=JSON.parse(resp);
             log('exp_jk='+Object.keys(j||{}).join(',').slice(0,100));
@@ -291,7 +333,6 @@ if(aimsUrl){
               var xhr2=new XC();
               xhr2.open('GET',WDVU+'?actionKey=GetExportResult&token='+enc(j.token),true);
               xhr2.withCredentials=true;
-              xhr2.setRequestHeader('Accept','text/html,*/*');
               xhr2.onreadystatechange=function(){
                 if(xhr2.readyState!==4)return;
                 log('exp2_s='+xhr2.status+' len='+xhr2.responseText.length);
@@ -303,17 +344,16 @@ if(aimsUrl){
               xhr2.send();
               return;
             }
-            if(j&&j.result&&typeof j.result==='string'&&j.result.length>100){
-              try{var dec=atob(j.result);if(dec.indexOf('<nobr')>-1||dec.indexOf('<!DOCTYPE')>-1)E=parseNobrHTML(dec);}catch(e2){}
-            }
             if(j&&j.error)log('exp_err='+JSON.stringify(j.error).slice(0,100));
           }catch(e2){log('exp_j_ex='+e2.message);}
-        }
-        navigate();
-      };
-      xhr.onerror=function(){log('exp_xe');navigate();};
-      setTimeout(function(){if(!navigated)navigate();},10000);
-      xhr.send(body);
+          navigate();
+        };
+        xhr.onerror=function(){log('exp_xe='+fmt);tryExport();};
+        xhr.send(body);
+      }
+
+      setTimeout(function(){if(!navigated)navigate();},12000);
+      tryExport();
     }catch(ex){log('ex='+ex.message);navigate();}
   }
 
