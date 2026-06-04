@@ -25066,18 +25066,14 @@ window.addEventListener('offline', function(){
 // ── Pull roster desde el servidor (equivalente a ldPullFromServer del logbook) ──
 window.rstPullFromServer = async function(){
   var token=''; try{ token=lsGet('cafi_auth_token',''); }catch(e){}
-  console.log('[RST PULL] token:', token ? token.slice(0,20)+'…' : 'NONE');
   if(!token) return 0;
-  var _pullStartTs = Date.now();
   try{
     var r=await fetch(ldBackendUrl()+'/api/roster',{
       headers:{'Authorization':'Bearer '+token}
     });
-    console.log('[RST PULL] GET /api/roster status:', r.status);
     if(!r.ok) return -1;
     var body=await r.json();
     var serverEntries=body.entries||[];
-    console.log('[RST PULL] serverEntries:', serverEntries.length, '| acceptMonths will follow');
     if(!serverEntries.length) return 0;
 
     // Meses con cambios locales pendientes de push (sin red en el momento del import)
@@ -25107,7 +25103,6 @@ window.rstPullFromServer = async function(){
       // Limpiar flag de borrado: el servidor tiene datos activos para este mes
       try{ localStorage.removeItem('pilotOS_deleted_month_'+month); }catch(e){}
     });
-    console.log('[RST PULL] acceptMonths:', acceptMonths, '| serverMonths:', Object.keys(serverByMonth));
     if(!acceptMonths.length) return 0;
 
     // Reemplazar el mes completo (no solo añadir): garantiza que datos actualizados
