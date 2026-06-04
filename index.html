@@ -25114,9 +25114,18 @@ window.rstPullFromServer = async function(){
     });
 
     RST.entries=localKept.sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+
+    // Inicializar viewYear/viewMonth si no están seteados (usuario nunca fue al tab Roster)
+    if(!RST.viewYear && RST.entries.length){
+      var _fm = RST.entries[RST.entries.length-1].date || '';
+      if(_fm){ var _fp=_fm.split('-'); RST.viewYear=parseInt(_fp[0]); RST.viewMonth=parseInt(_fp[1])-1; }
+    }
+
+    // Guardar en localStorage siempre, antes de intentar renderizar
     rstSave();
-    rstRenderCalendar(); rstRenderStats(); rstRenderFlights();
-    rosterShowCalendar();
+
+    // Renderizar (puede fallar si el tab Roster no está montado — no es crítico)
+    try{ rstRenderCalendar(); rstRenderStats(); rstRenderFlights(); rosterShowCalendar(); }catch(ex){}
     if(typeof dhUpdateRosterCard==='function') dhUpdateRosterCard();
     return added;
   }catch(e){ return -1; }
