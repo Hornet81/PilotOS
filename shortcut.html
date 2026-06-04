@@ -36,11 +36,11 @@ body{font-family:'Space Grotesk',system-ui,sans-serif;background:#07131C;color:#
   <div><div class="ht">PilotOS Sync</div><div class="hs">Atajo de iOS — eCrews</div></div>
 </div>
 <div class="content">
-  <div class="intro">El atajo lee tu <strong>horario mensual de eCrews</strong> directamente desde el DOM de la página y te lleva a PilotOS con los datos listos para importar. <strong>Sin contraseñas, sin APIs, sin timeout.</strong></div>
+  <div class="intro">El atajo descarga tu <strong>horario mensual de eCrews</strong> usando el endpoint Export de AIMS y te lleva a PilotOS con los datos listos para importar. <strong>Sin contraseñas, sin APIs externas.</strong></div>
 
   <div class="how">
     <strong>¿Cómo funciona?</strong><br>
-    Safari (eCrews) → Compartir → PilotOS Sync → el script lee las actividades del calendario → Safari abre PilotOS automáticamente → pulsas "Importar". Listo.
+    Safari (eCrews) → My Schedule → Print → Compartir → PilotOS Sync → el script descarga el HTML del reporte via Export → Safari abre PilotOS → pulsas "Importar". Listo.
   </div>
 
   <button class="copy-btn" id="copyBtn" onclick="copyScript()">
@@ -59,71 +59,26 @@ body{font-family:'Space Grotesk',system-ui,sans-serif;background:#07131C;color:#
   <div class="stitle">Uso diario</div>
   <div class="step">
     <div class="snum" style="background:linear-gradient(135deg,rgba(5,150,105,.3),rgba(4,120,87,.25));border-color:rgba(52,211,153,.4);color:#34D399">✓</div>
-    <div><div class="stit">Safari → eCrews → My Schedule → Compartir → PilotOS Sync</div><div class="sdesc">Safari abre PilotOS automáticamente. Pulsa <strong>"Importar"</strong> en el banner azul.</div></div>
+    <div><div class="stit">Safari → eCrews → My Schedule → Print → Compartir → PilotOS Sync</div><div class="sdesc">Safari abre PilotOS automáticamente. Pulsa <strong>"Importar"</strong> en el banner azul.</div></div>
   </div>
 
   <div class="div"></div>
-  <div class="tip">💡 <strong>Solo 1 acción en el Atajo.</strong> No necesitas "Get Contents of URL" ni tokens — el script se encarga de todo navegando directamente a PilotOS con los datos.</div>
+  <div class="tip">💡 <strong>Requisito:</strong> el popup de impresión de eCrews debe estar abierto antes de ejecutar el Atajo. Abre My Schedule → Print, espera que cargue el visor, luego Compartir → PilotOS Sync.</div>
   <a href="/" class="back">← Volver a PilotOS</a>
 </div>
 <script>
-// Script que se copia al Atajo de iOS.
-// Estrategia: inyectar iframe oculto con la URL fresca del AIMS (capturada del
-// Performance API cuando el popup de impresión está abierto), dejar que la SPA
-// renderice la tabla, y leer el DOM tras 7 segundos.
 var SCRIPT = `(function(){
 if(typeof completion==='function')completion(null);
 var E=[],L=[];
-function p2(n){return('0'+n).slice(-2);}
 function log(s){L.push(String(s).slice(0,250));}
-log('v=reuse05');
+log('v=export01');
 
-// Parser tabla HTML del reporte (Date|Duties|Details|ReportT|ActualT|...)
-function parseHTML(html){
-  var out=[];
-  try{
-    var doc=new DOMParser().parseFromString(html,'text/html');
-    var curDate='';
-    doc.querySelectorAll('tr').forEach(function(row){
-      var cc=[];
-      row.querySelectorAll('td,th').forEach(function(c){cc.push((c.textContent||'').trim().replace(/\\s+/g,' '));});
-      if(cc.length<2)return;
-      var dm=cc[0].match(/(\\d{2})\\/(\\d{2})\\/(\\d{4})/);
-      if(dm)curDate=dm[3]+'-'+dm[2]+'-'+dm[1];
-      if(!curDate)return;
-      var duty=cc[1]||'',det=cc[2]||'';
-      var fm=duty.match(/^(\\d{3,5})/);
-      if(fm){
-        var rm=det.match(/([A-Z]{3})\\s*[-]\\s*([A-Z]{3})/);
-        var std='',sta='';
-        if(cc[3]){var t1=cc[3].match(/(\\d{2}:\\d{2})/);if(t1)std=t1[1];}
-        if(cc[4]){var t2=cc[4].match(/A?(\\d{2}:\\d{2}).*?A?(\\d{2}:\\d{2})/);if(t2){if(!std)std=t2[1];sta=t2[2];}}
-        out.push({date:curDate,type:'flight',flightNum:fm[1],dep:rm?rm[1]:'',arr:rm?rm[2]:'',std:std,sta:sta});
-      } else if(/^OFF$|SROF|^LI$|libre/i.test(duty)){
-        out.push({date:curDate,type:'off',flightNum:'',dep:'',arr:'',std:'',sta:''});
-      } else if(/SBY|standby/i.test(duty)){
-        out.push({date:curDate,type:'standby',flightNum:'',dep:'',arr:'',std:'',sta:''});
-      } else if(/SIM|LFT|OPC/i.test(duty)){
-        out.push({date:curDate,type:'training',flightNum:'',dep:'',arr:'',std:'',sta:''});
-      } else if(/SICK/i.test(duty)){
-        out.push({date:curDate,type:'other',flightNum:'SICK',dep:'',arr:'',std:'',sta:''});
-      }
-    });
-  }catch(ex){log('parseHTML:'+ex.message);}
-  return out;
-}
-
-// eCrewHeader
 var hdr='';
 try{var m1=(window.location.href+'').match(/eCrewHeader=([^&\\s#]+)/);if(m1)hdr=m1[1];}catch(e){}
-try{document.querySelectorAll('iframe').forEach(function(f){
-  var m=(f.src||'').match(/eCrewHeader=([^&\\s#]+)/);
-  if(m&&!hdr)hdr=m[1];
-});}catch(e){}
+try{document.querySelectorAll('iframe').forEach(function(f){var m=(f.src||'').match(/eCrewHeader=([^&\\s#]+)/);if(m&&!hdr)hdr=m[1];});}catch(e){}
 log('hdr='+hdr.slice(0,12));
 log('page='+window.location.pathname);
 
-// Buscar URL fresca de AIMS PrintReport en Performance API (main + iframes)
 var aimsUrl='';
 var wins=[window];
 try{document.querySelectorAll('iframe').forEach(function(f){try{wins.push(f.contentWindow);}catch(e){}});}catch(e){}
@@ -138,7 +93,7 @@ log('aimsUrl='+(aimsUrl?aimsUrl.slice(0,100):'none'));
 var navigated=false;
 function navigate(){
   if(navigated)return;navigated=true;
-  var seen={};E=E.filter(function(e){var k=e.date+'|'+e.flightNum;return seen[k]?false:(seen[k]=1,true);});
+  var seen={};E=E.filter(function(e){var k=e.date+'|'+(e.flightNum||e.type);return seen[k]?false:(seen[k]=1,true);});
   var enc=encodeURIComponent;
   var b64='';try{b64=btoa(unescape(encodeURIComponent(JSON.stringify({ok:E.length>0,entries:E,dbg:L.join('\\n')}))));}catch(e){}
   window.location.href='https://pilotos.aero?rosterSync='+(b64?enc(b64):'err');
@@ -146,42 +101,20 @@ function navigate(){
 setTimeout(navigate,16000);
 
 if(aimsUrl){
-  // Inyectar iframe oculto: el browser lo carga con todas las cookies/headers
-  // igual que la navegación normal → la SPA AIMS renderiza la tabla
   log('iframe_inject');
   var ifr=document.createElement('iframe');
   ifr.style.cssText='position:fixed;top:-9999px;left:-9999px;width:800px;height:600px;opacity:0;pointer-events:none';
   ifr.src=aimsUrl;
-
-  // Hookear XHR del iframe ANTES de que cargue → capturar bodies reales SPA
-  window.__pilotOS_spa=[];
-  ifr.addEventListener('load',function once(){
-    try{
-      var iw=ifr.contentWindow;
-      var XP=iw.XMLHttpRequest.prototype;
-      var oOpen=XP.open,oSend=XP.send,oSRH=XP.setRequestHeader;
-      XP.open=function(m,u){this.__m=m;this.__u=u;this.__h={};return oOpen.apply(this,arguments);};
-      XP.setRequestHeader=function(k,v){try{this.__h[k]=v;}catch(e){}return oSRH.apply(this,arguments);};
-      XP.send=function(b){
-        try{
-          if(this.__u&&this.__u.indexOf('ViewerInvoke')>-1){
-            window.__pilotOS_spa.push({m:this.__m,u:String(this.__u).slice(0,80),ct:this.__h&&this.__h['Content-Type'],b:String(b||'').slice(0,250)});
-          }
-        }catch(e){}
-        return oSend.apply(this,arguments);
-      };
-    }catch(e){}
-  });
   document.body.appendChild(ifr);
 
-  // Polling: esperar a que la SPA del iframe haga getPage (hasta 12s)
   var WDVU='https://ecrews.vueling.com/AIMS/CrewScheduleReport/WebDocumentViewerInvoke';
+
   function tryCapture(){
     try{
       var iw=ifr.contentWindow;
       var spaUni='',spaDId='';
       iw.performance.getEntriesByType('resource').forEach(function(r){
-        if(r.name.indexOf('ViewerInvoke')>-1 && r.name.indexOf('getPage')>-1){
+        if(r.name.indexOf('ViewerInvoke')>-1&&r.name.indexOf('getPage')>-1){
           var d=decodeURIComponent(r.name);
           if(!spaUni){var um=d.match(/unifier=([a-f0-9-]+)/);if(um)spaUni=um[1];}
           if(!spaDId){var dm=d.match(/"documentId":"([a-f0-9]+)"/);if(dm)spaDId=dm[1];}
@@ -190,31 +123,80 @@ if(aimsUrl){
       return spaUni&&spaDId?{u:spaUni,d:spaDId}:null;
     }catch(e){return null;}
   }
-  var pollStart=Date.now(),pollMax=12000,session=null;
+
+  var pollStart=Date.now(),pollMax=12000;
   function poll(){
-    session=tryCapture();
-    if(session){proceed(session.u,session.d);return;}
+    var s=tryCapture();
+    if(s){proceed(s.u,s.d);return;}
     if(Date.now()-pollStart>pollMax){onTimeout();return;}
     setTimeout(poll,500);
   }
   function onTimeout(){
-    // Diagnóstico: cuántos recursos tiene el iframe y URLs principales
     try{
       var iw=ifr.contentWindow;
       var res=iw.performance.getEntriesByType('resource');
       log('poll_to_n='+res.length);
       var vi=0;
-      res.forEach(function(r){
-        if(r.name.indexOf('ViewerInvoke')>-1){
-          vi++;
-          if(vi<=3)log('vi'+vi+'='+decodeURIComponent(r.name).slice(-150));
-        }
-      });
+      res.forEach(function(r){if(r.name.indexOf('ViewerInvoke')>-1){vi++;if(vi<=3)log('vi'+vi+'='+decodeURIComponent(r.name).slice(-150));}});
       log('poll_vi='+vi);
     }catch(e){log('to_ex='+e.message);}
     navigate();
   }
-  setTimeout(poll,1500); // dar 1.5s antes del primer intento
+  setTimeout(poll,1500);
+
+  function parseNobrHTML(html){
+    var tokens=[];
+    var re=/<nobr[^>]*>([\\s\\S]*?)<\\/nobr>/gi,m;
+    while((m=re.exec(html))!==null){
+      var txt=m[1].replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').replace(/&#(\\d+);/g,function(_,c){return String.fromCharCode(+c);}).replace(/&amp;/g,'&').replace(/\\s+/g,' ').trim();
+      if(txt)tokens.push(txt);
+    }
+    log('nobr='+tokens.length);
+    if(tokens.length>0)log('nt0='+tokens[0].slice(0,50));
+    if(tokens.length>3)log('nt3='+tokens[3].slice(0,50));
+    if(tokens.length>9)log('nt9='+tokens[9].slice(0,50));
+    return tokensToEntries(tokens);
+  }
+
+  function tokensToEntries(tokens){
+    var out=[],curDate='',i=0,n=tokens.length;
+    var SKIP=/Personal Crew|Vueling Air|Generated on|All times|Schedule Det|Total Hours|Block Hour|Duty Hour|Hotel Info|^Memo$|^Descriptions$|^Date$|^Duties$|^Details$|Report time|Actual time|Debrief|Indicators/i;
+    while(i<n){
+      var tok=tokens[i];i++;
+      if(!tok)continue;
+      var dm=tok.match(/(\\d{2})\\/(\\d{2})\\/(\\d{4})/);
+      if(dm){curDate=dm[3]+'-'+dm[2]+'-'+dm[1];continue;}
+      if(!curDate||SKIP.test(tok))continue;
+      var fm=tok.match(/^(\\d{3,5})(?:\\s*\\[\\w+\\])?$/);
+      if(fm){
+        var flNum=fm[1],dep='',arr='',std='',sta='';
+        if(i<n){var rm=tokens[i].match(/^([A-Z]{3})\\s*-\\s*([A-Z]{3})$/);if(rm){dep=rm[1];arr=rm[2];i++;}}
+        for(var t=0;t<5&&i<n;t++){
+          var ttok=tokens[i];
+          if(/(\\d{2})\\/(\\d{2})\\/(\\d{4})/.test(ttok)||/^\\d{3,5}(?:\\s*\\[\\w+\\])?$/.test(ttok)||/^(OFF|SROF|HSBY|2SBY|3SBY|SBY|SIM|LFT|OPC|SICK)/.test(ttok))break;
+          var tms=ttok.match(/(\\d{2}:\\d{2})/g)||[];
+          for(var ti=0;ti<tms.length;ti++){
+            if(!std){std=tms[ti];}
+            else if(!sta&&tms[ti]!==std){sta=tms[ti];break;}
+          }
+          if(std&&sta)break;
+          i++;
+        }
+        out.push({date:curDate,type:'flight',flightNum:flNum,dep:dep,arr:arr,std:std,sta:sta});
+        continue;
+      }
+      if(/^OFF$/i.test(tok)){out.push({date:curDate,type:'off',flightNum:'',dep:'',arr:'',std:'',sta:''});continue;}
+      if(/^SROF$/i.test(tok)){out.push({date:curDate,type:'srof',flightNum:'SROF',dep:'',arr:'',std:'',sta:''});continue;}
+      if(/^(HSBY|2SBY|3SBY|OSBS|OSB3)$/i.test(tok)){out.push({date:curDate,type:'standby',flightNum:'',dep:'',arr:'',std:'',sta:''});continue;}
+      if(/^(SIM|LFT|OPC)$/i.test(tok)){out.push({date:curDate,type:'training',flightNum:'',dep:'',arr:'',std:'',sta:''});continue;}
+      if(/^SICK$|^Enfermedad$/i.test(tok)){out.push({date:curDate,type:'other',flightNum:'SICK',dep:'',arr:'',std:'',sta:''});continue;}
+      if(/D[ií]a libre/i.test(tok)){var last=out[out.length-1];if(!last||last.date!==curDate||last.type!=='off')out.push({date:curDate,type:'off',flightNum:'',dep:'',arr:'',std:'',sta:''});continue;}
+    }
+    var seen={},ded=[];
+    out.forEach(function(e){var k=e.date+'|'+(e.flightNum||e.type);if(!seen[k]){seen[k]=1;ded.push(e);}});
+    log('entries='+ded.length);
+    return ded;
+  }
 
   function proceed(spaUni,spaDId){
     try{
@@ -223,167 +205,69 @@ if(aimsUrl){
       log('dId='+spaDId.slice(0,40));
       log('poll_t='+(Date.now()-pollStart)+'ms');
       var enc=encodeURIComponent;
-
-      // Parser DevExpress: brick.bricks[].bricks[]... → cada brick con content[]
-      // content[i] = {Key:'text', Value:'TXT'}. Coordenadas relativas al padre.
-      function parseBricks(result){
-        var bricks=[];
-        function walk(obj,d,ox,oy){
-          if(!obj||typeof obj!=='object'||d>25)return;
-          var x=ox+(typeof obj.left==='number'?obj.left:0);
-          var y=oy+(typeof obj.top==='number'?obj.top:0);
-          if(obj.content&&Array.isArray(obj.content)){
-            var txt='';
-            for(var i=0;i<obj.content.length;i++){
-              var kv=obj.content[i];
-              if(kv&&(kv.Key==='text'||kv.Key==='Text')&&kv.Value!=null){
-                txt+=String(kv.Value);
-              }
-            }
-            txt=txt.replace(/\\s+/g,' ').trim();
-            if(txt)bricks.push({x:x,y:y,t:txt});
-          }
-          if(Array.isArray(obj.bricks)){
-            for(var j=0;j<obj.bricks.length;j++)walk(obj.bricks[j],d+1,x,y);
-          }
-        }
-        try{
-          if(result&&result.brick)walk(result.brick,0,0,0);
-        }catch(e){log('br_ex='+e.message);}
-        bricks.sort(function(a,b){return a.y-b.y||a.x-b.x;});
-        var rows=[],curRow=null,curY=-99;
-        bricks.forEach(function(b){
-          if(Math.abs(b.y-curY)>4){
-            if(curRow)rows.push(curRow);
-            curRow={y:b.y,cells:[]};curY=b.y;
-          }
-          curRow.cells.push({x:b.x,t:b.t});
-        });
-        if(curRow)rows.push(curRow);
-        return {bricks:bricks,rows:rows};
-      }
-
-      // Analiza el TEXTO COMPLETO de cada fila (no celda a celda).
-      // Los bricks DevExpress vienen muy fragmentados — combinar es mas robusto.
-      function rowsToEntries(rows){
-        var out=[],curDate='',skipped=0;
-        var SKIP=/Personal Crew Schedule|Vueling Airlines|Generated on|Page \\d+ of|All times in UTC|Schedule Details|Total Hours|Block Hours|Duty Hours|Report times|Actual times|Debrief times|Indicators|BALCELLS|Captain|^Date$|^Duties$|^Details$/i;
-        rows.forEach(function(r){
-          if(!r.cells.length)return;
-          r.cells.sort(function(a,b){return a.x-b.x;});
-          var ft=r.cells.map(function(c){return c.t;}).join(' ').replace(/\\s+/g,' ').trim();
-          if(!ft){skipped++;return;}
-          if(SKIP.test(ft)){skipped++;return;}
-          // Fecha (DD/MM/YYYY)
-          var dm=ft.match(/(\\d{2})\\/(\\d{2})\\/(\\d{4})/);
-          if(dm){
-            var dd=+dm[1],mm=+dm[2],yy=+dm[3];
-            if(dd>=1&&dd<=31&&mm>=1&&mm<=12&&yy>=2020&&yy<=2100){
-              curDate=dm[3]+'-'+dm[2]+'-'+dm[1];
-            }
-          }
-          if(!curDate){skipped++;return;}
-          // Vuelo: numero (3-5 dig) + ruta AAA-BBB
-          var fm=ft.match(/(?:^|\\s)(\\d{3,5})(?:\\[\\w+\\])?(?:\\s|$)/);
-          var rm=ft.match(/\\b([A-Z]{3})\\s*[-\\u2013]\\s*([A-Z]{3})\\b/);
-          var tms=ft.match(/\\b(\\d{2}:\\d{2})\\b/g)||[];
-          if(fm&&rm){
-            out.push({date:curDate,type:'flight',flightNum:fm[1],dep:rm[1],arr:rm[2],std:tms[0]||'',sta:tms[1]||''});
-          } else if(/\\b(OFF|SROF|libre|Dia libre|D[ií]a libre)\\b/i.test(ft)){
-            out.push({date:curDate,type:'off',flightNum:'',dep:'',arr:'',std:'',sta:''});
-          } else if(/\\b(SBY|standby|OSBS|OSB3)\\b/i.test(ft)){
-            out.push({date:curDate,type:'standby',flightNum:'',dep:'',arr:'',std:'',sta:''});
-          } else if(/\\b(SIM|LFT|OPC)\\b/i.test(ft)){
-            out.push({date:curDate,type:'training',flightNum:'',dep:'',arr:'',std:'',sta:''});
-          } else if(/\\b(SICK|Enfermedad|enfermedad)\\b/i.test(ft)){
-            out.push({date:curDate,type:'other',flightNum:'SICK',dep:'',arr:'',std:'',sta:''});
-          } else {
-            skipped++;
-          }
-        });
-        log('rte_sk='+skipped+' ok='+out.length);
-        // Dedup por date+flightNum (o date+type para non-flight)
-        var seen={},ded=[];
-        out.forEach(function(e){
-          var k=e.date+'|'+(e.flightNum||e.type);
-          if(seen[k])return;
-          seen[k]=1;ded.push(e);
-        });
-        return ded;
-      }
-
       var XC=iw.XMLHttpRequest;
       log('xc='+(typeof XC));
-      var iors=[];
-      var pages=[0,1,2];
-      var done=0;
-      pages.forEach(function(pg,i){
-        try{
-          var argObj={pageIndex:pg,documentId:spaDId,resolution:192,includeBricks:true};
-          var url=WDVU+'?actionKey=getPage&unifier='+enc(spaUni)+'&arg='+enc(JSON.stringify(argObj));
-          var xhr=new XC();
-          xhr.open('GET',url,true);
-          xhr.withCredentials=true;
-          xhr.setRequestHeader('Accept','application/json, text/javascript, */*; q=0.01');
-          xhr.setRequestHeader('X-Requested-With','XMLHttpRequest');
-          xhr.onreadystatechange=function(){
-            if(xhr.readyState===4){
-              iors[i]=xhr.status+'||'+xhr.responseText.slice(0,600);
-              done++;
-              try{
-                if(xhr.status===200){
-                  var j=JSON.parse(xhr.responseText);
-                  if(j&&j.result){
-                    if(i===0)log('rk='+Object.keys(j.result).join(',').slice(0,200));
-                    var pr=parseBricks(j.result);
-                    log('p'+pg+'_b='+pr.bricks.length+' r='+pr.rows.length);
-                    if(i===0&&pr.bricks.length>0){
-                      log('b0='+JSON.stringify(pr.bricks[0]).slice(0,150));
-                      log('b1='+JSON.stringify(pr.bricks[1]||{}).slice(0,150));
-                      log('b2='+JSON.stringify(pr.bricks[2]||{}).slice(0,150));
-                    }
-                    var got=rowsToEntries(pr.rows);
-                    log('p'+pg+'_e='+got.length);
-                    if(got.length)E=E.concat(got);
-                  }
-                }
-              }catch(e){log('p'+pg+'_pex='+e.message);}
-            }
-          };
-          xhr.onerror=function(){iors[i]='XERR';done++;};
-          xhr.send();
-        }catch(e){iors[i]='EX||'+e.message;done++;}
-      });
 
-      // Volcar resultados tras 8s (logs visibles aunque parsing falle)
-      setTimeout(function(){
-        for(var i=0;i<pages.length;i++){
-          var r=iors[i]||'pending';
-          log('gp'+pages[i]+'='+r.slice(0,240));
-          if(r.length>240)log('gp'+pages[i]+'b='+r.slice(240,480));
+      var argObj=JSON.stringify({unifier:spaUni,documentId:spaDId,format:'HTML',customExportOptions:null,isPrinting:false});
+      var body='actionKey=Export&arg='+enc(argObj);
+      var xhr=new XC();
+      xhr.open('POST',WDVU,true);
+      xhr.withCredentials=true;
+      xhr.setRequestHeader('Content-Type','application/x-www-form-urlencoded; charset=UTF-8');
+      xhr.setRequestHeader('Accept','text/html,application/json,*/*');
+      xhr.setRequestHeader('X-Requested-With','XMLHttpRequest');
+      xhr.onreadystatechange=function(){
+        if(xhr.readyState!==4)return;
+        log('exp_s='+xhr.status);
+        var ct=xhr.getResponseHeader('Content-Type')||'';
+        log('exp_ct='+ct.slice(0,80));
+        log('exp_len='+xhr.responseText.length);
+        log('exp_head='+xhr.responseText.slice(0,400));
+        if(xhr.status===200){
+          var resp=xhr.responseText;
+          if(ct.indexOf('text/html')>-1||resp.indexOf('<nobr')>-1||resp.indexOf('<!DOCTYPE')>-1||resp.indexOf('<html')>-1){
+            log('exp_html_direct');
+            E=parseNobrHTML(resp);
+            navigate();
+            return;
+          }
+          try{
+            var j=JSON.parse(resp);
+            log('exp_jk='+Object.keys(j||{}).join(',').slice(0,100));
+            if(j&&j.token){
+              log('exp_tok='+String(j.token).slice(0,40));
+              var xhr2=new XC();
+              xhr2.open('GET',WDVU+'?actionKey=GetExportResult&token='+enc(j.token),true);
+              xhr2.withCredentials=true;
+              xhr2.setRequestHeader('Accept','text/html,*/*');
+              xhr2.onreadystatechange=function(){
+                if(xhr2.readyState!==4)return;
+                log('exp2_s='+xhr2.status+' len='+xhr2.responseText.length);
+                log('exp2_h='+xhr2.responseText.slice(0,300));
+                if(xhr2.status===200)E=parseNobrHTML(xhr2.responseText);
+                navigate();
+              };
+              xhr2.onerror=function(){log('exp2_xe');navigate();};
+              xhr2.send();
+              return;
+            }
+            if(j&&j.result&&typeof j.result==='string'&&j.result.length>100){
+              try{var dec=atob(j.result);if(dec.indexOf('<nobr')>-1||dec.indexOf('<!DOCTYPE')>-1)E=parseNobrHTML(dec);}catch(e2){}
+            }
+            if(j&&j.error)log('exp_err='+JSON.stringify(j.error).slice(0,100));
+          }catch(e2){log('exp_j_ex='+e2.message);}
         }
-        if(!navigated)navigate();
-      },8000);
+        navigate();
+      };
+      xhr.onerror=function(){log('exp_xe');navigate();};
+      setTimeout(function(){if(!navigated)navigate();},10000);
+      xhr.send(body);
     }catch(ex){log('ex='+ex.message);navigate();}
   }
 
-} else {
-  // Sin aimsUrl: el usuario no abrió el popup de impresión.
-  // Loggear para diagnóstico y terminar.
+}else{
   log('NO_AIMS: abrir My Schedule > Print primero');
-  var now=new Date(),y=now.getFullYear(),mo=now.getMonth();
-  var from=y+'-'+p2(mo+1)+'-01',enc=encodeURIComponent;
-  var to=y+'-'+p2(mo+1)+'-'+p2(new Date(y,mo+1,0).getDate());
-  var BASE='https://ecrews.vueling.com/eCrew/';
-  // Intentar RunReport de todas formas (puede que funcione con parámetros correctos)
-  var fmBody='eCrewHeader='+enc(hdr)+'&from='+from+'&to='+to;
-  fetch(BASE+'Reports/RunReport',{
-    method:'POST',credentials:'include',
-    headers:{Accept:'application/json,*/*','Content-Type':'application/x-www-form-urlencoded',eCrewHeader:hdr},
-    body:fmBody
-  }).then(function(r){log('RR='+r.status);return r.text();})
-    .then(function(t){log('RR_body='+t.slice(0,200));navigate();})
-    .catch(function(e){log('RR_fail='+e.message);navigate();});
+  navigate();
 }
 })();`;
 
