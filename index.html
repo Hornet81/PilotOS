@@ -9916,7 +9916,17 @@ function goTo(key){
   }
   if (key === 'upgrade') upgUpdateCards();
   if (key === 'roster' && window.rosterInit) window.rosterInit();
-  if (key === 'home') dhUpdateRosterCard();
+  if (key === 'home') {
+    dhUpdateRosterCard();
+    // Pull silencioso del roster desde el servidor al entrar en home
+    setTimeout(function(){
+      if(typeof rstPullFromServer==='function'){
+        rstPullFromServer().then(function(n){
+          if(n>0 && typeof dhUpdateRosterCard==='function') dhUpdateRosterCard();
+        });
+      }
+    }, 600);
+  }
   if (key === 'pay') {
     // Auto-importar desde Logbook al entrar en PayCheck
     var token = ''; try { token = lsGet('cafi_auth_token',''); } catch(ex) {}
@@ -25104,6 +25114,7 @@ window.rstPullFromServer = async function(){
     rstSave();
     rstRenderCalendar(); rstRenderStats(); rstRenderFlights();
     rosterShowCalendar();
+    if(typeof dhUpdateRosterCard==='function') dhUpdateRosterCard();
     return added;
   }catch(e){ return -1; }
 };
