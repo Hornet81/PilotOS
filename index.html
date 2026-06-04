@@ -24225,7 +24225,7 @@ async function rosterRunHTML(htmlText){
     }
     rstSmartMerge(parsed.entries, newMonth);
     rstSave();
-    window.rstPushMonth(newMonth);
+    rstPushAllMonths(parsed.entries);
 
     if(newMonth){ var p=newMonth.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1; }
     if(newMonth){
@@ -24319,7 +24319,7 @@ async function rosterRunPDF(pdfBase64){
     rstSave();
     // ── Paso 2: persistir roster en Supabase — SOLO el mes importado ──
     // Offline-first: rstPushMonth maneja fallos y los reintenta al reconectar.
-    window.rstPushMonth(newMonth);
+    rstPushAllMonths(parsed.entries);
 
     // Save PDF-extracted block/duty totals for accurate stats display
     if(newMonth){
@@ -24415,7 +24415,7 @@ async function rosterRunAIText(textContent){
     rstSmartMerge(parsed.entries, newMonth);
     rstSave();
     // Persistir en Supabase — Offline-first: rstPushMonth maneja fallos y los reintenta al reconectar.
-    window.rstPushMonth(newMonth);
+    rstPushAllMonths(parsed.entries);
 
     if(newMonth){ var p=newMonth.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1; }
     if(newMonth){
@@ -24542,7 +24542,7 @@ async function rosterRunAI(dataUrl, mimeType){
     rstSmartMerge(parsed.entries, newMonth);
     rstSave();
     // Persistir en Supabase — Offline-first: rstPushMonth maneja fallos y los reintenta al reconectar.
-    window.rstPushMonth(newMonth);
+    rstPushAllMonths(parsed.entries);
 
     // Set view to detected month and re-render calendar
     if(newMonth){
@@ -25006,6 +25006,13 @@ function rstSyncUpdateBadge(month, state){
 }
 
 // Push one month to Supabase (DELETE old + POST new), with pending queue on failure
+// Push todos los meses presentes en un array de entradas (soporta imports multi-mes)
+function rstPushAllMonths(entries){
+  var months = {};
+  (entries||[]).forEach(function(e){ if(e.date) months[e.date.slice(0,7)] = true; });
+  Object.keys(months).forEach(function(m){ if(window.rstPushMonth) window.rstPushMonth(m); });
+}
+
 window.rstPushMonth = async function(month){
   var token=''; try{ token=lsGet('cafi_auth_token',''); }catch(e){}
   if(!token||!month) return;
