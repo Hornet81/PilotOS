@@ -72,7 +72,7 @@ if(typeof completion==='function')completion(null);
 var E=[],L=[];
 function log(s){L.push(String(s).slice(0,250));}
 function p2(n){return('0'+n).slice(-2);}
-log('v=run03');
+log('v=run04');
 
 // eCrewHeader desde URL o iframes
 var hdr='';
@@ -350,7 +350,7 @@ function startIframe(aimsUrl){
   // Estructura ROW-BASED (distinto del HTML export que es COLUMN-BASED)
   function rowsToEntries(rows){
     var out=[],curDate='';
-    var SKIP=/Personal Crew|Vueling Air|Generated on|All times|Schedule Det|Total Hours|Block Hour|Duty Hour|Hotel Info|Memo|Description|^Date$|^Duties$|^Details$|Indicators|^Category$|Page \\d+ of/i;
+    var SKIP=/Personal Crew|Vueling Air|Generated on|All times|Schedule Det|Total Hours|Block Hour|Duty Hour|Hotel Info|Memo|Description|^Date$|^Duties$|^Details$|Indicators|^Category$|Page \\d+ of|[A-Z]{3}-[A-Z]{2}-\\d{3}/i;
     var FLIGHT_RE=/\\b([A-Z]{0,3}\\d{3,5})(?:\\s*\\[\\w+\\])?\\b/;
     var ACT_RE=/^(OFF|SROF|OSBY|OSB3|OSBS|HSBY|2SBY|3SBY|SIM|LFT|OPC|SICK|EVAL|SBTO|DS|TR|SBY|STBY)$/i;
     var ROUTE_RE=/\\b([A-Z]{3})\\s*-\\s*([A-Z]{3})\\b/;
@@ -419,10 +419,10 @@ function startIframe(aimsUrl){
                 if(j&&j.result){
                   var pr=parseBricks(j.result);
                   log('gp'+pg+'_b='+pr.bricks.length+' r='+pr.rows.length);
-                  // Diagnóstico: primeros 8 bricks y primeras 4 filas de página 0
-                  if(pg===0){
-                    pr.bricks.slice(0,8).forEach(function(b,bi){log('B'+bi+'=y'+b.y+'x'+b.x+':'+b.t.slice(0,25));});
-                    pr.rows.slice(0,4).forEach(function(r,ri){log('R'+ri+'=['+r.cells.map(function(c){return c.t.slice(0,18);}).join('|')+']');});
+                  // Diagnóstico: página 1 tiene los datos reales (página 0 es cabecera)
+                  if(pg===1){
+                    pr.bricks.slice(0,10).forEach(function(b,bi){log('B'+bi+'=y'+b.y+'x'+b.x+':'+b.t.slice(0,30));});
+                    pr.rows.slice(0,8).forEach(function(r,ri){log('R'+ri+'=['+r.cells.map(function(c){return c.t.slice(0,20);}).join('|')+']');});
                   }
                   if(pr.rows.length>0){
                     var got=rowsToEntries(pr.rows);
