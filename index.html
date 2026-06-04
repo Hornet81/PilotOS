@@ -25060,35 +25060,47 @@ window.rstPullFromServer = async function(){
     var body=await r.json();
     var serverEntries=body.entries||[];
     if(!serverEntries.length) return 0;
-    // ── Build map from ALL local entries, con clave fallback para entradas sin id ──
-    // CRITICAL: el parser AI no asigna id a las entradas. Si solo mapeamos por e.id,
-    // el map queda vacío y el pull sobreescribe RST.entries con solo datos del servidor,
-    // perdiendo lo que el usuario acaba de importar (Bug 2).
-    var map={};
-    RST.entries.forEach(function(e){
-      var k = e.id || (e.date+'_'+(e.type||'')+'_'+(e.flightNum||''));
-      if(k) map[k] = e;
-    });
-    var added=0;
+
+    // Meses con cambios locales pendientes de push (sin red en el momento del import)
+    var _pendingMonths={};
+    try{ (JSON.parse(lsGet('pilotOS_sync_pending_v2','[]')||'[]')).forEach(function(m){_pendingMonths[m]=true;}); }catch(e){}
+
+    // Agrupar entradas del servidor por mes
+    var serverByMonth={};
     serverEntries.forEach(function(se){
       if(!se||!se.date) return;
-      var _seMonth = se.date.slice(0,7);
-      // ── Guard 1: skip months borrados explícitamente por el usuario ──
-      try{
-        if(localStorage.getItem('pilotOS_deleted_month_'+_seMonth)==='1') return;
-      }catch(e){}
-      // ── Guard 2: skip months con import local — el dato local siempre gana ──
-      // (el guard de timing anterior fallaba cuando el pull arrancaba DESPUÉS del import)
-      try{
-        if(localStorage.getItem('pilotOS_import_ts_'+_seMonth)) return;
-      }catch(e){}
-      var key=se.id||(se.date+'_'+(se.type||'')+'_'+(se.flightNum||''));
-      if(!map[key]){ map[key]=se; added++; }
+      var m=se.date.slice(0,7);
+      if(!serverByMonth[m]) serverByMonth[m]=[];
+      serverByMonth[m].push(se);
     });
-    if(!added) return 0;
-    RST.entries=Object.values(map).sort(function(a,b){
-      return (a.date||'').localeCompare(b.date||'');
+
+    // Decidir qué meses aceptar del servidor:
+    // - Skip si el mes fue borrado explícitamente por el usuario
+    // - Skip si hay cambios locales pendientes de sync (push no completado)
+    // - Skip si se importó en los últimos 60s (protege la carrera import→pull inmediato)
+    // - En cualquier otro caso: el servidor gana (permite sync entre dispositivos)
+    var acceptMonths=[];
+    Object.keys(serverByMonth).forEach(function(month){
+      try{ if(localStorage.getItem('pilotOS_deleted_month_'+month)==='1') return; }catch(e){}
+      if(_pendingMonths[month]) return;
+      var _ts=parseInt(lsGet('pilotOS_import_ts_'+month,'0'));
+      if(_ts > Date.now()-60000) return; // importado hace < 60s, proteger
+      acceptMonths.push(month);
     });
+
+    if(!acceptMonths.length) return 0;
+
+    // Reemplazar el mes completo (no solo añadir): garantiza que datos actualizados
+    // desde otro dispositivo sobreescriban entradas antiguas con el mismo ID
+    var localKept=RST.entries.filter(function(e){
+      return !e.date || acceptMonths.indexOf(e.date.slice(0,7))===-1;
+    });
+    var added=0;
+    acceptMonths.forEach(function(month){
+      serverByMonth[month].forEach(function(se){ localKept.push(se); added++; });
+    });
+
+    RST.entries=localKept.sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
     rstSave();
     rstRenderCalendar(); rstRenderStats(); rstRenderFlights();
     rosterShowCalendar();
