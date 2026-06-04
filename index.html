@@ -27160,18 +27160,39 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
         return;
       }
       var incoming = payload.entries;
+      var _syncDbg = payload.dbg || '';
+
+      // Info del mes y muestra de primeras entradas para diagnóstico
+      var _months = {}; incoming.forEach(function(e){ if(e.date) _months[e.date.slice(0,7)]=true; });
+      var _monthInfo = Object.keys(_months).sort().join(', ') || '?';
+      var _sample = incoming.slice(0,2).map(function(e){ return (e.date||'?').slice(5)+' '+e.type+(e.flightNum?' '+e.flightNum:'')+(e.dep?' '+e.dep+'-'+e.arr:''); }).join(' | ');
 
       var banner = document.createElement('div');
       banner.id = '_rstSyncBanner';
-      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:linear-gradient(135deg,#0891B2,#0369A1);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-family:Space Grotesk,system-ui,sans-serif;box-shadow:0 4px 20px rgba(0,0,0,.5);padding-top:calc(14px + env(safe-area-inset-top,0px))';
-      banner.innerHTML = '<div><div style="font-size:14px;font-weight:700">✈ ' + incoming.length + ' actividades de eCrews</div><div style="font-size:11px;opacity:.7;margin-top:2px">¿Importar al Roster de PilotOS?</div></div>'
-        + '<div style="display:flex;gap:8px;flex-shrink:0">'
-        + '<button id="_rstSyncYes" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);border-radius:10px;color:#fff;padding:8px 16px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit">Importar</button>'
-        + '<button id="_rstSyncNo" style="background:transparent;border:1px solid rgba(255,255,255,.2);border-radius:10px;color:rgba(255,255,255,.6);padding:8px 12px;font-size:16px;cursor:pointer;line-height:1">×</button>'
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:linear-gradient(135deg,#0891B2,#0369A1);color:#fff;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-family:Space Grotesk,system-ui,sans-serif;box-shadow:0 4px 20px rgba(0,0,0,.5);padding-top:calc(12px + env(safe-area-inset-top,0px))';
+      banner.innerHTML = '<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">✈ ' + incoming.length + ' · ' + _monthInfo + '</div>'
+        + '<div style="font-size:10px;opacity:.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + _sample + '</div></div>'
+        + '<div style="display:flex;gap:6px;flex-shrink:0">'
+        + '<button id="_rstSyncLog" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);border-radius:8px;color:rgba(255,255,255,.7);padding:6px 9px;font-size:11px;cursor:pointer;font-family:inherit">LOG</button>'
+        + '<button id="_rstSyncYes" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);border-radius:10px;color:#fff;padding:8px 14px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit">Importar</button>'
+        + '<button id="_rstSyncNo" style="background:transparent;border:1px solid rgba(255,255,255,.2);border-radius:10px;color:rgba(255,255,255,.6);padding:8px 10px;font-size:16px;cursor:pointer;line-height:1">×</button>'
         + '</div>';
       document.body.appendChild(banner);
 
       document.getElementById('_rstSyncNo').onclick = function() { banner.remove(); };
+      document.getElementById('_rstSyncLog').onclick = function() {
+        var ov = document.createElement('div');
+        ov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:100000;background:#07131C;color:#F0FFFE;padding:16px;overflow-y:auto;font-family:Space Mono,monospace;font-size:10px;padding-top:calc(16px + env(safe-area-inset-top,0px))';
+        var entDump = JSON.stringify(incoming.slice(0,5),null,1);
+        ov.innerHTML = '<div style="font-size:13px;font-weight:700;color:#22D3EE;margin-bottom:8px">Diagnóstico rosterSync</div>'
+          + '<div style="color:#FCD34D;margin-bottom:4px">Mes: ' + _monthInfo + ' · ' + incoming.length + ' entradas</div>'
+          + '<div style="color:#34D399;margin-bottom:8px">Muestra (primeras 5):</div>'
+          + '<pre style="background:rgba(255,255,255,.05);padding:8px;border-radius:6px;white-space:pre-wrap;word-break:break-all;margin-bottom:10px;font-size:9px">' + entDump.replace(/</g,'&lt;') + '</pre>'
+          + '<div style="color:#34D399;margin-bottom:4px">Logs script:</div>'
+          + '<pre style="background:rgba(255,255,255,.05);padding:8px;border-radius:6px;white-space:pre-wrap;word-break:break-all;font-size:9px">' + _syncDbg.replace(/</g,'&lt;') + '</pre>'
+          + '<button onclick="this.parentElement.remove()" style="margin-top:12px;background:rgba(8,145,178,.3);border:1px solid rgba(34,211,238,.4);border-radius:10px;color:#22D3EE;padding:10px 20px;font-family:Space Mono,monospace;font-size:12px;cursor:pointer">Cerrar</button>';
+        document.body.appendChild(ov);
+      };
       document.getElementById('_rstSyncYes').onclick = function() {
         try {
           var existing = [];
@@ -27186,6 +27207,10 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
           });
           localStorage.setItem('pilotOS_roster', JSON.stringify(existing));
           localStorage.removeItem('pilotOS_roster_cleared');
+          // Protect imported months from rstPullFromServer overwrite (60s window)
+          var _im = {}; incoming.forEach(function(e){ if(e.date) _im[e.date.slice(0,7)]=true; });
+          Object.keys(_im).forEach(function(m){ try { localStorage.setItem('pilotOS_import_ts_'+m, new Date().toISOString()); } catch(e){} });
+          try { if(typeof rstPushAllMonths==='function') rstPushAllMonths(existing); } catch(e){}
           banner.style.background = 'linear-gradient(135deg,#059669,#047857)';
           banner.querySelector('div').innerHTML = '<div style="font-size:14px;font-weight:700">✅ ' + added + ' actividades importadas</div><div style="font-size:11px;opacity:.7;margin-top:2px">Abriendo Roster…</div>';
           banner.querySelector('div:last-child').remove();
