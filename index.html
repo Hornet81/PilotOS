@@ -27185,6 +27185,14 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
           });
           localStorage.setItem('pilotOS_roster', JSON.stringify(existing));
           localStorage.removeItem('pilotOS_roster_cleared');
+          // Protect imported months from being overwritten by rstPullFromServer
+          var _importedMonths = {};
+          incoming.forEach(function(e){ if(e.date) _importedMonths[e.date.slice(0,7)] = true; });
+          Object.keys(_importedMonths).forEach(function(m){
+            try { localStorage.setItem('pilotOS_import_ts_'+m, new Date().toISOString()); } catch(e){}
+          });
+          // Push to server
+          try { if(typeof rstPushAllMonths === 'function') rstPushAllMonths(existing); } catch(e){}
           banner.style.background = 'linear-gradient(135deg,#059669,#047857)';
           banner.querySelector('div').innerHTML = '<div style="font-size:14px;font-weight:700">✅ ' + added + ' actividades importadas</div><div style="font-size:11px;opacity:.7;margin-top:2px">Abriendo Roster…</div>';
           banner.querySelector('div:last-child').remove();
