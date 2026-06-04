@@ -71,7 +71,7 @@ var SCRIPT = `(function(){
 if(typeof completion==='function')completion(null);
 var E=[],L=[];
 function log(s){L.push(String(s).slice(0,250));}
-log('v=export04');
+log('v=export05');
 
 var hdr='';
 try{var m1=(window.location.href+'').match(/eCrewHeader=([^&\\s#]+)/);if(m1)hdr=m1[1];}catch(e){}
@@ -272,7 +272,7 @@ if(aimsUrl){
     bricks.sort(function(a,b){return a.y-b.y||a.x-b.x;});
     var rows=[],cur=null,curY=-999;
     bricks.forEach(function(b){
-      if(Math.abs(b.y-curY)>5){if(cur)rows.push(cur);cur={y:b.y,cells:[]};curY=b.y;}
+      if(Math.abs(b.y-curY)>10){if(cur)rows.push(cur);cur={y:b.y,cells:[]};curY=b.y;}
       cur.cells.push(b);
     });
     if(cur)rows.push(cur);
@@ -330,7 +330,7 @@ if(aimsUrl){
       var PAGES=[0,1,2],done=0;
       PAGES.forEach(function(pg){
         try{
-          var argObj={pageIndex:pg,documentId:spaDId,resolution:96,includeBricks:true};
+          var argObj={pageIndex:pg,documentId:spaDId,resolution:192,includeBricks:true};
           var url=WDVU+'?actionKey=getPage&unifier='+enc(spaUni)+'&arg='+enc(JSON.stringify(argObj));
           var xhr=new XC();
           xhr.open('GET',url,true);
@@ -347,6 +347,11 @@ if(aimsUrl){
                 if(j&&j.result){
                   var pr=parseBricks(j.result);
                   log('gp'+pg+'_b='+pr.bricks.length+' r='+pr.rows.length);
+                  // Diagnóstico: primeros 8 bricks y primeras 4 filas de página 0
+                  if(pg===0){
+                    pr.bricks.slice(0,8).forEach(function(b,bi){log('B'+bi+'=y'+b.y+'x'+b.x+':'+b.t.slice(0,25));});
+                    pr.rows.slice(0,4).forEach(function(r,ri){log('R'+ri+'=['+r.cells.map(function(c){return c.t.slice(0,18);}).join('|')+']');});
+                  }
                   if(pr.rows.length>0){
                     var got=rowsToEntries(pr.rows);
                     if(got.length)E=E.concat(got);
