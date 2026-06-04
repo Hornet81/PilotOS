@@ -5688,6 +5688,20 @@ html.day .ldm-dc-del{
   color:#B91C1C !important;
 }
 
+/* ── Checkbox Pernocta fuera de base ── */
+html.day .ldm-pernoc-row{
+  background:rgba(109,40,217,.07) !important;
+  border-color:rgba(109,40,217,.28) !important;
+}
+html.day .ldm-pernoc-row:hover{
+  background:rgba(109,40,217,.12) !important;
+  border-color:rgba(109,40,217,.45) !important;
+}
+html.day .ldm-pernoc-txt{color:#1e293b !important}
+html.day .ldm-pernoc-row input[type=checkbox]{accent-color:#6D28D9 !important}
+/* Estado nocturno automático */
+html.day #ld_night_auto_status{color:#0369A1 !important}
+
 /* ══════════════════════════════════════════════════════
    ROSTER — MODO DÍA
    Fondo: hereda degradado azul del home (sin fondo propio)
@@ -9431,9 +9445,9 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
         </div>
         <div id="ld_night_auto_status" style="font-size:10px;font-family:'Space Mono',monospace;letter-spacing:.2px;min-height:14px;margin-bottom:8px;color:rgba(125,211,252,.85)"></div>
         <div style="margin-bottom:12px">
-          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px">
+          <label class="ldm-pernoc-row" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px">
             <input type="checkbox" id="ld_pernoc" style="width:18px;height:18px;accent-color:#22d3ee;flex-shrink:0">
-            <span style="font-size:12px;font-weight:600;color:rgba(248,250,252,.7);text-transform:uppercase;letter-spacing:.5px">Pernocta fuera de base</span>
+            <span class="ldm-pernoc-txt" style="font-size:12px;font-weight:600;color:rgba(248,250,252,.7);text-transform:uppercase;letter-spacing:.5px">Pernocta fuera de base</span>
           </label>
         </div>
 
@@ -9916,17 +9930,7 @@ function goTo(key){
   }
   if (key === 'upgrade') upgUpdateCards();
   if (key === 'roster' && window.rosterInit) window.rosterInit();
-  if (key === 'home') {
-    dhUpdateRosterCard();
-    // Pull silencioso del roster desde el servidor al entrar en home
-    setTimeout(function(){
-      if(typeof rstPullFromServer==='function'){
-        rstPullFromServer().then(function(n){
-          if(n>0 && typeof dhUpdateRosterCard==='function') dhUpdateRosterCard();
-        });
-      }
-    }, 600);
-  }
+  if (key === 'home') dhUpdateRosterCard();
   if (key === 'pay') {
     // Auto-importar desde Logbook al entrar en PayCheck
     var token = ''; try { token = lsGet('cafi_auth_token',''); } catch(ex) {}
@@ -24225,7 +24229,7 @@ async function rosterRunHTML(htmlText){
     }
     rstSmartMerge(parsed.entries, newMonth);
     rstSave();
-    rstPushAllMonths(parsed.entries);
+    window.rstPushMonth(newMonth);
 
     if(newMonth){ var p=newMonth.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1; }
     if(newMonth){
@@ -24319,7 +24323,7 @@ async function rosterRunPDF(pdfBase64){
     rstSave();
     // ── Paso 2: persistir roster en Supabase — SOLO el mes importado ──
     // Offline-first: rstPushMonth maneja fallos y los reintenta al reconectar.
-    rstPushAllMonths(parsed.entries);
+    window.rstPushMonth(newMonth);
 
     // Save PDF-extracted block/duty totals for accurate stats display
     if(newMonth){
@@ -24415,7 +24419,7 @@ async function rosterRunAIText(textContent){
     rstSmartMerge(parsed.entries, newMonth);
     rstSave();
     // Persistir en Supabase — Offline-first: rstPushMonth maneja fallos y los reintenta al reconectar.
-    rstPushAllMonths(parsed.entries);
+    window.rstPushMonth(newMonth);
 
     if(newMonth){ var p=newMonth.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1; }
     if(newMonth){
@@ -24542,7 +24546,7 @@ async function rosterRunAI(dataUrl, mimeType){
     rstSmartMerge(parsed.entries, newMonth);
     rstSave();
     // Persistir en Supabase — Offline-first: rstPushMonth maneja fallos y los reintenta al reconectar.
-    rstPushAllMonths(parsed.entries);
+    window.rstPushMonth(newMonth);
 
     // Set view to detected month and re-render calendar
     if(newMonth){
@@ -25006,13 +25010,6 @@ function rstSyncUpdateBadge(month, state){
 }
 
 // Push one month to Supabase (DELETE old + POST new), with pending queue on failure
-// Push todos los meses presentes en un array de entradas (soporta imports multi-mes)
-function rstPushAllMonths(entries){
-  var months = {};
-  (entries||[]).forEach(function(e){ if(e.date) months[e.date.slice(0,7)] = true; });
-  Object.keys(months).forEach(function(m){ if(window.rstPushMonth) window.rstPushMonth(m); });
-}
-
 window.rstPushMonth = async function(month){
   var token=''; try{ token=lsGet('cafi_auth_token',''); }catch(e){}
   if(!token||!month) return;
@@ -25067,6 +25064,8 @@ window.addEventListener('offline', function(){
 window.rstPullFromServer = async function(){
   var token=''; try{ token=lsGet('cafi_auth_token',''); }catch(e){}
   if(!token) return 0;
+  // Record pull start time — used below to protect freshly-imported months
+  var _pullStartTs = Date.now();
   try{
     var r=await fetch(ldBackendUrl()+'/api/roster',{
       headers:{'Authorization':'Bearer '+token}
@@ -25075,60 +25074,38 @@ window.rstPullFromServer = async function(){
     var body=await r.json();
     var serverEntries=body.entries||[];
     if(!serverEntries.length) return 0;
-
-    // Meses con cambios locales pendientes de push (sin red en el momento del import)
-    var _pendingMonths={};
-    try{ (JSON.parse(lsGet('pilotOS_sync_pending_v2','[]')||'[]')).forEach(function(m){_pendingMonths[m]=true;}); }catch(e){}
-
-    // Agrupar entradas del servidor por mes
-    var serverByMonth={};
-    serverEntries.forEach(function(se){
-      if(!se||!se.date) return;
-      var m=se.date.slice(0,7);
-      if(!serverByMonth[m]) serverByMonth[m]=[];
-      serverByMonth[m].push(se);
-    });
-
-    // Decidir qué meses aceptar del servidor:
-    // - Skip si hay cambios locales pendientes de sync (push no completado)
-    // - Skip si se importó en los últimos 60s (protege la carrera import→pull inmediato)
-    // - El servidor SIEMPRE gana sobre borrados locales: si alguien subió el mes
-    //   desde otro dispositivo, debe restaurarse (deleted_month no bloquea el pull)
-    var acceptMonths=[];
-    Object.keys(serverByMonth).forEach(function(month){
-      if(_pendingMonths[month]) return;
-      var _ts=new Date(lsGet('pilotOS_import_ts_'+month,'')||0).getTime()||0;
-      if(_ts > Date.now()-60000) return; // importado hace < 60s, proteger
-      acceptMonths.push(month);
-      // Limpiar flag de borrado: el servidor tiene datos activos para este mes
-      try{ localStorage.removeItem('pilotOS_deleted_month_'+month); }catch(e){}
-    });
-    if(!acceptMonths.length) return 0;
-
-    // Reemplazar el mes completo (no solo añadir): garantiza que datos actualizados
-    // desde otro dispositivo sobreescriban entradas antiguas con el mismo ID
-    var localKept=RST.entries.filter(function(e){
-      return !e.date || acceptMonths.indexOf(e.date.slice(0,7))===-1;
+    // ── Build map from ALL local entries, con clave fallback para entradas sin id ──
+    // CRITICAL: el parser AI no asigna id a las entradas. Si solo mapeamos por e.id,
+    // el map queda vacío y el pull sobreescribe RST.entries con solo datos del servidor,
+    // perdiendo lo que el usuario acaba de importar (Bug 2).
+    var map={};
+    RST.entries.forEach(function(e){
+      var k = e.id || (e.date+'_'+(e.type||'')+'_'+(e.flightNum||''));
+      if(k) map[k] = e;
     });
     var added=0;
-    acceptMonths.forEach(function(month){
-      serverByMonth[month].forEach(function(se){ localKept.push(se); added++; });
+    serverEntries.forEach(function(se){
+      if(!se||!se.date) return;
+      var _seMonth = se.date.slice(0,7);
+      // ── Guard 1: skip months borrados explícitamente por el usuario ──
+      try{
+        if(localStorage.getItem('pilotOS_deleted_month_'+_seMonth)==='1') return;
+      }catch(e){}
+      // ── Guard 2: skip months con import local — el dato local siempre gana ──
+      // (el guard de timing anterior fallaba cuando el pull arrancaba DESPUÉS del import)
+      try{
+        if(localStorage.getItem('pilotOS_import_ts_'+_seMonth)) return;
+      }catch(e){}
+      var key=se.id||(se.date+'_'+(se.type||'')+'_'+(se.flightNum||''));
+      if(!map[key]){ map[key]=se; added++; }
     });
-
-    RST.entries=localKept.sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
-
-    // Inicializar viewYear/viewMonth si no están seteados (usuario nunca fue al tab Roster)
-    if(!RST.viewYear && RST.entries.length){
-      var _fm = RST.entries[RST.entries.length-1].date || '';
-      if(_fm){ var _fp=_fm.split('-'); RST.viewYear=parseInt(_fp[0]); RST.viewMonth=parseInt(_fp[1])-1; }
-    }
-
-    // Guardar en localStorage siempre, antes de intentar renderizar
+    if(!added) return 0;
+    RST.entries=Object.values(map).sort(function(a,b){
+      return (a.date||'').localeCompare(b.date||'');
+    });
     rstSave();
-
-    // Renderizar (puede fallar si el tab Roster no está montado — no es crítico)
-    try{ rstRenderCalendar(); rstRenderStats(); rstRenderFlights(); rosterShowCalendar(); }catch(ex){}
-    if(typeof dhUpdateRosterCard==='function') dhUpdateRosterCard();
+    rstRenderCalendar(); rstRenderStats(); rstRenderFlights();
+    rosterShowCalendar();
     return added;
   }catch(e){ return -1; }
 };
@@ -26770,17 +26747,6 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
 
   // Populate roster card on home as soon as DOM is ready
   setTimeout(function(){ if(typeof dhUpdateRosterCard === 'function') dhUpdateRosterCard(); }, 300);
-  // Pull roster desde servidor al arrancar (sincroniza entre dispositivos)
-  setTimeout(function(){
-    if(typeof rstPullFromServer === 'function'){
-      rstPullFromServer().then(function(n){
-        if(n > 0){
-          if(typeof dhUpdateRosterCard === 'function') dhUpdateRosterCard();
-          if(typeof showToast === 'function') showToast('☁ Roster actualizado desde la nube','info');
-        }
-      });
-    }
-  }, 1500);
   // Populate logbook home card (hours + chart) — use whatever is already in memory,
   // never call ldLoad() here: _initLD() already does it and a redundant ldLoad()
   // would overwrite server-pulled data with stale localStorage values.
