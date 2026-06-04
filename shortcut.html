@@ -72,7 +72,7 @@ if(typeof completion==='function')completion(null);
 var E=[],L=[];
 function log(s){L.push(String(s).slice(0,250));}
 function p2(n){return('0'+n).slice(-2);}
-log('v=run04');
+log('v=run05');
 
 // eCrewHeader desde URL o iframes
 var hdr='';
@@ -364,8 +364,8 @@ function startIframe(aimsUrl){
       if(dm){
         var dd=+dm[1],mm=+dm[2],yy=+dm[3];
         if(dd>=1&&dd<=31&&mm>=1&&mm<=12&&yy>=2020)curDate=dm[3]+'-'+dm[2]+'-'+dm[1];
-        // Eliminar la fecha del texto para que el año "2026" no sea capturado como número de vuelo
-        ft=ft.replace(/(\\d{2})\\/(\\d{2})\\/(\\d{4})(\\s+\\w+)?/,'').trim();
+        // Strip ALL date occurrences (global) — evita que "30/04/2026" quede como vuelo "2026"
+        ft=ft.replace(/(\\d{2})\\/(\\d{2})\\/(\\d{4})/g,'').trim();
       }
       if(!curDate)return;
       // Actividades conocidas primero
@@ -374,10 +374,11 @@ function startIframe(aimsUrl){
       if(/\\b(HSBY|2SBY|3SBY|OSBS|OSB3|OSBY|SBY|STBY)\\b/i.test(ft)&&!/\\d{3,5}/.test(ft)){out.push({date:curDate,type:'standby',flightNum:'',dep:'',arr:'',std:'',sta:''});return;}
       if(/\\b(SIM|LFT|OPC|EVAL|SBTO)\\b/i.test(ft)&&!/\\d{3,5}/.test(ft)){out.push({date:curDate,type:'training',flightNum:'',dep:'',arr:'',std:'',sta:''});return;}
       if(/\\bSICK\\b/i.test(ft)){out.push({date:curDate,type:'other',flightNum:'SICK',dep:'',arr:'',std:'',sta:''});return;}
-      // Vuelo: número en la fila + ruta en la misma fila
+      // Vuelo: número en la fila + ruta preferiendo dep≠arr (BCN-BCN es ruta standby, no vuelo)
       var fm=ft.match(FLIGHT_RE);
       if(fm&&!ACT_RE.test(fm[1])){
-        var rm=ft.match(ROUTE_RE);
+        var rm=null;
+        try{var _rg=new RegExp('\\b([A-Z]{3})\\s*-\\s*([A-Z]{3})\\b','g'),_rm;while((_rm=_rg.exec(ft))!==null){if(!rm)rm=_rm;if(_rm[1]!==_rm[2]){rm=_rm;break;}}}catch(e){}
         var tm=ft.match(TIME_RE);
         out.push({date:curDate,type:'flight',flightNum:fm[1],dep:rm?rm[1]:'',arr:rm?rm[2]:'',std:tm?tm[1]:'',sta:tm?tm[2]:''});
       }
