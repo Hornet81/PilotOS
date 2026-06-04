@@ -25094,28 +25094,20 @@ window.rstPullFromServer = async function(){
     });
 
     // Decidir qué meses aceptar del servidor:
-    // - Skip si el mes fue borrado explícitamente por el usuario
     // - Skip si hay cambios locales pendientes de sync (push no completado)
     // - Skip si se importó en los últimos 60s (protege la carrera import→pull inmediato)
-    // - En cualquier otro caso: el servidor gana (permite sync entre dispositivos)
+    // - El servidor SIEMPRE gana sobre borrados locales: si alguien subió el mes
+    //   desde otro dispositivo, debe restaurarse (deleted_month no bloquea el pull)
     var acceptMonths=[];
     Object.keys(serverByMonth).forEach(function(month){
-      try{ if(localStorage.getItem('pilotOS_deleted_month_'+month)==='1') return; }catch(e){}
       if(_pendingMonths[month]) return;
-      var _ts=parseInt(lsGet('pilotOS_import_ts_'+month,'0'));
+      var _ts=new Date(lsGet('pilotOS_import_ts_'+month,'')||0).getTime()||0;
       if(_ts > Date.now()-60000) return; // importado hace < 60s, proteger
       acceptMonths.push(month);
+      // Limpiar flag de borrado: el servidor tiene datos activos para este mes
+      try{ localStorage.removeItem('pilotOS_deleted_month_'+month); }catch(e){}
     });
-
-    // DEBUG guards por mes
-    Object.keys(serverByMonth).forEach(function(m){
-      var deleted = localStorage.getItem('pilotOS_deleted_month_'+m);
-      var pending = !!_pendingMonths[m];
-      var importTs = lsGet('pilotOS_import_ts_'+m,'—');
-      var importTsN = parseInt(importTs);
-      console.log('[RST PULL] month='+m+' deleted='+deleted+' pending='+pending+' import_ts='+importTs+' import_ts_int='+importTsN+' threshold='+(Date.now()-60000)+' blocked_by_ts='+(importTsN > Date.now()-60000));
-    });
-    console.log('[RST PULL] acceptMonths:', acceptMonths, '| pending:', Object.keys(_pendingMonths), '| serverMonths:', Object.keys(serverByMonth));
+    console.log('[RST PULL] acceptMonths:', acceptMonths, '| serverMonths:', Object.keys(serverByMonth));
     if(!acceptMonths.length) return 0;
 
     // Reemplazar el mes completo (no solo añadir): garantiza que datos actualizados
