@@ -36,11 +36,11 @@ body{font-family:'Space Grotesk',system-ui,sans-serif;background:#07131C;color:#
   <div><div class="ht">PilotOS Sync</div><div class="hs">Atajo de iOS — eCrews</div></div>
 </div>
 <div class="content">
-  <div class="intro">El atajo descarga tu <strong>horario mensual de eCrews</strong> usando el endpoint Export de AIMS y te lleva a PilotOS con los datos listos para importar. <strong>Sin contraseñas, sin APIs externas.</strong></div>
+  <div class="intro">El atajo importa tu <strong>horario mensual de eCrews</strong> directamente desde la página My Schedule. <strong>No hace falta abrir el popup de impresión.</strong></div>
 
   <div class="how">
     <strong>¿Cómo funciona?</strong><br>
-    Safari (eCrews) → My Schedule → Print → Compartir → PilotOS Sync → el script descarga el HTML del reporte via Export → Safari abre PilotOS → pulsas "Importar". Listo.
+    Safari (eCrews) → My Schedule → Compartir → PilotOS Sync → el script obtiene el roster automáticamente → Safari abre PilotOS → pulsas "Importar". Listo.
   </div>
 
   <button class="copy-btn" id="copyBtn" onclick="copyScript()">
@@ -59,7 +59,7 @@ body{font-family:'Space Grotesk',system-ui,sans-serif;background:#07131C;color:#
   <div class="stitle">Uso diario</div>
   <div class="step">
     <div class="snum" style="background:linear-gradient(135deg,rgba(5,150,105,.3),rgba(4,120,87,.25));border-color:rgba(52,211,153,.4);color:#34D399">✓</div>
-    <div><div class="stit">Safari → eCrews → My Schedule → Print → Compartir → PilotOS Sync</div><div class="sdesc">Safari abre PilotOS automáticamente. Pulsa <strong>"Importar"</strong> en el banner azul.</div></div>
+    <div><div class="stit">Safari → eCrews → My Schedule → Compartir → PilotOS Sync</div><div class="sdesc">Safari abre PilotOS automáticamente. Pulsa <strong>"Importar"</strong> en el banner azul.</div></div>
   </div>
 
   <div class="div"></div>
@@ -71,24 +71,39 @@ var SCRIPT = `(function(){
 if(typeof completion==='function')completion(null);
 var E=[],L=[];
 function log(s){L.push(String(s).slice(0,250));}
-log('v=export06');
+function p2(n){return('0'+n).slice(-2);}
+log('v=run01');
 
+// eCrewHeader desde URL o iframes
 var hdr='';
 try{var m1=(window.location.href+'').match(/eCrewHeader=([^&\\s#]+)/);if(m1)hdr=m1[1];}catch(e){}
-try{document.querySelectorAll('iframe').forEach(function(f){var m=(f.src||'').match(/eCrewHeader=([^&\\s#]+)/);if(m&&!hdr)hdr=m[1];});}catch(e){}
+try{if(!hdr)document.querySelectorAll('iframe').forEach(function(f){var m=(f.src||'').match(/eCrewHeader=([^&\\s#]+)/);if(m&&!hdr)hdr=m[1];});}catch(e){}
 log('hdr='+hdr.slice(0,12));
 log('page='+window.location.pathname);
 
-var aimsUrl='';
-var wins=[window];
-try{document.querySelectorAll('iframe').forEach(function(f){try{wins.push(f.contentWindow);}catch(e){}});}catch(e){}
-wins.forEach(function(w){
-  if(!w||aimsUrl)return;
-  try{w.performance.getEntriesByType('resource').forEach(function(r){
-    if(r.name.indexOf('PrintReport')>-1&&r.name.indexOf('AIMS')>-1&&!aimsUrl)aimsUrl=r.name;
-  });}catch(e){}
-});
-log('aimsUrl='+(aimsUrl?aimsUrl.slice(0,100):'none'));
+// RequestVerificationToken (CSRF) — buscar en DOM y cookies
+var rt='';
+try{
+  var el=document.querySelector('[name="__RequestVerificationToken"],[name="RequestVerificationToken"]');
+  if(el)rt=el.value||el.getAttribute('content')||'';
+  if(!rt){
+    document.cookie.split(';').forEach(function(c){
+      var kv=c.trim().split('='),name=kv[0];
+      if(!rt&&(name.indexOf('Antiforgery')>-1||name==='__RequestVerificationToken'))
+        rt=decodeURIComponent(kv.slice(1).join('='));
+    });
+  }
+  log('rt='+rt.slice(0,20)+(rt.length>20?'...':''));
+}catch(e){log('rt_ex='+e.message);}
+
+// Fechas del período mostrado en eCrews (o mes actual como fallback)
+var dateFrom='',dateTo='';
+try{
+  var pm=(document.body.innerText||'').match(/(\\d{2})\\/(\\d{2})\\/(\\d{4})\\s*[-–]\\s*(\\d{2})\\/(\\d{2})\\/(\\d{4})/);
+  if(pm){dateFrom=pm[3]+'-'+pm[2]+'-'+pm[1];dateTo=pm[6]+'-'+pm[5]+'-'+pm[4];}
+}catch(e){}
+if(!dateFrom){var _n=new Date(),_y=_n.getFullYear(),_m=_n.getMonth()+1;dateFrom=_y+'-'+p2(_m)+'-01';dateTo=_y+'-'+p2(_m)+'-'+p2(new Date(_y,_m,0).getDate());}
+log('from='+dateFrom+' to='+dateTo);
 
 var navigated=false;
 function navigate(){
@@ -98,9 +113,26 @@ function navigate(){
   var b64='';try{b64=btoa(unescape(encodeURIComponent(JSON.stringify({ok:E.length>0,entries:E,dbg:L.join('\\n')}))));}catch(e){}
   window.location.href='https://pilotos.aero?rosterSync='+(b64?enc(b64):'err');
 }
-setTimeout(navigate,16000);
+setTimeout(navigate,25000);
 
-if(aimsUrl){
+// Paso 1: llamar RunReport para obtener la URL del visor AIMS
+var rrHeaders={'Content-Type':'application/json','Accept':'*/*','eCrewheader':hdr,'X-Requested-With':'XMLHttpRequest'};
+if(rt)rrHeaders['RequestVerificationToken']=rt;
+fetch('/eCrew/Reports/RunReport',{
+  method:'POST',credentials:'include',headers:rrHeaders,
+  body:JSON.stringify({ReportToshow:'CrewSchedule',DateFrom:dateFrom,DateTo:dateTo,TimesIn:'2'})
+}).then(function(r){log('rr='+r.status);return r.text();})
+.then(function(txt){
+  log('rr_txt='+txt.slice(0,120));
+  // txt = ruta relativa del visor: /AIMS/CrewScheduleReport/PrintReport?taskid=...&token=...
+  var tidm=txt.match(/taskid=([^&"'\\s]+)/),tokm=txt.match(/token=([^&"'\\s]+)/);
+  if(!tidm||!tokm){log('rr_no_url');navigate();return;}
+  var aimsUrl='https://ecrews.vueling.com/AIMS/CrewScheduleReport/PrintReport?taskid='+tidm[1]+'&token='+tokm[1];
+  log('aimsUrl='+aimsUrl.slice(0,100));
+  startIframe(aimsUrl);
+}).catch(function(e){log('rr_ex='+e.message);navigate();});
+
+function startIframe(aimsUrl){
   log('iframe_inject');
   var ifr=document.createElement('iframe');
   ifr.style.cssText='position:fixed;top:-9999px;left:-9999px;width:800px;height:600px;opacity:0;pointer-events:none';
@@ -374,9 +406,6 @@ if(aimsUrl){
     }catch(ex){log('ex='+ex.message);navigate();}
   }
 
-}else{
-  log('NO_AIMS: abrir My Schedule > Print primero');
-  navigate();
 }
 })();`;
 
