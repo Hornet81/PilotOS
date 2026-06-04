@@ -8198,7 +8198,7 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
       <div id="pc-hist-card" class="card-box" style="display:none;padding:14px 16px">
         <div class="pc-sep"><span>📊 Histórico · 6 meses</span></div>
         <div id="pc-hist-loading" style="text-align:center;padding:18px 0;font-size:11px;color:rgba(255,255,255,.4)">⏳ Cargando histórico...</div>
-        <svg id="pc-hist-svg" viewBox="0 0 280 96" preserveAspectRatio="none" style="width:100%;height:86px;display:none;overflow:visible"></svg>
+        <svg id="pc-hist-svg" viewBox="0 0 300 108" preserveAspectRatio="none" style="width:100%;height:100px;display:none;overflow:visible"></svg>
         <div id="pc-hist-detail" style="display:none;margin-top:10px;padding:10px 12px;background:rgba(0,0,0,.3);border-radius:12px;border:1px solid rgba(245,158,11,.14)">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
             <span id="pc-hist-det-month" style="font-size:11px;font-weight:700;color:#FBBF24;text-transform:uppercase;letter-spacing:.8px"></span>
@@ -11977,43 +11977,84 @@ function pcRenderHistBars(mData, selIdx, maxT, avg) {
   var MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   var svg = document.getElementById('pc-hist-svg');
   if (!svg) return;
-  var VW=280, BAR_TOP=14, BAR_BOT=76, BAR_H=BAR_BOT-BAR_TOP;
-  var n=mData.length, sW=VW/n, bW=Math.floor(sW*0.64), bGap=(sW-bW)/2;
-  var html='';
 
-  // Línea de media
-  if (avg>0 && maxT>0) {
-    var avgY = BAR_BOT-(avg/maxT)*BAR_H;
-    if (avgY>=BAR_TOP && avgY<=BAR_BOT)
-      html+='<line x1="4" y1="'+avgY.toFixed(1)+'" x2="'+(VW-4)+'" y2="'+avgY.toFixed(1)+'" stroke="rgba(255,255,255,.18)" stroke-width="1" stroke-dasharray="4,3"/>';
+  var VW=300, BAR_TOP=22, BAR_BOT=86, BAR_H=BAR_BOT-BAR_TOP; // 64px zona de barras
+  var n=mData.length, sW=VW/n;                                  // 50px por sección
+  var bW=Math.floor(sW*0.80);                                   // 40px barra, 10px hueco
+  var bGap=(sW-bW)/2;
+
+  // ─ Defs: gradientes y filtro glow ─
+  var html='<defs>';
+  html+='<linearGradient id="pgHV" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#B45309"/><stop offset="1" stop-color="#FCD34D"/></linearGradient>';
+  html+='<linearGradient id="pgDN" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#0E7490"/><stop offset="1" stop-color="#06B6D4"/></linearGradient>';
+  html+='<linearGradient id="pgDI" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#0891B2"/><stop offset="1" stop-color="#67E8F9"/></linearGradient>';
+  html+='<filter id="pgGlow" x="-40%" y="-40%" width="180%" height="180%">';
+  html+='<feGaussianBlur in="SourceAlpha" stdDeviation="5" result="blur"/>';
+  html+='<feFlood flood-color="#F59E0B" flood-opacity="0.55" result="clr"/>';
+  html+='<feComposite in="clr" in2="blur" operator="in" result="glow"/>';
+  html+='<feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>';
+  html+='</filter>';
+  html+='</defs>';
+
+  // ─ Grid horizontal sutil ─
+  [0.33,0.66,1].forEach(function(g){
+    var gy=(BAR_BOT-g*BAR_H).toFixed(1);
+    html+='<line x1="2" y1="'+gy+'" x2="'+(VW-2)+'" y2="'+gy+'" stroke="rgba(255,255,255,.05)" stroke-width="1"/>';
+  });
+
+  // ─ Línea de media ─
+  if (avg>0&&maxT>0) {
+    var avgY=BAR_BOT-(avg/maxT)*BAR_H;
+    if (avgY>=BAR_TOP&&avgY<=BAR_BOT) {
+      html+='<line x1="2" y1="'+avgY.toFixed(1)+'" x2="'+(VW-2)+'" y2="'+avgY.toFixed(1)+'" stroke="rgba(255,255,255,.3)" stroke-width="1" stroke-dasharray="5,4"/>';
+      html+='<text x="'+(VW-3)+'" y="'+(avgY-3).toFixed(1)+'" text-anchor="end" font-size="7" fill="rgba(255,255,255,.45)" font-family="Space Mono,monospace">avg</text>';
+    }
   }
 
   mData.forEach(function(m,i){
-    var bx=Math.floor(i*sW+bGap), cx=(i*sW+sW/2).toFixed(1);
+    var bx=Math.floor(i*sW+bGap);
+    var cx=(i*sW+sW/2).toFixed(1);
     var isSel=i===selIdx;
     var mIdx=parseInt(m.month.split('-')[1])-1;
-    var lFill=isSel?'rgba(251,191,36,.95)':'rgba(255,255,255,.32)';
 
     if (m.empty||m.total===0) {
-      html+='<rect x="'+bx+'" y="'+(BAR_BOT-3)+'" width="'+bW+'" height="3" rx="2" fill="rgba(255,255,255,.08)"/>';
+      html+='<rect x="'+bx+'" y="'+(BAR_BOT-5)+'" width="'+bW+'" height="5" rx="2.5" fill="rgba(255,255,255,.07)"/>';
     } else {
       var hvH=Math.max((m.hv/maxT)*BAR_H,0);
       var dnH=Math.max((m.nac/maxT)*BAR_H,0);
       var diH=Math.max((m.int_/maxT)*BAR_H,0);
-      var totH=hvH+dnH+diH, barY=(BAR_BOT-totH).toFixed(1);
-      var al=isSel?'1':'.5';
-      html+='<clipPath id="pcbc_'+i+'"><rect x="'+bx+'" y="'+barY+'" width="'+bW+'" height="'+totH.toFixed(1)+'" rx="4"/></clipPath>';
-      if(hvH>0) html+='<rect clip-path="url(#pcbc_'+i+')" x="'+bx+'" y="'+(BAR_BOT-hvH).toFixed(1)+'" width="'+bW+'" height="'+hvH.toFixed(1)+'" fill="rgba(245,158,11,'+al+')"/>';
-      if(dnH>0) html+='<rect clip-path="url(#pcbc_'+i+')" x="'+bx+'" y="'+(BAR_BOT-hvH-dnH).toFixed(1)+'" width="'+bW+'" height="'+dnH.toFixed(1)+'" fill="rgba(14,116,144,'+al+')"/>';
-      if(diH>0) html+='<rect clip-path="url(#pcbc_'+i+')" x="'+bx+'" y="'+(BAR_BOT-hvH-dnH-diH).toFixed(1)+'" width="'+bW+'" height="'+diH.toFixed(1)+'" fill="rgba(34,211,238,'+al+')"/>';
-      if(isSel) html+='<rect x="'+bx+'" y="'+barY+'" width="'+bW+'" height="'+totH.toFixed(1)+'" rx="4" fill="none" stroke="rgba(245,158,11,.65)" stroke-width="1.5"/>';
+      var totH=hvH+dnH+diH;
+      var barY=(BAR_BOT-totH).toFixed(1);
+      var al=isSel?'1':'.55';
+
+      // Glow tras la barra seleccionada
+      if (isSel) {
+        html+='<rect x="'+(bx-3)+'" y="'+(parseFloat(barY)-3).toFixed(1)+'" width="'+(bW+6)+'" height="'+(totH+6).toFixed(1)+'" rx="7" fill="rgba(245,158,11,.18)" filter="url(#pgGlow)"/>';
+      }
+
+      // Clip + segmentos con gradiente
+      html+='<clipPath id="pcbc_'+i+'"><rect x="'+bx+'" y="'+barY+'" width="'+bW+'" height="'+totH.toFixed(1)+'" rx="5"/></clipPath>';
+      if(hvH>0) html+='<rect clip-path="url(#pcbc_'+i+')" x="'+bx+'" y="'+(BAR_BOT-hvH).toFixed(1)+'" width="'+bW+'" height="'+hvH.toFixed(1)+'" fill="url(#pgHV)" opacity="'+al+'"/>';
+      if(dnH>0) html+='<rect clip-path="url(#pcbc_'+i+')" x="'+bx+'" y="'+(BAR_BOT-hvH-dnH).toFixed(1)+'" width="'+bW+'" height="'+dnH.toFixed(1)+'" fill="url(#pgDN)" opacity="'+al+'"/>';
+      if(diH>0) html+='<rect clip-path="url(#pcbc_'+i+')" x="'+bx+'" y="'+(BAR_BOT-hvH-dnH-diH).toFixed(1)+'" width="'+bW+'" height="'+diH.toFixed(1)+'" fill="url(#pgDI)" opacity="'+al+'"/>';
+
+      // Borde seleccionado
+      if(isSel) html+='<rect x="'+bx+'" y="'+barY+'" width="'+bW+'" height="'+totH.toFixed(1)+'" rx="5" fill="none" stroke="rgba(252,211,77,.8)" stroke-width="1.5"/>';
+
+      // Label importe encima (solo seleccionado)
       if(isSel){
         var lbl='€'+(m.total>=1000?(m.total/1000).toFixed(1)+'k':Math.round(m.total));
-        html+='<text x="'+cx+'" y="'+(parseFloat(barY)-4).toFixed(1)+'" text-anchor="middle" font-family="Space Mono,monospace" font-size="8" fill="#FBBF24" font-weight="700">'+lbl+'</text>';
+        var lblY=Math.max(parseFloat(barY)-7,11);
+        html+='<text x="'+cx+'" y="'+lblY.toFixed(1)+'" text-anchor="middle" font-family="Space Mono,monospace" font-size="9.5" fill="#FCD34D" font-weight="700">'+lbl+'</text>';
       }
     }
-    html+='<text x="'+cx+'" y="91" text-anchor="middle" font-size="9" font-weight="'+(isSel?'700':'500')+'" fill="'+lFill+'" font-family="Space Grotesk,-apple-system,sans-serif">'+MESES[mIdx]+'</text>';
-    html+='<rect x="'+bx+'" y="'+BAR_TOP+'" width="'+bW+'" height="'+(BAR_BOT-BAR_TOP)+'" fill="transparent" onclick="pcHistSelect('+i+')" style="cursor:pointer"/>';
+
+    // Etiqueta mes
+    var lFill=isSel?'rgba(252,211,77,1)':'rgba(255,255,255,.38)';
+    html+='<text x="'+cx+'" y="100" text-anchor="middle" font-size="9.5" font-weight="'+(isSel?'700':'500')+'" fill="'+lFill+'" font-family="Space Grotesk,-apple-system,sans-serif" letter-spacing="0.3">'+MESES[mIdx]+'</text>';
+
+    // Zona clicable
+    html+='<rect x="'+bx+'" y="8" width="'+bW+'" height="'+(BAR_BOT-8+14)+'" fill="transparent" onclick="pcHistSelect('+i+')" style="cursor:pointer"/>';
   });
   svg.innerHTML = html;
 }
