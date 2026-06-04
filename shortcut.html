@@ -72,7 +72,7 @@ if(typeof completion==='function')completion(null);
 var E=[],L=[];
 function log(s){L.push(String(s).slice(0,250));}
 function p2(n){return('0'+n).slice(-2);}
-log('v=run02');
+log('v=run03');
 
 // eCrewHeader desde URL o iframes
 var hdr='';
@@ -126,8 +126,18 @@ if(!dateFrom){try{
   if(_mp&&MNAMES[_mp[1]]&&+_mp[2]>2020){var _y4=+_mp[2],_m4=MNAMES[_mp[1]];dateFrom=_y4+'-'+p2(_m4)+'-01';dateTo=_y4+'-'+p2(_m4)+'-'+p2(_monthEnd(_y4,_m4));log('per=name:'+_mp[1]+_mp[2]);}
 }catch(e){}}
 
-// Fallback: mes actual
-if(!dateFrom){var _n=new Date(),_y=_n.getFullYear(),_m=_n.getMonth()+1;dateFrom=_y+'-'+p2(_m)+'-01';dateTo=_y+'-'+p2(_m)+'-'+p2(_monthEnd(_y,_m));log('per=fallback');}
+// Fallback + prompt: si ningún método detectó el período, preguntar al usuario
+if(!dateFrom){
+  var _now=new Date(),_yn=_now.getFullYear(),_mn=_now.getMonth()+1;
+  try{
+    var _inp=prompt('¿Qué mes importar?\\nEscribe MM/YYYY (ej: 04/2026)\\nDeja vacío = mes actual ('+p2(_mn)+'/'+_yn+'):');
+    if(_inp){
+      var _ip=(_inp||'').replace(/\\s/g,'').match(/(\\d{1,2})[\\/-](\\d{4})/);
+      if(_ip){var _pm=+_ip[1],_py=+_ip[2];if(_pm>=1&&_pm<=12&&_py>2020){dateFrom=_py+'-'+p2(_pm)+'-01';dateTo=_py+'-'+p2(_pm)+'-'+p2(_monthEnd(_py,_pm));log('per=prompt');}}
+    }
+  }catch(e){log('prompt_ex='+e.message);}
+  if(!dateFrom){dateFrom=_yn+'-'+p2(_mn)+'-01';dateTo=_yn+'-'+p2(_mn)+'-'+p2(_monthEnd(_yn,_mn));log('per=fallback');}
+}
 log('from='+dateFrom+' to='+dateTo);
 
 var navigated=false;
