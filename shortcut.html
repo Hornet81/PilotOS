@@ -72,14 +72,16 @@ if(typeof completion==='function')completion(null);
 var E=[],L=[];
 function log(s){L.push(String(s).slice(0,250));}
 function p2(n){return('0'+n).slice(-2);}
-log('v=run01');
+log('v=run02');
 
 // eCrewHeader desde URL o iframes
 var hdr='';
 try{var m1=(window.location.href+'').match(/eCrewHeader=([^&\\s#]+)/);if(m1)hdr=m1[1];}catch(e){}
 try{if(!hdr)document.querySelectorAll('iframe').forEach(function(f){var m=(f.src||'').match(/eCrewHeader=([^&\\s#]+)/);if(m&&!hdr)hdr=m[1];});}catch(e){}
 log('hdr='+hdr.slice(0,12));
-log('page='+window.location.pathname);
+log('url='+window.location.href.slice(0,120));
+log('ttl='+document.title.slice(0,60));
+log('txt='+((document.body.innerText||'').slice(0,250).replace(/\\s+/g,' ').trim()));
 
 // RequestVerificationToken (CSRF) — buscar en DOM y cookies
 var rt='';
@@ -96,13 +98,36 @@ try{
   log('rt='+rt.slice(0,20)+(rt.length>20?'...':''));
 }catch(e){log('rt_ex='+e.message);}
 
-// Fechas del período mostrado en eCrews (o mes actual como fallback)
+// Fechas del período — múltiples métodos de detección
 var dateFrom='',dateTo='';
+function _monthEnd(y,m){return new Date(y,m,0).getDate();}
+
+// M1: rango explícito dd/mm/yyyy[-–]dd/mm/yyyy en el texto de la página
 try{
-  var pm=(document.body.innerText||'').match(/(\\d{2})\\/(\\d{2})\\/(\\d{4})\\s*[-–]\\s*(\\d{2})\\/(\\d{2})\\/(\\d{4})/);
-  if(pm){dateFrom=pm[3]+'-'+pm[2]+'-'+pm[1];dateTo=pm[6]+'-'+pm[5]+'-'+pm[4];}
+  var _t1=(document.body.innerText||'');
+  var pm=_t1.match(/(\\d{2})\\/(\\d{2})\\/(\\d{4})\\s*[-–—]\\s*(\\d{2})\\/(\\d{2})\\/(\\d{4})/);
+  if(pm){dateFrom=pm[3]+'-'+pm[2]+'-'+pm[1];dateTo=pm[6]+'-'+pm[5]+'-'+pm[4];log('per=range');}
 }catch(e){}
-if(!dateFrom){var _n=new Date(),_y=_n.getFullYear(),_m=_n.getMonth()+1;dateFrom=_y+'-'+p2(_m)+'-01';dateTo=_y+'-'+p2(_m)+'-'+p2(new Date(_y,_m,0).getDate());}
+
+// M2: parámetros de URL (year/month, sDate, startDate, date, from)
+if(!dateFrom){try{
+  var sp=new URLSearchParams(window.location.search);
+  var _yr=sp.get('year')||sp.get('Year'),_mo=sp.get('month')||sp.get('Month');
+  if(_yr&&_mo){var _y2=+_yr,_m2=+_mo;if(_y2>2020&&_m2>=1&&_m2<=12){dateFrom=_y2+'-'+p2(_m2)+'-01';dateTo=_y2+'-'+p2(_m2)+'-'+p2(_monthEnd(_y2,_m2));log('per=url_ym');}}
+  if(!dateFrom){['sDate','startDate','dateFrom','date','from'].forEach(function(k){if(!dateFrom){var v=sp.get(k);if(v){var d=new Date(v);if(!isNaN(d.getTime())&&d.getFullYear()>2020){var _y3=d.getFullYear(),_m3=d.getMonth()+1;dateFrom=_y3+'-'+p2(_m3)+'-01';dateTo=_y3+'-'+p2(_m3)+'-'+p2(_monthEnd(_y3,_m3));log('per=url_'+k);}}}});}
+}catch(e){}}
+
+// M3: nombre de mes (español o inglés) + año en texto de página o título
+if(!dateFrom){try{
+  var MNAMES={'enero':1,'febrero':2,'marzo':3,'abril':4,'mayo':5,'junio':6,'julio':7,'agosto':8,'septiembre':9,'octubre':10,'noviembre':11,'diciembre':12,'january':1,'february':2,'march':3,'april':4,'may':5,'june':6,'july':7,'august':8,'september':9,'october':10,'november':11,'december':12};
+  var _src=((document.body.innerText||'')+' '+(document.title||'')).toLowerCase();
+  var _mkeys=Object.keys(MNAMES).join('|');
+  var _mp=_src.match(new RegExp('('+_mkeys+')\\\\s+(\\\\d{4})'));
+  if(_mp&&MNAMES[_mp[1]]&&+_mp[2]>2020){var _y4=+_mp[2],_m4=MNAMES[_mp[1]];dateFrom=_y4+'-'+p2(_m4)+'-01';dateTo=_y4+'-'+p2(_m4)+'-'+p2(_monthEnd(_y4,_m4));log('per=name:'+_mp[1]+_mp[2]);}
+}catch(e){}}
+
+// Fallback: mes actual
+if(!dateFrom){var _n=new Date(),_y=_n.getFullYear(),_m=_n.getMonth()+1;dateFrom=_y+'-'+p2(_m)+'-01';dateTo=_y+'-'+p2(_m)+'-'+p2(_monthEnd(_y,_m));log('per=fallback');}
 log('from='+dateFrom+' to='+dateTo);
 
 var navigated=false;
