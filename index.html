@@ -8192,7 +8192,25 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
       </div>
       <!-- Botón importar (pestaña Acumulado) -->
       <button id="pc-import-btn-acum" onclick="pcImportFromLogbook()" style="width:100%;padding:11px 14px;margin-bottom:10px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:12px;color:#FBBF24;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px"><span>📥</span><span>Importar desde Logbook</span></button>
-      <div style="text-align:center;font-size:11px;color:rgba(255,255,255,.3);margin-bottom:4px;line-height:1.65">Plus horas vuelo + dietas según IV Convenio 2026.<br>Nómina completa con retenciones en la pestaña <span style="color:rgba(245,158,11,.55);font-weight:600">◈ Nómina</span>.</div>
+      <div style="text-align:center;font-size:11px;color:rgba(255,255,255,.3);margin-bottom:12px;line-height:1.65">Plus horas vuelo + dietas según IV Convenio 2026.<br>Nómina completa con retenciones en la pestaña <span style="color:rgba(245,158,11,.55);font-weight:600">◈ Nómina</span>.</div>
+
+      <!-- ════ HISTÓRICO 6M ════ -->
+      <div id="pc-hist-card" class="card-box" style="display:none;padding:14px 16px">
+        <div class="pc-sep"><span>📊 Histórico · 6 meses</span></div>
+        <div id="pc-hist-loading" style="text-align:center;padding:18px 0;font-size:11px;color:rgba(255,255,255,.4)">⏳ Cargando histórico...</div>
+        <svg id="pc-hist-svg" viewBox="0 0 280 96" preserveAspectRatio="none" style="width:100%;height:86px;display:none;overflow:visible"></svg>
+        <div id="pc-hist-detail" style="display:none;margin-top:10px;padding:10px 12px;background:rgba(0,0,0,.3);border-radius:12px;border:1px solid rgba(245,158,11,.14)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span id="pc-hist-det-month" style="font-size:11px;font-weight:700;color:#FBBF24;text-transform:uppercase;letter-spacing:.8px"></span>
+            <span id="pc-hist-det-total" style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:#fff"></span>
+          </div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap">
+            <span style="font-size:10px;color:rgba(255,255,255,.55)">Horas <b id="pc-hist-det-hv" style="color:#FBBF24;font-family:'Space Mono',monospace"></b></span>
+            <span style="font-size:10px;color:rgba(255,255,255,.55)">Nac. <b id="pc-hist-det-dn" style="color:#22D3EE;font-family:'Space Mono',monospace"></b></span>
+            <span style="font-size:10px;color:rgba(255,255,255,.55)">Int. <b id="pc-hist-det-di" style="color:#67E8F9;font-family:'Space Mono',monospace"></b></span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ════ TAB: NÓMINA ════ -->
@@ -11780,6 +11798,7 @@ async function pcImportFromLogbook() {
     data.month = month;
     pcRenderTracker(data);
     pcTkImported = true;
+    pcLoadHistory(data, month);
   } catch(err) {
     showToast('❌ ' + err.message, 'error');
   } finally {
@@ -11877,6 +11896,157 @@ function pcRenderTracker(data) {
   var spL = document.getElementById('pc-spark-line'); if (spL) spL.setAttribute('d', sPath);
   var spF = document.getElementById('pc-spark-fill'); if (spF) spF.setAttribute('d', sPath + ' L ' + sx(arr[arr.length-1].day).toFixed(1) + ' ' + H + ' L ' + sx(arr[0].day).toFixed(1) + ' ' + H + ' Z');
   var spTip = document.getElementById('pc-spark-tip'); if (spTip) spTip.textContent = '€' + fmtE(total);
+}
+
+/* ══ Pay Check: carga histórico 6M ══ */
+function pcGetPrevMonths(n, refMonth) {
+  var parts = refMonth.split('-');
+  var year = parseInt(parts[0]), mon = parseInt(parts[1]) - 1;
+  var result = [];
+  for (var i = n; i >= 1; i--) {
+    var d = new Date(year, mon - i, 1);
+    result.push(d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'));
+  }
+  return result;
+}
+
+async function pcLoadHistory(currentData, currentMonth) {
+  var token = ''; try { token = lsGet('cafi_auth_token',''); } catch(e) {}
+  if (!token) return;
+  var card = document.getElementById('pc-hist-card');
+  if (!card) return;
+  card.style.display = '';
+
+  var prevMonths = pcGetPrevMonths(5, currentMonth);
+  var fetches = prevMonths.map(function(m) {
+    return fetch(ldBackendUrl() + '/api/paycheck?month=' + m, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    }).then(function(r) { return r.json(); })
+      .then(function(d) { return { month: m, data: d }; })
+      .catch(function() { return { month: m, data: null }; });
+  });
+
+  var results = await Promise.all(fetches);
+  results.push({ month: currentMonth, data: currentData });
+  results.sort(function(a, b) { return a.month.localeCompare(b.month); });
+  pcRenderHistChart(results);
+}
+
+function pcRenderHistChart(results) {
+  var esp = (document.getElementById('pc_esp') || {}).value || 'cmd';
+  var rateHV  = (CONVENIO[esp] && CONVENIO[esp].plusHoraVuelo) ? CONVENIO[esp].plusHoraVuelo : 39.29;
+  var dietaNac = CONVENIO.dietas.nac.sujeta + CONVENIO.dietas.nac.exenta;
+  var dietaInt = CONVENIO.dietas.int.sujeta + CONVENIO.dietas.int.exenta;
+
+  var mData = results.map(function(r) {
+    var d = r.data;
+    if (!d || d.status === 'empty' || !d.block_hours) return { month: r.month, total:0, hv:0, nac:0, int_:0, empty:true };
+    var hv  = (d.block_hours||0)*rateHV;
+    var nac = (d.nac_diets||0)*dietaNac;
+    var int_ = (d.int_diets||0)*dietaInt;
+    return { month:r.month, total:hv+nac+int_, hv:hv, nac:nac, int_:int_, empty:false };
+  });
+
+  var nonEmpty = mData.filter(function(m){return !m.empty;});
+  var avg = nonEmpty.length ? nonEmpty.reduce(function(s,m){return s+m.total;},0)/nonEmpty.length : 3200;
+  var maxT = Math.max.apply(null, mData.map(function(m){return m.total;}));
+  if (maxT===0) maxT = avg||1;
+
+  // Actualizar anillo y pie sparkline con media real
+  var sfEl = document.getElementById('pc-spark-foot');
+  if (sfEl) sfEl.textContent = 'Media real (' + nonEmpty.length + ' meses): €' + Math.round(avg).toLocaleString('es-ES');
+  var lastTotal = mData[mData.length-1].total;
+  var pct = Math.min(lastTotal/avg,1.5), circ=207.3;
+  var ring=document.getElementById('pc-tk-ring'); if(ring) ring.style.strokeDashoffset=circ*(1-Math.min(pct,1));
+  var pctEl=document.getElementById('pc-tk-pct'); if(pctEl) pctEl.textContent=Math.round(pct*100)+'%';
+
+  window._pcHistData = mData;
+  window._pcHistMax  = maxT;
+  window._pcHistAvg  = avg;
+
+  var loadEl = document.getElementById('pc-hist-loading');
+  var svgEl  = document.getElementById('pc-hist-svg');
+  if (loadEl) loadEl.style.display = 'none';
+  if (svgEl)  svgEl.style.display  = '';
+
+  pcRenderHistBars(mData, mData.length-1, maxT, avg);
+  pcHistSelect(mData.length-1);
+}
+
+function pcRenderHistBars(mData, selIdx, maxT, avg) {
+  var MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  var svg = document.getElementById('pc-hist-svg');
+  if (!svg) return;
+  var VW=280, BAR_TOP=14, BAR_BOT=76, BAR_H=BAR_BOT-BAR_TOP;
+  var n=mData.length, sW=VW/n, bW=Math.floor(sW*0.64), bGap=(sW-bW)/2;
+  var html='';
+
+  // Línea de media
+  if (avg>0 && maxT>0) {
+    var avgY = BAR_BOT-(avg/maxT)*BAR_H;
+    if (avgY>=BAR_TOP && avgY<=BAR_BOT)
+      html+='<line x1="4" y1="'+avgY.toFixed(1)+'" x2="'+(VW-4)+'" y2="'+avgY.toFixed(1)+'" stroke="rgba(255,255,255,.18)" stroke-width="1" stroke-dasharray="4,3"/>';
+  }
+
+  mData.forEach(function(m,i){
+    var bx=Math.floor(i*sW+bGap), cx=(i*sW+sW/2).toFixed(1);
+    var isSel=i===selIdx;
+    var mIdx=parseInt(m.month.split('-')[1])-1;
+    var lFill=isSel?'rgba(251,191,36,.95)':'rgba(255,255,255,.32)';
+
+    if (m.empty||m.total===0) {
+      html+='<rect x="'+bx+'" y="'+(BAR_BOT-3)+'" width="'+bW+'" height="3" rx="2" fill="rgba(255,255,255,.08)"/>';
+    } else {
+      var hvH=Math.max((m.hv/maxT)*BAR_H,0);
+      var dnH=Math.max((m.nac/maxT)*BAR_H,0);
+      var diH=Math.max((m.int_/maxT)*BAR_H,0);
+      var totH=hvH+dnH+diH, barY=(BAR_BOT-totH).toFixed(1);
+      var al=isSel?'1':'.5';
+      html+='<clipPath id="pcbc_'+i+'"><rect x="'+bx+'" y="'+barY+'" width="'+bW+'" height="'+totH.toFixed(1)+'" rx="4"/></clipPath>';
+      if(hvH>0) html+='<rect clip-path="url(#pcbc_'+i+')" x="'+bx+'" y="'+(BAR_BOT-hvH).toFixed(1)+'" width="'+bW+'" height="'+hvH.toFixed(1)+'" fill="rgba(245,158,11,'+al+')"/>';
+      if(dnH>0) html+='<rect clip-path="url(#pcbc_'+i+')" x="'+bx+'" y="'+(BAR_BOT-hvH-dnH).toFixed(1)+'" width="'+bW+'" height="'+dnH.toFixed(1)+'" fill="rgba(14,116,144,'+al+')"/>';
+      if(diH>0) html+='<rect clip-path="url(#pcbc_'+i+')" x="'+bx+'" y="'+(BAR_BOT-hvH-dnH-diH).toFixed(1)+'" width="'+bW+'" height="'+diH.toFixed(1)+'" fill="rgba(34,211,238,'+al+')"/>';
+      if(isSel) html+='<rect x="'+bx+'" y="'+barY+'" width="'+bW+'" height="'+totH.toFixed(1)+'" rx="4" fill="none" stroke="rgba(245,158,11,.65)" stroke-width="1.5"/>';
+      if(isSel){
+        var lbl='€'+(m.total>=1000?(m.total/1000).toFixed(1)+'k':Math.round(m.total));
+        html+='<text x="'+cx+'" y="'+(parseFloat(barY)-4).toFixed(1)+'" text-anchor="middle" font-family="Space Mono,monospace" font-size="8" fill="#FBBF24" font-weight="700">'+lbl+'</text>';
+      }
+    }
+    html+='<text x="'+cx+'" y="91" text-anchor="middle" font-size="9" font-weight="'+(isSel?'700':'500')+'" fill="'+lFill+'" font-family="Space Grotesk,-apple-system,sans-serif">'+MESES[mIdx]+'</text>';
+    html+='<rect x="'+bx+'" y="'+BAR_TOP+'" width="'+bW+'" height="'+(BAR_BOT-BAR_TOP)+'" fill="transparent" onclick="pcHistSelect('+i+')" style="cursor:pointer"/>';
+  });
+  svg.innerHTML = html;
+}
+
+function pcHistSelect(i) {
+  var mData=window._pcHistData;
+  if(!mData||i>=mData.length) return;
+  var MESES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  window._pcHistSel=i;
+  pcRenderHistBars(mData,i,window._pcHistMax,window._pcHistAvg);
+  var m=mData[i];
+  var det=document.getElementById('pc-hist-detail');
+  var elM=document.getElementById('pc-hist-det-month');
+  var elT=document.getElementById('pc-hist-det-total');
+  var elHV=document.getElementById('pc-hist-det-hv');
+  var elDN=document.getElementById('pc-hist-det-dn');
+  var elDI=document.getElementById('pc-hist-det-di');
+  if(!det) return;
+  det.style.display='';
+  function fmtE(n){return n.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2});}
+  var mIdx=parseInt(m.month.split('-')[1])-1;
+  if(elM) elM.textContent=MESES[mIdx].toUpperCase()+' '+m.month.split('-')[0];
+  if(m.empty||m.total===0){
+    if(elT) elT.textContent='— Sin vuelos';
+    if(elHV) elHV.textContent='—';
+    if(elDN) elDN.textContent='—';
+    if(elDI) elDI.textContent='—';
+  } else {
+    if(elT)  elT.textContent ='€'+fmtE(m.total);
+    if(elHV) elHV.textContent='€'+fmtE(m.hv);
+    if(elDN) elDN.textContent='€'+fmtE(m.nac);
+    if(elDI) elDI.textContent='€'+fmtE(m.int_);
+  }
 }
 
 function pcExportReport() {
