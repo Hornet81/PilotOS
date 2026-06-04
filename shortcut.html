@@ -71,7 +71,7 @@ var SCRIPT = `(function(){
 if(typeof completion==='function')completion(null);
 var E=[],L=[];
 function log(s){L.push(String(s).slice(0,250));}
-log('v=export01');
+log('v=export02');
 
 var hdr='';
 try{var m1=(window.location.href+'').match(/eCrewHeader=([^&\\s#]+)/);if(m1)hdr=m1[1];}catch(e){}
@@ -152,46 +152,98 @@ if(aimsUrl){
       if(txt)tokens.push(txt);
     }
     log('nobr='+tokens.length);
-    if(tokens.length>0)log('nt0='+tokens[0].slice(0,50));
-    if(tokens.length>3)log('nt3='+tokens[3].slice(0,50));
-    if(tokens.length>9)log('nt9='+tokens[9].slice(0,50));
+    if(tokens.length>14)log('nt14='+tokens[14].slice(0,50));
     return tokensToEntries(tokens);
   }
 
+  // Tipo de actividad para códigos conocidos
+  function getActType(tok){
+    if(/^OFF$/i.test(tok))return'off';
+    if(/^SROF$/i.test(tok))return'srof';
+    if(/^DS$/i.test(tok))return'ds';
+    if(/^(HSBY|2SBY|3SBY|OSBS|OSB3|OSBY|STBY|SBY)$/i.test(tok))return'standby';
+    if(/^(SIM|LFT|OPC|EVAL|SBTO|TR)$/i.test(tok))return'training';
+    if(/^SICK$/i.test(tok))return'other';
+    return'unknown';
+  }
+
+  // Parser principal: agrupa tokens por día, luego parean duties[i] <-> details[i]
+  // Estructura del HTML DevExpress: [duty1][duty2]...[dutyN][detail1][detail2]...[detailN][tiempos...]
   function tokensToEntries(tokens){
-    var out=[],curDate='',i=0,n=tokens.length;
-    var SKIP=/Personal Crew|Vueling Air|Generated on|All times|Schedule Det|Total Hours|Block Hour|Duty Hour|Hotel Info|^Memo$|^Descriptions$|^Date$|^Duties$|^Details$|Report time|Actual time|Debrief|Indicators/i;
-    while(i<n){
-      var tok=tokens[i];i++;
+    var out=[];
+    var SKIP=/Personal Crew|Vueling Air|Generated on|All times|Schedule Det|Total Hours|Block Hour|Duty Hour|Hotel Info|^Memos$|^Descriptions$|^Duty Codes$|^Date$|^Duties$|^Details$|Report time|Actual time|Debrief|Indicators|^Category$|Page \\d+ of/i;
+    var DATE_RE=/(\\d{2})\\/(\\d{2})\\/(\\d{4})/;
+    // Vuelos: 4-5 dígitos opcionalmente con [tipo], o códigos con letras: IBE411, TBD3519
+    var FLIGHT_RE=/^([A-Z]{0,3}\\d{3,5})(?:\\s*\\[\\w+\\])?$/;
+    // Códigos de actividad conocidos
+    var ACT_RE=/^(OFF|SROF|OSBY|OSB3|OSBS|HSBY|2SBY|3SBY|SIM|LFT|OPC|SICK|EVAL|SBTO|DS|TR|STBY|SBY)$/i;
+    // Ruta: BCN - AGP o *ORY - BCN (asterisco = positioning)
+    var ROUTE_RE=/^\\*?([A-Z]{3})\\s*-\\s*([A-Z]{3})$/;
+    // Tiempo real: A07:28 - A09:21 / 07:28 - 09:21 / A07:28 - 09:21 / 07:28 - A10:49/00:14
+    var TIME_RE=/A?(\\d{2}:\\d{2})\\s*-\\s*A?(\\d{2}:\\d{2})(?:\\/[0-9:]+)?/;
+    var inSummary=false,days=[],curDay=null,seenDates={};
+
+    // Paso 1: agrupar tokens por fecha (ignorar duplicados tipo DS)
+    for(var i=0;i<tokens.length;i++){
+      var tok=tokens[i];
       if(!tok)continue;
-      var dm=tok.match(/(\\d{2})\\/(\\d{2})\\/(\\d{4})/);
-      if(dm){curDate=dm[3]+'-'+dm[2]+'-'+dm[1];continue;}
-      if(!curDate||SKIP.test(tok))continue;
-      var fm=tok.match(/^(\\d{3,5})(?:\\s*\\[\\w+\\])?$/);
-      if(fm){
-        var flNum=fm[1],dep='',arr='',std='',sta='';
-        if(i<n){var rm=tokens[i].match(/^([A-Z]{3})\\s*-\\s*([A-Z]{3})$/);if(rm){dep=rm[1];arr=rm[2];i++;}}
-        for(var t=0;t<5&&i<n;t++){
-          var ttok=tokens[i];
-          if(/(\\d{2})\\/(\\d{2})\\/(\\d{4})/.test(ttok)||/^\\d{3,5}(?:\\s*\\[\\w+\\])?$/.test(ttok)||/^(OFF|SROF|HSBY|2SBY|3SBY|SBY|SIM|LFT|OPC|SICK)/.test(ttok))break;
-          var tms=ttok.match(/(\\d{2}:\\d{2})/g)||[];
-          for(var ti=0;ti<tms.length;ti++){
-            if(!std){std=tms[ti];}
-            else if(!sta&&tms[ti]!==std){sta=tms[ti];break;}
-          }
-          if(std&&sta)break;
-          i++;
-        }
-        out.push({date:curDate,type:'flight',flightNum:flNum,dep:dep,arr:arr,std:std,sta:sta});
+      if(/^Total Hours|^Memos$|^Descriptions$|Generated on/.test(tok)){inSummary=true;}
+      if(inSummary)continue;
+      if(SKIP.test(tok))continue;
+      var dm=tok.match(DATE_RE);
+      if(dm){
+        var ds=dm[3]+'-'+dm[2]+'-'+dm[1];
+        if(seenDates[ds]){curDay=null;}
+        else{seenDates[ds]=1;curDay={date:ds,toks:[]};days.push(curDay);}
         continue;
       }
-      if(/^OFF$/i.test(tok)){out.push({date:curDate,type:'off',flightNum:'',dep:'',arr:'',std:'',sta:''});continue;}
-      if(/^SROF$/i.test(tok)){out.push({date:curDate,type:'srof',flightNum:'SROF',dep:'',arr:'',std:'',sta:''});continue;}
-      if(/^(HSBY|2SBY|3SBY|OSBS|OSB3)$/i.test(tok)){out.push({date:curDate,type:'standby',flightNum:'',dep:'',arr:'',std:'',sta:''});continue;}
-      if(/^(SIM|LFT|OPC)$/i.test(tok)){out.push({date:curDate,type:'training',flightNum:'',dep:'',arr:'',std:'',sta:''});continue;}
-      if(/^SICK$|^Enfermedad$/i.test(tok)){out.push({date:curDate,type:'other',flightNum:'SICK',dep:'',arr:'',std:'',sta:''});continue;}
-      if(/D[ií]a libre/i.test(tok)){var last=out[out.length-1];if(!last||last.date!==curDate||last.type!=='off')out.push({date:curDate,type:'off',flightNum:'',dep:'',arr:'',std:'',sta:''});continue;}
+      if(curDay)curDay.toks.push(tok);
     }
+
+    // Paso 2: procesar cada día
+    days.forEach(function(day){
+      var toks=day.toks;
+      var duties=[],details=[],timeRanges=[],inDet=false;
+      toks.forEach(function(tok){
+        // Recoger rangos de tiempo de todos los tokens del día
+        var tm=tok.match(TIME_RE);
+        if(tm&&!ROUTE_RE.test(tok))timeRanges.push({std:tm[1],sta:tm[2]});
+        // Fase duties vs details
+        if(!inDet){
+          if(FLIGHT_RE.test(tok)&&!ACT_RE.test(tok)){
+            duties.push({k:'flight',n:tok.match(FLIGHT_RE)[1]});return;
+          }
+          if(ACT_RE.test(tok)){duties.push({k:getActType(tok)});return;}
+          inDet=true; // primer token no-duty → entramos en details
+        }
+        if(ROUTE_RE.test(tok)){var rm=tok.match(ROUTE_RE);details.push({d:rm[1],a:rm[2]});}
+        else details.push(null);
+      });
+
+      // Paso 3: parear duties[i] <-> details[i] <-> timeRanges[timeIdx]
+      // timeIdx avanza para cada duty que tiene horario (todo excepto OFF/SROF)
+      var timeIdx=0;
+      duties.forEach(function(duty,di){
+        if(duty.k==='ds'||duty.k==='unknown')return;
+        var rt=details[di]||null;
+        var noTime=(duty.k==='off'||duty.k==='srof');
+        var times=noTime?{std:'',sta:''}:(timeRanges[timeIdx++]||{std:'',sta:''});
+        if(duty.k==='flight'){
+          out.push({date:day.date,type:'flight',flightNum:duty.n,dep:rt?rt.d:'',arr:rt?rt.a:'',std:times.std,sta:times.sta});
+        }else if(duty.k==='off'){
+          out.push({date:day.date,type:'off',flightNum:'',dep:'',arr:'',std:'',sta:''});
+        }else if(duty.k==='srof'){
+          out.push({date:day.date,type:'srof',flightNum:'SROF',dep:'',arr:'',std:'',sta:''});
+        }else if(duty.k==='standby'){
+          out.push({date:day.date,type:'standby',flightNum:'',dep:'',arr:'',std:'',sta:''});
+        }else if(duty.k==='training'){
+          out.push({date:day.date,type:'training',flightNum:'',dep:'',arr:'',std:'',sta:''});
+        }else if(duty.k==='other'){
+          out.push({date:day.date,type:'other',flightNum:'SICK',dep:'',arr:'',std:'',sta:''});
+        }
+      });
+    });
+
     var seen={},ded=[];
     out.forEach(function(e){var k=e.date+'|'+(e.flightNum||e.type);if(!seen[k]){seen[k]=1;ded.push(e);}});
     log('entries='+ded.length);
