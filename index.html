@@ -22323,51 +22323,24 @@ function rstRenderCalendar(){
   }
 
   // ── Pre-compute "sleeps away" via positional state ──────────────────────────────────
-  // Reglas:
-  //  1. Día normal con vuelos: posición = ARR del último vuelo.
-  //  2. Último vuelo cruza medianoche (sta < std): el piloto NO ha llegado al destino.
-  //     Posición = DEP del vuelo nocturno → normalmente ≠ base → luna SÍ ese día.
-  //  3. Al inicio de cada día: si el vuelo ANTERIOR cruzó medianoche, actualizar posición
-  //     al ARR de ese vuelo (el piloto llegó a primera hora de HOY).
-  //     No depende de overnight_continuation — funciona con datos de vuelo puros.
-  //  4. Días sin vuelos (STBY, OFF…): posición heredada del día anterior.
+  // Regla: posición = ARR del último vuelo del día (SIEMPRE, incluso cruce medianoche).
+  // Un vuelo nocturno de vuelta a base no es "noche fuera" — el piloto duerme en casa.
+  // Si el último ARR = homeBase → no luna. Si ARR ≠ homeBase → luna (pernocta fuera).
+  // Días sin vuelos: posición heredada del anterior.
   var _awayDays = {};
   if(homeBase){
     var _curPos = homeBase;
-    var _awTm = function(t){ var p=(t||'00:00').split(':'); return (+p[0]||0)*60+(+p[1]||0); };
-    var _daysInMo = new Date(y,mo+1,0).getDate();
-    for(var _aw=1; _aw<=_daysInMo; _aw++){
+    var _daysInMo2 = new Date(y,mo+1,0).getDate();
+    for(var _aw=1; _aw<=_daysInMo2; _aw++){
       var _awDs = y+'-'+String(mo+1).padStart(2,'0')+'-'+String(_aw).padStart(2,'0');
-      var _awFlts = entriesForDate(_awDs).filter(function(e){ return e.type==='flight'; });
-      // Regla 3: comprobar si el último vuelo del DÍA ANTERIOR cruzó medianoche
-      // → el piloto aterrizó en el destino a primera hora de hoy → actualizar posición
-      if(_aw > 1){
-        var _prevDs = y+'-'+String(mo+1).padStart(2,'0')+'-'+String(_aw-1).padStart(2,'0');
-        var _prevFlts = entriesForDate(_prevDs).filter(function(e){ return e.type==='flight'; });
-        if(_prevFlts.length > 0){
-          _prevFlts.sort(function(a,b){ return _awTm(a.std_actual||a.std||'00:00')-_awTm(b.std_actual||b.std||'00:00'); });
-          var _pl = _prevFlts[_prevFlts.length-1];
-          var _plStd = _pl.std_actual||_pl.std, _plSta = _pl.sta_actual||_pl.sta;
-          if(_plStd && _plSta && _awTm(_plSta) < _awTm(_plStd)){
-            // Vuelo nocturno: llegada hoy → posición = ARR del vuelo nocturno
-            var _plArr = (_pl.arr||'').replace(/^\*/,'').toUpperCase();
-            if(_plArr.length===3) _curPos = _plArr;
-          }
-        }
-      }
-      // Reglas 1 & 2: procesar vuelos del día actual
-      if(_awFlts.length > 0){
-        var _awSorted = _awFlts.slice().sort(function(a,b){
-          return _awTm(a.std_actual||a.std||'00:00') - _awTm(b.std_actual||b.std||'00:00');
+      var _awFlts2 = entriesForDate(_awDs).filter(function(e){ return e.type==='flight'; });
+      if(_awFlts2.length > 0){
+        var _awSorted2 = _awFlts2.slice().sort(function(a,b){
+          var _tm2=function(t){var p=(t||'00:00').split(':');return(+p[0]||0)*60+(+p[1]||0);};
+          return _tm2(a.std_actual||a.std) - _tm2(b.std_actual||b.std);
         });
-        var _awLast = _awSorted[_awSorted.length-1];
-        var _lStd = _awLast.std_actual || _awLast.std;
-        var _lSta = _awLast.sta_actual || _awLast.sta;
-        var _crossMidnight = _lStd && _lSta && _awTm(_lSta) < _awTm(_lStd);
-        var _awArr = _crossMidnight
-          ? (_awLast.dep||'').replace(/^\*/,'').toUpperCase()   // en el aire / en DEP al final del día
-          : (_awLast.arr||'').replace(/^\*/,'').toUpperCase();  // aterrizó en ARR
-        if(_awArr.length===3) _curPos = _awArr;
+        var _awArr2 = (_awSorted2[_awSorted2.length-1].arr||'').replace(/^\*/,'').toUpperCase();
+        if(_awArr2.length===3) _curPos = _awArr2;
       }
       _awayDays[_awDs] = (_curPos !== homeBase);
     }
