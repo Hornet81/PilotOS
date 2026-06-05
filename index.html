@@ -6512,6 +6512,167 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
 })();
 
 </script>
+<style>
+/* ════════════════════════════════════════════════════════════════════════════
+   PATRÓN FIJO — Estilos (modo noche por defecto + modo día con html.day)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Variables base (noche) */
+#fp-overlay, #fp-banner, #fp-toast{
+  --fp-teal:#2dd4bf; --fp-cyan:#22D3EE; --fp-green:#4ADE80;
+  --fp-gl:#5fe0a8; --fp-gl2:#6ee9b8; --fp-gd:#1e8f7a; --fp-gd2:#23a88e;
+  --fp-offink:#04211b;
+  --fp-ink:#F0FFFE; --fp-muted:rgba(240,255,254,.5);
+  --fp-line:rgba(34,211,238,.18); --fp-card:rgba(20,184,166,.08);
+  --fp-field:rgba(255,255,255,.05);
+  --fp-cell:rgba(255,255,255,.04); --fp-cellbd:rgba(255,255,255,.07);
+  --fp-saveink:#04211b;
+}
+/* Día */
+html.day #fp-overlay, html.day #fp-banner, html.day #fp-toast{
+  --fp-teal:#0D6B6B; --fp-cyan:#0369A1; --fp-green:#15803D;
+  --fp-gl:#34d399; --fp-gl2:#4ade80; --fp-gd:#0d9488; --fp-gd2:#0f766e;
+  --fp-offink:#04211b;
+  --fp-ink:#0A1628; --fp-muted:#475569;
+  --fp-line:rgba(15,23,42,.12); --fp-card:rgba(255,255,255,.82);
+  --fp-field:rgba(255,255,255,.78);
+  --fp-cell:rgba(255,255,255,.65); --fp-cellbd:rgba(15,23,42,.1);
+  --fp-saveink:#FFFFFF;
+}
+
+/* ── Overlay + sheet ── */
+#fp-overlay{position:fixed;inset:0;z-index:9999;display:flex;align-items:flex-end;justify-content:center;
+  background:rgba(2,8,20,.6);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);animation:fpFade .2s ease}
+html.day #fp-overlay{background:rgba(10,22,48,.5)}
+@keyframes fpFade{from{opacity:0}to{opacity:1}}
+#fp-sheet{width:100%;max-width:480px;max-height:92vh;display:flex;flex-direction:column;
+  background:linear-gradient(180deg,rgba(8,22,40,.98) 0%,rgba(4,14,28,.99) 100%);
+  border-top-left-radius:24px;border-top-right-radius:24px;border:1px solid var(--fp-line);
+  padding:10px 16px calc(16px + env(safe-area-inset-bottom,0px));animation:fpUp .28s cubic-bezier(.2,.8,.3,1)}
+html.day #fp-sheet{background:linear-gradient(180deg,rgba(255,255,255,.97),rgba(236,245,252,.99))}
+@keyframes fpUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.fp-handle{width:38px;height:4px;border-radius:3px;background:rgba(255,255,255,.2);margin:2px auto 12px}
+html.day .fp-handle{background:rgba(15,23,42,.18)}
+.fp-title{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:var(--fp-ink);margin-bottom:4px}
+.fp-sub{font-size:12px;color:var(--fp-muted);line-height:1.5;margin-bottom:6px}
+.fp-scroll{overflow-y:auto;flex:1;padding:4px 2px 8px;-webkit-overflow-scrolling:touch}
+.fp-seclabel{font-family:'Space Grotesk',sans-serif;font-size:10px;font-weight:600;text-transform:uppercase;
+  letter-spacing:.8px;color:var(--fp-muted);margin:18px 0 9px}
+
+/* ── Presets ── */
+.fp-presets{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.fp-preset{padding:12px 4px;border-radius:14px;background:var(--fp-card);border:1px solid var(--fp-line);
+  color:var(--fp-ink);font-family:'Space Mono',monospace;font-size:13px;font-weight:700;cursor:pointer;
+  transition:all .15s;text-align:center;-webkit-appearance:none}
+.fp-preset:active{transform:scale(.94)}
+.fp-preset.active{background:rgba(45,212,191,.22);border-color:var(--fp-teal);color:var(--fp-teal);box-shadow:0 0 0 3px rgba(45,212,191,.12)}
+html.day .fp-preset.active{background:rgba(13,107,107,.14)}
+.fp-preset small{display:block;font-size:8px;font-weight:600;color:var(--fp-muted);margin-top:3px;
+  font-family:'Space Grotesk',sans-serif;letter-spacing:.3px}
+.fp-preset.active small{color:var(--fp-teal);opacity:.75}
+
+/* ── Bloques ── */
+.fp-blocks{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch}
+.fp-blk{flex:1;min-width:60px;background:var(--fp-field);border:1px solid var(--fp-line);border-radius:13px;
+  padding:9px 6px;text-align:center;position:relative}
+.fp-blk.work{border-color:rgba(34,211,238,.3)} html.day .fp-blk.work{border-color:rgba(3,105,161,.35)}
+.fp-blk.off{border-color:rgba(74,222,128,.4)}
+.fp-blbl{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px}
+.fp-blk.work .fp-blbl{color:var(--fp-cyan)} .fp-blk.off .fp-blbl{color:var(--fp-green)}
+.fp-bin{display:flex;align-items:center;justify-content:center;gap:7px}
+.fp-bin button{width:22px;height:22px;border-radius:7px;border:1px solid var(--fp-line);background:var(--fp-field);
+  color:var(--fp-ink);font-size:14px;font-weight:700;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;-webkit-appearance:none}
+.fp-bin button:active{transform:scale(.9)}
+.fp-bval{font-size:21px;font-weight:700;font-family:'Space Mono',monospace;min-width:22px;color:var(--fp-ink)}
+.fp-rm{position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;background:#F87171;
+  border:2px solid #07282a;color:#fff;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;-webkit-appearance:none}
+html.day .fp-rm{border-color:#fff}
+.fp-badd{flex:0 0 42px;min-width:42px;border:1px dashed var(--fp-line);background:transparent;color:var(--fp-teal);
+  font-size:21px;cursor:pointer;border-radius:13px;display:flex;align-items:center;justify-content:center;-webkit-appearance:none}
+.fp-badd:active{transform:scale(.94)}
+.fp-cyclenote{font-size:11px;color:var(--fp-muted);margin-top:9px;text-align:center}
+.fp-cyclenote b{color:var(--fp-teal)}
+
+/* ── Campos ── */
+.fp-field{background:var(--fp-field);border:1px solid var(--fp-line);border-radius:13px;padding:11px 14px;
+  display:flex;align-items:center;justify-content:space-between}
+.fp-field span{font-size:13px;color:var(--fp-muted)}
+.fp-field input[type=date]{background:transparent;border:none;color:var(--fp-teal);font-family:'Space Mono',monospace;
+  font-size:13px;font-weight:700;text-align:right;outline:none}
+.fp-field input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.5) sepia(1) hue-rotate(120deg)}
+html.day .fp-field input[type=date]::-webkit-calendar-picker-indicator{filter:none;opacity:.6}
+.fp-seg{display:flex;gap:6px}
+.fp-seg button{flex:1;padding:9px;border-radius:11px;border:1px solid var(--fp-line);background:var(--fp-field);
+  color:var(--fp-muted);font-family:'Space Grotesk';font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;-webkit-appearance:none}
+.fp-seg button.active{background:rgba(45,212,191,.18);border-color:var(--fp-teal);color:var(--fp-teal)}
+html.day .fp-seg button.active{background:rgba(13,107,107,.14)}
+.fp-seg button:active{transform:scale(.96)}
+.fp-trow{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;margin-top:10px;
+  background:var(--fp-field);border:1px solid var(--fp-line);border-radius:13px}
+.fp-trow span{font-size:13px;font-weight:600;color:var(--fp-ink)}
+.fp-tg{width:46px;height:27px;border-radius:20px;background:rgba(128,128,128,.3);position:relative;cursor:pointer;transition:background .2s;flex-shrink:0}
+.fp-tg.on{background:var(--fp-teal)}
+.fp-tg::after{content:'';position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.fp-tg.on::after{transform:translateX(19px)}
+
+/* ── Calendario preview ── */
+.fp-cal{background:rgba(0,0,0,.18);border:1px solid var(--fp-line);border-radius:18px;padding:12px 10px}
+html.day .fp-cal{background:rgba(255,255,255,.45)}
+.fp-calhd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.fp-m{font-size:14px;font-weight:700;color:var(--fp-ink)} .fp-y{font-size:10px;color:var(--fp-cyan);font-family:'Space Mono',monospace}
+.fp-cnav{width:28px;height:28px;border-radius:9px;border:1px solid var(--fp-line);background:var(--fp-field);color:var(--fp-teal);font-size:14px;cursor:pointer;-webkit-appearance:none}
+.fp-cnav:active{transform:scale(.9)}
+.fp-grid{width:100%;border-collapse:separate;border-spacing:3px;table-layout:fixed}
+.fp-grid th{font-size:9px;font-weight:600;color:var(--fp-muted);text-transform:uppercase;padding-bottom:3px}
+.fp-grid th.sun{color:var(--fp-cyan)}
+.fp-grid td{height:38px;vertical-align:top}
+.fp-dc{position:relative;width:100%;height:36px;border-radius:8px;background:var(--fp-cell);border:1px solid var(--fp-cellbd);
+  overflow:hidden;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px}
+.fp-dc.empty{opacity:.2}
+.fp-dn{font-size:10px;font-weight:600;position:relative;z-index:2;color:var(--fp-ink)}
+.fp-dc.off-light{background:repeating-linear-gradient(135deg,var(--fp-gl) 0 6px,var(--fp-gl2) 6px 12px);border-color:var(--fp-gl)}
+.fp-dc.off-dark{background:repeating-linear-gradient(135deg,var(--fp-gd) 0 6px,var(--fp-gd2) 6px 12px);border-color:var(--fp-gd)}
+.fp-dc.off-light .fp-dn,.fp-dc.off-dark .fp-dn{color:var(--fp-offink);font-weight:700;text-shadow:0 1px 2px rgba(255,255,255,.25)}
+.fp-dc.real{background:#c0392b;border-color:#a93226}
+.fp-dc.real .fp-dn{color:#fff} .fp-rl{position:absolute;top:3px;left:0;right:0;text-align:center;font-size:7px;color:#fff;z-index:2}
+.fp-dc.today{outline:2px solid var(--fp-cyan);outline-offset:1px}
+.fp-star{position:absolute;top:1px;right:3px;font-size:8px;color:var(--fp-offink);z-index:3;font-weight:900}
+.fp-legend{display:flex;gap:12px;justify-content:center;margin-top:11px;flex-wrap:wrap}
+.fp-lg{display:flex;align-items:center;gap:5px;font-size:9px;color:var(--fp-muted)}
+.fp-lg i{width:14px;height:14px;border-radius:4px;display:inline-block}
+.fp-lg i.l{background:repeating-linear-gradient(135deg,var(--fp-gl) 0 4px,var(--fp-gl2) 4px 8px)}
+.fp-lg i.d{background:repeating-linear-gradient(135deg,var(--fp-gd) 0 4px,var(--fp-gd2) 4px 8px)}
+.fp-lg i.r{background:#c0392b}
+.fp-monthnote{margin-top:11px;padding:9px 12px;border-radius:11px;font-size:11px;line-height:1.45;text-align:center;
+  background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);color:#F59E0B}
+html.day .fp-monthnote{background:rgba(245,158,11,.1);border-color:rgba(217,119,6,.4);color:#B45309}
+
+/* ── Acciones ── */
+.fp-actions{display:flex;gap:10px;padding-top:14px;border-top:1px solid var(--fp-line);margin-top:6px}
+.fp-btn{flex:1;padding:14px;border-radius:14px;font-family:'Space Grotesk';font-size:14px;font-weight:700;cursor:pointer;border:none;transition:transform .12s;-webkit-appearance:none}
+.fp-btn:active{transform:scale(.97)}
+.fp-clear{background:rgba(248,113,113,.14);border:1px solid rgba(248,113,113,.4);color:#F87171}
+html.day .fp-clear{color:#B91C1C}
+.fp-save{background:var(--fp-teal);color:var(--fp-saveink)}
+
+/* ── Banner de descubrimiento ── */
+#fp-banner{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:12px 14px;border-radius:16px;
+  background:var(--fp-card);border:1px solid var(--fp-line);animation:fpUp .3s ease}
+.fp-bn-ic{font-size:22px;flex-shrink:0}
+.fp-bn-tx{flex:1;font-size:12px;line-height:1.45;color:var(--fp-ink)}
+.fp-bn-tx b{color:var(--fp-teal)}
+.fp-bn-go{flex-shrink:0;padding:8px 13px;border-radius:11px;border:1px solid var(--fp-teal);background:rgba(45,212,191,.16);
+  color:var(--fp-teal);font-family:'Space Grotesk';font-size:12px;font-weight:700;cursor:pointer;-webkit-appearance:none}
+.fp-bn-go:active{transform:scale(.95)}
+.fp-bn-x{flex-shrink:0;background:none;border:none;color:var(--fp-muted);font-size:14px;cursor:pointer;padding:2px 4px;-webkit-appearance:none}
+
+/* ── Toast ── */
+#fp-toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(100px);z-index:10000;
+  background:rgba(6,40,40,.96);border:1px solid var(--fp-teal);color:var(--fp-teal);padding:13px 22px;border-radius:30px;
+  font-size:13px;font-weight:600;transition:transform .3s;backdrop-filter:blur(10px);max-width:90%;text-align:center;font-family:'Space Grotesk'}
+html.day #fp-toast{background:rgba(255,255,255,.96);color:#0D6B6B}
+#fp-toast.show{transform:translateX(-50%) translateY(0)}
+</style>
 </head>
 <body>
 <div id="offline-banner" class="offline-banner">📡 Sin conexión · App funcionando offline</div>
@@ -22542,6 +22703,7 @@ function rstRenderCalendar(){
     tableHTML += '</tr>';
   }
   tbody.innerHTML = tableHTML;
+  if(typeof window.fpMaybeShowBanner==='function') window.fpMaybeShowBanner();
 }
 
 // ── Stats ──
@@ -24733,6 +24895,7 @@ async function rosterRunHTML(htmlText){
     try { rstRenderCalendar(); } catch(e){}
     try { rstRenderStats();    } catch(e){}
     try { rstRenderFlights();  } catch(e){}
+    try { if(typeof window.fpReapply==='function') window.fpReapply(); } catch(e){}
     try { if(typeof ldUpdateRosterBtn==='function') ldUpdateRosterBtn(); } catch(e){}
     try { rstUpdateWarningsBanner(); } catch(e){}
 
@@ -24923,6 +25086,7 @@ async function rosterRunAIText(textContent){
     try { rstRenderCalendar(); } catch(e){}
     try { rstRenderStats();    } catch(e){}
     try { rstRenderFlights();  } catch(e){}
+    try { if(typeof window.fpReapply==='function') window.fpReapply(); } catch(e){}
     try { if(typeof ldUpdateRosterBtn==='function') ldUpdateRosterBtn(); } catch(e){}
     try { rstUpdateWarningsBanner(); } catch(e){}
 
@@ -25053,6 +25217,7 @@ async function rosterRunAI(dataUrl, mimeType){
     try { rstRenderCalendar(); } catch(e){}
     try { rstRenderStats();    } catch(e){}
     try { rstRenderFlights();  } catch(e){}
+    try { if(typeof window.fpReapply==='function') window.fpReapply(); } catch(e){}
     try { if(typeof ldUpdateRosterBtn==='function') ldUpdateRosterBtn(); } catch(e){}
     try { rstUpdateWarningsBanner(); } catch(e){}
 
@@ -25344,6 +25509,13 @@ window.rstShowOptionsMenu = function(){
       action:'rosterExportICS()'
     },
     { notif: true },
+    {
+      icon:'🗓️',
+      iconBg:'rgba(20,184,166,.18)', iconBgDay:'rgba(13,148,136,.12)',
+      label:'Patrón fijo',
+      sub:'Turno fijo · genera tus libres',
+      action:'rosterOpenFixedPattern()'
+    },
     { sep: true },
     {
       icon:'🗑',
@@ -26692,6 +26864,7 @@ window.ldECrewsConfirm = function(){
   if(typeof rstRenderCalendar === 'function') rstRenderCalendar();
   if(typeof rstRenderStats    === 'function') rstRenderStats();
   if(typeof rstRenderFlights  === 'function') rstRenderFlights();
+  if(typeof window.fpReapply  === 'function') window.fpReapply();
   if(typeof ldUpdateRosterBtn === 'function') ldUpdateRosterBtn();
   ldECrewsSyncClose();
 
@@ -29429,6 +29602,382 @@ function laShareWrapped() {
   } else {
     setTimeout(initSkyCard, 150);
   }
+})();
+</script>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════════
+   PATRÓN FIJO — Módulo de integración para PilotOS Roster
+   ════════════════════════════════════════════════════════════════════════════ */
+(function(){
+'use strict';
+
+var FP_KEY      = 'pilotOS_fixed_pattern';
+var FP_SEEN_KEY = 'pilotOS_fixed_pattern_seen';
+var FP_TS_KEY   = 'pilotOS_fp_ts';
+
+var FP_PRESETS = [
+  {label:'5-4', sub:'Clásico', blocks:[5,4]},
+  {label:'5-3', sub:'Corto',   blocks:[5,3]},
+  {label:'6-4', sub:'',        blocks:[6,4]},
+  {label:'7-7', sub:'Semana',  blocks:[7,7]},
+  {label:'5-3-5-4', sub:'Doble', blocks:[5,3,5,4]},
+  {label:'Personalizado', sub:'Editable', blocks:null},
+];
+
+var FP_MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+var fpDraft = null;
+
+// ── Persistencia local ─────────────────────────────────────────────────────
+function fpLoadConfig(){
+  try { var r = localStorage.getItem(FP_KEY); if(r) return JSON.parse(r); } catch(e){}
+  return null;
+}
+function fpSaveConfigLocal(cfg){
+  try {
+    localStorage.setItem(FP_KEY, JSON.stringify(cfg));
+    localStorage.setItem(FP_TS_KEY, String(Date.now()));
+  } catch(e){}
+}
+function fpSaveConfig(cfg){
+  fpSaveConfigLocal(cfg);
+  fpCloudPush(cfg);
+}
+function fpClearConfig(){
+  try { localStorage.removeItem(FP_KEY); localStorage.removeItem(FP_TS_KEY); } catch(e){}
+  fpCloudDelete();
+}
+function fpMarkSeen(){ try { localStorage.setItem(FP_SEEN_KEY,'1'); } catch(e){} }
+function fpHasSeen(){ try { return localStorage.getItem(FP_SEEN_KEY)==='1'; } catch(e){ return false; } }
+
+// ── Sincronización con la nube ─────────────────────────────────────────────
+function fpBackendUrl(){
+  try{ return localStorage.getItem('cafi_backend_url')||'https://api.pilotos.aero'; }catch(e){ return 'https://api.pilotos.aero'; }
+}
+function fpAuthToken(){
+  try{ return localStorage.getItem('cafi_auth_token')||''; }catch(e){ return ''; }
+}
+function fpCloudPush(cfg){
+  var token=fpAuthToken(); if(!token) return;
+  fetch(fpBackendUrl()+'/api/fixed-pattern/save',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+    body:JSON.stringify({config:cfg})
+  }).catch(function(){});
+}
+function fpCloudDelete(){
+  var token=fpAuthToken(); if(!token) return;
+  fetch(fpBackendUrl()+'/api/fixed-pattern',{
+    method:'DELETE', headers:{'Authorization':'Bearer '+token}
+  }).catch(function(){});
+}
+function fpCloudLoad(){
+  var token=fpAuthToken(); if(!token) return;
+  fetch(fpBackendUrl()+'/api/fixed-pattern',{
+    headers:{'Authorization':'Bearer '+token}
+  }).then(function(r){ return r.ok?r.json():null; })
+  .then(function(data){
+    if(!data||!data.config) return;
+    var cloudTs=data.updatedAt?new Date(data.updatedAt).getTime():0;
+    var localTs=0; try{ localTs=+localStorage.getItem(FP_TS_KEY)||0; }catch(e){}
+    if(cloudTs>localTs){
+      fpSaveConfigLocal(data.config);
+      if(data.config.enabled){ fpApplyToEntries(); }
+      if(typeof rstRenderCalendar==='function') rstRenderCalendar();
+      if(typeof rstRenderStats==='function') rstRenderStats();
+    }
+  }).catch(function(){});
+}
+
+// ── Helpers de fecha ──────────────────────────────────────────────────────
+function fpFmt(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function fpParse(s){ var p=s.split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }
+
+// ── Núcleo: clasificar un día según el ciclo ──────────────────────────────
+function fpDayKind(cfg, date){
+  if(!cfg || !cfg.blocks || !cfg.blocks.length) return null;
+  var start = fpParse(cfg.start);
+  var cycleLen = cfg.blocks.reduce(function(a,b){return a+b;},0);
+  if(cycleLen<=0) return null;
+  var diff = Math.floor((date - start)/86400000);
+  if(diff < 0) return null;
+  var end = new Date(start); end.setMonth(end.getMonth() + (cfg.durationM||12));
+  if(date >= end) return null;
+
+  var offBlocksPerCycle = 0;
+  for(var k=1;k<cfg.blocks.length;k+=2) offBlocksPerCycle++;
+  var cycleNum = Math.floor(diff / cycleLen);
+  var pos = diff % cycleLen, offInCycle = 0, acc = 0;
+  for(var i=0;i<cfg.blocks.length;i++){
+    var isOff = (i%2===1);
+    if(pos < acc + cfg.blocks[i]){
+      if(isOff){
+        var globalOffIndex = cycleNum * offBlocksPerCycle + offInCycle;
+        return {off:true, band: globalOffIndex%2};
+      }
+      return null;
+    }
+    acc += cfg.blocks[i];
+    if(isOff) offInCycle++;
+  }
+  return null;
+}
+
+// ── Generar entradas del patrón en RST.entries ────────────────────────────
+function fpApplyToEntries(){
+  if(!window.RST || !Array.isArray(RST.entries)) return;
+  RST.entries = RST.entries.filter(function(e){ return !e.fixedPattern; });
+
+  var cfg = fpLoadConfig();
+  if(!cfg || !cfg.enabled) { rstSave(); return; }
+
+  var monthsWithRoster = {};
+  RST.entries.forEach(function(e){
+    if(!e.fixedPattern && e.date && e.date.length >= 7){
+      monthsWithRoster[e.date.slice(0,7)] = true;
+    }
+  });
+
+  var start = fpParse(cfg.start);
+  var end = new Date(start); end.setMonth(end.getMonth() + (cfg.durationM||12));
+  var cur = new Date(start);
+  while(cur < end){
+    var ds = fpFmt(cur);
+    var monthKey = ds.slice(0,7);
+    if(monthsWithRoster[monthKey]){ cur.setDate(cur.getDate()+1); continue; }
+    var kind = fpDayKind(cfg, cur);
+    if(kind && kind.off){
+      RST.entries.push({
+        date: ds,
+        type: 'off',
+        code: 'OFF',
+        fixedPattern: true,
+        patternBand: kind.band
+      });
+    }
+    cur.setDate(cur.getDate()+1);
+  }
+  rstSave();
+}
+window.fpReapply = function(){
+  fpApplyToEntries();
+  if(typeof rstRenderCalendar==='function') rstRenderCalendar();
+  if(typeof rstRenderStats==='function') rstRenderStats();
+  if(typeof rstRenderFlights==='function') rstRenderFlights();
+};
+
+// ── Modal de configuración ────────────────────────────────────────────────
+function fpOpenModal(){
+  fpMarkSeen();
+  fpHideBanner();
+  var existing = fpLoadConfig();
+  fpDraft = existing ? JSON.parse(JSON.stringify(existing)) : {
+    blocks:[5,4], start: fpFmt(new Date()), durationM:12,
+    display:true, star:true, enabled:true
+  };
+  fpDraft._vY = (window.RST && RST.viewYear) ? RST.viewYear : new Date().getFullYear();
+  fpDraft._vM = (window.RST && typeof RST.viewMonth==='number') ? RST.viewMonth : new Date().getMonth();
+
+  var ov = document.createElement('div');
+  ov.id = 'fp-overlay';
+  ov.innerHTML =
+    '<div id="fp-sheet">'
+    + '<div class="fp-handle"></div>'
+    + '<div class="fp-title">🗓️ Patrón fijo</div>'
+    + '<div class="fp-sub">Genera tus días libres durante todo el año. La actividad real del roster siempre tiene prioridad.</div>'
+    + '<div class="fp-scroll">'
+    +   '<div class="fp-seclabel">Patrón base</div><div id="fp-presets" class="fp-presets"></div>'
+    +   '<div class="fp-seclabel">Ciclo (trabajo / libre)</div><div id="fp-blocks" class="fp-blocks"></div>'
+    +   '<div class="fp-cyclenote">Ciclo de <b id="fp-clen">0</b> días · <b id="fp-coff">0</b> libres por ciclo</div>'
+    +   '<div class="fp-seclabel">Inicio del ciclo (primer día de trabajo)</div>'
+    +   '<div class="fp-field"><span>Fecha</span><input type="date" id="fp-start"></div>'
+    +   '<div class="fp-seclabel">Duración</div>'
+    +   '<div class="fp-seg" id="fp-dur"><button data-m="6">6 meses</button><button data-m="12">1 año</button><button data-m="24">2 años</button></div>'
+    +   '<div class="fp-trow"><span>Marcar días con asterisco (*)</span><div class="fp-tg" id="fp-star"></div></div>'
+    +   '<div class="fp-seclabel">Vista previa</div>'
+    +   '<div class="fp-cal">'
+    +     '<div class="fp-calhd"><button class="fp-cnav" id="fp-prev">‹</button>'
+    +     '<div style="text-align:center"><div class="fp-m" id="fp-cm"></div><div class="fp-y" id="fp-cy"></div></div>'
+    +     '<button class="fp-cnav" id="fp-next">›</button></div>'
+    +     '<table class="fp-grid"><thead><tr><th>Lu</th><th>Ma</th><th>Mi</th><th>Ju</th><th>Vi</th><th>Sa</th><th class="sun">Do</th></tr></thead><tbody id="fp-cbody"></tbody></table>'
+    +     '<div class="fp-legend"><div class="fp-lg"><i class="l"></i>Libre A</div><div class="fp-lg"><i class="d"></i>Libre B</div><div class="fp-lg"><i class="r"></i>Actividad real</div></div>'
+    +     '<div id="fp-monthnote" class="fp-monthnote" style="display:none">📋 Este mes ya tiene roster importado — el patrón fijo no se aplica aquí.</div>'
+    +   '</div>'
+    + '</div>'
+    + '<div class="fp-actions">'
+    +   '<button class="fp-btn fp-clear" id="fp-clear">Borrar patrón</button>'
+    +   '<button class="fp-btn fp-save" id="fp-save">Guardar</button>'
+    + '</div>'
+    + '</div>';
+  ov.addEventListener('click', function(e){ if(e.target===ov) fpCloseModal(); });
+  document.body.appendChild(ov);
+
+  document.getElementById('fp-start').value = fpDraft.start;
+  document.getElementById('fp-start').addEventListener('change', function(e){ if(e.target.value){ fpDraft.start=e.target.value; fpRenderCal(); } });
+  document.getElementById('fp-dur').querySelectorAll('button').forEach(function(b){
+    b.addEventListener('click', function(){ fpDraft.durationM=+b.dataset.m; fpSyncDur(); fpRenderCal(); });
+  });
+  document.getElementById('fp-star').addEventListener('click', function(){ fpDraft.star=!fpDraft.star; this.classList.toggle('on', fpDraft.star); fpRenderCal(); });
+  document.getElementById('fp-prev').addEventListener('click', function(){ fpDraft._vM--; if(fpDraft._vM<0){fpDraft._vM=11;fpDraft._vY--;} fpRenderCal(); });
+  document.getElementById('fp-next').addEventListener('click', function(){ fpDraft._vM++; if(fpDraft._vM>11){fpDraft._vM=0;fpDraft._vY++;} fpRenderCal(); });
+  document.getElementById('fp-save').addEventListener('click', fpSave);
+  document.getElementById('fp-clear').addEventListener('click', fpClearFromModal);
+
+  document.getElementById('fp-star').classList.toggle('on', !!fpDraft.star);
+  fpSyncDur();
+  fpRenderPresets();
+  fpRenderBlocks();
+  fpRenderCal();
+}
+function fpCloseModal(){ var el=document.getElementById('fp-overlay'); if(el) el.remove(); fpDraft=null; }
+
+function fpActivePresetIdx(){
+  var m = FP_PRESETS.findIndex(function(p){ return p.blocks && p.blocks.join(',')===fpDraft.blocks.join(','); });
+  return m>=0 ? m : FP_PRESETS.length-1;
+}
+function fpRenderPresets(){
+  var c=document.getElementById('fp-presets'); if(!c) return; c.innerHTML='';
+  var active=fpActivePresetIdx();
+  FP_PRESETS.forEach(function(p,i){
+    var b=document.createElement('button');
+    b.className='fp-preset'+(i===active?' active':'');
+    b.innerHTML=p.label+(p.sub?'<small>'+p.sub+'</small>':'<small>&nbsp;</small>');
+    b.addEventListener('click', function(){ if(p.blocks){ fpDraft.blocks=p.blocks.slice(); } fpRenderPresets(); fpRenderBlocks(); fpRenderCal(); });
+    c.appendChild(b);
+  });
+}
+function fpRenderBlocks(){
+  var c=document.getElementById('fp-blocks'); if(!c) return; c.innerHTML='';
+  fpDraft.blocks.forEach(function(v,i){
+    var isWork=(i%2===0);
+    var d=document.createElement('div');
+    d.className='fp-blk '+(isWork?'work':'off');
+    var canRm=fpDraft.blocks.length>2;
+    d.innerHTML=(canRm?'<button class="fp-rm" data-rm="'+i+'">×</button>':'')
+      +'<div class="fp-blbl">'+(isWork?'Trabajo':'Libre')+'</div>'
+      +'<div class="fp-bin"><button data-dec="'+i+'">−</button><span class="fp-bval">'+v+'</span><button data-inc="'+i+'">+</button></div>';
+    c.appendChild(d);
+  });
+  var add=document.createElement('button');
+  add.className='fp-badd'; add.textContent='+'; add.title='Añadir bloque trabajo+libre';
+  add.addEventListener('click', function(){ fpDraft.blocks.push(5,4); fpRenderPresets(); fpRenderBlocks(); fpRenderCal(); });
+  c.appendChild(add);
+  c.querySelectorAll('[data-inc]').forEach(function(b){ b.addEventListener('click', function(){ var i=+b.dataset.inc; if(fpDraft.blocks[i]<30){fpDraft.blocks[i]++; fpRenderPresets(); fpRenderBlocks(); fpRenderCal();} }); });
+  c.querySelectorAll('[data-dec]').forEach(function(b){ b.addEventListener('click', function(){ var i=+b.dataset.dec; if(fpDraft.blocks[i]>1){fpDraft.blocks[i]--; fpRenderPresets(); fpRenderBlocks(); fpRenderCal();} }); });
+  c.querySelectorAll('[data-rm]').forEach(function(b){ b.addEventListener('click', function(){ var i=+b.dataset.rm; if(i%2===0){fpDraft.blocks.splice(i,2);}else{fpDraft.blocks.splice(i-1,2);} fpRenderPresets(); fpRenderBlocks(); fpRenderCal(); }); });
+  var len=fpDraft.blocks.reduce(function(a,b){return a+b;},0);
+  var off=fpDraft.blocks.filter(function(_,i){return i%2===1;}).reduce(function(a,b){return a+b;},0);
+  var elen=document.getElementById('fp-clen'), eoff=document.getElementById('fp-coff');
+  if(elen) elen.textContent=len; if(eoff) eoff.textContent=off;
+}
+function fpSyncDur(){
+  document.querySelectorAll('#fp-dur button').forEach(function(b){ b.classList.toggle('active', +b.dataset.m===fpDraft.durationM); });
+}
+function fpRenderCal(){
+  var body=document.getElementById('fp-cbody'); if(!body) return;
+  var y=fpDraft._vY, mo=fpDraft._vM;
+  document.getElementById('fp-cm').textContent=FP_MONTHS[mo];
+  document.getElementById('fp-cy').textContent=y;
+  var first=new Date(y,mo,1).getDay(); var offset=first===0?6:first-1;
+  var dim=new Date(y,mo+1,0).getDate();
+  var today=new Date(); today.setHours(0,0,0,0);
+  var realDates={};
+  var monthHasRoster=false;
+  var monthKey=y+'-'+String(mo+1).padStart(2,'0');
+  if(window.RST && Array.isArray(RST.entries)){
+    RST.entries.forEach(function(e){
+      if(e.fixedPattern || !e.date) return;
+      realDates[e.date]=true;
+      if(e.date.slice(0,7)===monthKey) monthHasRoster=true;
+    });
+  }
+  var html='', day=1;
+  for(var r=0;r<6;r++){
+    if(day>dim) break; html+='<tr>';
+    for(var col=0;col<7;col++){
+      var idx=r*7+col;
+      if(idx<offset||day>dim){ html+='<td><div class="fp-dc empty"></div></td>'; continue; }
+      var date=new Date(y,mo,day); var ds=fpFmt(date);
+      var cls='fp-dc', star='', extra='';
+      if(realDates[ds]){ cls+=' real'; extra='<span class="fp-rl">●</span>'; }
+      else if(monthHasRoster){ /* mes con roster → el patrón no pinta nada */ }
+      else {
+        var kind=fpDayKind(fpDraft, date);
+        if(kind&&kind.off){ cls+=kind.band===0?' off-light':' off-dark'; if(fpDraft.star) star='<span class="fp-star">*</span>'; }
+      }
+      if(date.getTime()===today.getTime()) cls+=' today';
+      html+='<td><div class="'+cls+'">'+star+extra+'<span class="fp-dn">'+day+'</span></div></td>';
+      day++;
+    }
+    html+='</tr>';
+  }
+  body.innerHTML=html;
+  var note=document.getElementById('fp-monthnote');
+  if(note){ note.style.display = monthHasRoster ? 'block' : 'none'; }
+}
+function fpSave(){
+  fpDraft.enabled = true;
+  var cfg = { blocks:fpDraft.blocks.slice(), start:fpDraft.start, durationM:fpDraft.durationM, star:!!fpDraft.star, display:true, enabled:true };
+  fpSaveConfig(cfg);
+  fpApplyToEntries();
+  if(typeof rstRenderCalendar==='function') rstRenderCalendar();
+  if(typeof rstRenderStats==='function') rstRenderStats();
+  if(typeof rstRenderFlights==='function') rstRenderFlights();
+  fpToast('✓ Patrón guardado · '+cfg.blocks.join('/'));
+  fpCloseModal();
+}
+function fpClearFromModal(){
+  fpClearConfig();
+  if(window.RST && Array.isArray(RST.entries)){
+    RST.entries = RST.entries.filter(function(e){ return !e.fixedPattern; });
+    rstSave();
+  }
+  if(typeof rstRenderCalendar==='function') rstRenderCalendar();
+  if(typeof rstRenderStats==='function') rstRenderStats();
+  if(typeof rstRenderFlights==='function') rstRenderFlights();
+  fpToast('Patrón eliminado');
+  fpCloseModal();
+}
+
+// ── Banner de descubrimiento ──────────────────────────────────────────────
+function fpMaybeShowBanner(){
+  if(fpHasSeen()) return;
+  if(fpLoadConfig()) return;
+  var anchor = document.getElementById('rst-calendar');
+  if(!anchor || document.getElementById('fp-banner')) return;
+  var b=document.createElement('div');
+  b.id='fp-banner';
+  b.innerHTML='<span class="fp-bn-ic">🗓️</span>'
+    +'<div class="fp-bn-tx"><b>¿Turno fijo?</b> Configura tu patrón (5-4, 7-7…) y genera tus libres todo el año.</div>'
+    +'<button class="fp-bn-go">Configurar</button>'
+    +'<button class="fp-bn-x" aria-label="Cerrar">✕</button>';
+  anchor.parentNode.insertBefore(b, anchor);
+  b.querySelector('.fp-bn-go').addEventListener('click', fpOpenModal);
+  b.querySelector('.fp-bn-x').addEventListener('click', function(){ fpMarkSeen(); fpHideBanner(); });
+}
+function fpHideBanner(){ var b=document.getElementById('fp-banner'); if(b) b.remove(); }
+
+// ── Toast ─────────────────────────────────────────────────────────────────
+function fpToast(msg){
+  var t=document.getElementById('fp-toast');
+  if(!t){ t=document.createElement('div'); t.id='fp-toast'; document.body.appendChild(t); }
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._h); t._h=setTimeout(function(){ t.classList.remove('show'); }, 2400);
+}
+
+// ── API pública ───────────────────────────────────────────────────────────
+window.rosterOpenFixedPattern = fpOpenModal;
+window.fpMaybeShowBanner = fpMaybeShowBanner;
+window.fpReapply = window.fpReapply || fpApplyToEntries;
+
+document.addEventListener('DOMContentLoaded', function(){
+  setTimeout(function(){ if(fpLoadConfig()) fpApplyToEntries(); }, 300);
+  setTimeout(fpCloudLoad, 1200);
+});
+
 })();
 </script>
 
