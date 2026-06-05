@@ -55,7 +55,7 @@ self.addEventListener('fetch', function(e) {
 function networkFirst(request, cacheName) {
   return fetch(request)
     .then(function(response) {
-      if (response && response.status === 200 && response.type !== 'opaque') {
+      if (response && response.status === 200 && response.type !== 'opaque' && request.method === 'GET') {
         var clone = response.clone();
         caches.open(cacheName).then(function(c) { c.put(request, clone); });
       }
@@ -75,7 +75,7 @@ function cacheFirst(request, cacheName) {
   return caches.match(request).then(function(cached) {
     if (cached) return cached;
     return fetch(request).then(function(response) {
-      if (response && response.status === 200 && response.type !== 'opaque') {
+      if (response && response.status === 200 && response.type !== 'opaque' && request.method === 'GET') {
         var clone = response.clone();
         caches.open(cacheName).then(function(c) { c.put(request, clone); });
       }
