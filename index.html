@@ -22302,11 +22302,11 @@ function rstRenderCalendar(){
   // ── Pre-compute "sleeps away" via positional state ──────────────────────────────────
   // Reglas:
   //  1. Día normal con vuelos: posición = ARR del último vuelo.
-  //  2. Último vuelo cruza medianoche (sta < std): el piloto NO ha llegado aún al destino
-  //     al final del día. Posición = DEP del vuelo nocturno (está en el aire / en el aeropuerto
-  //     de salida), que normalmente ≠ base → luna SÍ ese día.
-  //  3. Día con overnight_continuation: el vuelo nocturno del día anterior aterrizó esta mañana.
-  //     Actualizar posición con el ARR del último vuelo del día anterior → normalmente = base → luna NO.
+  //  2. Último vuelo cruza medianoche (sta < std): el piloto NO ha llegado al destino.
+  //     Posición = DEP del vuelo nocturno → normalmente ≠ base → luna SÍ ese día.
+  //  3. Al inicio de cada día: si el vuelo ANTERIOR cruzó medianoche, actualizar posición
+  //     al ARR de ese vuelo (el piloto llegó a primera hora de HOY).
+  //     No depende de overnight_continuation — funciona con datos de vuelo puros.
   //  4. Días sin vuelos (STBY, OFF…): posición heredada del día anterior.
   var _awayDays = {};
   if(homeBase){
@@ -22316,29 +22316,34 @@ function rstRenderCalendar(){
     for(var _aw=1; _aw<=_daysInMo; _aw++){
       var _awDs = y+'-'+String(mo+1).padStart(2,'0')+'-'+String(_aw).padStart(2,'0');
       var _awFlts = entriesForDate(_awDs).filter(function(e){ return e.type==='flight'; });
-      var _awCont = entriesForDate(_awDs).some(function(e){ return e.type==='overnight_continuation'; });
-      // Regla 3: overnight_continuation → el vuelo nocturno del día anterior llegó aquí
-      if(_awCont && _aw > 1){
+      // Regla 3: comprobar si el último vuelo del DÍA ANTERIOR cruzó medianoche
+      // → el piloto aterrizó en el destino a primera hora de hoy → actualizar posición
+      if(_aw > 1){
         var _prevDs = y+'-'+String(mo+1).padStart(2,'0')+'-'+String(_aw-1).padStart(2,'0');
         var _prevFlts = entriesForDate(_prevDs).filter(function(e){ return e.type==='flight'; });
         if(_prevFlts.length > 0){
-          _prevFlts.sort(function(a,b){ return _awTm(a.std_actual||a.std) - _awTm(b.std_actual||b.std); });
-          var _prevLastArr = (_prevFlts[_prevFlts.length-1].arr||'').replace(/^\*/,'').toUpperCase();
-          if(_prevLastArr.length===3) _curPos = _prevLastArr;
+          _prevFlts.sort(function(a,b){ return _awTm(a.std_actual||a.std||'00:00')-_awTm(b.std_actual||b.std||'00:00'); });
+          var _pl = _prevFlts[_prevFlts.length-1];
+          var _plStd = _pl.std_actual||_pl.std, _plSta = _pl.sta_actual||_pl.sta;
+          if(_plStd && _plSta && _awTm(_plSta) < _awTm(_plStd)){
+            // Vuelo nocturno: llegada hoy → posición = ARR del vuelo nocturno
+            var _plArr = (_pl.arr||'').replace(/^\*/,'').toUpperCase();
+            if(_plArr.length===3) _curPos = _plArr;
+          }
         }
       }
+      // Reglas 1 & 2: procesar vuelos del día actual
       if(_awFlts.length > 0){
         var _awSorted = _awFlts.slice().sort(function(a,b){
-          return _awTm(a.std_actual||a.std) - _awTm(b.std_actual||b.std);
+          return _awTm(a.std_actual||a.std||'00:00') - _awTm(b.std_actual||b.std||'00:00');
         });
         var _awLast = _awSorted[_awSorted.length-1];
         var _lStd = _awLast.std_actual || _awLast.std;
         var _lSta = _awLast.sta_actual || _awLast.sta;
-        // Regla 2: vuelo nocturno cruza medianoche → al final del día el piloto aún no ha llegado
         var _crossMidnight = _lStd && _lSta && _awTm(_lSta) < _awTm(_lStd);
         var _awArr = _crossMidnight
-          ? (_awLast.dep||'').replace(/^\*/,'').toUpperCase()   // posición = aeropuerto de salida
-          : (_awLast.arr||'').replace(/^\*/,'').toUpperCase();  // posición = aeropuerto de llegada
+          ? (_awLast.dep||'').replace(/^\*/,'').toUpperCase()   // en el aire / en DEP al final del día
+          : (_awLast.arr||'').replace(/^\*/,'').toUpperCase();  // aterrizó en ARR
         if(_awArr.length===3) _curPos = _awArr;
       }
       _awayDays[_awDs] = (_curPos !== homeBase);
