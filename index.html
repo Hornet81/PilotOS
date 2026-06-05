@@ -16788,6 +16788,29 @@ function iataToIcao(iata) {
   const code = iata.replace(/^\*/, '').toUpperCase();
   return IATA_TO_ICAO[code] || (code.length === 4 ? code : 'LE' + code);
 }
+/* ─── Route coord helpers (fallback via LD_AIRPORTS midpoint) ─── */
+function getRouteMidpoint(dep, arr) {
+  var route = ROUTE_COORDS[routeKey(dep, arr)] || [];
+  if (route.length) return route[Math.floor(route.length / 2)];
+  var depIcao = iataToIcao(dep), arrIcao = iataToIcao(arr);
+  var depA = LD_AIRPORTS[depIcao], arrA = LD_AIRPORTS[arrIcao];
+  if (depA && arrA) return [(depA.lat + arrA.lat) / 2, (depA.lon + arrA.lon) / 2];
+  if (depA) return [depA.lat, depA.lon];
+  if (arrA) return [arrA.lat, arrA.lon];
+  return [40, 2];
+}
+function getRouteCoords(dep, arr) {
+  var route = ROUTE_COORDS[routeKey(dep, arr)] || [];
+  if (route.length) return route;
+  var depIcao = iataToIcao(dep), arrIcao = iataToIcao(arr);
+  var depA = LD_AIRPORTS[depIcao], arrA = LD_AIRPORTS[arrIcao];
+  if (!depA && !arrA) return [[40, 2]];
+  if (!depA) return [[arrA.lat, arrA.lon]];
+  if (!arrA) return [[depA.lat, depA.lon]];
+  return [0, 0.25, 0.5, 0.75, 1].map(function(t) {
+    return [depA.lat + (arrA.lat - depA.lat) * t, depA.lon + (arrA.lon - depA.lon) * t];
+  });
+}
 
 /* ════════ RUNWAY DATABASE + OPERATIONAL RULES ════════ */
 const RUNWAY_DB = {
@@ -17644,7 +17667,7 @@ function TurbulenceProfile(_ref) {
     view = _useState10[0],
     setView = _useState10[1]; // profile | wind | table
   const canvasRef = useRef(null);
-  const coords = ROUTE_COORDS[routeKey(leg.dep, leg.arr)] || [];
+  const coords = getRouteCoords(leg.dep, leg.arr);
   const loadData = useCallback(async () => {
     if (!coords.length) return;
     setLoading(true);
@@ -21015,10 +21038,10 @@ function MapTabBar(_ref35) {
 /* ── SURFACE MAP ── */
 function MapSurface(_ref36) {
   let leg = _ref36.leg;
-  const route = ROUTE_COORDS[routeKey(leg.dep, leg.arr)] || [];
-  const centerLat = route.length ? route[Math.floor(route.length / 2)][0] : 40;
-  const centerLon = route.length ? route[Math.floor(route.length / 2)][1] : 0;
-  const zoom = route.length > 6 ? 5 : 6;
+  const _mid = getRouteMidpoint(leg.dep, leg.arr);
+  const centerLat = _mid[0], centerLon = _mid[1];
+  const _rc = getRouteCoords(leg.dep, leg.arr);
+  const zoom = _rc.length > 6 ? 5 : 6;
   const windyUrl = "https://embed.windy.com/embed2.html?lat=" + centerLat + "&lon=" + centerLon + "&detailLat=" + centerLat + "&detailLon=" + centerLon + "&width=650&height=450&zoom=" + zoom + "&level=surface&overlay=pressure&menu=&message=true&marker=&calendar=now&pressure=true&type=map&location=coordinates&detail=&metricWind=kt&metricTemp=%C2%B0C&radarRange=-1";
   return React.createElement("div", null,
     React.createElement("div", {
@@ -21052,10 +21075,10 @@ function MapSurface(_ref36) {
 /* ── RADAR MAP ── */
 function MapRadar(_ref43) {
   let leg = _ref43.leg;
-  const route = ROUTE_COORDS[routeKey(leg.dep, leg.arr)] || [];
-  const centerLat = route.length ? route[Math.floor(route.length / 2)][0] : 40;
-  const centerLon = route.length ? route[Math.floor(route.length / 2)][1] : 0;
-  const zoom = route.length > 6 ? 5 : 6;
+  const _mid = getRouteMidpoint(leg.dep, leg.arr);
+  const centerLat = _mid[0], centerLon = _mid[1];
+  const _rc = getRouteCoords(leg.dep, leg.arr);
+  const zoom = _rc.length > 6 ? 5 : 6;
   const windyUrl = "https://embed.windy.com/embed2.html?lat=" + centerLat + "&lon=" + centerLon + "&detailLat=" + centerLat + "&detailLon=" + centerLon + "&width=650&height=450&zoom=" + zoom + "&level=surface&overlay=radar&menu=&message=true&marker=&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=kt&metricTemp=%C2%B0C&radarRange=-1";
   return React.createElement("div", null,
     React.createElement("div", {
@@ -21088,10 +21111,10 @@ function MapRadar(_ref43) {
 /* ── WIND MAP ── */
 function MapWind(_ref48) {
   let leg = _ref48.leg;
-  const route = ROUTE_COORDS[routeKey(leg.dep, leg.arr)] || [];
-  const centerLat = route.length ? route[Math.floor(route.length / 2)][0] : 40;
-  const centerLon = route.length ? route[Math.floor(route.length / 2)][1] : 0;
-  const zoom = route.length > 6 ? 5 : 6;
+  const _mid = getRouteMidpoint(leg.dep, leg.arr);
+  const centerLat = _mid[0], centerLon = _mid[1];
+  const _rc = getRouteCoords(leg.dep, leg.arr);
+  const zoom = _rc.length > 6 ? 5 : 6;
   const fl = leg.cruiseFL;
   const windyLevel = fl < 100 ? "850h" : fl < 180 ? "700h" : fl < 240 ? "500h" : fl < 310 ? "300h" : fl < 360 ? "250h" : "200h";
   const windyUrl = "https://embed.windy.com/embed2.html?lat=" + centerLat + "&lon=" + centerLon + "&detailLat=" + centerLat + "&detailLon=" + centerLon + "&width=650&height=450&zoom=" + zoom + "&level=" + windyLevel + "&overlay=wind&menu=&message=true&marker=&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=kt&metricTemp=%C2%B0C&radarRange=-1";
@@ -23393,6 +23416,32 @@ window.rosterSelectDay = function(dateStr){
     flights.sort(function(a,b){ return t2m(a.std_actual||a.std||'00:00') - t2m(b.std_actual||b.std||'00:00'); });
     var nonFlights = dayEntries.filter(function(e){ return e.type!=='flight' && e.type!=='overnight_continuation'; });
 
+    // ── Continuación de vuelo nocturno (cruce de medianoche) ──────────────────
+    // Si el último vuelo del día anterior cruzó medianoche (sta < std), mostrarlo
+    // como L1 de este día con bloque 00:00 → llegada. Automático para cualquier roster.
+    (function(){
+      var _prevContDs = (function(){
+        var _p = new Date(dateStr+'T12:00:00Z'); _p.setUTCDate(_p.getUTCDate()-1);
+        return _p.toISOString().slice(0,10);
+      })();
+      entriesForDate(_prevContDs).forEach(function(pe){
+        if(pe.type!=='flight') return;
+        var peStd=pe.std_actual||pe.std, peSta=pe.sta_actual||pe.sta;
+        if(!peStd||!peSta||peStd.indexOf(':')<0||peSta.indexOf(':')<0) return;
+        if(t2m(peSta) < t2m(peStd)){
+          // Vuelo nocturno del día anterior llega hoy: insertar leg de continuación al inicio
+          flights.unshift({
+            type:'flight', date:dateStr,
+            flightNum:pe.flightNum, dep:pe.dep, arr:pe.arr,
+            acType:pe.acType, acTypeCode:pe.acTypeCode,
+            positioning:pe.positioning,
+            std:'00:00', sta:peSta,
+            _isMidnightCont:true
+          });
+        }
+      });
+    })();
+
     // ── Render flights with legs + stopover ──
     flights.forEach(function(e, i){
       if(i > 0){
@@ -23526,10 +23575,13 @@ window.rosterSelectDay = function(dateStr){
         + '<div style="font-size:13px;font-weight:800;color:#0F172A">'
         + (e.flightNum||'—')
         + (isPos ? ' <span style="font-size:10px;font-weight:700;background:#FEF3C7;color:#92400E;border:1px solid #FCD34D;border-radius:4px;padding:1px 5px">POSICIONAL</span>' : '')
+        + (e._isMidnightCont ? ' <span style="font-size:10px;font-weight:700;background:#0C4A6E;color:#BAE6FD;border-radius:4px;padding:1px 5px">↓ CONT. +1</span>' : '')
         + '</div>'
         + (e.dep&&e.arr ? '<div style="font-size:12px;font-weight:700;color:#0369A1">'+e.dep+' → '+e.arr+'</div>' : '')
         + '<div style="font-size:11px;color:#475569;font-family:\'Space Mono\',monospace;display:flex;align-items:center;gap:4px">'
-        + '<span style="font-size:9px;font-weight:700;color:#64748B;background:rgba(100,116,139,.1);border:1px solid rgba(100,116,139,.2);border-radius:4px;padding:0 4px;line-height:1.6">S</span>'
+        + (e._isMidnightCont
+            ? '<span style="font-size:9px;font-weight:700;color:#0C4A6E;background:rgba(12,74,110,.1);border:1px solid rgba(12,74,110,.2);border-radius:4px;padding:0 4px;line-height:1.6">↓</span>'
+            : '<span style="font-size:9px;font-weight:700;color:#64748B;background:rgba(100,116,139,.1);border:1px solid rgba(100,116,139,.2);border-radius:4px;padding:0 4px;line-height:1.6">S</span>')
         + dispStd+' – '+dispSta+timeLabel
         + (nextDay?' <span style="background:#0369A1;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:6px">+1</span>':'')
         + '</div>'
