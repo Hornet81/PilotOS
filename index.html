@@ -29728,11 +29728,13 @@ function fpDayKind(cfg, date){
 
 // ── Generar entradas del patrón en RST.entries ────────────────────────────
 function fpApplyToEntries(){
-  if(!window.RST || !Array.isArray(RST.entries)) return;
+  console.log('[FP] fpApplyToEntries start, RST ok:', !!window.RST, 'entries array:', Array.isArray(window.RST && RST.entries));
+  if(!window.RST || !Array.isArray(RST.entries)) { console.log('[FP] EXIT: RST not ready'); return; }
   RST.entries = RST.entries.filter(function(e){ return !e.fixedPattern; });
 
   var cfg = fpLoadConfig();
-  if(!cfg || !cfg.enabled) { rstSave(); return; }
+  console.log('[FP] cfg loaded:', JSON.stringify(cfg));
+  if(!cfg || !cfg.enabled) { console.log('[FP] EXIT: no cfg or disabled'); rstSave(); return; }
 
   var monthsWithRoster = {};
   RST.entries.forEach(function(e){
@@ -29920,9 +29922,11 @@ function fpRenderCal(){
   if(note){ note.style.display = monthHasRoster ? 'block' : 'none'; }
 }
 function fpSave(){
+  console.log('[FP] fpSave called, fpDraft:', JSON.stringify(fpDraft));
   fpDraft.enabled = true;
   var cfg = { blocks:fpDraft.blocks.slice(), start:fpDraft.start, durationM:fpDraft.durationM, star:!!fpDraft.star, display:true, enabled:true };
   fpSaveConfig(cfg);
+  console.log('[FP] config saved, calling fpApplyToEntries');
   fpApplyToEntries();
   if(typeof rstRenderCalendar==='function') rstRenderCalendar();
   if(typeof rstRenderStats==='function') rstRenderStats();
