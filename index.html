@@ -11322,9 +11322,109 @@ function removeTyping(){var _ti=document.getElementById('typing-indicator');if(_
 
 // ── DETECT SI LA PREGUNTA ES SOBRE LOGBOOK ──
 function isLogbookQuery(q) {
-  const terms = ['logbook','mis vuelos','mis horas','vuelo','horas','aterrizaje','ruta','último','última','cuánto','cuántos','cuántas','bloque','block','nocturno','noche','registr','bcn','mad','pmf','pmi','ago','ago','dep','arr','fecha'];
+  const terms = [
+    'logbook','mis vuelos','mis horas','vuelo','horas','aterrizaje','ruta',
+    'último','última','cuánto','cuántos','cuántas','bloque','block',
+    'nocturno','noche','registr','fecha','fui a','hice con','fui con',
+    'mes de','enero','febrero','marzo','abril','mayo','junio',
+    'julio','agosto','septiembre','octubre','noviembre','diciembre',
+    'comandante','copiloto','tripulante','compañero','cm1','cm2',
+    'llevo','acumulado','total de','este año','año pasado',
+    'bcn','mad','pmf','pmi','lhr','lgw','cdg','fco','mxp','ory',
+    'dep','arr','london','paris','roma','berlin','amsterdam',
+  ];
   const ql = q.toLowerCase();
   return terms.some(t => ql.includes(t));
+}
+
+// ── buildLogbookCtxAPI ────────────────────────────────────────────
+// Construye el contexto del logbook para CAFI:
+//   1. Stats totales y por mes
+//   2. Lista compacta de todos los vuelos (searchable por CAFI)
+function buildLogbookCtxAPI() {
+  try {
+    var raw = lsGet('pilotOS_logbook_v1', '[]');
+    var entries = JSON.parse(raw);
+    if (!entries || !entries.length) return '';
+
+    // Ordenar por fecha descendente
+    entries = entries.slice().sort(function(a, b) {
+      return (b.date || '') > (a.date || '') ? 1 : -1;
+    });
+
+    var toMin = function(hhmm) {
+      if (!hhmm) return 0;
+      var p = String(hhmm).replace(/^[ASE]/, '').split(':');
+      return (+p[0] || 0) * 60 + (+p[1] || 0);
+    };
+    var fmtMin = function(m) {
+      return Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0');
+    };
+
+    // ── Stats globales ──────────────────────────────────────
+    var totalFlights = 0, totalBlockMin = 0, ldgDay = 0, ldgNight = 0;
+    var byMonth = {}, byRole = {};
+
+    entries.forEach(function(e) {
+      var bMin = toMin(e.block);
+      if (!e.date || !bMin) return;
+      totalFlights++;
+      totalBlockMin += bMin;
+      ldgDay   += (+e.ldgDay   || 0);
+      ldgNight += (+e.ldgNight || 0);
+      var mon = e.date.slice(0, 7);
+      if (!byMonth[mon]) byMonth[mon] = { min: 0, v: 0 };
+      byMonth[mon].min += bMin;
+      byMonth[mon].v++;
+      var rol = (e.role || 'FO').toUpperCase();
+      byRole[rol] = (byRole[rol] || 0) + bMin;
+    });
+
+    var statsLine = 'TOTAL: ' + totalFlights + ' vuelos | ' +
+      fmtMin(totalBlockMin) + 'h block | ' +
+      (ldgDay + ldgNight) + ' aterrizajes (' + ldgDay + ' día / ' + ldgNight + ' noche)';
+
+    var roleStr = Object.entries(byRole)
+      .map(function(kv) { return kv[0] + ':' + fmtMin(kv[1]) + 'h'; }).join(' | ');
+
+    // ── Desglose mensual (todos) ────────────────────────────
+    var months = Object.keys(byMonth).sort().reverse();
+    var monthLines = months.map(function(m) {
+      return m + ' → ' + fmtMin(byMonth[m].min) + 'h (' + byMonth[m].v + ' vuelos)';
+    }).join('\n');
+
+    // ── Lista compacta de vuelos ────────────────────────────
+    // Formato: FECHA  VUELO  DEP→ARR  ROL  BLOCK  [cm1 / cm2]
+    var flightLines = entries.map(function(e) {
+      if (!e.date) return null;
+      var line = e.date + '  ' +
+        (e.flight || e.fl || '-').toString().padEnd(7) +
+        (e.dep || '-') + '→' + (e.arr || '-') + '  ' +
+        (e.role || '-') + '  ' +
+        (e.block || '-');
+      if (e.cm1 || e.cm2) {
+        line += '  [' + [e.cm1, e.cm2].filter(Boolean).join(' / ') + ']';
+      }
+      if (e.reg) line += '  ' + e.reg;
+      return line;
+    }).filter(Boolean);
+
+    return [
+      '## LOGBOOK DEL PILOTO',
+      statsLine,
+      'Roles: ' + (roleStr || '-'),
+      '',
+      '### HORAS POR MES:',
+      monthLines,
+      '',
+      '### VUELOS (fecha  vuelo  ruta  rol  block  [tripulación]  matrícula):',
+      flightLines.join('\n'),
+    ].join('\n');
+
+  } catch (ex) {
+    console.warn('[CAFI] buildLogbookCtxAPI error:', ex.message);
+    return '';
+  }
 }
 
 async function cafiSendMessage() {
