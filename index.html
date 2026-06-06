@@ -11322,19 +11322,35 @@ function removeTyping(){var _ti=document.getElementById('typing-indicator');if(_
 
 // ── DETECT SI LA PREGUNTA ES SOBRE LOGBOOK ──
 function isLogbookQuery(q) {
+  // Normalizar: minúsculas + eliminar acentos para que "ultima" == "última"
+  const norm = function(s) {
+    return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  };
   const terms = [
-    'logbook','mis vuelos','mis horas','vuelo','horas','aterrizaje','ruta',
-    'último','última','cuánto','cuántos','cuántas','bloque','block',
-    'nocturno','noche','registr','fecha','fui a','hice con','fui con',
-    'mes de','enero','febrero','marzo','abril','mayo','junio',
+    // Palabras clave directas
+    'logbook','horas','aterrizaje','bloque','block','nocturno','noche',
+    // Verbos en distintos tiempos/formas (con y sin acento)
+    'vuelo','vole','volar','voli','volo',
+    'fui','fue','ido','ido a','fui a','vole a',
+    'hice','hice con','fui con',
+    'llevo','lleve','acumul',
+    // Preguntas habituales
+    'mis vuelos','mis horas','cuanto','cuantos','cuantas',
+    'ultimo','ultima','reciente','anterior','primera vez','ultima vez',
+    'total de','este ano','ano pasado','este mes','mes pasado',
+    'ruta','trayecto','registr','fecha',
+    // Meses
+    'enero','febrero','marzo','abril','mayo','junio',
     'julio','agosto','septiembre','octubre','noviembre','diciembre',
-    'comandante','copiloto','tripulante','compañero','cm1','cm2',
-    'llevo','acumulado','total de','este año','año pasado',
-    'bcn','mad','pmf','pmi','lhr','lgw','cdg','fco','mxp','ory',
-    'dep','arr','london','paris','roma','berlin','amsterdam',
+    // Tripulación
+    'comandante','copiloto','tripulante','companero','cm1','cm2','vole con',
+    // Aeropuertos / ciudades frecuentes
+    'bcn','mad','pmf','pmi','lhr','lgw','cdg','fco','mxp','ory','ams','vce',
+    'london','paris','roma','milan','berlin','amsterdam','lisboa','madrid',
+    'barcelona','ibiza','mallorca','menorca','tenerife','lanzarote',
   ];
-  const ql = q.toLowerCase();
-  return terms.some(t => ql.includes(t));
+  const ql = norm(q);
+  return terms.some(t => ql.includes(norm(t)));
 }
 
 // ── buildLogbookCtxAPI ────────────────────────────────────────────
