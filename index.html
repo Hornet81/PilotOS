@@ -11166,8 +11166,8 @@ function refreshContext() {
 
   // Stats grid
   const kbSize2 = (window.KB && window.KB.length) || KB_SAMPLE.length;
-  const totalM = (pilotData.logbook&&pilotData.logbook.reduce)((s,e)=>s+t2m(e.block||'0:00'),0)||0;
-  const nightM = (pilotData.logbook&&pilotData.logbook.reduce)((s,e)=>s+t2m(e.night||'0:00'),0)||0;
+  const totalM = (pilotData.logbook && pilotData.logbook.length) ? pilotData.logbook.reduce(function(s,e){return s+t2m(e.block||'0:00');},0) : 0;
+  const nightM = (pilotData.logbook && pilotData.logbook.length) ? pilotData.logbook.reduce(function(s,e){return s+t2m(e.night||'0:00');},0) : 0;
   const _sg = document.getElementById('stats-grid');
   if (!_sg) return;
   _sg.innerHTML = `
@@ -11592,6 +11592,9 @@ async function cafiSendMessage() {
 
 // INIT
 function cafiInit(){
+  // Cerrar stats-panel al abrir CAFI (puede quedar abierto de sesión anterior)
+  var sp = document.getElementById('stats-panel');
+  if (sp) sp.classList.remove('open');
   refreshContext();
   var src1 = document.getElementById('pilot-img') ? document.getElementById('pilot-img').src : '';
   var img2 = document.getElementById('pilot-img-2');
