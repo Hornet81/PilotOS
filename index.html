@@ -8274,7 +8274,7 @@ html.day #fp-toast{background:rgba(255,255,255,.96);color:#0D6B6B}
           </div>
         </div>
         <h2>Bienvenido a <span>CAFI</span></h2>
-        <p>Tengo acceso al <strong style="color:var(--accent)">FCOM/FCTM Vueling</strong> con texto literal y referencias exactas, a tu <strong style="color:var(--purple)">logbook personal</strong> y a toda la <strong style="color:var(--green)">normativa EASA</strong>. Pregúntame lo que necesites.</p>
+        <p>Tengo acceso al <strong style="color:var(--accent)">FCOM/FCTM, MEL y QRH</strong> con texto literal y referencias exactas, a tu <strong style="color:var(--purple)">logbook personal</strong> y a toda la <strong style="color:var(--green)">normativa EASA</strong>. Pregúntame lo que necesites.</p>
         <div class="quick-btns">
           <div class="qsec">📖 FCOM / FCTM</div>
           <button class="quick-btn" onclick="qs('Explícame los sistemas hidráulicos del A320')">💧 Hidráulica A320</button>
@@ -11260,6 +11260,10 @@ function handleKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();cafiSe
 function qs(t){document.getElementById('user-input').value=t;cafiSendMessage();}
 
 function clearChat(){
+  // Guardar src del piloto antes de destruir el DOM
+  var _pilotSrc = '';
+  var _existImg = document.getElementById('pilot-img') || document.getElementById('pilot-img-2');
+  if (_existImg && _existImg.src && _existImg.src.length > 50) _pilotSrc = _existImg.src;
   conversationHistory=[];
   document.getElementById('messages').innerHTML=`<div class="welcome" id="welcome">
     <div class="pilot-scene" id="pilot-scene-2">
@@ -11269,7 +11273,7 @@ function clearChat(){
       <div class="pilot-orbit pilot-orbit-1"><div class="pilot-particle"></div><div class="pilot-particle"></div><div class="pilot-particle"></div></div>
       <div class="pilot-orbit pilot-orbit-2"><div class="pilot-particle"></div><div class="pilot-particle"></div><div class="pilot-particle"></div></div>
       <div class="pilot-wrap">
-        <div class="pilot-bubble" id="pilot-bubble-2">✈ Preguntame!</div>
+        <div class="pilot-bubble" id="pilot-bubble-2">✈ Pregúntame!</div>
         <img alt="PilotOS" class="pilot-img" id="pilot-img-2" src="" style="display:none">
       </div>
       <div class="pilot-label">
@@ -11285,6 +11289,10 @@ function clearChat(){
       <button class="quick-btn p" onclick="qs('¿Cuántas horas tengo en mi logbook?')">📊 Mis horas</button>
       <button class="quick-btn p" onclick="qs('¿Cuáles son mis últimos vuelos?')">🛫 Últimos vuelos</button>
     </div></div>`;
+  // Restaurar imagen del piloto
+  var _img2 = document.getElementById('pilot-img-2');
+  if (_img2 && _pilotSrc) { _img2.src = _pilotSrc; _img2.style.display = 'block'; }
+  if (typeof cafiStartBubble === 'function') cafiStartBubble();
   refreshContext();
 }
 
