@@ -11090,7 +11090,7 @@ function buildKBContext(query) {
 function loadPilotData() {
   const d = { logbook:[], docs:[], company:null };
   try { const c = localStorage.getItem('pilotos_company'); if(c) d.company = JSON.parse(c); } catch(e){}
-  for (const k of ['pilotos_logbook','ld_entries','logbook_entries','pilotOS_logbook']) {
+  for (const k of ['pilotOS_logbook_v1','pilotos_logbook','ld_entries','logbook_entries','pilotOS_logbook']) {
     try { const r = localStorage.getItem(k); if(r){ d.logbook = JSON.parse(r); break; } } catch(e){}
   }
   for (const k of ['pilotos_docs','docs_data','pilotOS_docs']) {
@@ -11149,7 +11149,7 @@ function refreshContext() {
   const lbChip = document.getElementById('logbook-chip');
 
   if (kbChip) {
-    kbChip.textContent = `📖 FCOM KB: ${kbSize} entradas`;
+    kbChip.textContent = `📖 FCOM · QRH: ${kbSize} entradas`;
     kbChip.classList.toggle('empty', kbSize === 0);
   }
 
@@ -11172,9 +11172,9 @@ function refreshContext() {
   if (!_sg) return;
   _sg.innerHTML = `
     <div class="stat-card active">
-      <div class="stat-label">FCOM KB</div>
+      <div class="stat-label">FCOM · QRH</div>
       <div class="stat-val">${kbSize2}</div>
-      <div class="stat-sub">entradas con ref. exacta</div>
+      <div class="stat-sub">entradas en KB local</div>
     </div>
     <div class="stat-card ${(pilotData.logbook&&pilotData.logbook.length)?'active':''}">
       <div class="stat-label">Vuelos</div>
@@ -11196,6 +11196,21 @@ function refreshContext() {
       <div class="stat-val" style="font-size:12px">${(pilotData.company&&pilotData.company.companyName)||(pilotData.company&&pilotData.company.company)||'—'}</div>
       <div class="stat-sub">${(pilotData.company&&pilotData.company.aircraft)||'—'}</div>
     </div>`;
+
+  // Filtrar dropdown aerolínea al del usuario logueado
+  var _airlineMap = { 'Vueling':'VLG', 'easyJet':'EZY', 'Ryanair':'RYR', 'Iberia':'IBE' };
+  var _coName = (pilotData.company && (pilotData.company.companyName || pilotData.company.company)) || null;
+  var _airlineCode = _coName ? (_airlineMap[_coName] || null) : null;
+  var _airlineSel = document.getElementById('airline-select');
+  if (_airlineSel && _airlineCode) {
+    _airlineSel.value = _airlineCode;
+    Array.from(_airlineSel.options).forEach(function(opt) {
+      opt.hidden = opt.value !== _airlineCode;
+    });
+    _airlineSel.style.pointerEvents = 'none';
+    _airlineSel.style.opacity = '0.85';
+    _airlineSel.title = 'Aerolínea vinculada a tu cuenta';
+  }
 }
 
 function toggleStats() { document.getElementById('stats-panel').classList.toggle('open'); }
