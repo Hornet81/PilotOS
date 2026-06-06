@@ -22764,8 +22764,12 @@ function rstRenderStats(){
         if(_sbStart && _sbEnd && _sbStart.indexOf(':')>-1 && _sbEnd.indexOf(':')>-1){
           var _sbD = t2m(_sbEnd) - t2m(_sbStart);
           if(_sbD < 0) _sbD += 1440;
+          // HSBY: restar 2h de tiempo de movilización (Vueling CBA: las primeras 2h del
+          // hotel standby son tiempo de descanso protegido → no computan para el crédito).
+          // Resto de SBY (2SBY, NSBY, ASBY…): ventana completa al 25%.
+          var _sbEff = /^HSBY$/i.test(e.code||'') ? Math.max(0, _sbD - 120) : _sbD;
           // 25% credit (non-activated standby)
-          if(_sbD > 0){ dutyMin += Math.round(_sbD * 0.25); dutyDays++; }
+          if(_sbEff > 0){ dutyMin += Math.round(_sbEff * 0.25); dutyDays++; }
         }
       } else if(e.type==='osb'){
         var _osbStart = e.checkin, _osbEnd = e.checkout;
@@ -23863,7 +23867,9 @@ window.rosterSelectDay = function(dateStr){
       var _sbE = _sbEntries[0];
       var _sbD = t2m(_sbE.checkout) - t2m(_sbE.checkin);
       if(_sbD < 0) _sbD += 1440;
-      var _sbDutyMin = Math.round(_sbD * 0.25);
+      // HSBY: deducir 2h de movilización antes del 25% (mismo criterio que RosterStats)
+      var _sbEff2 = /^HSBY$/i.test(_sbE.code||'') ? Math.max(0, _sbD - 120) : _sbD;
+      var _sbDutyMin = Math.round(_sbEff2 * 0.25);
       var _durF = function(m){ return Math.floor(m/60)+'h'+String(m%60).padStart(2,'0')+'m'; };
       html += '<div style="background:#EFF6FF;border:1.5px solid rgba(30,58,164,.2);border-radius:12px;padding:12px 13px;margin-top:2px">'
         + '<div style="font-size:12px;font-weight:800;color:#1E3A5F;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📋 Límites FTL · ORO.FTL.205</div>'
