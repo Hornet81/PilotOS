@@ -11383,6 +11383,18 @@ async function cafiSendMessage() {
       if (ap.companyName) companyCtx = { name: ap.companyName, aircraft: ap.aircraft || 'A320' };
     } catch(e) {}
 
+    // Aircraft registration: detectar en el mensaje o leer del último guardado
+    var cafiAircraftReg = null;
+    try {
+      var _regMatch = text.match(/\bEC-[A-Z]{3}\b/i);
+      if (_regMatch) {
+        cafiAircraftReg = _regMatch[0].toUpperCase();
+        localStorage.setItem('pilotos_last_aircraft_reg', cafiAircraftReg);
+      } else {
+        cafiAircraftReg = localStorage.getItem('pilotos_last_aircraft_reg') || null;
+      }
+    } catch(e) {}
+
     const res = await fetch(backendUrl + '/api/chat', {
       method: 'POST',
       headers: {
@@ -11392,7 +11404,8 @@ async function cafiSendMessage() {
       body: JSON.stringify({
         messages: conversationHistory,
         logbook_context: logCtxStr,
-        company: companyCtx
+        company: companyCtx,
+        aircraft_reg: cafiAircraftReg
       })
     });
     const data = await res.json();
@@ -21561,6 +21574,19 @@ function TabAria(_ref52) {
           return '';
         }
       }();
+      // Aircraft registration: del leg activo, del mensaje, o del último guardado
+      var _skyAcReg = (leg && leg.acReg) || null;
+      try {
+        var _skyRegMatch = content.match(/\bEC-[A-Z]{3}\b/i);
+        if (_skyRegMatch) {
+          _skyAcReg = _skyRegMatch[0].toUpperCase();
+          localStorage.setItem('pilotos_last_aircraft_reg', _skyAcReg);
+        } else if (!_skyAcReg) {
+          _skyAcReg = localStorage.getItem('pilotos_last_aircraft_reg') || null;
+        }
+        if (_skyAcReg) localStorage.setItem('pilotos_last_aircraft_reg', _skyAcReg);
+      } catch(e) {}
+
       const res = await fetch(cafiBackendUrl + '/api/chat', {
         method: "POST",
         headers: {
@@ -21572,7 +21598,8 @@ function TabAria(_ref52) {
             role: m.role,
             content: m.content
           })),
-          logbook_context: buildAISystem(leg, turbData)
+          logbook_context: buildAISystem(leg, turbData),
+          aircraft_reg: _skyAcReg
         })
       });
       const data = await res.json();
