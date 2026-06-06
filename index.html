@@ -3291,11 +3291,19 @@ html.day .qrh-wrap[data-active="alt2"] .qrh-icao{color:#BE185D!important;}
   .welcome h2 span{color:var(--accent)}
   .welcome p{font-size:13px;color:var(--muted);line-height:1.6;max-width:460px}
   .quick-btns{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:4px}
-  .qsec{font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;width:100%;text-align:left;margin-top:6px;padding-left:2px}
+  .qsec{
+    width:100%;display:flex;align-items:center;gap:10px;
+    margin-top:10px;margin-bottom:2px;
+    font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+    color:var(--muted);font-family:'JetBrains Mono',monospace;
+  }
+  .qsec::before,.qsec::after{content:'';flex:1;height:1px;background:rgba(34,211,238,.12);}
   .quick-btn{font-size:11px;font-family:'JetBrains Mono',monospace;background:rgba(34,211,238,.08);color:var(--accent);border:1px solid rgba(34,211,238,.2);border-radius:10px;padding:7px 12px;cursor:pointer;transition:all .15s}
   .quick-btn:hover{background:rgba(34,211,238,.15)}
   .quick-btn.p{background:rgba(109,40,217,.1);color:var(--purple);border-color:rgba(109,40,217,.25)}
   .quick-btn.p:hover{background:rgba(109,40,217,.2)}
+  .quick-btn.g{background:rgba(74,222,128,.08);color:var(--green);border-color:rgba(74,222,128,.2)}
+  .quick-btn.g:hover{background:rgba(74,222,128,.15)}
 
   /* MESSAGES */
   .msg{display:flex;gap:10px;align-items:flex-start;animation:fadeIn .2s ease}
@@ -8276,15 +8284,15 @@ html.day #fp-toast{background:rgba(255,255,255,.96);color:#0D6B6B}
         <h2>Bienvenido a <span>CAFI</span></h2>
         <p>Tengo acceso al <strong style="color:var(--accent)">FCOM/FCTM, MEL y QRH</strong> con texto literal y referencias exactas, a tu <strong style="color:var(--purple)">logbook personal</strong> y a toda la <strong style="color:var(--green)">normativa EASA</strong>. Pregúntame lo que necesites.</p>
         <div class="quick-btns">
-          <div class="qsec">📖 FCOM / FCTM</div>
+          <div class="qsec">📘 FCOM · QRH · MEL</div>
           <button class="quick-btn" onclick="qs('Explícame los sistemas hidráulicos del A320')">💧 Hidráulica A320</button>
           <button class="quick-btn" onclick="qs('Leyes de vuelo FBW del A320: Normal, Alternate y Direct')">⚙️ Leyes FBW</button>
           <button class="quick-btn" onclick="qs('Límites de velocidad VMO MMO VFE VLE del A320')">💨 Velocidades límite</button>
           <button class="quick-btn" onclick="qs('Acciones del FIRE PB del motor A320')">🔥 FIRE PB motor</button>
-          <div class="qsec">⏱️ NORMATIVA EASA</div>
-          <button class="quick-btn" onclick="qs('Límites FTL según ORO.FTL.210 para vuelos cortos')">⏱️ Límites FTL</button>
-          <button class="quick-btn" onclick="qs('¿Qué es el FDP máximo según ORO.FTL?')">📋 FDP máximo</button>
-          <div class="qsec">👤 MI LOGBOOK</div>
+          <div class="qsec">🛡️ Normativa EASA</div>
+          <button class="quick-btn g" onclick="qs('Límites FTL según ORO.FTL.210 para vuelos cortos')">⏱️ Límites FTL</button>
+          <button class="quick-btn g" onclick="qs('¿Qué es el FDP máximo según ORO.FTL?')">📋 FDP máximo</button>
+          <div class="qsec">✈️ Mi Logbook</div>
           <button class="quick-btn p" onclick="qs('¿Cuántas horas de vuelo tengo en total?')">📊 Mis horas totales</button>
           <button class="quick-btn p" onclick="qs('¿Cuáles son mis últimos 5 vuelos?')">🛫 Últimos vuelos</button>
           <button class="quick-btn p" onclick="qs('¿Cuál ha sido mi ruta más frecuente?')">🗺️ Ruta más frecuente</button>
@@ -10202,6 +10210,13 @@ const screens={home:'scr-home',oes:'scr-oes',cafi:'scr-cafi',pay:'scr-pay',fatig
 const tabMap={home:'bt-home',oes:'bt-oes',cafi:'bt-cafi',tools:'bt-tools',logbook:'bt-logbook'};
 
 function showScreen(id){
+  // Cerrar home-sidebar al cambiar de pantalla (position:fixed escapa visibility:hidden en webkit)
+  var _sb = document.getElementById('home-sidebar');
+  if (_sb && !_sb.classList.contains('collapsed')) {
+    _sb.classList.add('collapsed');
+    var _ov = document.getElementById('sidebar-overlay');
+    if (_ov) _ov.style.display = 'none';
+  }
   // Disable ALL transitions during switch to prevent blend artifacts
   document.body.classList.add('switching');
   document.querySelectorAll('.screen').forEach(function(s){
