@@ -5278,6 +5278,9 @@ html.day #ld-glass-menu-btn{
 }
 html.day #ld-glass-menu-btn > div{opacity:0 !important}
 html.day #ld-glass-menu-btn:hover{box-shadow:0 0 24px rgba(3,105,161,.35),0 6px 16px rgba(3,105,161,.2) !important}
+/* Botones Editar / Papelera en modo día */
+html.day .ld-card-edit-btn{background:rgba(109,40,217,.12) !important;border-color:rgba(109,40,217,.45) !important;color:#4C1D95 !important;box-shadow:0 4px 14px rgba(109,40,217,.18) !important}
+html.day .ld-card-del-btn{background:rgba(220,38,38,.1) !important;border-color:rgba(220,38,38,.45) !important;color:#991B1B !important;box-shadow:0 4px 14px rgba(220,38,38,.15) !important}
 
 /* ── 2. Leyenda Completo/Parcial/Solo roster — más contraste ── */
 html.day #ld-panel-vuelos [style*="color:rgba(248,250,252,.35)"]{color:#334155 !important}
@@ -14644,8 +14647,8 @@ function ldShowCard(id){
     })()
     // Actions
     +'<div style="padding:14px 18px 32px;display:flex;gap:10px">'
-      +'<button onclick="ldCloseCard();ldEditFlight(\''+e.id+'\')" style="flex:1;padding:13px;background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.3);border-radius:14px;color:rgba(180,160,255,.9);font-family:\'Space Grotesk\',sans-serif;font-size:14px;font-weight:600;cursor:pointer">✏ Editar</button>'
-      +'<button onclick="ldCloseCard();ldDelete(\''+e.id+'\')" style="padding:13px 18px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:14px;color:rgba(239,68,68,.8);font-family:\'Space Grotesk\',sans-serif;font-size:16px;cursor:pointer">🗑</button>'
+      +'<button class="ld-card-edit-btn" onclick="ldCloseCard();ldEditFlight(\''+e.id+'\')" style="flex:1;padding:13px;background:rgba(124,58,237,.32);border:1.5px solid rgba(167,139,250,.65);border-radius:14px;color:rgba(233,225,255,1);font-family:\'Space Grotesk\',sans-serif;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(124,58,237,.28)">✏ Editar</button>'
+      +'<button class="ld-card-del-btn" onclick="ldCloseCard();ldDelete(\''+e.id+'\')" style="padding:13px 18px;background:rgba(239,68,68,.22);border:1.5px solid rgba(248,113,113,.6);border-radius:14px;color:rgba(252,165,165,1);font-family:\'Space Grotesk\',sans-serif;font-size:16px;cursor:pointer;box-shadow:0 4px 16px rgba(239,68,68,.2)">🗑</button>'
     +'</div>';
   var sheet=document.getElementById('ld-card-sheet');
   if(sheet) sheet.innerHTML=html;
@@ -14757,38 +14760,75 @@ function ldStats(){
   ldExtendedStats();
 }
 
-// Glass action menu
+// Glass action menu — bottom sheet
 function ldToggleMenu(){
-  var menu=document.getElementById('ld-action-menu');
-  var back=document.getElementById('ld-menu-backdrop');
-  var btn=document.getElementById('ld-glass-menu-btn');
-  var open=menu.style.display==='block';
-  if(open){
-    menu.style.display='none';
-    back.style.display='none';
-    btn.style.boxShadow='0 4px 20px rgba(124,58,237,.35),0 0 0 1px rgba(255,255,255,.05),inset 0 1px 0 rgba(255,255,255,.08)';
-  } else {
-    // Position menu fixed relative to button
-    var rect=btn.getBoundingClientRect();
-    var menuW=240;
-    var marginRight=14;
-    var left=Math.max(marginRight, rect.right - menuW);
-    var top=rect.bottom + 10;
-    menu.style.left=left+'px';
-    menu.style.top=top+'px';
-    menu.style.right='auto';
-    menu.style.display='block';
-    back.style.display='block';
-    btn.style.boxShadow='0 4px 28px rgba(124,58,237,.55),0 0 0 2px rgba(34,211,238,.25),inset 0 1px 0 rgba(255,255,255,.12)';
+  if(document.getElementById('ld-sheet-overlay')){ ldCloseMenu(); return; }
+  var day=document.documentElement.classList.contains('day');
+  var overlay=document.createElement('div');
+  overlay.id='ld-sheet-overlay';
+  overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:'+(day?'rgba(10,22,48,.50)':'rgba(2,8,20,.65)')+';-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s ease';
+  var shBg=day?'background:linear-gradient(180deg,rgba(240,252,255,.98) 0%,rgba(220,244,255,.99) 100%);border-top:1.5px solid rgba(13,148,136,.22)':'background:linear-gradient(180deg,rgba(8,22,40,.97) 0%,rgba(4,14,28,.99) 100%);border-top:1.5px solid rgba(34,211,238,.2)';
+  var hGrad=day?'linear-gradient(90deg,rgba(109,40,217,.4),rgba(13,148,136,.4))':'linear-gradient(90deg,rgba(124,58,237,.65),rgba(34,211,238,.55))';
+  var tClr=day?'rgba(8,145,178,.65)':'rgba(34,211,238,.5)';
+  var lbl=day?'#0A1628':'rgba(248,250,252,.92)';
+  var sub=day?'#64748B':'rgba(248,250,252,.38)';
+  var chev=day?'#94A3B8':'rgba(248,250,252,.22)';
+  var divC=day?'rgba(15,23,42,.1)':'rgba(34,211,238,.1)';
+  var redD=day?'rgba(220,38,38,.12)':'rgba(248,113,113,.12)';
+  var icoB=day?'rgba(8,145,178,.12)':'rgba(34,211,238,.12)';
+  var ocrBg=day?'rgba(109,40,217,.09)':'rgba(124,58,237,.16)';
+  var ocrBd=day?'rgba(109,40,217,.22)':'rgba(124,58,237,.38)';
+  var ocrLbl=day?'#4C1D95':'rgba(210,190,255,1)';
+  var ocrIco=day?'rgba(109,40,217,.15)':'linear-gradient(135deg,rgba(124,58,237,.4),rgba(34,211,238,.25))';
+  var manBg=day?'rgba(5,150,105,.08)':'rgba(52,211,153,.1)';
+  var manBd=day?'rgba(5,150,105,.22)':'rgba(52,211,153,.3)';
+  var manLbl=day?'#065F46':'rgba(110,231,183,1)';
+  var manIco=day?'rgba(5,150,105,.15)':'rgba(52,211,153,.2)';
+  function mi(icon,ibg,label,sub2,action,lc,id,danger){
+    var dl=danger?(day?'#B91C1C':'rgba(252,130,130,1)'):lc;
+    var dc=danger?(day?'#B91C1C':'rgba(248,113,113,.5)'):chev;
+    var dibg=danger?(day?'rgba(220,38,38,.1)':'rgba(248,113,113,.12)'):ibg;
+    return '<button '+(id?'id="'+id+'"':'')+' onclick="ldCloseMenu();setTimeout(function(){'+action+'},80)" style="width:100%;display:flex;align-items:center;gap:14px;padding:12px 20px;background:transparent;border:none;cursor:pointer;text-align:left;-webkit-appearance:none">'
+      +'<div style="width:42px;height:42px;border-radius:13px;background:'+dibg+';display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">'+icon+'</div>'
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="font-family:\'Space Grotesk\',sans-serif;font-size:13px;font-weight:700;color:'+dl+';margin-bottom:2px">'+label+'</div>'
+      +'<div style="font-size:10px;color:'+sub+';font-family:\'Space Mono\',monospace">'+sub2+'</div>'
+      +'</div><span style="font-size:20px;color:'+dc+';flex-shrink:0">›</span></button>';
   }
+  overlay.innerHTML='<div id="ld-sheet" style="width:100%;max-width:480px;'+shBg+';border-radius:24px 24px 0 0;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 14px);overflow:hidden;animation:slideUp .28s cubic-bezier(.2,.8,.3,1)">'
+    +'<div style="width:44px;height:5px;border-radius:3px;background:'+hGrad+';margin:13px auto 4px"></div>'
+    +'<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:'+tClr+';padding:12px 22px 8px;font-family:\'Space Mono\',monospace">Añadir vuelo</div>'
+    +'<div style="padding:0 16px 10px;display:flex;flex-direction:column;gap:8px">'
+    +'<button onclick="ldCloseMenu();setTimeout(function(){ldOpenModal(false)},80)" style="display:flex;align-items:center;gap:14px;padding:14px 15px;background:'+ocrBg+';border:1.5px solid '+ocrBd+';border-radius:17px;cursor:pointer;text-align:left;-webkit-appearance:none;width:100%">'
+    +'<div style="width:46px;height:46px;border-radius:14px;background:'+ocrIco+';display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">📷</div>'
+    +'<div style="flex:1;min-width:0"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:700;color:'+ocrLbl+';margin-bottom:3px">MCDU OCR</div>'
+    +'<div style="font-size:11px;color:'+sub+';font-family:\'Space Mono\',monospace">Foto de pantalla MCDU</div></div>'
+    +'<span style="font-size:22px;color:'+chev+'">›</span></button>'
+    +'<button onclick="ldCloseMenu();setTimeout(function(){ldOpenModal(true)},80)" style="display:flex;align-items:center;gap:14px;padding:14px 15px;background:'+manBg+';border:1.5px solid '+manBd+';border-radius:17px;cursor:pointer;text-align:left;-webkit-appearance:none;width:100%">'
+    +'<div style="width:46px;height:46px;border-radius:14px;background:'+manIco+';display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">✏️</div>'
+    +'<div style="flex:1;min-width:0"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:700;color:'+manLbl+';margin-bottom:3px">Manual</div>'
+    +'<div style="font-size:11px;color:'+sub+';font-family:\'Space Mono\',monospace">Entrada de datos manual</div></div>'
+    +'<span style="font-size:22px;color:'+chev+'">›</span></button>'
+    +'</div>'
+    +'<div style="height:1px;background:'+divC+';margin:2px 0 4px"></div>'
+    +'<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:'+tClr+';padding:8px 22px 2px;font-family:\'Space Mono\',monospace">Gestión</div>'
+    +mi('📥',icoB,'Importar','XLS · CSV · TXT','ldShowImport()',lbl,'')
+    +mi('☁️',icoB,'Sincronizar nube','Descargar desde Supabase','ldManualPull()',lbl,'ld-menu-sync-btn')
+    +mi('🔄',icoB,'Full sync desde cero','Resetea caché y descarga todo','ldResetSync()',lbl,'')
+    +mi('⬇️',icoB,'Exportar','PDF · EASA · CSV','ldToggleExport()',lbl,'')
+    +'<div style="height:1px;background:'+redD+';margin:8px 0 2px"></div>'
+    +mi('🗑',icoB,'Eliminar vuelos','Selección masiva','ldEnterSelectMode()',lbl,'',true)
+    +'</div>';
+  overlay.addEventListener('click',function(e){ if(e.target===overlay) ldCloseMenu(); });
+  document.body.appendChild(overlay);
 }
 function ldCloseMenu(){
+  var el=document.getElementById('ld-sheet-overlay');
+  if(el) el.remove();
   var menu=document.getElementById('ld-action-menu');
   var back=document.getElementById('ld-menu-backdrop');
-  var btn=document.getElementById('ld-glass-menu-btn');
   if(menu) menu.style.display='none';
   if(back) back.style.display='none';
-  if(btn) btn.style.boxShadow='0 4px 20px rgba(124,58,237,.35),0 0 0 1px rgba(255,255,255,.05),inset 0 1px 0 rgba(255,255,255,.08)';
 }
 
 // ── STRIPE UPGRADE ───────────────────────────────────────────────
