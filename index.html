@@ -28844,14 +28844,15 @@ function laRenderAnalytics() {
   var ldg90   = entries.filter(function(e){ return now-new Date(e.date||0).getTime()<=90*864e5; }).reduce(function(s,e){ return s+(e.ldgDay||0)+(e.ldgNight||0); },0);
 
   // ─── Rutas / Destinos ───────────────────────────────────────
+  var _homeBase = localStorage.getItem('pilotOS_home_base')||'';
   var destCnt={}, depCnt={}, routeCnt={};
   entries.forEach(function(e){
     if(e.arr) destCnt[e.arr]=(destCnt[e.arr]||0)+1;
     if(e.dep) depCnt[e.dep]=(depCnt[e.dep]||0)+1;
     if(e.dep&&e.arr){ var r=e.dep+'›'+e.arr; routeCnt[r]=(routeCnt[r]||0)+1; }
   });
-  var topDests  = Object.entries(destCnt).sort(function(a,b){ return b[1]-a[1]; }).slice(0,8);
-  var topDepArr = Object.entries(depCnt).sort(function(a,b){ return b[1]-a[1]; });
+  var topDests  = Object.entries(destCnt).filter(function(d){ return d[0]!==_homeBase; }).sort(function(a,b){ return b[1]-a[1]; }).slice(0,8);
+  var topDepArr = Object.entries(depCnt).filter(function(d){ return d[0]!==_homeBase; }).sort(function(a,b){ return b[1]-a[1]; });
   var topRoutes = Object.entries(routeCnt).sort(function(a,b){ return b[1]-a[1]; });
   var airports  = new Set();
   entries.forEach(function(e){ if(e.dep)airports.add(e.dep); if(e.arr)airports.add(e.arr); });
@@ -28866,9 +28867,15 @@ function laRenderAnalytics() {
   var topTypes = Object.entries(typMins).sort(function(a,b){ return b[1]-a[1]; }).slice(0,5);
 
   // ─── Tripulación ────────────────────────────────────────────
+  var _myName='';
+  for(var _ni=0;_ni<entries.length&&!_myName;_ni++){
+    var _ne=entries[_ni];
+    if(_ne.role==='CPT'&&_ne.cm1) _myName=_ne.cm1.trim();
+    else if(_ne.role==='FO'&&_ne.cm2) _myName=_ne.cm2.trim();
+  }
   var crewCnt={};
   entries.forEach(function(e){
-    [e.cm1,e.cm2].forEach(function(n){ if(n&&n.trim()) crewCnt[n.trim()]=(crewCnt[n.trim()]||0)+1; });
+    [e.cm1,e.cm2].forEach(function(n){ if(n&&n.trim()&&n.trim()!==_myName) crewCnt[n.trim()]=(crewCnt[n.trim()]||0)+1; });
   });
   var topCrew = Object.entries(crewCnt).sort(function(a,b){ return b[1]-a[1]; }).slice(0,5);
 
@@ -29187,8 +29194,9 @@ function laRenderIA() {
   }
 
   // 3. Destino top
+  var _hb2=localStorage.getItem('pilotOS_home_base')||'';
   var destCnt2={};
-  entries.forEach(function(e){ if(e.arr) destCnt2[e.arr]=(destCnt2[e.arr]||0)+1; });
+  entries.forEach(function(e){ if(e.arr&&e.arr!==_hb2) destCnt2[e.arr]=(destCnt2[e.arr]||0)+1; });
   var td=Object.entries(destCnt2).sort(function(a,b){return b[1]-a[1];})[0];
   if(td&&td[1]>2){
     var tdPct=Math.round(td[1]/entries.length*100);
@@ -29274,25 +29282,25 @@ function laRenderWrapped() {
   var yearH=Math.floor(yearMins/60), yearM=yearMins%60;
   var airports=new Set();
   entries.forEach(function(e){ if(e.dep)airports.add(e.dep); if(e.arr)airports.add(e.arr); });
-  var crewCnt3={};
-  entries.forEach(function(e){ [e.cm1,e.cm2].forEach(function(n){ if(n&&n.trim()) crewCnt3[n.trim()]=(crewCnt3[n.trim()]||0)+1; }); });
-
   // Piloto: inferir nombre propio
   var myName='';
   for(var i=0;i<entries.length&&!myName;i++){
     var e=entries[i];
-    if(e.role==='CPT'&&e.cm1) myName=e.cm1;
-    else if(e.role==='FO'&&e.cm2) myName=e.cm2;
+    if(e.role==='CPT'&&e.cm1) myName=e.cm1.trim();
+    else if(e.role==='FO'&&e.cm2) myName=e.cm2.trim();
   }
+  var crewCnt3={};
+  entries.forEach(function(e){ [e.cm1,e.cm2].forEach(function(n){ if(n&&n.trim()&&n.trim()!==myName) crewCnt3[n.trim()]=(crewCnt3[n.trim()]||0)+1; }); });
 
   if(_e('la-wr-year')) _e('la-wr-year').textContent = cy;
   if(_e('la-wr-name')) _e('la-wr-name').textContent = (myName||'Piloto PilotOS')+' · '+cy;
   if(_e('la-wr-h'))    _e('la-wr-h').textContent    = yearH+'h '+String(yearM).padStart(2,'0')+'m';
 
   // Grid 6 items
+  var _hb4=localStorage.getItem('pilotOS_home_base')||'';
   var destCnt4={}, regMins4={};
   entries.forEach(function(e){
-    if(e.arr) destCnt4[e.arr]=(destCnt4[e.arr]||0)+1;
+    if(e.arr&&e.arr!==_hb4) destCnt4[e.arr]=(destCnt4[e.arr]||0)+1;
     if(e.reg) regMins4[e.reg]=(regMins4[e.reg]||0)+ldT2m(e.block||'');
   });
   var td4=Object.entries(destCnt4).sort(function(a,b){return b[1]-a[1];})[0];
