@@ -22425,6 +22425,7 @@ var RST = {
   editIndex: -1,     // -1 = new entry
   editDate: null
 };
+window.RST = RST;    // exponer globalmente para módulos externos (patrón fijo, etc.)
 
 // ── Persist ──
 function rstSave(){
@@ -29728,13 +29729,11 @@ function fpDayKind(cfg, date){
 
 // ── Generar entradas del patrón en RST.entries ────────────────────────────
 function fpApplyToEntries(){
-  console.log('[FP] fpApplyToEntries start, RST ok:', !!window.RST, 'entries array:', Array.isArray(window.RST && RST.entries));
-  if(!window.RST || !Array.isArray(RST.entries)) { console.log('[FP] EXIT: RST not ready'); return; }
+  if(!window.RST || !Array.isArray(RST.entries)) return;
   RST.entries = RST.entries.filter(function(e){ return !e.fixedPattern; });
 
   var cfg = fpLoadConfig();
-  console.log('[FP] cfg loaded:', JSON.stringify(cfg));
-  if(!cfg || !cfg.enabled) { console.log('[FP] EXIT: no cfg or disabled'); rstSave(); return; }
+  if(!cfg || !cfg.enabled) { rstSave(); return; }
 
   var monthsWithRoster = {};
   RST.entries.forEach(function(e){
@@ -29763,7 +29762,6 @@ function fpApplyToEntries(){
     cur.setDate(cur.getDate()+1);
   }
   rstSave();
-  console.log('[FP] Entradas de patrón generadas:', RST.entries.filter(function(e){ return e.fixedPattern; }).length, '| Meses bloqueados por roster:', Object.keys(monthsWithRoster));
 }
 window.fpReapply = function(){
   fpApplyToEntries();
@@ -29922,11 +29920,9 @@ function fpRenderCal(){
   if(note){ note.style.display = monthHasRoster ? 'block' : 'none'; }
 }
 function fpSave(){
-  console.log('[FP] fpSave called, fpDraft:', JSON.stringify(fpDraft));
   fpDraft.enabled = true;
   var cfg = { blocks:fpDraft.blocks.slice(), start:fpDraft.start, durationM:fpDraft.durationM, star:!!fpDraft.star, display:true, enabled:true };
   fpSaveConfig(cfg);
-  console.log('[FP] config saved, calling fpApplyToEntries');
   fpApplyToEntries();
   if(typeof rstRenderCalendar==='function') rstRenderCalendar();
   if(typeof rstRenderStats==='function') rstRenderStats();
