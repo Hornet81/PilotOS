@@ -13263,6 +13263,46 @@ function ldGenId(){
   });
 }
 
+function ldGenDeterministicId(source, date, dep, arr, std) {
+  var key = (source||'')+'|'+(date||'')+'|'+(dep||'').toUpperCase()+'|'+(arr||'').toUpperCase()+'|'+(std||'').slice(0,5);
+  var h = 2166136261;
+  for (var i = 0; i < key.length; i++) { h = (h ^ key.charCodeAt(i)) >>> 0; h = Math.imul(h, 16777619) >>> 0; }
+  return 'ld-' + h.toString(36) + '-' + (date||'').replace(/-/g,'') + (dep||'').slice(0,4).toLowerCase();
+}
+
+function ldContentKey(e) {
+  if (!e || e.type === '__ac_db__') return null;
+  var dep = (window.RST_IATA_ICAO && RST_IATA_ICAO[(e.dep||'').toUpperCase()]) || (e.dep||'').toUpperCase();
+  var arr = (window.RST_IATA_ICAO && RST_IATA_ICAO[(e.arr||'').toUpperCase()]) || (e.arr||'').toUpperCase();
+  return (e.source||'') + '|' + (e.date||'') + '|' + dep + '|' + arr + '|' + (e.std||'').slice(0,5);
+}
+
+function ldEntryCompleteness(e) {
+  var fields = ['flight','atd','ata','block','acType','reg','role','func','cm1','cm2','notes','aobt','aibt'];
+  return fields.reduce(function(n, f) { return n + (e[f] ? 1 : 0); }, 0);
+}
+
+function ldDeduplicateEntries() {
+  var byKey = {};
+  ldEntries.forEach(function(e) {
+    var k = ldContentKey(e); if (!k) return;
+    if (!byKey[k]) byKey[k] = [];
+    byKey[k].push(e);
+  });
+  var toDelete = [];
+  Object.keys(byKey).forEach(function(k) {
+    var group = byKey[k]; if (group.length <= 1) return;
+    group.sort(function(a, b) { return ldEntryCompleteness(b) - ldEntryCompleteness(a); });
+    for (var i = 1; i < group.length; i++) toDelete.push(group[i].id);
+  });
+  if (!toDelete.length) return false;
+  var delSet = new Set(toDelete);
+  ldEntries = ldEntries.filter(function(e) { return !e || !delSet.has(e.id); });
+  ldDelMark(toDelete);
+  console.log('[Logbook dedup] eliminadas ' + toDelete.length + ' entrada(s) duplicada(s)');
+  return true;
+}
+
 function ldRealEntryCount(){
   return ldEntries.filter(function(e){ return e && e.id !== LD_AC_DB_ENTRY_ID && e.type !== '__ac_db__'; }).length;
 }
@@ -16317,6 +16357,7 @@ async function ldPullFromServer(){
     ldEntries=mergedArr.sort(function(a,b){
       return(b.date||'').localeCompare(a.date||'')||(b.savedAt||'').localeCompare(a.savedAt||'');
     });
+    ldDeduplicateEntries();
     ldSaveData(); ldRender(); ldStats(); ldUpdatePlanBanners();
 
     // If any local entries are not on the server, re-push so server catches up
@@ -16440,6 +16481,7 @@ async function ldDeltaPull(since){
     ldEntries.sort(function(a,b){
       return(b.date||'').localeCompare(a.date||'')||(b.savedAt||'').localeCompare(a.savedAt||'');
     });
+    ldDeduplicateEntries();
     ldSaveData(); ldRender(); ldStats(); ldUpdatePlanBanners();
     return {newCount:newCount, deletedCount:deletedCount};
   }catch(e){ console.error('[DeltaPull] Error:',e.message); return null; }
@@ -26419,6 +26461,8 @@ window.ldRosterImportConfirm = function(){
     if(match||isDraftAlready){skipped++;return;}
     if(_rstImportDesel[_rstFlightKey(f)]){skipped++;return;}  // user deselected this flight
     if(!isPro()&&(realCount+imported)>=PLAN_FREE_LOGBOOK_LIMIT){showPlanToast('limit');return;}
+    var fDepIcao = (RST_IATA_ICAO[(f.dep||'').toUpperCase()]||(f.dep||'').toUpperCase());
+    var fArrIcao = (RST_IATA_ICAO[(f.arr||'').toUpperCase()]||(f.arr||'').toUpperCase());
     var blockStr='';
     if(f.std&&f.sta){
       var sm=parseInt(f.std.split(':')[0])*60+parseInt(f.std.split(':')[1]);
@@ -26427,11 +26471,11 @@ window.ldRosterImportConfirm = function(){
       blockStr=Math.floor(bm/60)+':'+String(bm%60).padStart(2,'0');
     }
     ldEntries.unshift({
-      id:ldGenId(),
+      id:ldGenDeterministicId('RST', f.date, fDepIcao, fArrIcao, f.std||''),
       savedAt:new Date().toISOString(),
       source:'ROSTER-DRAFT',
       date:f.date, flight:f.flightNum||'',
-      dep:(RST_IATA_ICAO[(f.dep||'').toUpperCase()]||(f.dep||'').toUpperCase()), arr:(RST_IATA_ICAO[(f.arr||'').toUpperCase()]||(f.arr||'').toUpperCase()),
+      dep:fDepIcao, arr:fArrIcao,
       std:f.std||'', sta:f.sta||'',
       block:blockStr, acType:f.acType||'', reg:f.reg||'',
       role:lsGet('ld_pref_role')||'FO',
@@ -27122,7 +27166,9 @@ window.ldECrewsConfirm = function(){
     }
 
     var entry = {
-      id:     ldGenId(),
+      id:     e.type === 'flight'
+                ? ldGenDeterministicId('EC', e.date, e.dep||'', e.arr||'', e.std||e.std_actual||'')
+                : ldGenId(),
       date:   e.date,
       type:   e.type,
       source: 'ECREWS'
