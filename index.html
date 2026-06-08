@@ -16234,7 +16234,7 @@ function ldPendingSet(){ try{ localStorage.setItem(LD_PENDING_KEY,'1'); }catch(e
 function ldPendingClear(){ try{ localStorage.removeItem(LD_PENDING_KEY); }catch(e){} }
 function ldPendingExists(){ return localStorage.getItem(LD_PENDING_KEY)==='1'; }
 
-// PUSH — enviar todos los vuelos al servidor (silent)
+// PUSH — enviar todos los vuelos al servidor en lotes de 200
 var _ldSyncInProgress = false;
 async function ldSyncToServer(){
   if(_ldSyncInProgress) return;
@@ -16246,34 +16246,41 @@ async function ldSyncToServer(){
     });
     if(!realEntries.length){ _ldSyncInProgress=false; return; }
     var pendingDel=Object.keys(ldDelLoad());
-    var syncBody={entries:realEntries};
-    if(pendingDel.length) syncBody.deletions=pendingDel;
-    var r=await fetch(ldBackendUrl()+'/api/logbook/sync',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-      body:JSON.stringify(syncBody)
-    });
-    if(r.ok){
-      var body=await r.json();
-      ldSetSyncStatus('ok');
-      if(body.plan) lsSet('pilotOS_plan',body.plan);
-      if(pendingDel.length) ldDelClear(pendingDel);
-      ldPendingClear(); // push successful — no longer pending
-    } else {
-      var errBody=await r.json().catch(function(){return{};});
-      if(errBody.error==='plan_limit'){
-        ldSetSyncStatus('limit');
-        showPlanToast('limit');
+    var CHUNK=200, total=realEntries.length;
+    for(var i=0;i<Math.max(total,1);i+=CHUNK){
+      var chunk=realEntries.slice(i,i+CHUNK);
+      var syncBody={entries:chunk};
+      if(i===0&&pendingDel.length) syncBody.deletions=pendingDel;
+      if(total>CHUNK) ldSetSyncStatus('syncing',Math.min(i+CHUNK,total)+'/'+total);
+      var r=await fetch(ldBackendUrl()+'/api/logbook/sync',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+        body:JSON.stringify(syncBody)
+      });
+      if(r.ok){
+        var body=await r.json();
+        if(body.plan) lsSet('pilotOS_plan',body.plan);
+        if(i===0&&pendingDel.length){ ldDelClear(pendingDel); ldPendingClear(); }
       } else {
-        ldSetSyncStatus('error');
-        ldPendingSet(); // mark as pending to retry when back online
-        console.error('[Logbook sync] Server error:', errBody.error || r.status);
-        if(r.status===500) showToast('⚠ Error al sincronizar logbook con el servidor','error');
+        var errBody=await r.json().catch(function(){return{};});
+        if(errBody.error==='plan_limit'){
+          ldSetSyncStatus('limit');
+          showPlanToast('limit');
+        } else {
+          ldSetSyncStatus('error');
+          ldPendingSet();
+          console.error('[Logbook sync] Server error:', errBody.error || r.status);
+          if(r.status===500) showToast('⚠ Error al sincronizar logbook con el servidor','error');
+        }
+        return;
       }
+      if(total===0) break;
     }
+    ldSetSyncStatus('ok');
+    ldPendingClear();
   }catch(e){
     ldSetSyncStatus('error');
-    ldPendingSet(); // network error — mark pending for retry
+    ldPendingSet();
     console.error('[Logbook sync] Network error:', e.message);
   }
   finally{ _ldSyncInProgress=false; }
@@ -16284,7 +16291,7 @@ window.addEventListener('online',function(){
   ldBgSync({delay:1500,force:true}); // al volver a tener red, siempre sync
 });
 
-function ldSetSyncStatus(status){
+function ldSetSyncStatus(status, detail){
   var el=document.getElementById('ld-sync-indicator');
   if(!el)return;
   var map={
@@ -16295,7 +16302,8 @@ function ldSetSyncStatus(status){
     syncing: ['⏳','#67D7F5','Sincronizando…'],
   };
   var v=map[status]||map['ok'];
-  el.innerHTML='<span style="color:'+v[1]+';font-size:11px;font-family:Space Mono,monospace">'+v[0]+' '+v[2]+'</span>';
+  var label=detail?v[2]+' '+detail:v[2];
+  el.innerHTML='<span style="color:'+v[1]+';font-size:11px;font-family:Space Mono,monospace">'+v[0]+' '+label+'</span>';
 }
 
 // PULL — descargar desde el servidor y hacer merge
