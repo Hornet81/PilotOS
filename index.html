@@ -13256,6 +13256,13 @@ function planCanOCR(){         return isPro(); }
 function planCanRoster(){      return isPro(); }
 function planLogbookLimit(){   return isPro() ? Infinity : PLAN_FREE_LOGBOOK_LIMIT; }
 
+function ldGenId(){
+  if(typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){
+    var r = Math.random()*16|0, v = c==='x'?r:(r&0x3|0x8); return v.toString(16);
+  });
+}
+
 function ldRealEntryCount(){
   return ldEntries.filter(function(e){ return e && e.id !== LD_AC_DB_ENTRY_ID && e.type !== '__ac_db__'; }).length;
 }
@@ -14191,7 +14198,7 @@ function ldSave(){
     return;
   }
   var e={
-    id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),
+    id:ldGenId(),
     savedAt:new Date().toISOString(),
     date:g('ld_date'),flight:g('ld_flight'),
     dep:g('ld_dep').toUpperCase(),arr:g('ld_arr').toUpperCase(),
@@ -16965,7 +16972,7 @@ function ldImportConfirm(){
     if(!existing){
       // New entry — add it
       var e={
-        id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),
+        id:ldGenId(),
         savedAt:new Date().toISOString(),
         date:r.date||'',flight:r.flight||'',
         dep:(r.dep||'').toUpperCase(),arr:(r.arr||'').toUpperCase(),
@@ -26420,7 +26427,7 @@ window.ldRosterImportConfirm = function(){
       blockStr=Math.floor(bm/60)+':'+String(bm%60).padStart(2,'0');
     }
     ldEntries.unshift({
-      id:Date.now().toString(36)+Math.random().toString(36).slice(2,5)+'_d'+imported,
+      id:ldGenId(),
       savedAt:new Date().toISOString(),
       source:'ROSTER-DRAFT',
       date:f.date, flight:f.flightNum||'',
@@ -27115,7 +27122,7 @@ window.ldECrewsConfirm = function(){
     }
 
     var entry = {
-      id:     Date.now().toString(36)+Math.random().toString(36).slice(2,5)+'_ec'+imported,
+      id:     ldGenId(),
       date:   e.date,
       type:   e.type,
       source: 'ECREWS'
