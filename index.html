@@ -16732,22 +16732,21 @@ async function ldDeltaPull(since){
       return e&&e.id&&e.id!==LD_AC_DB_ENTRY_ID&&e.type!=='__ac_db__';
     });
     var newCount=0;
-    if(isFull){
-      var localIds=new Set(ldEntries.filter(function(e){return e&&e.type!=='__ac_db__';}).map(function(e){return e&&e.id;}));
-      newCount=realServer.filter(function(e){return !localIds.has(e.id);}).length;
-      ldEntries=realServer.slice();
-    } else {
-      var localMap={};
-      ldEntries.forEach(function(e){if(e&&e.id) localMap[e.id]=e;});
-      realServer.forEach(function(se){
-        if(!se||!se.id) return;
-        var local=localMap[se.id];
-        if(!local){ ldEntries.unshift(se); newCount++; }
-        else if((se.savedAt||'')>=(local.savedAt||'')){
-          var idx=ldEntries.indexOf(local); if(idx>=0) ldEntries[idx]=se;
-        }
-      });
-    }
+    // Siempre merge (nunca reemplazar en bloque):
+    // - Añade entradas del servidor que no están localmente
+    // - Actualiza si el servidor tiene versión más nueva (savedAt mayor)
+    // - NUNCA elimina entradas locales (solo los tombstones de deleted_ids lo hacen)
+    // Esto evita la race condition entre ldSyncToServer y ldBgSync que borraba vuelos.
+    var localMap={};
+    ldEntries.forEach(function(e){if(e&&e.id) localMap[e.id]=e;});
+    realServer.forEach(function(se){
+      if(!se||!se.id) return;
+      var local=localMap[se.id];
+      if(!local){ ldEntries.unshift(se); newCount++; }
+      else if((se.savedAt||'')>=(local.savedAt||'')){
+        var idx=ldEntries.indexOf(local); if(idx>=0) ldEntries[idx]=se;
+      }
+    });
     ldEntries.sort(function(a,b){
       return(b.date||'').localeCompare(a.date||'')||(b.savedAt||'').localeCompare(a.savedAt||'');
     });
