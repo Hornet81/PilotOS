@@ -10695,6 +10695,24 @@ function lsGet(k,def){try{var v=localStorage.getItem(k);return v!==null?v:def||n
 function lsSet(k,v){try{localStorage.setItem(k,v);return true;}catch(e){return false;}}
 function lsDel(k){try{localStorage.removeItem(k);}catch(e){}}
 
+// ── Borrado total de datos de usuario al cerrar sesión / cambio de cuenta ──
+function clearAllUserData(){
+  try{
+    // Claves que sobreviven al logout (preferencias de dispositivo)
+    var keep=['pilotOS_last_uid','pilotday','cafi_backend_url'];
+    var prefixes=['pilotOS_','pilotos_','cafi_','pag_','ld_','LD_','logbook_'];
+    for(var i=localStorage.length-1;i>=0;i--){
+      var k=localStorage.key(i);
+      if(!k||keep.indexOf(k)!==-1) continue;
+      if(prefixes.some(function(p){return k.indexOf(p)===0;})) localStorage.removeItem(k);
+    }
+  }catch(e){}
+  // Resetear estado en memoria para que no se repinte data del usuario anterior
+  try{ if(window.RST) RST.entries=[]; }catch(e){}
+  try{ if(typeof ldEntries!=='undefined') ldEntries=[]; }catch(e){}
+  try{ if(window._lbEntries) window._lbEntries=[]; if(window._lbAll) window._lbAll=[]; }catch(e){}
+}
+
 
 function filterCat(cat){
   document.querySelectorAll('#home-sidebar .cat-item').forEach(function(el){
@@ -10831,8 +10849,7 @@ function pilotLogout(){
   if(window._bubbleInterval){ clearInterval(window._bubbleInterval); window._bubbleInterval=null; }
   if(window._utcClock){ clearInterval(window._utcClock); window._utcClock=null; }
   if(window.LDM && LDM.raf){ cancelAnimationFrame(LDM.raf); LDM.raf=null; }
-  var keys=['cafi_auth_token','cafi_auth_user','pilotOS_plan','pag_airline','pilotos_company'];
-  keys.forEach(function(k){try{localStorage.removeItem(k);}catch(e){}});
+  clearAllUserData();
   // Reset avatar
   var av=document.getElementById('dh-avatar-el');
   if(av){av.textContent='CP';av.style.backgroundImage='';}
@@ -27927,10 +27944,15 @@ async function pagDoAuth() {
         btn.textContent = isLogin ? 'Entrar →' : 'Crear cuenta →';
         return;
       }
+      // Guardia cambio de cuenta: si entra otro usuario en este dispositivo, limpiar datos del anterior
+      var _newUid = String((data.user && (data.user.id || data.user.email)) || '');
+      var _prevUid = localStorage.getItem('pilotOS_last_uid');
+      if(_prevUid && _prevUid !== _newUid) clearAllUserData();
       lsSet('cafi_auth_token', data.token);
       localStorage.setItem('cafi_auth_user', JSON.stringify(data.user));
       lsSet('pilotOS_plan', data.user.plan || 'free');
       if (airline) lsSet('pag_airline', airline);
+      localStorage.setItem('pilotOS_last_uid', _newUid);
       updateUserAvatar(data.user);
       pagHide();
       window._ldInitRunning = false;
@@ -28285,10 +28307,7 @@ document.addEventListener('click', function(e) {
 });
 
 function pagSignOut() {
-  try {
-    localStorage.removeItem('cafi_auth_token');
-    localStorage.removeItem('cafi_auth_user');
-  } catch(ex) {}
+  clearAllUserData();
   var el = document.getElementById('sb-initials');
   if (el) el.textContent = 'CP';
   var bigAv = document.getElementById('sb-dd-avatar-big');
