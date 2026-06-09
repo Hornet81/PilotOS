@@ -16686,25 +16686,35 @@ async function ldDeltaPush(since){
     });
     if(!realEntries.length && !pendingDel.length) return true;
     var CHUNK=100;
-    for(var i=0;i<Math.max(realEntries.length,1);i+=CHUNK){
+    var syncUrl=ldBackendUrl()+'/api/logbook/sync';
+    var hdrs={'Content-Type':'application/json','Authorization':'Bearer '+token};
+
+    // ── Fase 1: enviar borrados en chunks de 100 (evita requests de >100KB) ──
+    for(var d=0;d<pendingDel.length;d+=CHUNK){
+      var delChunk=pendingDel.slice(d,d+CHUNK);
+      var r=await fetch(syncUrl,{method:'POST',headers:hdrs,body:JSON.stringify({entries:[],deletions:delChunk})});
+      if(!r.ok){
+        var errBody=await r.json().catch(function(){return{};});
+        console.error('[DeltaPush] Delete chunk error:',errBody.error||r.status);
+        return false; // cola pendiente NO se vacía → reintento en siguiente sync
+      }
+      await r.json();
+      ldDelClear(delChunk); // vaciar solo el chunk que confirmó el servidor
+    }
+    if(pendingDel.length) ldPendingClear();
+
+    // ── Fase 2: enviar entradas en chunks de 100 ──
+    for(var i=0;i<realEntries.length;i+=CHUNK){
       var chunk=realEntries.slice(i,i+CHUNK);
-      var syncBody={entries:chunk};
-      if(i===0 && pendingDel.length) syncBody.deletions=pendingDel;
-      var r=await fetch(ldBackendUrl()+'/api/logbook/sync',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-        body:JSON.stringify(syncBody)
-      });
+      var r=await fetch(syncUrl,{method:'POST',headers:hdrs,body:JSON.stringify({entries:chunk})});
       if(!r.ok){
         var errBody=await r.json().catch(function(){return{};});
         if(errBody.error==='plan_limit'){ ldSetSyncStatus('limit'); showPlanToast('limit'); }
-        else console.error('[DeltaPush] Error:',errBody.error||r.status);
+        else console.error('[DeltaPush] Entry chunk error:',errBody.error||r.status);
         return false;
       }
       var body=await r.json();
       if(body.plan) lsSet('pilotOS_plan',body.plan);
-      if(i===0 && pendingDel.length){ ldDelClear(pendingDel); ldPendingClear(); }
-      if(realEntries.length===0) break;
     }
     return true;
   }catch(e){ console.error('[DeltaPush] Network error:',e.message); return false; }
