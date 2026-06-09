@@ -16676,12 +16676,14 @@ function ldResetSync(){
 async function ldDeltaPush(since){
   var token=ldAuthHeaders(); if(!token) return false;
   try{
+    var pendingDel=Object.keys(ldDelLoad());
+    var pendingDelSet=new Set(pendingDel);
     var realEntries=ldEntries.filter(function(e){
       if(!e||e.id===LD_AC_DB_ENTRY_ID||e.type==='__ac_db__') return false;
+      if(pendingDelSet.has(e.id)) return false; // no re-subir entradas pendientes de borrar
       if(!since) return true;
       return (e.savedAt||'') > since;
     });
-    var pendingDel=Object.keys(ldDelLoad());
     if(!realEntries.length && !pendingDel.length) return true;
     var CHUNK=100;
     for(var i=0;i<Math.max(realEntries.length,1);i+=CHUNK){
@@ -16732,15 +16734,15 @@ async function ldDeltaPull(since){
       return e&&e.id&&e.id!==LD_AC_DB_ENTRY_ID&&e.type!=='__ac_db__';
     });
     var newCount=0;
-    // Siempre merge (nunca reemplazar en bloque):
-    // - Añade entradas del servidor que no están localmente
-    // - Actualiza si el servidor tiene versión más nueva (savedAt mayor)
-    // - NUNCA elimina entradas locales (solo los tombstones de deleted_ids lo hacen)
-    // Esto evita la race condition entre ldSyncToServer y ldBgSync que borraba vuelos.
+    // Siempre merge (nunca reemplazar en bloque).
+    // NUNCA añadir entradas con tombstone aunque el servidor las devuelva
+    // (puede pasar si otro dispositivo hizo push antes de enterarse del borrado).
+    var tombstoneSet=new Set(serverDeletedIds);
     var localMap={};
     ldEntries.forEach(function(e){if(e&&e.id) localMap[e.id]=e;});
     realServer.forEach(function(se){
       if(!se||!se.id) return;
+      if(tombstoneSet.has(se.id)) return; // ignorar entradas eliminadas aunque estén en servidor
       var local=localMap[se.id];
       if(!local){ ldEntries.unshift(se); newCount++; }
       else if((se.savedAt||'')>=(local.savedAt||'')){
