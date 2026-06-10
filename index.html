@@ -21388,46 +21388,48 @@ function _wxStrLabel(kt){ kt=Math.abs(kt); return kt<=1?'EN CALMA':kt<15?'MODERA
 // Brújula grande (200px) con pista (aguja morada) + vector de viento verde
 function _wxDiagramBig(T,hdg,windDir,rwyId,mid){
   const cx=100,cy=100,R=92, wr=windDir*Math.PI/180;
-  const px=cx+Math.sin(wr)*50, py=cy-Math.cos(wr)*50;   // beam → de dónde viene el viento
-  const qx=cx-Math.sin(wr)*42, qy=cy+Math.cos(wr)*42;   // flecha opuesta → hacia dónde sopla
-  const lx=cx+Math.sin(wr)*68, ly=cy-Math.cos(wr)*68;   // etiqueta junto al beam
-  const mk='wxbm'+mid, rg='wxbr'+mid, cg='wxbc'+mid;
+  const a1=(windDir-15)*Math.PI/180, a2=(windDir+15)*Math.PI/180, rB=58;   // beam ~30° apertura
+  const b1x=cx+Math.sin(a1)*rB, b1y=cy-Math.cos(a1)*rB, b2x=cx+Math.sin(a2)*rB, b2y=cy-Math.cos(a2)*rB;
+  const qtx=cx+Math.sin(wr)*52, qty=cy-Math.cos(wr)*52, qhx=cx+Math.sin(wr)*40, qhy=cy-Math.cos(wr)*40;   // flecha corta dentro de la zona del beam
+  const lx=cx+Math.sin(wr)*72, ly=cy-Math.cos(wr)*72;   // etiqueta junto al beam
+  const mk='wxbm'+mid, rg='wxbr'+mid, cg='wxbc'+mid, bg='wxbb'+mid;
   // ticks graduados cada 5°: 45°=más largas, 10°=medias, 5°=cortas
   const ticks=[];
   for(let d=0;d<360;d+=5){
     const a=d*Math.PI/180, r1=R-2; let r2,sw,col;
-    if(d%45===0){ r2=R-18; sw=1.4; col='rgba(212,228,250,.55)'; }
-    else if(d%10===0){ r2=R-11; sw=1; col='rgba(212,228,250,.34)'; }
-    else { r2=R-7; sw=1; col='rgba(212,228,250,.20)'; }
+    if(d%45===0){ r2=R-18; sw=0.8; col='rgba(212,228,250,.5)'; }
+    else if(d%10===0){ r2=R-11; sw=0.5; col='rgba(212,228,250,.32)'; }
+    else { r2=R-7; sw=0.5; col='rgba(212,228,250,.18)'; }
     ticks.push(React.createElement('line',{key:d,x1:cx+Math.sin(a)*r1,y1:cy-Math.cos(a)*r1,x2:cx+Math.sin(a)*r2,y2:cy-Math.cos(a)*r2,stroke:col,strokeWidth:sw}));
   }
-  return React.createElement('svg',{width:200,height:200,viewBox:'0 0 200 200',style:{flexShrink:0,maxWidth:'100%'}},
+  return React.createElement('svg',{width:224,height:224,viewBox:'-12 -12 224 224',style:{flexShrink:0,maxWidth:'100%'}},
     React.createElement('defs',null,
       React.createElement('radialGradient',{id:cg,cx:'50%',cy:'42%',r:'62%'},
         React.createElement('stop',{offset:'0%',stopColor:'rgba(60,80,140,.30)'}),
         React.createElement('stop',{offset:'100%',stopColor:'rgba(10,16,32,.06)'})),
       React.createElement('linearGradient',{id:rg,x1:'0',y1:'0',x2:'1',y2:'0'},
-        React.createElement('stop',{offset:'0%',stopColor:'rgba(150,120,235,.30)'}),
-        React.createElement('stop',{offset:'42%',stopColor:'rgba(216,204,255,.48)'}),
-        React.createElement('stop',{offset:'100%',stopColor:'rgba(150,120,235,.30)'})),
-      React.createElement('marker',{id:mk,markerWidth:7,markerHeight:7,refX:5,refY:3,orient:'auto'},
-        React.createElement('path',{d:'M0 0L6 3L0 6Z',fill:T.grn}))),
-    React.createElement('circle',{cx:cx,cy:cy,r:R,fill:'url(#'+cg+')',stroke:T.line,strokeWidth:1}),
-    React.createElement('circle',{cx:cx,cy:cy,r:80,fill:'none',stroke:'rgba(255,255,255,.06)',strokeWidth:1}),
+        React.createElement('stop',{offset:'0%',stopColor:'rgba(150,120,235,.08)'}),
+        React.createElement('stop',{offset:'42%',stopColor:'rgba(216,204,255,.16)'}),
+        React.createElement('stop',{offset:'100%',stopColor:'rgba(150,120,235,.08)'})),
+      React.createElement('radialGradient',{id:bg,gradientUnits:'userSpaceOnUse',cx:cx,cy:cy,r:rB},
+        React.createElement('stop',{offset:'0%',stopColor:T.grn,stopOpacity:.55}),
+        React.createElement('stop',{offset:'100%',stopColor:T.grn,stopOpacity:.08})),
+      React.createElement('marker',{id:mk,markerWidth:5,markerHeight:5,refX:4,refY:2.5,orient:'auto'},
+        React.createElement('path',{d:'M0 0L4 2.5L0 5Z',fill:T.grn}))),
+    React.createElement('circle',{cx:cx,cy:cy,r:R,fill:'url(#'+cg+')',stroke:'rgba(198,125,255,.28)',strokeWidth:1,style:{filter:'drop-shadow(0 0 3px rgba(198,125,255,.28))'}}),
     ticks,
-    React.createElement('text',{x:cx,y:16,textAnchor:'middle',fontFamily:mono,fontSize:14,fontWeight:700,fill:T.red},'N'),
-    React.createElement('text',{x:cx,y:196,textAnchor:'middle',fontFamily:mono,fontSize:13,fontWeight:700,fill:T.tx2},'S'),
-    React.createElement('text',{x:191,y:105,textAnchor:'middle',fontFamily:mono,fontSize:13,fontWeight:700,fill:T.tx2},'E'),
-    React.createElement('text',{x:10,y:105,textAnchor:'middle',fontFamily:mono,fontSize:13,fontWeight:700,fill:T.tx2},'W'),
-    React.createElement('g',{transform:'rotate('+hdg+' '+cx+' '+cy+')',style:{filter:'drop-shadow(0 0 11px rgba(150,120,255,.5))'}},
-      React.createElement('rect',{x:cx-12,y:cy-64,width:24,height:128,rx:0,fill:'url(#'+rg+')',stroke:'rgba(212,200,255,.6)',strokeWidth:1.3}),
-      React.createElement('line',{x1:cx,y1:cy-54,x2:cx,y2:cy+54,stroke:'rgba(255,255,255,.62)',strokeWidth:2,strokeDasharray:'5 7'}),
-      React.createElement('text',{x:cx,y:cy+46,textAnchor:'middle',fontFamily:mono,fontSize:12,fontWeight:700,fill:'#fff',stroke:'rgba(8,12,28,.85)',strokeWidth:3,style:{paintOrder:'stroke'}},rwyId)),
-    React.createElement('line',{x1:cx,y1:cy,x2:px,y2:py,stroke:T.grn,strokeWidth:9,strokeLinecap:'round',opacity:.20}),
-    React.createElement('line',{x1:cx,y1:cy,x2:px,y2:py,stroke:T.grn,strokeWidth:3.4,strokeLinecap:'round',style:{filter:'drop-shadow(0 0 5px rgba(78,230,174,.6))'}}),
-    React.createElement('line',{x1:cx,y1:cy,x2:qx,y2:qy,stroke:T.grn,strokeWidth:2.6,strokeLinecap:'round',markerEnd:'url(#'+mk+')'}),
+    React.createElement('text',{x:cx,y:1,textAnchor:'middle',fontFamily:mono,fontSize:14,fontWeight:700,fill:T.red},'N'),
+    React.createElement('text',{x:cx,y:205,textAnchor:'middle',fontFamily:mono,fontSize:13,fontWeight:700,fill:T.tx2},'S'),
+    React.createElement('text',{x:204,y:105,textAnchor:'middle',fontFamily:mono,fontSize:13,fontWeight:700,fill:T.tx2},'E'),
+    React.createElement('text',{x:-4,y:105,textAnchor:'middle',fontFamily:mono,fontSize:13,fontWeight:700,fill:T.tx2},'W'),
+    React.createElement('g',{transform:'rotate('+hdg+' '+cx+' '+cy+')',style:{filter:'drop-shadow(0 0 9px rgba(150,120,255,.45))'}},
+      React.createElement('rect',{x:cx-8,y:cy-48,width:16,height:96,rx:0,fill:'url(#'+rg+')',stroke:'rgba(212,200,255,.6)',strokeWidth:1.2}),
+      React.createElement('line',{x1:cx,y1:cy-40,x2:cx,y2:cy+40,stroke:'rgba(255,255,255,.6)',strokeWidth:1.6,strokeDasharray:'5 7'}),
+      React.createElement('text',{x:cx,y:cy+62,textAnchor:'middle',fontFamily:mono,fontSize:11,fontWeight:700,fill:T.grn,stroke:'rgba(8,12,28,.7)',strokeWidth:2.4,style:{paintOrder:'stroke'}},rwyId)),
+    React.createElement('path',{d:'M'+cx+' '+cy+'L'+b1x.toFixed(1)+' '+b1y.toFixed(1)+'L'+b2x.toFixed(1)+' '+b2y.toFixed(1)+'Z',fill:'url(#'+bg+')',style:{filter:'drop-shadow(0 0 6px rgba(78,230,174,.5))'}}),
+    React.createElement('line',{x1:qtx,y1:qty,x2:qhx,y2:qhy,stroke:T.grn,strokeWidth:1.2,strokeLinecap:'round',markerEnd:'url(#'+mk+')'}),
     React.createElement('text',{x:lx,y:ly+4,textAnchor:'middle',fontFamily:mono,fontSize:11,fontWeight:700,fill:T.grn},String(windDir).padStart(3,'0')+'°'),
-    React.createElement('circle',{cx:cx,cy:cy,r:3.5,fill:T.cyan}));
+    React.createElement('circle',{cx:cx,cy:cy,r:2.3,fill:T.cyan}));
 }
 function _wxParseTaf(raw){
   if(!raw) return [];
