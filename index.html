@@ -21685,6 +21685,16 @@ function TabNotamV2(_refN2) {
     try { localStorage.setItem("sky_custom_aps", JSON.stringify(next)); } catch (e) {}
     if (cur.icao === ic) setActive(null);
   }
+  function goToSev(sev) {
+    let skey = null;
+    if (curSplit.flight.some(n => n.sev === sev)) skey = "sec_flight";
+    else if (curSplit.n24.some(n => n.sev === sev)) skey = "sec_24h";
+    else if (curSplit.perm.some(n => n.sev === sev)) skey = "sec_perm";
+    if (!skey) return;
+    setCollapsed(prev => Object.assign({}, prev, { [skey]: false, [skey + "_" + sev]: false }));
+    const id = "sg_" + skey + "_" + sev;
+    setTimeout(function () { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 90);
+  }
 
   // ── Selector ──
   const scrollMode = airports.length > 4;
@@ -21723,10 +21733,10 @@ function TabNotamV2(_refN2) {
   const cm = CATM[cur.cat];
   const bCount = sevCount(curSplit.flight.concat(curSplit.n24));
   const bChips = [];
-  if (bCount.d > 0) bChips.push(React.createElement("span", { key: "d", style: { fontFamily: mono, fontSize: 10, fontWeight: 700, color: T.red, background: T.redBg, border: "1px solid " + T.redBd, borderRadius: 6, padding: "2px 7px" } }, bCount.d + " CRÍT"));
-  if (bCount.w > 0) bChips.push(React.createElement("span", { key: "w", style: { fontFamily: mono, fontSize: 10, fontWeight: 700, color: T.amb, background: T.ambBg, border: "1px solid " + T.ambBd, borderRadius: 6, padding: "2px 7px" } }, bCount.w + " AVISO"));
-  if (bCount.d === 0 && bCount.w === 0) bChips.push(React.createElement("span", { key: "ok", style: { fontFamily: mono, fontSize: 10, fontWeight: 700, color: T.grn, background: T.grnBg, border: "1px solid " + T.grnBd, borderRadius: 6, padding: "2px 7px" } }, "OK"));
-  if (bCount.i > 0) bChips.push(React.createElement("span", { key: "i", style: { fontFamily: mono, fontSize: 10, fontWeight: 700, color: T.inf, background: T.infBg, border: "1px solid " + T.infBd, borderRadius: 6, padding: "2px 7px" } }, bCount.i + " INFO"));
+  if (bCount.d > 0) bChips.push(React.createElement("span", { key: "d", onClick: () => goToSev("danger"), style: { fontFamily: mono, fontSize: 10, fontWeight: 700, color: T.red, background: T.redBg, border: "1px solid " + T.redBd, borderRadius: 6, padding: "3px 8px", cursor: "pointer" } }, bCount.d + " CRÍT"));
+  if (bCount.w > 0) bChips.push(React.createElement("span", { key: "w", onClick: () => goToSev("warning"), style: { fontFamily: mono, fontSize: 10, fontWeight: 700, color: T.amb, background: T.ambBg, border: "1px solid " + T.ambBd, borderRadius: 6, padding: "3px 8px", cursor: "pointer" } }, bCount.w + " AVISO"));
+  if (bCount.d === 0 && bCount.w === 0) bChips.push(React.createElement("span", { key: "ok", style: { fontFamily: mono, fontSize: 10, fontWeight: 700, color: T.grn, background: T.grnBg, border: "1px solid " + T.grnBd, borderRadius: 6, padding: "3px 8px" } }, "OK"));
+  if (bCount.i > 0) bChips.push(React.createElement("span", { key: "i", onClick: () => goToSev("info"), style: { fontFamily: mono, fontSize: 10, fontWeight: 700, color: T.inf, background: T.infBg, border: "1px solid " + T.infBd, borderRadius: 6, padding: "3px 8px", cursor: "pointer" } }, bCount.i + " INFO"));
   const banner = React.createElement("div", {
     style: { display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap", marginBottom: 12, padding: "10px 14px", borderRadius: 13, background: cm.bg, border: "1px solid " + cm.bd, borderLeft: "4px solid " + cm.c }
   },
@@ -21778,7 +21788,33 @@ function TabNotamV2(_refN2) {
   function sevSorted(ns) { const o = { danger: 0, warning: 1, info: 2 }; return ns.slice().sort((a, b) => (o[a.sev] || 3) - (o[b.sev] || 3)); }
 
   // ── Secciones ──
-  function section(skey, title, icon, accent, ns, openByDefault) {
+  function renderSevGroups(ns, pfx, subOpen) {
+    const groups = [
+      { sev: "danger",  label: "CRÍTICO", desc: "Pista · ILS · navegación",       items: ns.filter(n => n.sev === "danger") },
+      { sev: "warning", label: "AVISO",   desc: "Rodaje · drones · restricciones", items: ns.filter(n => n.sev === "warning") },
+      { sev: "info",    label: "INFO",    desc: "Información general",              items: ns.filter(n => n.sev === "info") }
+    ].filter(g => g.items.length > 0);
+    return groups.map(g => {
+      const m = sevMeta(g.sev);
+      const k = pfx + "_" + g.sev;
+      const isC = collapsed[k] === undefined ? !subOpen : collapsed[k];
+      return React.createElement("div", { key: k, id: "sg_" + k, style: { marginTop: 7 } },
+        React.createElement("div", {
+          onClick: () => toggleC(k),
+          style: { display: "flex", alignItems: "center", gap: 11, padding: "9px 12px", borderRadius: 12, cursor: "pointer", background: m.bg, border: "1px solid " + m.bd, borderLeft: "4px solid " + m.c }
+        },
+          React.createElement("span", { style: { fontFamily: mono, fontSize: 18, fontWeight: 800, color: m.c, minWidth: 22, textAlign: "center", lineHeight: 1 } }, g.items.length),
+          React.createElement("div", { style: { flex: 1 } },
+            React.createElement("div", { style: { fontSize: 11.5, fontWeight: 700, letterSpacing: "1.5px", color: m.c } }, g.label),
+            React.createElement("div", { style: { fontFamily: mono, fontSize: 8.5, color: m.c, opacity: 0.7, marginTop: 1 } }, g.desc)
+          ),
+          React.createElement("span", { style: { color: m.c, fontSize: 14, transform: isC ? "none" : "rotate(90deg)", transition: ".18s" } }, "›")
+        ),
+        !isC && React.createElement("div", { style: { marginTop: 6 } }, g.items.map(NCard))
+      );
+    });
+  }
+  function section(skey, title, icon, accent, ns, openByDefault, subOpen) {
     const isCol = collapsed[skey] === undefined ? !openByDefault : collapsed[skey];
     return React.createElement("div", { style: { marginBottom: 12 } },
       React.createElement("div", {
@@ -21793,7 +21829,7 @@ function TabNotamV2(_refN2) {
         ns.length > 0 && React.createElement("span", { style: { fontFamily: mono, fontSize: 16, fontWeight: 700, color: T.tx2 } }, ns.length),
         React.createElement("span", { style: { color: T.tx3, fontSize: 15, transform: isCol ? "none" : "rotate(90deg)", transition: ".18s" } }, "›")
       ),
-      !isCol && ns.length > 0 && React.createElement("div", { style: { marginTop: 7 } }, sevSorted(ns).map(NCard))
+      !isCol && ns.length > 0 && renderSevGroups(ns, skey, subOpen)
     );
   }
 
@@ -21805,7 +21841,7 @@ function TabNotamV2(_refN2) {
           React.createElement("div", { style: { fontFamily: mono, fontSize: 9.5, color: T.tx3, marginTop: 1 } }, "Sin NOTAMs en tu ventana de vuelo")
         )
       )
-    : section("sec_flight", "Afectan al vuelo", "✈️", { c: T.amb, bg: T.ambBg, bd: T.ambBd }, curSplit.flight, true);
+    : section("sec_flight", "Afectan al vuelo", "✈️", { c: T.amb, bg: T.ambBg, bd: T.ambBd }, curSplit.flight, true, true);
 
   const addPanel = addOpen ? React.createElement("div", { style: { marginBottom: 14, background: T.surf1, border: "1px solid " + T.extra, borderRadius: 16, padding: "14px 15px" } },
     React.createElement("div", { style: { fontFamily: mono, fontSize: 11, fontWeight: 700, color: T.extra, marginBottom: 10, letterSpacing: ".5px" } }, "🔍 AÑADIR AEROPUERTO"),
@@ -21825,8 +21861,8 @@ function TabNotamV2(_refN2) {
     banner,
     rwyCard,
     flightSec,
-    section("sec_24h", "Próximas 24 horas", "⏰", { c: T.amb, bg: T.ambBg, bd: T.ambBd }, curSplit.n24, false),
-    section("sec_perm", "Permanentes", "∞", { c: T.tx2, bg: T.surf2, bd: T.line2 }, curSplit.perm, false)
+    section("sec_24h", "Próximas 24 horas", "⏰", { c: T.amb, bg: T.ambBg, bd: T.ambBd }, curSplit.n24, false, false),
+    section("sec_perm", "Permanentes", "∞", { c: T.tx2, bg: T.surf2, bd: T.line2 }, curSplit.perm, false, false)
   );
 }
 
