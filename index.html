@@ -21462,10 +21462,48 @@ function _wxCloudSVG(T,day,clouds,tempC,icao){
   return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;display:block">'+g+'</svg>';
 }
 
+// Tema "combo" SOLO para WX: cielo real por hora + tarjetas de vidrio oscuro + banner vivo por categoría
+function WX_THEME(){
+  return {
+    surf1:"rgba(16,24,40,.44)", surf2:"rgba(16,24,40,.32)", surf3:"rgba(255,255,255,.16)",
+    line:"rgba(255,255,255,.14)", line2:"rgba(255,255,255,.22)", line3:"rgba(255,255,255,.38)",
+    tx1:"#F4F9FF", tx2:"rgba(232,242,255,.82)", tx3:"rgba(212,228,250,.62)",
+    cyan:"#5BE8F5",
+    red:"#FF6B81", redBg:"rgba(255,107,129,.20)", redBd:"rgba(255,107,129,.5)",
+    amb:"#FFC83D", ambBg:"rgba(255,200,61,.20)", ambBd:"rgba(255,200,61,.5)",
+    inf:"#5AC8FA", infBg:"rgba(90,200,250,.20)", infBd:"rgba(90,200,250,.5)",
+    grn:"#34E0A1", grnBg:"rgba(52,224,161,.20)", grnBd:"rgba(52,224,161,.5)",
+    ice:"#7FD4FF", iceBg:"rgba(127,212,255,.16)", iceBd:"rgba(127,212,255,.45)",
+    route:"#5BE8F5", routeBg:"rgba(91,232,245,.20)", routeBd:"rgba(91,232,245,.6)",
+    alt:"#B79CFF", altBg:"rgba(183,156,255,.20)", altBd:"rgba(183,156,255,.6)",
+    extra:"#FF8AC2", extraBg:"rgba(255,138,194,.20)", extraBd:"rgba(255,138,194,.6)",
+    floatBg:"#1a2942", rawBg:"rgba(0,0,0,.36)", rawTx:"rgba(225,240,255,.92)",
+    cardBd:"rgba(255,255,255,.22)", cardSh:"0 10px 30px rgba(5,12,28,.42),inset 0 1px 0 rgba(255,255,255,.26)",
+    glassBg:"rgba(16,24,40,.42)", blur:"blur(20px) saturate(150%)",
+    fcGrad:{grn:"linear-gradient(135deg,#0FBF8F,#34E0A1)",inf:"linear-gradient(135deg,#2D7FF9,#5AC8FA)",amb:"linear-gradient(135deg,#F7971E,#FFC83D)",red:"linear-gradient(135deg,#C840E9,#FF6FB5)"},
+    fcGlow:{grn:"rgba(52,224,161,.40)",inf:"rgba(45,127,249,.40)",amb:"rgba(247,151,30,.40)",red:"rgba(200,64,233,.42)"}
+  };
+}
+function _skyPhaseGrad(p){
+  if(p==='dawn') return "linear-gradient(180deg,#10204F 0%,#3A3C7A 22%,#7E4C8C 45%,#C25E84 65%,#EC8A66 84%,#F4B45E 100%)";
+  if(p==='dusk') return "linear-gradient(180deg,#1A1547 0%,#542E86 28%,#A23F86 52%,#E2655F 74%,#F0A24E 100%)";
+  if(p==='night') return "radial-gradient(120% 70% at 50% -8%,#0B2A52 0%,transparent 55%),linear-gradient(178deg,#060B17 0%,#040813 60%),#070C18";
+  return "linear-gradient(180deg,#0B3E8E 0%,#1E6FC4 34%,#56A6E0 64%,#9BD0F0 86%,#CFEBFA 100%)";
+}
+function _skyPhase(icao){
+  const a=(typeof _WX_AIRPORTS!=='undefined')?_WX_AIRPORTS[icao]:null;
+  if(!a) return 'day';
+  const now=new Date(), el=_solarElevation(a.lat,a.lon,now);
+  if(el<-6) return 'night';
+  if(el>8) return 'day';
+  const el2=_solarElevation(a.lat,a.lon,new Date(now.getTime()+1800000));
+  return el2>el?'dawn':'dusk';
+}
+
 function TabMeteoV2(_refM2){
   const leg=_refM2.leg;
   const day=useSkyDay();
-  const T=SKY_THEME(day);
+  const T=day?WX_THEME():SKY_THEME(false);
   const _a=useState(null), activeSel=_a[0], setActive=_a[1];
   const _r=useState(null), rwySel=_r[0], setRwy=_r[1];
   const _rw=useState(false), rawOpen=_rw[0], setRawOpen=_rw[1];
@@ -21490,6 +21528,7 @@ function TabMeteoV2(_refM2){
   customAps.forEach(function(c){ airports.push({key:"cx_"+c.icao,cat:"extra",role:c.code,code:c.code,icao:c.icao,custom:true}); });
   const active=airports.some(function(a){return a.key===activeSel;})?activeSel:airports[0].key;
   const cur=airports.find(function(a){return a.key===active;})||airports[0];
+  const phase=day?_skyPhase(cur.icao):'night';
 
   // Prefiere lo refrescado (wxStore/tafStore) sobre el dato live del padre → el pull-to-refresh actualiza también DEP/ARR
   function metarOf(ap){
@@ -21634,26 +21673,50 @@ function TabMeteoV2(_refM2){
     const phen=_wxPhenom(m.trend); if(phen) sumParts.push(phen);
     const tail=m.cat==="VMC"?"Condiciones visuales sin restricciones.":m.cat==="MVMC"?"Visual marginal: ten preparada la aproximación instrumental.":m.cat==="IFR"?"Condiciones instrumentales: revisa los mínimos de aproximación.":"Instrumental bajo: condiciones exigentes, verifica mínimos y alternativo.";
     const summary=sumParts.join(" · ")+". "+tail;
-    const isDay=_skyIsDay(cur.icao,day);
+    const isDay=_skyIsDay(cur.icao,true);
     const iconSlug=_wxIconSlug(m.cat,m.trend,m.clouds,isDay);
     const wxIconEl=iconSlug
       ? React.createElement("img",{src:WX_ICON_BASE+iconSlug+".svg",alt:m.cat,width:34,height:34,style:{display:"block",objectFit:"contain"},onError:function(e){e.target.style.display="none";}})
       : React.createElement("span",{style:{fontSize:18}},ci.icon);
-    const banner=React.createElement("div",{style:{position:"relative",overflow:"hidden",marginBottom:12,borderRadius:16,padding:"12px 14px",background:"linear-gradient(150deg,"+sev.bg+","+T.surf1+")",border:"1px solid "+sev.bd,borderLeft:"5px solid "+sev.c,boxShadow:T.cardSh}},
-      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}},
-        React.createElement("div",{style:{width:42,height:42,borderRadius:12,background:T.surf2,border:"1px solid "+sev.bd,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden"}},wxIconEl),
-        React.createElement("div",{style:{flex:1,minWidth:0}},
-          React.createElement("div",{style:{fontFamily:mono,fontSize:17,fontWeight:700,color:sev.c,lineHeight:1,letterSpacing:".5px"}},ci.short),
-          React.createElement("div",{style:{fontSize:9,color:T.tx2,marginTop:3,fontWeight:500}},ci.name)
+    let banner;
+    if(day){
+      // DÍA → banner vivo por categoría (combo)
+      const fcg=(T.fcGrad&&T.fcGrad[ci.k])||"linear-gradient(135deg,#0FBF8F,#34E0A1)";
+      const fgl=(T.fcGlow&&T.fcGlow[ci.k])||"rgba(52,224,161,.4)";
+      banner=React.createElement("div",{style:{position:"relative",overflow:"hidden",marginBottom:12,borderRadius:18,padding:"14px 16px",background:fcg,boxShadow:"0 14px 40px "+fgl+",inset 0 1px 0 rgba(255,255,255,.5)"}},
+        React.createElement("div",{style:{position:"absolute",inset:0,background:"linear-gradient(135deg,rgba(255,255,255,.32),transparent 45%)",pointerEvents:"none"}}),
+        React.createElement("div",{style:{display:"flex",alignItems:"center",gap:11,position:"relative"}},
+          React.createElement("div",{style:{width:46,height:46,borderRadius:14,background:"rgba(255,255,255,.26)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",boxShadow:"inset 0 1px 0 rgba(255,255,255,.6)"}},wxIconEl),
+          React.createElement("div",{style:{flex:1,minWidth:0}},
+            React.createElement("div",{style:{fontSize:27,fontWeight:700,color:"#fff",lineHeight:1,letterSpacing:".5px",textShadow:"0 2px 10px rgba(0,0,0,.22)"}},ci.short),
+            React.createElement("div",{style:{fontSize:10,color:"rgba(255,255,255,.92)",marginTop:3,fontWeight:600}},ci.name)
+          ),
+          React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3}},
+            React.createElement("span",{style:{fontFamily:mono,fontSize:8,fontWeight:700,letterSpacing:"1px",color:"#fff",background:"rgba(0,0,0,.22)",borderRadius:6,padding:"3px 7px"}},cm.tag),
+            React.createElement("span",{style:{fontFamily:mono,fontSize:9,color:"rgba(255,255,255,.85)"}},cur.code+" · "+cur.icao)
+          ),
+          React.createElement("button",{onClick:function(){refreshRef.current&&refreshRef.current(true);},title:"Actualizar METAR/TAF",style:{width:28,height:28,borderRadius:9,background:"rgba(255,255,255,.18)",border:"1px solid rgba(255,255,255,.45)",color:"#fff",cursor:"pointer",fontSize:14,lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},loading?"⏳":"↻")
         ),
-        React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3}},
-          React.createElement("span",{style:{fontFamily:mono,fontSize:7.5,fontWeight:700,letterSpacing:"1px",color:cm.c,background:"rgba(0,0,0,.18)",border:"1px solid "+cm.bd,borderRadius:6,padding:"2px 6px"}},cm.tag),
-          React.createElement("span",{style:{fontFamily:mono,fontSize:8.5,color:T.tx3}},cur.code+" · "+cur.icao)
+        React.createElement("div",{style:{fontSize:11.5,lineHeight:1.5,color:"#fff",marginTop:10,position:"relative",fontWeight:500,textShadow:"0 1px 6px rgba(0,0,0,.18)"}},summary)
+      );
+    }else{
+      // NOCHE → sev-tint oscuro (tema noche de la app, sin cambios)
+      banner=React.createElement("div",{style:{position:"relative",overflow:"hidden",marginBottom:12,borderRadius:16,padding:"12px 14px",background:"linear-gradient(150deg,"+sev.bg+","+T.surf1+")",border:"1px solid "+sev.bd,borderLeft:"5px solid "+sev.c,boxShadow:T.cardSh}},
+        React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}},
+          React.createElement("div",{style:{width:42,height:42,borderRadius:12,background:T.surf2,border:"1px solid "+sev.bd,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden"}},wxIconEl),
+          React.createElement("div",{style:{flex:1,minWidth:0}},
+            React.createElement("div",{style:{fontFamily:mono,fontSize:17,fontWeight:700,color:sev.c,lineHeight:1,letterSpacing:".5px"}},ci.short),
+            React.createElement("div",{style:{fontSize:9,color:T.tx2,marginTop:3,fontWeight:500}},ci.name)
+          ),
+          React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3}},
+            React.createElement("span",{style:{fontFamily:mono,fontSize:7.5,fontWeight:700,letterSpacing:"1px",color:cm.c,background:"rgba(0,0,0,.18)",border:"1px solid "+cm.bd,borderRadius:6,padding:"2px 6px"}},cm.tag),
+            React.createElement("span",{style:{fontFamily:mono,fontSize:8.5,color:T.tx3}},cur.code+" · "+cur.icao)
+          ),
+          React.createElement("button",{onClick:function(){refreshRef.current&&refreshRef.current(true);},title:"Actualizar METAR/TAF",style:{width:26,height:26,borderRadius:8,background:"transparent",border:"1px solid "+sev.bd,color:sev.c,cursor:"pointer",fontSize:13,lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},loading?"⏳":"↻")
         ),
-        React.createElement("button",{onClick:function(){refreshRef.current&&refreshRef.current(true);},title:"Actualizar METAR/TAF",style:{width:26,height:26,borderRadius:8,background:"transparent",border:"1px solid "+sev.bd,color:sev.c,cursor:"pointer",fontSize:13,lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},loading?"⏳":"↻")
-      ),
-      React.createElement("div",{style:{fontSize:9.5,lineHeight:1.5,color:T.tx1,marginTop:9}},summary)
-    );
+        React.createElement("div",{style:{fontSize:9.5,lineHeight:1.5,color:T.tx1,marginTop:9}},summary)
+      );
+    }
 
     // Tiles METAR
     function tile(label,valEls,sub,flag,span){
@@ -21744,7 +21807,7 @@ function TabMeteoV2(_refM2){
         ),
         React.createElement("span",{style:{color:T.tx3,fontSize:13,transform:cloudOpen?"rotate(90deg)":"none",transition:".18s"}},"›")
       ),
-      cloudOpen?React.createElement("div",{style:{background:T.surf1,border:"1px solid "+T.line2,borderTop:"none",borderRadius:"0 0 14px 14px",padding:"8px 10px 6px"},dangerouslySetInnerHTML:{__html:_wxCloudSVG(T,day,m.clouds,tC,cur.icao)}}):null
+      cloudOpen?React.createElement("div",{style:{background:T.surf1,border:"1px solid "+T.line2,borderTop:"none",borderRadius:"0 0 14px 14px",padding:"8px 10px 6px"},dangerouslySetInnerHTML:{__html:_wxCloudSVG(T,false,m.clouds,tC,cur.icao)}}):null
     );
 
     // ── TAF (timeline ligero + raw) ──
@@ -21794,7 +21857,7 @@ function TabMeteoV2(_refM2){
   const pullInd=React.createElement("div",{key:"pull",style:{height:loading?34:pullDist,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",transition:pullDist===0?"height .25s":"none"}},
     React.createElement("span",{style:{fontFamily:mono,fontSize:11,fontWeight:700,color:loading?T.cyan:T.tx3}},loading?"↻ Actualizando METAR/TAF…":(pullDist>50?"↑ Suelta para actualizar":"↓ Desliza para actualizar")));
 
-  return React.createElement("div",{ref:rootRef,style:{padding:"12px 14px 100px",fontFamily:sans,background:T.pageBg,minHeight:"100%"}},
+  return React.createElement("div",{ref:rootRef,style:{padding:"12px 14px 100px",fontFamily:sans,background:day?_skyPhaseGrad(phase):T.pageBg,minHeight:"100%",transition:"background .8s ease"}},
     pullInd, selector, catLegend, addPanel, body
   );
 }
