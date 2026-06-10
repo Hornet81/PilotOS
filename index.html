@@ -21575,8 +21575,38 @@ function TabNotamV2(_refN2) {
   const _ao = useState(false), addOpen = _ao[0], setAddOpen = _ao[1];
   const _av = useState(""), addVal = _av[0], setAddVal = _av[1];
   const _tk = useState(0), setTk = _tk[1];
+  const _ld = useState(false), loading = _ld[0], setLoading = _ld[1];
+  const _pd = useState(0), pullDist = _pd[0], setPullDist = _pd[1];
+  const rootRef = useRef(null);
+  const refreshRef = useRef(null);
+  const pullRef = useRef(0);
+  function doRefresh(force) {
+    const ICAOf = c => iataToIcao(c) || c;
+    const list = [ICAOf(leg.dep), ICAOf(leg.arr)]
+      .concat((leg.alts || []).slice(0, 2).map(function (a) { return ICAOf(a.icao); }))
+      .concat(customAps.map(function (c) { return c.icao; }))
+      .filter(function (v, i, arr) { return v && arr.indexOf(v) === i; });
+    setLoading(true);
+    Promise.all(list.map(function (ic) {
+      if (!force && NOTAMS_BY_ICAO[ic] && NOTAMS_BY_ICAO[ic].length) return Promise.resolve();
+      return fetchLiveNotams(ic).then(function (arr) { NOTAMS_BY_ICAO[ic] = (arr || []).map(function (x) { return Object.assign({}, x, { airport: ic }); }); }).catch(function () {});
+    })).then(function () { setLoading(false); setTk(function (t) { return t + 1; }); });
+  }
+  refreshRef.current = doRefresh;
+  useEffect(function () { doRefresh(false); }, [leg.dep, leg.arr]);
   useEffect(function () {
-    customAps.forEach(function (c) { if (!NOTAMS_BY_ICAO[c.icao]) { fetchLiveNotams(c.icao).then(function (arr) { NOTAMS_BY_ICAO[c.icao] = (arr || []).map(function (x) { return Object.assign({}, x, { airport: c.icao }); }); setTk(function (t) { return t + 1; }); }); } });
+    const rootEl = rootRef.current; if (!rootEl) return;
+    let sc = rootEl.parentElement;
+    while (sc && sc !== document.body) { const oy = getComputedStyle(sc).overflowY; if (oy === "auto" || oy === "scroll") break; sc = sc.parentElement; }
+    if (!sc) return;
+    let startY = null;
+    function ts(e) { startY = (sc.scrollTop <= 0) ? e.touches[0].clientY : null; }
+    function tm(e) { if (startY === null) return; if (sc.scrollTop > 0) { startY = null; pullRef.current = 0; setPullDist(0); return; } const d = e.touches[0].clientY - startY; if (d > 0) { pullRef.current = Math.min(d * 0.45, 80); setPullDist(pullRef.current); } }
+    function te() { if (startY === null) return; startY = null; if (pullRef.current > 50 && refreshRef.current) refreshRef.current(true); pullRef.current = 0; setPullDist(0); }
+    sc.addEventListener("touchstart", ts, { passive: true });
+    sc.addEventListener("touchmove", tm, { passive: true });
+    sc.addEventListener("touchend", te, { passive: true });
+    return function () { sc.removeEventListener("touchstart", ts); sc.removeEventListener("touchmove", tm); sc.removeEventListener("touchend", te); };
   }, []);
 
   const ICAO = c => iataToIcao(c) || c;
@@ -21702,7 +21732,8 @@ function TabNotamV2(_refN2) {
   },
     React.createElement("span", { style: { fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "1.5px", color: cm.c, background: "rgba(0,0,0,.18)", border: "1px solid " + cm.bd, borderRadius: 6, padding: "3px 8px" } }, cm.tag),
     React.createElement("span", { style: { fontFamily: mono, fontSize: 13, fontWeight: 700, color: T.tx1, letterSpacing: ".5px" } }, cur.code, React.createElement("span", { style: { color: T.tx3, fontWeight: 400 } }, " · " + cur.icao)),
-    React.createElement("span", { style: { display: "flex", gap: 5, marginLeft: "auto", flexWrap: "wrap" } }, bChips)
+    React.createElement("span", { style: { display: "flex", gap: 5, marginLeft: "auto", flexWrap: "wrap" } }, bChips),
+    React.createElement("button", { onClick: () => refreshRef.current && refreshRef.current(true), title: "Actualizar NOTAMs", style: { marginLeft: 8, width: 30, height: 30, borderRadius: 9, background: "transparent", border: "1px solid " + cm.bd, color: cm.c, cursor: "pointer", fontSize: 15, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, loading ? "⏳" : "↻")
   );
 
   // ── Pista en uso (activo) ──
@@ -21784,7 +21815,11 @@ function TabNotamV2(_refN2) {
     )
   ) : null;
 
-  return React.createElement("div", { style: { padding: "12px 14px 100px", fontFamily: sans, background: T.pageBg, minHeight: "100%" } },
+  const pullInd = React.createElement("div", { key: "pull", style: { height: loading ? 34 : pullDist, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", transition: pullDist === 0 ? "height .25s" : "none" } },
+    React.createElement("span", { style: { fontFamily: mono, fontSize: 11, fontWeight: 700, color: loading ? T.cyan : T.tx3 } }, loading ? "↻ Actualizando NOTAMs…" : (pullDist > 50 ? "↑ Suelta para actualizar" : "↓ Desliza para actualizar")));
+
+  return React.createElement("div", { ref: rootRef, style: { padding: "12px 14px 100px", fontFamily: sans, background: T.pageBg, minHeight: "100%", position: "relative" } },
+    pullInd,
     selector,
     addPanel,
     banner,
