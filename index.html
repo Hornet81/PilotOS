@@ -13526,7 +13526,11 @@ function ldContentKey(e) {
   if (!e || e.type === '__ac_db__') return null;
   var dep = (window.RST_IATA_ICAO && RST_IATA_ICAO[(e.dep||'').toUpperCase()]) || (e.dep||'').toUpperCase();
   var arr = (window.RST_IATA_ICAO && RST_IATA_ICAO[(e.arr||'').toUpperCase()]) || (e.arr||'').toUpperCase();
-  return (e.source||'') + '|' + (e.date||'') + '|' + dep + '|' + arr + '|' + (e.std||'').slice(0,5);
+  // Incluir nº de vuelo: dos legs del mismo día/ruta/std pero con distinto vuelo
+  // (o con std vacío en imports antiguos) son vuelos DISTINTOS, no duplicados.
+  // Debe coincidir con la granularidad de ldStableId (date|flight|dep|arr|std).
+  var flight = (e.flight||e.flightNum||'').toUpperCase();
+  return (e.source||'') + '|' + (e.date||'') + '|' + dep + '|' + arr + '|' + (e.std||'').slice(0,5) + '|' + flight;
 }
 
 function ldEntryCompleteness(e) {
