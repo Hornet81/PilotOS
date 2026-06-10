@@ -14548,8 +14548,8 @@ function ldSave(){
   } else {
     ldEntries.unshift(e);
   }
-  ldSaveData(); ldSyncToServer(); ldCloseModal(); ldRender(); ldStats(); ldUpdatePlanBanners();
-  ldBgSync({delay:2000,force:true});
+  ldSaveData(); ldCloseModal(); ldRender(); ldStats(); ldUpdatePlanBanners();
+  ldBgSync({delay:2000,force:true}); // sync unificado: push + pull + estado
   // Si el piloto tiene PayCheck abierto, refrescar automáticamente
   if (typeof curScreen !== 'undefined' && curScreen === 'pay' && typeof pcImportFromLogbook === 'function') pcImportFromLogbook();
   // Si el Roster tiene un día seleccionado, refrescar el detalle para que aparezca la L cyan
@@ -15010,11 +15010,7 @@ async function ldBulkDeleteSelected(){
   ldExitSelectMode();
   ldRender(); ldStats(); ldUpdatePlanBanners();
   showToast('🗑 '+n+' vuelo'+(n!==1?'s':'')+' eliminado'+(n!==1?'s':''),'info');
-  // Enviar al servidor mostrando estado, para saber cuándo termina realmente.
-  ldSetSyncStatus('syncing');
-  var ok=await ldBulkDeleteFromServer(ids);
-  if(ok){ ldDelClear(ids); ldSetSyncStatus('ok'); }
-  else  { ldSetSyncStatus('error'); }
+  ldBgSync({delay:800,force:true}); // sync unificado: empuja borrados (cola) + pull + estado
 }
 async function ldBulkDeleteFromServer(ids){
   var token=ldAuthHeaders(); if(!token) return false;
@@ -16816,16 +16812,17 @@ function ldBgSync(opts){
 async function _ldBgSyncRun(){
   if(_bgSyncRunning||!ldAuthHeaders()||!navigator.onLine) return;
   _bgSyncRunning=true;
+  ldSetSyncStatus('syncing');
   try{
     var lastSync=ldGetLastSync(), syncStart=new Date().toISOString();
     var pushOk=await ldDeltaPush(lastSync);
-    if(!pushOk){ _bgSyncRunning=false; return; }
+    if(!pushOk){ ldSetSyncStatus('error'); _bgSyncRunning=false; return; }
     var result=await ldDeltaPull(lastSync);
-    if(!result){ _bgSyncRunning=false; return; }
+    if(!result){ ldSetSyncStatus('error'); _bgSyncRunning=false; return; }
     ldSetLastSync(syncStart); ldSetSyncStatus('ok');
     if(result.newCount>0) showToast('☁ '+result.newCount+' vuelo'+(result.newCount!==1?'s':'')+' sincronizado'+(result.newCount!==1?'s':''),'info');
     if(result.deletedCount>0) showToast('☁ '+result.deletedCount+' eliminado'+(result.deletedCount!==1?'s':'')+' desde otro dispositivo','info');
-  }catch(ex){ console.warn('[BgSync]',ex.message); }
+  }catch(ex){ console.warn('[BgSync]',ex.message); ldSetSyncStatus('error'); }
   finally{ _bgSyncRunning=false; }
 }
 
@@ -17359,8 +17356,8 @@ function ldImportConfirm(){
 
   ldEntries.sort(function(a,b){ return b.date.localeCompare(a.date); });
   ldSaveData();
-  ldSyncToServer();
   ldAcDbSyncToServer();
+  ldBgSync({delay:1200,force:true}); // sync unificado: push (vuelos+borrados) + pull + estado
   ldCloseImport(); ldRender(); ldStats(); ldUpdatePlanBanners();
 
   var syncMsg=ldAuthHeaders()?'':' (sin cuenta: datos solo locales)';
@@ -26800,8 +26797,8 @@ window.ldRosterImportConfirm = function(){
     imported++;
   });
   if(imported>0){
-    ldSaveData(); ldSyncToServer(); ldRender(); ldStats(); ldUpdatePlanBanners();
-    ldBgSync({delay:3000,force:true});
+    ldSaveData(); ldRender(); ldStats(); ldUpdatePlanBanners();
+    ldBgSync({delay:3000,force:true}); // sync unificado: push + pull + estado
     ldRosterImportClose();
     showToast('✅ '+imported+' vuelo'+(imported===1?'':'s')+' importado'+(imported===1?'':'s')+' como borrador','success');
   } else if(skipped>0){
@@ -27991,7 +27988,7 @@ async function pagDoAuth() {
         setTimeout(window._initLD, 300);
       }
       setTimeout(function(){
-        if(typeof ldSyncToServer === 'function') ldSyncToServer();
+        if(typeof ldBgSync === 'function') ldBgSync({delay:200,force:true}); // login: push + pull
       }, 600);
       setTimeout(function(){
         if (typeof rstPullFromServer === 'function') {
