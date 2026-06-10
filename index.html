@@ -22103,7 +22103,7 @@ function useSkyDay() {
 function TabNotamV2(_refN2) {
   const leg = _refN2.leg;
   const day = useSkyDay();
-  const T = SKY_THEME(day);
+  const T = day ? WX_THEME() : SKY_THEME(false);
   const _e = useState(null), expanded = _e[0], setExpanded = _e[1];
   const _a = useState(null), activeSel = _a[0], setActive = _a[1];
   const _c = useState({}), collapsed = _c[0], setCollapsed = _c[1];
@@ -22156,6 +22156,7 @@ function TabNotamV2(_refN2) {
   customAps.forEach(c => airports.push({ key: "cx_" + c.icao, cat: "extra", role: c.code, code: c.code, icao: c.icao, custom: true }));
   const active = airports.some(a => a.key === activeSel) ? activeSel : airports[0].key;
   const cur = airports.find(a => a.key === active) || airports[0];
+  const phase = day ? _skyPhase(cur.icao) : 'night';
 
   const CATM = {
     route: { c: T.route, bg: T.routeBg, bd: T.routeBd, tag: "RUTA" },
@@ -22391,7 +22392,7 @@ function TabNotamV2(_refN2) {
   const pullInd = React.createElement("div", { key: "pull", style: { height: loading ? 34 : pullDist, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", transition: pullDist === 0 ? "height .25s" : "none" } },
     React.createElement("span", { style: { fontFamily: mono, fontSize: 11, fontWeight: 700, color: loading ? T.cyan : T.tx3 } }, loading ? "↻ Actualizando NOTAMs…" : (pullDist > 50 ? "↑ Suelta para actualizar" : "↓ Desliza para actualizar")));
 
-  return React.createElement("div", { ref: rootRef, style: { padding: "12px 14px 100px", fontFamily: sans, background: T.pageBg, minHeight: "100%", position: "relative" } },
+  return React.createElement("div", { ref: rootRef, style: { padding: "12px 14px 100px", fontFamily: sans, background: day ? _skyPhaseGrad(phase) : T.pageBg, minHeight: "100%", position: "relative", transition: "background .8s ease" } },
     pullInd,
     selector,
     addPanel,
