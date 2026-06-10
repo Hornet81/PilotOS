@@ -17341,25 +17341,15 @@ function ldImportConfirm(){
       }
       added++;
     } else {
-      // Duplicate — decide by completeness
+      // Vuelo ya existente: enriquecer con campos que falten y SIEMPRE refrescar
+      // savedAt. Esto fuerza la re-subida al servidor en el próximo push, de modo
+      // que reimportar funcione como reparación: revive tombstones obsoletos
+      // (saved_at > deleted_at) y re-sincroniza todo aunque no cambie nada.
       var existEntry=existing.entry;
       if(existEntry&&existEntry.id) importedIds.push(existEntry.id);
-      var existScore=completenessScore(existEntry);
-      var newScore=completenessScore(r);
-
-      if(newScore>existScore){
-        // New is more complete — merge new fields into existing
-        var changed=mergeEntry(existEntry,r);
-        if(changed){
-          existEntry.savedAt=new Date().toISOString();
-          updated++;
-        } else { skipped++; }
-      } else {
-        // Existing is same or more complete — enrich with any missing fields
-        var changed=mergeEntry(existEntry,r);
-        if(changed){ existEntry.savedAt=new Date().toISOString(); updated++; }
-        else { skipped++; }
-      }
+      var changed=mergeEntry(existEntry,r);
+      existEntry.savedAt=new Date().toISOString();
+      if(changed) updated++; else skipped++;
     }
   });
 

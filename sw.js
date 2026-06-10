@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const STATIC_CACHE  = 'pilotos-static-' + CACHE_VERSION;
 const API_CACHE     = 'pilotos-api-'    + CACHE_VERSION;
 const FONT_CACHE    = 'pilotos-fonts-'  + CACHE_VERSION;
