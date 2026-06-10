@@ -21387,6 +21387,81 @@ function _wxParseTaf(raw){
   });
 }
 
+// Día/noche REAL en el aeropuerto (elevación solar) para elegir icono sol/luna
+function _solarElevation(lat,lon,date){
+  const rad=Math.PI/180;
+  const N=Math.floor((Date.UTC(date.getUTCFullYear(),date.getUTCMonth(),date.getUTCDate())-Date.UTC(date.getUTCFullYear(),0,0))/86400000);
+  const hours=date.getUTCHours()+date.getUTCMinutes()/60;
+  const decl=23.45*Math.sin(rad*360*(284+N)/365);
+  const H=((hours+lon/15)-12)*15;
+  return Math.asin(Math.sin(lat*rad)*Math.sin(decl*rad)+Math.cos(lat*rad)*Math.cos(decl*rad)*Math.cos(H*rad))/rad;
+}
+function _skyIsDay(icao,fb){
+  const a=(typeof _WX_AIRPORTS!=='undefined')?_WX_AIRPORTS[icao]:null;
+  if(!a) return fb===undefined?true:fb;
+  return _solarElevation(a.lat,a.lon,new Date())>-0.833;
+}
+// METAR → slug de icono (archivos en icons/wx/<slug>.svg)
+const WX_ICON_BASE="icons/wx/";
+function _wxIconSlug(cat,wx,clouds,isDay){
+  wx=String(wx||'').toUpperCase(); clouds=String(clouds||'').toUpperCase();
+  const has=function(re){return re.test(wx);};
+  const partly=/FEW|SCT/.test(clouds)&&!/BKN|OVC/.test(clouds);
+  if(has(/FC/)) return 'tornado';
+  if(has(/TS/)) return isDay?(partly?'storm-sun':'storm-day'):'storm-night';
+  if(has(/FZ/)) return 'freezing';
+  if(has(/SN/)){ if(isDay&&partly) return 'snow-sun'; return has(/\+SN/)?'snow-mod':'snow-light'; }
+  if(has(/DS|SS|\bDU\b|\bSA\b|PO|FU|VA|HZ/)) return 'dust';
+  if(has(/RA|DZ|SH/)){ const heavy=has(/\+/),light=has(/-/); if(!isDay) return 'rain-night'; if(partly) return heavy?'rain-sun-heavy':'rain-sun'; return heavy?'rain-heavy':light?'rain-light':'rain-mod'; }
+  if(has(/FG|BR/)||/VV\d/.test(clouds)) return 'fog';
+  const cov=/OVC/.test(clouds)?'OVC':/BKN/.test(clouds)?'BKN':/SCT/.test(clouds)?'SCT':/FEW/.test(clouds)?'FEW':'CLR';
+  if(cov==='OVC') return 'overcast';
+  if(cov==='BKN') return 'cloudy';
+  if(cov==='SCT'||cov==='FEW') return isDay?'partly-day':'partly-night';
+  return isDay?'clear-day':'clear-night';
+}
+// Perfil vertical de nubes a partir del campo clouds del METAR → string SVG
+function _wxParseClouds(s){
+  const out=[]; const re=/(FEW|SCT|BKN|OVC|VV)(\d{3})(CB|TCU)?/g; let m;
+  while((m=re.exec(String(s||'')))){ out.push({cov:m[1],base:parseInt(m[2])*100,type:m[3]||''}); }
+  return out;
+}
+function _wxCloudSVG(T,day,clouds,tempC,icao){
+  const cloudCol=day?'#6E86A8':'#C9D8EE';
+  const layers=_wxParseClouds(clouds);
+  const W=352,H=210,padL=30,padTop=12,groundY=H-28;
+  const bases=layers.map(function(l){return l.base;}).concat([3000]);
+  const topScale=Math.max(6000,Math.ceil((Math.max.apply(null,bases)*1.3)/2000)*2000);
+  const yOf=function(ft){return groundY-Math.min(ft,topScale)/topScale*(groundY-padTop);};
+  const plotL=padL+6, plotR=W-8, MF="'Space Mono',monospace";
+  const blob=function(cx,cy,w,fill,op){ const h=w*0.42; return '<g fill="'+fill+'" opacity="'+op+'"><ellipse cx="'+cx+'" cy="'+(cy+h*0.28)+'" rx="'+(w*0.5)+'" ry="'+(h*0.32)+'"/><circle cx="'+(cx-w*0.24)+'" cy="'+(cy+h*0.18)+'" r="'+(h*0.42)+'"/><circle cx="'+(cx+w*0.02)+'" cy="'+(cy-h*0.04)+'" r="'+(h*0.54)+'"/><circle cx="'+(cx+w*0.26)+'" cy="'+(cy+h*0.16)+'" r="'+(h*0.40)+'"/></g>'; };
+  const COVN={FEW:2,SCT:3,BKN:6,OVC:9}, COVOP={FEW:.55,SCT:.72,BKN:.9,OVC:1};
+  let g='<rect x="'+padL+'" y="'+padTop+'" width="'+(W-padL-4)+'" height="'+(groundY-padTop)+'" fill="rgba(70,130,200,0.06)" rx="6"/>';
+  for(let a=0;a<=topScale;a+=2000){ const y=yOf(a); g+='<line x1="'+padL+'" y1="'+y+'" x2="'+(W-4)+'" y2="'+y+'" stroke="'+T.line+'" stroke-width="1"/><text x="'+(padL-3)+'" y="'+(y+3)+'" text-anchor="end" font-family="'+MF+'" font-size="7.5" font-weight="700" fill="'+T.tx3+'">'+(a===0?'GND':(a/1000)+'k')+'</text>'; }
+  if(tempC!=null&&tempC>0){ const frz=Math.round(tempC/2*1000),y=yOf(frz); g+='<line x1="'+padL+'" y1="'+y+'" x2="'+(W-4)+'" y2="'+y+'" stroke="'+T.cyan+'" stroke-width="1.2" stroke-dasharray="2 4"/><text x="'+(W-6)+'" y="'+(y-3)+'" text-anchor="end" font-family="'+MF+'" font-size="7.5" font-weight="700" fill="'+T.cyan+'">0°C ~'+frz+'ft</text>'; }
+  const ceil=layers.filter(function(l){return l.cov==='BKN'||l.cov==='OVC'||l.cov==='VV';}).map(function(l){return l.base;}).sort(function(a,b){return a-b;})[0];
+  if(ceil!=null){ const y=yOf(ceil); g+='<line x1="'+plotL+'" y1="'+y+'" x2="'+plotR+'" y2="'+y+'" stroke="'+T.amb+'" stroke-width="1" stroke-dasharray="5 3" opacity="0.5"/>'; }
+  layers.forEach(function(l){
+    const y=yOf(l.base);
+    if(l.type==='CB'||l.type==='TCU'){
+      const topY=yOf(l.type==='CB'?topScale*0.96:Math.min(l.base+18000,topScale*0.8)), cx=(plotL+plotR)/2, col=l.type==='CB'?T.red:T.amb;
+      g+='<path d="M'+(cx-26)+' '+y+' Q'+(cx-34)+' '+((y+topY)/2)+' '+(cx-20)+' '+topY+' L'+(cx+20)+' '+topY+' Q'+(cx+34)+' '+((y+topY)/2)+' '+(cx+26)+' '+y+' Z" fill="'+col+'" opacity="0.22"/>'+blob(cx,y-4,80,col,0.5);
+      if(l.type==='CB'){ g+='<ellipse cx="'+cx+'" cy="'+topY+'" rx="58" ry="9" fill="'+col+'" opacity="0.4"/><text x="'+cx+'" y="'+((y+topY)/2)+'" text-anchor="middle" font-size="15">⚡</text>'; }
+      g+='<text x="'+plotR+'" y="'+(y+4)+'" text-anchor="end" font-family="'+MF+'" font-size="8" font-weight="700" fill="'+col+'">'+l.cov+l.type+' '+l.base+'ft</text>'; return;
+    }
+    if(l.cov==='VV'){ g+='<rect x="'+plotL+'" y="'+y+'" width="'+(plotR-plotL)+'" height="'+(groundY-y)+'" fill="'+cloudCol+'" opacity="0.16"/>'; for(let i=0;i<3;i++){ g+='<line x1="'+plotL+'" y1="'+(y+(groundY-y)*(i+1)/4)+'" x2="'+plotR+'" y2="'+(y+(groundY-y)*(i+1)/4)+'" stroke="'+cloudCol+'" stroke-width="1" opacity="0.3"/>'; } g+='<text x="'+plotR+'" y="'+(y-3)+'" text-anchor="end" font-family="'+MF+'" font-size="8" font-weight="700" fill="'+T.tx2+'">VV '+l.base+'ft</text>'; return; }
+    const n=COVN[l.cov]||2, op=COVOP[l.cov]||.6;
+    if(l.cov==='OVC'){ for(let i=0;i<n;i++){ const cx=plotL+(plotR-plotL)*(i+0.5)/n; g+=blob(cx,y,((plotR-plotL)/n)*1.25,cloudCol,op); } }
+    else{ const span=plotR-plotL; for(let i=0;i<n;i++){ const cx=plotL+span*0.16+(span*0.68)*(n===1?0.5:i/(n-1)); g+=blob(cx,y,l.cov==='BKN'?46:40,cloudCol,op); } }
+    g+='<text x="'+plotR+'" y="'+(y-(l.cov==='BKN'?13:11))+'" text-anchor="end" font-family="'+MF+'" font-size="8" font-weight="700" fill="'+T.tx2+'">'+l.cov+' '+l.base+'ft</text>';
+  });
+  g+='<rect x="0" y="'+groundY+'" width="'+W+'" height="'+(H-groundY)+'" fill="'+T.surf2+'"/><line x1="'+padL+'" y1="'+groundY+'" x2="'+(W-4)+'" y2="'+groundY+'" stroke="'+T.line2+'" stroke-width="1.5"/>';
+  g+='<path d="M'+(W*0.30)+' '+(H-4)+' L'+(W*0.44)+' '+(groundY+5)+' L'+(W*0.56)+' '+(groundY+5)+' L'+(W*0.70)+' '+(H-4)+' Z" fill="rgba(120,190,255,0.10)" stroke="'+T.line2+'" stroke-width="1"/><line x1="'+(W*0.5)+'" y1="'+(groundY+6)+'" x2="'+(W*0.5)+'" y2="'+(H-6)+'" stroke="'+T.tx3+'" stroke-width="1" stroke-dasharray="3 3"/>';
+  g+='<rect x="'+(W*0.16)+'" y="'+(groundY-12)+'" width="5" height="12" fill="'+T.tx3+'"/><circle cx="'+(W*0.16+2.5)+'" cy="'+(groundY-13)+'" r="3.5" fill="'+T.cyan+'"/>';
+  g+='<text x="'+(W-6)+'" y="'+(H-8)+'" text-anchor="end" font-family="'+MF+'" font-size="9" font-weight="700" fill="'+T.tx2+'">'+icao+'</text>';
+  return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;display:block">'+g+'</svg>';
+}
+
 function TabMeteoV2(_refM2){
   const leg=_refM2.leg;
   const day=useSkyDay();
@@ -21394,6 +21469,7 @@ function TabMeteoV2(_refM2){
   const _a=useState(null), activeSel=_a[0], setActive=_a[1];
   const _r=useState(null), rwySel=_r[0], setRwy=_r[1];
   const _rw=useState(false), rawOpen=_rw[0], setRawOpen=_rw[1];
+  const _cp=useState(true), cloudOpen=_cp[0], setCloudOpen=_cp[1];
   const _ca=useState(function(){ try{ return JSON.parse(localStorage.getItem("sky_custom_wx")||"[]"); }catch(e){ return []; } }), customAps=_ca[0], setCustomAps=_ca[1];
   const _ao=useState(false), addOpen=_ao[0], setAddOpen=_ao[1];
   const _av=useState(""), addVal=_av[0], setAddVal=_av[1];
@@ -21558,9 +21634,14 @@ function TabMeteoV2(_refM2){
     const phen=_wxPhenom(m.trend); if(phen) sumParts.push(phen);
     const tail=m.cat==="VMC"?"Condiciones visuales sin restricciones.":m.cat==="MVMC"?"Visual marginal: ten preparada la aproximación instrumental.":m.cat==="IFR"?"Condiciones instrumentales: revisa los mínimos de aproximación.":"Instrumental bajo: condiciones exigentes, verifica mínimos y alternativo.";
     const summary=sumParts.join(" · ")+". "+tail;
+    const isDay=_skyIsDay(cur.icao,day);
+    const iconSlug=_wxIconSlug(m.cat,m.trend,m.clouds,isDay);
+    const wxIconEl=iconSlug
+      ? React.createElement("img",{src:WX_ICON_BASE+iconSlug+".svg",alt:m.cat,width:34,height:34,style:{display:"block",objectFit:"contain"},onError:function(e){e.target.style.display="none";}})
+      : React.createElement("span",{style:{fontSize:18}},ci.icon);
     const banner=React.createElement("div",{style:{position:"relative",overflow:"hidden",marginBottom:12,borderRadius:16,padding:"12px 14px",background:"linear-gradient(150deg,"+sev.bg+","+T.surf1+")",border:"1px solid "+sev.bd,borderLeft:"5px solid "+sev.c}},
       React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}},
-        React.createElement("div",{style:{width:34,height:34,borderRadius:11,background:sev.bg,border:"1px solid "+sev.bd,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}},ci.icon),
+        React.createElement("div",{style:{width:42,height:42,borderRadius:12,background:T.surf2,border:"1px solid "+sev.bd,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden"}},wxIconEl),
         React.createElement("div",{style:{flex:1,minWidth:0}},
           React.createElement("div",{style:{fontFamily:mono,fontSize:17,fontWeight:700,color:sev.c,lineHeight:1,letterSpacing:".5px"}},ci.short),
           React.createElement("div",{style:{fontSize:9,color:T.tx2,marginTop:3,fontWeight:500}},ci.name)
@@ -21613,8 +21694,8 @@ function TabMeteoV2(_refM2){
       const xwClr=c.absxw>=25?T.red:c.absxw>=15?T.amb:T.grn;
       const chips=rwys.map(function(r){
         const cc=_wxComp(r.hdg,pw.dir,spd); const sc=cc.absxw>=25?T.red:cc.absxw>=15?T.amb:T.grn; const on=r.id===selId;
-        return React.createElement("div",{key:r.id,onClick:function(){setRwy(r.id);},style:{flex:"0 0 auto",minWidth:50,background:on?T.surf3:T.surf1,border:"1px solid "+(on?T.line3:T.line),borderBottom:"3px solid "+sc,borderRadius:11,padding:"7px 10px 6px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,position:"relative"}},
-          r.id===useRwy?React.createElement("span",{style:{position:"absolute",top:-6,left:"50%",transform:"translateX(-50%)",fontFamily:mono,fontSize:6,fontWeight:700,letterSpacing:".5px",color:T.grn,background:T.grnBg,border:"1px solid "+T.grnBd,borderRadius:5,padding:"1px 4px",whiteSpace:"nowrap"}},"EN USO"):null,
+        return React.createElement("div",{key:r.id,onClick:function(){setRwy(r.id);},style:{flex:"0 0 auto",minWidth:50,background:on?T.surf3:T.surf1,border:"1px solid "+(on?T.line3:T.line),borderBottom:"3px solid "+sc,borderRadius:11,padding:"13px 10px 6px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,position:"relative"}},
+          r.id===useRwy?React.createElement("span",{style:{position:"absolute",top:2,left:"50%",transform:"translateX(-50%)",fontFamily:mono,fontSize:6,fontWeight:700,letterSpacing:".5px",color:T.grn,background:T.grnBg,border:"1px solid "+T.grnBd,borderRadius:5,padding:"1px 4px",whiteSpace:"nowrap"}},"EN USO"):null,
           React.createElement("span",{style:{fontFamily:mono,fontSize:12.5,fontWeight:700,color:on?T.tx1:T.tx2,lineHeight:1}},r.id),
           React.createElement("span",{style:{fontFamily:mono,fontSize:7,color:T.tx3,fontWeight:700}},String(r.hdg).padStart(3,"0")+"°"),
           React.createElement("span",{style:{fontFamily:mono,fontSize:8,fontWeight:700,color:sc,lineHeight:1,marginTop:1}},"✕"+cc.absxw)
@@ -21652,6 +21733,19 @@ function TabMeteoV2(_refM2){
         )
       );
     }
+
+    // ── Perfil de nubes (plegable) ──
+    const cloudCard=React.createElement("div",{style:{marginBottom:12}},
+      React.createElement("div",{onClick:function(){setCloudOpen(function(o){return !o;});},style:{display:"flex",alignItems:"center",gap:9,padding:"10px 13px",borderRadius:cloudOpen?"14px 14px 0 0":14,cursor:"pointer",background:T.surf1,border:"1px solid "+T.line2}},
+        React.createElement("div",{style:{width:26,height:26,borderRadius:8,background:T.surf2,border:"1px solid "+T.line2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13}},"📈"),
+        React.createElement("div",{style:{flex:1}},
+          React.createElement("div",{style:{fontSize:9.5,fontWeight:600,color:T.tx1}},"Perfil de nubes"),
+          React.createElement("div",{style:{fontFamily:mono,fontSize:8,color:T.tx3,marginTop:1}},m.clouds||"CAVOK · despejado")
+        ),
+        React.createElement("span",{style:{color:T.tx3,fontSize:13,transform:cloudOpen?"rotate(90deg)":"none",transition:".18s"}},"›")
+      ),
+      cloudOpen?React.createElement("div",{style:{background:T.surf1,border:"1px solid "+T.line2,borderTop:"none",borderRadius:"0 0 14px 14px",padding:"8px 10px 6px"},dangerouslySetInnerHTML:{__html:_wxCloudSVG(T,day,m.clouds,tC,cur.icao)}}):null
+    );
 
     // ── TAF (timeline ligero + raw) ──
     const tafRaw=tafOf(cur);
@@ -21694,7 +21788,7 @@ function TabMeteoV2(_refM2){
       ):null
     );
 
-    body=React.createElement(React.Fragment,null,banner,tiles,windCard,tafCard,rawCard);
+    body=React.createElement(React.Fragment,null,banner,tiles,windCard,cloudCard,tafCard,rawCard);
   }
 
   const pullInd=React.createElement("div",{key:"pull",style:{height:loading?34:pullDist,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",transition:pullDist===0?"height .25s":"none"}},
