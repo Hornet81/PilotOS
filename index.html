@@ -18179,6 +18179,8 @@ const NOTAMS_BY_LEG = {
     tags: ["ILS"]
   }]
 };
+/* NOTAMs reales (AVWX) indexados por ICAO — poblado por el fetch de SkyView */
+const NOTAMS_BY_ICAO = {};
 const FATIGUE = {
   score: 62,
   level: "MODERATE",
@@ -21517,6 +21519,282 @@ function RwyInUsePanel(_ref_rwy) {
   );
 }
 
+/* ════════ SKYVIEW THEME (día/noche, vinculado a html.day global) ════════ */
+function SKY_THEME(day) {
+  return day ? {
+    surf1:"#FFFFFF", surf2:"#EEF3FB", surf3:"#E4ECF7",
+    line:"rgba(20,65,130,.13)", line2:"rgba(20,65,130,.20)", line3:"rgba(20,65,130,.32)",
+    tx1:"#0C1B33", tx2:"#46586F", tx3:"#8193AE", cyan:"#0891B2",
+    red:"#E11D48", redBg:"rgba(225,29,72,.10)", redBd:"rgba(225,29,72,.32)",
+    amb:"#C2710C", ambBg:"rgba(194,113,12,.11)", ambBd:"rgba(194,113,12,.30)",
+    inf:"#0284C7", infBg:"rgba(2,132,199,.10)", infBd:"rgba(2,132,199,.30)",
+    grn:"#059669", grnBg:"rgba(5,150,105,.11)", grnBd:"rgba(5,150,105,.32)",
+    ice:"#0E7490", iceBg:"rgba(14,116,144,.09)", iceBd:"rgba(14,116,144,.30)",
+    route:"#0891B2", routeBg:"rgba(8,145,178,.12)", routeBd:"rgba(8,145,178,.35)",
+    alt:"#7C3AED", altBg:"rgba(124,58,237,.11)", altBd:"rgba(124,58,237,.35)",
+    extra:"#DB2777", extraBg:"rgba(219,39,119,.11)", extraBd:"rgba(219,39,119,.35)",
+    floatBg:"#FFFFFF", rawBg:"#0C1B33", rawTx:"rgba(225,238,255,.9)", pageBg:"#E9F0F8"
+  } : {
+    surf1:"#0E1828", surf2:"#15233B", surf3:"#1C3052",
+    line:"rgba(120,190,255,.12)", line2:"rgba(120,190,255,.22)", line3:"rgba(120,190,255,.35)",
+    tx1:"#EDF4FF", tx2:"#9DB2D6", tx3:"#62769C", cyan:"#46E3F2",
+    red:"#FF3F62", redBg:"rgba(255,63,98,.12)", redBd:"rgba(255,63,98,.45)",
+    amb:"#FFB020", ambBg:"rgba(255,176,32,.12)", ambBd:"rgba(255,176,32,.42)",
+    inf:"#38BDF8", infBg:"rgba(56,189,248,.12)", infBd:"rgba(56,189,248,.40)",
+    grn:"#2BE5A0", grnBg:"rgba(43,229,160,.12)", grnBd:"rgba(43,229,160,.42)",
+    ice:"#7FD4FF", iceBg:"rgba(127,212,255,.10)", iceBd:"rgba(127,212,255,.40)",
+    route:"#46E3F2", routeBg:"rgba(70,227,242,.13)", routeBd:"rgba(70,227,242,.5)",
+    alt:"#A78BFA", altBg:"rgba(167,139,250,.15)", altBd:"rgba(167,139,250,.5)",
+    extra:"#F472B6", extraBg:"rgba(244,114,182,.15)", extraBd:"rgba(244,114,182,.5)",
+    floatBg:"#1a2942", rawBg:"rgba(0,0,0,.35)", rawTx:"rgba(210,235,255,.85)", pageBg:"transparent"
+  };
+}
+function useSkyDay() {
+  const _s = useState(typeof document !== "undefined" && document.documentElement.classList.contains("day"));
+  const day = _s[0], setDay = _s[1];
+  useEffect(function () {
+    const obs = new MutationObserver(function () { setDay(document.documentElement.classList.contains("day")); });
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return function () { obs.disconnect(); };
+  }, []);
+  return day;
+}
+
+/* ════════════════════════════════════════
+   TAB NOTAM — rediseño v2 (selector por categorías, día/noche)
+════════════════════════════════════════ */
+function TabNotamV2(_refN2) {
+  const leg = _refN2.leg;
+  const day = useSkyDay();
+  const T = SKY_THEME(day);
+  const _e = useState(null), expanded = _e[0], setExpanded = _e[1];
+  const _a = useState(null), activeSel = _a[0], setActive = _a[1];
+  const _c = useState({}), collapsed = _c[0], setCollapsed = _c[1];
+  function toggleC(k) { setCollapsed(p => Object.assign({}, p, { [k]: !p[k] })); }
+  const _ca = useState(function () { try { return JSON.parse(localStorage.getItem("sky_custom_aps") || "[]"); } catch (e) { return []; } }), customAps = _ca[0], setCustomAps = _ca[1];
+  const _ao = useState(false), addOpen = _ao[0], setAddOpen = _ao[1];
+  const _av = useState(""), addVal = _av[0], setAddVal = _av[1];
+  const _tk = useState(0), setTk = _tk[1];
+  useEffect(function () {
+    customAps.forEach(function (c) { if (!NOTAMS_BY_ICAO[c.icao]) { fetchLiveNotams(c.icao).then(function (arr) { NOTAMS_BY_ICAO[c.icao] = (arr || []).map(function (x) { return Object.assign({}, x, { airport: c.icao }); }); setTk(function (t) { return t + 1; }); }); } });
+  }, []);
+
+  const ICAO = c => iataToIcao(c) || c;
+  const alts = (leg.alts || []).slice(0, 2);
+  const airports = [
+    { key: "dep", cat: "route", role: "ORIGEN",  code: leg.dep, icao: ICAO(leg.dep) },
+    { key: "arr", cat: "route", role: "DESTINO", code: leg.arr, icao: ICAO(leg.arr) }
+  ];
+  alts.forEach((a, i) => airports.push({ key: "alt" + i, cat: "alt", role: "ALT " + (i + 1), code: a.icao, icao: ICAO(a.icao), altObj: a, rwy: a.rwy }));
+  customAps.forEach(c => airports.push({ key: "cx_" + c.icao, cat: "extra", role: c.code, code: c.code, icao: c.icao, custom: true }));
+  const active = airports.some(a => a.key === activeSel) ? activeSel : airports[0].key;
+  const cur = airports.find(a => a.key === active) || airports[0];
+
+  const CATM = {
+    route: { c: T.route, bg: T.routeBg, bd: T.routeBd, tag: "RUTA" },
+    alt:   { c: T.alt,   bg: T.altBg,   bd: T.altBd,   tag: "ALTERNATIVO" },
+    extra: { c: T.extra, bg: T.extraBg, bd: T.extraBd, tag: "AÑADIDO POR TI" }
+  };
+  function sevMeta(sev) {
+    if (sev === "danger") return { c: T.red, bg: T.redBg, bd: T.redBd, label: "CRÍTICO" };
+    if (sev === "warning") return { c: T.amb, bg: T.ambBg, bd: T.ambBd, label: "AVISO" };
+    return { c: T.inf, bg: T.infBg, bd: T.infBd, label: "INFO" };
+  }
+  function notamsOf(ap) {
+    const fromIcao = NOTAMS_BY_ICAO[ap.icao];
+    if (fromIcao && fromIcao.length) return fromIcao;
+    if (ap.altObj && ap.altObj.notams && ap.altObj.notams.length) {
+      return ap.altObj.notams.map((s, i) => ({ id: ap.icao + "-" + (i + 1), sev: "info", icon: "📋", title: String(s).slice(0, 44), short: String(s), tags: [], raw: String(s) }));
+    }
+    return [];
+  }
+  function classify(n) {
+    if (!n.timeStart) return "flight";
+    const e = n.timeEnd ? new Date(n.timeEnd) : null;
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const std = (leg.std && leg.std !== "null") ? leg.std : null;
+    const sta = (leg.sta && leg.sta !== "null") ? leg.sta : null;
+    let fStart = std ? new Date(today + "T" + std + ":00Z") : new Date(now.getTime() - 30 * 60000);
+    if (std) fStart.setMinutes(fStart.getMinutes() - 30);
+    let fEnd;
+    if (sta) { fEnd = new Date(today + "T" + sta + ":00Z"); fEnd.setMinutes(fEnd.getMinutes() + 30); if (fEnd < fStart) fEnd = new Date(fEnd.getTime() + 86400000); }
+    else fEnd = new Date(fStart.getTime() + 5 * 3600000);
+    const s = new Date(n.timeStart);
+    if (!e) return "perm";
+    if (e < now) return null;
+    if (s <= fEnd && e >= fStart) return "flight";
+    return "next24";
+  }
+  function split(ns) {
+    const r = { flight: [], n24: [], perm: [] };
+    ns.forEach(n => { const c = classify(n); if (c === "flight") r.flight.push(n); else if (c === "next24") r.n24.push(n); else if (c === "perm") r.perm.push(n); });
+    return r;
+  }
+  function sevCount(ns) { return { d: ns.filter(n => n.sev === "danger").length, w: ns.filter(n => n.sev === "warning").length, i: ns.filter(n => n.sev === "info").length }; }
+  function worst(ns) { if (ns.some(n => n.sev === "danger")) return "danger"; if (ns.some(n => n.sev === "warning")) return "warning"; if (ns.length) return "info"; return "ok"; }
+
+  const curN = notamsOf(cur);
+  const curSplit = split(curN);
+
+  function addAirport() {
+    const v = (addVal || "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4);
+    if (!v) return;
+    const ic = iataToIcao(v) || v;
+    if (!airports.some(a => a.icao === ic)) {
+      const next = customAps.concat([{ code: v, icao: ic }]);
+      setCustomAps(next);
+      try { localStorage.setItem("sky_custom_aps", JSON.stringify(next)); } catch (e) {}
+      if (!NOTAMS_BY_ICAO[ic]) fetchLiveNotams(ic).then(arr => { NOTAMS_BY_ICAO[ic] = (arr || []).map(x => Object.assign({}, x, { airport: ic })); setTk(t => t + 1); });
+    }
+    setActive("cx_" + ic); setAddOpen(false); setAddVal("");
+  }
+  function removeAirport(ic) {
+    const next = customAps.filter(c => c.icao !== ic);
+    setCustomAps(next);
+    try { localStorage.setItem("sky_custom_aps", JSON.stringify(next)); } catch (e) {}
+    if (cur.icao === ic) setActive(null);
+  }
+
+  // ── Selector ──
+  const scrollMode = airports.length > 4;
+  const selKids = [];
+  let prevCat = null;
+  airports.forEach(ap => {
+    const cm = CATM[ap.cat];
+    if (prevCat && prevCat !== ap.cat) selKids.push(React.createElement("div", { key: "sep" + ap.key, style: { width: 1, flexShrink: 0, alignSelf: "stretch", margin: "7px 1px", background: T.line2 } }));
+    prevCat = ap.cat;
+    const isOn = ap.key === active;
+    const sp = split(notamsOf(ap));
+    const w = worst(sp.flight.concat(sp.n24));
+    const dotC = w === "danger" ? T.red : w === "warning" ? T.amb : w === "info" ? T.inf : T.grn;
+    selKids.push(React.createElement("div", {
+      key: ap.key, onClick: () => { setActive(ap.key); setExpanded(null); },
+      style: {
+        flex: scrollMode ? "0 0 84px" : 1, minWidth: 0, position: "relative", cursor: "pointer",
+        background: isOn ? cm.bg : T.surf1, border: "1px solid " + (isOn ? cm.bd : T.line),
+        borderBottom: "3px solid " + cm.c, borderRadius: 13, padding: scrollMode ? "9px 4px 8px" : "12px 4px 11px",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 3, transition: "all .18s"
+      }
+    },
+      ap.custom && React.createElement("div", { onClick: e => { e.stopPropagation(); removeAirport(ap.icao); }, style: { position: "absolute", top: -6, right: -6, width: 19, height: 19, borderRadius: "50%", background: T.floatBg, border: "1px solid " + T.line2, color: T.tx2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, zIndex: 3 } }, "×"),
+      React.createElement("div", { style: { position: "absolute", top: 6, right: 6, width: 8, height: 8, borderRadius: "50%", background: dotC, boxShadow: w === "danger" ? "0 0 7px " + T.red : "none" } }),
+      React.createElement("div", { style: { fontFamily: mono, fontSize: scrollMode ? 8 : 8.5, fontWeight: 700, letterSpacing: ".3px", color: cm.c, whiteSpace: "nowrap" } }, ap.role),
+      React.createElement("div", { style: { fontSize: scrollMode ? 15 : 17, fontWeight: 800, color: isOn ? T.tx1 : T.tx2, letterSpacing: ".3px", lineHeight: 1 } }, ap.code)
+    ));
+  });
+  selKids.push(React.createElement("div", { key: "add", onClick: () => setAddOpen(o => !o), style: { flex: scrollMode ? "0 0 46px" : "0 0 48px", flexShrink: 0, border: "1.5px dashed " + T.extra, borderRadius: 13, display: "flex", alignItems: "center", justifyContent: "center", color: T.extra, cursor: "pointer", fontSize: 24, fontWeight: 700, background: addOpen ? T.extraBg : "transparent" } }, "+"));
+  const selector = React.createElement("div", {
+    style: Object.assign({ display: "flex", gap: 6, alignItems: "stretch", marginBottom: 14 },
+      scrollMode ? { overflowX: "auto", WebkitMaskImage: "linear-gradient(90deg,#000 92%,transparent)", maskImage: "linear-gradient(90deg,#000 92%,transparent)" } : {})
+  }, selKids);
+
+  // ── Banner ──
+  const cm = CATM[cur.cat];
+  const bCount = sevCount(curSplit.flight.concat(curSplit.n24));
+  const bChips = [];
+  if (bCount.d > 0) bChips.push(React.createElement("span", { key: "d", style: { fontFamily: mono, fontSize: 10, fontWeight: 700, color: T.red, background: T.redBg, border: "1px solid " + T.redBd, borderRadius: 6, padding: "2px 7px" } }, bCount.d + " CRÍT"));
+  if (bCount.w > 0) bChips.push(React.createElement("span", { key: "w", style: { fontFamily: mono, fontSize: 10, fontWeight: 700, color: T.amb, background: T.ambBg, border: "1px solid " + T.ambBd, borderRadius: 6, padding: "2px 7px" } }, bCount.w + " AVISO"));
+  if (bCount.d === 0 && bCount.w === 0) bChips.push(React.createElement("span", { key: "ok", style: { fontFamily: mono, fontSize: 10, fontWeight: 700, color: T.grn, background: T.grnBg, border: "1px solid " + T.grnBd, borderRadius: 6, padding: "2px 7px" } }, "OK"));
+  if (bCount.i > 0) bChips.push(React.createElement("span", { key: "i", style: { fontFamily: mono, fontSize: 10, fontWeight: 700, color: T.inf, background: T.infBg, border: "1px solid " + T.infBd, borderRadius: 6, padding: "2px 7px" } }, bCount.i + " INFO"));
+  const banner = React.createElement("div", {
+    style: { display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap", marginBottom: 12, padding: "10px 14px", borderRadius: 13, background: cm.bg, border: "1px solid " + cm.bd, borderLeft: "4px solid " + cm.c }
+  },
+    React.createElement("span", { style: { fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "1.5px", color: cm.c, background: "rgba(0,0,0,.18)", border: "1px solid " + cm.bd, borderRadius: 6, padding: "3px 8px" } }, cm.tag),
+    React.createElement("span", { style: { fontFamily: mono, fontSize: 13, fontWeight: 700, color: T.tx1, letterSpacing: ".5px" } }, cur.code, React.createElement("span", { style: { color: T.tx3, fontWeight: 400 } }, " · " + cur.icao)),
+    React.createElement("span", { style: { display: "flex", gap: 5, marginLeft: "auto", flexWrap: "wrap" } }, bChips)
+  );
+
+  // ── Pista en uso (activo) ──
+  const _rwy = cur.key === "dep" ? (leg.rwyDep || "") : cur.key === "arr" ? (leg.rwyArr || "") : (cur.rwy || "");
+  const rwyCard = React.createElement("div", {
+    style: { background: T.surf1, border: "1px solid " + T.line2, borderRadius: 18, padding: "14px 16px", marginBottom: 16 }
+  },
+    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 12 } },
+      React.createElement("span", { style: { fontSize: 17 } }, "🛬"),
+      React.createElement("span", { style: { flex: 1, fontSize: 13, fontWeight: 600, color: T.tx1 } }, "Pista en uso · " + cur.code),
+      React.createElement("span", { style: { fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "1px", color: T.amb, background: T.ambBg, border: "1px solid " + T.ambBd, borderRadius: 7, padding: "4px 8px" } }, "ESTIMADO")
+    ),
+    React.createElement("div", { style: { background: T.surf2, border: "1px solid " + T.line, borderRadius: 14, padding: "13px 15px" } },
+      React.createElement("div", { style: { fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "1.5px", color: T.tx3, marginBottom: 6 } }, cur.role + " · " + cur.code),
+      React.createElement("div", { style: { fontSize: 32, fontWeight: 800, color: T.grn, lineHeight: 1, letterSpacing: "1px" } }, _rwy || "—")
+    )
+  );
+
+  // ── NotamCard ──
+  function NCard(n) {
+    const m = sevMeta(n.sev);
+    const isExp = expanded === n.id;
+    return React.createElement("div", {
+      key: n.id, onClick: () => setExpanded(isExp ? null : n.id),
+      style: { borderLeft: "4px solid " + m.c, background: isExp ? T.surf2 : T.surf1, border: "1px solid " + (isExp ? m.bd : T.line), borderLeftWidth: 4, borderRadius: 12, padding: "11px 13px", marginBottom: 8, cursor: "pointer" }
+    },
+      React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "flex-start" } },
+        React.createElement("div", { style: { width: 30, height: 30, borderRadius: 9, background: m.bg, border: "1px solid " + m.bd, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 } }, n.icon || "📋"),
+        React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+          React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", marginBottom: 2, flexWrap: "wrap" } },
+            React.createElement("span", { style: { fontFamily: mono, fontSize: 9, fontWeight: 700, color: m.c } }, n.id),
+            React.createElement("span", { style: { fontFamily: mono, fontSize: 7.5, fontWeight: 700, color: m.c, background: m.bg, border: "1px solid " + m.bd, borderRadius: 4, padding: "1px 5px" } }, m.label)
+          ),
+          React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: T.tx1, marginBottom: 2 } }, n.title),
+          React.createElement("div", { style: { fontFamily: mono, fontSize: 10, color: T.tx2, lineHeight: 1.4 } }, n.short),
+          isExp && n.raw && React.createElement("div", { style: { marginTop: 8, padding: "9px 11px", background: T.rawBg, color: T.rawTx, borderRadius: 8, border: "1px solid " + T.line, fontFamily: mono, fontSize: 10, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.6, maxHeight: 200, overflowY: "auto" } }, n.raw)
+        ),
+        React.createElement("span", { style: { color: T.tx3, fontSize: 14, transform: isExp ? "rotate(90deg)" : "none", transition: ".18s", flexShrink: 0 } }, "›")
+      )
+    );
+  }
+  function sevSorted(ns) { const o = { danger: 0, warning: 1, info: 2 }; return ns.slice().sort((a, b) => (o[a.sev] || 3) - (o[b.sev] || 3)); }
+
+  // ── Secciones ──
+  function section(skey, title, icon, accent, ns, openByDefault) {
+    const isCol = collapsed[skey] === undefined ? !openByDefault : collapsed[skey];
+    return React.createElement("div", { style: { marginBottom: 12 } },
+      React.createElement("div", {
+        onClick: () => toggleC(skey),
+        style: { display: "flex", alignItems: "center", gap: 12, padding: "13px 15px", borderRadius: 15, cursor: "pointer", background: T.surf1, border: "1px solid " + T.line2 }
+      },
+        React.createElement("div", { style: { width: 36, height: 36, borderRadius: 11, background: accent.bg, border: "1px solid " + accent.bd, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, color: accent.c } }, icon),
+        React.createElement("div", { style: { flex: 1 } },
+          React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: T.tx1 } }, title),
+          React.createElement("div", { style: { fontFamily: mono, fontSize: 10.5, color: T.tx3, marginTop: 2 } }, ns.length ? ns.length + " NOTAMs · " + cur.code : "Sin NOTAMs")
+        ),
+        ns.length > 0 && React.createElement("span", { style: { fontFamily: mono, fontSize: 20, fontWeight: 700, color: T.tx2 } }, ns.length),
+        React.createElement("span", { style: { color: T.tx3, fontSize: 16, transform: isCol ? "none" : "rotate(90deg)", transition: ".18s" } }, "›")
+      ),
+      !isCol && ns.length > 0 && React.createElement("div", { style: { marginTop: 8 } }, sevSorted(ns).map(NCard))
+    );
+  }
+
+  const flightSec = curSplit.flight.length === 0
+    ? React.createElement("div", { style: { marginBottom: 12, display: "flex", alignItems: "center", gap: 12, padding: "13px 15px", borderRadius: 15, background: T.grnBg, border: "1px solid " + T.grnBd } },
+        React.createElement("div", { style: { width: 36, height: 36, borderRadius: 11, background: T.grnBg, border: "1px solid " + T.grnBd, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: T.grn } }, "✓"),
+        React.createElement("div", { style: { flex: 1 } },
+          React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: T.grn } }, "Afectan al vuelo"),
+          React.createElement("div", { style: { fontFamily: mono, fontSize: 10.5, color: T.tx3, marginTop: 2 } }, "Sin NOTAMs en tu ventana de vuelo")
+        )
+      )
+    : section("sec_flight", "Afectan al vuelo", "✈️", { c: T.amb, bg: T.ambBg, bd: T.ambBd }, curSplit.flight, true);
+
+  const addPanel = addOpen ? React.createElement("div", { style: { marginBottom: 14, background: T.surf1, border: "1px solid " + T.extra, borderRadius: 16, padding: "14px 15px" } },
+    React.createElement("div", { style: { fontFamily: mono, fontSize: 11, fontWeight: 700, color: T.extra, marginBottom: 10, letterSpacing: ".5px" } }, "🔍 AÑADIR AEROPUERTO"),
+    React.createElement("div", { style: { display: "flex", gap: 9 } },
+      React.createElement("input", { value: addVal, onChange: e => setAddVal(e.target.value), onKeyDown: e => { if (e.key === "Enter") addAirport(); }, maxLength: 4, placeholder: "IATA u OACI · ej. MAD, LEMD", style: { flex: 1, minWidth: 0, background: T.surf2, border: "1px solid " + T.line2, borderRadius: 12, padding: "12px 14px", color: T.tx1, fontFamily: mono, fontSize: 16, fontWeight: 700, letterSpacing: "2px", textTransform: "uppercase", outline: "none" } }),
+      React.createElement("button", { onClick: addAirport, style: { background: T.extra, border: "none", borderRadius: 12, padding: "0 16px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" } }, "Ver")
+    )
+  ) : null;
+
+  return React.createElement("div", { style: { padding: "12px 14px 100px", fontFamily: sans, background: T.pageBg, minHeight: "100%" } },
+    selector,
+    addPanel,
+    banner,
+    rwyCard,
+    flightSec,
+    section("sec_24h", "Próximas 24 horas", "⏰", { c: T.amb, bg: T.ambBg, bd: T.ambBd }, curSplit.n24, false),
+    section("sec_perm", "Permanentes", "∞", { c: T.tx2, bg: T.surf2, bd: T.line2 }, curSplit.perm, false)
+  );
+}
+
 function TabNotam(_ref32) {
   let leg = _ref32.leg;
   const _useState21 = useState(null),
@@ -22622,11 +22900,14 @@ function SkyViewPilotOS() {
   useEffect(() => {
     if (!_depIcao || !_arrIcao) return;
     (async () => {
-      const [dm, am, dt, at, dn, an] = await Promise.all([
+      const _altIcaos = ((_baseLeg.alts || []).slice(0, 2)).map(a => iataToIcao(a.icao) || a.icao).filter(Boolean);
+      const _res = await Promise.all([
         fetchLiveMetar(_depIcao), fetchLiveMetar(_arrIcao),
         fetchLiveTaf(_depIcao),   fetchLiveTaf(_arrIcao),
         fetchLiveNotams(_depIcao),fetchLiveNotams(_arrIcao)
-      ]);
+      ].concat(_altIcaos.map(ic => fetchLiveNotams(ic))));
+      const dm = _res[0], am = _res[1], dt = _res[2], at = _res[3], dn = _res[4], an = _res[5];
+      const _altN = _res.slice(6);
       const wx = {};
       if (dm) wx[_depIcao] = dm;
       if (am) wx[_arrIcao] = am;
@@ -22635,11 +22916,12 @@ function SkyViewPilotOS() {
       if (dt) tf[_depIcao] = dt;
       if (at) tf[_arrIcao] = at;
       if (Object.keys(tf).length) setLiveTafs(prev => Object.assign({}, prev, tf));
-      const notams = [
-        ...(dn || []).map(x => Object.assign({}, x, {airport: _depIcao})),
-        ...(an || []).map(x => Object.assign({}, x, {airport: _arrIcao}))
-      ];
-      if (notams.length) { NOTAMS_BY_LEG[_baseLeg.num] = notams; setTick(x => x + 1); }
+      // Index NOTAMs by ICAO (DEP, ARR y alternates) para el selector por aeropuerto
+      NOTAMS_BY_ICAO[_depIcao] = (dn || []).map(x => Object.assign({}, x, {airport: _depIcao}));
+      NOTAMS_BY_ICAO[_arrIcao] = (an || []).map(x => Object.assign({}, x, {airport: _arrIcao}));
+      _altIcaos.forEach((ic, i) => { NOTAMS_BY_ICAO[ic] = (_altN[i] || []).map(x => Object.assign({}, x, {airport: ic})); });
+      const notams = [].concat(NOTAMS_BY_ICAO[_depIcao], NOTAMS_BY_ICAO[_arrIcao]);
+      if (notams.length || _altIcaos.length) { NOTAMS_BY_LEG[_baseLeg.num] = notams; setTick(x => x + 1); }
       // Refresh Sky View home card with live data
       if ((dm || am) && window.refreshSkyViewCard) {
         window.refreshSkyViewCard(Object.assign({}, _baseLeg, {
@@ -22882,7 +23164,7 @@ function SkyViewPilotOS() {
     leg: leg
   }), tab === "meteo" && /*#__PURE__*/React.createElement(TabMeteo, {
     leg: leg
-  }), tab === "notam" && /*#__PURE__*/React.createElement(TabNotam, {
+  }), tab === "notam" && /*#__PURE__*/React.createElement(TabNotamV2, {
     leg: leg
   }), tab === "maps" && /*#__PURE__*/React.createElement(TabMaps, {
     leg: leg
