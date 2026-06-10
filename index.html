@@ -16730,29 +16730,42 @@ async function ldDeltaPull(since){
     var body=await r.json();
     var serverEntries=body.entries||[];
     var serverDeletedIds=body.deleted_ids||[];
+    // Tombstones con fecha: id → deleted_at. Si el backend es viejo y solo manda
+    // deleted_ids (sin fecha), usamos '' como deleted_at (borra siempre, comportamiento previo).
+    var tombMap={};
+    if(Array.isArray(body.deleted)){
+      body.deleted.forEach(function(t){ if(t&&t.id) tombMap[t.id]=t.deleted_at||''; });
+    } else {
+      serverDeletedIds.forEach(function(id){ tombMap[id]=''; });
+    }
+    // Un tombstone borra una entrada SOLO si el borrado es >= que el guardado local.
+    // Si la entrada se guardó DESPUÉS del borrado (re-add deliberado), se mantiene.
+    function tombWins(id, savedAt){
+      if(!(id in tombMap)) return false;
+      var delAt=tombMap[id];
+      return (savedAt||'') <= delAt;   // borrado igual o más nuevo → gana el tombstone
+    }
     var isFull=body.full||!since;
     var deletedCount=0;
-    if(serverDeletedIds.length){
-      var delSet=new Set(serverDeletedIds);
-      var before=ldEntries.filter(function(e){return e&&e.type!=='__ac_db__';}).length;
-      ldEntries=ldEntries.filter(function(e){return !delSet.has(e&&e.id);});
-      deletedCount=before-ldEntries.filter(function(e){return e&&e.type!=='__ac_db__';}).length;
-      ldDelClear(serverDeletedIds);
-    }
+    var before=ldEntries.filter(function(e){return e&&e.type!=='__ac_db__';}).length;
+    ldEntries=ldEntries.filter(function(e){
+      if(!e||e.type==='__ac_db__') return true;
+      return !tombWins(e.id, e.savedAt);
+    });
+    deletedCount=before-ldEntries.filter(function(e){return e&&e.type!=='__ac_db__';}).length;
+    // Limpiar de la cola local de pendientes solo los IDs realmente borrados aquí.
     ldAcDbMergeFromServer(serverEntries);
     var realServer=serverEntries.filter(function(e){
       return e&&e.id&&e.id!==LD_AC_DB_ENTRY_ID&&e.type!=='__ac_db__';
     });
     var newCount=0;
     // Siempre merge (nunca reemplazar en bloque).
-    // NUNCA añadir entradas con tombstone aunque el servidor las devuelva
-    // (puede pasar si otro dispositivo hizo push antes de enterarse del borrado).
-    var tombstoneSet=new Set(serverDeletedIds);
+    // NO re-añadir entradas cuyo tombstone gane (borrado más nuevo que el guardado).
     var localMap={};
     ldEntries.forEach(function(e){if(e&&e.id) localMap[e.id]=e;});
     realServer.forEach(function(se){
       if(!se||!se.id) return;
-      if(tombstoneSet.has(se.id)) return; // ignorar entradas eliminadas aunque estén en servidor
+      if(tombWins(se.id, se.savedAt)) return; // entrada borrada y no reañadida → ignorar
       var local=localMap[se.id];
       if(!local){ ldEntries.unshift(se); newCount++; }
       else if((se.savedAt||'')>=(local.savedAt||'')){
@@ -17287,6 +17300,7 @@ function ldImportConfirm(){
   }
 
   var added=0, skipped=0, updated=0;
+  var importedIds=[]; // IDs (re)añadidos → cancelar cualquier borrado pendiente con ese id
 
   _ldImportData.forEach(function(r){
     var key=(r.date||'')+(r.dep||'')+(r.arr||'')+(r.flight||'');
@@ -17308,6 +17322,7 @@ function ldImportConfirm(){
         notes:r.notes||'',source:'IMPORT'
       };
       ldEntries.push(e);
+      importedIds.push(e.id);
       existingMap[key]={entry:e,idx:ldEntries.length-1};
       if(e.reg&&e.acType){
         var db=ldAcDbLoad();
@@ -17318,6 +17333,7 @@ function ldImportConfirm(){
     } else {
       // Duplicate — decide by completeness
       var existEntry=existing.entry;
+      if(existEntry&&existEntry.id) importedIds.push(existEntry.id);
       var existScore=completenessScore(existEntry);
       var newScore=completenessScore(r);
 
@@ -17336,6 +17352,10 @@ function ldImportConfirm(){
       }
     }
   });
+
+  // Cancelar borrados pendientes de cualquier vuelo (re)importado: re-añadir
+  // un vuelo con el mismo id estable debe ANULAR su eliminación previa, no borrarse.
+  if(importedIds.length) ldDelClear(importedIds);
 
   ldEntries.sort(function(a,b){ return b.date.localeCompare(a.date); });
   ldSaveData();
