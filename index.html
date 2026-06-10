@@ -15006,21 +15006,27 @@ async function ldBulkDeleteSelected(){
   ldEntries=ldEntries.filter(function(e){ return !_ldSelected.has(e.id); });
   ldDelMark(ids);
   ldSaveData();
-  ldBulkDeleteFromServer(ids);
   var n=ids.length;
   ldExitSelectMode();
   ldRender(); ldStats(); ldUpdatePlanBanners();
   showToast('🗑 '+n+' vuelo'+(n!==1?'s':'')+' eliminado'+(n!==1?'s':''),'info');
+  // Enviar al servidor mostrando estado, para saber cuándo termina realmente.
+  ldSetSyncStatus('syncing');
+  var ok=await ldBulkDeleteFromServer(ids);
+  if(ok){ ldDelClear(ids); ldSetSyncStatus('ok'); }
+  else  { ldSetSyncStatus('error'); }
 }
 async function ldBulkDeleteFromServer(ids){
-  var token=ldAuthHeaders(); if(!token) return;
+  var token=ldAuthHeaders(); if(!token) return false;
   try{
-    await fetch(ldBackendUrl()+'/api/logbook/bulk-delete',{
+    var r=await fetch(ldBackendUrl()+'/api/logbook/bulk-delete',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
       body:JSON.stringify({ids:ids})
     });
-  }catch(e){ console.error('[bulk-delete]',e.message); }
+    if(!r.ok){ console.error('[bulk-delete] HTTP',r.status); return false; }
+    return true;
+  }catch(e){ console.error('[bulk-delete]',e.message); return false; }
 }
 
 // ── Flight detail card ────────────────────────────────────────────
