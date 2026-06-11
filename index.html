@@ -21593,6 +21593,7 @@ function TabMeteoV2(_refM2){
   const _ws=useState({}), wxStore=_ws[0], setWxStore=_ws[1];
   const _ts=useState({}), tafStore=_ts[0], setTafStore=_ts[1];
   const _fc=useState({}), fcStore=_fc[0], setFcStore=_fc[1];
+  const _wo=useState(true), windOpen=_wo[0], setWindOpen=_wo[1];
   const _ld=useState(false), loading=_ld[0], setLoading=_ld[1];
   const _pd=useState(0), pullDist=_pd[0], setPullDist=_pd[1];
   const rootRef=useRef(null), refreshRef=useRef(null), pullRef=useRef(0);
@@ -21860,15 +21861,15 @@ function TabMeteoV2(_refM2){
       // ── chips de pista ──
       const chips=rwys.map(function(r){
         const cc=_wxComp(r.hdg,pw.dir,spd), sc=bandClr[_wxBand(cc.absxw)], on=r.id===selId;
-        return React.createElement("div",{key:r.id,onClick:function(){setRwy(r.id);},style:{position:"relative",flex:"1 0 auto",minWidth:72,background:on?"rgba(91,232,245,.08)":T.surf1,border:"1px solid "+(on?"rgba(91,232,245,.45)":T.line),borderBottom:"3px solid "+sc,borderRadius:14,padding:"15px 9px 8px",cursor:"pointer",textAlign:"center",boxShadow:on?"0 0 0 1px rgba(91,232,245,.22)":"none",transition:".15s"}},
-          r.id===useRwy?React.createElement("span",{style:{position:"absolute",top:-8,left:"50%",transform:"translateX(-50%)",fontFamily:mono,fontSize:7,fontWeight:700,letterSpacing:".6px",color:T.grn,background:"rgba(7,18,14,.95)",border:"1px solid "+T.grnBd,borderRadius:6,padding:"2px 6px",whiteSpace:"nowrap"}},"EN USO"):null,
-          React.createElement("div",{style:{fontFamily:mono,fontSize:20,fontWeight:700,lineHeight:1,color:on?T.cyan:T.tx1,textShadow:on?"0 0 14px rgba(91,232,245,.5)":"none"}},r.id),
-          React.createElement("div",{style:{fontFamily:mono,fontSize:8.5,color:T.tx3,fontWeight:700,marginTop:4}},String(r.hdg).padStart(3,"0")+"°"),
-          React.createElement("div",{style:{fontFamily:mono,fontSize:8.5,fontWeight:700,color:sc,marginTop:6}},"✕"+cc.absxw)
+        return React.createElement("div",{key:r.id,onClick:function(){setRwy(r.id);},style:{position:"relative",flex:"1 0 auto",minWidth:54,background:on?"rgba(91,232,245,.08)":T.surf1,border:"1px solid "+(on?"rgba(91,232,245,.45)":T.line),borderBottom:"2px solid "+sc,borderRadius:11,padding:"10px 8px 6px",cursor:"pointer",textAlign:"center",boxShadow:on?"0 0 0 1px rgba(91,232,245,.22)":"none",transition:".15s"}},
+          r.id===useRwy?React.createElement("span",{style:{position:"absolute",top:-7,left:"50%",transform:"translateX(-50%)",fontFamily:mono,fontSize:6,fontWeight:700,letterSpacing:".5px",color:T.grn,background:"rgba(7,18,14,.95)",border:"1px solid "+T.grnBd,borderRadius:5,padding:"1px 5px",whiteSpace:"nowrap"}},"EN USO"):null,
+          React.createElement("div",{style:{fontFamily:mono,fontSize:13,fontWeight:700,lineHeight:1,color:on?T.cyan:T.tx1,textShadow:on?"0 0 14px rgba(91,232,245,.5)":"none"}},r.id),
+          React.createElement("div",{style:{fontFamily:mono,fontSize:7,color:T.tx3,fontWeight:700,marginTop:3}},String(r.hdg).padStart(3,"0")+"°"),
+          React.createElement("div",{style:{fontFamily:mono,fontSize:7.5,fontWeight:700,color:sc,marginTop:4}},"✕"+cc.absxw)
         );
       });
       // ── stats (cuadro único con divisores) ──
-      const uu=function(t){return React.createElement("span",{style:{fontSize:10,fontWeight:600,color:T.tx2}},t);};
+      const uu=function(t){return React.createElement("span",{style:{fontSize:7.5,fontWeight:600,color:T.tx2}},t);};
       const statDefs=[
         ["🌬","VIENTO",[String(pw.spd),uu(" kt")],String(pw.dir).padStart(3,"0")+"°"],
         ["🚩","RÁFAGA",gust?[String(gust),uu(" kt")]:["—"],gust?"con rachas":"sin racha"],
@@ -21880,12 +21881,12 @@ function TabMeteoV2(_refM2){
       const statsGrid=React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",background:T.surf1,border:"1px solid "+T.line2,borderRadius:14,overflow:"hidden",marginBottom:15,boxShadow:T.cardSh}},
         statDefs.map(function(s,i){
           const col=i%3, row=Math.floor(i/3);
-          return React.createElement("div",{key:s[1],style:{padding:"11px 11px",borderRight:col<2?"1px solid "+T.line:"none",borderBottom:row<1?"1px solid "+T.line:"none"}},
-            React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5,marginBottom:7}},
-              React.createElement("span",{style:{fontSize:11}},s[0]),
-              React.createElement("span",{style:{fontFamily:mono,fontSize:7,fontWeight:700,letterSpacing:".4px",color:T.tx3}},s[1])),
-            React.createElement("div",{style:{fontSize:17,fontWeight:700,lineHeight:1,letterSpacing:"-.4px",color:T.tx1}},s[2]),
-            s[3]?React.createElement("div",{style:{fontFamily:mono,fontSize:7.5,color:T.tx2,marginTop:5,fontWeight:500}},s[3]):null);
+          return React.createElement("div",{key:s[1],style:{padding:"8px 9px",borderRight:col<2?"1px solid "+T.line:"none",borderBottom:row<1?"1px solid "+T.line:"none"}},
+            React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,marginBottom:5}},
+              React.createElement("span",{style:{fontSize:9}},s[0]),
+              React.createElement("span",{style:{fontFamily:mono,fontSize:6.5,fontWeight:700,letterSpacing:".3px",color:T.tx3}},s[1])),
+            React.createElement("div",{style:{fontSize:11,fontWeight:700,lineHeight:1,letterSpacing:"-.2px",color:T.tx1}},s[2]),
+            s[3]?React.createElement("div",{style:{fontFamily:mono,fontSize:6.5,color:T.tx2,marginTop:4,fontWeight:500}},s[3]):null);
         })
       );
       // ── barras cara/cruzado ──
@@ -21895,25 +21896,25 @@ function TabMeteoV2(_refM2){
       const hwFillClr=isHead?T.grn:bandClr[hwBand];
       const xwTagClr=xwBand==="grn"?T.alt:bandClr[xwBand], xwTagBg=xwBand==="grn"?T.altBg:bandBg[xwBand], xwTagBd=xwBand==="grn"?T.altBd:bandBd[xwBand];
       function barCard(icoEl,icoBg,icoClr,title,sub,val,valClr,fillGrad,glow,pct,tagClr,tagBg,tagBd){
-        return React.createElement("div",{style:{background:T.surf1,border:"1px solid "+T.line,borderRadius:14,padding:"11px 12px"}},
-          React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:10}},
-            React.createElement("div",{style:{width:32,height:32,borderRadius:10,flexShrink:0,background:icoBg,color:icoClr,display:"flex",alignItems:"center",justifyContent:"center"}},icoEl),
+        return React.createElement("div",{style:{background:T.surf1,border:"1px solid "+T.line,borderRadius:11,padding:"8px 10px"}},
+          React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:7}},
+            React.createElement("div",{style:{width:22,height:22,borderRadius:7,flexShrink:0,background:icoBg,color:icoClr,display:"flex",alignItems:"center",justifyContent:"center"}},icoEl),
             React.createElement("div",{style:{flex:1,minWidth:0}},
-              React.createElement("div",{style:{fontSize:11.5,fontWeight:700,letterSpacing:".2px",color:T.tx1}},title),
-              React.createElement("div",{style:{fontFamily:mono,fontSize:8,color:T.tx3,marginTop:2,fontWeight:700}},sub)),
-            React.createElement("div",{style:{fontSize:23,fontWeight:800,lineHeight:1,letterSpacing:"-1px",color:valClr,textShadow:"0 0 16px "+glow}},val,React.createElement("span",{style:{fontSize:10,fontWeight:600,color:T.tx2,marginLeft:1}},"kt")),
-            React.createElement("span",{style:{fontFamily:mono,fontSize:7.5,fontWeight:700,letterSpacing:".4px",padding:"4px 8px",borderRadius:8,marginLeft:8,whiteSpace:"nowrap",color:tagClr,background:tagBg,border:"1px solid "+tagBd}},_wxStrLabel(val))),
-          React.createElement("div",{style:{height:7,borderRadius:5,background:"rgba(255,255,255,.07)",overflow:"visible"}},
-            React.createElement("div",{style:{height:"100%",borderRadius:5,width:pct+"%",background:fillGrad,boxShadow:"0 0 20px "+glow+",0 0 9px "+glow+",inset 0 0 6px rgba(255,255,255,.25)"}})));
+              React.createElement("div",{style:{fontSize:9,fontWeight:700,letterSpacing:".2px",color:T.tx1}},title),
+              React.createElement("div",{style:{fontFamily:mono,fontSize:7,color:T.tx3,marginTop:1,fontWeight:700}},sub)),
+            React.createElement("div",{style:{fontSize:13,fontWeight:800,lineHeight:1,letterSpacing:"-.3px",color:valClr,textShadow:"0 0 10px "+glow}},val,React.createElement("span",{style:{fontSize:7.5,fontWeight:600,color:T.tx2,marginLeft:1}},"kt")),
+            React.createElement("span",{style:{fontFamily:mono,fontSize:6.5,fontWeight:700,letterSpacing:".3px",padding:"3px 6px",borderRadius:6,marginLeft:6,whiteSpace:"nowrap",color:tagClr,background:tagBg,border:"1px solid "+tagBd}},_wxStrLabel(val))),
+          React.createElement("div",{style:{height:5,borderRadius:4,background:"rgba(255,255,255,.07)",overflow:"visible"}},
+            React.createElement("div",{style:{height:"100%",borderRadius:4,width:pct+"%",background:fillGrad,boxShadow:"0 0 16px "+glow+",0 0 7px "+glow+",inset 0 0 5px rgba(255,255,255,.25)"}})));
       }
-      const hwIco=React.createElement("svg",{width:17,height:17,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2},React.createElement("path",{d:"M3 8h11a3 3 0 1 0-3-3M3 16h15a3 3 0 1 1-3 3"}));
-      const xwIco=React.createElement("svg",{width:16,height:16,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2.4,strokeLinecap:"round"},React.createElement("line",{x1:5,y1:5,x2:19,y2:19}),React.createElement("line",{x1:19,y1:5,x2:5,y2:19}));
-      const bars=React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:10,marginBottom:14}},
+      const hwIco=React.createElement("svg",{width:13,height:13,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2},React.createElement("path",{d:"M3 8h11a3 3 0 1 0-3-3M3 16h15a3 3 0 1 1-3 3"}));
+      const xwIco=React.createElement("svg",{width:12,height:12,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2.4,strokeLinecap:"round"},React.createElement("line",{x1:5,y1:5,x2:19,y2:19}),React.createElement("line",{x1:19,y1:5,x2:5,y2:19}));
+      const bars=React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:8,marginBottom:12}},
         barCard(hwIco,T.grnBg,isHead?T.grn:bandClr[hwBand],isHead?"Viento de cara":"Viento de cola","DESDE "+String(pw.dir).padStart(3,"0")+"°",Math.abs(c.head),hwFillClr,"linear-gradient(90deg,rgba(78,230,174,.45),"+hwFillClr+")","rgba(78,230,174,.7)",Math.min(100,Math.round(Math.abs(c.head)/35*100)),isHead?T.grn:bandClr[hwBand],isHead?T.grnBg:bandBg[hwBand],isHead?T.grnBd:bandBd[hwBand]),
         barCard(xwIco,T.altBg,T.alt,"Viento cruzado · "+c.side,"DESDE "+String(xwFrom).padStart(3,"0")+"°",c.absxw,T.alt,"linear-gradient(90deg,rgba(183,156,255,.45),"+T.alt+")","rgba(183,156,255,.7)",Math.min(100,Math.round(c.absxw/35*100)),xwTagClr,xwTagBg,xwTagBd)
       );
       // ── leyenda ──
-      const legend=React.createElement("div",{style:{display:"flex",alignItems:"center",gap:11,flexWrap:"wrap",justifyContent:"center",fontFamily:mono,fontSize:8,fontWeight:700,color:T.tx3,padding:"11px 0",borderTop:"1px solid "+T.line,borderBottom:"1px solid "+T.line,marginBottom:14}},
+      const legend=React.createElement("div",{style:{display:"flex",alignItems:"center",gap:9,flexWrap:"wrap",justifyContent:"center",fontFamily:mono,fontSize:7,fontWeight:700,color:T.tx3,padding:"9px 0",borderTop:"1px solid "+T.line,borderBottom:"1px solid "+T.line,marginBottom:12}},
         React.createElement("span",null,"✕ = viento cruzado"),
         React.createElement("span",{style:{display:"flex",alignItems:"center",gap:5}},React.createElement("i",{style:{width:15,height:4,borderRadius:3,background:T.grn,display:"inline-block"}}),"<15 kt"),
         React.createElement("span",{style:{display:"flex",alignItems:"center",gap:5}},React.createElement("i",{style:{width:15,height:4,borderRadius:3,background:T.amb,display:"inline-block"}}),"15–24 kt"),
@@ -21948,29 +21949,32 @@ function TabMeteoV2(_refM2){
         fcRow=React.createElement("div",{style:{display:"flex",gap:7,overflowX:"auto",marginBottom:14,padding:"2px 0"}},
           fcPts.map(function(p,i){
             return React.createElement("div",{key:i,style:{flex:"1 0 auto",minWidth:62,background:i===0?"rgba(91,232,245,.12)":T.surf1,border:"1px solid "+(i===0?"rgba(91,232,245,.7)":T.line),borderRadius:12,padding:"10px 6px",textAlign:"center",boxShadow:i===0?"0 0 0 1px rgba(91,232,245,.35),0 6px 22px rgba(91,232,245,.28),inset 0 0 14px rgba(91,232,245,.12)":"none"}},
-              React.createElement("div",{style:{fontFamily:mono,fontSize:8,fontWeight:700,color:i===0?T.cyan:T.tx3,marginBottom:6}},p.lab),
-              React.createElement("div",{style:{color:T.cyan,marginBottom:5,transform:"rotate("+p.dir+"deg)"}},React.createElement("svg",{width:13,height:13,viewBox:"0 0 24 24",fill:"currentColor"},React.createElement("path",{d:"M12 2L5 21l7-4 7 4z"}))),
-              React.createElement("div",{style:{fontFamily:mono,fontSize:8.5,fontWeight:700,color:T.tx2}},String(p.dir).padStart(3,"0")+"°"),
-              React.createElement("div",{style:{fontSize:15,fontWeight:700,marginTop:4,lineHeight:1,color:T.tx1}},p.spd,React.createElement("span",{style:{fontSize:9,color:T.tx2}}," kt")),
-              p.gust?React.createElement("div",{style:{fontFamily:mono,fontSize:7.5,color:T.tx3,marginTop:4}},"Ráf. "+p.gust):null);
+              React.createElement("div",{style:{fontFamily:mono,fontSize:7,fontWeight:700,color:i===0?T.cyan:T.tx3,marginBottom:5}},p.lab),
+              React.createElement("div",{style:{color:T.cyan,marginBottom:4,transform:"rotate("+p.dir+"deg)"}},React.createElement("svg",{width:11,height:11,viewBox:"0 0 24 24",fill:"currentColor"},React.createElement("path",{d:"M12 2L5 21l7-4 7 4z"}))),
+              React.createElement("div",{style:{fontFamily:mono,fontSize:7.5,fontWeight:700,color:T.tx2}},String(p.dir).padStart(3,"0")+"°"),
+              React.createElement("div",{style:{fontSize:11,fontWeight:700,marginTop:3,lineHeight:1,color:T.tx1}},p.spd,React.createElement("span",{style:{fontSize:7,color:T.tx2}}," kt")),
+              p.gust?React.createElement("div",{style:{fontFamily:mono,fontSize:6.5,color:T.tx3,marginTop:3}},"Ráf. "+p.gust):null);
           }));
       }
       // ── ensamblado ──
-      windCard=React.createElement("div",{style:{marginBottom:12,background:"linear-gradient(160deg,"+T.surf2+","+T.surf1+")",border:"1px solid "+T.cardBd,borderRadius:18,padding:"14px 14px",boxShadow:T.cardSh}},
-        React.createElement("div",{style:{display:"flex",alignItems:"center",gap:11,marginBottom:14}},
-          React.createElement("div",{style:{width:40,height:40,borderRadius:12,flexShrink:0,background:"linear-gradient(150deg,rgba(120,95,200,.4),rgba(40,55,95,.45))",border:"1px solid "+T.line2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19}},"🧭"),
+      windCard=React.createElement("div",{style:{marginBottom:12,background:"linear-gradient(160deg,"+T.surf2+","+T.surf1+")",border:"1px solid "+T.cardBd,borderRadius:16,padding:windOpen?"11px 13px":"10px 13px",boxShadow:T.cardSh}},
+        React.createElement("div",{onClick:function(){setWindOpen(function(o){return !o;});},style:{display:"flex",alignItems:"center",gap:9,cursor:"pointer",marginBottom:windOpen?12:0}},
+          React.createElement("div",{style:{width:30,height:30,borderRadius:9,flexShrink:0,background:"linear-gradient(150deg,rgba(120,95,200,.4),rgba(40,55,95,.45))",border:"1px solid "+T.line2,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}},React.createElement("img",{src:"icons/windsock.svg",width:22,height:22,alt:"",style:{display:"block",objectFit:"contain"},onError:function(e){e.target.style.display="none";e.target.parentNode.textContent="🧭";}})),
           React.createElement("div",{style:{flex:1,minWidth:0}},
-            React.createElement("div",{style:{fontSize:14,fontWeight:700,color:T.tx1}},"Componente de viento"),
-            React.createElement("div",{style:{fontFamily:mono,fontSize:8.5,color:T.tx3,marginTop:3,fontWeight:700,letterSpacing:".3px"}},"METAR "+String(pw.dir).padStart(3,"0")+"° / "+pw.spd+(gust?(" G"+gust):"")+" kt · toca una pista")),
-          enUso?React.createElement("span",{style:{display:"flex",alignItems:"center",gap:5,fontFamily:mono,fontSize:8,fontWeight:700,letterSpacing:".6px",color:T.grn,background:T.grnBg,border:"1px solid "+T.grnBd,borderRadius:20,padding:"5px 9px",whiteSpace:"nowrap"}},React.createElement("span",{style:{width:6,height:6,borderRadius:"50%",background:T.grn,boxShadow:"0 0 7px "+T.grn}}),"EN USO"):null
+            React.createElement("div",{style:{fontSize:11,fontWeight:700,color:T.tx1}},"Componente de viento · "+rw.id),
+            React.createElement("div",{style:{fontFamily:mono,fontSize:7.5,color:T.tx3,marginTop:2,fontWeight:700,letterSpacing:".2px"}},String(pw.dir).padStart(3,"0")+"°/"+pw.spd+(gust?("G"+gust):"")+"kt · "+(isHead?"⬆":"⬇")+Math.abs(c.head)+" ✕"+c.absxw)),
+          enUso?React.createElement("span",{style:{display:"flex",alignItems:"center",gap:4,fontFamily:mono,fontSize:7,fontWeight:700,letterSpacing:".5px",color:T.grn,background:T.grnBg,border:"1px solid "+T.grnBd,borderRadius:20,padding:"4px 8px",whiteSpace:"nowrap"}},React.createElement("span",{style:{width:5,height:5,borderRadius:"50%",background:T.grn,boxShadow:"0 0 7px "+T.grn}}),"EN USO"):null,
+          React.createElement("span",{style:{color:T.tx3,fontSize:14,transform:windOpen?"rotate(90deg)":"none",transition:".18s"}},"›")
         ),
-        React.createElement("div",{style:{display:"flex",gap:8,overflowX:"auto",marginBottom:14,padding:"6px 0 4px"}},chips),
-        statsGrid,
-        React.createElement("div",{style:{display:"flex",justifyContent:"center",marginBottom:14}},_wxDiagramBig(T,rw.hdg,pw.dir,rw.id,(cur.icao+rw.id).replace(/[^A-Za-z0-9]/g,""))),
-        bars,
-        legend,
-        trendBlock,
-        fcRow
+        windOpen?React.createElement("div",null,
+          React.createElement("div",{style:{display:"flex",gap:7,overflowX:"auto",marginBottom:12,padding:"6px 0 4px"}},chips),
+          statsGrid,
+          React.createElement("div",{style:{display:"flex",justifyContent:"center",marginBottom:12}},_wxDiagramBig(T,rw.hdg,pw.dir,rw.id,(cur.icao+rw.id).replace(/[^A-Za-z0-9]/g,""))),
+          bars,
+          legend,
+          trendBlock,
+          fcRow
+        ):null
       );
     }
 
