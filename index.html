@@ -24362,6 +24362,7 @@ function rstRenderCalendar(){
     standby:  { bg:'#1a3a5c', bd:'#15304d',             tx:'#FFFFFF', lbl:'☕STBY', gl:'rgba(26,58,92,.5)' },
     osb:      { bg:'#2e6da4', bd:'#286091',             tx:'#FFFFFF', lbl:'✈OSB',  gl:'rgba(46,109,164,.5)' },
     off:      { bg:'#48c9b0', bd:'#3db49d',             tx:'#FFFFFF', lbl:'☕OFF',  gl:'rgba(72,201,176,.5)' },
+    vacation: { bg:'#f59e0b', bd:'#d97706',             tx:'#3a2400', lbl:'🏖VAC', gl:'rgba(245,158,11,.5)' },
     f:        { bg:'#48c9b0', bd:'#3db49d',             tx:'#FFFFFF', lbl:'☕F',    gl:'rgba(72,201,176,.5)' },
     ef:       { bg:'#2980b9', bd:'#2471a3',             tx:'#FFFFFF', lbl:'✓EF',   gl:'rgba(41,128,185,.5)' },
     srof:     { bg:'#1abc9c', bd:'#17a589',             tx:'#FFFFFF', lbl:'☕SROF', gl:'rgba(26,188,156,.5)' },
@@ -24476,7 +24477,7 @@ function rstRenderCalendar(){
       nonFlights.forEach(function(e){
         var tc2 = TC[e.type]||TC.other;
         // Use e.code when available (shows SPAR, ART, REU, NROF… instead of generic type)
-        var typeLabels = {standby:'STBY',osb:'OSB',off:'OFF',f:'F',ef:'EF',srof:'SROF',noff:'NOFF',aoff:'AOFF',nrof:'NROF',meof:'MEOF',ebt:'SIM',eva:'SIM',lm:'LM',training:'TR',sick:'SICK',other:'?'};
+        var typeLabels = {standby:'STBY',osb:'OSB',off:'OFF',vacation:'VAC',f:'F',ef:'EF',srof:'SROF',noff:'NOFF',aoff:'AOFF',nrof:'NROF',meof:'MEOF',ebt:'SIM',eva:'SIM',lm:'LM',training:'TR',sick:'SICK',other:'?'};
         barItems.push({ bg:tc2.bg, tx:tc2.tx, lbl: e.code || typeLabels[e.type] || e.type });
       });
       glowCol = (TC[dayEntries[0].type]||TC.other).gl;
@@ -26106,7 +26107,7 @@ function rosterRenderActivitiesList(dateStr, entries){
     var cfg2 = TC[e.type] || {bg:'#bdc3c7', tx:'#fff'};
     var row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:#fff;border:1px solid rgba(30,58,164,.12);border-radius:10px;margin-bottom:6px';
-    var typeLabels = {standby:'STBY',osb:'OSB',off:'OFF',f:'F',ef:'EF',srof:'SROF',noff:'NOFF',lm:'LM',training:'TR',sick:'SICK',other:'Otro'};
+    var typeLabels = {standby:'STBY',osb:'OSB',off:'OFF',vacation:'VAC',f:'F',ef:'EF',srof:'SROF',noff:'NOFF',lm:'LM',training:'TR',sick:'SICK',other:'Otro'};
     var lbl = e.code || typeLabels[e.type] || e.type;
     var timeStr = (e.std&&e.sta) ? ' · '+e.std+'–'+e.sta : (e.std ? ' · '+e.std : '');
     row.innerHTML = '<div style="display:flex;align-items:center;gap:8px">'
@@ -31704,18 +31705,33 @@ function fpApplyToEntries(){
   var cfg = fpLoadConfig();
   if(!cfg || !cfg.enabled) { rstSave(); return; }
 
-  var monthsWithRoster = {};
+  // Días con actividad real (no-patrón) y meses con roster real
+  var realDay = {}, monthsWithRoster = {};
   RST.entries.forEach(function(e){
     if(!e.fixedPattern && e.date && e.date.length >= 7){
+      realDay[e.date] = true;
       monthsWithRoster[e.date.slice(0,7)] = true;
     }
   });
 
+  // Días de vacaciones (selección explícita del piloto) — prioridad a nivel de DÍA:
+  // la actividad real manda, pero las vacaciones NO ceden el mes entero como el patrón OFF.
+  var vacDay = {};
+  if(Array.isArray(cfg.vacations)){
+    cfg.vacations.forEach(function(v){
+      if(!v || !v.from || !v.to) return;
+      var c = fpParse(v.from), b = fpParse(v.to);
+      while(c <= b){ vacDay[fpFmt(c)] = true; c.setDate(c.getDate()+1); }
+    });
+  }
+
+  // 1) Patrón OFF: solo en meses SIN roster real y en días sin vacación/real
   var start = fpParse(cfg.start);
   var end = new Date(start); end.setMonth(end.getMonth() + (cfg.durationM||12));
   var cur = new Date(start);
   while(cur < end){
     var ds = fpFmt(cur);
+    if(realDay[ds] || vacDay[ds]){ cur.setDate(cur.getDate()+1); continue; }
     var monthKey = ds.slice(0,7);
     if(monthsWithRoster[monthKey]){ cur.setDate(cur.getDate()+1); continue; }
     var kind = fpDayKind(cfg, cur);
@@ -31730,6 +31746,14 @@ function fpApplyToEntries(){
     }
     cur.setDate(cur.getDate()+1);
   }
+
+  // 2) Vacaciones: en cualquier día (dentro o fuera del rango del patrón) sin actividad real
+  Object.keys(vacDay).forEach(function(ds){
+    if(!realDay[ds]){
+      RST.entries.push({ date: ds, type: 'vacation', code: 'VAC', fixedPattern: true, vacation: true });
+    }
+  });
+
   rstSave();
 }
 window.fpReapply = function(){
