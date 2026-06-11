@@ -17804,6 +17804,17 @@ function _rwyTimeInRange(hhmm,from,to){
   const c=toMin(hhmm),f=toMin(from),t=toMin(to);
   return f<=t?c>=f&&c<=t:c>=f||c<=t;
 }
+// Pistas del aeropuerto: prioriza las del CCI (deriva rumbo del ID: 24R->240), fallback a RUNWAY_DB
+function _runwaysForIcao(icao){
+  const c=(typeof getCCI==='function')?getCCI(icao):null;
+  if(c&&c.runways&&c.runways.length){
+    return c.runways.map(function(r){
+      var n=parseInt(String(r.id).replace(/[^0-9]/g,''),10);
+      return {id:r.id, hdg:(((isNaN(n)?0:n)*10)%360), do_not_use:!!r.do_not_use};
+    });
+  }
+  return RUNWAY_DB[icao]||null;
+}
 function _bestRwyFromList(runways,dir,spd){
   if(!runways||!runways.length)return null;
   let best=null,bestHW=-Infinity;
@@ -17811,8 +17822,8 @@ function _bestRwyFromList(runways,dir,spd){
   return best?best.id:null;
 }
 function calcBestRwy(icao,windDir,windSpd,utcHHMM){
-  const runways=RUNWAY_DB[icao];
-  if(!runways||!runways.length)return null;
+  const runways=(_runwaysForIcao(icao)||[]).filter(function(r){return !r.do_not_use;});
+  if(!runways.length)return null;
   if(!windSpd||windSpd<3)return null;
   let candidates=runways;
   const rules=(RUNWAY_RULES[icao]||[]);
@@ -21206,7 +21217,7 @@ function AltCard(_ref27) {
     }
   };
   const tc = tierCfg[tier] || tierCfg.plan;
-  const cc = a.cat === "VMC" ? "#4dff91" : a.cat === "MVMC" ? "#FFB800" : "#ff4d6d";
+  const cc = a.cat === "VMC" ? "#4dff91" : a.cat === "MVMC" ? "#FFB800" : (a.cat === "IFR" || a.cat === "IMC" || a.cat === "LIFR") ? "#ff4d6d" : C.dimmer;
   return /*#__PURE__*/React.createElement("div", {
     onClick: () => setOpen(o => !o),
     style: {
@@ -21346,10 +21357,15 @@ function AlternatesSection(_ref28) {
     _useState18 = _slicedToArray(_useState17, 2),
     open = _useState18[0],
     setOpen = _useState18[1];
-  const alts = DEST_ALTS[leg.num] || {
-    destAlts: [],
+  // Alternativos del CCI del destino (si lo tenemos); si no, fallback a DEST_ALTS hardcodeado
+  const _arrCci = (typeof getCCI === 'function') ? getCCI(iataToIcao(leg.arr) || leg.arr) : null;
+  const _hasCci = _arrCci && _arrCci.usual_alternates && _arrCci.usual_alternates.length;
+  const alts = _hasCci ? {
+    destAlts: _arrCci.usual_alternates.map(function (a) {
+      return { icao: a.icao, city: a.name, rwy: a.rwy || "", dist: (a.dist_nm != null ? a.dist_nm + "nm" : ""), approach: a.approach || "", cat: undefined, metar: "", notams: [] };
+    }),
     enRoute: []
-  };
+  } : (DEST_ALTS[leg.num] || { destAlts: [], enRoute: [] });
   const arrIsBad = leg.metarArr.cat === "MVMC" || leg.metarArr.cat === "IMC";
   const total = alts.destAlts.length + alts.enRoute.length + leg.alts.length;
   return /*#__PURE__*/React.createElement("div", {
@@ -22113,7 +22129,7 @@ function TabMeteoV2(_refM2){
     );
 
     // ── Componente de viento por pista ──
-    let rwys=(RUNWAY_DB[cur.icao]||[]).slice();
+    let rwys=(_runwaysForIcao(cur.icao)||[]).slice();
     const useRwy=calcBestRwy(cur.icao,pw.dir,pw.spd,nowUtc)||calcRwyFromMetar(m.raw);
     if(!rwys.length&&useRwy) rwys=[{id:useRwy,hdg:parseInt(String(useRwy).replace(/[LRC]/g,""))*10}];
     let windCard;
