@@ -21618,6 +21618,7 @@ function TabMeteoV2(_refM2){
   const _a=useState(null), activeSel=_a[0], setActive=_a[1];
   const _r=useState(null), rwySel=_r[0], setRwy=_r[1];
   const _rw=useState(false), rawOpen=_rw[0], setRawOpen=_rw[1];
+  const _rwt=useState(false), rawTafOpen=_rwt[0], setRawTafOpen=_rwt[1];
   const _cp=useState(true), cloudOpen=_cp[0], setCloudOpen=_cp[1];
   const _ca=useState(function(){ try{ return JSON.parse(localStorage.getItem("sky_custom_wx")||"[]"); }catch(e){ return []; } }), customAps=_ca[0], setCustomAps=_ca[1];
   const _ao=useState(false), addOpen=_ao[0], setAddOpen=_ao[1];
@@ -21751,7 +21752,7 @@ function TabMeteoV2(_refM2){
     const ci=m?_wxCatInfo(m.cat):null;
     const sev=ci?SEVC[ci.k]:null;
     selKids.push(React.createElement("div",{
-      key:ap.key, onClick:function(){ setActive(ap.key); setRwy(null); setRawOpen(false); },
+      key:ap.key, onClick:function(){ setActive(ap.key); setRwy(null); setRawOpen(false); setRawTafOpen(false); },
       style:Object.assign({flex:scrollMode?"0 0 78px":1,minWidth:0,position:"relative",cursor:"pointer",padding:"5px 4px 6px",display:"flex",flexDirection:"column",alignItems:"center",gap:2,transition:"all .18s"},
         isOn?{background:T.floatBg,border:"1px solid "+cm.bd,borderBottom:"none",borderRadius:"11px 11px 0 0",marginBottom:-2,zIndex:3,boxShadow:"0 -4px 14px rgba(0,0,0,.22)"}
             :{background:T.surf1,border:"1px solid "+T.cardBd,borderBottom:"none",borderRadius:"11px 11px 0 0",marginBottom:0,opacity:.6})
@@ -22045,19 +22046,29 @@ function TabMeteoV2(_refM2){
     );
 
     // ── Toggle texto original ──
-    const rawCard=React.createElement("div",{style:{marginBottom:12,borderRadius:14,boxShadow:T.cardSh}},
+    const rawMetarCard=React.createElement("div",{style:{marginBottom:12,borderRadius:14,boxShadow:T.cardSh}},
       React.createElement("div",{onClick:function(){setRawOpen(function(o){return !o;});},style:{display:"flex",alignItems:"center",gap:9,padding:"10px 13px",borderRadius:rawOpen?"14px 14px 0 0":14,cursor:"pointer",background:T.surf1,border:"1px solid "+T.line2}},
         React.createElement("div",{style:{width:26,height:26,borderRadius:8,background:T.surf2,border:"1px solid "+T.line2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13}},"📄"),
         React.createElement("div",{style:{flex:1}},
-          React.createElement("div",{style:{fontSize:9.5,fontWeight:600,color:T.tx1}},"Texto original"),
-          React.createElement("div",{style:{fontSize:8,color:T.tx3,marginTop:1}},"METAR y TAF crudos (OACI)")
+          React.createElement("div",{style:{fontSize:9.5,fontWeight:600,color:T.tx1}},"METAR · texto original"),
+          React.createElement("div",{style:{fontFamily:mono,fontSize:8,color:T.tx3,marginTop:1}},"Observación cruda (OACI)")
         ),
         React.createElement("span",{style:{color:T.tx3,fontSize:13,transform:rawOpen?"rotate(90deg)":"none",transition:".18s"}},"›")
       ),
-      rawOpen?React.createElement("div",{style:{background:T.surf1,border:"1px solid "+T.line2,borderTop:"none",borderRadius:"0 0 14px 14px",padding:"2px 11px 11px"}},
-        React.createElement("div",{style:{fontFamily:mono,fontSize:8,fontWeight:700,letterSpacing:"1.5px",color:T.tx3,margin:"8px 2px 5px"}},"METAR"),
-        React.createElement("div",{style:{fontFamily:mono,fontSize:9.5,lineHeight:1.7,color:T.rawTx,background:T.rawBg,border:"1px solid "+T.line,borderRadius:11,padding:"10px 12px",whiteSpace:"pre-wrap",wordBreak:"break-word"}},m.raw||"—"),
-        React.createElement("div",{style:{fontFamily:mono,fontSize:8,fontWeight:700,letterSpacing:"1.5px",color:T.tx3,margin:"10px 2px 5px"}},"TAF"),
+      rawOpen?React.createElement("div",{style:{background:T.surf1,border:"1px solid "+T.line2,borderTop:"none",borderRadius:"0 0 14px 14px",padding:"10px 11px 11px"}},
+        React.createElement("div",{style:{fontFamily:mono,fontSize:9.5,lineHeight:1.7,color:T.rawTx,background:T.rawBg,border:"1px solid "+T.line,borderRadius:11,padding:"10px 12px",whiteSpace:"pre-wrap",wordBreak:"break-word"}},m.raw||"—")
+      ):null
+    );
+    const rawTafCard=React.createElement("div",{style:{marginBottom:12,borderRadius:14,boxShadow:T.cardSh}},
+      React.createElement("div",{onClick:function(){setRawTafOpen(function(o){return !o;});},style:{display:"flex",alignItems:"center",gap:9,padding:"10px 13px",borderRadius:rawTafOpen?"14px 14px 0 0":14,cursor:"pointer",background:T.surf1,border:"1px solid "+T.line2}},
+        React.createElement("div",{style:{width:26,height:26,borderRadius:8,background:T.surf2,border:"1px solid "+T.line2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13}},"📄"),
+        React.createElement("div",{style:{flex:1}},
+          React.createElement("div",{style:{fontSize:9.5,fontWeight:600,color:T.tx1}},"TAF · texto original"),
+          React.createElement("div",{style:{fontFamily:mono,fontSize:8,color:T.tx3,marginTop:1}},"Pronóstico crudo (OACI)")
+        ),
+        React.createElement("span",{style:{color:T.tx3,fontSize:13,transform:rawTafOpen?"rotate(90deg)":"none",transition:".18s"}},"›")
+      ),
+      rawTafOpen?React.createElement("div",{style:{background:T.surf1,border:"1px solid "+T.line2,borderTop:"none",borderRadius:"0 0 14px 14px",padding:"10px 11px 11px"}},
         React.createElement("div",{style:{fontFamily:mono,fontSize:9.5,lineHeight:1.7,color:T.rawTx,background:T.rawBg,border:"1px solid "+T.line,borderRadius:11,padding:"10px 12px",whiteSpace:"pre-wrap",wordBreak:"break-word"}},tafRaw||"—")
       ):null
     );
@@ -22068,7 +22079,7 @@ function TabMeteoV2(_refM2){
       React.createElement("span",{style:{flex:1,minWidth:0,fontSize:11,fontWeight:600,color:T.tx2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},apName),
       React.createElement("span",{style:{fontFamily:mono,fontSize:7,fontWeight:700,letterSpacing:".6px",color:cm.c,background:cm.bg,border:"1px solid "+cm.bd,borderRadius:6,padding:"3px 7px",whiteSpace:"nowrap"}},cur.role)
     );
-    body=React.createElement("div",{style:{border:"1px solid "+cm.bd,borderTopColor:"transparent",borderRadius:16,background:T.floatBg,boxShadow:T.cardSh,padding:"13px 12px 14px",position:"relative",zIndex:1}},frameHead,banner,tiles,windCard,cloudCard,tafCard,rawCard);
+    body=React.createElement("div",{style:{border:"1px solid "+cm.bd,borderTopColor:"transparent",borderRadius:16,background:T.floatBg,boxShadow:T.cardSh,padding:"13px 12px 14px",position:"relative",zIndex:1}},frameHead,banner,tiles,rawMetarCard,windCard,tafCard,rawTafCard,cloudCard);
   }
 
   const pullInd=React.createElement("div",{key:"pull",style:{height:loading?34:pullDist,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",transition:pullDist===0?"height .25s":"none"}},
