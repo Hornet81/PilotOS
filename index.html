@@ -20242,6 +20242,149 @@ function WindCards(_ref20) {
   }));
 }
 
+/* ════════ CCI — Crew Country Information (fichas de aeropuerto Vueling) ════════ */
+/* Sembrado inline con LEBL. Fase 2: migrar a endpoint backend /api/airports/cci/:icao */
+var CCI_BY_ICAO = {
+  "LEBL": {
+    icao: "LEBL", iata: "BCN", name: "Barcelona–El Prat", category: "B",
+    effective: "2026-05-14",
+    runways: [
+      { id: "06L", lda_m: 2922, approach: "CAT 3 DME", slope: 3.0, width_m: 60 },
+      { id: "24R", lda_m: 3352, approach: "CAT 3 DME", slope: 3.0, width_m: 60 },
+      { id: "06R", lda_m: 2660, approach: "CAT 3 DME", slope: 3.0, width_m: 60 },
+      { id: "24L", lda_m: 2660, approach: "CAT 3 DME", slope: 3.0, width_m: 60 },
+      { id: "02", lda_m: 2528, approach: "CAT 1 DME", slope: 3.0, width_m: 45 },
+      { id: "20", lda_m: 2528, approach: null, slope: null, width_m: 45, do_not_use: true }
+    ],
+    usual_alternates: [
+      { icao: "LERS", name: "Reus", dist_nm: 42, approach: "CAT 1 DME", rwy: "25" },
+      { icao: "LEGE", name: "Girona", dist_nm: 47, approach: "CAT 3 DME", rwy: "19" },
+      { icao: "LEZG", name: "Zaragoza", dist_nm: 142, approach: "CAT 3 DME", rwy: "30R" },
+      { icao: "LEVC", name: "Valencia", dist_nm: 160, approach: "CAT 1 DME", rwy: "12/30" }
+    ],
+    flight_dispatch: {
+      crew_req: "CPT TYPE A",
+      noise_abatement: { day_pref_ldg: "24R", night_pref_ldg: "02" }
+    },
+    threats: [
+      "Birds in the vicinity of AD",
+      "Unexpected shortcuts during arrival/approach",
+      "Taxi may require RWY crossings",
+      "TCAS alerts on departure/arrival",
+      "Windshear with intense N/NW wind",
+      "RWY 02 nighttime: tailwind, turbulence and optical illusions"
+    ],
+    weather_briefing: [
+      "Windshear during strong N to NW winds due to terrain (Garraf) for ALL RWYs",
+      "Mediterranean climate: heavy thunderstorm cells possible during summer"
+    ],
+    terrain_briefing: [
+      "Highest elevation: Montseny 5600ft, 30NM north",
+      "Garraf Mountains W of airport — high radar minima for RWY 06L approaches",
+      "High obstacles around Barcelona city, highest Collserola Tower 2340ft"
+    ],
+    ground: {
+      taxi_cautions: [
+        "Crossing active RWYs — night-config incidents, cross-check both finals clear",
+        "TWY bad condition: holding point G1 (lining up 24L), GN intersection (crossing 06L/24R)",
+        "Poor drainage / deep standing water: TWYs M and N (AS to E), T1 apron north (R-11, R-12)",
+        "Horizontal markings poorly visible in precipitation — request follow-me if losing reference",
+        "G3 (HP 24L) and G10 (HP 06R) only if instructed by ATC"
+      ]
+    }
+  },
+  "EGLL": {
+    icao: "EGLL", iata: "LHR", name: "London – Heathrow", category: "B",
+    effective: "2024-06-13",
+    runways: [
+      { id: "09L", lda_m: 3592, approach: "CAT 3", slope: 3.0, width_m: 50 },
+      { id: "27R", lda_m: 3882, approach: "CAT 3", slope: 3.0, width_m: 50 },
+      { id: "09R", lda_m: 3350, approach: "CAT 3", slope: 3.0, width_m: 50 },
+      { id: "27L", lda_m: 3658, approach: "CAT 3", slope: 3.0, width_m: 50 }
+    ],
+    usual_alternates: [
+      { icao: "EGKK", name: "Gatwick", dist_nm: 23, approach: "CAT 3", rwy: "08R/26L" },
+      { icao: "EGSS", name: "Stansted", dist_nm: 36, approach: "CAT 3", rwy: "04/22" },
+      { icao: "EGBB", name: "Birmingham", dist_nm: 76, approach: "CAT 3", rwy: "15/33" },
+      { icao: "EGCC", name: "Manchester", dist_nm: 131, approach: "CAT 3 DME", rwy: "05L/23R" }
+    ],
+    flight_dispatch: { crew_req: "CPT TYPE A", noise_abatement: {} },
+    threats: [
+      "Windshear during APP RWY 27R/27L",
+      "CDO operations are monitored and measured at LHR",
+      "RWY 27L ILS/LOC: false capture may be experienced when approaching from N or S",
+      "High volume of traffic, congested ATC comms",
+      "Reduced time-based separation both for DEP and ARR",
+      "Complex taxi paths with active RWY crossings — follow the GREEN procedure"
+    ],
+    weather_briefing: [
+      "RWY 27R: windshear and building-induced turbulence in strong S/SW winds",
+      "RWY 27L: windshear and building-induced turbulence in S and N winds"
+    ],
+    terrain_briefing: ["Not remarkable terrain"],
+    ground: {
+      taxi_cautions: [
+        "Reduced engine taxi NOT available to ACFT crossing an active RWY",
+        "Follow the GREENS when taxiing in darkness/low vis until CLR limit or red stop bar",
+        "Terminal 4 ops: departing 27R requires crossing 27L (arr RWY) via SB3/S4W; T4 reduced-taxi and night-noise restrictions apply"
+      ]
+    }
+  }
+};
+function getCCI(icao) { return (icao && CCI_BY_ICAO[icao]) || null; }
+
+function _cciList(title, items, dotColor) {
+  if (!items || !items.length) return null;
+  return /*#__PURE__*/React.createElement("div", { style: { marginTop: 11 } },
+    /*#__PURE__*/React.createElement("div", { style: { fontSize: 8, fontFamily: mono, fontWeight: 700, letterSpacing: "1.5px", color: C.dimmer, marginBottom: 6, textTransform: "uppercase" } }, title),
+    items.map(function (t, i) {
+      return /*#__PURE__*/React.createElement("div", { key: i, style: { display: "flex", gap: 7, alignItems: "flex-start", marginBottom: 5 } },
+        /*#__PURE__*/React.createElement("div", { style: { width: 5, height: 5, borderRadius: 3, background: dotColor, marginTop: 5, flexShrink: 0 } }),
+        /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, lineHeight: 1.35, color: C.dim, fontFamily: sans } }, t)
+      );
+    })
+  );
+}
+
+function CCIAirportBlock(_pc) {
+  let icao = _pc.icao, role = _pc.role, d = _pc.data;
+  const _co = useState(!!_pc.defOpen), open = _co[0], setOpen = _co[1];
+  const catColor = d.category === "A" ? C.green : d.category === "C" ? C.red : C.yellow;
+  const threats = d.threats || [];
+  const crew = d.flight_dispatch && d.flight_dispatch.crew_req;
+  return /*#__PURE__*/React.createElement("div", { style: { marginBottom: 8, border: "1px solid rgba(126,251,254,0.10)", borderRadius: 12, overflow: "hidden", background: "rgba(0,12,38,0.5)" } },
+    /*#__PURE__*/React.createElement("div", { onClick: function () { setOpen(!open); }, style: { display: "flex", alignItems: "center", gap: 8, padding: "9px 11px", cursor: "pointer" } },
+      /*#__PURE__*/React.createElement("span", { style: { fontSize: 8, fontFamily: mono, fontWeight: 700, color: C.cyan, letterSpacing: "1px", background: "rgba(126,251,254,0.10)", padding: "2px 5px", borderRadius: 4 } }, role),
+      /*#__PURE__*/React.createElement("span", { style: { fontSize: 15, fontFamily: mono, fontWeight: 900, color: C.white } }, icao),
+      d.name && /*#__PURE__*/React.createElement("span", { style: { fontSize: 10, color: C.dimmer, fontFamily: sans } }, d.name),
+      /*#__PURE__*/React.createElement("span", { style: { flex: 1 } }),
+      d.category && /*#__PURE__*/React.createElement("span", { style: { fontSize: 8, fontFamily: mono, fontWeight: 700, color: catColor, border: "1px solid " + catColor, borderRadius: 4, padding: "1px 5px" } }, "CAT " + d.category),
+      threats.length > 0 && /*#__PURE__*/React.createElement("span", { style: { fontSize: 9, fontFamily: mono, color: C.orange2 } }, threats.length + "⚠"),
+      /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, color: C.dimmer, transform: open ? "rotate(90deg)" : "none", transition: "transform .2s" } }, "▸")
+    ),
+    open && /*#__PURE__*/React.createElement("div", { style: { padding: "0 12px 12px" } },
+      crew && /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, fontFamily: mono, color: C.cyan2, marginTop: 6 } }, "CREW REQ \xB7 " + crew),
+      _cciList("AMENAZAS", threats, C.orange),
+      _cciList("WEATHER BRIEFING", d.weather_briefing, C.cyan2),
+      _cciList("TERRENO / OBSTÁCULOS", d.terrain_briefing, C.yellow),
+      _cciList("TAXI / GROUND", d.ground && d.ground.taxi_cautions, C.dimmer)
+    )
+  );
+}
+
+function CCISectionBrief(_pcs) {
+  let leg = _pcs.leg;
+  const depIcao = iataToIcao(leg.dep) || leg.dep;
+  const arrIcao = iataToIcao(leg.arr) || leg.arr;
+  const depC = getCCI(depIcao), arrC = getCCI(arrIcao);
+  if (!depC && !arrC) return null;
+  return /*#__PURE__*/React.createElement(Glass, { style: { padding: "13px 14px", marginBottom: 10 } },
+    /*#__PURE__*/React.createElement(SecLabel, null, "CCI \xB7 AER\xD3DROMO"),
+    depC && /*#__PURE__*/React.createElement(CCIAirportBlock, { icao: depIcao, role: "DEP", data: depC, defOpen: true }),
+    arrC && /*#__PURE__*/React.createElement(CCIAirportBlock, { icao: arrIcao, role: "ARR", data: arrC, defOpen: false })
+  );
+}
+
 /* ════════ TABS ════════ */
 function TabBrief(_ref21) {
   let leg = _ref21.leg;
@@ -20522,7 +20665,14 @@ function TabBrief(_ref21) {
       color: C.white,
       fontFamily: sans
     }
-  }, p.msg)))))));
+  }, p.msg)))))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 10
+    }
+  }, /*#__PURE__*/React.createElement(AlternatesSection, {
+    leg: leg,
+    defaultOpen: true
+  })));
 }
 
 /* ── TAF PERIODS ── */
@@ -21701,7 +21851,11 @@ function TabMeteoV2(_refM2){
   const nowUtc=new Date().toISOString().slice(11,16);
   const ICAO=function(c){ return iataToIcao(c)||c; };
 
-  const alts=(leg.alts||[]).slice(0,2);
+  // Alternativos del CCI del DESTINO (si lo tenemos); fallback a leg.alts
+  const _destCci=(typeof getCCI==='function')?getCCI(ICAO(leg.arr)):null;
+  const alts=(_destCci&&_destCci.usual_alternates&&_destCci.usual_alternates.length)
+    ? _destCci.usual_alternates.slice(0,4).map(function(a){ return {icao:a.icao, city:a.name}; })
+    : (leg.alts||[]).slice(0,2);
   const airports=[
     {key:"dep",cat:"route",role:"ORIGEN", code:leg.dep,icao:ICAO(leg.dep)},
     {key:"arr",cat:"route",role:"DESTINO",code:leg.arr,icao:ICAO(leg.arr)}
