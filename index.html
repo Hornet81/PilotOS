@@ -26333,9 +26333,10 @@ function rosterAddLegRow(leg){
     + '</div>'
     + '<div style="margin-bottom:8px"><label style="font-size:10px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Nº Vuelo</label>'
     + '<input type="text" placeholder="VY1234" class="fi rst-leg-fn" value="'+(leg.flightNum||'')+'" style="font-size:13px;padding:9px 10px;text-transform:uppercase;width:100%"></div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
+    + '<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:6px;margin-bottom:8px;align-items:end">'
     + '<div><label style="font-size:10px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Origen IATA</label>'
     + '<input type="text" placeholder="BCN" maxlength="3" class="fi rst-leg-dep" value="'+(leg.dep||'')+'" style="font-size:13px;padding:9px 10px;text-transform:uppercase"></div>'
+    + '<button type="button" onclick="rosterSwapDepArr(this)" title="Intercambiar origen y destino" style="height:36px;width:34px;border-radius:9px;background:rgba(13,148,136,.08);border:1px solid rgba(13,148,136,.28);color:#0D9488;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1">⇄</button>'
     + '<div><label style="font-size:10px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Destino IATA</label>'
     + '<input type="text" placeholder="LHR" maxlength="3" class="fi rst-leg-arr" value="'+(leg.arr||'')+'" style="font-size:13px;padding:9px 10px;text-transform:uppercase"></div>'
     + '</div>'
@@ -26354,6 +26355,18 @@ function rosterAddLegRow(leg){
   rosterUpdateAddBtn();
   try { rosterUpdateStopovers(); } catch(e){}
 }
+
+// ── Intercambiar Origen ⇄ Destino de un leg ──
+window.rosterSwapDepArr = function(btn){
+  var row = btn.closest('.rst-leg-row');
+  if(!row) return;
+  var dep = row.querySelector('.rst-leg-dep');
+  var arr = row.querySelector('.rst-leg-arr');
+  if(!dep || !arr) return;
+  var tmp = dep.value;
+  dep.value = arr.value;
+  arr.value = tmp;
+};
 
 window.rosterAddLeg = function(){
   var container = document.getElementById('rst-legs-container');
@@ -31660,11 +31673,13 @@ function fpComputeWorkSlots(cfg){
   var start = fpParse(cfg.start);
   var endRange = new Date(start); endRange.setMonth(endRange.getMonth() + (cfg.durationM||12));
   var result = {};
+  var monthsWithRoster = fpMonthsWithRoster();
   var cur = new Date(start.getFullYear(), start.getMonth(), 1);
   while(cur < endRange){
     var y = cur.getFullYear(), m = cur.getMonth();
     var dim = new Date(y, m+1, 0).getDate();
     var mk = y+'-'+String(m+1).padStart(2,'0');
+    if(monthsWithRoster[mk]){ cur.setMonth(cur.getMonth()+1); continue; } // mes con roster → el patrón cede
     var slots = [];
     FP_TRAMOS.forEach(function(tr){
       if(tr.s > dim) return;
@@ -31875,6 +31890,14 @@ function fpRealDatesSet(){
   }
   return s;
 }
+// Set 'YYYY-MM' de meses con cualquier actividad real (el patrón cede el mes entero)
+function fpMonthsWithRoster(){
+  var m={};
+  if(window.RST && Array.isArray(RST.entries)){
+    RST.entries.forEach(function(e){ if(!e.fixedPattern && e.date && e.date.length>=7) m[e.date.slice(0,7)]=true; });
+  }
+  return m;
+}
 function fpRenderCal(){
   if(fpDraft && fpDraft._view==='year') fpRenderYear(); else fpRenderMonth();
 }
@@ -31922,18 +31945,23 @@ function fpRenderMonth(){
 function fpRenderYear(){
   var g=document.getElementById('fp-ygrid'); if(!g) return;
   var realDates=fpRealDatesSet();
+  var monthsWithRoster=fpMonthsWithRoster();
   var start=fpParse(fpDraft.start);
   var html='';
   for(var off=0;off<12;off++){
     var d=new Date(start.getFullYear(), start.getMonth()+off, 1);
     var y=d.getFullYear(), m=d.getMonth();
+    var mk=y+'-'+String(m+1).padStart(2,'0');
     var first=new Date(y,m,1).getDay(); var pad=first===0?6:first-1;
     var dim=new Date(y,m+1,0).getDate();
     var cells='', dayClasses=[];
     for(var i=0;i<pad;i++){ cells+='<div class="fp-ym-d empty"></div>'; dayClasses.push(null); }
     for(var day=1;day<=dim;day++){
       var date=new Date(y,m,day); var ds=fpFmt(date);
-      var cl = realDates[ds] ? 'real' : (fpClassify(fpDraft, date) || '');
+      // mes con roster real → solo se pintan días reales (+ vacaciones explícitas); el patrón cede
+      var cl = realDates[ds] ? 'real'
+             : (monthsWithRoster[mk] ? (fpIsVacation(fpDraft,date)?'vac':'')
+             : (fpClassify(fpDraft, date) || ''));
       cells+='<div class="fp-ym-d '+cl+'"></div>';
       dayClasses.push({day:day, cl:cl});
     }
