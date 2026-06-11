@@ -18362,6 +18362,9 @@ function _wxHdr() {
 // Airport coords for open-meteo fallback (common Vueling network)
 var _WX_AIRPORTS={LEBL:{lat:41.2971,lon:2.0785},LEMD:{lat:40.4936,lon:-3.5668},LEPA:{lat:39.5517,lon:2.7388},LEMG:{lat:36.6749,lon:-4.4991},LEAL:{lat:38.2822,lon:-0.5582},LEVC:{lat:39.4893,lon:-0.4816},LEZL:{lat:37.4180,lon:-5.8931},LEBB:{lat:43.3011,lon:-2.9106},GCLP:{lat:27.9319,lon:-15.3866},GCTS:{lat:28.0445,lon:-16.5725},GCRR:{lat:28.9455,lon:-13.6052},LFPG:{lat:49.0097,lon:2.5479},EGLL:{lat:51.4775,lon:-0.4614},EHAM:{lat:52.3086,lon:4.7639},LIRF:{lat:41.8003,lon:12.2389},LIML:{lat:45.6306,lon:8.7281},EDDF:{lat:50.0379,lon:8.5622},LPPT:{lat:38.7813,lon:-9.1359},LSZH:{lat:47.4647,lon:8.5492},LOWW:{lat:48.1103,lon:16.5697},EDDM:{lat:48.3537,lon:11.7861},LFPO:{lat:48.7233,lon:2.3794},EGKK:{lat:51.1481,lon:-0.1903},LEIB:{lat:38.8727,lon:1.3731},LEGE:{lat:41.9010,lon:2.7605},LERJ:{lat:41.5424,lon:-2.1132},LESA:{lat:40.9521,lon:-5.4982},LEVD:{lat:41.7061,lon:-4.8519},LCAR:{lat:42.4567,lon:-2.3284},LEMO:{lat:37.1749,lon:-6.9111},LEJR:{lat:36.7446,lon:-6.0601},LEVX:{lat:42.2318,lon:-8.6268},LECN:{lat:43.2964,lon:-8.3774}};
 
+// Nombre de aeropuerto por ICAO (red Vueling) — fallback al código IATA si no está
+var _WX_NAMES={LEBL:"Barcelona–El Prat",LEMD:"Madrid–Barajas",LEPA:"Palma de Mallorca",LEMG:"Málaga–Costa del Sol",LEAL:"Alicante–Elche",LEVC:"Valencia",LEZL:"Sevilla",LEBB:"Bilbao",GCLP:"Gran Canaria",GCTS:"Tenerife Sur",GCRR:"Lanzarote",LFPG:"París–Charles de Gaulle",EGLL:"Londres–Heathrow",EHAM:"Ámsterdam–Schiphol",LIRF:"Roma–Fiumicino",LIML:"Milán–Linate",EDDF:"Frankfurt",LPPT:"Lisboa",LSZH:"Zúrich",LOWW:"Viena",EDDM:"Múnich",LFPO:"París–Orly",EGKK:"Londres–Gatwick",LEIB:"Ibiza",LEGE:"Girona–Costa Brava",LERJ:"Logroño",LESA:"Salamanca",LEVD:"Valladolid",LEMO:"Sevilla–Morón",LEJR:"Jerez",LEVX:"Vigo",LECN:"A Coruña"};
+
 async function _fetchOpenMeteo(icao) {
   var a = _WX_AIRPORTS[icao.toUpperCase()];
   if (!a) return null;
@@ -21349,6 +21352,17 @@ function _wxCatInfo(cat){
   return {k:'grn',name:'Visual · sin restricciones',short:'VFR',icon:'☀️'};
 }
 function _wxCompass(deg){ const d=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO']; return d[Math.round((((deg%360)+360)%360)/22.5)%16]; }
+function _wxMetarObs(raw){
+  const m=String(raw||'').match(/\b(\d{2})(\d{2})(\d{2})Z\b/);
+  if(!m) return null;
+  const dd=parseInt(m[1],10),hh=parseInt(m[2],10),mm=parseInt(m[3],10);
+  const now=new Date();
+  let obs=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),dd,hh,mm));
+  if(obs-now>3600000) obs=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth()-1,dd,hh,mm));
+  const mins=Math.max(0,Math.round((now-obs)/60000));
+  const ago=mins<60?("hace "+mins+"′"):("hace "+Math.floor(mins/60)+"h"+(mins%60?(mins%60+"′"):""));
+  return {txt:m[2]+":"+m[3]+"Z",ago:ago,mins:mins};
+}
 function _wxComp(hdg,dir,spd){
   let rel=((dir-hdg+540)%360)-180;
   const head=Math.round(spd*Math.cos(rel*Math.PI/180));
@@ -21720,9 +21734,12 @@ function TabMeteoV2(_refM2){
     const sev=ci?SEVC[ci.k]:null;
     selKids.push(React.createElement("div",{
       key:ap.key, onClick:function(){ setActive(ap.key); setRwy(null); setRawOpen(false); },
-      style:{flex:scrollMode?"0 0 84px":1,minWidth:0,position:"relative",cursor:"pointer",background:isOn?cm.bg:T.surf1,border:"1px solid "+(isOn?cm.bd:T.cardBd),borderBottom:"3px solid "+cm.c,borderRadius:13,padding:scrollMode?"9px 4px 8px":"11px 4px 9px",boxShadow:T.cardSh,display:"flex",flexDirection:"column",alignItems:"center",gap:3,transition:"all .18s"}
+      style:Object.assign({flex:scrollMode?"0 0 84px":1,minWidth:0,position:"relative",cursor:"pointer",padding:scrollMode?"9px 4px 8px":"11px 4px 9px",display:"flex",flexDirection:"column",alignItems:"center",gap:3,transition:"all .18s"},
+        isOn?{background:T.floatBg,border:"1px solid "+cm.bd,borderBottom:"none",borderRadius:"13px 13px 0 0",marginBottom:-2,zIndex:3,boxShadow:"0 -3px 12px rgba(0,0,0,.18)"}
+            :{background:T.surf1,border:"1px solid "+T.cardBd,borderBottom:"3px solid "+cm.c,borderRadius:13,boxShadow:T.cardSh})
     },
-      ap.custom&&React.createElement("div",{onClick:function(e){e.stopPropagation();removeAirport(ap.icao);},style:{position:"absolute",top:-6,right:-6,width:19,height:19,borderRadius:"50%",background:T.floatBg,border:"1px solid "+T.line2,color:T.tx2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,zIndex:3}},"×"),
+      isOn&&React.createElement("div",{key:"cv",style:{position:"absolute",left:0,right:0,bottom:-3,height:4,background:T.floatBg,zIndex:4}}),
+      ap.custom&&React.createElement("div",{onClick:function(e){e.stopPropagation();removeAirport(ap.icao);},style:{position:"absolute",top:-6,right:-6,width:19,height:19,borderRadius:"50%",background:T.floatBg,border:"1px solid "+T.line2,color:T.tx2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,zIndex:5}},"×"),
       React.createElement("div",{style:{fontFamily:mono,fontSize:scrollMode?6.5:7,fontWeight:700,letterSpacing:".3px",color:cm.c,whiteSpace:"nowrap"}},ap.role),
       React.createElement("div",{style:{fontSize:scrollMode?11.5:13,fontWeight:800,color:isOn?T.tx1:T.tx2,letterSpacing:".3px",lineHeight:1}},ap.code),
       sev?React.createElement("div",{style:{fontFamily:mono,fontSize:7,fontWeight:700,letterSpacing:".4px",padding:"1px 4px",borderRadius:4,color:sev.c,background:sev.bg,border:"1px solid "+sev.bd}},ci.short)
@@ -21730,7 +21747,7 @@ function TabMeteoV2(_refM2){
     ));
   });
   selKids.push(React.createElement("div",{key:"add",onClick:function(){setAddOpen(function(o){return !o;});},style:{flex:scrollMode?"0 0 46px":"0 0 48px",flexShrink:0,border:"1.5px dashed "+T.extra,borderRadius:13,display:"flex",alignItems:"center",justifyContent:"center",color:T.extra,cursor:"pointer",fontSize:24,fontWeight:700,background:addOpen?T.extraBg:"transparent"}},"+"));
-  const selector=React.createElement("div",{style:Object.assign({display:"flex",gap:6,alignItems:"stretch",marginBottom:14},scrollMode?{overflowX:"auto",WebkitMaskImage:"linear-gradient(90deg,#000 92%,transparent)",maskImage:"linear-gradient(90deg,#000 92%,transparent)"}:{})},selKids);
+  const selector=React.createElement("div",{style:Object.assign({display:"flex",gap:6,alignItems:"flex-end",marginBottom:0,padding:"0 1px"},scrollMode?{overflowX:"auto"}:{})},selKids);
 
   const catLegend=React.createElement("div",{style:{display:"flex",gap:7,justifyContent:"center",marginBottom:12,flexWrap:"wrap"}},
     [["RUTA",T.route],["ALTERNATIVOS",T.alt],["MIS AEROPUERTOS",T.extra]].map(function(it){
@@ -21776,6 +21793,7 @@ function TabMeteoV2(_refM2){
     const wxIconEl=iconSlug
       ? React.createElement("img",{src:WX_ICON_BASE+iconSlug+".svg",alt:m.cat,width:34,height:34,style:{display:"block",objectFit:"contain"},onError:function(e){e.target.style.display="none";}})
       : React.createElement("span",{style:{fontSize:18}},ci.icon);
+    const metarObs=_wxMetarObs(m.raw)||{};
     let banner;
     if(day){
       // DÍA → banner vivo por categoría (combo)
@@ -21791,9 +21809,10 @@ function TabMeteoV2(_refM2){
           ),
           React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3}},
             React.createElement("span",{style:{fontFamily:mono,fontSize:8,fontWeight:700,letterSpacing:"1px",color:"#fff",background:"rgba(0,0,0,.22)",borderRadius:6,padding:"3px 7px"}},cm.tag),
-            React.createElement("span",{style:{fontFamily:mono,fontSize:9,color:"rgba(255,255,255,.85)"}},cur.code+" · "+cur.icao)
+            React.createElement("span",{style:{fontFamily:mono,fontSize:9,color:"rgba(255,255,255,.85)"}},cur.code+" · "+cur.icao),
+            metarObs.txt?React.createElement("span",{style:{fontFamily:mono,fontSize:8,fontWeight:700,color:"#fff",background:"rgba(0,0,0,.22)",borderRadius:6,padding:"2px 7px",whiteSpace:"nowrap"}},"📡 "+metarObs.txt+" · "+metarObs.ago):null
           ),
-          React.createElement("button",{onClick:function(){refreshRef.current&&refreshRef.current(true);},title:"Actualizar METAR/TAF",style:{width:28,height:28,borderRadius:9,background:"rgba(255,255,255,.18)",border:"1px solid rgba(255,255,255,.45)",color:"#fff",cursor:"pointer",fontSize:14,lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},loading?"⏳":"↻")
+          React.createElement("button",{onClick:function(){refreshRef.current&&refreshRef.current(true);},title:"Actualizar METAR/TAF",style:{width:28,height:28,borderRadius:9,background:"rgba(255,255,255,.18)",border:"1px solid rgba(255,255,255,.45)",color:"#fff",cursor:"pointer",fontSize:15,lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,animation:loading?"spin .8s linear infinite":"none"}},"↻")
         ),
         React.createElement("div",{style:{fontSize:11.5,lineHeight:1.5,color:"#fff",marginTop:10,position:"relative",fontWeight:500,textShadow:"0 1px 6px rgba(0,0,0,.18)"}},summary)
       );
@@ -21808,9 +21827,10 @@ function TabMeteoV2(_refM2){
           ),
           React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3}},
             React.createElement("span",{style:{fontFamily:mono,fontSize:7.5,fontWeight:700,letterSpacing:"1px",color:cm.c,background:"rgba(0,0,0,.18)",border:"1px solid "+cm.bd,borderRadius:6,padding:"2px 6px"}},cm.tag),
-            React.createElement("span",{style:{fontFamily:mono,fontSize:8.5,color:T.tx3}},cur.code+" · "+cur.icao)
+            React.createElement("span",{style:{fontFamily:mono,fontSize:8.5,color:T.tx3}},cur.code+" · "+cur.icao),
+            metarObs.txt?React.createElement("span",{style:{fontFamily:mono,fontSize:7.5,fontWeight:700,color:sev.c,background:"rgba(0,0,0,.2)",border:"1px solid "+sev.bd,borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap"}},"📡 "+metarObs.txt+" · "+metarObs.ago):null
           ),
-          React.createElement("button",{onClick:function(){refreshRef.current&&refreshRef.current(true);},title:"Actualizar METAR/TAF",style:{width:26,height:26,borderRadius:8,background:"transparent",border:"1px solid "+sev.bd,color:sev.c,cursor:"pointer",fontSize:13,lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},loading?"⏳":"↻")
+          React.createElement("button",{onClick:function(){refreshRef.current&&refreshRef.current(true);},title:"Actualizar METAR/TAF",style:{width:26,height:26,borderRadius:8,background:"transparent",border:"1px solid "+sev.bd,color:sev.c,cursor:"pointer",fontSize:14,lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,animation:loading?"spin .8s linear infinite":"none"}},"↻")
         ),
         React.createElement("div",{style:{fontSize:9.5,lineHeight:1.5,color:T.tx1,marginTop:9}},summary)
       );
@@ -22032,14 +22052,20 @@ function TabMeteoV2(_refM2){
       ):null
     );
 
-    body=React.createElement(React.Fragment,null,banner,tiles,windCard,cloudCard,tafCard,rawCard);
+    const apName=(typeof _WX_NAMES!=='undefined'&&_WX_NAMES[cur.icao])?_WX_NAMES[cur.icao]:cur.code;
+    const frameHead=React.createElement("div",{style:{display:"flex",alignItems:"center",gap:9,padding:"2px 2px 11px",marginBottom:12,borderBottom:"1px solid "+T.line}},
+      React.createElement("span",{style:{fontFamily:mono,fontSize:16,fontWeight:800,color:cm.c,letterSpacing:".5px",textShadow:"0 0 14px "+cm.bd}},cur.icao),
+      React.createElement("span",{style:{flex:1,minWidth:0,fontSize:11,fontWeight:600,color:T.tx2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},apName),
+      React.createElement("span",{style:{fontFamily:mono,fontSize:7,fontWeight:700,letterSpacing:".6px",color:cm.c,background:cm.bg,border:"1px solid "+cm.bd,borderRadius:6,padding:"3px 7px",whiteSpace:"nowrap"}},cur.role)
+    );
+    body=React.createElement("div",{style:{border:"1px solid "+cm.bd,borderTop:"none",borderRadius:"0 0 16px 16px",background:T.floatBg,boxShadow:T.cardSh,padding:"12px 12px 14px",position:"relative",zIndex:1}},frameHead,banner,tiles,windCard,cloudCard,tafCard,rawCard);
   }
 
   const pullInd=React.createElement("div",{key:"pull",style:{height:loading?34:pullDist,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",transition:pullDist===0?"height .25s":"none"}},
     React.createElement("span",{style:{fontFamily:mono,fontSize:11,fontWeight:700,color:loading?T.cyan:T.tx3}},loading?"↻ Actualizando METAR/TAF…":(pullDist>50?"↑ Suelta para actualizar":"↓ Desliza para actualizar")));
 
   return React.createElement("div",{ref:rootRef,style:{padding:"12px 14px 100px",fontFamily:sans,background:day?_skyPhaseGrad(phase):T.pageBg,minHeight:"100%",transition:"background .8s ease"}},
-    pullInd, selector, catLegend, addPanel, body
+    pullInd, catLegend, selector, addPanel, body
   );
 }
 
