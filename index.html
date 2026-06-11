@@ -21196,6 +21196,17 @@ function AltCard(_ref27) {
     _useState16 = _slicedToArray(_useState15, 2),
     open = _useState16[0],
     setOpen = _useState16[1];
+  // METAR/TAF en vivo del alternativo (carga al expandir)
+  const _wxA = useState(null), wxA = _wxA[0], setWxA = _wxA[1];
+  useEffect(function () {
+    if (!open || !a.icao || wxA) return;
+    let alive = true;
+    Promise.all([fetchLiveMetar(a.icao), fetchLiveTaf(a.icao)]).then(function (r) {
+      if (!alive) return;
+      setWxA({ metarRaw: (r[0] && r[0].raw) || a.metar || "", taf: r[1] || "", cat: (r[0] && r[0].cat) || a.cat });
+    });
+    return function () { alive = false; };
+  }, [open]);
   const tierCfg = {
     dest: {
       color: "#FF8C42",
@@ -21217,7 +21228,8 @@ function AltCard(_ref27) {
     }
   };
   const tc = tierCfg[tier] || tierCfg.plan;
-  const cc = a.cat === "VMC" ? "#4dff91" : a.cat === "MVMC" ? "#FFB800" : (a.cat === "IFR" || a.cat === "IMC" || a.cat === "LIFR") ? "#ff4d6d" : C.dimmer;
+  const catVal = (wxA && wxA.cat) || a.cat;
+  const cc = catVal === "VMC" ? "#4dff91" : catVal === "MVMC" ? "#FFB800" : (catVal === "IFR" || catVal === "IMC" || catVal === "LIFR") ? "#ff4d6d" : C.dimmer;
   return /*#__PURE__*/React.createElement("div", {
     onClick: () => setOpen(o => !o),
     style: {
@@ -21308,7 +21320,7 @@ function AltCard(_ref27) {
       fontFamily: mono,
       fontWeight: 700
     }
-  }, a.cat)), /*#__PURE__*/React.createElement("span", {
+  }, catVal || "\u2014")), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 8,
       color: C.dimmer,
@@ -21330,14 +21342,27 @@ function AltCard(_ref27) {
       borderTop: "1px solid ".concat(tc.border)
     }
   }, /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 7, fontFamily: mono, color: C.dimmer, letterSpacing: "1px", marginBottom: 3 }
+  }, "METAR"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 9,
       color: "rgba(150,210,255,0.75)",
       fontFamily: mono,
       lineHeight: 1.7,
+      marginBottom: 8
+    }
+  }, (wxA && wxA.metarRaw) || a.metar || "Cargando…"), (wxA && wxA.taf) ? /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 7, fontFamily: mono, color: C.dimmer, letterSpacing: "1px", marginBottom: 3 }
+  }, "TAF") : null, (wxA && wxA.taf) ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 9,
+      color: "rgba(150,210,255,0.6)",
+      fontFamily: mono,
+      lineHeight: 1.6,
+      whiteSpace: "pre-wrap",
       marginBottom: a.notams.length ? 8 : 0
     }
-  }, a.metar), a.notams.map((n, i) => /*#__PURE__*/React.createElement("div", {
+  }, wxA.taf) : null, a.notams.map((n, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
     style: {
       background: "rgba(255,184,0,0.08)",
