@@ -21445,6 +21445,24 @@ function _wxDiagramBig(T,hdg,windDir,rwyId,mid){
     React.createElement('text',{x:lx,y:ly+4,textAnchor:'middle',fontFamily:mono,fontSize:11,fontWeight:700,fill:T.grn},String(windDir).padStart(3,'0')+'°'),
     React.createElement('circle',{cx:cx,cy:cy,r:2.3,fill:T.cyan}));
 }
+// Mini reloj de viento cruzado (zonas + límite A320 38 kt)
+function _wxXwGauge(T,value){
+  const max=45,cx=46,cy=44,R=34,A0=135,SW=270;
+  const ang=function(v){return A0+(Math.min(v,max)/max)*SW;};
+  const pol=function(r,d){const a=d*Math.PI/180;return [cx+r*Math.cos(a),cy+r*Math.sin(a)];};
+  const arc=function(key,r,s,e,w,col,cap){const sp=pol(r,s),ep=pol(r,e),lg=(e-s)>180?1:0;return React.createElement('path',{key:key,d:'M'+sp[0].toFixed(1)+' '+sp[1].toFixed(1)+' A'+r+' '+r+' 0 '+lg+' 1 '+ep[0].toFixed(1)+' '+ep[1].toFixed(1),fill:'none',stroke:col,strokeWidth:w,strokeLinecap:cap||'butt'});};
+  const ex=value>38, nc=ex?T.red:'#fff';
+  const zones=[[15,T.grn],[25,T.amb],[38,T.red],[max,'#B23A50']];
+  const kids=[arc('track',R,A0,A0+SW,5.5,'rgba(255,255,255,.08)','round')];
+  let prev=0; zones.forEach(function(z,i){ kids.push(arc('z'+i,R,ang(prev),ang(z[0]),5.5,z[1],'butt')); prev=z[0]; });
+  const l1=pol(R+5,ang(38)),l2=pol(R-7,ang(38)),np=pol(R-3,ang(value));
+  kids.push(React.createElement('line',{key:'lim',x1:l1[0].toFixed(1),y1:l1[1].toFixed(1),x2:l2[0].toFixed(1),y2:l2[1].toFixed(1),stroke:'#fff',strokeWidth:2}));
+  kids.push(React.createElement('line',{key:'ndl',x1:cx,y1:cy,x2:np[0].toFixed(1),y2:np[1].toFixed(1),stroke:nc,strokeWidth:2.4,strokeLinecap:'round'}));
+  kids.push(React.createElement('circle',{key:'hub',cx:cx,cy:cy,r:3,fill:nc}));
+  kids.push(React.createElement('text',{key:'val',x:cx,y:cy+25,textAnchor:'middle',fontFamily:sans,fontSize:16,fontWeight:800,fill:ex?T.red:T.alt},String(value)));
+  kids.push(React.createElement('text',{key:'u',x:cx,y:cy+34,textAnchor:'middle',fontFamily:mono,fontSize:6,fontWeight:700,fill:T.tx3},'kt XW'));
+  return React.createElement('svg',{width:84,height:80,viewBox:'0 0 92 88',style:{flexShrink:0}},kids);
+}
 function _wxParseTaf(raw){
   if(!raw) return [];
   const txt=String(raw).replace(/\s+/g,' ').trim();
@@ -21888,51 +21906,44 @@ function TabMeteoV2(_refM2){
           React.createElement("div",{style:{fontFamily:mono,fontSize:7.5,fontWeight:700,color:sc,marginTop:4}},"✕"+cc.absxw)
         );
       });
-      // ── stats (cuadro único con divisores) ──
-      const uu=function(t){return React.createElement("span",{style:{fontSize:7.5,fontWeight:600,color:T.tx2}},t);};
-      const statDefs=[
-        ["🌬","VIENTO",[String(pw.spd),uu(" kt")],String(pw.dir).padStart(3,"0")+"°"],
-        ["🚩","RÁFAGA",gust?[String(gust),uu(" kt")]:["—"],gust?"con rachas":"sin racha"],
-        ["🌡","TEMP",tC!=null?[String(tC),uu("°C")]:["—"],tC!=null?("ISA "+(tC-15>=0?"+":"")+(tC-15)+"°"):""],
-        ["📊","PRESIÓN",[(m.qnh||"—"),uu(" hPa")],"QNH"],
-        ["💧","HUMEDAD",rh!=null?[String(rh),uu("%")]:["—"],"relativa"],
-        ["👁","VISIB.",[visTxt,uu(visUnit)],isCavok?"+ CAVOK":""]
-      ];
-      const statsGrid=React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",background:T.surf1,border:"1px solid "+T.line2,borderRadius:14,overflow:"hidden",marginBottom:15,boxShadow:T.cardSh}},
-        statDefs.map(function(s,i){
-          const col=i%3, row=Math.floor(i/3);
-          return React.createElement("div",{key:s[1],style:{padding:"8px 9px",borderRight:col<2?"1px solid "+T.line:"none",borderBottom:row<1?"1px solid "+T.line:"none"}},
-            React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,marginBottom:5}},
-              React.createElement("span",{style:{fontSize:9}},s[0]),
-              React.createElement("span",{style:{fontFamily:mono,fontSize:6.5,fontWeight:700,letterSpacing:".3px",color:T.tx3}},s[1])),
-            React.createElement("div",{style:{fontSize:11,fontWeight:700,lineHeight:1,letterSpacing:"-.2px",color:T.tx1}},s[2]),
-            s[3]?React.createElement("div",{style:{fontFamily:mono,fontSize:6.5,color:T.tx2,marginTop:4,fontWeight:500}},s[3]):null);
-        })
-      );
-      // ── barras cara/cruzado ──
+      // ── viento (lectura) + cruzado (reloj + barra vs límite) + cara (chip) ──
       const hwBand=isHead?_wxBand(c.head):(Math.abs(c.head)>10?"red":"amb");
-      const xwBand=_wxBand(c.absxw);
       const xwFrom=(pw.dir+(c.side==="DERECHA"?90:-90)+360)%360;
-      const hwFillClr=isHead?T.grn:bandClr[hwBand];
-      const xwTagClr=xwBand==="grn"?T.alt:bandClr[xwBand], xwTagBg=xwBand==="grn"?T.altBg:bandBg[xwBand], xwTagBd=xwBand==="grn"?T.altBd:bandBd[xwBand];
-      function barCard(icoEl,icoBg,icoClr,title,sub,val,valClr,fillGrad,glow,pct,tagClr,tagBg,tagBd){
-        return React.createElement("div",{style:{background:T.surf1,border:"1px solid "+T.line,borderRadius:11,padding:"8px 10px"}},
-          React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:7}},
-            React.createElement("div",{style:{width:22,height:22,borderRadius:7,flexShrink:0,background:icoBg,color:icoClr,display:"flex",alignItems:"center",justifyContent:"center"}},icoEl),
-            React.createElement("div",{style:{flex:1,minWidth:0}},
-              React.createElement("div",{style:{fontSize:9,fontWeight:700,letterSpacing:".2px",color:T.tx1}},title),
-              React.createElement("div",{style:{fontFamily:mono,fontSize:7,color:T.tx3,marginTop:1,fontWeight:700}},sub)),
-            React.createElement("div",{style:{fontSize:13,fontWeight:800,lineHeight:1,letterSpacing:"-.3px",color:valClr,textShadow:"0 0 4px "+glow}},val,React.createElement("span",{style:{fontSize:7.5,fontWeight:600,color:T.tx2,marginLeft:1}},"kt")),
-            React.createElement("span",{style:{fontFamily:mono,fontSize:6.5,fontWeight:700,letterSpacing:".3px",padding:"3px 6px",borderRadius:6,marginLeft:6,whiteSpace:"nowrap",color:tagClr,background:tagBg,border:"1px solid "+tagBd}},_wxStrLabel(val))),
-          React.createElement("div",{style:{height:5,borderRadius:4,background:"rgba(255,255,255,.07)",overflow:"visible"}},
-            React.createElement("div",{style:{height:"100%",borderRadius:4,width:pct+"%",background:fillGrad,boxShadow:"0 0 6px "+glow+",inset 0 0 3px rgba(255,255,255,.14)"}})));
-      }
-      const hwIco=React.createElement("svg",{width:13,height:13,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2},React.createElement("path",{d:"M3 8h11a3 3 0 1 0-3-3M3 16h15a3 3 0 1 1-3 3"}));
-      const xwIco=React.createElement("svg",{width:12,height:12,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2.4,strokeLinecap:"round"},React.createElement("line",{x1:5,y1:5,x2:19,y2:19}),React.createElement("line",{x1:19,y1:5,x2:5,y2:19}));
-      const bars=React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:8,marginBottom:12}},
-        barCard(hwIco,T.grnBg,isHead?T.grn:bandClr[hwBand],isHead?"Viento de cara":"Viento de cola","DESDE "+String(pw.dir).padStart(3,"0")+"°",Math.abs(c.head),hwFillClr,"linear-gradient(90deg,rgba(78,230,174,.45),"+hwFillClr+")","rgba(78,230,174,.4)",Math.min(100,Math.round(Math.abs(c.head)/35*100)),isHead?T.grn:bandClr[hwBand],isHead?T.grnBg:bandBg[hwBand],isHead?T.grnBd:bandBd[hwBand]),
-        barCard(xwIco,T.altBg,T.alt,"Viento cruzado · "+c.side,"DESDE "+String(xwFrom).padStart(3,"0")+"°",c.absxw,T.alt,"linear-gradient(90deg,rgba(183,156,255,.45),"+T.alt+")","rgba(183,156,255,.4)",Math.min(100,Math.round(c.absxw/35*100)),xwTagClr,xwTagBg,xwTagBd)
+      const hwClr=isHead?T.grn:bandClr[hwBand];
+      const dirCard=_wxCompass(pw.dir);
+      const XLIM=38, XMAX=45, xwExceed=c.absxw>XLIM, xwPctBar=Math.min(c.absxw,XMAX)/XMAX*100;
+      const windReadout=React.createElement("div",{style:{display:"flex",alignItems:"baseline",justifyContent:"center",gap:7,flexWrap:"wrap",marginBottom:13}},
+        React.createElement("span",{style:{fontFamily:mono,fontSize:7.5,fontWeight:700,letterSpacing:"1px",color:T.tx3}},"VIENTO"),
+        React.createElement("span",{style:{fontSize:21,fontWeight:800,letterSpacing:"-.5px",color:T.cyan,textShadow:"0 0 12px rgba(91,232,245,.3)"}},String(pw.dir).padStart(3,"0")+"°"),
+        React.createElement("span",{style:{fontSize:13,fontWeight:700,color:T.tx1}},pw.spd,React.createElement("span",{style:{fontSize:8.5,color:T.tx2,fontWeight:600}}," kt")),
+        gust?React.createElement("span",{style:{fontFamily:mono,fontSize:9,fontWeight:700,color:T.amb}},"G"+gust):null,
+        React.createElement("span",{style:{fontFamily:mono,fontSize:8.5,fontWeight:700,color:T.tx2}},"· "+dirCard)
       );
+      const hwIco=React.createElement("svg",{width:13,height:13,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2},React.createElement("path",{d:"M3 8h11a3 3 0 1 0-3-3M3 16h15a3 3 0 1 1-3 3"}));
+      const xwRow=React.createElement("div",{style:{display:"flex",gap:10,alignItems:"center",background:T.surf1,border:"1px solid "+(xwExceed?T.redBd:T.line),borderRadius:13,padding:"11px 12px",marginBottom:9}},
+        _wxXwGauge(T,c.absxw),
+        React.createElement("div",{style:{flex:1,minWidth:0}},
+          React.createElement("div",{style:{display:"flex",alignItems:"baseline",gap:6,marginBottom:8}},
+            React.createElement("div",{style:{flex:1,minWidth:0}},
+              React.createElement("div",{style:{fontSize:10,fontWeight:700,color:xwExceed?T.red:T.alt}},"Viento cruzado · "+c.side),
+              React.createElement("div",{style:{fontFamily:mono,fontSize:7,fontWeight:700,color:T.tx3,marginTop:2}},"DESDE "+String(xwFrom).padStart(3,"0")+"°")),
+            React.createElement("div",{style:{fontSize:20,fontWeight:800,lineHeight:1,color:xwExceed?T.red:T.alt}},c.absxw,React.createElement("span",{style:{fontSize:9,color:T.tx2,fontWeight:600}}," kt")),
+            xwExceed?React.createElement("span",{style:{fontFamily:mono,fontSize:6.5,fontWeight:700,color:"#fff",background:T.red,borderRadius:5,padding:"2px 6px",whiteSpace:"nowrap"}},"EXCEDE 38"):null),
+          React.createElement("div",{style:{position:"relative",height:11,borderRadius:6,background:"linear-gradient(90deg,"+T.grn+" 0 33.3%,"+T.amb+" 33.3% 55.6%,"+T.red+" 55.6% 84.4%,#B23A50 84.4% 100%)"}},
+            React.createElement("div",{style:{position:"absolute",top:-3,bottom:-3,left:"84.4%",width:2.5,background:"#fff",borderRadius:2,boxShadow:"0 0 5px rgba(255,255,255,.6)"}}),
+            React.createElement("div",{style:{position:"absolute",top:-5,left:xwPctBar+"%",transform:"translateX(-50%)",width:0,height:0,borderLeft:"5px solid transparent",borderRight:"5px solid transparent",borderTop:"7px solid "+(xwExceed?T.red:T.tx1)}})),
+          React.createElement("div",{style:{position:"relative",height:9,marginTop:5,fontFamily:mono,fontSize:6.5,fontWeight:700,color:T.tx3}},
+            React.createElement("span",{style:{position:"absolute",left:0}},"0"),
+            React.createElement("span",{style:{position:"absolute",left:"84.4%",transform:"translateX(-50%)",color:T.tx2}},"38 LÍM"),
+            React.createElement("span",{style:{position:"absolute",right:0}},"45 kt"))
+        )
+      );
+      const hwChip=React.createElement("div",{style:{display:"flex",alignItems:"center",gap:9,background:isHead?T.grnBg:bandBg[hwBand],border:"1px solid "+(isHead?T.grnBd:bandBd[hwBand]),borderRadius:12,padding:"9px 12px",marginBottom:12}},
+        React.createElement("div",{style:{width:24,height:24,borderRadius:8,flexShrink:0,background:"rgba(0,0,0,.18)",color:hwClr,display:"flex",alignItems:"center",justifyContent:"center"}},hwIco),
+        React.createElement("div",{style:{flex:1,minWidth:0}},
+          React.createElement("div",{style:{fontSize:10,fontWeight:700,color:T.tx1}},isHead?"Viento de cara":"Viento de cola"),
+          React.createElement("div",{style:{fontFamily:mono,fontSize:7,fontWeight:700,color:T.tx3,marginTop:1}},"DESDE "+String(pw.dir).padStart(3,"0")+"°")),
+        React.createElement("div",{style:{fontSize:18,fontWeight:800,lineHeight:1,color:hwClr}},Math.abs(c.head),React.createElement("span",{style:{fontSize:9,color:T.tx2,fontWeight:600}}," kt")));
       // ── leyenda ──
       const legend=React.createElement("div",{style:{display:"flex",alignItems:"center",gap:9,flexWrap:"wrap",justifyContent:"center",fontFamily:mono,fontSize:7,fontWeight:700,color:T.tx3,padding:"9px 0",borderTop:"1px solid "+T.line,borderBottom:"1px solid "+T.line,marginBottom:12}},
         React.createElement("span",null,"✕ = viento cruzado"),
@@ -21988,9 +21999,10 @@ function TabMeteoV2(_refM2){
         ),
         windOpen?React.createElement("div",null,
           React.createElement("div",{style:{display:"flex",gap:7,overflowX:"auto",marginBottom:12,padding:"6px 0 4px"}},chips),
-          statsGrid,
-          React.createElement("div",{style:{display:"flex",justifyContent:"center",marginBottom:12}},_wxDiagramBig(T,rw.hdg,pw.dir,rw.id,(cur.icao+rw.id).replace(/[^A-Za-z0-9]/g,""))),
-          bars,
+          React.createElement("div",{style:{display:"flex",justifyContent:"center",marginBottom:8}},_wxDiagramBig(T,rw.hdg,pw.dir,rw.id,(cur.icao+rw.id).replace(/[^A-Za-z0-9]/g,""))),
+          windReadout,
+          xwRow,
+          hwChip,
           legend,
           trendBlock,
           fcRow
