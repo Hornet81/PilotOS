@@ -25546,15 +25546,20 @@ window.rosterSelectDay = function(dateStr){
     });
 
     // ── FDP / DP panel ──
-    if(flights.length > 0){
+    // Solo los vuelos cuya JORNADA empieza este día generan caja de límites FTL.
+    // Las legs de continuación nocturna (_isMidnightCont) pertenecen a la jornada
+    // del día anterior → su FDP/DP se muestra allí, no aquí. Esto evita la "caja
+    // fantasma" que calculaba un report ficticio (STD 00:00 − 55min) en el día de llegada.
+    var _realFlights = flights.filter(function(f){ return !f._isMidnightCont; });
+    if(_realFlights.length > 0){
       try {
         rstDetectTZ();
-        var sorted = flights.slice().sort(function(a,b){
+        var sorted = _realFlights.slice().sort(function(a,b){
           return (a.std_actual||a.std||'').localeCompare(b.std_actual||b.std||'');
         });
         // Block hours del día (solo vuelos operacionales, no posicionales)
         var _dayBlockMin = 0;
-        flights.forEach(function(f){
+        _realFlights.forEach(function(f){
           var _fp = f.isPositioning||f.positioning||(f.dep&&f.dep.charAt(0)==='*');
           if(!_fp){
             var _fs=f.std_actual||f.std, _fa=f.sta_actual||f.sta;
@@ -25565,10 +25570,10 @@ window.rosterSelectDay = function(dateStr){
         });
         var _dayBlockStr = _dayBlockMin>0 ? Math.floor(_dayBlockMin/60)+'h'+(('0'+(_dayBlockMin%60)).slice(-2))+'m' : '—';
         // Detect if last flight is positional (no debrief)
-        var _sortedFTL = flights.slice().sort(function(a,b){ return (a.std_actual||a.std||'').localeCompare(b.std_actual||b.std||''); });
+        var _sortedFTL = _realFlights.slice().sort(function(a,b){ return (a.std_actual||a.std||'').localeCompare(b.std_actual||b.std||''); });
         var _lastFTL = _sortedFTL[_sortedFTL.length-1];
         var _lastFTLIsPos = _lastFTL && (_lastFTL.isPositioning||_lastFTL.positioning||(_lastFTL.dep&&_lastFTL.dep.charAt(0)==='*'));
-        var fdp = rstCalcFDP(flights);
+        var fdp = rstCalcFDP(_realFlights);
         if(fdp){
           var warnColor = fdp.warn==='exceed'?'#991B1B':fdp.warn==='near'?'#92400E':'#065F46';
           var warnBg    = fdp.warn==='exceed'?'#FEE2E2':fdp.warn==='near'?'#FEF3C7':'#D1FAE5';
@@ -25707,6 +25712,7 @@ window.rosterSelectDay = function(dateStr){
         + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+_durF2(_contDutyMin)+'</div></div>'
         + '<div style="text-align:right"><div style="font-size:11px;color:#475569">00:00 → '+_contEntry.arr_time+' +20\'</div></div>'
         + '</div>'
+        + '<div style="grid-column:span 2;font-size:11px;color:#475569;line-height:1.5;padding:2px 2px 0">No empieza jornada nueva hoy · sus límites FTL están en la jornada del día anterior · tras el debrief empieza tu descanso mínimo.</div>'
         + '</div>'
         + '</div>';
     }
