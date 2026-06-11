@@ -24673,6 +24673,35 @@ function rstRenderStats(){
   }
   var displayDuty  = _pdfDutySafe > 0 ? _pdfDutySafe : dutyMin;
 
+  // ── DIAG DUTY TEMPORAL (BORRAR tras validar) — duty estimado por día ──
+  try {
+    var _df = function(m){ return Math.floor(m/60)+':'+String(m%60).padStart(2,'0'); };
+    var _dd = [];
+    Object.keys(dayFlights).sort().forEach(function(date){
+      var legs = dayFlights[date].slice().sort(function(a,b){ return t2m(a.std_actual||a.std||'00:00')-t2m(b.std_actual||b.std||'00:00'); });
+      var ecDutyH=''; for(var i=0;i<legs.length;i++){ if(legs[i].dutyH){ ecDutyH=legs[i].dutyH; break; } }
+      var path, mins, info;
+      if(ecDutyH){ path='1·dutyH'; mins=t2m(ecDutyH); info=ecDutyH; }
+      else {
+        var first=legs[0], last=legs[legs.length-1];
+        if(first.checkin&&String(first.checkin).indexOf(':')>-1&&last.debrief&&String(last.debrief).indexOf(':')>-1){
+          var d=t2m(last.debrief)-t2m(first.checkin); if(d<0)d+=1440; path='2·firma-debrief'; mins=d; info=first.checkin+'→'+last.debrief;
+        } else {
+          var ds=first.checkin||first.std_actual||first.std, ls=last.sta_actual||last.sta;
+          var lp=!!(last.isPositioning||last.positioning||(last.dep&&last.dep.charAt(0)==='*'));
+          var s=t2m(ls)-t2m(ds); if(s<0)s+=1440; mins=s+(lp?0:20); path='3·firma+STA+'+(lp?0:20); info=ds+'→'+ls+(lp?' [POS]':'');
+        }
+      }
+      _dd.push({ dia:date.slice(5), via:path, legs:legs.length, duty:_df(mins), detalle:info });
+    });
+    console.groupCollapsed('%c[DIAG duty '+monthKey+']','color:#22D3EE;font-weight:bold');
+    console.table(_dd);
+    console.log('SUMA dutyMin (oper+stby+lm): '+_df(dutyMin)+'   ('+dutyMin+"')   ref PDF 118:19 (7099)   Δ "+(dutyMin-7099)+' min');
+    console.log('pdfDuty guardado: '+pdfDuty+'   displayDuty mostrado: '+_df(displayDuty));
+    console.groupEnd();
+  } catch(_e){ console.warn('[DIAG duty]', _e); }
+  // ── FIN DIAG DUTY ──
+
   var sf=document.getElementById('rst-s-flights');
   var sh=document.getElementById('rst-s-hours');
   var ss=document.getElementById('rst-s-standby');
