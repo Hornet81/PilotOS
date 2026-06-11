@@ -18511,6 +18511,20 @@ async function fetchLiveNotams(icao) {
   } catch { return []; }
 }
 
+// Fichas CCI (Crew Country Information) — batch desde backend, cache en CCI_BY_ICAO
+async function fetchCCIBatch(icaos) {
+  try {
+    const list = (icaos || []).filter(Boolean).join(',');
+    if (!list) return {};
+    const r = await fetch(_wxUrl() + '/api/airports/cci?icaos=' + encodeURIComponent(list));
+    if (!r.ok) return {};
+    const arr = await r.json();
+    const map = {};
+    (Array.isArray(arr) ? arr : []).forEach(o => { if (o && o.icao) map[o.icao] = o; });
+    return map;
+  } catch { return {}; }
+}
+
 /* ════════════════════════════════════════
    TURBULENCE PROFILE COMPONENT
 ════════════════════════════════════════ */
@@ -24003,6 +24017,15 @@ function SkyViewPilotOS() {
         }));
       }
     })();
+  }, [legIdx]);
+  // Cargar fichas CCI del DEP/ARR desde backend -> cache CCI_BY_ICAO (nombre, pistas, alternativos)
+  useEffect(() => {
+    const ics = [_depIcao, _arrIcao].filter(Boolean);
+    if (!ics.length) return;
+    fetchCCIBatch(ics).then(map => {
+      const keys = Object.keys(map || {});
+      if (keys.length) { keys.forEach(k => { CCI_BY_ICAO[k] = map[k]; }); setTick(x => x + 1); }
+    });
   }, [legIdx]);
   const now = new Date();
   const utc = "".concat(String(now.getUTCHours()).padStart(2, "0"), ":").concat(String(now.getUTCMinutes()).padStart(2, "0"), "Z");
