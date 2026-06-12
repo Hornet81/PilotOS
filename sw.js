@@ -1,55 +1,76 @@
-const CACHE_VERSION = 'v3';
-const STATIC_CACHE  = 'pilotos-static-' + CACHE_VERSION;
-const API_CACHE     = 'pilotos-api-'    + CACHE_VERSION;
-const FONT_CACHE    = 'pilotos-fonts-'  + CACHE_VERSION;
+// PilotOS Service Worker
+// APP_VERSION lo reescribe scripts/stamp-version.js en cada deploy → cambia el
+// nombre del caché → los cachés de versiones viejas se borran al activar.
+const APP_VERSION   = 'Beta.01';
+
+const STATIC_CACHE  = 'pilotos-static-' + APP_VERSION;
+const FONT_CACHE    = 'pilotos-fonts-'  + APP_VERSION;
+const CURRENT_CACHES = [STATIC_CACHE, FONT_CACHE];
 
 const PRECACHE_URLS = ['/'];
 
 self.addEventListener('install', function(e) {
+  // skipWaiting: el SW nuevo no se queda "en espera" detrás del viejo
   e.waitUntil(
     caches.open(STATIC_CACHE)
       .then(function(cache) { return cache.addAll(PRECACHE_URLS); })
       .then(function() { return self.skipWaiting(); })
+      .catch(function() { return self.skipWaiting(); })
   );
 });
 
 self.addEventListener('activate', function(e) {
+  // Borrar TODOS los cachés que no sean los de la versión actual
   e.waitUntil(
     caches.keys().then(function(keys) {
       return Promise.all(
-        keys.filter(function(k) {
-          return k !== STATIC_CACHE && k !== API_CACHE && k !== FONT_CACHE;
-        }).map(function(k) { return caches.delete(k); })
+        keys.filter(function(k) { return CURRENT_CACHES.indexOf(k) === -1; })
+            .map(function(k) { return caches.delete(k); })
       );
     }).then(function() { return self.clients.claim(); })
   );
 });
 
+// Botón "Actualizar ahora" del frontend → postMessage({type:'SKIP_WAITING'})
+self.addEventListener('message', function(e) {
+  if (e.data && e.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('fetch', function(e) {
-  var url = e.request.url;
+  var req = e.request;
+  var url = req.url;
 
-  // Google Fonts — cache-first
-  if (url.includes('fonts.googleapis.com') || url.includes('fonts.gstatic.com')) {
-    e.respondWith(cacheFirst(e.request, FONT_CACHE));
+  // /api/* y backend propio — NUNCA cachear: pasar directo a la red.
+  // (cachear esto rompería CAFI, logbook, paycheck, /api/version, etc.)
+  if (url.indexOf('api.pilotos.aero') !== -1 || /\/api\//.test(url) || url.indexOf('/health') !== -1) {
+    return; // sin respondWith → el navegador hace el fetch normal
+  }
+
+  // version.json — nunca cachear (es la fuente de la versión "running" real)
+  if (url.indexOf('/version.json') !== -1) {
     return;
   }
 
-  // Own API — network-first, cache fallback
-  if (url.includes('api.pilotos.aero')) {
-    e.respondWith(networkFirst(e.request, API_CACHE));
+  // Google Fonts — cache-first (versionados/inmutables)
+  if (url.indexOf('fonts.googleapis.com') !== -1 || url.indexOf('fonts.gstatic.com') !== -1) {
+    e.respondWith(cacheFirst(req, FONT_CACHE));
     return;
   }
 
-  // index.html — network-first, cache fallback (always try latest)
-  if (e.request.mode === 'navigate' ||
+  // Navegación / documento HTML — network-first (siempre intenta traer fresco).
+  // Garantiza que index.html nunca quede congelado en una versión vieja.
+  if (req.mode === 'navigate' ||
+      (req.headers.get('accept') || '').indexOf('text/html') !== -1 ||
       url.endsWith('/') ||
       url.endsWith('/index.html')) {
-    e.respondWith(networkFirst(e.request, STATIC_CACHE));
+    e.respondWith(networkFirst(req, STATIC_CACHE));
     return;
   }
 
-  // Everything else — cache-first
-  e.respondWith(cacheFirst(e.request, STATIC_CACHE));
+  // Resto de assets estáticos — cache-first
+  e.respondWith(cacheFirst(req, STATIC_CACHE));
 });
 
 function networkFirst(request, cacheName) {
