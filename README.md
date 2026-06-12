@@ -10,9 +10,20 @@ App de un solo archivo (`index.html`) servida por GitHub Pages.
 - **`sw.js`** — Service Worker network-first para HTML (nunca cachea `/api/*` ni `version.json`), con `skipWaiting` + `clients.claim` y caché versionado por `APP_VERSION`.
 - El widget de versión aparece en el login (pie de la tarjeta) y en el menú de usuario dentro de la app; compara running (dispositivo) vs published (`GET /api/version` del backend) y ofrece botón **Actualizar** si hay desfase.
 
+## Antes de desplegar: ¿cuál es la última versión?
+
+```bash
+node scripts/check-version.js
+```
+Muestra tu versión local (`VERSION` + `version.json`) frente a la publicada en producción
+(frontend `pilotos.aero` + backend `api.pilotos.aero`), y sugiere el siguiente número.
+
 ## Cómo subir de versión y desplegar
 
 ```bash
+# 0. (opcional) comprobar qué hay publicado ahora
+node scripts/check-version.js
+
 # 1. Editar la versión objetivo (o pasarla como argumento al stamp)
 echo "Beta.02" > VERSION
 
