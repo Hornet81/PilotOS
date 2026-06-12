@@ -12,7 +12,7 @@
 <title>PilotOS</title>
   <meta name="version" content="Beta.01">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.01","builtAt":"2026-06-12T19:00:56Z","commit":"694f13d","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.01","builtAt":"2026-06-12T20:40:24Z","commit":"594bb99","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -6602,16 +6602,8 @@ window.__pilotosUpdate = function(){
   }
 };
 // ══════════════════════════════════════════════════════
-//  WIDGET DE VERSIÓN — running (dispositivo) vs published (servidor)
+//  WIDGET DE VERSIÓN — etiqueta (solo display) + aviso de actualización (lo decide el SW)
 // ══════════════════════════════════════════════════════
-window.__pilotosVer = { running:null, published:null, serverOk:false, loaded:false };
-
-function pilotosBackendUrl(){
-  try { return (typeof lsGet==='function') ? lsGet('cafi_backend_url','https://api.pilotos.aero')
-                                           : (localStorage.getItem('cafi_backend_url')||'https://api.pilotos.aero'); }
-  catch(e){ return 'https://api.pilotos.aero'; }
-}
-
 function pilotosFmtBuilt(iso){
   if(!iso) return '';
   try{
@@ -6621,52 +6613,26 @@ function pilotosFmtBuilt(iso){
   }catch(e){ return ''; }
 }
 
-function pilotosMetaVersion(){
+// Versión que ESTE dispositivo está ejecutando (embebida en el HTML cargado)
+function pilotosRunningVersion(){
+  if(window.__PILOTOS_VERSION__ && window.__PILOTOS_VERSION__.version) return window.__PILOTOS_VERSION__;
   var m=document.querySelector('meta[name="version"]');
-  return m ? { version:m.getAttribute('content'), builtAt:null, channel:null, commit:null } : null;
-}
-
-function pilotosFetchVersions(cb){
-  var st = window.__pilotosVer;
-  fetch('/version.json?t='+Date.now(), { cache:'no-store' })
-    .then(function(r){ return r.ok ? r.json() : null; })
-    .catch(function(){ return null; })
-    .then(function(run){
-      st.running = run || pilotosMetaVersion();
-      var ctrl = new AbortController();
-      var to = setTimeout(function(){ try{ctrl.abort();}catch(e){} }, 8000);
-      fetch(pilotosBackendUrl() + '/api/version', { signal: ctrl.signal, cache:'no-store' })
-        .then(function(r){ return r.ok ? r.json() : null; })
-        .catch(function(){ return null; })
-        .then(function(pub){
-          clearTimeout(to);
-          st.published = pub; st.serverOk = !!pub; st.loaded = true;
-          if(cb) cb();
-        });
-    });
+  return m ? { version:m.getAttribute('content'), builtAt:null, commit:null } : { version:'—' };
 }
 
 function pilotosRenderVersion(el){
   if(!el) return;
-  var st = window.__pilotosVer;
-  var run = st.running || pilotosMetaVersion();
-  var runV = (run && run.version) ? run.version : '—';
-  var runWhen = run ? pilotosFmtBuilt(run.builtAt) : '';
-  var pub = st.published;
-  var commit = (run && run.commit) ? run.commit : (pub && pub.commit ? pub.commit : '');
-  var mismatch = st.serverOk && pub && pub.version && run && run.version && pub.version !== run.version;
-
   el.style.fontFamily = "'Space Mono', monospace";
   el.style.fontSize = '11px';
   el.style.lineHeight = '1.6';
   el.style.textAlign = 'center';
   el.innerHTML = '';
 
-  if(mismatch || window.__pilotosUpdateReady){
-    var newV = (pub && pub.version) ? pub.version : '';
+  // ¿Hay una versión nueva esperando? Lo sabe el Service Worker, no un número.
+  if(window.__pilotosUpdateReady){
     el.style.color = 'rgba(251,191,36,.95)';
     var span = document.createElement('span');
-    span.textContent = '⚠️ App ' + runV + (newV ? (' — hay versión nueva (' + newV + ') ') : ' — actualización disponible ');
+    span.textContent = '⚠️ Hay una nueva versión · ';
     el.appendChild(span);
     var btn = document.createElement('a');
     btn.textContent = 'Actualizar';
@@ -6679,13 +6645,12 @@ function pilotosRenderVersion(el){
     return;
   }
 
-  var txt = 'App ' + runV;
-  if(runWhen) txt += ' · ' + runWhen;
-  txt += ' · running';
-  if(st.serverOk && pub && pub.version && run && run.version && pub.version === run.version) txt += ' ✓';
-  txt += '  |  ';
-  txt += (st.serverOk && pub) ? ('Server ' + (pub.version||'?') + ' · ' + (pub.env||'?')) : 'Server —';
-  if(commit) txt += ' · ' + commit;
+  // Etiqueta informativa: qué versión corre este dispositivo
+  var run = pilotosRunningVersion();
+  var txt = run.version || '—';
+  var when = pilotosFmtBuilt(run.builtAt);
+  if(when) txt += ' · ' + when;
+  if(run.commit) txt += ' · ' + run.commit;
   el.style.color = 'rgba(148,198,255,.45)';
   el.textContent = txt;
 }
@@ -6698,10 +6663,7 @@ function pilotosRefreshVersionTags(){
 }
 
 window.addEventListener('load', function(){
-  setTimeout(function(){
-    pilotosRefreshVersionTags();                       // pinta inmediato desde meta
-    pilotosFetchVersions(pilotosRefreshVersionTags);   // y refina con red
-  }, 600);
+  setTimeout(pilotosRefreshVersionTags, 300);
 });
 
 // Offline/online banner
@@ -8677,7 +8639,7 @@ html.day .fp-ym-st-col.free .fp-ym-st-rng{color:var(--fp-gd)}
       </div>
     </div>
   </div>
-  <div id="pilotos-version-home" style="text-align:center;padding:18px 12px 28px;min-height:14px;color:rgba(148,198,255,.45);opacity:.85">App —</div>
+  <div id="pilotos-version-home" style="text-align:center;padding:18px 12px 28px;min-height:14px;color:rgba(148,198,255,.45);opacity:.85">…</div>
 </div>
 
 <!-- ════════════ OES ════════════ -->
@@ -30560,7 +30522,7 @@ function pagSignOut() {
     <!-- Footer -->
     <div id="pag-server-status" style="font-size:10px;font-family:'Space Mono',monospace;text-align:center;margin-bottom:6px;color:rgba(240,255,254,.3)">Comprobando servidor…</div>
     <div class="pag-note">PilotOS RAG · A319/A320/A321</div>
-    <div id="pilotos-version-login" style="margin-top:8px;min-height:14px">App —</div>
+    <div id="pilotos-version-login" style="margin-top:8px;min-height:14px">…</div>
   </div>
 </div>
 
@@ -30602,7 +30564,7 @@ function pagSignOut() {
       </div>
       <span class="sb-dropdown-item-label">Cerrar sesión</span>
     </div>
-    <div id="pilotos-version-app" style="padding:8px 12px 4px;min-height:14px;color:rgba(148,198,255,.45)">App —</div>
+    <div id="pilotos-version-app" style="padding:8px 12px 4px;min-height:14px;color:rgba(148,198,255,.45)">…</div>
   </div>
 
 </div>

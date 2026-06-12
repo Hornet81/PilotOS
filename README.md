@@ -4,11 +4,17 @@ App de un solo archivo (`index.html`) servida por GitHub Pages.
 
 ## Sistema de versión / actualización PWA
 
+Dos cosas separadas, sin números cruzados:
+
+1. **¿Hay versión nueva? → lo decide el Service Worker.** Cuando detecta código nuevo, queda un SW "en espera" y el widget muestra *"⚠️ Hay una nueva versión · Actualizar"*. No compara números ni depende del backend.
+2. **¿Qué versión soy? → una etiqueta para humanos.** Un único número (frontend), solo para mostrar/reportar bugs.
+
+Piezas:
+
 - **`VERSION`** — versión objetivo (ej. `Beta.01`). El número solo sube en deploy, no en cada guardado.
-- **`scripts/stamp-version.js`** — sella la versión en el build: genera `version.json` (con fecha-hora UTC + hash git), y actualiza `<meta name="version">` en `index.html` y `const APP_VERSION` en `sw.js`.
-- **`version.json`** — fuente de verdad de la versión "running"; el frontend la lee con cache-busting (`?t=`).
-- **`sw.js`** — Service Worker network-first para HTML (nunca cachea `/api/*` ni `version.json`), con `skipWaiting` + `clients.claim` y caché versionado por `APP_VERSION`.
-- El widget de versión aparece en el login (pie de la tarjeta) y en el menú de usuario dentro de la app; compara running (dispositivo) vs published (`GET /api/version` del backend) y ofrece botón **Actualizar** si hay desfase.
+- **`scripts/stamp-version.js`** — sella en el build: actualiza `<meta name="version">` y `window.__PILOTOS_VERSION__` (la versión que ESE HTML ejecuta) en `index.html`, `const APP_VERSION` en `sw.js`, y genera `version.json` (para `check-version.js`). Incluye fecha-hora UTC + hash git.
+- **`sw.js`** — Service Worker network-first para HTML (nunca cachea `/api/*` ni `version.json`), con `skipWaiting` + `clients.claim`, handler `SKIP_WAITING` y caché versionado por `APP_VERSION`. Esto es lo que arregla el iPad congelado.
+- El widget aparece en login, home y menú de usuario; lee `window.__PILOTOS_VERSION__` para la etiqueta y `window.__pilotosUpdateReady` (lo pone el SW) para el aviso de actualización.
 
 ## Antes de desplegar: ¿cuál es la última versión?
 
@@ -37,4 +43,4 @@ git commit -m "Deploy Beta.02"
 git push
 ```
 
-> El backend (`api.pilotos.aero`, repo `pilotos-backend`) reporta su versión vía la variable de entorno `APP_VERSION` en Railway (fallback `Beta.01`). Para que el "Server" del widget coincida, actualizar `APP_VERSION` en Railway al mismo número en cada release de backend.
+> El widget **no** depende del backend, así que un deploy solo-frontend no requiere tocar Railway. El backend mantiene `GET /api/version` (env `APP_VERSION`, fallback `Beta.01`) solo como dato informativo para `check-version.js`.

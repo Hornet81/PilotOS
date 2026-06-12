@@ -57,15 +57,29 @@ try {
 const versionData = { version, channel, builtAt, env: 'running', commit };
 fs.writeFileSync(VERSION_JSON, JSON.stringify(versionData, null, 2) + '\n');
 
-// ── Actualizar <meta name="version"> en index.html ──
+// ── Actualizar index.html: <meta> + window.__PILOTOS_VERSION__ ──
 let html = fs.readFileSync(INDEX_HTML, 'utf8');
+let htmlChanged = false;
+
 const metaRe = /(<meta\s+name="version"\s+content=")[^"]*(">)/;
 if (metaRe.test(html)) {
   html = html.replace(metaRe, `$1${version}$2`);
-  fs.writeFileSync(INDEX_HTML, html);
+  htmlChanged = true;
 } else {
   console.warn('[stamp] AVISO: no encontré <meta name="version"> en index.html');
 }
+
+// Versión embebida = lo que ESTE HTML ejecuta (la lee el widget como "running")
+const embedded = JSON.stringify({ version, builtAt, commit, channel });
+const winRe = /window\.__PILOTOS_VERSION__=\{[^}]*\};/;
+if (winRe.test(html)) {
+  html = html.replace(winRe, `window.__PILOTOS_VERSION__=${embedded};`);
+  htmlChanged = true;
+} else {
+  console.warn('[stamp] AVISO: no encontré window.__PILOTOS_VERSION__ en index.html');
+}
+
+if (htmlChanged) fs.writeFileSync(INDEX_HTML, html);
 
 // ── Actualizar const APP_VERSION en sw.js (cambia el nombre del caché) ──
 let sw = fs.readFileSync(SW_JS, 'utf8');
