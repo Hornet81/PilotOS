@@ -22148,6 +22148,7 @@ function TabMeteoV2(_refM2){
   const _rw=useState(false), rawOpen=_rw[0], setRawOpen=_rw[1];
   const _rwt=useState(false), rawTafOpen=_rwt[0], setRawTafOpen=_rwt[1];
   const _cp=useState(true), cloudOpen=_cp[0], setCloudOpen=_cp[1];
+  const _ho=useState(true), hourlyOpen=_ho[0], setHourlyOpen=_ho[1];
   const _ca=useState(function(){ try{ return JSON.parse(localStorage.getItem("sky_custom_wx")||"[]"); }catch(e){ return []; } }), customAps=_ca[0], setCustomAps=_ca[1];
   const _ao=useState(false), addOpen=_ao[0], setAddOpen=_ao[1];
   const _av=useState(""), addVal=_av[0], setAddVal=_av[1];
@@ -22779,16 +22780,26 @@ function TabMeteoV2(_refM2){
           React.createElement("span",{style:{fontFamily:mono,fontSize:8,color:T.tx3,letterSpacing:".2px"}},lab),
           hData.map(function(r,i){ const on=r.z===nowZ; return React.createElement("span",{key:i,style:{textAlign:"center",fontSize:sm?7.5:10,fontFamily:sm?mono:sans,fontWeight:on?700:500,color:on?T.cyan:(sm?T.tx3:T.tx2)}},fn(r)); }));
       };
-      hourlyCard=React.createElement("div",{style:{background:T.surf1,border:"1px solid "+T.cardBd,borderRadius:16,padding:"15px 14px",marginBottom:12,boxShadow:T.cardSh,overflowX:"auto"}},
-        React.createElement("div",{style:{fontFamily:mono,fontSize:9.5,color:T.tx2,letterSpacing:"1.2px",marginBottom:12}},"PREVISIÓN POR HORAS · "+cur.icao),
-        React.createElement("div",{style:{minWidth:N>7?380:0}},
-          hHead, hIcons,
-          hRow("VIENTO",function(r){return r.spd;}),
-          hRow("RACHAS",function(r){return r.gust;}),
-          hRow("VISIB.",function(r){return r.vis==null?"—":(r.vis>=10?"+10":r.vis);}),
-          hRow("NUBES",function(r){return _wxCoverLabel(r.cloud);},true),
-          hRow("TEMP",function(r){return r.temp;})
-        ));
+      hourlyCard=React.createElement("div",{style:{marginBottom:12,borderRadius:16,boxShadow:T.cardSh}},
+        React.createElement("div",{onClick:function(){setHourlyOpen(function(o){return !o;});},style:{display:"flex",alignItems:"center",gap:9,padding:"12px 14px",borderRadius:hourlyOpen?"16px 16px 0 0":16,cursor:"pointer",background:T.surf1,border:"1px solid "+T.cardBd}},
+          React.createElement("div",{style:{width:26,height:26,borderRadius:8,background:T.surf2,border:"1px solid "+T.line2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13}},"🕑"),
+          React.createElement("div",{style:{flex:1,minWidth:0}},
+            React.createElement("div",{style:{fontSize:9.5,fontWeight:600,color:T.tx1}},"Previsión por horas"),
+            React.createElement("div",{style:{fontFamily:mono,fontSize:8,color:T.tx3,marginTop:1}},cur.icao+" · próximas "+N+" h")
+          ),
+          React.createElement("span",{style:{color:T.tx3,fontSize:13,transform:hourlyOpen?"rotate(90deg)":"none",transition:".18s"}},"›")
+        ),
+        hourlyOpen?React.createElement("div",{style:{background:T.surf1,border:"1px solid "+T.cardBd,borderTop:"none",borderRadius:"0 0 16px 16px",padding:"13px 14px 15px",overflowX:"auto"}},
+          React.createElement("div",{style:{minWidth:N>7?380:0}},
+            hHead, hIcons,
+            hRow("VIENTO",function(r){return r.spd;}),
+            hRow("RACHAS",function(r){return r.gust;}),
+            hRow("VISIB.",function(r){return r.vis==null?"—":(r.vis>=10?"+10":r.vis);}),
+            hRow("NUBES",function(r){return _wxCoverLabel(r.cloud);},true),
+            hRow("TEMP",function(r){return r.temp;})
+          )
+        ):null
+      );
     }
 
     // ── Datos de ruta: SIGMET/AIRMET reales + viento/temp a FL crucero ──
@@ -22867,7 +22878,7 @@ function TabMeteoV2(_refM2){
         React.createElement("div",{style:{fontSize:11.5,color:T.tx2,marginTop:2}},st.s)));
 
     // Sin marco ni cabecera: tarjetas sueltas sobre el cielo (como el mock). El nombre del aeropuerto va en grande dentro del hero.
-    body=React.createElement("div",{style:{position:"relative",zIndex:1}},banner,pillsRow,metarTafCard,windCard,hourlyCard,wxGrid,statusBanner,cloudCard);
+    body=React.createElement("div",{style:{position:"relative",zIndex:1}},banner,pillsRow,metarTafCard,windCard,hourlyCard,cloudCard,wxGrid,statusBanner);
   }
 
   const pullInd=React.createElement("div",{key:"pull",style:{height:loading?34:pullDist,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",transition:pullDist===0?"height .25s":"none"}},
