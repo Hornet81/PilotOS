@@ -22211,6 +22211,7 @@ function TabMeteoV2(_refM2){
   const _sg=useState({}), sigStore=_sg[0], setSigStore=_sg[1];          // SIGMET/AIRMET (airsigmet AWC)
   const _pd=useState(0), pullDist=_pd[0], setPullDist=_pd[1];
   const _sk=useState(false), stripStuck=_sk[0], setStripStuck=_sk[1];   // ¿la tira de cabecera está pegada arriba?
+  const _apn=useState(0), setApn=_apn[1];   // tick para re-render al resolver el nombre del aeropuerto desde la BD
   const rootRef=useRef(null), refreshRef=useRef(null), pullRef=useRef(0), stripRef=useRef(null);
   const nowUtc=new Date().toISOString().slice(11,16);
   const ICAO=function(c){ return iataToIcao(c)||c; };
@@ -22229,6 +22230,11 @@ function TabMeteoV2(_refM2){
   const active=airports.some(function(a){return a.key===activeSel;})?activeSel:airports[0].key;
   const cur=airports.find(function(a){return a.key===active;})||airports[0];
   const phase=day?_skyPhase(cur.icao):'night';
+
+  // ── Nombre del aeropuerto activo desde la base de datos (cache + /api/airports/:icao) ──
+  useEffect(function(){
+    ensureAirportNames([cur.icao], function(){ setApn(function(x){ return x+1; }); });
+  }, [cur.icao]);
 
   // ── Pronóstico de viento próximas 2h (Open-Meteo, resolución 15 min) ──
   useEffect(function(){
@@ -22493,7 +22499,10 @@ function TabMeteoV2(_refM2){
       ? React.createElement("img",{src:WX_ICON_BASE+iconSlug+".svg",alt:m.cat,width:34,height:34,style:{display:"block",objectFit:"contain"},onError:function(e){e.target.style.display="none";}})
       : React.createElement("span",{style:{fontSize:18}},ci.icon);
     const metarObs=_wxMetarObs(m.raw)||{};
-    const apFullName=(typeof _WX_NAMES!=='undefined'&&_WX_NAMES[cur.icao])?_WX_NAMES[cur.icao]:cur.code;
+    const _dbApName=airportName(cur.icao);   // nombre desde la BD (o el ICAO si no hay match)
+    const apFullName=(_dbApName&&_dbApName!==cur.icao)
+      ? _dbApName
+      : ((typeof _WX_NAMES!=='undefined'&&_WX_NAMES[cur.icao])?_WX_NAMES[cur.icao]:cur.code);
     // ── Pista(s) en servicio: ATIS (dep/arr) → única del aeropuerto → estimada por viento ──
     const atisD=atisStore[cur.icao];
     const aDep=(atisD&&atisD.depRwy)||[], aArr=(atisD&&atisD.arrRwy)||[], aGen=(atisD&&atisD.rwy)||[];
