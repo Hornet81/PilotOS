@@ -22117,6 +22117,14 @@ function _wxAlertCoversFL(alert,fl){
   const cruise=fl*100;
   return (lo==null||cruise>=lo-3000)&&(hi==null||cruise<=hi+3000);
 }
+// hex (#rgb / #rrggbb) → rgba con alfa — para degradados sutiles tipo "tags del home"
+function _rgba(hex,a){
+  let h=String(hex||'').replace('#','');
+  if(h.length===3) h=h.split('').map(function(c){return c+c;}).join('');
+  if(h.length!==6) return hex;
+  const n=parseInt(h,16);
+  return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+a+')';
+}
 
 function TabMeteoV2(_refM2){
   const leg=_refM2.leg;
@@ -22137,6 +22145,7 @@ function TabMeteoV2(_refM2){
   const _aop=useState(false), atisOpen=_aop[0], setAtisOpen=_aop[1];
   const _wo=useState(true), windOpen=_wo[0], setWindOpen=_wo[1];
   const _ld=useState(false), loading=_ld[0], setLoading=_ld[1];
+  const _mt=useState("metar"), metarTab=_mt[0], setMetarTab=_mt[1];     // pestaña METAR/TAF del módulo combinado
   const _hs=useState({}), hourlyStore=_hs[0], setHourlyStore=_hs[1];   // previsión por horas (Open-Meteo)
   const _rwd=useState({}), routeWxStore=_rwd[0], setRouteWxStore=_rwd[1]; // viento/temp en ruta a FL crucero
   const _sg=useState({}), sigStore=_sg[0], setSigStore=_sg[1];          // SIGMET/AIRMET (airsigmet AWC)
@@ -22183,8 +22192,13 @@ function TabMeteoV2(_refM2){
     if(!ic) return;
     if(atisStore[ic]&&(Date.now()-(atisStore[ic]._t||0))<300000) return; // cache 5 min
     fetchLiveAtis(ic).then(function(d){
-      if(d){ d._t=Date.now(); setAtisStore(function(p){ const n=Object.assign({},p); n[ic]=d; return n; }); }
-    }).catch(function(){});
+      // Si el backend falla/404 o no hay ATIS, guardamos sentinela para no quedarnos en "Cargando…"
+      const data=d||{station:ic,available:false,cards:[],depRwy:[],arrRwy:[],rwy:[],rwyInUse:null};
+      data._t=Date.now();
+      setAtisStore(function(p){ const n=Object.assign({},p); n[ic]=data; return n; });
+    }).catch(function(){
+      setAtisStore(function(p){ const n=Object.assign({},p); n[ic]={station:ic,available:false,cards:[],depRwy:[],arrRwy:[],rwy:[],rwyInUse:null,_t:Date.now()}; return n; });
+    });
   }, [cur.icao]);
 
   // ── Previsión por horas (Open-Meteo, próximas ~10 h) del aeropuerto activo ──
@@ -22403,75 +22417,77 @@ function TabMeteoV2(_refM2){
       : React.createElement("span",{style:{fontSize:18}},ci.icon);
     const metarObs=_wxMetarObs(m.raw)||{};
     const apFullName=(typeof _WX_NAMES!=='undefined'&&_WX_NAMES[cur.icao])?_WX_NAMES[cur.icao]:cur.code;
-    let banner;
-    if(day){
-      // DÍA → banner vivo por categoría (combo)
-      const fcg=(T.fcGrad&&T.fcGrad[ci.k])||"linear-gradient(135deg,#0FBF8F,#34E0A1)";
-      const fgl=(T.fcGlow&&T.fcGlow[ci.k])||"rgba(52,224,161,.4)";
-      banner=React.createElement("div",{style:{position:"relative",overflow:"hidden",marginBottom:12,borderRadius:18,padding:"14px 16px",background:fcg,boxShadow:"0 14px 40px "+fgl+",inset 0 1px 0 rgba(255,255,255,.5)"}},
-        React.createElement("div",{style:{position:"absolute",inset:0,background:"linear-gradient(135deg,rgba(255,255,255,.32),transparent 45%)",pointerEvents:"none"}}),
-        React.createElement("div",{style:{position:"relative",marginBottom:12}},
-          React.createElement("div",{style:{fontSize:23,fontWeight:700,color:"#fff",lineHeight:1.05,letterSpacing:".3px",textShadow:"0 2px 10px rgba(0,0,0,.28)"}},apFullName),
-          React.createElement("div",{style:{fontFamily:mono,fontSize:9.5,fontWeight:700,letterSpacing:"1px",color:"rgba(255,255,255,.88)",marginTop:3}},cur.icao+" · "+cur.code)
-        ),
-        React.createElement("div",{style:{display:"flex",alignItems:"center",gap:11,position:"relative"}},
-          React.createElement("div",{style:{width:46,height:46,borderRadius:14,background:"rgba(255,255,255,.26)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",boxShadow:"inset 0 1px 0 rgba(255,255,255,.6)"}},wxIconEl),
-          React.createElement("div",{style:{flex:1,minWidth:0}},
-            React.createElement("div",{style:{fontSize:27,fontWeight:700,color:"#fff",lineHeight:1,letterSpacing:".5px",textShadow:"0 2px 10px rgba(0,0,0,.22)"}},ci.short),
-            React.createElement("div",{style:{fontSize:10,color:"rgba(255,255,255,.92)",marginTop:3,fontWeight:600}},ci.name)
-          ),
-          React.createElement("button",{onClick:function(){refreshRef.current&&refreshRef.current(true);},title:"Actualizar METAR/TAF",style:{width:28,height:28,borderRadius:9,background:"rgba(255,255,255,.18)",border:"1px solid rgba(255,255,255,.45)",color:"#fff",cursor:"pointer",fontSize:15,lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,animation:loading?"spin .8s linear infinite":"none"}},"↻")
-        ),
-        React.createElement("div",{style:{fontSize:11.5,lineHeight:1.5,color:"#fff",marginTop:10,position:"relative",fontWeight:500,textShadow:"0 1px 6px rgba(0,0,0,.18)"}},summary),
-        React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginTop:9,position:"relative"}},
-          React.createElement("span",{style:{fontFamily:mono,fontSize:8,fontWeight:700,letterSpacing:"1px",color:"#fff",background:"rgba(0,0,0,.22)",borderRadius:6,padding:"3px 7px"}},cm.tag),
-          metarObs.txt?React.createElement("span",{style:{fontFamily:mono,fontSize:8,fontWeight:700,color:"#fff",background:"rgba(0,0,0,.22)",borderRadius:6,padding:"3px 7px",whiteSpace:"nowrap"}},"📡 "+metarObs.txt+" · "+metarObs.ago):null
-        )
-      );
-    }else{
-      // NOCHE → sev-tint oscuro (tema noche de la app, sin cambios)
-      banner=React.createElement("div",{style:{position:"relative",overflow:"hidden",marginBottom:12,borderRadius:16,padding:"12px 14px",background:"linear-gradient(150deg,"+sev.bg+","+T.surf1+")",border:"1px solid "+sev.bd,borderLeft:"5px solid "+sev.c,boxShadow:T.cardSh}},
-        React.createElement("div",{style:{marginBottom:11}},
-          React.createElement("div",{style:{fontSize:20,fontWeight:700,color:T.tx1,lineHeight:1.05,letterSpacing:".3px"}},apFullName),
-          React.createElement("div",{style:{fontFamily:mono,fontSize:9,fontWeight:700,letterSpacing:"1px",color:cm.c,marginTop:3}},cur.icao+" · "+cur.code)
-        ),
-        React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}},
-          React.createElement("div",{style:{width:42,height:42,borderRadius:12,background:T.surf2,border:"1px solid "+sev.bd,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden"}},wxIconEl),
-          React.createElement("div",{style:{flex:1,minWidth:0}},
-            React.createElement("div",{style:{fontFamily:mono,fontSize:17,fontWeight:700,color:sev.c,lineHeight:1,letterSpacing:".5px"}},ci.short),
-            React.createElement("div",{style:{fontSize:9,color:T.tx2,marginTop:3,fontWeight:500}},ci.name)
-          ),
-          React.createElement("button",{onClick:function(){refreshRef.current&&refreshRef.current(true);},title:"Actualizar METAR/TAF",style:{width:26,height:26,borderRadius:8,background:"transparent",border:"1px solid "+sev.bd,color:sev.c,cursor:"pointer",fontSize:14,lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,animation:loading?"spin .8s linear infinite":"none"}},"↻")
-        ),
-        React.createElement("div",{style:{fontSize:9.5,lineHeight:1.5,color:T.tx1,marginTop:9}},summary),
-        React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginTop:9}},
-          React.createElement("span",{style:{fontFamily:mono,fontSize:7.5,fontWeight:700,letterSpacing:"1px",color:cm.c,background:"rgba(0,0,0,.18)",border:"1px solid "+cm.bd,borderRadius:6,padding:"2px 6px"}},cm.tag),
-          metarObs.txt?React.createElement("span",{style:{fontFamily:mono,fontSize:7.5,fontWeight:700,color:sev.c,background:"rgba(0,0,0,.2)",border:"1px solid "+sev.bd,borderRadius:6,padding:"2px 6px",whiteSpace:"nowrap"}},"📡 "+metarObs.txt+" · "+metarObs.ago):null
-        )
-      );
+    // ── Pista(s) en servicio: ATIS (dep/arr) → única del aeropuerto → estimada por viento ──
+    const atisD=atisStore[cur.icao];
+    const aDep=(atisD&&atisD.depRwy)||[], aArr=(atisD&&atisD.arrRwy)||[], aGen=(atisD&&atisD.rwy)||[];
+    const rwListH=_runwaysForIcao(cur.icao)||[];
+    const bestRwyH=calcBestRwy(cur.icao,pw.dir,pw.spd,nowUtc)||calcRwyFromMetar(m.raw);
+    let rwDep=null,rwArr=null,rwSingle=null,rwSrc=null;
+    if(aDep.length||aArr.length){
+      rwDep=aDep.length?aDep.join("/"):null; rwArr=aArr.length?aArr.join("/"):null;
+      if(rwDep&&rwArr&&rwDep===rwArr){ rwSingle=rwDep; rwDep=null; rwArr=null; }
+      rwSrc="ATIS";
+    } else if(aGen.length){ rwSingle=aGen.join("/"); rwSrc="ATIS"; }
+    else if(rwListH.length===1){ rwSingle=rwListH[0].id; rwSrc="UNICA"; }
+    else if(bestRwyH){ rwSingle=bestRwyH; rwSrc="VIENTO"; }
+    const rwyChip=function(ico,lab,val,grow){
+      return React.createElement("div",{key:lab,style:{flex:grow?1:"0 0 auto",minWidth:0,display:"flex",alignItems:"center",gap:8,background:T.surf2,border:"1px solid "+T.line2,borderRadius:11,padding:"7px 11px"}},
+        React.createElement("span",{style:{fontSize:14,flexShrink:0,lineHeight:1}},ico),
+        React.createElement("div",{style:{minWidth:0}},
+          React.createElement("div",{style:{fontFamily:mono,fontSize:7,fontWeight:700,letterSpacing:".6px",color:T.tx3}},lab),
+          React.createElement("div",{style:{fontFamily:mono,fontSize:15,fontWeight:800,color:T.cyan,lineHeight:1,marginTop:2,textShadow:"0 0 10px "+_rgba(T.cyan,.35)}},val)));
+    };
+    let runwayRow=null;
+    if(rwDep||rwArr||rwSingle){
+      const chips=[];
+      if(rwDep||rwArr){ if(rwDep) chips.push(rwyChip("🛫","DESPEGUE",rwDep,true)); if(rwArr) chips.push(rwyChip("🛬","ATERRIZAJE",rwArr,true)); }
+      else { chips.push(rwyChip("🛬🛫","PISTA EN SERVICIO",rwSingle,true)); }
+      const srcTxt=rwSrc==="ATIS"?"Pista en servicio · ATIS":rwSrc==="UNICA"?"Pista única del aeropuerto":"Estimada por viento (sin ATIS)";
+      runwayRow=React.createElement("div",{style:{marginTop:11}},
+        React.createElement("div",{style:{display:"flex",gap:8,alignItems:"stretch"}},chips),
+        React.createElement("div",{style:{fontFamily:mono,fontSize:7,fontWeight:700,letterSpacing:".4px",color:T.tx3,marginTop:5}},"▪ "+srcTxt));
     }
+    // ── Hero unificado (día/noche) · verde sutil tipo "tags del home", sin brillo fuerte ──
+    const heroGrad="linear-gradient(150deg,"+_rgba(sev.c,.16)+","+_rgba(sev.c,.045)+"), "+T.surf1;
+    const banner=React.createElement("div",{style:{position:"relative",overflow:"hidden",marginBottom:12,borderRadius:18,padding:"15px 16px",background:heroGrad,border:"1px solid "+_rgba(sev.c,.30),boxShadow:T.cardSh,backdropFilter:day?T.blur:undefined,WebkitBackdropFilter:day?T.blur:undefined}},
+      React.createElement("div",{style:{marginBottom:12}},
+        React.createElement("div",{style:{fontSize:22,fontWeight:700,color:T.tx1,lineHeight:1.05,letterSpacing:".3px"}},apFullName),
+        React.createElement("div",{style:{fontFamily:mono,fontSize:9,fontWeight:700,letterSpacing:"1px",color:cm.c,marginTop:3}},cur.icao+" · "+cur.code)
+      ),
+      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:11}},
+        React.createElement("div",{style:{width:44,height:44,borderRadius:13,background:T.surf2,border:"1px solid "+_rgba(sev.c,.28),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden"}},wxIconEl),
+        React.createElement("div",{style:{flex:1,minWidth:0}},
+          React.createElement("div",{style:{fontSize:22,fontWeight:700,color:sev.c,lineHeight:1,letterSpacing:".5px"}},ci.short),
+          React.createElement("div",{style:{fontSize:10,color:T.tx2,marginTop:3,fontWeight:500}},ci.name)
+        ),
+        React.createElement("button",{onClick:function(){refreshRef.current&&refreshRef.current(true);},title:"Actualizar METAR/TAF",style:{width:28,height:28,borderRadius:9,background:"transparent",border:"1px solid "+_rgba(sev.c,.4),color:sev.c,cursor:"pointer",fontSize:14,lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,animation:loading?"spin .8s linear infinite":"none"}},"↻")
+      ),
+      React.createElement("div",{style:{fontSize:11,lineHeight:1.5,color:T.tx1,marginTop:10}},summary),
+      runwayRow,
+      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginTop:11}},
+        React.createElement("span",{style:{fontFamily:mono,fontSize:7.5,fontWeight:700,letterSpacing:"1px",color:cm.c,background:T.surf2,border:"1px solid "+_rgba(cm.c,.35),borderRadius:6,padding:"2px 7px"}},cm.tag),
+        metarObs.txt?React.createElement("span",{style:{fontFamily:mono,fontSize:7.5,fontWeight:700,color:T.tx2,background:T.surf2,border:"1px solid "+T.line2,borderRadius:6,padding:"2px 7px",whiteSpace:"nowrap"}},"📡 "+metarObs.txt+" · "+metarObs.ago):null
+      )
+    );
 
-    // Tiles METAR
-    function tile(label,valEls,sub,flag,span){
-      const fb=flag==="red"?{bd:T.redBd,bg:T.redBg,c:T.red}:flag==="amb"?{bd:T.ambBd,bg:T.ambBg,c:T.amb}:null;
-      return React.createElement("div",{key:label,style:{gridColumn:span?"span 2":"auto",background:fb?"linear-gradient(160deg,"+fb.bg+","+T.surf1+")":T.surf1,border:"1px solid "+(fb?fb.bd:T.cardBd),borderRadius:13,padding:"9px 10px 10px",boxShadow:T.cardSh}},
-        React.createElement("div",{style:{fontFamily:mono,fontSize:8,fontWeight:700,letterSpacing:".8px",color:T.tx3,marginBottom:6}},label),
-        React.createElement("div",{style:{fontSize:15,fontWeight:700,color:fb?fb.c:T.tx1,lineHeight:1,letterSpacing:"-.3px"}},valEls),
-        sub?React.createElement("div",{style:{fontFamily:mono,fontSize:8,color:T.tx2,marginTop:5,fontWeight:500}},sub):null
-      );
-    }
-    const small=function(t){ return React.createElement("span",{style:{fontSize:9,fontWeight:600,color:T.tx2}},t); };
+    // ── Tira de 5 tiles del METAR (mock): VIENTO · VISIB · NUBES · TEMP/DEW · QNH ──
     const visFlag=visM<1500?"red":visM<5000?"amb":null;
-    const ceilFlag=(ceil!=null&&ceil<500)?"red":(ceil!=null&&ceil<1000)?"amb":null;
     const windFlag=(gust&&gust>=25)?"amb":null;
-    const dewFlag=(spread!=null&&spread<=2)?"amb":null;
-    const tiles=React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginBottom:12}},
-      tile("🌬 VIENTO",[String(pw.dir).padStart(3,"0")+"° ",small("/"),(" "+pw.spd),(gust?React.createElement("span",{key:"g",style:{color:T.amb}}," G"+gust):""),small(" kt")],gust?("Rachas hasta "+gust+" kt"):"Sin rachas",windFlag,true),
-      tile("👁 VISIB.",[(visM>=9999?"10+":visM>=1000?(visM/1000).toFixed(visM%1000?1:0).replace(".0",""):String(visM)),small(visM>=1000?" km":" m")],phen||"sin fenómenos",visFlag),
-      tile("☁ TECHO",ceil!=null?[String(ceil),small(" ft")]:["—"],m.clouds||"CAVOK",ceilFlag),
-      tile("🌡 TEMP",tC!=null?[String(tC),small("°C")]:["—"],tC!=null?("ISA "+(tC-15>=0?"+":"")+(tC-15)):"",null),
-      tile("💧 ROCÍO",dC!=null?[String(dC),small("°C")]:["—"],spread!=null?("spread "+spread+"°"):"",dewFlag),
-      tile("📊 QNH",[m.qnh||"—"],"hPa",null)
+    const mtile=function(icon,label,val,flag){
+      const fc=flag==="red"?T.red:flag==="amb"?T.amb:null;
+      return React.createElement("div",{key:label,style:{textAlign:"center",minWidth:0}},
+        React.createElement("div",{style:{fontSize:15,marginBottom:6,opacity:.85,lineHeight:1}},icon),
+        React.createElement("div",{style:{fontFamily:mono,fontSize:7.5,fontWeight:700,letterSpacing:".4px",color:T.tx3}},label),
+        React.createElement("div",{style:{fontSize:10.5,fontWeight:700,color:fc||T.tx1,marginTop:3,lineHeight:1.25}},val));
+    };
+    const cloudTxt=(m.clouds&&!/^SKC$/i.test(m.clouds))?String(m.clouds).split(/\s+/)[0]:(/CAVOK/i.test(m.raw||"")?"CAVOK":"SKC");
+    const visStrip=visM>=9999?"10+ km":visM>=1000?((visM/1000).toFixed(visM%1000?1:0).replace(".0","")+" km"):(visM+" m");
+    const tilesStrip=React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:4,marginTop:14}},
+      mtile("🌬","VIENTO",String(pw.dir).padStart(3,"0")+"°/"+pw.spd+(gust?("G"+gust):"")+"kt",windFlag),
+      mtile("👁","VISIB.",visStrip,visFlag),
+      mtile("☁","NUBES",cloudTxt),
+      mtile("🌡","TEMP/DEW",(tC!=null?tC+"°":"—")+" / "+(dC!=null?dC+"°":"—")),
+      mtile("📊","QNH",(m.qnh||"—")+" hPa")
     );
 
     // ── Componente de viento por pista ──
@@ -22624,51 +22640,49 @@ function TabMeteoV2(_refM2){
     const tafRaw=tafOf(cur);
     const segs=_wxParseTaf(tafRaw);
     const BANDC={BASE:{c:T.tx2,bg:T.surf3,bd:T.line2},TEMPO:{c:T.amb,bg:T.ambBg,bd:T.ambBd},BECMG:{c:T.inf,bg:T.infBg,bd:T.infBd},PROB:{c:T.extra,bg:T.extraBg,bd:T.extraBd},DESDE:{c:T.cyan,bg:T.routeBg,bd:T.routeBd}};
-    const tafCard=React.createElement("div",{style:{marginBottom:12,borderRadius:14,boxShadow:T.cardSh}},
-      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:9,padding:"10px 13px",borderRadius:"14px 14px 0 0",background:T.surf1,border:"1px solid "+T.line2,borderBottom:"none"}},
-        React.createElement("div",{style:{width:26,height:26,borderRadius:8,background:T.surf2,border:"1px solid "+T.line2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13}},"📄"),
-        React.createElement("div",{style:{flex:1}},
-          React.createElement("div",{style:{fontSize:9.5,fontWeight:600,color:T.tx1}},"Pronóstico TAF"),
-          React.createElement("div",{style:{fontFamily:mono,fontSize:8,color:T.tx3,marginTop:1}},cur.icao)
-        )
-      ),
-      React.createElement("div",{style:{background:T.surf1,border:"1px solid "+T.line2,borderRadius:"0 0 14px 14px",padding:segs.length?"4px 10px 6px":"12px"}},
-        segs.length?segs.map(function(s,i){
-          const b=BANDC[s.type]||BANDC.BASE;
-          return React.createElement("div",{key:i,style:{display:"flex",gap:9,padding:"8px 4px",borderBottom:i<segs.length-1?"1px solid "+T.line:"none"}},
-            React.createElement("span",{style:{flex:"0 0 auto",alignSelf:"flex-start",fontFamily:mono,fontSize:7.5,fontWeight:700,letterSpacing:".5px",padding:"2px 6px",borderRadius:5,color:b.c,background:b.bg,border:"1px solid "+b.bd,whiteSpace:"nowrap"}},s.type),
-            React.createElement("div",{style:{flex:1,fontFamily:mono,fontSize:8.5,lineHeight:1.55,color:T.tx2,wordBreak:"break-word"}},s.text)
-          );
-        }):React.createElement("div",{style:{fontFamily:mono,fontSize:9,color:T.tx3,textAlign:"center"}},"Sin TAF disponible")
-      )
+    // ── Módulo METAR / TAF en pestañas (mock) ──
+    const tabBtn=function(key,label){
+      const on=metarTab===key;
+      return React.createElement("div",{key:key,onClick:function(){setMetarTab(key);},style:{position:"relative",padding:"14px 3px",marginRight:22,fontSize:14,fontWeight:600,color:on?T.tx1:T.tx3,cursor:"pointer",transition:".15s"}},
+        label,
+        on?React.createElement("div",{style:{position:"absolute",left:0,right:0,bottom:-1,height:2.5,borderRadius:2,background:T.cyan,boxShadow:"0 0 8px "+T.cyan}}):null);
+    };
+    // raw METAR con el grupo de viento resaltado en cian
+    const rawMetarEls=(function(){
+      const raw=m.raw||"—";
+      const wm=raw.match(/\b(VRB|\d{3})\d{2}(G\d{2,3})?(KT|MPS)\b/);
+      if(!wm) return [raw];
+      const i=raw.indexOf(wm[0]);
+      return [raw.slice(0,i),React.createElement("b",{key:"w",style:{color:T.cyan,fontWeight:700}},wm[0]),raw.slice(i+wm[0].length)];
+    })();
+    const tafSegEls=segs.length?segs.map(function(s,i){
+      const b=BANDC[s.type]||BANDC.BASE;
+      return React.createElement("div",{key:i,style:{display:"flex",gap:9,padding:"8px 2px",borderBottom:i<segs.length-1?"1px solid "+T.line:"none"}},
+        React.createElement("span",{style:{flex:"0 0 auto",alignSelf:"flex-start",fontFamily:mono,fontSize:7.5,fontWeight:700,letterSpacing:".5px",padding:"2px 6px",borderRadius:5,color:b.c,background:b.bg,border:"1px solid "+b.bd,whiteSpace:"nowrap"}},s.type),
+        React.createElement("div",{style:{flex:1,fontFamily:mono,fontSize:9,lineHeight:1.55,color:T.tx2,wordBreak:"break-word"}},s.text));
+    }):React.createElement("div",{style:{fontFamily:mono,fontSize:9.5,color:T.tx3,textAlign:"center",padding:"10px 0"}},"Sin TAF disponible para "+cur.icao);
+    const metarBody=React.createElement("div",{style:{padding:"13px 16px 16px"}},
+      React.createElement("div",{style:{fontSize:10,color:T.tx3,marginBottom:8,fontFamily:mono}},"Actualizado "+(metarObs.ago||"—")),
+      React.createElement("div",{style:{fontFamily:mono,fontSize:12.5,lineHeight:1.55,color:T.tx1,letterSpacing:".3px",wordBreak:"break-word"}},rawMetarEls),
+      tilesStrip
     );
-
-    // ── Toggle texto original ──
-    const rawMetarCard=React.createElement("div",{style:{marginBottom:12,borderRadius:14,boxShadow:T.cardSh}},
-      React.createElement("div",{onClick:function(){setRawOpen(function(o){return !o;});},style:{display:"flex",alignItems:"center",gap:9,padding:"10px 13px",borderRadius:rawOpen?"14px 14px 0 0":14,cursor:"pointer",background:T.surf1,border:"1px solid "+T.line2}},
-        React.createElement("div",{style:{width:26,height:26,borderRadius:8,background:T.surf2,border:"1px solid "+T.line2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13}},"📄"),
-        React.createElement("div",{style:{flex:1}},
-          React.createElement("div",{style:{fontSize:9.5,fontWeight:600,color:T.tx1}},"METAR · texto original"),
-          React.createElement("div",{style:{fontFamily:mono,fontSize:8,color:T.tx3,marginTop:1}},"Observación cruda (OACI)")
-        ),
-        React.createElement("span",{style:{color:T.tx3,fontSize:13,transform:rawOpen?"rotate(90deg)":"none",transition:".18s"}},"›")
+    const tafBody=React.createElement("div",{style:{padding:"13px 16px 16px"}},
+      React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}},
+        React.createElement("div",{style:{fontSize:10,color:T.tx3,fontFamily:mono}},"TAF "+cur.icao),
+        React.createElement("div",{onClick:function(){setRawTafOpen(function(o){return !o;});},style:{fontFamily:mono,fontSize:8.5,fontWeight:700,color:T.cyan,cursor:"pointer",letterSpacing:".3px"}},rawTafOpen?"OCULTAR CRUDO":"VER CRUDO")
       ),
-      rawOpen?React.createElement("div",{style:{background:T.surf1,border:"1px solid "+T.line2,borderTop:"none",borderRadius:"0 0 14px 14px",padding:"10px 11px 11px"}},
-        React.createElement("div",{style:{fontFamily:mono,fontSize:9.5,lineHeight:1.7,color:T.rawTx,background:T.rawBg,border:"1px solid "+T.line,borderRadius:11,padding:"10px 12px",whiteSpace:"pre-wrap",wordBreak:"break-word"}},m.raw||"—")
-      ):null
+      React.createElement("div",null,tafSegEls),
+      rawTafOpen?React.createElement("div",{style:{fontFamily:mono,fontSize:9.5,lineHeight:1.7,color:T.rawTx,background:T.rawBg,border:"1px solid "+T.line,borderRadius:11,padding:"10px 12px",whiteSpace:"pre-wrap",wordBreak:"break-word",marginTop:10}},tafRaw||"—"):null
     );
-    const rawTafCard=React.createElement("div",{style:{marginBottom:12,borderRadius:14,boxShadow:T.cardSh}},
-      React.createElement("div",{onClick:function(){setRawTafOpen(function(o){return !o;});},style:{display:"flex",alignItems:"center",gap:9,padding:"10px 13px",borderRadius:rawTafOpen?"14px 14px 0 0":14,cursor:"pointer",background:T.surf1,border:"1px solid "+T.line2}},
-        React.createElement("div",{style:{width:26,height:26,borderRadius:8,background:T.surf2,border:"1px solid "+T.line2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13}},"📄"),
-        React.createElement("div",{style:{flex:1}},
-          React.createElement("div",{style:{fontSize:9.5,fontWeight:600,color:T.tx1}},"TAF · texto original"),
-          React.createElement("div",{style:{fontFamily:mono,fontSize:8,color:T.tx3,marginTop:1}},"Pronóstico crudo (OACI)")
-        ),
-        React.createElement("span",{style:{color:T.tx3,fontSize:13,transform:rawTafOpen?"rotate(90deg)":"none",transition:".18s"}},"›")
+    const metarTafCard=React.createElement("div",{style:{marginBottom:12,borderRadius:18,background:T.surf1,border:"1px solid "+T.cardBd,boxShadow:T.cardSh,overflow:"hidden",backdropFilter:day?T.blur:undefined,WebkitBackdropFilter:day?T.blur:undefined}},
+      React.createElement("div",{style:{display:"flex",alignItems:"center",borderBottom:"1px solid "+T.line,padding:"0 16px"}},
+        tabBtn("metar","METAR"),
+        tabBtn("taf","TAF"),
+        React.createElement("div",{onClick:function(){setMetarTab("taf");setRawTafOpen(true);},style:{marginLeft:"auto",display:"flex",alignItems:"center",gap:5,fontSize:11,fontWeight:500,color:T.tx2,cursor:"pointer"}},
+          "Ver TAF completo",
+          React.createElement("svg",{width:12,height:12,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:1.6},React.createElement("path",{d:"M15 3h6v6M10 14L21 3M21 14v7H3V3h7"})))
       ),
-      rawTafOpen?React.createElement("div",{style:{background:T.surf1,border:"1px solid "+T.line2,borderTop:"none",borderRadius:"0 0 14px 14px",padding:"10px 11px 11px"}},
-        React.createElement("div",{style:{fontFamily:mono,fontSize:9.5,lineHeight:1.7,color:T.rawTx,background:T.rawBg,border:"1px solid "+T.line,borderRadius:11,padding:"10px 12px",whiteSpace:"pre-wrap",wordBreak:"break-word"}},tafRaw||"—")
-      ):null
+      metarTab==="taf"?tafBody:metarBody
     );
 
     // ── ATIS (D-ATIS): pista en servicio destacada + texto crudo plegable ──
@@ -22842,7 +22856,7 @@ function TabMeteoV2(_refM2){
         React.createElement("div",{style:{fontSize:11.5,color:T.tx2,marginTop:2}},st.s)));
 
     // Sin marco ni cabecera: tarjetas sueltas sobre el cielo (como el mock). El nombre del aeropuerto va en grande dentro del hero.
-    body=React.createElement("div",{style:{position:"relative",zIndex:1}},banner,pillsRow,hourlyCard,windCard,wxGrid,statusBanner,atisCard,tafCard,rawMetarCard,rawTafCard,cloudCard);
+    body=React.createElement("div",{style:{position:"relative",zIndex:1}},banner,pillsRow,metarTafCard,windCard,hourlyCard,wxGrid,statusBanner,atisCard,cloudCard);
   }
 
   const pullInd=React.createElement("div",{key:"pull",style:{height:loading?34:pullDist,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",transition:pullDist===0?"height .25s":"none"}},
