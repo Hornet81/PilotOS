@@ -18625,6 +18625,14 @@ function _wxHdr() {
 // Airport coords for open-meteo fallback (common Vueling network)
 var _WX_AIRPORTS={LEBL:{lat:41.2971,lon:2.0785},LEMD:{lat:40.4936,lon:-3.5668},LEPA:{lat:39.5517,lon:2.7388},LEMG:{lat:36.6749,lon:-4.4991},LEAL:{lat:38.2822,lon:-0.5582},LEVC:{lat:39.4893,lon:-0.4816},LEZL:{lat:37.4180,lon:-5.8931},LEBB:{lat:43.3011,lon:-2.9106},GCLP:{lat:27.9319,lon:-15.3866},GCTS:{lat:28.0445,lon:-16.5725},GCRR:{lat:28.9455,lon:-13.6052},LFPG:{lat:49.0097,lon:2.5479},EGLL:{lat:51.4775,lon:-0.4614},EHAM:{lat:52.3086,lon:4.7639},LIRF:{lat:41.8003,lon:12.2389},LIML:{lat:45.6306,lon:8.7281},EDDF:{lat:50.0379,lon:8.5622},LPPT:{lat:38.7813,lon:-9.1359},LSZH:{lat:47.4647,lon:8.5492},LOWW:{lat:48.1103,lon:16.5697},EDDM:{lat:48.3537,lon:11.7861},LFPO:{lat:48.7233,lon:2.3794},EGKK:{lat:51.1481,lon:-0.1903},LEIB:{lat:38.8727,lon:1.3731},LEGE:{lat:41.9010,lon:2.7605},LERJ:{lat:41.5424,lon:-2.1132},LESA:{lat:40.9521,lon:-5.4982},LEVD:{lat:41.7061,lon:-4.8519},LCAR:{lat:42.4567,lon:-2.3284},LEMO:{lat:37.1749,lon:-6.9111},LEJR:{lat:36.7446,lon:-6.0601},LEVX:{lat:42.2318,lon:-8.6268},LECN:{lat:43.2964,lon:-8.3774}};
 
+// Coordenadas de aeropuerto: primero el dict WX (~32), luego el grande LD_AIRPORTS (cobertura amplia)
+// Así la previsión por horas / viento en ruta / día-noche funcionan también fuera de la red Vueling principal.
+function _wxLatLon(icao){
+  icao=String(icao||'').toUpperCase();
+  if(typeof _WX_AIRPORTS!=='undefined' && _WX_AIRPORTS[icao]) return _WX_AIRPORTS[icao];
+  if(typeof LD_AIRPORTS!=='undefined' && LD_AIRPORTS[icao] && LD_AIRPORTS[icao].lat!=null) return {lat:+LD_AIRPORTS[icao].lat, lon:+LD_AIRPORTS[icao].lon};
+  return null;
+}
 // Nombre de aeropuerto por ICAO (red Vueling) — fallback al código IATA si no está
 var _WX_NAMES={LEBL:"Barcelona–El Prat",LEMD:"Madrid–Barajas",LEPA:"Palma de Mallorca",LEMG:"Málaga–Costa del Sol",LEAL:"Alicante–Elche",LEVC:"Valencia",LEZL:"Sevilla",LEBB:"Bilbao",GCLP:"Gran Canaria",GCTS:"Tenerife Sur",GCRR:"Lanzarote",LFPG:"París–Charles de Gaulle",EGLL:"Londres–Heathrow",EHAM:"Ámsterdam–Schiphol",LIRF:"Roma–Fiumicino",LIML:"Milán–Linate",EDDF:"Frankfurt",LPPT:"Lisboa",LSZH:"Zúrich",LOWW:"Viena",EDDM:"Múnich",LFPO:"París–Orly",EGKK:"Londres–Gatwick",LEIB:"Ibiza",LEGE:"Girona–Costa Brava",LERJ:"Logroño",LESA:"Salamanca",LEVD:"Valladolid",LEMO:"Sevilla–Morón",LEJR:"Jerez",LEVX:"Vigo",LECN:"A Coruña"};
 
@@ -21956,7 +21964,7 @@ function _solarElevation(lat,lon,date){
   return Math.asin(Math.sin(lat*rad)*Math.sin(decl*rad)+Math.cos(lat*rad)*Math.cos(decl*rad)*Math.cos(H*rad))/rad;
 }
 function _skyIsDay(icao,fb){
-  const a=(typeof _WX_AIRPORTS!=='undefined')?_WX_AIRPORTS[icao]:null;
+  const a=_wxLatLon(icao);
   if(!a) return fb===undefined?true:fb;
   return _solarElevation(a.lat,a.lon,new Date())>-0.833;
 }
@@ -22073,7 +22081,7 @@ function _skyPhaseGrad(p){
   return "linear-gradient(180deg,#0B3E8E 0%,#1E6FC4 34%,#56A6E0 64%,#9BD0F0 86%,#CFEBFA 100%)";
 }
 function _skyPhase(icao){
-  const a=(typeof _WX_AIRPORTS!=='undefined')?_WX_AIRPORTS[icao]:null;
+  const a=_wxLatLon(icao);
   if(!a) return 'day';
   const now=new Date(), el=_solarElevation(a.lat,a.lon,now);
   if(el<-6) return 'night';
@@ -22186,7 +22194,7 @@ function TabMeteoV2(_refM2){
   // ── Pronóstico de viento próximas 2h (Open-Meteo, resolución 15 min) ──
   useEffect(function(){
     const ic=cur.icao;
-    const a=(typeof _WX_AIRPORTS!=='undefined')?_WX_AIRPORTS[ic]:null;
+    const a=_wxLatLon(ic);
     if(!a) return;
     if(fcStore[ic]&&(Date.now()-(fcStore[ic]._t||0))<1800000) return; // cache 30 min
     const url="https://api.open-meteo.com/v1/forecast?latitude="+(+a.lat).toFixed(4)+"&longitude="+(+a.lon).toFixed(4)+"&minutely_15=wind_speed_10m,wind_direction_10m,wind_gusts_10m&wind_speed_unit=kn&timezone=UTC&forecast_days=2";
@@ -22218,7 +22226,7 @@ function TabMeteoV2(_refM2){
   // ── Previsión por horas (Open-Meteo, próximas ~10 h) del aeropuerto activo ──
   useEffect(function(){
     const ic=cur.icao;
-    const a=(typeof _WX_AIRPORTS!=='undefined')?_WX_AIRPORTS[ic]:null;
+    const a=_wxLatLon(ic);
     if(!a) return;
     if(hourlyStore[ic]&&(Date.now()-(hourlyStore[ic]._t||0))<1800000) return; // cache 30 min
     const url="https://api.open-meteo.com/v1/forecast?latitude="+(+a.lat).toFixed(4)+"&longitude="+(+a.lon).toFixed(4)+"&hourly=temperature_2m,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,visibility,cloud_cover&wind_speed_unit=kn&timezone=UTC&forecast_days=2";
