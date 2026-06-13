@@ -22082,6 +22082,42 @@ function _skyPhase(icao){
   return el2>el?'dawn':'dusk';
 }
 
+// ── Helpers para los módulos nuevos del tab WX (mock skyview-weather) ──
+// Icono emoji a partir del weather_code WMO de Open-Meteo
+function _wxWmoIcon(code,isDay){
+  code=+code;
+  if(code===0) return isDay?'☀️':'🌙';
+  if(code===1||code===2) return isDay?'🌤️':'☁️';
+  if(code===3) return '☁️';
+  if(code===45||code===48) return '🌫️';
+  if(code>=51&&code<=57) return '🌦️';
+  if(code>=61&&code<=67) return '🌧️';
+  if(code>=71&&code<=77) return '🌨️';
+  if(code>=80&&code<=82) return '🌧️';
+  if(code>=85&&code<=86) return '🌨️';
+  if(code>=95) return '⛈️';
+  return isDay?'🌤️':'☁️';
+}
+// Cobertura nubosa (%) → etiqueta tipo octas
+function _wxCoverLabel(pct){ pct=+pct; if(isNaN(pct)) return '—'; if(pct<12) return 'SKC'; if(pct<38) return 'FEW'; if(pct<62) return 'SCT'; if(pct<88) return 'BKN'; return 'OVC'; }
+// ¿Algún punto de la alerta cae cerca de la ruta? (tolerancia en grados)
+function _wxAlertNearRoute(alert,routeCoords,tol){
+  if(!alert||!alert.coords||!alert.coords.length||!routeCoords||!routeCoords.length) return false;
+  tol=tol||2.5;
+  return alert.coords.some(function(c){
+    const la=(c.lat!=null)?c.lat:c[0], lo=(c.lon!=null)?c.lon:c[1];
+    if(la==null||lo==null) return false;
+    return routeCoords.some(function(rc){ return Math.abs(rc[0]-la)<tol&&Math.abs(rc[1]-lo)<tol; });
+  });
+}
+// ¿La alerta cubre (aprox) el FL de crucero? altitudeLow1/Hi1 vienen en pies
+function _wxAlertCoversFL(alert,fl){
+  const lo=alert&&alert.altitudeLow1, hi=alert&&alert.altitudeHi1;
+  if(lo==null&&hi==null) return true; // sin info de altitud → asumimos relevante
+  const cruise=fl*100;
+  return (lo==null||cruise>=lo-3000)&&(hi==null||cruise<=hi+3000);
+}
+
 function TabMeteoV2(_refM2){
   const leg=_refM2.leg;
   const day=useSkyDay();
@@ -22101,6 +22137,9 @@ function TabMeteoV2(_refM2){
   const _aop=useState(false), atisOpen=_aop[0], setAtisOpen=_aop[1];
   const _wo=useState(true), windOpen=_wo[0], setWindOpen=_wo[1];
   const _ld=useState(false), loading=_ld[0], setLoading=_ld[1];
+  const _hs=useState({}), hourlyStore=_hs[0], setHourlyStore=_hs[1];   // previsión por horas (Open-Meteo)
+  const _rwd=useState({}), routeWxStore=_rwd[0], setRouteWxStore=_rwd[1]; // viento/temp en ruta a FL crucero
+  const _sg=useState({}), sigStore=_sg[0], setSigStore=_sg[1];          // SIGMET/AIRMET (airsigmet AWC)
   const _pd=useState(0), pullDist=_pd[0], setPullDist=_pd[1];
   const rootRef=useRef(null), refreshRef=useRef(null), pullRef=useRef(0);
   const nowUtc=new Date().toISOString().slice(11,16);
@@ -22147,6 +22186,72 @@ function TabMeteoV2(_refM2){
       if(d){ d._t=Date.now(); setAtisStore(function(p){ const n=Object.assign({},p); n[ic]=d; return n; }); }
     }).catch(function(){});
   }, [cur.icao]);
+
+  // ── Previsión por horas (Open-Meteo, próximas ~10 h) del aeropuerto activo ──
+  useEffect(function(){
+    const ic=cur.icao;
+    const a=(typeof _WX_AIRPORTS!=='undefined')?_WX_AIRPORTS[ic]:null;
+    if(!a) return;
+    if(hourlyStore[ic]&&(Date.now()-(hourlyStore[ic]._t||0))<1800000) return; // cache 30 min
+    const url="https://api.open-meteo.com/v1/forecast?latitude="+(+a.lat).toFixed(4)+"&longitude="+(+a.lon).toFixed(4)+"&hourly=temperature_2m,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,visibility,cloud_cover&wind_speed_unit=kn&timezone=UTC&forecast_days=2";
+    fetch(url).then(function(r){return r.ok?r.json():Promise.reject();}).then(function(d){
+      const h=d&&d.hourly; if(!h||!h.time) return;
+      const now=new Date(), nowMs=now.getTime();
+      let start=h.time.findIndex(function(t){ return new Date(t+":00Z").getTime()>=nowMs-3600000; });
+      if(start<0) start=0;
+      const rows=[];
+      for(let k=0;k<10;k++){ const i=start+k; if(i>=h.time.length) break;
+        rows.push({
+          z:h.time[i].slice(11,13)+"Z",
+          code:h.weather_code?h.weather_code[i]:0,
+          spd:Math.round(h.wind_speed_10m[i]||0),
+          gust:Math.round(h.wind_gusts_10m[i]||0),
+          dir:Math.round(h.wind_direction_10m[i]||0),
+          vis:h.visibility?Math.round((h.visibility[i]||0)/1000):null,
+          cloud:h.cloud_cover?Math.round(h.cloud_cover[i]||0):null,
+          temp:Math.round(h.temperature_2m[i]||0)
+        });
+      }
+      if(rows.length){ setHourlyStore(function(s){ const n=Object.assign({},s); n[ic]={rows:rows,_t:Date.now()}; return n; }); }
+    }).catch(function(){});
+  }, [cur.icao]);
+
+  // ── Viento + temperatura en ruta a FL de crucero (Open-Meteo niveles de presión, punto medio) ──
+  useEffect(function(){
+    const rk=(leg.dep||"")+"-"+(leg.arr||"");
+    if(routeWxStore[rk]&&(Date.now()-(routeWxStore[rk]._t||0))<1800000) return; // cache 30 min
+    let mid; try{ mid=getRouteMidpoint(leg.dep,leg.arr); }catch(e){ return; }
+    if(!mid) return;
+    const LV=[{fl:100,hpa:700},{fl:180,hpa:500},{fl:240,hpa:400},{fl:300,hpa:300},{fl:340,hpa:250},{fl:390,hpa:200}];
+    const fl=leg.cruiseFL||300;
+    const crz=LV.reduce(function(b,l){ return Math.abs(l.fl-fl)<Math.abs(b.fl-fl)?l:b; },LV[0]);
+    const url="https://api.open-meteo.com/v1/forecast?latitude="+mid[0].toFixed(4)+"&longitude="+mid[1].toFixed(4)+"&hourly=wind_speed_"+crz.hpa+"hPa,wind_direction_"+crz.hpa+"hPa,temperature_"+crz.hpa+"hPa&wind_speed_unit=kn&timezone=UTC&forecast_days=1";
+    fetch(url).then(function(r){return r.ok?r.json():Promise.reject();}).then(function(d){
+      const h=d&&d.hourly; if(!h) return;
+      const hr=new Date().getUTCHours();
+      const data={
+        fl:fl,hpa:crz.hpa,
+        spd:Math.round((h["wind_speed_"+crz.hpa+"hPa"]||[])[hr]||0),
+        dir:Math.round((h["wind_direction_"+crz.hpa+"hPa"]||[])[hr]||0),
+        temp:Math.round((h["temperature_"+crz.hpa+"hPa"]||[])[hr]||0),
+        _t:Date.now()
+      };
+      setRouteWxStore(function(s){ const n=Object.assign({},s); n[rk]=data; return n; });
+    }).catch(function(){});
+  }, [leg.dep,leg.arr,leg.cruiseFL]);
+
+  // ── SIGMET/AIRMET de la ruta (airsigmet AWC, datos reales) ──
+  useEffect(function(){
+    const rk=(leg.dep||"")+"-"+(leg.arr||"");
+    if(sigStore[rk]&&(Date.now()-(sigStore[rk]._t||0))<900000) return; // cache 15 min
+    const base="https://aviationweather.gov/api/data/airsigmet?format=json&type=";
+    Promise.all([
+      fetch(base+"sigmet").then(function(r){return r.ok?r.json():[];}).catch(function(){return [];}),
+      fetch(base+"airmet").then(function(r){return r.ok?r.json():[];}).catch(function(){return [];})
+    ]).then(function(res){
+      setSigStore(function(s){ const n=Object.assign({},s); n[rk]={sigmets:res[0]||[],airmets:res[1]||[],_t:Date.now()}; return n; });
+    }).catch(function(){});
+  }, [leg.dep,leg.arr]);
 
   // Prefiere lo refrescado (wxStore/tafStore) sobre el dato live del padre → el pull-to-refresh actualiza también DEP/ARR
   function metarOf(ap){
@@ -22227,40 +22332,37 @@ function TabMeteoV2(_refM2){
     if(cur.icao===ic) setActive(null);
   }
 
-  // ── Selector de aeropuertos (idéntico patrón a NOTAM v2) ──
+  // ── Selector de aeropuertos · estilo "tarjeta de ruta" (mock skyview-weather) ──
+  function selLabel(ap){
+    if(ap.key==="dep") return "SALIDA";
+    if(ap.key==="arr") return "DESTINO";
+    if(ap.cat==="alt"){ const idx=parseInt(String(ap.key).replace("alt",""))||0; return idx===0?"ALTERNATIVO":("ALT "+(idx+1)); }
+    return "AÑADIDO";
+  }
   const scrollMode=airports.length>4;
-  const selKids=[]; let prevCat=null;
-  airports.forEach(function(ap){
+  const selKids=[];
+  airports.forEach(function(ap,i){
     const cm=CATM[ap.cat];
-    if(prevCat&&prevCat!==ap.cat) selKids.push(React.createElement("div",{key:"sep"+ap.key,style:{width:1,flexShrink:0,alignSelf:"stretch",margin:"7px 1px",background:T.line2}}));
-    prevCat=ap.cat;
+    if(i>0) selKids.push(React.createElement("div",{key:"sep"+ap.key,style:{width:1,flexShrink:0,alignSelf:"stretch",margin:"6px 0",background:"linear-gradient(180deg,transparent,"+T.line2+",transparent)"}}));
     const isOn=ap.key===active;
     const m=metarOf(ap);
     const ci=m?_wxCatInfo(m.cat):null;
     const sev=ci?SEVC[ci.k]:null;
     selKids.push(React.createElement("div",{
       key:ap.key, onClick:function(){ setActive(ap.key); setRwy(null); setRawOpen(false); setRawTafOpen(false); },
-      style:Object.assign({flex:scrollMode?"0 0 78px":1,minWidth:0,position:"relative",cursor:"pointer",padding:"5px 4px 6px",display:"flex",flexDirection:"column",alignItems:"center",gap:2,transition:"all .18s"},
-        isOn?{background:T.floatBg,border:"1px solid "+cm.bd,borderBottom:"none",borderRadius:"11px 11px 0 0",marginBottom:-2,zIndex:3,boxShadow:"0 -4px 14px rgba(0,0,0,.22)"}
-            :{background:T.surf1,border:"1px solid "+T.cardBd,borderBottom:"none",borderRadius:"11px 11px 0 0",marginBottom:0,opacity:.6})
+      style:{flex:scrollMode?"0 0 86px":1,minWidth:0,position:"relative",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:5,padding:"9px 4px 10px",borderRadius:12,transition:"all .18s",background:isOn?"rgba(91,232,245,.07)":"transparent",boxShadow:isOn?("inset 0 0 0 1px "+cm.bd):"none"}
     },
-      isOn&&React.createElement("div",{key:"cv",style:{position:"absolute",left:0,right:0,bottom:-2,height:4,background:T.floatBg,zIndex:4}}),
-      ap.custom&&React.createElement("div",{onClick:function(e){e.stopPropagation();removeAirport(ap.icao);},style:{position:"absolute",top:-6,right:-6,width:19,height:19,borderRadius:"50%",background:T.floatBg,border:"1px solid "+T.line2,color:T.tx2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,zIndex:5}},"×"),
-      React.createElement("div",{style:{fontFamily:mono,fontSize:scrollMode?6.5:7,fontWeight:700,letterSpacing:".3px",color:cm.c,whiteSpace:"nowrap"}},ap.role),
-      React.createElement("div",{style:{fontSize:scrollMode?11.5:13,fontWeight:800,color:isOn?T.tx1:T.tx2,letterSpacing:".3px",lineHeight:1}},ap.code),
-      sev?React.createElement("div",{style:{fontFamily:mono,fontSize:7,fontWeight:700,letterSpacing:".4px",padding:"1px 4px",borderRadius:4,color:sev.c,background:sev.bg,border:"1px solid "+sev.bd}},ci.short)
-         :React.createElement("div",{style:{fontFamily:mono,fontSize:7,fontWeight:700,color:T.tx3}},"···")
+      ap.custom&&React.createElement("div",{onClick:function(e){e.stopPropagation();removeAirport(ap.icao);},style:{position:"absolute",top:-5,right:1,width:18,height:18,borderRadius:"50%",background:T.floatBg,border:"1px solid "+T.line2,color:T.tx2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,zIndex:5}},"×"),
+      React.createElement("div",{style:{fontFamily:mono,fontSize:9,fontWeight:700,letterSpacing:"1px",color:isOn?T.cyan:cm.c,whiteSpace:"nowrap"}},selLabel(ap)),
+      React.createElement("div",{style:{fontSize:scrollMode?17:20,fontWeight:700,letterSpacing:".4px",lineHeight:1,color:isOn?T.cyan:T.tx1,textShadow:isOn?"0 0 12px "+cm.bd:"none"}},ap.code),
+      sev?React.createElement("div",{style:{fontFamily:mono,fontSize:7,fontWeight:700,letterSpacing:".3px",padding:"1px 5px",borderRadius:4,color:sev.c,background:sev.bg,border:"1px solid "+sev.bd}},ci.short):null,
+      isOn?React.createElement("div",{style:{position:"absolute",bottom:-1,left:"26%",right:"26%",height:2,borderRadius:2,background:T.cyan,boxShadow:"0 0 8px "+T.cyan}}):null
     ));
   });
-  selKids.push(React.createElement("div",{key:"add",onClick:function(){setAddOpen(function(o){return !o;});},style:{flex:scrollMode?"0 0 46px":"0 0 48px",flexShrink:0,border:"1.5px dashed "+T.extra,borderBottom:"none",borderRadius:"12px 12px 0 0",marginBottom:0,opacity:.7,display:"flex",alignItems:"center",justifyContent:"center",color:T.extra,cursor:"pointer",fontSize:24,fontWeight:700,background:addOpen?T.extraBg:T.surf1}},"+"));
-  const selector=React.createElement("div",{style:Object.assign({display:"flex",gap:5,alignItems:"flex-end",marginBottom:0,padding:"0 11px"},scrollMode?{overflowX:"auto"}:{})},selKids);
-
-  const catLegend=React.createElement("div",{style:{display:"flex",gap:7,justifyContent:"center",marginBottom:12,flexWrap:"wrap"}},
-    [["RUTA",T.route],["ALTERNATIVOS",T.alt],["MIS AEROPUERTOS",T.extra]].map(function(it){
-      return React.createElement("div",{key:it[0],style:{display:"flex",alignItems:"center",gap:5,background:T.glassBg,border:"1px solid "+T.cardBd,borderRadius:8,padding:"3px 9px",boxShadow:T.cardSh}},
-        React.createElement("div",{style:{width:8,height:8,borderRadius:3,background:it[1],boxShadow:"0 0 6px "+it[1]}}),
-        React.createElement("span",{style:{fontFamily:mono,fontSize:8,fontWeight:700,letterSpacing:".6px",color:T.tx2}},it[0]));
-    }));
+  // divisor + botón único "+" a la derecha
+  selKids.push(React.createElement("div",{key:"sepadd",style:{width:1,flexShrink:0,alignSelf:"stretch",margin:"6px 0",background:"linear-gradient(180deg,transparent,"+T.line2+",transparent)"}}));
+  selKids.push(React.createElement("div",{key:"add",onClick:function(){setAddOpen(function(o){return !o;});},title:"Añadir aeropuerto",style:{width:36,height:36,flexShrink:0,alignSelf:"center",borderRadius:12,border:"1.5px dashed "+(addOpen?T.extra:T.cyan),display:"flex",alignItems:"center",justifyContent:"center",color:addOpen?T.extra:T.cyan,cursor:"pointer",fontSize:22,fontWeight:700,lineHeight:1,background:addOpen?T.extraBg:"rgba(91,232,245,.05)",transition:"all .18s"}},"+"));
+  const selector=React.createElement("div",{style:Object.assign({display:"flex",gap:5,alignItems:"stretch",marginBottom:12,padding:"10px 11px",borderRadius:18,background:T.surf1,border:"1px solid "+T.cardBd,boxShadow:T.cardSh},scrollMode?{overflowX:"auto"}:{})},selKids);
 
   const addPanel=addOpen?React.createElement("div",{style:{position:"absolute",top:"100%",left:0,right:0,marginTop:7,background:T.floatBg,border:"1px solid "+T.extra,borderRadius:14,padding:"11px 13px",boxShadow:"0 14px 36px rgba(0,0,0,.45)",zIndex:30}},
     React.createElement("div",{style:{fontFamily:mono,fontSize:8.5,fontWeight:700,color:T.extra,marginBottom:6,letterSpacing:".5px"}},"🔍 AÑADIR AEROPUERTO"),
@@ -22300,6 +22402,7 @@ function TabMeteoV2(_refM2){
       ? React.createElement("img",{src:WX_ICON_BASE+iconSlug+".svg",alt:m.cat,width:34,height:34,style:{display:"block",objectFit:"contain"},onError:function(e){e.target.style.display="none";}})
       : React.createElement("span",{style:{fontSize:18}},ci.icon);
     const metarObs=_wxMetarObs(m.raw)||{};
+    const apFullName=(typeof _WX_NAMES!=='undefined'&&_WX_NAMES[cur.icao])?_WX_NAMES[cur.icao]:cur.code;
     let banner;
     if(day){
       // DÍA → banner vivo por categoría (combo)
@@ -22307,6 +22410,10 @@ function TabMeteoV2(_refM2){
       const fgl=(T.fcGlow&&T.fcGlow[ci.k])||"rgba(52,224,161,.4)";
       banner=React.createElement("div",{style:{position:"relative",overflow:"hidden",marginBottom:12,borderRadius:18,padding:"14px 16px",background:fcg,boxShadow:"0 14px 40px "+fgl+",inset 0 1px 0 rgba(255,255,255,.5)"}},
         React.createElement("div",{style:{position:"absolute",inset:0,background:"linear-gradient(135deg,rgba(255,255,255,.32),transparent 45%)",pointerEvents:"none"}}),
+        React.createElement("div",{style:{position:"relative",marginBottom:12}},
+          React.createElement("div",{style:{fontSize:23,fontWeight:700,color:"#fff",lineHeight:1.05,letterSpacing:".3px",textShadow:"0 2px 10px rgba(0,0,0,.28)"}},apFullName),
+          React.createElement("div",{style:{fontFamily:mono,fontSize:9.5,fontWeight:700,letterSpacing:"1px",color:"rgba(255,255,255,.88)",marginTop:3}},cur.icao+" · "+cur.code)
+        ),
         React.createElement("div",{style:{display:"flex",alignItems:"center",gap:11,position:"relative"}},
           React.createElement("div",{style:{width:46,height:46,borderRadius:14,background:"rgba(255,255,255,.26)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",boxShadow:"inset 0 1px 0 rgba(255,255,255,.6)"}},wxIconEl),
           React.createElement("div",{style:{flex:1,minWidth:0}},
@@ -22324,6 +22431,10 @@ function TabMeteoV2(_refM2){
     }else{
       // NOCHE → sev-tint oscuro (tema noche de la app, sin cambios)
       banner=React.createElement("div",{style:{position:"relative",overflow:"hidden",marginBottom:12,borderRadius:16,padding:"12px 14px",background:"linear-gradient(150deg,"+sev.bg+","+T.surf1+")",border:"1px solid "+sev.bd,borderLeft:"5px solid "+sev.c,boxShadow:T.cardSh}},
+        React.createElement("div",{style:{marginBottom:11}},
+          React.createElement("div",{style:{fontSize:20,fontWeight:700,color:T.tx1,lineHeight:1.05,letterSpacing:".3px"}},apFullName),
+          React.createElement("div",{style:{fontFamily:mono,fontSize:9,fontWeight:700,letterSpacing:"1px",color:cm.c,marginTop:3}},cur.icao+" · "+cur.code)
+        ),
         React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}},
           React.createElement("div",{style:{width:42,height:42,borderRadius:12,background:T.surf2,border:"1px solid "+sev.bd,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden"}},wxIconEl),
           React.createElement("div",{style:{flex:1,minWidth:0}},
@@ -22560,20 +22671,185 @@ function TabMeteoV2(_refM2){
       ):null
     );
 
-    const apName=(typeof _WX_NAMES!=='undefined'&&_WX_NAMES[cur.icao])?_WX_NAMES[cur.icao]:cur.code;
-    const frameHead=React.createElement("div",{style:{display:"flex",alignItems:"center",gap:9,padding:"2px 2px 11px",marginBottom:12,borderBottom:"1px solid "+T.line}},
-      React.createElement("span",{style:{fontFamily:mono,fontSize:16,fontWeight:800,color:cm.c,letterSpacing:".5px",textShadow:"0 0 14px "+cm.bd}},cur.icao),
-      React.createElement("span",{style:{flex:1,minWidth:0,fontSize:11,fontWeight:600,color:T.tx2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},apName),
-      React.createElement("span",{style:{fontFamily:mono,fontSize:7,fontWeight:700,letterSpacing:".6px",color:cm.c,background:cm.bg,border:"1px solid "+cm.bd,borderRadius:6,padding:"3px 7px",whiteSpace:"nowrap"}},cur.role)
+    // ── ATIS (D-ATIS): pista en servicio destacada + texto crudo plegable ──
+    const atisData=atisStore[cur.icao];
+    const atisAvail=atisData&&atisData.available;
+    const atisCards=(atisData&&atisData.cards)||[];
+    const atisRwy=atisData&&atisData.rwyInUse;
+    const atisSubtitle=atisData?(atisAvail?("Info "+([...new Set(atisCards.map(function(c){return c.letter;}).filter(Boolean))].join("/")||"—")+(atisCards[0]&&atisCards[0].time?(" · "+String(atisCards[0].time).replace(/:00 UTC$| UTC$/,"Z").replace(/^\d{4}-\d{2}-\d{2}[ T]/,"")):"")):"Sin ATIS disponible"):"Cargando ATIS…";
+    const atisCard=React.createElement("div",{style:{marginBottom:12,borderRadius:14,boxShadow:T.cardSh}},
+      React.createElement("div",{onClick:atisAvail?function(){setAtisOpen(function(o){return !o;});}:null,style:{display:"flex",alignItems:"center",gap:9,padding:"10px 13px",borderRadius:(atisOpen&&atisAvail)?"14px 14px 0 0":14,cursor:atisAvail?"pointer":"default",background:T.surf1,border:"1px solid "+T.line2}},
+        React.createElement("div",{style:{width:26,height:26,borderRadius:8,background:T.surf2,border:"1px solid "+T.line2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13}},"📻"),
+        React.createElement("div",{style:{flex:1,minWidth:0}},
+          React.createElement("div",{style:{fontSize:9.5,fontWeight:600,color:T.tx1}},"ATIS · ",cur.icao),
+          React.createElement("div",{style:{fontFamily:mono,fontSize:8,color:T.tx3,marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},atisSubtitle)
+        ),
+        atisRwy?React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5,background:T.grnBg,border:"1px solid "+T.grnBd,borderRadius:9,padding:"4px 9px",whiteSpace:"nowrap"}},
+          React.createElement("span",{style:{fontSize:7.5,fontWeight:700,letterSpacing:".5px",color:T.grn,fontFamily:mono}},"RWY"),
+          React.createElement("span",{style:{fontSize:13,fontWeight:900,color:T.grn,fontFamily:mono,lineHeight:1}},atisRwy)
+        ):null,
+        atisAvail?React.createElement("span",{style:{color:T.tx3,fontSize:13,transform:atisOpen?"rotate(90deg)":"none",transition:".18s"}},"›"):null
+      ),
+      (atisOpen&&atisAvail)?React.createElement("div",{style:{background:T.surf1,border:"1px solid "+T.line2,borderTop:"none",borderRadius:"0 0 14px 14px",padding:"10px 11px 11px"}},
+        atisCards.map(function(c,i){
+          return React.createElement("div",{key:i,style:{marginBottom:i<atisCards.length-1?10:0}},
+            React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:5}},
+              React.createElement("span",{style:{fontSize:7.5,fontWeight:700,letterSpacing:".6px",color:T.cyan,fontFamily:mono,background:T.routeBg,border:"1px solid "+T.routeBd,borderRadius:5,padding:"2px 6px"}},c.kind==="departure"?"SALIDA":c.kind==="arrival"?"LLEGADA":"ATIS",c.letter?(" "+c.letter):""),
+              c.time?React.createElement("span",{style:{fontSize:8,color:T.tx3,fontFamily:mono}},c.time):null
+            ),
+            React.createElement("div",{style:{fontFamily:mono,fontSize:9.5,lineHeight:1.7,color:T.rawTx,background:T.rawBg,border:"1px solid "+T.line,borderRadius:11,padding:"10px 12px",whiteSpace:"pre-wrap",wordBreak:"break-word"}},c.body||"—")
+          );
+        }),
+        React.createElement("div",{style:{fontSize:7.5,color:T.tx3,fontFamily:mono,marginTop:8,opacity:.8}},"ⓘ atis.guru · solo apoyo, no usar para la operación")
+      ):null
     );
-    body=React.createElement("div",{style:{border:"1px solid "+cm.bd,borderTopColor:"transparent",borderRadius:16,background:T.floatBg,boxShadow:T.cardSh,padding:"13px 12px 14px",position:"relative",zIndex:1}},frameHead,banner,tiles,rawMetarCard,windCard,tafCard,rawTafCard,cloudCard);
+
+    // ════════ MÓDULOS NUEVOS (mock skyview-weather) — todo con datos reales ════════
+    const phenTxt=_wxPhenom(m.trend);
+    const hasTS=/TS/.test(m.trend||"")||/\bTS/.test(m.raw||"");
+    const hasCB=/CB|TCU/.test(m.clouds||"");
+
+    // ── Pills del hero: CONFIDENCE / RISK LEVEL / TREND ──
+    const cMins=(metarObs.mins!=null)?metarObs.mins:999;
+    const hasTaf=!!(tafRaw&&tafRaw.length>10);
+    const confLvl=(cMins<75&&hasTaf)?{t:"Alta",c:T.grn}:(cMins<150)?{t:"Media",c:T.amb}:{t:"Baja",c:T.tx2};
+    let riskScore=(m.cat==="MVMC")?1:(m.cat==="IFR")?2:(m.cat==="LIFR")?3:0;
+    if(gust&&gust>=35) riskScore=Math.max(riskScore,2); else if(gust&&gust>=25) riskScore=Math.max(riskScore,1);
+    if(hasTS) riskScore=Math.max(riskScore,2);
+    const riskLvl=riskScore>=2?{t:"Alto",c:T.red}:riskScore===1?{t:"Medio",c:T.amb}:{t:"Bajo",c:T.grn};
+    const tafChg=segs.some(function(s){return s.type==="TEMPO"||s.type==="BECMG"||s.type==="PROB"||s.type==="DESDE";});
+    const trendLvl=hasTaf?(tafChg?{t:"Cambios",c:T.amb}:{t:"Estable",c:T.grn}):{t:"—",c:T.tx2};
+    const pillSvg={
+      conf:"M5 19V9M10 19V5M15 19v-7M20 19v-3",
+      risk:"M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z",
+      trend:"M3 17l6-6 4 4 7-7M14 8h5v5"
+    };
+    const pill=function(key,icon,label,val){
+      return React.createElement("div",{key:key,style:{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:8,background:T.surf1,border:"1px solid "+T.cardBd,borderRadius:13,padding:"10px 11px",boxShadow:T.cardSh}},
+        React.createElement("svg",{width:18,height:18,viewBox:"0 0 24 24",fill:"none",stroke:T.cyan,strokeWidth:1.6,style:{flexShrink:0}},React.createElement("path",{d:pillSvg[icon]})),
+        React.createElement("div",{style:{minWidth:0}},
+          React.createElement("div",{style:{fontFamily:mono,fontSize:7.5,fontWeight:700,letterSpacing:".8px",color:T.tx3}},label),
+          React.createElement("div",{style:{fontSize:12.5,fontWeight:700,color:val.c,marginTop:2}},val.t)));
+    };
+    const pillsRow=React.createElement("div",{style:{display:"flex",gap:9,marginBottom:12}},
+      pill("p1","conf","CONFIDENCE",confLvl),
+      pill("p2","risk","RISK LEVEL",riskLvl),
+      pill("p3","trend","TREND",trendLvl)
+    );
+
+    // ── Previsión por horas (tabla compacta, Open-Meteo) ──
+    const hData=(hourlyStore[cur.icao]||{}).rows||null;
+    let hourlyCard=null;
+    if(hData&&hData.length){
+      const N=hData.length, nowZ=String(new Date().getUTCHours()).padStart(2,"0")+"Z";
+      const gcol="44px repeat("+N+",minmax(26px,1fr))";
+      const hHead=React.createElement("div",{style:{display:"grid",gridTemplateColumns:gcol,gap:2,alignItems:"center"}},
+        React.createElement("span",null),
+        hData.map(function(r,i){return React.createElement("span",{key:i,style:{textAlign:"center",fontFamily:mono,fontSize:8.5,fontWeight:r.z===nowZ?700:400,color:r.z===nowZ?T.cyan:T.tx3}},r.z);}));
+      const hIcons=React.createElement("div",{style:{display:"grid",gridTemplateColumns:gcol,gap:2,alignItems:"center",margin:"7px 0"}},
+        React.createElement("span",null),
+        hData.map(function(r,i){return React.createElement("span",{key:i,style:{textAlign:"center",fontSize:13,lineHeight:1}},_wxWmoIcon(r.code,true));}));
+      const hRow=function(lab,fn,sm){
+        return React.createElement("div",{key:lab,style:{display:"grid",gridTemplateColumns:gcol,gap:2,alignItems:"center",padding:"4px 0"}},
+          React.createElement("span",{style:{fontFamily:mono,fontSize:8,color:T.tx3,letterSpacing:".2px"}},lab),
+          hData.map(function(r,i){ const on=r.z===nowZ; return React.createElement("span",{key:i,style:{textAlign:"center",fontSize:sm?7.5:10,fontFamily:sm?mono:sans,fontWeight:on?700:500,color:on?T.cyan:(sm?T.tx3:T.tx2)}},fn(r)); }));
+      };
+      hourlyCard=React.createElement("div",{style:{background:T.surf1,border:"1px solid "+T.cardBd,borderRadius:16,padding:"15px 14px",marginBottom:12,boxShadow:T.cardSh,overflowX:"auto"}},
+        React.createElement("div",{style:{fontFamily:mono,fontSize:9.5,color:T.tx2,letterSpacing:"1.2px",marginBottom:12}},"PREVISIÓN POR HORAS · "+cur.icao),
+        React.createElement("div",{style:{minWidth:N>7?380:0}},
+          hHead, hIcons,
+          hRow("VIENTO",function(r){return r.spd;}),
+          hRow("RACHAS",function(r){return r.gust;}),
+          hRow("VISIB.",function(r){return r.vis==null?"—":(r.vis>=10?"+10":r.vis);}),
+          hRow("NUBES",function(r){return _wxCoverLabel(r.cloud);},true),
+          hRow("TEMP",function(r){return r.temp;})
+        ));
+    }
+
+    // ── Datos de ruta: SIGMET/AIRMET reales + viento/temp a FL crucero ──
+    const rk=(leg.dep||"")+"-"+(leg.arr||"");
+    const sig=sigStore[rk]||{};
+    const sigLoaded=!!sig._t;
+    let rc; try{ rc=getRouteCoords(leg.dep,leg.arr); }catch(e){ rc=[]; }
+    const flCrz=leg.cruiseFL||300;
+    const hazOf=function(a){return String((a&&(a.hazard||a.hazardType))||"").toUpperCase();};
+    const allAlerts=(sig.sigmets||[]).concat(sig.airmets||[]);
+    const near=allAlerts.filter(function(a){return _wxAlertNearRoute(a,rc,2.5)&&_wxAlertCoversFL(a,flCrz);});
+    const sevHas=function(arr){ return arr.some(function(a){return /SEV/i.test((a.severity!=null?String(a.severity):"")+" "+(a.rawAirSigmet||a.raw||a.rawOb||""));}); };
+    const turbAlerts=near.filter(function(a){return /TURB|CAT/.test(hazOf(a));});
+    const iceAlerts=near.filter(function(a){return /ICE|ICG/.test(hazOf(a));});
+    const convAlerts=near.filter(function(a){return /CONV/.test(hazOf(a));});
+    const airNear=(sig.airmets||[]).filter(function(a){return _wxAlertNearRoute(a,rc,2.5);});
+    const rwAlt=routeWxStore[rk];
+
+    let turbLvl;
+    if(turbAlerts.length){ const s=sevHas(turbAlerts); turbLvl={t:s?"Severa":"Moderada",c:s?T.red:T.amb,sub:turbAlerts.length+" aviso"+(turbAlerts.length>1?"s":"")+" en ruta"}; }
+    else if(!sigLoaded){ turbLvl={t:"…",c:T.tx2,sub:"consultando NOAA"}; }
+    else { turbLvl={t:"Sin avisos",c:T.grn,sub:"a FL"+flCrz}; }
+
+    let iceLvl;
+    if(iceAlerts.length){ const s=sevHas(iceAlerts); iceLvl={t:s?"Severo":"Moderado",c:s?T.red:T.amb,sub:iceAlerts.length+" aviso"+(iceAlerts.length>1?"s":"")}; }
+    else if(rwAlt&&rwAlt.temp!=null){ const inBand=rwAlt.temp<=0&&rwAlt.temp>=-20; iceLvl=inBand?{t:"Posible",c:T.amb,sub:"T FL"+flCrz+" "+rwAlt.temp+"°C"}:{t:"Ninguno",c:T.grn,sub:"T FL"+flCrz+" "+rwAlt.temp+"°C"}; }
+    else { iceLvl={t:"Ninguno",c:T.grn,sub:sigLoaded?"sin avisos":"…"}; }
+
+    let convLvl;
+    if(convAlerts.length||hasTS){ convLvl={t:"Activo",c:T.red,sub:convAlerts.length?(convAlerts.length+" SIGMET conv."):"TS en METAR"}; }
+    else if(hasCB){ convLvl={t:"Posible",c:T.amb,sub:"CB/TCU presentes"}; }
+    else { convLvl={t:"Ninguno",c:T.grn,sub:"Sin actividad"}; }
+
+    const airHaz=[...new Set(airNear.map(hazOf))].filter(Boolean);
+    const airLvl={n:airNear.length,sub:airNear.length?airHaz.join(" · "):(sigLoaded?"Sin avisos":"…")};
+    const sigwxLvl=phenTxt?{t:phenTxt,c:T.amb}:(hasTS?{t:"Tormenta",c:T.red}:{t:"Sin fenómenos",c:T.grn});
+
+    const mini=function(o){
+      return React.createElement("div",{key:o.key,style:{flex:1,minWidth:0,background:T.surf1,border:"1px solid "+T.cardBd,borderRadius:16,padding:14,boxShadow:T.cardSh}},
+        React.createElement("div",{style:{fontFamily:mono,fontSize:9,fontWeight:700,letterSpacing:".9px",color:T.tx2,marginBottom:10}},o.title),
+        React.createElement("div",{style:{fontSize:o.bigSize||18,fontWeight:700,color:o.color||T.tx1,lineHeight:1.15}},o.big),
+        o.sub?React.createElement("div",{style:{fontSize:10,color:T.tx3,marginTop:4}},o.sub):null,
+        (o.rows||[]).map(function(r,i){ return React.createElement("div",{key:i,style:{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginTop:5}},
+          React.createElement("span",{style:{fontSize:11,color:T.tx3}},r[0]),
+          React.createElement("span",{style:{fontSize:13,fontWeight:600,color:r[2]||T.tx1}},r[1])); }));
+    };
+    const gRow=function(key,a,b){ return React.createElement("div",{key:key,style:{display:"flex",gap:11,marginBottom:11}},a,b); };
+    const wxGrid=React.createElement("div",{style:{marginTop:2}},
+      gRow("wg1",
+        mini({key:"turb",title:"TURBULENCIA",big:turbLvl.t,color:turbLvl.c,sub:turbLvl.sub}),
+        mini({key:"rwind",title:"VIENTO EN RUTA",big:rwAlt?(_wxCompass(rwAlt.dir)+" "+rwAlt.spd+" kt"):"—",color:T.tx1,bigSize:16,rows:[["Nivel","FL"+flCrz],["Dirección",rwAlt?String(rwAlt.dir).padStart(3,"0")+"°":"—"]]})),
+      gRow("wg2",
+        mini({key:"ice",title:"ICING",big:iceLvl.t,color:iceLvl.c,sub:iceLvl.sub}),
+        mini({key:"conv",title:"CONVECTIVO",big:convLvl.t,color:convLvl.c,sub:convLvl.sub})),
+      gRow("wg3",
+        mini({key:"sigwx",title:"SIGWX",big:sigwxLvl.t,bigSize:15,color:sigwxLvl.c,sub:sigwxLvl.t==="Sin fenómenos"?"significativos":"observado"}),
+        mini({key:"air",title:"AIRMETS",big:airLvl.n+" activo"+(airLvl.n===1?"":"s"),color:airLvl.n?T.amb:T.tx1,sub:airLvl.sub}))
+    );
+
+    // ── Banner de estado (verde/ámbar/rojo según peor categoría + avisos de ruta) ──
+    const catRank={VMC:0,MVMC:1,IFR:2,LIFR:3};
+    let worst=0;
+    airports.forEach(function(ap){ const mm=metarOf(ap); if(mm&&catRank[mm.cat]!=null) worst=Math.max(worst,catRank[mm.cat]); });
+    if(turbLvl.t==="Severa"||convLvl.t==="Activo"||iceLvl.t==="Severo") worst=Math.max(worst,2);
+    else if(turbAlerts.length||convLvl.t==="Posible"||iceLvl.t==="Posible"||airLvl.n) worst=Math.max(worst,1);
+    let st;
+    if(worst>=2) st={c:T.red,bg:T.redBg,bd:T.redBd,h:"Atención: condiciones exigentes",s:"Revisa mínimos, alternativos y avisos de la ruta.",alert:true};
+    else if(worst===1) st={c:T.amb,bg:T.ambBg,bd:T.ambBd,h:"Vigila las condiciones",s:"Hay factores meteorológicos a tener en cuenta.",alert:true};
+    else st={c:T.grn,bg:T.grnBg,bd:T.grnBd,h:"Todo en orden para el vuelo",s:"No hay restricciones meteorológicas previstas.",alert:false};
+    const statusBanner=React.createElement("div",{style:{display:"flex",gap:13,alignItems:"center",border:"1px solid "+st.bd,borderRadius:16,background:"linear-gradient(135deg,"+st.bg+","+T.surf1+")",padding:"15px 16px",margin:"3px 0 8px",boxShadow:T.cardSh}},
+      React.createElement("div",{style:{width:34,height:34,borderRadius:"50%",flexShrink:0,border:"1.5px solid "+st.bd,display:"flex",alignItems:"center",justifyContent:"center",color:st.c}},
+        React.createElement("svg",{width:18,height:18,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2},
+          React.createElement("path",{d:st.alert?"M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01":"M20 6 9 17l-5-5"}))),
+      React.createElement("div",null,
+        React.createElement("div",{style:{fontSize:14,fontWeight:600,color:st.c}},st.h),
+        React.createElement("div",{style:{fontSize:11.5,color:T.tx2,marginTop:2}},st.s)));
+
+    // Sin marco ni cabecera: tarjetas sueltas sobre el cielo (como el mock). El nombre del aeropuerto va en grande dentro del hero.
+    body=React.createElement("div",{style:{position:"relative",zIndex:1}},banner,pillsRow,hourlyCard,windCard,wxGrid,statusBanner,atisCard,tafCard,rawMetarCard,rawTafCard,cloudCard);
   }
 
   const pullInd=React.createElement("div",{key:"pull",style:{height:loading?34:pullDist,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",transition:pullDist===0?"height .25s":"none"}},
     React.createElement("span",{style:{fontFamily:mono,fontSize:11,fontWeight:700,color:loading?T.cyan:T.tx3}},loading?"↻ Actualizando METAR/TAF…":(pullDist>50?"↑ Suelta para actualizar":"↓ Desliza para actualizar")));
 
   return React.createElement("div",{ref:rootRef,style:{padding:"12px 14px 100px",fontFamily:sans,background:day?_skyPhaseGrad(phase):T.pageBg,minHeight:"100%",transition:"background .8s ease"}},
-    pullInd, catLegend,
+    pullInd,
     React.createElement("div",{style:{position:"relative",zIndex:5}}, selector, addPanel),
     body
   );
