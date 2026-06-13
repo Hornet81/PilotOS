@@ -18742,6 +18742,33 @@ async function fetchCCIBatch(icaos) {
   } catch { return {}; }
 }
 
+// ── Diccionario de nombres de aeropuerto (backend /api/airports/:icao) ──
+// Cache en memoria. airportName() es SÍNCRONO y nunca devuelve vacío:
+// usa el nombre que ya tengamos, si no el resuelto en caché, y si no el código crudo.
+var AIRPORT_NAMES = {};
+function airportName(code, fallback) {
+  if (fallback && String(fallback).trim()) return fallback;
+  var k = String(code || '').trim().toUpperCase();
+  return AIRPORT_NAMES[k] || k;
+}
+async function ensureAirportNames(codes, cb) {
+  var list = (codes || []).map(c => String(c || '').trim().toUpperCase()).filter(Boolean);
+  var pending = list.filter(k => AIRPORT_NAMES[k] === undefined);
+  if (!pending.length) return;
+  pending.forEach(k => { AIRPORT_NAMES[k] = null; }); // marca "en curso" para no refetch
+  var changed = false;
+  await Promise.all(pending.map(async k => {
+    try {
+      var r = await fetch(_wxUrl() + '/api/airports/' + encodeURIComponent(k));
+      if (!r.ok) return;
+      var d = await r.json();
+      // El backend siempre resuelve (fallback al código); solo guardamos si difiere del código.
+      if (d && d.name && d.name.toUpperCase() !== k) { AIRPORT_NAMES[k] = d.name; changed = true; }
+    } catch {}
+  }));
+  if (changed && typeof cb === 'function') cb();
+}
+
 /* ════════════════════════════════════════
    TURBULENCE PROFILE COMPONENT
 ════════════════════════════════════════ */
@@ -20587,7 +20614,7 @@ function CCIAirportBlock(_pc) {
     /*#__PURE__*/React.createElement("div", { onClick: function () { setOpen(!open); }, style: { display: "flex", alignItems: "center", gap: 8, padding: "9px 11px", cursor: "pointer" } },
       /*#__PURE__*/React.createElement("span", { style: { fontSize: 8, fontFamily: mono, fontWeight: 700, color: C.cyan, letterSpacing: "1px", background: "rgba(126,251,254,0.10)", padding: "2px 5px", borderRadius: 4 } }, role),
       /*#__PURE__*/React.createElement("span", { style: { fontSize: 15, fontFamily: mono, fontWeight: 900, color: C.white } }, icao),
-      d.name && /*#__PURE__*/React.createElement("span", { style: { fontSize: 10, color: C.dimmer, fontFamily: sans } }, d.name),
+      /*#__PURE__*/React.createElement("span", { style: { fontSize: 10, color: C.dimmer, fontFamily: sans } }, airportName(icao, d.name)),
       /*#__PURE__*/React.createElement("span", { style: { flex: 1 } }),
       d.category && /*#__PURE__*/React.createElement("span", { style: { fontSize: 8, fontFamily: mono, fontWeight: 700, color: catColor, border: "1px solid " + catColor, borderRadius: 4, padding: "1px 5px" } }, "CAT " + d.category),
       threats.length > 0 && /*#__PURE__*/React.createElement("span", { style: { fontSize: 9, fontFamily: mono, color: C.orange2 } }, threats.length + "⚠"),
@@ -21481,7 +21508,7 @@ function AltCard(_ref27) {
       color: C.dimmer,
       fontFamily: sans
     }
-  }, a.city), /*#__PURE__*/React.createElement("span", {
+  }, airportName(a.icao, a.city)), /*#__PURE__*/React.createElement("span", {
     style: {
       background: "".concat(tc.color, "18"),
       border: "1px solid ".concat(tc.color, "40"),
@@ -22133,6 +22160,15 @@ function _rgba(hex,a){
   const n=parseInt(h,16);
   return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+a+')';
 }
+// Tipo de aproximación en servicio extraído del texto ATIS (ILS / RNP / VOR / VISUAL…)
+function _wxApproach(atisData){
+  if(!atisData||!atisData.available||!atisData.cards) return null;
+  const txt=atisData.cards.map(function(c){return String(c.body||"");}).join("  ").toUpperCase();
+  let m=txt.match(/\b(ILS(?:\s*CAT\s*(?:III|II|I|1|2|3))?|RNP|RNAV|GLS|VOR(?:\/DME)?|NDB|LOC|VISUAL)\b[A-Z0-9\s]{0,14}?\bAP(?:CH|P|PROACH)\b/);
+  if(m) return m[1].replace(/\s+/g,' ');
+  m=txt.match(/\b(ILS|RNP|RNAV|GLS|VOR|NDB|LOC|VISUAL)\b/);
+  return m?m[1]:null;
+}
 // Iconos avión despegue/aterrizaje (SVG aportados por el usuario) — color y tamaño parametrizables
 function _runwayIco(kind,color,w){
   w=w||26; const h=Math.round(w*362.68/515.49);
@@ -22174,7 +22210,8 @@ function TabMeteoV2(_refM2){
   const _rwd=useState({}), routeWxStore=_rwd[0], setRouteWxStore=_rwd[1]; // viento/temp en ruta a FL crucero
   const _sg=useState({}), sigStore=_sg[0], setSigStore=_sg[1];          // SIGMET/AIRMET (airsigmet AWC)
   const _pd=useState(0), pullDist=_pd[0], setPullDist=_pd[1];
-  const rootRef=useRef(null), refreshRef=useRef(null), pullRef=useRef(0);
+  const _sk=useState(false), stripStuck=_sk[0], setStripStuck=_sk[1];   // ¿la tira de cabecera está pegada arriba?
+  const rootRef=useRef(null), refreshRef=useRef(null), pullRef=useRef(0), stripRef=useRef(null);
   const nowUtc=new Date().toISOString().slice(11,16);
   const ICAO=function(c){ return iataToIcao(c)||c; };
 
@@ -22343,6 +22380,22 @@ function TabMeteoV2(_refM2){
     sc.addEventListener("touchmove",tm,{passive:true});
     sc.addEventListener("touchend",te,{passive:true});
     return function(){ sc.removeEventListener("touchstart",ts); sc.removeEventListener("touchmove",tm); sc.removeEventListener("touchend",te); };
+  },[]);
+
+  // ── La tira de cabecera se vuelve opaca cuando queda pegada arriba (sticky-stuck) ──
+  useEffect(function(){
+    const rootEl=rootRef.current; if(!rootEl) return;
+    let sc=rootEl.parentElement;
+    while(sc&&sc!==document.body){ const oy=getComputedStyle(sc).overflowY; if(oy==="auto"||oy==="scroll") break; sc=sc.parentElement; }
+    if(!sc) return;
+    function onScroll(){
+      const el=stripRef.current; if(!el) return;
+      const stuck=el.getBoundingClientRect().top<=sc.getBoundingClientRect().top+1;
+      setStripStuck(function(p){ return p===stuck?p:stuck; });
+    }
+    sc.addEventListener("scroll",onScroll,{passive:true});
+    onScroll();
+    return function(){ sc.removeEventListener("scroll",onScroll); };
   },[]);
 
   const CATM={
@@ -22882,12 +22935,14 @@ function TabMeteoV2(_refM2){
 
     // ── Tira de cabecera fija (resumen en vivo del aeropuerto seleccionado) ──
     const hsRwy=rwSingle||rwDep||rwArr||bestRwyH||null;
-    let hsXw=null, hsXwClr=T.tx2;
+    let hsXw=null, hsXwClr=T.tx2, hsSide="";
     if(hsRwy){
       const fr=String(hsRwy).split("/")[0];
       const rhdg=parseInt(String(fr).replace(/[LRC]/g,""))*10;
-      if(!isNaN(rhdg)){ const cc=_wxComp(rhdg,pw.dir,gust||pw.spd); hsXw=cc.absxw; hsXwClr=cc.absxw>=25?T.red:cc.absxw>=15?T.amb:T.grn; }
+      if(!isNaN(rhdg)){ const cc=_wxComp(rhdg,pw.dir,gust||pw.spd); hsXw=cc.absxw; hsXwClr=cc.absxw>=25?T.red:cc.absxw>=15?T.amb:T.grn; hsSide=cc.side==="DERECHA"?"R":cc.side==="IZQUIERDA"?"L":""; }
     }
+    const hsApp=_wxApproach(atisStore[cur.icao]);
+    const hsAppShort=hsApp?hsApp.split(/\s+/)[0]:null;
     const hsVis=visM>=9999?"10+":visM>=1000?((visM/1000).toFixed(visM%1000?1:0).replace(".0","")):String(visM);
     const hsCloud=(m.clouds&&!/^SKC$/i.test(m.clouds))?String(m.clouds).split(/\s+/)[0]:(/CAVOK/i.test(m.raw||"")?"CAVOK":"SKC");
     const hsIcon=iconSlug?React.createElement("img",{src:WX_ICON_BASE+iconSlug+".svg",alt:m.cat,width:18,height:18,style:{display:"block",objectFit:"contain"},onError:function(e){e.target.style.display="none";e.target.parentNode.textContent=ci.icon;}}):React.createElement("span",{style:{fontSize:15}},ci.icon);
@@ -22897,7 +22952,10 @@ function TabMeteoV2(_refM2){
         React.createElement("div",{style:{fontFamily:mono,fontSize:6,fontWeight:700,letterSpacing:".5px",color:T.tx3,whiteSpace:"nowrap"}},lab),
         React.createElement("div",{style:{fontFamily:mono,fontSize:11,fontWeight:800,color:T.tx1,marginTop:5,lineHeight:1,whiteSpace:"nowrap"}},valEl));
     };
-    const headerStrip=React.createElement("div",{style:{position:"sticky",top:0,zIndex:8,display:"flex",alignItems:"stretch",marginBottom:12,border:"1px solid "+T.cardBd,borderLeft:"3px solid "+sev.c,borderRadius:13,overflow:"hidden",background:"linear-gradient(135deg,"+_rgba(sev.c,.14)+","+T.surf1+")",boxShadow:T.cardSh,backdropFilter:T.blur,WebkitBackdropFilter:T.blur}},
+    const hsBg=stripStuck
+      ? "linear-gradient(135deg,"+_rgba(sev.c,.20)+","+_rgba(sev.c,.05)+"), rgba(8,13,25,0.99)"
+      : "linear-gradient(135deg,"+_rgba(sev.c,.16)+","+_rgba(sev.c,.03)+"), rgba(11,17,30,0.97)";
+    const headerStrip=React.createElement("div",{ref:stripRef,style:{position:"sticky",top:0,zIndex:8,display:"flex",alignItems:"stretch",marginBottom:12,border:"1px solid "+(stripStuck?_rgba(sev.c,.4):T.cardBd),borderLeft:"3px solid "+sev.c,borderRadius:stripStuck?"0 0 13px 13px":13,overflow:"hidden",background:hsBg,boxShadow:stripStuck?"0 12px 26px -6px rgba(0,0,0,.75)":T.cardSh,backdropFilter:T.blur,WebkitBackdropFilter:T.blur,transition:"background .2s ease, box-shadow .2s ease, border-color .2s ease"}},
       React.createElement("div",{style:{flex:"0 0 auto",display:"flex",alignItems:"center",gap:7,padding:"8px 9px",borderRight:"1px solid "+T.line}},
         React.createElement("div",{style:{width:30,height:30,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",border:"1.5px solid "+_rgba(sev.c,.5),background:_rgba(sev.c,.08),overflow:"hidden"}},hsIcon),
         React.createElement("div",null,
@@ -22905,7 +22963,11 @@ function TabMeteoV2(_refM2){
           React.createElement("div",{style:{fontFamily:mono,fontSize:6,fontWeight:700,letterSpacing:".6px",color:T.tx3,marginTop:3}},cur.code))),
       React.createElement("div",{style:{flex:1,display:"grid",gridTemplateColumns:"repeat(4,1fr)",minWidth:0}},
         hsStat("VIENTO",[React.createElement("span",{key:"a",style:{display:"inline-block",color:T.cyan,transform:"rotate("+pw.dir+"deg)",fontSize:9}},"↑")," "+String(pw.dir).padStart(3,"0")+"°/"+pw.spd,hsSmall("kt")]),
-        hsStat("PISTA",[React.createElement("span",{key:"r",style:{color:T.cyan,textShadow:"0 0 9px "+_rgba(T.cyan,.4)}},hsRwy||"—"),hsXw!=null?React.createElement("span",{key:"x",style:{color:hsXwClr,marginLeft:3}},"✕"+hsXw):null]),
+        React.createElement("div",{key:"PISTA",style:{padding:"7px 3px 7px 8px",borderRight:"1px solid "+T.line,minWidth:0}},
+          React.createElement("div",{style:{fontFamily:mono,fontSize:6,fontWeight:700,letterSpacing:".5px",color:T.tx3,whiteSpace:"nowrap"}},"PISTA"),
+          React.createElement("div",{style:{fontFamily:mono,fontSize:11,fontWeight:800,marginTop:4,lineHeight:1,whiteSpace:"nowrap",color:T.cyan,textShadow:"0 0 9px "+_rgba(T.cyan,.4),overflow:"hidden",textOverflow:"ellipsis"}},(hsAppShort?hsAppShort+" ":"")+(hsRwy||"—")),
+          hsXw!=null?React.createElement("div",{style:{fontFamily:mono,fontSize:8,fontWeight:700,marginTop:3,lineHeight:1,whiteSpace:"nowrap",color:hsXwClr}},"XW "+hsXw+"kt"+(hsSide?(" "+hsSide):"")):null
+        ),
         hsStat("QNH",[m.qnh||"—"]),
         hsStat("TECHO/VIS",[React.createElement("span",{key:"c",style:{fontSize:10}},hsCloud),hsSmall(" "+hsVis)],true)
       )
@@ -23710,7 +23772,7 @@ function TabNotam(_ref32) {
         key: i,
         style: { padding: "10px 12px", marginBottom: 8, borderLeft: "3px solid #FFB800" }
       },
-        React.createElement("div", { style: { fontSize: 9, fontWeight: 700, color: "#FFB800", fontFamily: mono, marginBottom: 4 } }, a.icao, " — ", a.city),
+        React.createElement("div", { style: { fontSize: 9, fontWeight: 700, color: "#FFB800", fontFamily: mono, marginBottom: 4 } }, a.icao, " — ", airportName(a.icao, a.city)),
         a.notams.map((n, j) => React.createElement("div", { key: j, style: { fontSize: 9, color: C.white, fontFamily: mono, lineHeight: 1.6 } }, n))
       ))
     )
@@ -24620,6 +24682,8 @@ function SkyViewPilotOS() {
   useEffect(() => {
     const ics = [_depIcao, _arrIcao].filter(Boolean);
     if (!ics.length) return;
+    // Resolver nombres de aeropuerto (DEP/ARR + alternates) vía /api/airports/:icao
+    ensureAirportNames(ics.concat((leg.alts || []).map(a => a.icao)), () => setTick(x => x + 1));
     fetchCCIBatch(ics).then(map => {
       const keys = Object.keys(map || {});
       if (keys.length) { keys.forEach(k => { CCI_BY_ICAO[k] = map[k]; }); setTick(x => x + 1); }
