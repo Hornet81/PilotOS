@@ -22158,6 +22158,7 @@ function TabMeteoV2(_refM2){
   const _cp=useState(true), cloudOpen=_cp[0], setCloudOpen=_cp[1];
   const _ho=useState(true), hourlyOpen=_ho[0], setHourlyOpen=_ho[1];
   const _mo=useState(false), metarOpen=_mo[0], setMetarOpen=_mo[1];     // módulo METAR/TAF/ATIS/SNOWTAM plegable (replegado por defecto)
+  const _ro=useState(false), routeOpen=_ro[0], setRouteOpen=_ro[1];     // módulo unificado de ruta (turb/icing/conv/sigwx/airmets/viento) plegable
   const _ca=useState(function(){ try{ return JSON.parse(localStorage.getItem("sky_custom_wx")||"[]"); }catch(e){ return []; } }), customAps=_ca[0], setCustomAps=_ca[1];
   const _ao=useState(false), addOpen=_ao[0], setAddOpen=_ao[1];
   const _av=useState(""), addVal=_av[0], setAddVal=_av[1];
@@ -22755,33 +22756,7 @@ function TabMeteoV2(_refM2){
     const hasTS=/TS/.test(m.trend||"")||/\bTS/.test(m.raw||"");
     const hasCB=/CB|TCU/.test(m.clouds||"");
 
-    // ── Pills del hero: CONFIDENCE / RISK LEVEL / TREND ──
-    const cMins=(metarObs.mins!=null)?metarObs.mins:999;
-    const hasTaf=!!(tafRaw&&tafRaw.length>10);
-    const confLvl=(cMins<75&&hasTaf)?{t:"Alta",c:T.grn}:(cMins<150)?{t:"Media",c:T.amb}:{t:"Baja",c:T.tx2};
-    let riskScore=(m.cat==="MVMC")?1:(m.cat==="IFR")?2:(m.cat==="LIFR")?3:0;
-    if(gust&&gust>=35) riskScore=Math.max(riskScore,2); else if(gust&&gust>=25) riskScore=Math.max(riskScore,1);
-    if(hasTS) riskScore=Math.max(riskScore,2);
-    const riskLvl=riskScore>=2?{t:"Alto",c:T.red}:riskScore===1?{t:"Medio",c:T.amb}:{t:"Bajo",c:T.grn};
-    const tafChg=segs.some(function(s){return s.type==="TEMPO"||s.type==="BECMG"||s.type==="PROB"||s.type==="DESDE";});
-    const trendLvl=hasTaf?(tafChg?{t:"Cambios",c:T.amb}:{t:"Estable",c:T.grn}):{t:"—",c:T.tx2};
-    const pillSvg={
-      conf:"M5 19V9M10 19V5M15 19v-7M20 19v-3",
-      risk:"M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z",
-      trend:"M3 17l6-6 4 4 7-7M14 8h5v5"
-    };
-    const pill=function(key,icon,label,val){
-      return React.createElement("div",{key:key,style:{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:8,background:T.surf1,border:"1px solid "+T.cardBd,borderRadius:13,padding:"10px 11px",boxShadow:T.cardSh}},
-        React.createElement("svg",{width:18,height:18,viewBox:"0 0 24 24",fill:"none",stroke:T.cyan,strokeWidth:1.6,style:{flexShrink:0}},React.createElement("path",{d:pillSvg[icon]})),
-        React.createElement("div",{style:{minWidth:0}},
-          React.createElement("div",{style:{fontFamily:mono,fontSize:7.5,fontWeight:700,letterSpacing:".8px",color:T.tx3}},label),
-          React.createElement("div",{style:{fontSize:12.5,fontWeight:700,color:val.c,marginTop:2}},val.t)));
-    };
-    const pillsRow=React.createElement("div",{style:{display:"flex",gap:9,marginBottom:12}},
-      pill("p1","conf","CONFIDENCE",confLvl),
-      pill("p2","risk","RISK LEVEL",riskLvl),
-      pill("p3","trend","TREND",trendLvl)
-    );
+    // (pills CONFIDENCE/RISK/TREND eliminadas)
 
     // ── Previsión por horas (tabla compacta, Open-Meteo) ──
     const hData=(hourlyStore[cur.icao]||{}).rows||null;
@@ -22889,13 +22864,21 @@ function TabMeteoV2(_refM2){
     if(worst>=2) st={c:T.red,bg:T.redBg,bd:T.redBd,h:"Atención: condiciones exigentes",s:"Revisa mínimos, alternativos y avisos de la ruta.",alert:true};
     else if(worst===1) st={c:T.amb,bg:T.ambBg,bd:T.ambBd,h:"Vigila las condiciones",s:"Hay factores meteorológicos a tener en cuenta.",alert:true};
     else st={c:T.grn,bg:T.grnBg,bd:T.grnBd,h:"Todo en orden para el vuelo",s:"No hay restricciones meteorológicas previstas.",alert:false};
-    const statusBanner=React.createElement("div",{style:{display:"flex",gap:13,alignItems:"center",border:"1px solid "+st.bd,borderRadius:16,background:"linear-gradient(135deg,"+st.bg+","+T.surf1+")",padding:"15px 16px",margin:"3px 0 8px",boxShadow:T.cardSh}},
-      React.createElement("div",{style:{width:34,height:34,borderRadius:"50%",flexShrink:0,border:"1.5px solid "+st.bd,display:"flex",alignItems:"center",justifyContent:"center",color:st.c}},
-        React.createElement("svg",{width:18,height:18,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2},
-          React.createElement("path",{d:st.alert?"M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01":"M20 6 9 17l-5-5"}))),
-      React.createElement("div",null,
-        React.createElement("div",{style:{fontSize:14,fontWeight:600,color:st.c}},st.h),
-        React.createElement("div",{style:{fontSize:11.5,color:T.tx2,marginTop:2}},st.s)));
+    // ── Módulo unificado de RUTA (turb/icing/conv/sigwx/airmets/viento) · plegable ──
+    const routeTitle=worst===0?"Ruta sin avisos":worst===1?"Vigila la ruta":"Avisos en ruta";
+    const routeSub="FL"+flCrz+(rwAlt?(" · "+_wxCompass(rwAlt.dir)+" "+rwAlt.spd+"kt"):"")+" · turb · icing · conv · sigwx · airmets";
+    const routeCard=React.createElement("div",{style:{marginBottom:12,borderRadius:16,boxShadow:T.cardSh}},
+      React.createElement("div",{onClick:function(){setRouteOpen(function(o){return !o;});},style:{display:"flex",alignItems:"center",gap:11,padding:"13px 15px",borderRadius:routeOpen?"16px 16px 0 0":16,cursor:"pointer",border:"1px solid "+st.bd,borderLeft:"3px solid "+st.c,background:"linear-gradient(135deg,"+st.bg+","+T.surf1+")"}},
+        React.createElement("div",{style:{width:32,height:32,borderRadius:"50%",flexShrink:0,border:"1.5px solid "+st.bd,display:"flex",alignItems:"center",justifyContent:"center",color:st.c}},
+          React.createElement("svg",{width:17,height:17,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2},
+            React.createElement("path",{d:st.alert?"M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01":"M20 6 9 17l-5-5"}))),
+        React.createElement("div",{style:{flex:1,minWidth:0}},
+          React.createElement("div",{style:{fontSize:13,fontWeight:600,color:st.c}},routeTitle),
+          React.createElement("div",{style:{fontFamily:mono,fontSize:8,color:T.tx3,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},routeSub)),
+        React.createElement("span",{style:{color:st.c,fontSize:13,opacity:.85,transform:routeOpen?"rotate(90deg)":"none",transition:".18s"}},"›")
+      ),
+      routeOpen?React.createElement("div",{style:{border:"1px solid "+st.bd,borderTop:"none",borderRadius:"0 0 16px 16px",padding:"10px 12px 3px",background:T.surf1}},wxGrid):null
+    );
 
     // ── Tira de cabecera fija (resumen en vivo del aeropuerto seleccionado) ──
     const hsRwy=rwSingle||rwDep||rwArr||bestRwyH||null;
@@ -22929,7 +22912,7 @@ function TabMeteoV2(_refM2){
     );
 
     // Sin marco ni cabecera: tarjetas sueltas sobre el cielo (como el mock). El nombre del aeropuerto va en grande dentro del hero.
-    body=React.createElement("div",{style:{position:"relative",zIndex:1}},headerStrip,banner,pillsRow,metarTafCard,windCard,hourlyCard,cloudCard,wxGrid,statusBanner);
+    body=React.createElement("div",{style:{position:"relative",zIndex:1}},headerStrip,banner,metarTafCard,windCard,hourlyCard,cloudCard,routeCard);
   }
 
   const pullInd=React.createElement("div",{key:"pull",style:{height:loading?34:pullDist,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",gap:6,transition:pullDist===0?"height .25s":"none"}},
