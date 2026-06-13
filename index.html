@@ -22125,6 +22125,19 @@ function _rgba(hex,a){
   const n=parseInt(h,16);
   return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+a+')';
 }
+// Iconos avión despegue/aterrizaje (SVG aportados por el usuario) — color y tamaño parametrizables
+function _runwayIco(kind,color,w){
+  w=w||26; const h=Math.round(w*362.68/515.49);
+  const sty={display:'block',flexShrink:0,filter:'drop-shadow(0 0 5px '+_rgba(color,.55)+')'};
+  if(kind==='to'){
+    return React.createElement('svg',{width:w,height:h,viewBox:'0 0 515.49 362.68',style:sty},
+      React.createElement('path',{d:'M432.19,71.29c-13.27,2.09-26.27,5.68-38.83,10.45l-46.37,17.63-98.06-41.63-34.87,14.09,54.05,62.62-113.07,49.28-53.04-37.87-21.63,8.74,36.46,56.71c9.7,15.09,28.77,21.15,45.41,14.43l11.48-4.64,237.03-94.07c14.6-5.8,28.54-13.19,41.33-22.32,16.98-12.13,26.35-23.19,24.03-29.14-2.55-6.55-19.71-8.09-43.93-4.28Z',fill:color}),
+      React.createElement('rect',{x:123.85,y:280.05,width:208.27,height:15,rx:4,fill:color}));
+  }
+  return React.createElement('svg',{width:w,height:h,viewBox:'0 0 515.49 362.68',style:sty},
+    React.createElement('path',{d:'M385.66,205.08c-10.04-7.3-20.87-13.45-32.19-18.54l-41.81-18.77-36.87-91.25-31.98-13.58-5.6,76.21-106.05-41.67-9.91-59.38-19.84-8.42-13.23,60.87c-3.52,16.2,4.98,32.61,20.24,39.09l10.53,4.47,216.28,93.39c13.33,5.75,27.26,10.03,41.58,12.41,19.01,3.17,32.36,2.07,34.74-3.34,2.61-5.95-7.59-18.17-25.9-31.49Z',fill:color}),
+    React.createElement('rect',{x:219.35,y:307.4,width:192.4,height:13.85,rx:4,fill:color}));
+}
 
 function TabMeteoV2(_refM2){
   const leg=_refM2.leg;
@@ -22430,22 +22443,27 @@ function TabMeteoV2(_refM2){
     } else if(aGen.length){ rwSingle=aGen.join("/"); rwSrc="ATIS"; }
     else if(rwListH.length===1){ rwSingle=rwListH[0].id; rwSrc="UNICA"; }
     else if(bestRwyH){ rwSingle=bestRwyH; rwSrc="VIENTO"; }
-    const rwyChip=function(ico,lab,val,grow){
-      return React.createElement("div",{key:lab,style:{flex:grow?1:"0 0 auto",minWidth:0,display:"flex",alignItems:"center",gap:8,background:T.surf2,border:"1px solid "+T.line2,borderRadius:11,padding:"7px 11px"}},
-        React.createElement("span",{style:{fontSize:14,flexShrink:0,lineHeight:1}},ico),
+    const rwyChip=function(icoNode,lab,val,col,grow){
+      return React.createElement("div",{key:lab,style:{flex:grow?1:"0 0 auto",minWidth:0,display:"flex",alignItems:"center",gap:10,background:"linear-gradient(135deg,"+_rgba(col,.15)+","+_rgba(col,.04)+"), "+T.surf2,border:"1px solid "+_rgba(col,.34),borderRadius:13,padding:"9px 12px",boxShadow:"0 4px 16px "+_rgba(col,.12)}},
+        React.createElement("div",{style:{minWidth:32,height:32,padding:"0 6px",borderRadius:9,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",gap:3,background:_rgba(col,.13),border:"1px solid "+_rgba(col,.26)}},icoNode),
         React.createElement("div",{style:{minWidth:0}},
-          React.createElement("div",{style:{fontFamily:mono,fontSize:7,fontWeight:700,letterSpacing:".6px",color:T.tx3}},lab),
-          React.createElement("div",{style:{fontFamily:mono,fontSize:15,fontWeight:800,color:T.cyan,lineHeight:1,marginTop:2,textShadow:"0 0 10px "+_rgba(T.cyan,.35)}},val)));
+          React.createElement("div",{style:{fontFamily:mono,fontSize:7,fontWeight:700,letterSpacing:".8px",color:T.tx3}},lab),
+          React.createElement("div",{style:{fontFamily:mono,fontSize:18,fontWeight:800,color:col,lineHeight:1,marginTop:3,textShadow:"0 0 12px "+_rgba(col,.45)}},val)));
     };
     let runwayRow=null;
     if(rwDep||rwArr||rwSingle){
       const chips=[];
-      if(rwDep||rwArr){ if(rwDep) chips.push(rwyChip("🛫","DESPEGUE",rwDep,true)); if(rwArr) chips.push(rwyChip("🛬","ATERRIZAJE",rwArr,true)); }
-      else { chips.push(rwyChip("🛬🛫","PISTA EN SERVICIO",rwSingle,true)); }
+      if(rwDep||rwArr){
+        if(rwDep) chips.push(rwyChip(_runwayIco("to",T.cyan,25),"DESPEGUE",rwDep,T.cyan,true));
+        if(rwArr) chips.push(rwyChip(_runwayIco("lg",T.alt,25),"ATERRIZAJE",rwArr,T.alt,true));
+      } else {
+        const dualIco=React.createElement(React.Fragment,null,_runwayIco("to",T.cyan,18),_runwayIco("lg",T.cyan,18));
+        chips.push(rwyChip(dualIco,"PISTA EN SERVICIO",rwSingle,T.cyan,true));
+      }
       const srcTxt=rwSrc==="ATIS"?"Pista en servicio · ATIS":rwSrc==="UNICA"?"Pista única del aeropuerto":"Estimada por viento (sin ATIS)";
       runwayRow=React.createElement("div",{style:{marginTop:11}},
         React.createElement("div",{style:{display:"flex",gap:8,alignItems:"stretch"}},chips),
-        React.createElement("div",{style:{fontFamily:mono,fontSize:7,fontWeight:700,letterSpacing:".4px",color:T.tx3,marginTop:5}},"▪ "+srcTxt));
+        React.createElement("div",{style:{fontFamily:mono,fontSize:7,fontWeight:700,letterSpacing:".4px",color:T.tx3,marginTop:6}},"▪ "+srcTxt));
     }
     // ── Hero unificado (día/noche) · verde sutil tipo "tags del home", sin brillo fuerte ──
     const heroGrad="linear-gradient(150deg,"+_rgba(sev.c,.16)+","+_rgba(sev.c,.045)+"), "+T.surf1;
@@ -22674,49 +22692,42 @@ function TabMeteoV2(_refM2){
       React.createElement("div",null,tafSegEls),
       rawTafOpen?React.createElement("div",{style:{fontFamily:mono,fontSize:9.5,lineHeight:1.7,color:T.rawTx,background:T.rawBg,border:"1px solid "+T.line,borderRadius:11,padding:"10px 12px",whiteSpace:"pre-wrap",wordBreak:"break-word",marginTop:10}},tafRaw||"—"):null
     );
-    const metarTafCard=React.createElement("div",{style:{marginBottom:12,borderRadius:18,background:T.surf1,border:"1px solid "+T.cardBd,boxShadow:T.cardSh,overflow:"hidden",backdropFilter:day?T.blur:undefined,WebkitBackdropFilter:day?T.blur:undefined}},
-      React.createElement("div",{style:{display:"flex",alignItems:"center",borderBottom:"1px solid "+T.line,padding:"0 16px"}},
-        tabBtn("metar","METAR"),
-        tabBtn("taf","TAF"),
-        React.createElement("div",{onClick:function(){setMetarTab("taf");setRawTafOpen(true);},style:{marginLeft:"auto",display:"flex",alignItems:"center",gap:5,fontSize:11,fontWeight:500,color:T.tx2,cursor:"pointer"}},
-          "Ver TAF completo",
-          React.createElement("svg",{width:12,height:12,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:1.6},React.createElement("path",{d:"M15 3h6v6M10 14L21 3M21 14v7H3V3h7"})))
-      ),
-      metarTab==="taf"?tafBody:metarBody
-    );
-
-    // ── ATIS (D-ATIS): pista en servicio destacada + texto crudo plegable ──
+    // ── Pestaña ATIS (D-ATIS atis.guru) + SNOWTAM ──
     const atisData=atisStore[cur.icao];
     const atisAvail=atisData&&atisData.available;
     const atisCards=(atisData&&atisData.cards)||[];
     const atisRwy=atisData&&atisData.rwyInUse;
-    const atisSubtitle=atisData?(atisAvail?("Info "+([...new Set(atisCards.map(function(c){return c.letter;}).filter(Boolean))].join("/")||"—")+(atisCards[0]&&atisCards[0].time?(" · "+String(atisCards[0].time).replace(/:00 UTC$| UTC$/,"Z").replace(/^\d{4}-\d{2}-\d{2}[ T]/,"")):"")):"Sin ATIS disponible"):"Cargando ATIS…";
-    const atisCard=React.createElement("div",{style:{marginBottom:12,borderRadius:14,boxShadow:T.cardSh}},
-      React.createElement("div",{onClick:atisAvail?function(){setAtisOpen(function(o){return !o;});}:null,style:{display:"flex",alignItems:"center",gap:9,padding:"10px 13px",borderRadius:(atisOpen&&atisAvail)?"14px 14px 0 0":14,cursor:atisAvail?"pointer":"default",background:T.surf1,border:"1px solid "+T.line2}},
-        React.createElement("div",{style:{width:26,height:26,borderRadius:8,background:T.surf2,border:"1px solid "+T.line2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13}},"📻"),
-        React.createElement("div",{style:{flex:1,minWidth:0}},
-          React.createElement("div",{style:{fontSize:9.5,fontWeight:600,color:T.tx1}},"ATIS · ",cur.icao),
-          React.createElement("div",{style:{fontFamily:mono,fontSize:8,color:T.tx3,marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},atisSubtitle)
-        ),
-        atisRwy?React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5,background:T.grnBg,border:"1px solid "+T.grnBd,borderRadius:9,padding:"4px 9px",whiteSpace:"nowrap"}},
-          React.createElement("span",{style:{fontSize:7.5,fontWeight:700,letterSpacing:".5px",color:T.grn,fontFamily:mono}},"RWY"),
-          React.createElement("span",{style:{fontSize:13,fontWeight:900,color:T.grn,fontFamily:mono,lineHeight:1}},atisRwy)
-        ):null,
-        atisAvail?React.createElement("span",{style:{color:T.tx3,fontSize:13,transform:atisOpen?"rotate(90deg)":"none",transition:".18s"}},"›"):null
+    const atisBody=React.createElement("div",{style:{padding:"13px 16px 16px"}},
+      React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:11}},
+        React.createElement("div",{style:{fontSize:10,color:T.tx3,fontFamily:mono}},atisData?(atisAvail?("D-ATIS "+cur.icao):("Sin ATIS · "+cur.icao)):"Cargando ATIS…"),
+        atisRwy?React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5,background:T.grnBg,border:"1px solid "+T.grnBd,borderRadius:9,padding:"3px 10px",whiteSpace:"nowrap"}},
+          React.createElement("span",{style:{fontSize:7,fontWeight:700,letterSpacing:".5px",color:T.grn,fontFamily:mono}},"RWY"),
+          React.createElement("span",{style:{fontSize:12,fontWeight:900,color:T.grn,fontFamily:mono,lineHeight:1}},atisRwy)):null
       ),
-      (atisOpen&&atisAvail)?React.createElement("div",{style:{background:T.surf1,border:"1px solid "+T.line2,borderTop:"none",borderRadius:"0 0 14px 14px",padding:"10px 11px 11px"}},
-        atisCards.map(function(c,i){
-          return React.createElement("div",{key:i,style:{marginBottom:i<atisCards.length-1?10:0}},
-            React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:5}},
-              React.createElement("span",{style:{fontSize:7.5,fontWeight:700,letterSpacing:".6px",color:T.cyan,fontFamily:mono,background:T.routeBg,border:"1px solid "+T.routeBd,borderRadius:5,padding:"2px 6px"}},c.kind==="departure"?"SALIDA":c.kind==="arrival"?"LLEGADA":"ATIS",c.letter?(" "+c.letter):""),
-              c.time?React.createElement("span",{style:{fontSize:8,color:T.tx3,fontFamily:mono}},c.time):null
-            ),
-            React.createElement("div",{style:{fontFamily:mono,fontSize:9.5,lineHeight:1.7,color:T.rawTx,background:T.rawBg,border:"1px solid "+T.line,borderRadius:11,padding:"10px 12px",whiteSpace:"pre-wrap",wordBreak:"break-word"}},c.body||"—")
-          );
-        }),
-        React.createElement("div",{style:{fontSize:7.5,color:T.tx3,fontFamily:mono,marginTop:8,opacity:.8}},"ⓘ atis.guru · solo apoyo, no usar para la operación")
-      ):null
+      atisAvail?atisCards.map(function(c,i){
+        return React.createElement("div",{key:i,style:{marginBottom:i<atisCards.length-1?10:0}},
+          React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:5}},
+            React.createElement("span",{style:{fontSize:7.5,fontWeight:700,letterSpacing:".6px",color:T.cyan,fontFamily:mono,background:T.routeBg,border:"1px solid "+T.routeBd,borderRadius:5,padding:"2px 6px"}},(c.kind==="departure"?"SALIDA":c.kind==="arrival"?"LLEGADA":"ATIS")+(c.letter?(" "+c.letter):"")),
+            c.time?React.createElement("span",{style:{fontSize:8,color:T.tx3,fontFamily:mono}},c.time):null),
+          React.createElement("div",{style:{fontFamily:mono,fontSize:9.5,lineHeight:1.7,color:T.rawTx,background:T.rawBg,border:"1px solid "+T.line,borderRadius:11,padding:"10px 12px",whiteSpace:"pre-wrap",wordBreak:"break-word"}},c.body||"—"));
+      }):React.createElement("div",{style:{fontFamily:mono,fontSize:9.5,color:T.tx3,textAlign:"center",padding:"6px 0"}},atisData?("No hay D-ATIS publicado para "+cur.icao):"Consultando atis.guru…"),
+      atisAvail?React.createElement("div",{style:{fontSize:7.5,color:T.tx3,fontFamily:mono,marginTop:8,opacity:.8}},"ⓘ atis.guru · solo apoyo, no usar para la operación"):null,
+      React.createElement("div",{style:{marginTop:13,paddingTop:11,borderTop:"1px solid "+T.line}},
+        React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:6}},
+          React.createElement("span",{style:{fontSize:11}},"❄️"),
+          React.createElement("span",{style:{fontFamily:mono,fontSize:8.5,fontWeight:700,letterSpacing:".8px",color:T.tx2}},"SNOWTAM")),
+        React.createElement("div",{style:{fontFamily:mono,fontSize:9,color:T.tx3,lineHeight:1.5}},"Sin SNOWTAM activo para "+cur.icao+"."))
     );
+    const metarTafCard=React.createElement("div",{style:{marginBottom:12,borderRadius:18,background:T.surf1,border:"1px solid "+T.cardBd,boxShadow:T.cardSh,overflow:"hidden",backdropFilter:day?T.blur:undefined,WebkitBackdropFilter:day?T.blur:undefined}},
+      React.createElement("div",{style:{display:"flex",alignItems:"center",borderBottom:"1px solid "+T.line,padding:"0 16px"}},
+        tabBtn("metar","METAR"),
+        tabBtn("taf","TAF"),
+        tabBtn("atis","ATIS")
+      ),
+      metarTab==="taf"?tafBody:metarTab==="atis"?atisBody:metarBody
+    );
+
+    // (ATIS y SNOWTAM ahora viven en la pestaña ATIS del módulo METAR/TAF de arriba)
 
     // ════════ MÓDULOS NUEVOS (mock skyview-weather) — todo con datos reales ════════
     const phenTxt=_wxPhenom(m.trend);
@@ -22856,7 +22867,7 @@ function TabMeteoV2(_refM2){
         React.createElement("div",{style:{fontSize:11.5,color:T.tx2,marginTop:2}},st.s)));
 
     // Sin marco ni cabecera: tarjetas sueltas sobre el cielo (como el mock). El nombre del aeropuerto va en grande dentro del hero.
-    body=React.createElement("div",{style:{position:"relative",zIndex:1}},banner,pillsRow,metarTafCard,windCard,hourlyCard,wxGrid,statusBanner,atisCard,cloudCard);
+    body=React.createElement("div",{style:{position:"relative",zIndex:1}},banner,pillsRow,metarTafCard,windCard,hourlyCard,wxGrid,statusBanner,cloudCard);
   }
 
   const pullInd=React.createElement("div",{key:"pull",style:{height:loading?34:pullDist,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",transition:pullDist===0?"height .25s":"none"}},
