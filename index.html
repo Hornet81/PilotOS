@@ -22157,6 +22157,7 @@ function TabMeteoV2(_refM2){
   const _rwt=useState(false), rawTafOpen=_rwt[0], setRawTafOpen=_rwt[1];
   const _cp=useState(true), cloudOpen=_cp[0], setCloudOpen=_cp[1];
   const _ho=useState(true), hourlyOpen=_ho[0], setHourlyOpen=_ho[1];
+  const _mo=useState(false), metarOpen=_mo[0], setMetarOpen=_mo[1];     // módulo METAR/TAF/ATIS/SNOWTAM plegable (replegado por defecto)
   const _ca=useState(function(){ try{ return JSON.parse(localStorage.getItem("sky_custom_wx")||"[]"); }catch(e){ return []; } }), customAps=_ca[0], setCustomAps=_ca[1];
   const _ao=useState(false), addOpen=_ao[0], setAddOpen=_ao[1];
   const _av=useState(""), addVal=_av[0], setAddVal=_av[1];
@@ -22727,14 +22728,24 @@ function TabMeteoV2(_refM2){
       React.createElement("div",{style:{fontFamily:mono,fontSize:10,fontWeight:700,letterSpacing:".5px",color:T.tx2,marginBottom:5}},"SIN SNOWTAM ACTIVO"),
       React.createElement("div",{style:{fontFamily:mono,fontSize:8.5,color:T.tx3,lineHeight:1.5}},"No hay contaminación de pista publicada para "+cur.icao+".")
     );
-    const metarTafCard=React.createElement("div",{style:{marginBottom:12,borderRadius:18,background:T.surf1,border:"1px solid "+T.cardBd,boxShadow:T.cardSh,overflow:"hidden",backdropFilter:day?T.blur:undefined,WebkitBackdropFilter:day?T.blur:undefined}},
-      React.createElement("div",{style:{display:"flex",alignItems:"center",borderBottom:"1px solid "+T.line,padding:"0 16px"}},
-        tabBtn("metar","METAR"),
-        tabBtn("taf","TAF"),
-        tabBtn("atis","ATIS"),
-        tabBtn("snowtam","SNOWTAM")
+    const metarTafCard=React.createElement("div",{style:{marginBottom:12,borderRadius:18,boxShadow:T.cardSh}},
+      React.createElement("div",{onClick:function(){setMetarOpen(function(o){return !o;});},style:{display:"flex",alignItems:"center",gap:9,padding:"12px 14px",borderRadius:metarOpen?"18px 18px 0 0":18,cursor:"pointer",background:T.surf1,border:"1px solid "+T.cardBd,backdropFilter:day?T.blur:undefined,WebkitBackdropFilter:day?T.blur:undefined}},
+        React.createElement("div",{style:{width:26,height:26,borderRadius:8,background:T.surf2,border:"1px solid "+T.line2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13}},"📄"),
+        React.createElement("div",{style:{flex:1,minWidth:0}},
+          React.createElement("div",{style:{fontSize:9.5,fontWeight:600,color:T.tx1}},"METAR · TAF · ATIS · SNOWTAM"),
+          React.createElement("div",{style:{fontFamily:mono,fontSize:8,color:T.tx3,marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},cur.icao+" · "+ci.short+(metarObs.ago?(" · "+metarObs.ago):""))
+        ),
+        React.createElement("span",{style:{color:T.tx3,fontSize:13,transform:metarOpen?"rotate(90deg)":"none",transition:".18s"}},"›")
       ),
-      metarTab==="taf"?tafBody:metarTab==="atis"?atisBody:metarTab==="snowtam"?snowtamBody:metarBody
+      metarOpen?React.createElement("div",{style:{background:T.surf1,border:"1px solid "+T.cardBd,borderTop:"none",borderRadius:"0 0 18px 18px",overflow:"hidden",backdropFilter:day?T.blur:undefined,WebkitBackdropFilter:day?T.blur:undefined}},
+        React.createElement("div",{style:{display:"flex",alignItems:"center",borderBottom:"1px solid "+T.line,padding:"0 16px"}},
+          tabBtn("metar","METAR"),
+          tabBtn("taf","TAF"),
+          tabBtn("atis","ATIS"),
+          tabBtn("snowtam","SNOWTAM")
+        ),
+        metarTab==="taf"?tafBody:metarTab==="atis"?atisBody:metarTab==="snowtam"?snowtamBody:metarBody
+      ):null
     );
 
     // (ATIS y SNOWTAM ahora viven en la pestaña ATIS del módulo METAR/TAF de arriba)
