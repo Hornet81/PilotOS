@@ -26270,6 +26270,7 @@ window.rosterSelectDay = function(dateStr){
   var dLabel = d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
   dLabel = dLabel.charAt(0).toUpperCase()+dLabel.slice(1);
   if(dateEl) dateEl.textContent = dLabel;
+  if(typeof rosterUpdateVacQuickBtn === 'function') rosterUpdateVacQuickBtn(dateStr);
 
   // Add report time badge if there are flights
   var reportBadgeEl = document.getElementById('rst-detail-report');
@@ -28311,6 +28312,13 @@ window.rstShowOptionsMenu = function(){
       label:'Patrón fijo',
       sub:'Turno fijo · genera tus libres',
       action:'rosterOpenFixedPattern()'
+    },
+    {
+      icon:'🏖️',
+      iconBg:'rgba(245,158,11,.55)', iconBgDay:'rgba(217,119,6,.18)',
+      label:'Vacaciones',
+      sub:'Marca tus periodos de vacaciones',
+      action:'rosterOpenVacations()'
     },
     { sep: true },
     {
@@ -30769,7 +30777,10 @@ function pagSignOut() {
     <div id="rst-day-detail">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
         <div id="rst-detail-date">—</div>
-        <button onclick="rosterEditDay()" style="padding:6px 14px;background:#0D9488;border:none;border-radius:10px;color:#FFFFFF;font-size:12px;font-weight:700;cursor:pointer;font-family:'Space Grotesk',sans-serif;-webkit-appearance:none;box-shadow:0 2px 8px rgba(13,148,136,.35)">✏️ Editar</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="rst-vac-quick" onclick="rosterVacQuickAdd()" style="display:none;padding:6px 12px;background:#F59E0B;border:none;border-radius:10px;color:#3A2400;font-size:12px;font-weight:800;cursor:pointer;font-family:'Space Grotesk',sans-serif;-webkit-appearance:none;box-shadow:0 2px 8px rgba(245,158,11,.35)">🏖️ Vacaciones</button>
+          <button onclick="rosterEditDay()" style="padding:6px 14px;background:#0D9488;border:none;border-radius:10px;color:#FFFFFF;font-size:12px;font-weight:700;cursor:pointer;font-family:'Space Grotesk',sans-serif;-webkit-appearance:none;box-shadow:0 2px 8px rgba(13,148,136,.35)">✏️ Editar</button>
+        </div>
       </div>
       <div id="rst-detail-report"></div>
       <div id="rst-detail-body"></div>
@@ -32507,7 +32518,7 @@ function fpCloudLoad(){
     var localTs=0; try{ localTs=+localStorage.getItem(FP_TS_KEY)||0; }catch(e){}
     if(cloudTs>localTs){
       fpSaveConfigLocal(data.config);
-      if(data.config.enabled){ fpApplyToEntries(); }
+      fpApplyToEntries();
       if(typeof rstRenderCalendar==='function') rstRenderCalendar();
       if(typeof rstRenderStats==='function') rstRenderStats();
     }
@@ -32610,7 +32621,7 @@ function fpApplyToEntries(){
   RST.entries = RST.entries.filter(function(e){ return !e.fixedPattern; });
 
   var cfg = fpLoadConfig();
-  if(!cfg || !cfg.enabled) { rstSave(); return; }
+  if(!cfg) { rstSave(); return; }
 
   // Días con actividad real (no-patrón) y meses con roster real
   var realDay = {}, monthsWithRoster = {};
@@ -32632,29 +32643,32 @@ function fpApplyToEntries(){
     });
   }
 
-  // 1) Patrón OFF: solo en meses SIN roster real y en días sin vacación/real
-  var start = fpParse(cfg.start);
-  var end = new Date(start); end.setMonth(end.getMonth() + (cfg.durationM||12));
-  var cur = new Date(start);
-  while(cur < end){
-    var ds = fpFmt(cur);
-    if(realDay[ds] || vacDay[ds]){ cur.setDate(cur.getDate()+1); continue; }
-    var monthKey = ds.slice(0,7);
-    if(monthsWithRoster[monthKey]){ cur.setDate(cur.getDate()+1); continue; }
-    var kind = fpDayKind(cfg, cur);
-    if(kind && kind.off){
-      RST.entries.push({
-        date: ds,
-        type: 'off',
-        code: 'OFF',
-        fixedPattern: true,
-        patternBand: kind.band
-      });
+  // 1) Patrón OFF: SOLO si el patrón está activo (las vacaciones no lo requieren),
+  //    en meses SIN roster real y en días sin vacación/real
+  if(cfg.enabled && cfg.start && Array.isArray(cfg.blocks) && cfg.blocks.length){
+    var start = fpParse(cfg.start);
+    var end = new Date(start); end.setMonth(end.getMonth() + (cfg.durationM||12));
+    var cur = new Date(start);
+    while(cur < end){
+      var ds = fpFmt(cur);
+      if(realDay[ds] || vacDay[ds]){ cur.setDate(cur.getDate()+1); continue; }
+      var monthKey = ds.slice(0,7);
+      if(monthsWithRoster[monthKey]){ cur.setDate(cur.getDate()+1); continue; }
+      var kind = fpDayKind(cfg, cur);
+      if(kind && kind.off){
+        RST.entries.push({
+          date: ds,
+          type: 'off',
+          code: 'OFF',
+          fixedPattern: true,
+          patternBand: kind.band
+        });
+      }
+      cur.setDate(cur.getDate()+1);
     }
-    cur.setDate(cur.getDate()+1);
   }
 
-  // 2) Vacaciones: en cualquier día (dentro o fuera del rango del patrón) sin actividad real
+  // 2) Vacaciones: SIEMPRE (con o sin patrón activo), en cualquier día sin actividad real
   Object.keys(vacDay).forEach(function(ds){
     if(!realDay[ds]){
       RST.entries.push({ date: ds, type: 'vacation', code: 'VAC', fixedPattern: true, vacation: true });
@@ -33013,6 +33027,95 @@ function fpToast(msg){
   t.textContent=msg; t.classList.add('show');
   clearTimeout(t._h); t._h=setTimeout(function(){ t.classList.remove('show'); }, 2400);
 }
+
+// ── Gestor de Vacaciones (independiente del patrón) ───────────────────────
+// Las vacaciones viven como rangos {from,to} en la MISMA config del patrón fijo
+// (fuente única de verdad). Este gestor edita solo esos rangos, sin tocar el
+// patrón. Se proyectan al calendario tengas o no patrón fijo activo.
+var vacDraft = null;
+function vacHasAny(){
+  var cfg = fpLoadConfig();
+  return !!(cfg && Array.isArray(cfg.vacations) && cfg.vacations.length);
+}
+function vacRenderList(){
+  var c=document.getElementById('vac-list'); if(!c) return; c.innerHTML='';
+  if(!vacDraft || !vacDraft.length){ c.innerHTML='<div class="fp-vac-empty">Sin vacaciones añadidas</div>'; return; }
+  var sM=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  vacDraft.sort(function(a,b){ return fpParse(a.from)-fpParse(b.from); });
+  vacDraft.forEach(function(v,i){
+    var f=fpParse(v.from), t=fpParse(v.to);
+    var days=Math.round((t-f)/86400000)+1;
+    var fmtS=function(x){ return x.getDate()+' '+sM[x.getMonth()]; };
+    var d=document.createElement('div'); d.className='fp-vac-item';
+    d.innerHTML='<div><div class="fp-vac-dates">'+fmtS(f)+' → '+fmtS(t)+'</div><div class="fp-vac-days">'+days+' día'+(days>1?'s':'')+'</div></div><button data-vrm="'+i+'">×</button>';
+    c.appendChild(d);
+  });
+  c.querySelectorAll('[data-vrm]').forEach(function(b){
+    b.addEventListener('click', function(){ vacDraft.splice(+b.dataset.vrm,1); vacRenderList(); });
+  });
+}
+function vacOpenModal(prefillFrom){
+  fpHideBanner();
+  var cfg = fpLoadConfig();
+  vacDraft = (cfg && Array.isArray(cfg.vacations)) ? JSON.parse(JSON.stringify(cfg.vacations)) : [];
+  var ov = document.createElement('div');
+  ov.id = 'fp-overlay';
+  ov.innerHTML =
+    '<div id="fp-sheet">'
+    + '<div class="fp-handle"></div>'
+    + '<div class="fp-title">🏖️ Vacaciones</div>'
+    + '<div class="fp-sub">Marca tus periodos de vacaciones por rango de fechas. Aparecen en tu calendario; si tienes patrón fijo, verás los solapes. La actividad real del roster siempre tiene prioridad.</div>'
+    + '<div class="fp-scroll">'
+    +   '<div class="fp-seclabel">Añadir periodo</div>'
+    +   '<div class="fp-vac-add"><input type="date" id="vac-from" title="Desde"><input type="date" id="vac-to" title="Hasta"><button id="vac-add">Añadir</button></div>'
+    +   '<div class="fp-seclabel">Tus vacaciones</div>'
+    +   '<div class="fp-vac-list" id="vac-list"></div>'
+    + '</div>'
+    + '<div class="fp-actions">'
+    +   '<button class="fp-btn fp-clear" id="vac-cancel">Cancelar</button>'
+    +   '<button class="fp-btn fp-save" id="vac-save">Guardar</button>'
+    + '</div>'
+    + '</div>';
+  ov.addEventListener('click', function(e){ if(e.target===ov) fpCloseModal(); });
+  document.body.appendChild(ov);
+  if(prefillFrom){
+    var ff=document.getElementById('vac-from'); if(ff) ff.value=prefillFrom;
+    var tt=document.getElementById('vac-to'); if(tt) tt.value=prefillFrom;
+  }
+  document.getElementById('vac-add').addEventListener('click', function(){
+    var f=document.getElementById('vac-from').value, t=document.getElementById('vac-to').value;
+    if(!f||!t){ fpToast('Elige fecha de inicio y fin'); return; }
+    if(fpParse(t)<fpParse(f)){ fpToast('La fecha fin debe ser posterior'); return; }
+    vacDraft.push({from:f,to:t});
+    document.getElementById('vac-from').value=''; document.getElementById('vac-to').value='';
+    vacRenderList();
+  });
+  document.getElementById('vac-cancel').addEventListener('click', fpCloseModal);
+  document.getElementById('vac-save').addEventListener('click', vacSave);
+  vacRenderList();
+}
+function vacSave(){
+  var cfg = fpLoadConfig() || { blocks:[5,4], start:fpFmt(new Date()), durationM:12, star:true, display:true, enabled:false };
+  cfg.vacations = (vacDraft||[]).slice();
+  if(typeof cfg.enabled === 'undefined') cfg.enabled = false;
+  fpSaveConfig(cfg);
+  fpApplyToEntries();
+  if(typeof rstRenderCalendar==='function') rstRenderCalendar();
+  if(typeof rstRenderStats==='function') rstRenderStats();
+  if(typeof rstRenderFlights==='function') rstRenderFlights();
+  if(window.RST && window.rosterUpdateVacQuickBtn) window.rosterUpdateVacQuickBtn(RST.editDate);
+  fpToast(cfg.vacations.length ? ('✓ Vacaciones guardadas · '+cfg.vacations.length+' periodo'+(cfg.vacations.length>1?'s':'')) : '✓ Vacaciones actualizadas');
+  fpCloseModal();
+}
+// Muestra el atajo rápido del día SOLO mientras no haya ninguna vacación puesta.
+window.rosterUpdateVacQuickBtn = function(dateStr){
+  var btn=document.getElementById('rst-vac-quick'); if(!btn) return;
+  btn.style.display = vacHasAny() ? 'none' : '';
+};
+window.rosterVacQuickAdd = function(){
+  vacOpenModal((window.RST && RST.editDate) ? RST.editDate : fpFmt(new Date()));
+};
+window.rosterOpenVacations = vacOpenModal;
 
 // ── API pública ───────────────────────────────────────────────────────────
 window.rosterOpenFixedPattern = fpOpenModal;
