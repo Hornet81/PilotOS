@@ -10922,13 +10922,23 @@ function dhUpdateHeaderStats(allFlights, todayStr, MONTHS) {
   var localHHMM = String(_now.getHours()).padStart(2,'0') + ':' +
                   String(_now.getMinutes()).padStart(2,'0');
 
-  // Next: primer vuelo cuyo STD aún no ha pasado (hoy), o primer vuelo futuro
-  var upcoming = (allFlights || []).filter(function(f) {
-    if (f.date > localDate) return true;
-    if (f.date < localDate) return false;
-    // hoy: incluir solo si STD > hora actual (vuelo no despegado aún)
+  // Next: el vuelo sigue siendo "próximo" hasta 15 min después de su STA (hora de llegada).
+  // Al pasar STA+15min avanza automáticamente al siguiente vuelo.
+  var GRACE_MS = 15 * 60000;
+  var nowMs = _now.getTime();
+  function _arrMs(f) {
     var std = (f.std || f.std_actual || '').slice(0, 5);
-    return !std || std > localHHMM;
+    var sta = (f.sta || f.sta_actual || '').slice(0, 5) || std;
+    if (!sta) return null;
+    var p = f.date.split('-');
+    var d = new Date(+p[0], +p[1] - 1, +p[2], +sta.slice(0, 2), +sta.slice(3, 5), 0);
+    if (std && sta < std) d.setDate(d.getDate() + 1); // cruza medianoche → llega al día siguiente
+    return d.getTime();
+  }
+  var upcoming = (allFlights || []).filter(function(f) {
+    var am = _arrMs(f);
+    if (am == null) return f.date >= localDate; // sin horas: mantener si es hoy o futuro
+    return am + GRACE_MS > nowMs;
   });
   if (!upcoming.length) {
     nfVal.textContent = '—';
@@ -30289,6 +30299,8 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
 
   // Populate roster card on home as soon as DOM is ready
   setTimeout(function(){ if(typeof dhUpdateRosterCard === 'function') dhUpdateRosterCard(); }, 300);
+  // Refresco periódico: al pasar STA+15min, la tarjeta "Next Flight" avanza sola (sin recargar)
+  setInterval(function(){ if(typeof dhUpdateRosterCard === 'function') dhUpdateRosterCard(); }, 60000);
   // Pull roster desde servidor al arrancar (sincroniza entre dispositivos)
   setTimeout(function(){
     if(typeof rstPullFromServer === 'function'){
