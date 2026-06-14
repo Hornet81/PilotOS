@@ -11031,6 +11031,8 @@ function dhUpdateHeaderStats(allFlights, todayStr, MONTHS) {
       dhRenderReportFlip(repStr, false);
       if (_repSub)  { _repSub.textContent = subTxt; _repSub.style.color = repColor; }
       if (_repIcon) _repIcon.style.color = repColor;
+      // Animar la primera vez que aparece una hora válida (tras cargar datos / al refrescar la página)
+      if (window._dhRepAnimPending) { window._dhRepAnimPending = false; setTimeout(dhPlayReportFlip, 200); }
     }
   }
 }
@@ -30437,8 +30439,9 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
     } catch(ex) {}
   })();
 
-  // Populate roster card on home as soon as DOM is ready
-  setTimeout(function(){ if(typeof dhUpdateRosterCard === 'function') dhUpdateRosterCard(); if(typeof dhPlayReportFlip === 'function') dhPlayReportFlip(); }, 350);
+  // Populate roster card on home as soon as DOM is ready (anima el flip al llegar el dato real)
+  window._dhRepAnimPending = true;
+  setTimeout(function(){ if(typeof dhUpdateRosterCard === 'function') dhUpdateRosterCard(); }, 350);
   // Refresco periódico: al pasar STA+15min, la tarjeta "Next Flight" avanza sola (sin recargar)
   setInterval(function(){ if(typeof dhUpdateRosterCard === 'function') dhUpdateRosterCard(); }, 60000);
   // Pull roster desde servidor al arrancar (sincroniza entre dispositivos)
