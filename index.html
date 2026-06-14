@@ -23412,38 +23412,34 @@ function TabNotamV2(_refN2) {
     setTimeout(function () { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 90);
   }
 
-  // ── Selector ──
+  // ── Selector · estilo "tarjeta de ruta" (mismo diseño que WX) ──
   const scrollMode = airports.length > 4;
   const selKids = [];
-  let prevCat = null;
-  airports.forEach(ap => {
+  airports.forEach(function (ap, i) {
     const cm = CATM[ap.cat];
-    if (prevCat && prevCat !== ap.cat) selKids.push(React.createElement("div", { key: "sep" + ap.key, style: { width: 1, flexShrink: 0, alignSelf: "stretch", margin: "7px 1px", background: T.line2 } }));
-    prevCat = ap.cat;
+    if (i > 0) selKids.push(React.createElement("div", { key: "sep" + ap.key, style: { width: 1, flexShrink: 0, alignSelf: "stretch", margin: "6px 0", background: "linear-gradient(180deg,transparent," + T.line2 + ",transparent)" } }));
     const isOn = ap.key === active;
     const sp = split(notamsOf(ap));
     const w = worst(sp.flight.concat(sp.n24));
-    const dotC = w === "danger" ? T.red : w === "warning" ? T.amb : w === "info" ? T.inf : T.grn;
+    const sevB = w === "danger" ? { c: T.red, bg: T.redBg, bd: T.redBd, label: "CRÍT" }
+      : w === "warning" ? { c: T.amb, bg: T.ambBg, bd: T.ambBd, label: "AVISO" }
+      : w === "info" ? { c: T.inf, bg: T.infBg, bd: T.infBd, label: "INFO" }
+      : { c: T.grn, bg: T.grnBg, bd: T.grnBd, label: "OK" };
     selKids.push(React.createElement("div", {
-      key: ap.key, onClick: () => { setActive(ap.key); setExpanded(null); },
-      style: Object.assign({
-        flex: scrollMode ? "0 0 78px" : 1, minWidth: 0, position: "relative", cursor: "pointer",
-        padding: "5px 4px 6px",
-        display: "flex", flexDirection: "column", alignItems: "center", gap: 2, transition: "all .18s"
-      },
-        isOn ? { background: T.floatBg, border: "1px solid " + cm.bd, borderBottom: "none", borderRadius: "11px 11px 0 0", marginBottom: -2, zIndex: 3, boxShadow: "0 -4px 14px rgba(0,0,0,.22)" }
-             : { background: T.surf1, border: "1px solid " + T.cardBd, borderBottom: "none", borderRadius: "11px 11px 0 0", marginBottom: 0, opacity: .6 })
+      key: ap.key, onClick: function () { setActive(ap.key); setExpanded(null); },
+      style: { flex: scrollMode ? "0 0 86px" : 1, minWidth: 0, position: "relative", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, padding: "9px 4px 10px", borderRadius: 12, transition: "all .18s", background: isOn ? "rgba(91,232,245,.07)" : "transparent", boxShadow: isOn ? ("inset 0 0 0 1px " + cm.bd) : "none" }
     },
-      isOn && React.createElement("div", { key: "cv", style: { position: "absolute", left: 0, right: 0, bottom: -2, height: 4, background: T.floatBg, zIndex: 4 } }),
-      ap.custom && React.createElement("div", { onClick: e => { e.stopPropagation(); removeAirport(ap.icao); }, style: { position: "absolute", top: -6, right: -6, width: 19, height: 19, borderRadius: "50%", background: T.floatBg, border: "1px solid " + T.line2, color: T.tx2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, zIndex: 5 } }, "×"),
-      React.createElement("div", { style: { position: "absolute", top: 6, right: 6, width: 8, height: 8, borderRadius: "50%", background: dotC, boxShadow: w === "danger" ? "0 0 7px " + T.red : "none" } }),
-      React.createElement("div", { style: { fontFamily: mono, fontSize: scrollMode ? 6.5 : 7, fontWeight: 700, letterSpacing: ".3px", color: cm.c, whiteSpace: "nowrap" } }, ap.role),
-      React.createElement("div", { style: { fontSize: scrollMode ? 11.5 : 13, fontWeight: 800, color: isOn ? T.tx1 : T.tx2, letterSpacing: ".3px", lineHeight: 1 } }, ap.code)
+      ap.custom && React.createElement("div", { onClick: function (e) { e.stopPropagation(); removeAirport(ap.icao); }, style: { position: "absolute", top: -5, right: 1, width: 18, height: 18, borderRadius: "50%", background: T.floatBg, border: "1px solid " + T.line2, color: T.tx2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, zIndex: 5 } }, "×"),
+      React.createElement("div", { style: { fontFamily: mono, fontSize: 7.5, fontWeight: 700, letterSpacing: ".8px", color: isOn ? T.cyan : cm.c, whiteSpace: "nowrap" } }, ap.role),
+      React.createElement("div", { style: { fontSize: scrollMode ? 14 : 16, fontWeight: 700, letterSpacing: ".4px", lineHeight: 1, color: isOn ? T.cyan : T.tx1, textShadow: isOn ? "0 0 12px " + cm.bd : "none" } }, ap.code),
+      React.createElement("div", { style: { fontFamily: mono, fontSize: 7, fontWeight: 700, letterSpacing: ".3px", padding: "1px 5px", borderRadius: 4, color: sevB.c, background: sevB.bg, border: "1px solid " + sevB.bd } }, sevB.label),
+      isOn ? React.createElement("div", { style: { position: "absolute", bottom: -1, left: "26%", right: "26%", height: 2, borderRadius: 2, background: T.cyan, boxShadow: "0 0 8px " + T.cyan } }) : null
     ));
   });
-  selKids.push(React.createElement("div", { key: "add", onClick: () => setAddOpen(o => !o), style: { flex: scrollMode ? "0 0 46px" : "0 0 48px", flexShrink: 0, border: "1.5px dashed " + T.extra, borderBottom: "none", borderRadius: "12px 12px 0 0", marginBottom: 0, opacity: .7, display: "flex", alignItems: "center", justifyContent: "center", color: T.extra, cursor: "pointer", fontSize: 24, fontWeight: 700, background: addOpen ? T.extraBg : T.surf1 } }, "+"));
+  selKids.push(React.createElement("div", { key: "sepadd", style: { width: 1, flexShrink: 0, alignSelf: "stretch", margin: "6px 0", background: "linear-gradient(180deg,transparent," + T.line2 + ",transparent)" } }));
+  selKids.push(React.createElement("div", { key: "add", onClick: function () { setAddOpen(function (o) { return !o; }); }, title: "Añadir aeropuerto", style: { width: 36, height: 36, flexShrink: 0, alignSelf: "center", borderRadius: 12, border: "1.5px dashed " + (addOpen ? T.extra : T.cyan), display: "flex", alignItems: "center", justifyContent: "center", color: addOpen ? T.extra : T.cyan, cursor: "pointer", fontSize: 22, fontWeight: 700, lineHeight: 1, background: addOpen ? T.extraBg : "rgba(91,232,245,.05)", transition: "all .18s" } }, "+"));
   const selector = React.createElement("div", {
-    style: Object.assign({ display: "flex", gap: 5, alignItems: "flex-end", marginBottom: 0, padding: "0 11px" },
+    style: Object.assign({ display: "flex", gap: 5, alignItems: "stretch", marginBottom: 12, padding: "10px 11px", borderRadius: 18, background: T.surf1, border: "1px solid " + T.cardBd, boxShadow: T.cardSh },
       scrollMode ? { overflowX: "auto" } : {})
   }, selKids);
 
@@ -23578,7 +23574,7 @@ function TabNotamV2(_refN2) {
     React.createElement("span", { style: { flex: 1, minWidth: 0, fontSize: 11, fontWeight: 600, color: T.tx2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, apName),
     React.createElement("span", { style: { fontFamily: mono, fontSize: 7, fontWeight: 700, letterSpacing: ".6px", color: cm.c, background: cm.bg, border: "1px solid " + cm.bd, borderRadius: 6, padding: "3px 7px", whiteSpace: "nowrap" } }, cur.role)
   );
-  const frame = React.createElement("div", { style: { border: "1px solid " + cm.bd, borderTopColor: "transparent", borderRadius: 16, background: T.floatBg, boxShadow: T.cardSh, padding: "13px 12px 14px", position: "relative", zIndex: 1 } },
+  const frame = React.createElement("div", { style: { border: "1px solid " + cm.bd, borderRadius: 16, background: T.floatBg, boxShadow: T.cardSh, padding: "13px 12px 14px", position: "relative", zIndex: 1 } },
     frameHead,
     banner,
     rwyCard,
@@ -24606,18 +24602,32 @@ function buildLegsFromRoster() {
     if (!raw) return null;
     var entries = JSON.parse(raw);
     if (!Array.isArray(entries)) return null;
-    var today = new Date().toISOString().slice(0, 10);
-    var upcoming = entries.filter(function (e) {
-      return e.type === 'flight' && e.date >= today && e.dep && e.arr;
+    // Pasar al día siguiente solo 3h después de que aterrice el ÚLTIMO vuelo del día.
+    // Durante el día se mantienen visibles todas las legs (aunque alguna ya se haya volado).
+    var ROLL_BUFFER_H = 3; // horas tras el último aterrizaje antes de rolar al día siguiente
+    var nowMs = Date.now();
+    function _legArrMs(e) {
+      var std = (e.std && e.std !== 'null') ? e.std : '00:00';
+      var sta = (e.sta && e.sta !== 'null') ? e.sta : std;
+      var aMs = new Date(e.date + 'T' + sta + ':00Z').getTime();
+      if (sta < std) aMs += 86400000; // cruza medianoche → llega al día siguiente
+      return aMs;
+    }
+    // Día activo = el primer día cuyo último vuelo + margen aún no ha pasado.
+    // (basta con que un vuelo del día sobreviva al filtro: el de mayor STA es el último).
+    var survivors = entries.filter(function (e) {
+      if (e.type !== 'flight' || !e.dep || !e.arr) return false;
+      return _legArrMs(e) + ROLL_BUFFER_H * 3600000 > nowMs;
     }).sort(function (a, b) {
       return (a.date + ' ' + (a.std || '')).localeCompare(b.date + ' ' + (b.std || ''));
     });
-    if (!upcoming.length) return null;
-    // Mostrar solo las legs del primer día con vuelos (hoy o el próximo día programado),
-    // no mezclar legs de varios días en la cabecera WX.
-    var firstDate = upcoming[0].date;
-    upcoming = upcoming.filter(function (e) {
-      return e.date === firstDate;
+    if (!survivors.length) return null;
+    var firstDate = survivors[0].date;
+    // Mantener TODAS las legs de ese día, ordenadas por hora de salida.
+    var upcoming = entries.filter(function (e) {
+      return e.type === 'flight' && e.dep && e.arr && e.date === firstDate;
+    }).sort(function (a, b) {
+      return (a.std || '').localeCompare(b.std || '');
     });
     return upcoming.map(function (e, i) {
       var stdZ = e.std ? e.std + 'Z' : '—Z';
@@ -24684,7 +24694,8 @@ function SkyViewPilotOS() {
   const [liveTafs, setLiveTafs] = useState({});
   const _rosterLegs = buildLegsFromRoster();
   const EFFECTIVE_LEGS = _rosterLegs || LEGS;
-  const _baseLeg = EFFECTIVE_LEGS[legIdx];
+  const _legIdxSafe = legIdx < EFFECTIVE_LEGS.length ? legIdx : 0;
+  const _baseLeg = EFFECTIVE_LEGS[_legIdxSafe] || EFFECTIVE_LEGS[0];
   const _depIcao = iataToIcao(_baseLeg.dep);
   const _arrIcao = iataToIcao(_baseLeg.arr);
   const leg = Object.assign({}, _baseLeg, {
@@ -24702,6 +24713,10 @@ function SkyViewPilotOS() {
     const t = setInterval(() => setTick(x => x + 1), 1000);
     return () => clearInterval(t);
   }, []);
+  // Si un leg desaparece (ya pasó su hora) y el índice activo queda fuera de rango, volver al primero
+  useEffect(() => {
+    if (legIdx >= EFFECTIVE_LEGS.length) setLegIdx(0);
+  }, [EFFECTIVE_LEGS.length]);
   useEffect(() => {
     if (!_depIcao || !_arrIcao) return;
     (async () => {
