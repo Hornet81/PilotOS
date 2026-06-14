@@ -11043,45 +11043,94 @@ function dhRenderReportFlip(timeStr, animate) {
     box.innerHTML = '<span style="font-size:14px;font-weight:800;color:#F1F5F9;font-family:monospace">—:—</span>';
     return;
   }
-  var H = 24, digits = [];
+  var H = 24, W = 15, FS = 16;
+  box.innerHTML = '';
+
+  // Una mitad (superior o inferior) que muestra medio glifo recortado
+  function halfEl(pos) {
+    var el = document.createElement('div');
+    el.style.cssText = 'position:absolute;left:0;width:' + W + 'px;height:' + (H / 2) + 'px;overflow:hidden;background:linear-gradient(180deg,#11212f,#0a1521);'
+      + (pos === 'top' ? 'top:0;border-radius:5px 5px 0 0;border-bottom:1px solid rgba(0,0,0,.55);' : 'bottom:0;border-radius:0 0 5px 5px;');
+    var span = document.createElement('div');
+    span.style.cssText = 'position:absolute;left:0;width:' + W + 'px;height:' + H + 'px;line-height:' + H + 'px;text-align:center;font-size:' + FS + 'px;font-weight:800;font-family:monospace;color:' + color + ';'
+      + (pos === 'top' ? 'top:0;' : 'top:-' + (H / 2) + 'px;');
+    el.appendChild(span);
+    return { el: el, span: span };
+  }
+
+  // Tarjeta split-flap: estáticas (arriba/abajo) + aspas animadas
+  function makeFlap(target) {
+    var card = document.createElement('div');
+    card.style.cssText = 'position:relative;width:' + W + 'px;height:' + H + 'px;flex-shrink:0;perspective:170px;';
+    var topStatic = halfEl('top'), botStatic = halfEl('bottom');
+    var flipTop = halfEl('top'), flipBot = halfEl('bottom');
+    flipTop.el.style.cssText += 'z-index:3;transform-origin:50% 100%;backface-visibility:hidden;display:none;';
+    flipBot.el.style.cssText += 'z-index:3;transform-origin:50% 0%;backface-visibility:hidden;display:none;';
+    card.appendChild(topStatic.el); card.appendChild(botStatic.el);
+    card.appendChild(flipTop.el); card.appendChild(flipBot.el);
+    var cur = target;
+    function render(ch) { cur = ch; topStatic.span.textContent = ch; botStatic.span.textContent = ch; }
+    function step(nxt, dur) {
+      var half1 = Math.round(dur / 2);
+      topStatic.span.textContent = nxt;     // mitad superior final (se revela al plegar)
+      botStatic.span.textContent = cur;     // mitad inferior actual (hasta que cae el aspa)
+      flipTop.span.textContent = cur;
+      flipBot.span.textContent = nxt;
+      flipTop.el.style.display = 'block'; flipBot.el.style.display = 'block';
+      flipTop.el.style.transition = 'none'; flipTop.el.style.transform = 'rotateX(0deg)';
+      flipBot.el.style.transition = 'none'; flipBot.el.style.transform = 'rotateX(90deg)';
+      void flipTop.el.offsetWidth;
+      flipTop.el.style.transition = 'transform ' + half1 + 'ms ease-in';
+      flipTop.el.style.transform = 'rotateX(-90deg)';
+      setTimeout(function() {
+        flipTop.el.style.display = 'none';
+        flipBot.el.style.transition = 'transform ' + half1 + 'ms ease-out';
+        flipBot.el.style.transform = 'rotateX(0deg)';
+      }, half1);
+      setTimeout(function() {
+        flipBot.el.style.display = 'none';
+        botStatic.span.textContent = nxt;   // asienta
+        cur = nxt;
+      }, dur + 14);
+    }
+    render(target);
+    return { el: card, render: render, step: step };
+  }
+
+  var digitIndex = 0;
   for (var c = 0; c < timeStr.length; c++) {
     var ch = timeStr.charAt(c);
-    digits.push(ch === ':' ? ':' : parseInt(ch, 10));
-  }
-  box.innerHTML = '';
-  var strips = [];
-  digits.forEach(function(d) {
-    if (d === ':') {
+    if (ch === ':') {
       var col = document.createElement('div');
       col.textContent = ':';
-      col.style.cssText = 'font-size:16px;font-weight:800;color:' + color + ';font-family:monospace;line-height:1;padding:0 1px';
-      box.appendChild(col); return;
+      col.style.cssText = 'font-size:16px;font-weight:800;color:' + color + ';font-family:monospace;line-height:1;padding:0 1px;flex-shrink:0';
+      box.appendChild(col);
+      continue;
     }
-    var win = document.createElement('div');
-    win.style.cssText = 'position:relative;width:15px;height:' + H + 'px;overflow:hidden;border-radius:5px;background:linear-gradient(180deg,#0e1c2b,#070e18);border:1px solid rgba(91,232,245,.20)';
-    var strip = document.createElement('div');
-    strip.style.cssText = 'position:absolute;top:0;left:0;right:0;will-change:transform';
-    var html = '';
-    for (var r = 0; r < 9; r++) for (var n = 0; n < 10; n++) {
-      html += '<div style="height:' + H + 'px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:' + color + ';font-family:monospace">' + n + '</div>';
-    }
-    strip.innerHTML = html;
-    win.appendChild(strip); box.appendChild(win);
-    strips.push({ el: strip, t: d });
-  });
-  strips.forEach(function(s, i) {
-    s.el.style.transition = 'none';
+    var target = parseInt(ch, 10);
+    var flap = makeFlap(target);
+    box.appendChild(flap.el);
     if (animate) {
-      s.el.style.transform = 'translateY(0px)';
-      void s.el.offsetWidth;
-      var loops = 4 + i, y = (loops * 10 + s.t) * H;
-      s.el.style.transition = 'transform ' + (1100 + i * 200) + 'ms cubic-bezier(.18,.86,.28,1)';
-      s.el.style.transitionDelay = (i * 110) + 'ms';
-      s.el.style.transform = 'translateY(-' + y + 'px)';
-    } else {
-      s.el.style.transform = 'translateY(-' + (s.t * H) + 'px)';
+      (function(fl, tgt, di) {
+        var steps = 6 + di * 2;                              // dígitos de la derecha pasan por más números
+        var start = ((tgt - steps) % 10 + 10) % 10;
+        var seq = [];
+        for (var k = 0; k <= steps; k++) seq.push((start + k) % 10);
+        fl.render(seq[0]);
+        var i = 0;
+        function next() {
+          if (i >= steps) return;
+          var rem = steps - i;
+          var dur = rem <= 3 ? (rem === 1 ? 240 : rem === 2 ? 170 : 120) : 68;  // decelera al final
+          fl.step(seq[i + 1], dur);
+          i++;
+          setTimeout(next, dur + 8);
+        }
+        setTimeout(next, di * 130);                          // arranque escalonado izquierda→derecha
+      })(flap, target, digitIndex);
     }
-  });
+    digitIndex++;
+  }
 }
 function dhPlayReportFlip() {
   if (window._dhRepStr) dhRenderReportFlip(window._dhRepStr, true);
