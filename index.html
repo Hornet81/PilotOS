@@ -7674,6 +7674,7 @@ html.day .fp-ym-st-col.free .fp-ym-st-rng{color:var(--fp-gd)}
       <div class="dh-stats-row">
         <div class="dh-stat"><div class="dh-stat-icon dh-si-blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 2l4 4-4 4M3 11V9a4 4 0 014-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 01-4 4H3"/></svg></div><div><div class="dh-stat-lbl">Flight Hours</div><div class="dh-stat-val" id="dh-hours-val">— h</div></div></div>
         <div class="dh-stat"><div class="dh-stat-icon dh-si-blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div><div class="dh-stat-lbl">Next Flight</div><div class="dh-stat-val" id="dh-nf-val" style="font-size:12px">—</div><div class="dh-stat-sub" id="dh-nf-sub">cargando…</div></div></div>
+        <div class="dh-stat" id="dh-stat-report" style="min-width:132px"><div class="dh-stat-icon dh-si-blue" id="dh-rep-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></div><div><div class="dh-stat-lbl">Report</div><div id="dh-rep-flip" style="display:flex;align-items:center;gap:3px;height:24px;margin-top:1px"><span style="font-size:14px;font-weight:800;color:#F1F5F9;font-family:monospace">—:—</span></div><div class="dh-stat-sub" id="dh-rep-sub">—</div></div></div>
         <div class="dh-stat" id="dh-stat-duty"><div class="dh-stat-icon dh-si-blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="dh-stat-lbl">Duty Time</div><div class="dh-stat-val" id="dh-duty-val">—</div><div class="dh-stat-sub">próximo servicio</div></div></div>
         <div class="dh-stat"><div class="dh-stat-icon dh-si-green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div><div class="dh-stat-lbl">Recurrent</div><div class="dh-stat-val" id="dh-rec-val">48d</div><div class="dh-stat-sub">A320</div></div></div>
         <div class="dh-stat" style="min-width:120px"><div style="position:relative;width:36px;height:36px;flex-shrink:0"><svg width="36" height="36" viewBox="0 0 36 36" style="transform:rotate(-90deg)"><circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="3"/><circle cx="18" cy="18" r="14" fill="none" stroke="#22D3EE" stroke-width="3" stroke-linecap="round" stroke-dasharray="87.96" stroke-dashoffset="15.8"/></svg><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#22D3EE;font-family:monospace">82%</div></div><div><div class="dh-stat-lbl">Overall</div><div class="dh-stat-val" style="font-size:10px;color:#22D3EE">Progress</div></div></div>
@@ -10800,6 +10801,7 @@ function goTo(key){
   if (key === 'roster' && window.rosterInit) window.rosterInit();
   if (key === 'home') {
     dhUpdateRosterCard();
+    if (typeof dhPlayReportFlip === 'function') setTimeout(dhPlayReportFlip, 90);
     setTimeout(function(){
       if(typeof rstPullFromServer==='function'){
         rstPullFromServer().then(function(n){
@@ -10944,6 +10946,9 @@ function dhUpdateHeaderStats(allFlights, todayStr, MONTHS) {
     nfVal.textContent = '—';
     nfSub.textContent = 'Sin vuelos próximos';
     dutyEl.textContent = '—';
+    window._dhRepStr = null;
+    if (typeof dhRenderReportFlip === 'function') dhRenderReportFlip(null, false);
+    var _rs = document.getElementById('dh-rep-sub'); if (_rs) _rs.textContent = '—';
     return;
   }
 
@@ -10994,6 +10999,92 @@ function dhUpdateHeaderStats(allFlights, todayStr, MONTHS) {
     }
   }
   dutyEl.textContent = dutyStr;
+
+  // ── Report time (firma): checkin del próximo vuelo, o STD−55min ──
+  var _repFlip = document.getElementById('dh-rep-flip');
+  var _repSub  = document.getElementById('dh-rep-sub');
+  var _repIcon = document.getElementById('dh-rep-icon');
+  if (_repFlip) {
+    var nfStdM  = t2m(nf.std || nf.std_actual);
+    var repTotM = (nf.checkin && t2m(nf.checkin) != null) ? t2m(nf.checkin)
+                : (nfStdM != null ? nfStdM - 55 : null);
+    if (repTotM == null) {
+      window._dhRepStr = null; window._dhRepColor = '#22D3EE';
+      dhRenderReportFlip(null, false);
+      if (_repSub) _repSub.textContent = '—';
+    } else {
+      var _p = nf.date.split('-');
+      var reportDt = new Date(+_p[0], +_p[1] - 1, +_p[2], 0, repTotM); // los minutos normalizan si cruza medianoche
+      var repStr   = String(reportDt.getHours()).padStart(2, '0') + ':' + String(reportDt.getMinutes()).padStart(2, '0');
+      var diffMs   = reportDt.getTime() - _now.getTime();
+      var repColor, subTxt;
+      if (diffMs <= 0) {
+        repColor = '#34d399'; subTxt = 'FIRMA AHORA';
+      } else {
+        var dH = Math.floor(diffMs / 3600000), dM = Math.floor((diffMs % 3600000) / 60000);
+        var when = (diffMs < 2 * 3600000) ? ('en ' + dM + 'm') : ('en ' + dH + 'h ' + String(dM).padStart(2, '0') + 'm');
+        var sameDay = reportDt.toDateString() === _now.toDateString();
+        subTxt   = (sameDay ? '' : (fmtD(nf.date) + ' · ')) + when;
+        repColor = (diffMs < 2 * 3600000) ? '#f59e0b' : '#22D3EE';
+      }
+      window._dhRepStr = repStr; window._dhRepColor = repColor;
+      dhRenderReportFlip(repStr, false);
+      if (_repSub)  { _repSub.textContent = subTxt; _repSub.style.color = repColor; }
+      if (_repIcon) _repIcon.style.color = repColor;
+    }
+  }
+}
+// ── Flip-clock de la hora de report (tira superior del Home) ──
+function dhRenderReportFlip(timeStr, animate) {
+  var box = document.getElementById('dh-rep-flip');
+  if (!box) return;
+  var color = window._dhRepColor || '#22D3EE';
+  if (!timeStr) {
+    box.innerHTML = '<span style="font-size:14px;font-weight:800;color:#F1F5F9;font-family:monospace">—:—</span>';
+    return;
+  }
+  var H = 24, digits = [];
+  for (var c = 0; c < timeStr.length; c++) {
+    var ch = timeStr.charAt(c);
+    digits.push(ch === ':' ? ':' : parseInt(ch, 10));
+  }
+  box.innerHTML = '';
+  var strips = [];
+  digits.forEach(function(d) {
+    if (d === ':') {
+      var col = document.createElement('div');
+      col.textContent = ':';
+      col.style.cssText = 'font-size:16px;font-weight:800;color:' + color + ';font-family:monospace;line-height:1;padding:0 1px';
+      box.appendChild(col); return;
+    }
+    var win = document.createElement('div');
+    win.style.cssText = 'position:relative;width:15px;height:' + H + 'px;overflow:hidden;border-radius:5px;background:linear-gradient(180deg,#0e1c2b,#070e18);border:1px solid rgba(91,232,245,.20)';
+    var strip = document.createElement('div');
+    strip.style.cssText = 'position:absolute;top:0;left:0;right:0;will-change:transform';
+    var html = '';
+    for (var r = 0; r < 9; r++) for (var n = 0; n < 10; n++) {
+      html += '<div style="height:' + H + 'px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:' + color + ';font-family:monospace">' + n + '</div>';
+    }
+    strip.innerHTML = html;
+    win.appendChild(strip); box.appendChild(win);
+    strips.push({ el: strip, t: d });
+  });
+  strips.forEach(function(s, i) {
+    s.el.style.transition = 'none';
+    if (animate) {
+      s.el.style.transform = 'translateY(0px)';
+      void s.el.offsetWidth;
+      var loops = 4 + i, y = (loops * 10 + s.t) * H;
+      s.el.style.transition = 'transform ' + (1100 + i * 200) + 'ms cubic-bezier(.18,.86,.28,1)';
+      s.el.style.transitionDelay = (i * 110) + 'ms';
+      s.el.style.transform = 'translateY(-' + y + 'px)';
+    } else {
+      s.el.style.transform = 'translateY(-' + (s.t * H) + 'px)';
+    }
+  });
+}
+function dhPlayReportFlip() {
+  if (window._dhRepStr) dhRenderReportFlip(window._dhRepStr, true);
 }
 // ── Safe localStorage wrapper (iOS private mode, storage full) ──
 function lsGet(k,def){try{var v=localStorage.getItem(k);return v!==null?v:def||null;}catch(e){return def||null;}}
@@ -30298,7 +30389,7 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
   })();
 
   // Populate roster card on home as soon as DOM is ready
-  setTimeout(function(){ if(typeof dhUpdateRosterCard === 'function') dhUpdateRosterCard(); }, 300);
+  setTimeout(function(){ if(typeof dhUpdateRosterCard === 'function') dhUpdateRosterCard(); if(typeof dhPlayReportFlip === 'function') dhPlayReportFlip(); }, 350);
   // Refresco periódico: al pasar STA+15min, la tarjeta "Next Flight" avanza sola (sin recargar)
   setInterval(function(){ if(typeof dhUpdateRosterCard === 'function') dhUpdateRosterCard(); }, 60000);
   // Pull roster desde servidor al arrancar (sincroniza entre dispositivos)
