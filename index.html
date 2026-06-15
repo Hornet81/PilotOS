@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.02">
+  <meta name="version" content="Beta.03">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.02","builtAt":"2026-06-15T16:18:18Z","commit":"0b362eb","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.03","builtAt":"2026-06-15T16:41:57Z","commit":"ff2a61f","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -10817,7 +10817,7 @@ function goTo(key){
   }
   var btabs = document.getElementById('btabs');
   if (btabs) btabs.style.display = (key === 'skyview') ? 'none' : '';
-  if (key === 'skyview') { setTimeout(function(){ try{ if(window.__mountSkyView) window.__mountSkyView(); }catch(e){} }, 100); }
+  if (key === 'skyview') { setTimeout(function(){ try{ if(window.__mountSkyView) window.__mountSkyView(); window.dispatchEvent(new Event('pilotos-skyview-shown')); }catch(e){} }, 100); }
   if (key === 'home' && typeof ldStats === 'function') { setTimeout(ldStats, 150); }
 }
 function goHome(){goTo('home');}
@@ -15665,6 +15665,35 @@ function ldEditFlight(id){
     var sel=document.getElementById(sid);
     if(sel&&e[selMap[sid]]) sel.value=e[selMap[sid]];
   });
+  // ── Herencia entre legs del mismo día ───────────────────────────────────
+  // Al COMPLETAR un leg importado del roster (ROSTER-DRAFT), copiar del primer
+  // leg ya completado del día los datos que casi nunca cambian. Si el vuelo se
+  // insertó a mano (no es ROSTER-DRAFT), no se hace nada.
+  if(e.source==='ROSTER-DRAFT'){
+    try {
+      var _sibs=(ldEntries||[]).filter(function(x){
+        return x && x.id!==id && x.date===e.date && (x.reg||x.atd||x.aobt||x.cm1);
+      }).sort(function(a,b){
+        return (a.sched_out||a.std||a.atd||'').localeCompare(b.sched_out||b.std||b.atd||'');
+      });
+      if(_sibs.length){
+        var _base=_sibs[0]; // primer leg ya completado del día
+        var _setEmpty=function(fid,val){ var el=document.getElementById(fid); if(el&&!el.value&&val) el.value=val; };
+        var _setSel=function(fid,val){ var el=document.getElementById(fid); if(el&&val) el.value=val; };
+        // Matrícula: respetar la del roster si la traía (cambio de avión); si no, heredar
+        if(!e.reg) _setEmpty('ld_reg', _base.reg);
+        // Tipo de avión: mismo criterio que la matrícula
+        if(!e.acType) _setSel('ld_actype', _base.acType);
+        // Motor: el draft del roster nunca lo trae → heredar siempre
+        _setSel('ld_engine', _base.engine);
+        // Rol: el primer leg del día es la referencia
+        _setSel('ld_role', _base.role);
+        // Tripulantes: heredar si están vacíos
+        _setEmpty('ld_cm1', _base.cm1);
+        _setEmpty('ld_cm2', _base.cm2);
+      }
+    } catch(_e){}
+  }
   var pernoc=document.getElementById('ld_pernoc');
   if(pernoc) pernoc.checked=!!e.pernoc;
   // Update save button label
@@ -24793,6 +24822,7 @@ function buildLegsFromRoster() {
         arr: e.arr,
         std: stdZ,
         sta: staZ,
+        _arrMs: _legArrMs(e),
         block: '—',
         cruiseFL: 260,
         acType: e.acType || 'A320',
@@ -24829,12 +24859,25 @@ function buildLegsFromRoster() {
     return null;
   }
 }
+// Índice del leg que "te afecta ahora": el primero que aún no ha aterrizado
+// (su STA todavía no ha pasado). Si todos ya aterrizaron, el último.
+function swActiveLegIdxByTime() {
+  try {
+    var legs = buildLegsFromRoster();
+    if (!legs || !legs.length) return 0;
+    var nowMs = Date.now();
+    for (var i = 0; i < legs.length; i++) {
+      if (legs[i]._arrMs && legs[i]._arrMs > nowMs) return i;
+    }
+    return legs.length - 1;
+  } catch (e) { return 0; }
+}
 function SkyViewPilotOS() {
   const _useState35 = useState("brief"),
     _useState36 = _slicedToArray(_useState35, 2),
     tab = _useState36[0],
     setTab = _useState36[1];
-  const _useState37 = useState(0),
+  const _useState37 = useState(swActiveLegIdxByTime),
     _useState38 = _slicedToArray(_useState37, 2),
     legIdx = _useState38[0],
     setLegIdx = _useState38[1];
@@ -24869,6 +24912,13 @@ function SkyViewPilotOS() {
   useEffect(() => {
     if (legIdx >= EFFECTIVE_LEGS.length) setLegIdx(0);
   }, [EFFECTIVE_LEGS.length]);
+  // Al (re)entrar a SkyView, autoseleccionar el leg que te afecta ahora (según la hora UTC).
+  // Solo recalcula al entrar; si dentro cambias de leg a mano, se respeta hasta que salgas y vuelvas.
+  useEffect(() => {
+    const onShown = () => setLegIdx(swActiveLegIdxByTime());
+    window.addEventListener('pilotos-skyview-shown', onShown);
+    return () => window.removeEventListener('pilotos-skyview-shown', onShown);
+  }, []);
   useEffect(() => {
     if (!_depIcao || !_arrIcao) return;
     (async () => {
