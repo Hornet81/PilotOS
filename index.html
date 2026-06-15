@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.06">
+  <meta name="version" content="Beta.07">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.06","builtAt":"2026-06-15T17:35:43Z","commit":"2a261a4","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.07","builtAt":"2026-06-15T20:09:24Z","commit":"598d9a4","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -14087,19 +14087,19 @@ async function ldFetchAdsb(){
       if(body.error === 'plan_limit'){ showPlanToast('adsb'); return; }
       showToast(body.error || 'Error ADS-B (' + r.status + ')','error'); return;
     }
-    // ── Normalizar ADS-B y comparar contra el roster (eCrews manda) ──
+    // ── Normalizar ADS-B y comparar contra el valor existente (eCrews o manual) ──
     var rosterEntry = ldFindRosterEntry();
     var rows = ldAdsbCompare(body, rosterEntry);
 
     // Aplicar en silencio los campos no conflictivos:
-    //  · si el roster tiene dato real (eCrews) → eCrews prevalece (confirmado)
-    //  · si no hay dato de roster → ADS-B como estimado (nunca un 'scheduled')
+    //  · si ya hay valor (roster eCrews o lo que escribiste a mano) → se conserva
+    //  · si el campo está vacío → ADS-B como estimado (nunca un 'scheduled')
     // Los campos discrepantes se reservan para que decida el piloto en el popup.
     var discrepant = [];
     rows.forEach(function(R){
       if(R.isDiscrepant){ discrepant.push(R); return; }
       if(R.hasRosterReal){
-        ldApplyField(R.formId, R.rosterValue, 'ecrews', 'confirmado');
+        ldApplyField(R.formId, R.rosterValue, R.existingOrigin || 'ecrews', 'confirmado');
       } else if(R.adsbValue && R.adsbSource!=='scheduled'){
         ldApplyField(R.formId, R.adsbValue, 'adsb', 'estimado');
       }
@@ -14194,11 +14194,15 @@ function ldFindRosterEntry(){
   }catch(e){ return null; }
 }
 
-// Compara ADS-B (per-field) contra una entrada de roster eCrews.
+// Compara ADS-B (per-field) contra el valor EXISTENTE de cada campo.
+// El "valor existente" es, por prioridad:
+//   1. tiempo real del roster eCrews (std_actual/sta_actual, prefijo A/E)
+//   2. lo que el piloto YA escribió en el formulario (entrada manual)
+// Así, si rellenas OUT/OFF/ON/IN a mano y luego importas ADS-B, también
+// se comparan y salta el popup si difieren (antes solo miraba el roster).
 function ldAdsbCompare(body, rosterEntry){
   var re = rosterEntry || {};
-  // Tiempos reales del roster (prefijo A/E → datalink/manual, ambos reales).
-  // El roster eCrews solo expone los calzos OUT/IN por leg.
+  // El roster eCrews solo expone los calzos OUT/IN por leg (no OFF/ON).
   var rosterReal = { out: re.std_actual||null, in: re.sta_actual||null, off:null, on:null };
   var FIELDS = [
     { field:'out', formId:'ld_atd', label:'OUT · Calzo fuera', calzo:true  },
@@ -14208,10 +14212,17 @@ function ldAdsbCompare(body, rosterEntry){
   ];
   return FIELDS.map(function(F){
     var a  = ldAdsbField(body, F.field);
-    var rv = rosterReal[F.field];
+    // Valor existente y su procedencia
+    var rosterVal = rosterReal[F.field];
+    var formEl = document.getElementById(F.formId);
+    var formVal = ((formEl && formEl.value) || '').trim() || null;
+    var existing, existingOrigin, existingTag;
+    if(rosterVal){ existing = rosterVal; existingOrigin = 'ecrews'; existingTag = 'A'; }
+    else if(formVal){ existing = formVal; existingOrigin = 'manual'; existingTag = null; }
+    else { existing = null; existingOrigin = null; existingTag = null; }
     var delta = null, disc = false;
-    if(rv && a.value){
-      delta = _ldWrapDiff(_ldT2m(rv), _ldT2m(a.value));
+    if(existing && a.value){
+      delta = _ldWrapDiff(_ldT2m(existing), _ldT2m(a.value));
       disc  = delta >= DISCREPANCY_THRESHOLD_MIN;
     }
     // confidence: high (OFF/ON con actual/runway) | medium (revised/predicted)
@@ -14223,9 +14234,9 @@ function ldAdsbCompare(body, rosterEntry){
     else conf='medium';
     return {
       field:F.field, formId:F.formId, label:F.label, calzo:F.calzo,
-      rosterValue:rv, rosterTag:'A',
+      rosterValue:existing, rosterTag:existingTag, existingOrigin:existingOrigin,
       adsbValue:a.value, adsbSource:a.source,
-      deltaMin:delta, isDiscrepant:disc, confidence:conf, hasRosterReal:!!rv
+      deltaMin:delta, isDiscrepant:disc, confidence:conf, hasRosterReal:!!existing
     };
   });
 }
@@ -14260,7 +14271,7 @@ function ldOpenDiscrepancy(rows){
       + '<div class="dsc-sub" id="ld-dsc-sub"></div></div>'
       + '<div class="dsc-body" id="ld-dsc-body"></div>'
       + '<div class="dsc-foot">'
-      + '<button class="dsc-btn dsc-btn-sec" onclick="ldCloseDiscrepancy(true)">Mantener roster</button>'
+      + '<button class="dsc-btn dsc-btn-sec" onclick="ldCloseDiscrepancy(true)">Mantener actual</button>'
       + '<button class="dsc-btn dsc-btn-pri" onclick="ldApplyDiscrepancy()">Aplicar selección</button>'
       + '</div></div>';
     ov.onclick = function(){ ldCloseDiscrepancy(false); };
@@ -14286,11 +14297,14 @@ function ldOpenDiscrepancy(rows){
     var dlt  = (R.deltaMin!=null) ? ('Δ '+R.deltaMin+'m') : '—';
     var dCls = R.isDiscrepant ? 'dsc-delta warn' : 'dsc-delta';
     var conf = CONF[R.confidence] || CONF.low;
+    // Columna existente: "Roster" (eCrews, badge A) o "Manual" (lo que escribiste)
+    var existLbl   = R.existingOrigin === 'manual' ? 'Manual' : 'Roster';
+    var existBadge = (R.existingOrigin === 'ecrews' && R.rosterTag) ? ' <span class="dsc-badge dsc-b-ae">'+R.rosterTag+'</span>' : '';
     html += '<div class="dsc-row'+(R.isDiscrepant?' discrepant':'')+'">'
       + '<div class="dsc-rowtop"><span class="dsc-field">'+R.label+'</span><span class="'+dCls+'">'+dlt+'</span></div>'
       + '<div class="dsc-opts">'
       + '<div class="dsc-opt'+(defSel==='roster'?' sel':'')+(R.rosterValue?'':' dis')+'" data-i="'+i+'" data-pick="roster" onclick="ldDscPick(this)">'
-      +   '<div class="dsc-opt-lbl">Roster'+(R.rosterValue?' <span class="dsc-badge dsc-b-ae">'+R.rosterTag+'</span>':'')+'</div>'
+      +   '<div class="dsc-opt-lbl">'+existLbl+existBadge+'</div>'
       +   '<div class="dsc-opt-val'+(R.rosterValue?'':' empty')+'">'+(R.rosterValue||'—')+'</div></div>'
       + '<div class="dsc-opt'+(defSel==='adsb'?' sel':'')+(adsbOk?'':' dis')+'" data-i="'+i+'" data-pick="adsb"'
       +   (adsbSched?' title="valor programado, no real"':'')+' onclick="ldDscPick(this)">'
@@ -14317,10 +14331,10 @@ function ldCloseDiscrepancy(keepRoster){
   var ov = document.getElementById('ld-dsc-ov'); if(ov) ov.classList.remove('open');
   if(keepRoster && _ldDscRows){
     _ldDscRows.forEach(function(R){
-      if(R.rosterValue) ldApplyField(R.formId, R.rosterValue, 'ecrews', 'confirmado');
+      if(R.rosterValue) ldApplyField(R.formId, R.rosterValue, R.existingOrigin || 'ecrews', 'confirmado');
     });
     if(typeof ldAutoBlock === 'function') ldAutoBlock();
-    showToast('Roster conservado','success');
+    showToast('Valores conservados','success');
   }
   _ldDscRows = null;
 }
@@ -14332,7 +14346,7 @@ function ldApplyDiscrepancy(){
       if(pick==='adsb' && R.adsbValue && R.adsbSource!=='scheduled'){
         ldApplyField(R.formId, R.adsbValue, 'adsb', 'confirmado');   // override manual → confirmado
       } else if(R.rosterValue){
-        ldApplyField(R.formId, R.rosterValue, 'ecrews', 'confirmado');
+        ldApplyField(R.formId, R.rosterValue, R.existingOrigin || 'ecrews', 'confirmado');
       } else if(R.adsbValue && R.adsbSource!=='scheduled'){
         ldApplyField(R.formId, R.adsbValue, 'adsb', 'estimado');
       }
