@@ -2285,8 +2285,10 @@ html.day .ldm-adsb-strip-icon { color:#0369A1 !important; }
 .ldm-tag-src.show{ display:inline-flex; }
 .ldm-tag-src.src-ocr  { background:rgba(52,211,153,.1);  color:#34d399; border:1px solid rgba(52,211,153,.28); }
 .ldm-tag-src.src-adsb { background:rgba(56,189,248,.12); color:#7dd3fc; border:1px solid rgba(56,189,248,.32); }
+.ldm-tag-src.src-prog { background:rgba(245,158,11,.12); color:#fbbf24; border:1px solid rgba(245,158,11,.32); }
 html.day .ldm-tag-src.src-ocr  { background:rgba(5,150,105,.1) !important;  color:#065F46 !important; border-color:rgba(5,150,105,.25) !important; }
 html.day .ldm-tag-src.src-adsb { background:rgba(2,132,199,.1) !important;  color:#0369A1 !important; border-color:rgba(2,132,199,.28) !important; }
+html.day .ldm-tag-src.src-prog { background:rgba(217,119,6,.1) !important;  color:#B45309 !important; border-color:rgba(217,119,6,.28) !important; }
 .ldm-sched-row .ldm-lbl { color:rgba(245,158,11,.85) !important; }
 .ldm-sched-row .ldm-inp { border-color:rgba(245,158,11,.25) !important; color:rgba(245,158,11,.9) !important; }
 .ldm-sched-row .ldm-inp:focus { border-color:rgba(245,158,11,.55) !important; box-shadow:0 0 0 3px rgba(245,158,11,.08) !important; }
@@ -14046,11 +14048,11 @@ async function ldFetchAdsb(){
     // Rellenar campos
     if(body.atd){
       var atdEl = document.getElementById('ld_atd');
-      if(atdEl){ atdEl.value = body.atd; atdEl.classList.add('af'); ldSetSrcTag('atd','ADSB'); }
+      if(atdEl){ atdEl.value = body.atd; atdEl.classList.add('af'); ldSetSrcTag('atd', body.atd_real===false ? 'PROG' : 'ADSB'); }
     }
     if(body.ata){
       var ataEl = document.getElementById('ld_ata');
-      if(ataEl){ ataEl.value = body.ata; ataEl.classList.add('af'); ldSetSrcTag('ata','ADSB'); }
+      if(ataEl){ ataEl.value = body.ata; ataEl.classList.add('af'); ldSetSrcTag('ata', body.ata_real===false ? 'PROG' : 'ADSB'); }
     }
     if(body.takeoff){
       var toEl = document.getElementById('ld_std');
@@ -14337,15 +14339,16 @@ var LD_SRC_TAGS = {
 function ldSetSrcTag(field, origin){
   var id = LD_SRC_TAGS[field]; if(!id) return;
   var el = document.getElementById(id); if(!el) return;
-  el.classList.remove('src-ocr','src-adsb','show');
+  el.classList.remove('src-ocr','src-adsb','src-prog','show');
   if(origin==='OCR'){  el.classList.add('show','src-ocr');  el.textContent='OCR'; }
   else if(origin==='ADSB'){ el.classList.add('show','src-adsb'); el.textContent='ADS-B'; }
+  else if(origin==='PROG'){ el.classList.add('show','src-prog'); el.textContent='PROG'; }
 }
 // Limpia todas las mini-tags de origen
 function ldClearSrcTags(){
   Object.keys(LD_SRC_TAGS).forEach(function(f){
     var el=document.getElementById(LD_SRC_TAGS[f]);
-    if(el){ el.classList.remove('show','src-ocr','src-adsb'); el.textContent=''; }
+    if(el){ el.classList.remove('show','src-ocr','src-adsb','src-prog'); el.textContent=''; }
   });
 }
 
