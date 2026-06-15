@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.04">
+  <meta name="version" content="Beta.05">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.04","builtAt":"2026-06-15T16:58:24Z","commit":"4788303","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.05","builtAt":"2026-06-15T17:30:22Z","commit":"59535d4","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -2298,6 +2298,48 @@ html.day .ldm-tag-src.src-prog { background:rgba(217,119,6,.1) !important;  colo
   background:rgba(245,158,11,.15); color:#F59E0B;
   border:1px solid rgba(245,158,11,.28); font-family:'Space Mono',monospace; font-weight:700;
 }
+/* eCrews (roster real) y ADS-B confirmado por el piloto */
+.ldm-tag-src.src-ecrews { background:rgba(124,58,237,.14); color:#a78bfa; border:1px solid rgba(124,58,237,.34); }
+.ldm-tag-src.src-adsbok { background:rgba(56,189,248,.18); color:#7dd3fc; border:1px solid rgba(56,189,248,.5); }
+html.day .ldm-tag-src.src-ecrews { background:rgba(91,33,182,.1) !important; color:#5B21B6 !important; border-color:rgba(91,33,182,.28) !important; }
+html.day .ldm-tag-src.src-adsbok { background:rgba(2,132,199,.14) !important; color:#0369A1 !important; border-color:rgba(2,132,199,.45) !important; }
+
+/* ════════ POPUP DISCREPANCIA ADS-B vs ROSTER ════════ */
+.dsc-ov{ position:fixed; inset:0; background:rgba(5,8,16,.72); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); z-index:6000; display:none; align-items:flex-end; justify-content:center; }
+.dsc-ov.open{ display:flex; }
+.dsc-sheet{ width:100%; max-width:560px; background:#0B1020; border:1px solid rgba(124,58,237,.35); border-bottom:none; border-radius:20px 20px 0 0; box-shadow:0 -12px 40px rgba(0,0,0,.5); max-height:88vh; display:flex; flex-direction:column; transform:translateY(100%); transition:transform .26s cubic-bezier(.22,1,.36,1); padding-bottom:calc(env(safe-area-inset-bottom) + 72px); }
+.dsc-ov.open .dsc-sheet{ transform:translateY(0); }
+.dsc-head{ padding:18px 20px 12px; border-bottom:1px solid rgba(124,58,237,.18); }
+.dsc-title{ font-family:'Space Grotesk',sans-serif; font-size:15px; font-weight:700; color:#F8FAFC; display:flex; align-items:center; gap:8px; }
+.dsc-title .dsc-dot{ width:8px; height:8px; border-radius:50%; background:#F59E0B; box-shadow:0 0 8px #F59E0B; flex-shrink:0; }
+.dsc-sub{ font-size:11px; color:rgba(248,250,252,.55); margin-top:4px; font-family:'Space Mono',monospace; }
+.dsc-body{ padding:8px 14px 4px; overflow-y:auto; }
+.dsc-row{ border:1px solid rgba(124,58,237,.16); border-radius:14px; padding:11px 12px; margin:9px 2px; background:rgba(49,46,129,.1); }
+.dsc-row.discrepant{ border-color:rgba(245,158,11,.4); background:rgba(245,158,11,.05); }
+.dsc-rowtop{ display:flex; align-items:center; justify-content:space-between; margin-bottom:9px; }
+.dsc-field{ font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:700; color:#F8FAFC; letter-spacing:.5px; }
+.dsc-delta{ font-family:'Space Mono',monospace; font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; background:rgba(148,163,184,.12); color:rgba(248,250,252,.6); }
+.dsc-delta.warn{ background:rgba(245,158,11,.16); color:#F59E0B; border:1px solid rgba(245,158,11,.35); }
+.dsc-opts{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.dsc-opt{ border:1.5px solid rgba(148,163,184,.2); border-radius:11px; padding:9px 10px; cursor:pointer; transition:all .15s; position:relative; user-select:none; }
+.dsc-opt.sel{ border-color:#22D3EE; background:rgba(34,211,238,.08); }
+.dsc-opt.dis{ opacity:.4; cursor:not-allowed; }
+.dsc-opt-lbl{ font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:rgba(248,250,252,.5); display:flex; align-items:center; gap:5px; margin-bottom:4px; }
+.dsc-opt-val{ font-family:'Space Mono',monospace; font-size:17px; font-weight:700; color:#F8FAFC; }
+.dsc-opt-val.empty{ color:rgba(248,250,252,.25); }
+.dsc-badge{ font-size:8px; font-weight:700; padding:1px 5px; border-radius:4px; letter-spacing:.3px; }
+.dsc-b-ae{ background:rgba(124,58,237,.18); color:#a78bfa; }
+.dsc-b-src{ background:rgba(56,189,248,.14); color:#7dd3fc; }
+.dsc-b-hi{ background:rgba(52,211,153,.14); color:#34d399; }
+.dsc-b-mid{ background:rgba(245,158,11,.14); color:#fbbf24; }
+.dsc-b-lo{ background:rgba(148,163,184,.14); color:rgba(248,250,252,.55); }
+.dsc-foot{ padding:12px 16px 14px; display:flex; gap:10px; border-top:1px solid rgba(124,58,237,.18); }
+.dsc-btn{ flex:1; padding:13px; border-radius:13px; font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:700; cursor:pointer; border:none; }
+.dsc-btn-sec{ background:rgba(148,163,184,.12); color:#F8FAFC; border:1px solid rgba(148,163,184,.25); }
+.dsc-btn-pri{ background:linear-gradient(135deg,#7C3AED,#22D3EE); color:#fff; }
+html.day .dsc-sheet{ background:#F8FAFC; border-color:rgba(124,58,237,.25); }
+html.day .dsc-title, html.day .dsc-field, html.day .dsc-opt-val{ color:#0B1020; }
+html.day .dsc-row{ background:rgba(124,58,237,.04); }
 
 /* Inputs */
 .ldm-inp {
@@ -14045,23 +14087,25 @@ async function ldFetchAdsb(){
       if(body.error === 'plan_limit'){ showPlanToast('adsb'); return; }
       showToast(body.error || 'Error ADS-B (' + r.status + ')','error'); return;
     }
-    // Rellenar campos
-    if(body.atd){
-      var atdEl = document.getElementById('ld_atd');
-      if(atdEl){ atdEl.value = body.atd; atdEl.classList.add('af'); ldSetSrcTag('atd', body.atd_real===false ? 'PROG' : 'ADSB'); }
-    }
-    if(body.ata){
-      var ataEl = document.getElementById('ld_ata');
-      if(ataEl){ ataEl.value = body.ata; ataEl.classList.add('af'); ldSetSrcTag('ata', body.ata_real===false ? 'PROG' : 'ADSB'); }
-    }
-    if(body.takeoff){
-      var toEl = document.getElementById('ld_std');
-      if(toEl){ toEl.value = body.takeoff; toEl.classList.add('af'); ldSetSrcTag('std','ADSB'); }
-    }
-    if(body.landing){
-      var ldEl = document.getElementById('ld_sta');
-      if(ldEl){ ldEl.value = body.landing; ldEl.classList.add('af'); ldSetSrcTag('sta','ADSB'); }
-    }
+    // ── Normalizar ADS-B y comparar contra el roster (eCrews manda) ──
+    var rosterEntry = ldFindRosterEntry();
+    var rows = ldAdsbCompare(body, rosterEntry);
+
+    // Aplicar en silencio los campos no conflictivos:
+    //  · si el roster tiene dato real (eCrews) → eCrews prevalece (confirmado)
+    //  · si no hay dato de roster → ADS-B como estimado (nunca un 'scheduled')
+    // Los campos discrepantes se reservan para que decida el piloto en el popup.
+    var discrepant = [];
+    rows.forEach(function(R){
+      if(R.isDiscrepant){ discrepant.push(R); return; }
+      if(R.hasRosterReal){
+        ldApplyField(R.formId, R.rosterValue, 'ecrews', 'confirmado');
+      } else if(R.adsbValue && R.adsbSource!=='scheduled'){
+        ldApplyField(R.formId, R.adsbValue, 'adsb', 'estimado');
+      }
+    });
+
+    // Campos no-tiempo (reg, actype, callsign, dep, arr)
     if(body.reg){
       var regEl = document.getElementById('ld_reg');
       if(regEl){ regEl.value = body.reg.toUpperCase(); regEl.classList.add('af'); ldRegInput(regEl); ldSetSrcTag('reg','ADSB'); }
@@ -14088,20 +14132,216 @@ async function ldFetchAdsb(){
     var stripEl = document.getElementById('ld-adsb-strip');
     var stripTxt = document.getElementById('ld-adsb-strip-text');
     if(stripEl && stripTxt){
+      var _o = ldAdsbField(body,'out'), _i = ldAdsbField(body,'in');
       var info = 'ADS-B';
-      if(body.atd || body.ata) info += ' · OUT '+(body.atd||'--')+' IN '+(body.ata||'--');
+      if(_o.value || _i.value) info += ' · OUT '+(_o.value||'--')+' IN '+(_i.value||'--');
       if(body.actype) info += ' · '+body.actype;
       if(body.reg) info += ' · '+body.reg;
       stripTxt.textContent = info;
       stripEl.style.display = 'flex';
     }
-    showToast('✈ Datos ADS-B importados','success');
+    // Si hay discrepancia roster vs ADS-B → popup; si no, aplicado en silencio
+    if(discrepant.length){
+      ldOpenDiscrepancy(rows);
+    } else {
+      showToast('✈ Datos ADS-B importados','success');
+    }
   } catch(e){
     console.error('[ADS-B]',e);
     showToast('Error consultando ADS-B','error');
   } finally{
     if(btn){ btn.disabled=false; btn.textContent='✈ ADS-B'; }
   }
+}
+// ═══════════════════════════════════════════════════════════════════
+//  COMPARACIÓN ADS-B vs ROSTER + POPUP DE OVERRIDE
+// ═══════════════════════════════════════════════════════════════════
+var DISCREPANCY_THRESHOLD_MIN = 3;   // min de diferencia para marcar discrepancia
+var _ldDscRows = null;
+
+// Normaliza un campo de tiempo de la respuesta ADS-B → { value, source }.
+// Soporta formato nuevo ({value,source}) y plano antiguo (atd/ata/... + *_real).
+function ldAdsbField(body, key){
+  if(!body) return { value:null, source:null };
+  var o = body[key];
+  if(o && typeof o === 'object' && ('value' in o)) return { value:o.value||null, source:o.source||null };
+  var flatMap = { out:'atd', in:'ata', off:'takeoff', on:'landing' };
+  var flat = body[flatMap[key]] || null;
+  if(!flat) return { value:null, source:null };
+  var realFlag = key==='out' ? body.atd_real : (key==='in' ? body.ata_real : true);
+  var src = realFlag===false ? 'scheduled' : ((key==='off'||key==='on') ? 'runway' : 'actual');
+  return { value:flat, source:src };
+}
+
+function _ldT2m(t){ if(!t) return null; var p=String(t).split(':'); return (+p[0]||0)*60+(+p[1]||0); }
+// diferencia mínima en minutos con wrap de medianoche
+function _ldWrapDiff(a,b){ if(a==null||b==null) return null; var d=Math.abs(a-b); return Math.min(d, 1440-d); }
+
+// Localiza la entrada de roster vinculada al formulario abierto.
+function ldFindRosterEntry(){
+  try{
+    if(typeof rstLoad === 'function') rstLoad();
+    var ents = (typeof RST!=='undefined' && RST.entries) ? RST.entries : [];
+    var rid = (document.getElementById('ld_roster_entry_id')||{}).value || '';
+    if(rid){ var m = ents.find(function(e){ return e.id===rid; }); if(m) return m; }
+    var fl = ((document.getElementById('ld_flight')||{}).value||'').replace(/\s/g,'').toUpperCase().replace('VY','');
+    var dt = (document.getElementById('ld_date')||{}).value||'';
+    if(!fl || !dt) return null;
+    return ents.find(function(e){
+      return e.type==='flight' && e.date===dt &&
+        (e.flightNum||'').replace(/\s/g,'').toUpperCase().replace('VY','')===fl;
+    }) || null;
+  }catch(e){ return null; }
+}
+
+// Compara ADS-B (per-field) contra una entrada de roster eCrews.
+function ldAdsbCompare(body, rosterEntry){
+  var re = rosterEntry || {};
+  // Tiempos reales del roster (prefijo A/E → datalink/manual, ambos reales).
+  // El roster eCrews solo expone los calzos OUT/IN por leg.
+  var rosterReal = { out: re.std_actual||null, in: re.sta_actual||null, off:null, on:null };
+  var FIELDS = [
+    { field:'out', formId:'ld_atd', label:'OUT · Calzo fuera', calzo:true  },
+    { field:'off', formId:'ld_std', label:'OFF · Despegue',    calzo:false },
+    { field:'on',  formId:'ld_sta', label:'ON · Aterrizaje',   calzo:false },
+    { field:'in',  formId:'ld_ata', label:'IN · Calzo dentro', calzo:true  }
+  ];
+  return FIELDS.map(function(F){
+    var a  = ldAdsbField(body, F.field);
+    var rv = rosterReal[F.field];
+    var delta = null, disc = false;
+    if(rv && a.value){
+      delta = _ldWrapDiff(_ldT2m(rv), _ldT2m(a.value));
+      disc  = delta > DISCREPANCY_THRESHOLD_MIN;
+    }
+    // confidence: high (OFF/ON con actual/runway) | medium (revised/predicted)
+    //             low (calzos OUT/IN o source scheduled)
+    var conf;
+    if(a.source==='scheduled' || F.calzo) conf='low';
+    else if((F.field==='off'||F.field==='on') && (a.source==='actual'||a.source==='runway')) conf='high';
+    else if(a.source==='revised' || a.source==='predicted') conf='medium';
+    else conf='medium';
+    return {
+      field:F.field, formId:F.formId, label:F.label, calzo:F.calzo,
+      rosterValue:rv, rosterTag:'A',
+      adsbValue:a.value, adsbSource:a.source,
+      deltaMin:delta, isDiscrepant:disc, confidence:conf, hasRosterReal:!!rv
+    };
+  });
+}
+
+// Aplica un valor a un campo del formulario + tag + registro de procedencia.
+// origin: 'ecrews'|'adsb'|'manual'  ·  estado: 'confirmado'|'estimado'
+function ldApplyField(formId, value, origin, estado){
+  var el = document.getElementById(formId); if(!el || !value) return;
+  el.value = value; el.classList.add('af');
+  var tagField = ({ ld_atd:'atd', ld_std:'std', ld_sta:'sta', ld_ata:'ata' })[formId];
+  if(tagField){
+    var tag = origin==='ecrews' ? 'ECREWS'
+            : origin==='adsb'   ? (estado==='confirmado' ? 'ADSBOK' : 'ADSB')
+            : null;
+    if(tag) ldSetSrcTag(tagField, tag);
+  }
+  window._ldFieldSrc = window._ldFieldSrc || {};
+  window._ldFieldSrc[formId] = { origin:origin, estado:estado };
+}
+
+// ── Popup ───────────────────────────────────────────────────────
+function ldOpenDiscrepancy(rows){
+  _ldDscRows = rows;
+  var ov = document.getElementById('ld-dsc-ov');
+  if(!ov){
+    ov = document.createElement('div');
+    ov.id = 'ld-dsc-ov'; ov.className = 'dsc-ov';
+    ov.innerHTML =
+      '<div class="dsc-sheet" onclick="event.stopPropagation()">'
+      + '<div class="dsc-head"><div class="dsc-title"><span class="dsc-dot"></span>'
+      + '<span>Discrepancia de tiempos</span></div>'
+      + '<div class="dsc-sub" id="ld-dsc-sub"></div></div>'
+      + '<div class="dsc-body" id="ld-dsc-body"></div>'
+      + '<div class="dsc-foot">'
+      + '<button class="dsc-btn dsc-btn-sec" onclick="ldCloseDiscrepancy(true)">Mantener roster</button>'
+      + '<button class="dsc-btn dsc-btn-pri" onclick="ldApplyDiscrepancy()">Aplicar selección</button>'
+      + '</div></div>';
+    ov.onclick = function(){ ldCloseDiscrepancy(false); };
+    document.body.appendChild(ov);
+  }
+  var fl  = ((document.getElementById('ld_flight')||{}).value||'').toUpperCase();
+  var dep = ((document.getElementById('ld_dep')||{}).value||'').toUpperCase();
+  var arr = ((document.getElementById('ld_arr')||{}).value||'').toUpperCase();
+  var dt  = (document.getElementById('ld_date')||{}).value||'';
+  document.getElementById('ld-dsc-sub').textContent = fl+' · '+dep+'–'+arr+' · '+dt;
+
+  var CONF = { high:['dsc-b-hi','alta'], medium:['dsc-b-mid','media'], low:['dsc-b-lo','baja'] };
+  var SRCLBL = { actual:'actual', revised:'revisado', predicted:'previsto', scheduled:'programado', runway:'pista' };
+  var html = '';
+  rows.forEach(function(R, i){
+    if(!R.rosterValue && !R.adsbValue) return;
+    var adsbSched = R.adsbSource === 'scheduled';
+    var adsbOk = R.adsbValue && !adsbSched;
+    // Preselección: si hay roster → roster (los calzos nunca preseleccionan
+    // ADS-B mientras exista roster); si no hay roster → ADS-B si es válido.
+    var defSel = R.rosterValue ? 'roster' : (adsbOk ? 'adsb' : 'roster');
+    R._sel = defSel;
+    var dlt  = (R.deltaMin!=null) ? ('Δ '+R.deltaMin+'m') : '—';
+    var dCls = R.isDiscrepant ? 'dsc-delta warn' : 'dsc-delta';
+    var conf = CONF[R.confidence] || CONF.low;
+    html += '<div class="dsc-row'+(R.isDiscrepant?' discrepant':'')+'">'
+      + '<div class="dsc-rowtop"><span class="dsc-field">'+R.label+'</span><span class="'+dCls+'">'+dlt+'</span></div>'
+      + '<div class="dsc-opts">'
+      + '<div class="dsc-opt'+(defSel==='roster'?' sel':'')+(R.rosterValue?'':' dis')+'" data-i="'+i+'" data-pick="roster" onclick="ldDscPick(this)">'
+      +   '<div class="dsc-opt-lbl">Roster'+(R.rosterValue?' <span class="dsc-badge dsc-b-ae">'+R.rosterTag+'</span>':'')+'</div>'
+      +   '<div class="dsc-opt-val'+(R.rosterValue?'':' empty')+'">'+(R.rosterValue||'—')+'</div></div>'
+      + '<div class="dsc-opt'+(defSel==='adsb'?' sel':'')+(adsbOk?'':' dis')+'" data-i="'+i+'" data-pick="adsb"'
+      +   (adsbSched?' title="valor programado, no real"':'')+' onclick="ldDscPick(this)">'
+      +   '<div class="dsc-opt-lbl">ADS-B'
+      +     (R.adsbSource?' <span class="dsc-badge dsc-b-src">'+(SRCLBL[R.adsbSource]||R.adsbSource)+'</span>':'')
+      +     ' <span class="dsc-badge '+conf[0]+'">'+conf[1]+'</span></div>'
+      +   '<div class="dsc-opt-val'+(R.adsbValue?'':' empty')+'">'+(R.adsbValue||'—')+'</div></div>'
+      + '</div></div>';
+  });
+  document.getElementById('ld-dsc-body').innerHTML = html;
+  ov.classList.add('open');
+}
+
+function ldDscPick(el){
+  if(el.classList.contains('dis')) return;
+  var i = +el.getAttribute('data-i'), pick = el.getAttribute('data-pick');
+  var row = el.parentElement;
+  row.querySelectorAll('.dsc-opt').forEach(function(o){ o.classList.remove('sel'); });
+  el.classList.add('sel');
+  if(_ldDscRows && _ldDscRows[i]) _ldDscRows[i]._sel = pick;
+}
+
+function ldCloseDiscrepancy(keepRoster){
+  var ov = document.getElementById('ld-dsc-ov'); if(ov) ov.classList.remove('open');
+  if(keepRoster && _ldDscRows){
+    _ldDscRows.forEach(function(R){
+      if(R.rosterValue) ldApplyField(R.formId, R.rosterValue, 'ecrews', 'confirmado');
+    });
+    if(typeof ldAutoBlock === 'function') ldAutoBlock();
+    showToast('Roster conservado','success');
+  }
+  _ldDscRows = null;
+}
+
+function ldApplyDiscrepancy(){
+  if(_ldDscRows){
+    _ldDscRows.forEach(function(R){
+      var pick = R._sel || (R.rosterValue ? 'roster' : 'adsb');
+      if(pick==='adsb' && R.adsbValue && R.adsbSource!=='scheduled'){
+        ldApplyField(R.formId, R.adsbValue, 'adsb', 'confirmado');   // override manual → confirmado
+      } else if(R.rosterValue){
+        ldApplyField(R.formId, R.rosterValue, 'ecrews', 'confirmado');
+      } else if(R.adsbValue && R.adsbSource!=='scheduled'){
+        ldApplyField(R.formId, R.adsbValue, 'adsb', 'estimado');
+      }
+    });
+    if(typeof ldAutoBlock === 'function') ldAutoBlock();
+  }
+  var ov = document.getElementById('ld-dsc-ov'); if(ov) ov.classList.remove('open');
+  _ldDscRows = null;
+  showToast('✓ Selección aplicada','success');
 }
 // ─────────────────────────────────────────────────────────────────
 var ldEntries = [];
@@ -14226,6 +14466,7 @@ function ldAdsbStripClear(){
 function ldResetForm(){
   ldAdsbStripClear();
   window._ldAdsbImported = false;
+  window._ldFieldSrc = {};
   ldClearSrcTags();
   ['ld_date','ld_flight','ld_dep','ld_arr','ld_reg','ld_fl','ld_std','ld_atd','ld_sta','ld_ata','ld_block','ld_flight_time','ld_night_inp','ld_notes','ld_cm1','ld_cm2','ld_roster_entry_id','ld_sched_out','ld_sched_in','ld_callsign','ld_pob'].forEach(function(id){
     var el=document.getElementById(id); if(el){el.value='';el.classList.remove('af');}
@@ -14339,16 +14580,18 @@ var LD_SRC_TAGS = {
 function ldSetSrcTag(field, origin){
   var id = LD_SRC_TAGS[field]; if(!id) return;
   var el = document.getElementById(id); if(!el) return;
-  el.classList.remove('src-ocr','src-adsb','src-prog','show');
+  el.classList.remove('src-ocr','src-adsb','src-prog','src-ecrews','src-adsbok','show');
   if(origin==='OCR'){  el.classList.add('show','src-ocr');  el.textContent='OCR'; }
-  else if(origin==='ADSB'){ el.classList.add('show','src-adsb'); el.textContent='ADS-B'; }
+  else if(origin==='ADSB'){ el.classList.add('show','src-adsb'); el.textContent='ADS-B'; }      // estimado
+  else if(origin==='ADSBOK'){ el.classList.add('show','src-adsbok'); el.textContent='ADS-B ✓'; } // confirmado por piloto
+  else if(origin==='ECREWS'){ el.classList.add('show','src-ecrews'); el.textContent='eCrews'; }
   else if(origin==='PROG'){ el.classList.add('show','src-prog'); el.textContent='PROG'; }
 }
 // Limpia todas las mini-tags de origen
 function ldClearSrcTags(){
   Object.keys(LD_SRC_TAGS).forEach(function(f){
     var el=document.getElementById(LD_SRC_TAGS[f]);
-    if(el){ el.classList.remove('show','src-ocr','src-adsb','src-prog'); el.textContent=''; }
+    if(el){ el.classList.remove('show','src-ocr','src-adsb','src-prog','src-ecrews','src-adsbok'); el.textContent=''; }
   });
 }
 
@@ -14988,6 +15231,17 @@ function ldSave(){
     ldgDay:n('ld_ldgd'),ldgNight:n('ld_ldgn'),night:g('ld_night_inp'),
     cm1:g('ld_cm1'),cm2:g('ld_cm2'),
     notes:g('ld_notes'),source:(ldImgB64?'MCDU-OCR':(window._ldAdsbImported?'ADSB':'MANUAL')),
+    // ── Procedencia por campo de tiempo + estado (modelo Estimado/Confirmado) ──
+    source_origin:(function(){
+      var fs=window._ldFieldSrc||{};
+      var pick=function(id){ return (fs[id]||{}).origin || (g(id)?'manual':null); };
+      return { out:pick('ld_atd'), off:pick('ld_std'), on:pick('ld_sta'), in:pick('ld_ata') };
+    })(),
+    estado:(function(){
+      var fs=window._ldFieldSrc||{};
+      var anyEst=['ld_atd','ld_std','ld_sta','ld_ata'].some(function(id){ return (fs[id]||{}).estado==='estimado'; });
+      return anyEst ? 'estimado' : 'confirmado';
+    })(),
     // ── Campos para nómina: ATD=AOBT, ATA=AIBT (ya recogidos arriba, pero los mapeamos explícitamente) ──
     aobt:g('ld_atd')||null,
     aibt:g('ld_ata')||null,
@@ -15238,6 +15492,7 @@ function ldRender(){
         var hasNoc=e.night&&e.night!=='00:00'&&e.night!=='0:00'&&e.night!=='';
         var hasFt=e.flightTime&&e.flightTime!=='00:00'&&e.flightTime!=='';
         var src=e.source==='MCDU-OCR'?'📷 ':(e.source==='ADSB'?'<span style="display:inline-block;font-size:8px;font-weight:700;font-family:\'Space Mono\',monospace;letter-spacing:.3px;padding:1px 5px;border-radius:4px;background:rgba(56,189,248,.14);color:#7dd3fc;border:1px solid rgba(56,189,248,.32);margin-right:5px;vertical-align:middle">ADS-B</span>':'');
+        if(e.estado==='estimado') src+='<span style="display:inline-block;font-size:8px;font-weight:700;font-family:\'Space Mono\',monospace;letter-spacing:.3px;padding:1px 5px;border-radius:4px;background:rgba(245,158,11,.14);color:#F59E0B;border:1px solid rgba(245,158,11,.32);margin-right:5px;vertical-align:middle">EST</span>';
         var roleClass=e.role==='CPT'?'ld-fpill-cpt':'ld-fpill-fo';
         var funcClass=e.func==='PM'?'ld-fpill-pm':'ld-fpill-pf';
         var acLabel=(e.acType||'')+(e.reg?' · '+e.reg:'');
@@ -15663,6 +15918,23 @@ function ldEditFlight(id){
   g2('ld_callsign',e.callsign); g2('ld_pob',(e.pob!=null?e.pob:''));
   // Preservar fuente al editar (para que se mantenga el badge ADS-B)
   if(e.source==='ADSB') window._ldAdsbImported = true;
+  // Restaurar procedencia por campo (source_origin + estado) y sus tags
+  window._ldFieldSrc = {};
+  if(e.source_origin){
+    var _so=e.source_origin, _est=e.estado, _fm={out:'ld_atd',off:'ld_std',on:'ld_sta',in:'ld_ata'};
+    Object.keys(_fm).forEach(function(k){
+      var org=_so[k]; if(!org) return;
+      var fid=_fm[k];
+      // estado por campo: si el global es 'estimado' y el campo es ADS-B → estimado
+      var st=(org==='adsb' && _est==='estimado') ? 'estimado' : 'confirmado';
+      window._ldFieldSrc[fid]={origin:org,estado:st};
+      var tagField=({ld_atd:'atd',ld_std:'std',ld_sta:'sta',ld_ata:'ata'})[fid];
+      if(tagField){
+        var tag=org==='ecrews'?'ECREWS':(org==='adsb'?(st==='confirmado'?'ADSBOK':'ADSB'):null);
+        if(tag) ldSetSrcTag(tagField,tag);
+      }
+    });
+  }
   var selMap={ld_actype:'acType',ld_engine:'engine',ld_role:'role',ld_func:'func',ld_rules:'rules',ld_optype:'opType',ld_cond:'conditions'};
   Object.keys(selMap).forEach(function(sid){
     var sel=document.getElementById(sid);
