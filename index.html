@@ -12,7 +12,7 @@
 <title>PilotOS</title>
   <meta name="version" content="Beta.12">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.12","builtAt":"2026-06-16T13:53:09Z","commit":"6086bce","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.12","builtAt":"2026-06-16T13:58:51Z","commit":"4c5a0d3","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -8835,6 +8835,31 @@ html.day #scr-oes,html.day #scr-oes .scroll-body{background:#06091a!important;co
 html.day #scr-oes .chat-box{background:#0b1224!important}
 html.day #scr-oes .ot-card,html.day #scr-oes .ot-stat-mini,html.day #scr-oes .ot-topic-card{background:#0d1530!important}
 html.day #scr-oes .ot-progress{background:#06091a!important}
+/* Bottom 3-panel layout */
+.ot-hub-bottom{display:grid;grid-template-columns:1fr;gap:12px;padding:14px 14px 24px;border-top:1px solid rgba(255,255,255,.06)}
+@media(min-width:580px){.ot-hub-bottom{grid-template-columns:5fr 3fr 3fr}}
+.ot-hub-section-title{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(232,238,255,.4);margin-bottom:10px}
+/* Bigger explore cards */
+.ot-ex-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+@media(min-width:400px){.ot-ex-cards{grid-template-columns:repeat(5,1fr)}}
+.ot-ex-card{background:#0d1530;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px 10px 12px;display:flex;flex-direction:column;align-items:flex-start;gap:7px;cursor:pointer;transition:all .18s}
+.ot-ex-card:hover{border-color:rgba(255,255,255,.2);transform:translateY(-1px)}
+.ot-ex-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ot-ex-name{font-size:11px;font-weight:700;color:#e8eeff;letter-spacing:.03em;text-transform:uppercase;line-height:1.2}
+.ot-ex-count{font-size:9px;color:rgba(232,238,255,.32);line-height:1.3}
+/* Stump Me */
+.ot-stump{background:#0d1530;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.ot-stump-hdr{display:flex;align-items:center;gap:7px}
+.ot-stump-label{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#fbbf24}
+.ot-stump-desc{font-size:11px;color:rgba(232,238,255,.4);line-height:1.5}
+.ot-stump-diff{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#e8eeff;border-radius:8px;padding:7px 10px;font-size:11px;width:100%;cursor:pointer;font-family:inherit}
+.ot-stump-btn{background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#0a0a00;font-weight:900;font-size:12px;letter-spacing:.09em;text-transform:uppercase;border:none;border-radius:10px;padding:13px;width:100%;cursor:pointer;transition:opacity .18s}
+.ot-stump-btn:hover{opacity:.88}
+/* Knowledge Graph */
+.ot-kgraph{background:#0d1530;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.ot-kgraph-inner{flex:1;display:flex;align-items:center;justify-content:center}
+.ot-kgraph-btn{background:transparent;border:1px solid rgba(255,255,255,.12);color:rgba(232,238,255,.4);border-radius:8px;padding:8px;font-size:10px;font-weight:700;letter-spacing:.06em;cursor:pointer;text-transform:uppercase;width:100%;font-family:inherit}
+html.day #scr-oes .ot-ex-card,html.day #scr-oes .ot-stump,html.day #scr-oes .ot-kgraph{background:#0d1530!important}
 </style>
 <div class="screen" id="scr-oes">
   <div class="inner-header">
@@ -8940,49 +8965,109 @@ html.day #scr-oes .ot-progress{background:#06091a!important}
           <div class="ot-prog-info"><span id="oesp2"></span><span>Progress</span></div>
           <div class="ot-pbar-bg"><div class="ot-pbar-fill" id="oes-bar" style="width:0%"></div></div>
         </div>
-        <div>
-          <div class="ot-panel-title">Mode</div>
-          <div class="ot-mode-btns">
-            <button class="mode-b on" id="mb-mc" onclick="setOesMode('mc')">⊙ Multiple Choice</button>
-            <button class="mode-b" id="mb-tv" onclick="setOesMode('tv')">✎ Texto / Voz</button>
-          </div>
-          <div class="mhint" id="mhint">4 opciones — ideal para repasar valores y límites del FCOM.</div>
-        </div>
-        <div>
-          <div class="ot-panel-title">Category</div>
-          <div class="ot-chips-wrap chip-row" id="cats">
-            <button class="chip on" data-cat="0">Random</button>
-            <button class="chip" data-cat="1">Air Sys</button>
-            <button class="chip" data-cat="2">Hydraulics</button>
-            <button class="chip" data-cat="3">Fuel</button>
-            <button class="chip" data-cat="4">Electrical</button>
-            <button class="chip" data-cat="5">FBW</button>
-            <button class="chip" data-cat="6">Autoflight</button>
-            <button class="chip" data-cat="7">Fire</button>
-            <button class="chip" data-cat="8">Gear</button>
-            <button class="chip" data-cat="9">Emergencias</button>
-            <button class="chip" data-cat="10">Limitaciones</button>
-            <button class="chip" data-cat="11">FCTM</button>
-          </div>
+        <!-- JS hooks hidden — needed for setOesMode() and category selection -->
+        <button class="mode-b on" id="mb-mc" onclick="setOesMode('mc')" style="display:none"></button>
+        <button class="mode-b" id="mb-tv" onclick="setOesMode('tv')" style="display:none"></button>
+        <div id="mhint" style="display:none">4 opciones</div>
+        <div id="cats" style="display:none">
+          <button class="chip on" data-cat="0">Random</button>
+          <button class="chip" data-cat="1">Air Sys</button>
+          <button class="chip" data-cat="2">Hydraulics</button>
+          <button class="chip" data-cat="3">Fuel</button>
+          <button class="chip" data-cat="4">Electrical</button>
+          <button class="chip" data-cat="5">FBW</button>
+          <button class="chip" data-cat="6">Autoflight</button>
+          <button class="chip" data-cat="7">Fire</button>
+          <button class="chip" data-cat="8">Gear</button>
+          <button class="chip" data-cat="9">Emergencias</button>
+          <button class="chip" data-cat="10">Limitaciones</button>
+          <button class="chip" data-cat="11">FCTM</button>
         </div>
       </div>
     </div>
-    <!-- Explore by Topic -->
-    <div class="ot-explore">
-      <div class="ot-explore-title">Explore by Topic</div>
-      <div class="ot-topics">
-        <div class="ot-topic-card" onclick="document.querySelector('[data-cat=\'1\']')?.click()"><div class="ot-topic-icon" style="background:rgba(0,200,224,.15)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#00c8e0" stroke-width="2" stroke-linecap="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></div><div class="ot-topic-name">Air Sys</div></div>
-        <div class="ot-topic-card" onclick="document.querySelector('[data-cat=\'2\']')?.click()"><div class="ot-topic-icon" style="background:rgba(41,121,255,.15)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#5c9eff" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg></div><div class="ot-topic-name">Hydraulics</div></div>
-        <div class="ot-topic-card" onclick="document.querySelector('[data-cat=\'3\']')?.click()"><div class="ot-topic-icon" style="background:rgba(255,171,64,.15)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#ffab40" stroke-width="2" stroke-linecap="round"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="2"/><line x1="14" y1="18" x2="14" y2="7"/><line x1="18" y1="18" x2="18" y2="14"/></svg></div><div class="ot-topic-name">Fuel</div></div>
-        <div class="ot-topic-card" onclick="document.querySelector('[data-cat=\'4\']')?.click()"><div class="ot-topic-icon" style="background:rgba(255,213,79,.15)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#ffd54f" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div><div class="ot-topic-name">Electrical</div></div>
-        <div class="ot-topic-card" onclick="document.querySelector('[data-cat=\'5\']')?.click()"><div class="ot-topic-icon" style="background:rgba(0,200,224,.12)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#00c8e0" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div><div class="ot-topic-name">FBW</div></div>
-        <div class="ot-topic-card" onclick="document.querySelector('[data-cat=\'6\']')?.click()"><div class="ot-topic-icon" style="background:rgba(156,39,176,.15)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#ce93d8" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="2"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></div><div class="ot-topic-name">Autoflight</div></div>
-        <div class="ot-topic-card" onclick="document.querySelector('[data-cat=\'7\']')?.click()"><div class="ot-topic-icon" style="background:rgba(255,82,82,.15)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#ff5252" stroke-width="2" stroke-linecap="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg></div><div class="ot-topic-name">Fire</div></div>
-        <div class="ot-topic-card" onclick="document.querySelector('[data-cat=\'8\']')?.click()"><div class="ot-topic-icon" style="background:rgba(105,240,174,.15)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#69f0ae" stroke-width="2" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div><div class="ot-topic-name">Gear</div></div>
-        <div class="ot-topic-card" onclick="document.querySelector('[data-cat=\'9\']')?.click()"><div class="ot-topic-icon" style="background:rgba(255,82,82,.13)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#ff7070" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div class="ot-topic-name">Emergency</div></div>
-        <div class="ot-topic-card" onclick="document.querySelector('[data-cat=\'10\']')?.click()"><div class="ot-topic-icon" style="background:rgba(0,230,118,.13)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#00e676" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg></div><div class="ot-topic-name">Limits</div></div>
-        <div class="ot-topic-card" onclick="document.querySelector('[data-cat=\'11\']')?.click()"><div class="ot-topic-icon" style="background:rgba(100,181,246,.13)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#64b5f6" stroke-width="2" stroke-linecap="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div><div class="ot-topic-name">FCTM</div></div>
-        <div class="ot-topic-card" onclick="startOes()"><div class="ot-topic-icon" style="background:rgba(41,121,255,.15)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#5c9eff" stroke-width="2" stroke-linecap="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></div><div class="ot-topic-name">Start!</div></div>
+    <!-- Bottom Hub: 3 panels -->
+    <div class="ot-hub-bottom">
+      <!-- Explore by Topic: 5 bigger cards -->
+      <div>
+        <div class="ot-hub-section-title">Explore by Topic</div>
+        <div class="ot-ex-cards">
+          <div class="ot-ex-card" onclick="document.querySelector('[data-cat=\'1\']')?.click()">
+            <div class="ot-ex-icon" style="background:rgba(0,200,224,.15)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00c8e0" stroke-width="2" stroke-linecap="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></div>
+            <div class="ot-ex-name">Systems</div>
+            <div class="ot-ex-count">Air · Hyd · Fuel · Elec</div>
+          </div>
+          <div class="ot-ex-card" onclick="document.querySelector('[data-cat=\'9\']')?.click()">
+            <div class="ot-ex-icon" style="background:rgba(255,82,82,.15)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ff7070" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+            <div class="ot-ex-name">Emergency</div>
+            <div class="ot-ex-count">ABN · ECAM · Fire</div>
+          </div>
+          <div class="ot-ex-card" onclick="document.querySelector('[data-cat=\'6\']')?.click()">
+            <div class="ot-ex-icon" style="background:rgba(156,39,176,.15)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ce93d8" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+            <div class="ot-ex-name">Procedures</div>
+            <div class="ot-ex-count">Normal · FBW · AP</div>
+          </div>
+          <div class="ot-ex-card" onclick="document.querySelector('[data-cat=\'10\']')?.click()">
+            <div class="ot-ex-icon" style="background:rgba(105,240,174,.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#69f0ae" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg></div>
+            <div class="ot-ex-name">Limitations</div>
+            <div class="ot-ex-count">FCOM · Speeds · Weights</div>
+          </div>
+          <div class="ot-ex-card" onclick="document.querySelector('[data-cat=\'11\']')?.click()">
+            <div class="ot-ex-icon" style="background:rgba(100,181,246,.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64b5f6" stroke-width="2" stroke-linecap="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
+            <div class="ot-ex-name">FCTM</div>
+            <div class="ot-ex-count">Techniques · SOP</div>
+          </div>
+        </div>
+      </div>
+      <!-- Stump Me -->
+      <div class="ot-stump">
+        <div class="ot-stump-hdr">
+          <span style="font-size:18px;line-height:1">⚡</span>
+          <span class="ot-stump-label">STUMP ME</span>
+        </div>
+        <div class="ot-stump-desc">Challenge mode: preguntas inesperadas para expertos. El examinador IA no da pistas.</div>
+        <select class="ot-stump-diff">
+          <option>Expert</option>
+          <option>Advanced</option>
+          <option>Standard</option>
+        </select>
+        <button class="ot-stump-btn" onclick="setOesMode('mc');startOes()">STUMP ME</button>
+      </div>
+      <!-- Knowledge Graph -->
+      <div class="ot-kgraph">
+        <div class="ot-hub-section-title">Knowledge Graph</div>
+        <div class="ot-kgraph-inner">
+          <svg viewBox="0 0 200 168" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:200px">
+            <line x1="100" y1="56" x2="152" y2="34" stroke="rgba(41,121,255,.28)" stroke-width="1.5"/>
+            <line x1="100" y1="56" x2="50" y2="86" stroke="rgba(41,121,255,.28)" stroke-width="1.5"/>
+            <line x1="100" y1="56" x2="100" y2="116" stroke="rgba(41,121,255,.22)" stroke-width="1.5"/>
+            <line x1="152" y1="34" x2="170" y2="96" stroke="rgba(41,121,255,.13)" stroke-width="1"/>
+            <line x1="50" y1="86" x2="100" y2="116" stroke="rgba(41,121,255,.13)" stroke-width="1"/>
+            <line x1="100" y1="116" x2="148" y2="142" stroke="rgba(41,121,255,.12)" stroke-width="1"/>
+            <line x1="100" y1="116" x2="46" y2="143" stroke="rgba(41,121,255,.1)" stroke-width="1"/>
+            <circle cx="100" cy="56" r="22" fill="rgba(41,121,255,.18)" stroke="rgba(41,121,255,.52)" stroke-width="1.5"/>
+            <text x="100" y="53" text-anchor="middle" fill="#64b5f6" font-size="6.5" font-weight="700" font-family="monospace">HYDRAULICS</text>
+            <text x="100" y="63" text-anchor="middle" fill="rgba(100,181,246,.52)" font-size="5.5" font-family="monospace">A-system</text>
+            <circle cx="152" cy="31" r="17" fill="rgba(0,200,224,.12)" stroke="rgba(0,200,224,.4)" stroke-width="1.5"/>
+            <text x="152" y="28" text-anchor="middle" fill="#00c8e0" font-size="6" font-weight="700" font-family="monospace">YELLOW</text>
+            <text x="152" y="37" text-anchor="middle" fill="rgba(0,200,224,.52)" font-size="5.5" font-family="monospace">SYSTEM</text>
+            <circle cx="47" cy="86" r="17" fill="rgba(105,240,174,.1)" stroke="rgba(105,240,174,.33)" stroke-width="1.5"/>
+            <text x="47" y="83" text-anchor="middle" fill="#69f0ae" font-size="6" font-weight="700" font-family="monospace">BLUE</text>
+            <text x="47" y="92" text-anchor="middle" fill="rgba(105,240,174,.52)" font-size="5.5" font-family="monospace">SYSTEM</text>
+            <circle cx="100" cy="118" r="17" fill="rgba(255,171,64,.1)" stroke="rgba(255,171,64,.32)" stroke-width="1.5"/>
+            <text x="100" y="115" text-anchor="middle" fill="#ffab40" font-size="6" font-weight="700" font-family="monospace">MEL</text>
+            <text x="100" y="124" text-anchor="middle" fill="rgba(255,171,64,.52)" font-size="5.5" font-family="monospace">IMPACT</text>
+            <circle cx="170" cy="96" r="14" fill="rgba(156,39,176,.1)" stroke="rgba(156,39,176,.3)" stroke-width="1.5"/>
+            <text x="170" y="93" text-anchor="middle" fill="#ce93d8" font-size="5.5" font-weight="700" font-family="monospace">CARGO</text>
+            <text x="170" y="101" text-anchor="middle" fill="rgba(206,147,216,.5)" font-size="5" font-family="monospace">DOOR</text>
+            <circle cx="148" cy="144" r="15" fill="rgba(255,82,82,.1)" stroke="rgba(255,82,82,.28)" stroke-width="1.5"/>
+            <text x="148" y="141" text-anchor="middle" fill="#ff7070" font-size="5.5" font-weight="700" font-family="monospace">FTU</text>
+            <text x="148" y="149" text-anchor="middle" fill="rgba(255,112,112,.48)" font-size="5" font-family="monospace">PACK FLOW</text>
+            <circle cx="45" cy="145" r="15" fill="rgba(0,200,224,.09)" stroke="rgba(0,200,224,.24)" stroke-width="1.5"/>
+            <text x="45" y="142" text-anchor="middle" fill="#00c8e0" font-size="5.5" font-weight="700" font-family="monospace">PACKS</text>
+            <text x="45" y="150" text-anchor="middle" fill="rgba(0,200,224,.46)" font-size="5" font-family="monospace">BLEED</text>
+          </svg>
+        </div>
+        <button class="ot-kgraph-btn">Explore Graph</button>
       </div>
     </div>
   </div>
