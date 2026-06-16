@@ -12,7 +12,7 @@
 <title>PilotOS</title>
   <meta name="version" content="Beta.08">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.08","builtAt":"2026-06-15T20:45:37Z","commit":"0a764f2","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.08","builtAt":"2026-06-16T10:48:59Z","commit":"3cc8da1","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -2641,6 +2641,27 @@ input#ld_fl, input#ld_cond { display:none !important; }
 .ldm-times-wrap.mcdu-ok .ldm-sched-row .ldm-inp:focus {
   border-color:rgba(245,158,11,.5) !important;
   box-shadow:0 0 0 3px rgba(245,158,11,.1) !important;
+}
+/* ── Celdas rellenadas por ADS-B → resaltado AZUL (avionics cyan) ── */
+.adsb-fill,
+.ldm-inp.adsb-fill,
+.ldm-times-wrap.mcdu-ok .ldm-inp.adsb-fill {
+  border-color:rgba(56,189,248,.55) !important;
+  background:rgba(8,47,73,.55) !important;
+  color:#bae6fd !important;
+  box-shadow:inset 0 0 10px rgba(56,189,248,.1) !important;
+}
+.adsb-fill:focus,
+.ldm-inp.adsb-fill:focus {
+  border-color:rgba(56,189,248,.85) !important;
+  box-shadow:0 0 0 3px rgba(56,189,248,.14) !important;
+}
+html.day .adsb-fill,
+html.day .ldm-inp.adsb-fill,
+html.day .ldm-times-wrap.mcdu-ok .ldm-inp.adsb-fill {
+  border-color:rgba(2,132,199,.5) !important;
+  background:rgba(2,132,199,.08) !important;
+  color:#0369A1 !important;
 }
 /* MCDU green label indicator */
 .ldm-mcdu-badge {
@@ -14114,15 +14135,15 @@ async function ldFetchAdsb(){
     // Campos no-tiempo (reg, actype, callsign, dep, arr)
     if(body.reg){
       var regEl = document.getElementById('ld_reg');
-      if(regEl){ regEl.value = body.reg.toUpperCase(); regEl.classList.add('af'); ldRegInput(regEl); ldSetSrcTag('reg','ADSB'); }
+      if(regEl){ regEl.value = body.reg.toUpperCase(); regEl.classList.add('af','adsb-fill'); ldRegInput(regEl); ldSetSrcTag('reg','ADSB'); }
     }
     if(body.actype){
       var actEl = document.getElementById('ld_actype');
-      if(actEl){ actEl.value = body.actype; actEl.classList.add('af'); ldSetSrcTag('actype','ADSB'); }
+      if(actEl){ actEl.value = body.actype; actEl.classList.add('af','adsb-fill'); ldSetSrcTag('actype','ADSB'); }
     }
     if(body.callsign || body.callSign){
       var csEl = document.getElementById('ld_callsign');
-      if(csEl){ csEl.value = String(body.callsign||body.callSign).toUpperCase(); csEl.classList.add('af'); ldSetSrcTag('callsign','ADSB'); }
+      if(csEl){ csEl.value = String(body.callsign||body.callSign).toUpperCase(); csEl.classList.add('af','adsb-fill'); ldSetSrcTag('callsign','ADSB'); }
     }
     if(body.dep && !document.getElementById('ld_dep').value){
       document.getElementById('ld_dep').value = body.dep;
@@ -14252,6 +14273,7 @@ function ldAdsbCompare(body, rosterEntry){
 function ldApplyField(formId, value, origin, estado){
   var el = document.getElementById(formId); if(!el || !value) return;
   el.value = value; el.classList.add('af');
+  el.classList.toggle('adsb-fill', origin==='adsb');   // resaltado azul solo si viene de ADS-B
   var tagField = ({ ld_atd:'atd', ld_std:'std', ld_sta:'sta', ld_ata:'ata' })[formId];
   if(tagField){
     var tag = origin==='ecrews' ? 'ECREWS'
@@ -14489,7 +14511,7 @@ function ldResetForm(){
   window._ldFieldSrc = {};
   ldClearSrcTags();
   ['ld_date','ld_flight','ld_dep','ld_arr','ld_reg','ld_fl','ld_std','ld_atd','ld_sta','ld_ata','ld_block','ld_flight_time','ld_night_inp','ld_notes','ld_cm1','ld_cm2','ld_roster_entry_id','ld_sched_out','ld_sched_in','ld_callsign','ld_pob'].forEach(function(id){
-    var el=document.getElementById(id); if(el){el.value='';el.classList.remove('af');}
+    var el=document.getElementById(id); if(el){el.value='';el.classList.remove('af','adsb-fill');}
   });
   var _pernoc=document.getElementById('ld_pernoc'); if(_pernoc) _pernoc.checked=false;
   var _ns=document.getElementById('ld_night_auto_status'); if(_ns) _ns.textContent='';
@@ -15948,6 +15970,7 @@ function ldEditFlight(id){
       // estado por campo: si el global es 'estimado' y el campo es ADS-B → estimado
       var st=(org==='adsb' && _est==='estimado') ? 'estimado' : 'confirmado';
       window._ldFieldSrc[fid]={origin:org,estado:st};
+      var fEl=document.getElementById(fid); if(fEl) fEl.classList.toggle('adsb-fill', org==='adsb');
       var tagField=({ld_atd:'atd',ld_std:'std',ld_sta:'sta',ld_ata:'ata'})[fid];
       if(tagField){
         var tag=org==='ecrews'?'ECREWS':(org==='adsb'?(st==='confirmado'?'ADSBOK':'ADSB'):null);
