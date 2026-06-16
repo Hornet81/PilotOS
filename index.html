@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.11">
+  <meta name="version" content="Beta.12">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.11","builtAt":"2026-06-16T13:44:05Z","commit":"a05ed52","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.12","builtAt":"2026-06-16T13:53:09Z","commit":"6086bce","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -8111,9 +8111,9 @@ html.day .fp-ym-st-col.free .fp-ym-st-rng{color:var(--fp-gd)}
 		c-40.55-40.98-96.433-66.274-158.245-66.28c-0.833,0-1.659,0.023-2.49,0.032l1.477,227.361L715.364,457.205z"/>
 </g>
 </svg></div><span class="dh-badge dh-b-live" style="font-size:8px;padding:2px 5px;background:linear-gradient(135deg,#00E5FF,#00FFD0);color:#041B3A;border:none;box-shadow:0 0 18px rgba(0,229,255,0.35)">Live</span></div>
-        <div style="font-size:10px;font-weight:700;color:#fff;margin-bottom:1px">Meteorología</div>
-        <div style="font-size:8px;color:#B8D7FF;margin-bottom:8px">EGLL · Heathrow</div>
-        <div style="margin-top:auto"><span style="font-size:19px;font-weight:900;color:#4DEBFF;font-family:monospace">15°C</span><span style="font-size:9px;font-weight:700;color:#7CFFD6;margin-left:3px">CAVOK</span><div style="font-size:8px;color:#B8D7FF;margin-top:2px">Viento 180° 8kt</div></div>
+        <div style="font-size:10px;font-weight:700;color:#fff;margin-bottom:1px">Sky View</div>
+        <div id="dh-wx-airport" style="font-size:8px;color:#B8D7FF;margin-bottom:8px">—</div>
+        <div style="margin-top:auto"><span id="dh-wx-temp" style="font-size:19px;font-weight:900;color:#4DEBFF;font-family:monospace">—</span><span id="dh-wx-cat" style="font-size:9px;font-weight:700;color:#7CFFD6;margin-left:3px"></span><div id="dh-wx-wind" style="font-size:8px;color:#B8D7FF;margin-top:2px"></div><div id="dh-wx-desc" style="font-size:8px;color:#7CFFD6;margin-top:3px;line-height:1.3;opacity:.92"></div></div>
         <div style="text-align:right;margin-top:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(241,245,249,.3)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
       </div>
       <div class="dh-card dh-card-pay" style="background:linear-gradient(135deg,#2A1B00 0%,#6A4300 50%,#FFB800 100%);border:1px solid rgba(255,184,0,.3);box-shadow:0 0 45px rgba(255,184,0,0.18)" onclick="goTo('pay')">
@@ -11220,6 +11220,7 @@ function dhUpdateHeaderStats(allFlights, todayStr, MONTHS) {
     window._dhRepStr = null;
     if (typeof dhRenderReportFlip === 'function') dhRenderReportFlip(null, false);
     var _rs = document.getElementById('dh-rep-sub'); if (_rs) _rs.textContent = '—';
+    dhUpdateWeatherCard(null);
     return;
   }
 
@@ -11230,6 +11231,7 @@ function dhUpdateHeaderStats(allFlights, todayStr, MONTHS) {
   var std = (nf.std || nf.std_actual || '').slice(0, 5);
   nfVal.textContent = dep + '–' + arr;
   nfSub.textContent = fmtD(nf.date) + (std ? ' · ' + std : '');
+  dhUpdateWeatherCard(nf);
 
   // Duty Time: tramos del día del próximo vuelo
   var dayLegs = allFlights.filter(function(f) { return f.date === nf.date; });
@@ -11308,6 +11310,87 @@ function dhUpdateHeaderStats(allFlights, todayStr, MONTHS) {
       // Animar la primera vez que aparece una hora válida (tras cargar datos / al refrescar la página)
       if (window._dhRepAnimPending) { window._dhRepAnimPending = false; setTimeout(dhPlayReportFlip, 200); }
     }
+  }
+}
+// ════════ Tarjeta "Sky View" del Home: METAR real del próximo vuelo ════════
+function _dhWindCardinal(dir, windStr){
+  if ((windStr && windStr.indexOf('VRB') === 0) || dir == null) return 'variable';
+  var dirs = ['del norte','del noreste','del este','del sureste','del sur','del suroeste','del oeste','del noroeste'];
+  return dirs[Math.round((+dir) / 45) % 8];
+}
+function dhWxDescribe(m){
+  if (!m) return '';
+  var seg = [];
+  var catTxt = { VMC:'Buen tiempo (VMC)', MVMC:'Tiempo marginal (MVMC)', IFR:'Condiciones IFR', LIFR:'IFR bajo (LIFR)' }[m.cat];
+  if (catTxt) seg.push(catTxt);
+  var pw = (typeof window.parseMetarWind === 'function') ? window.parseMetarWind(m.wind || '') : { dir:0, spd:0 };
+  if (!pw.spd) seg.push('viento en calma');
+  else { var f = pw.spd < 8 ? 'flojo' : pw.spd < 18 ? 'moderado' : 'fuerte'; seg.push('viento ' + f + ' ' + _dhWindCardinal(pw.dir, m.wind)); }
+  var wx = (m.trend || '').toUpperCase();
+  var phen = [];
+  if (/TS/.test(wx)) phen.push('tormenta');
+  if (/SN/.test(wx)) phen.push('nieve');
+  else if (/SHRA|RA/.test(wx)) phen.push('lluvia');
+  else if (/DZ/.test(wx)) phen.push('llovizna');
+  if (/FG/.test(wx)) phen.push('niebla');
+  else if (/BR|HZ/.test(wx)) phen.push('neblina');
+  if (phen.length) seg.push(phen.join(' y '));
+  else {
+    var c = (m.clouds || '').toUpperCase();
+    if (!c || /CAVOK|SKC|NSC|NCD|CLR/.test(c)) seg.push('cielo despejado');
+    else if (/OVC/.test(c)) seg.push('cielo cubierto');
+    else if (/BKN/.test(c)) seg.push('muy nuboso');
+    else if (/SCT/.test(c)) seg.push('nubes dispersas');
+    else if (/FEW/.test(c)) seg.push('algunas nubes');
+  }
+  return seg.join(' · ');
+}
+function dhUpdateWeatherCard(nf){
+  var airportEl = document.getElementById('dh-wx-airport');
+  var tempEl = document.getElementById('dh-wx-temp');
+  var catEl  = document.getElementById('dh-wx-cat');
+  var windEl = document.getElementById('dh-wx-wind');
+  var descEl = document.getElementById('dh-wx-desc');
+  if (!airportEl) return;
+
+  function paint(m){
+    if (tempEl) tempEl.textContent = (m && m.temp) || '—';
+    if (catEl)  catEl.textContent  = (m && m.cat) || '';
+    if (windEl) windEl.textContent = m && m.wind ? ('Viento ' + m.wind.replace('/', ' ')) : '';
+    if (descEl) descEl.textContent = dhWxDescribe(m);
+  }
+
+  if (!nf || !nf.dep) {
+    airportEl.textContent = 'Sin vuelos próximos';
+    if (tempEl) tempEl.textContent = '—';
+    if (catEl)  catEl.textContent  = '';
+    if (windEl) windEl.textContent = '';
+    if (descEl) descEl.textContent = '';
+    return;
+  }
+
+  var iata = (nf.dep || '').replace(/^\*/, '').toUpperCase();
+  var arr  = (nf.arr || '').replace(/^\*/, '').toUpperCase();
+  var icao = (typeof window.iataToIcao === 'function' ? window.iataToIcao(iata) : iata) || iata;
+  var name = (window._WX_NAMES && window._WX_NAMES[icao]) ? window._WX_NAMES[icao] : iata;
+  airportEl.textContent = iata + (arr ? '→' + arr : '') + ' · ' + name;
+
+  // Cache/throttle: no refetch del mismo aeropuerto en <10 min
+  var nowTs = Date.now();
+  if (window._dhWxLast && window._dhWxLast.icao === icao && window._dhWxLast.data && (nowTs - window._dhWxLast.ts) < 600000) {
+    paint(window._dhWxLast.data);
+    return;
+  }
+  if (window._dhWxFetching === icao) return;
+  window._dhWxFetching = icao;
+  if (typeof window.fetchLiveMetar === 'function') {
+    window.fetchLiveMetar(icao).then(function(m){
+      window._dhWxFetching = null;
+      if (!m) return;
+      window._dhWxLast = { icao: icao, ts: Date.now(), data: m };
+      // pintar solo si sigue siendo el aeropuerto vigente
+      if (airportEl.textContent.indexOf(iata) === 0) paint(m);
+    }).catch(function(){ window._dhWxFetching = null; });
   }
 }
 // ── Flip-clock de la hora de report (tira superior del Home) ──
@@ -18759,6 +18842,7 @@ function iataToIcao(iata) {
   const code = iata.replace(/^\*/, '').toUpperCase();
   return IATA_TO_ICAO[code] || (code.length === 4 ? code : 'LE' + code);
 }
+try { window.iataToIcao = iataToIcao; } catch(e){}
 /* ─── Route coord helpers (fallback via LD_AIRPORTS midpoint) ─── */
 function getRouteMidpoint(dep, arr) {
   var route = ROUTE_COORDS[routeKey(dep, arr)] || [];
@@ -19610,6 +19694,8 @@ async function fetchLiveMetar(icao) {
   var om = await _fetchOpenMeteo(icao);
   return _openMeteoToMetar(icao, om);
 }
+try { window.fetchLiveMetar = fetchLiveMetar; } catch(e){}
+try { window._WX_NAMES = _WX_NAMES; } catch(e){}
 
 async function fetchLiveTaf(icao) {
   // Try backend proxy first
@@ -21126,6 +21212,7 @@ function parseMetarWind(windStr) {
     spd: parseInt(m[2])
   };
 }
+try { window.parseMetarWind = parseMetarWind; } catch(e){}
 function WindBar(_ref18) {
   let value = _ref18.value,
     max = _ref18.max,
