@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.09">
+  <meta name="version" content="Beta.10">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.09","builtAt":"2026-06-16T10:54:02Z","commit":"8c779be","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.10","builtAt":"2026-06-16T11:03:01Z","commit":"09a7484","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -3339,10 +3339,14 @@ html.day .ldm-times-wrap.mcdu-ok .ldm-inp.adsb-fill {
 .qrh-wrap[data-active="alt1"] .qrh-icao{color:#34d399;}
 .qrh-wrap[data-active="alt2"] .qrh-icao{color:#f472b6;}
 
-/* Optimización móvil: escala global del contenido SkyView (mantiene diseño idéntico) */
-#skyview-react-root{ zoom:1.35; }
+/* Escala global del contenido SkyView: ancho de diseño FIJO (≈iPhone) + zoom PROPORCIONAL
+   al ancho del dispositivo (var --sky-zoom, fijada por JS). Así el diseño efectivo es idéntico
+   en iPhone/iPad/web (mismas proporciones), solo cambia el tamaño físico. En pantallas grandes
+   se centra como columna. */
+#scr-skyview{ align-items:center; }
+#skyview-react-root{ zoom:var(--sky-zoom,1.3); width:290px; flex:0 0 auto; }
 @supports not (zoom:1){
-  #skyview-react-root{ transform:scale(1.35); transform-origin:top left; width:calc(100%/1.35); height:calc(100%/1.35); }
+  #skyview-react-root{ transform:scale(var(--sky-zoom,1.3)); transform-origin:top center; width:290px; }
 }
 
 /* ════ SKYVIEW — Título header: animación de colores ════ */
@@ -3886,6 +3890,8 @@ html.day .qrh-wrap[data-active="alt2"] .qrh-icao{color:#BE185D!important;}
 ══════════════════════════════════════════════ */
 #scr-home{background:radial-gradient(ellipse 120% 60% at 50% -10%,rgba(30,58,140,.45) 0%,transparent 70%),#080C1A!important;}
 .dh-header{display:flex;align-items:center;justify-content:space-between;padding:18px 18px 12px;padding-top:calc(18px + env(safe-area-inset-top,0px));flex-shrink:0;background:transparent;}
+/* Versión bajo el logo en la barra superior de Home — pequeña pero legible */
+.dh-version{font-size:9.5px!important;line-height:1.3!important;letter-spacing:.2px;white-space:nowrap}
 .dh-pilot{display:flex;align-items:center;gap:9px}
 .dh-avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#1E3A8A,#0369A1);border:2px solid rgba(34,211,238,.4);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#22D3EE;flex-shrink:0;overflow:hidden;}
 .dh-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
@@ -6729,7 +6735,7 @@ function pilotosRenderVersion(el){
   var when = pilotosFmtBuilt(run.builtAt);
   if(when) txt += ' · ' + when;
   if(run.commit) txt += ' · ' + run.commit;
-  el.style.color = 'rgba(148,198,255,.45)';
+  el.style.color = document.documentElement.classList.contains('day') ? 'rgba(30,64,124,.8)' : 'rgba(148,198,255,.7)';
   el.textContent = txt;
 }
 
@@ -7609,7 +7615,7 @@ html.day .fp-ym-st-col.free .fp-ym-st-rng{color:var(--fp-gd)}
       <div class="dh-avatar" id="dh-avatar-el" onclick="openPilotPanel(event)" style="cursor:pointer">AC</div>
 
     </div>
-    <div class="dh-logo" style="line-height:0;padding:0;display:flex;align-items:center"><svg style="height:38px;width:auto;display:block;flex-shrink:0" xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 830.97 260.12">
+    <div class="dh-logo" style="line-height:0;padding:0;display:flex;flex-direction:column;align-items:center;gap:3px"><svg style="height:34px;width:auto;display:block;flex-shrink:0" xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 830.97 260.12">
   <!-- Generator: Adobe Illustrator 29.6.1, SVG Export Plug-In . SVG Version: 2.1.1 Build 9)  -->
   <defs>
 <linearGradient id="pilotlogo_g0" x1="97.59" y1="116.16" x2="97.59" y2="197.36" gradientTransform="translate(0 274.5) scale(1 -1)" gradientUnits="userSpaceOnUse">
@@ -7635,7 +7641,7 @@ html.day .fp-ym-st-col.free .fp-ym-st-rng{color:var(--fp-gd)}
   <path fill="#fff" d="M589.89,170.29c-3.57-.02-5.83-.91-7.25-2.29-1.41-1.39-2.79-3.91-2.82-9.43v-43.36h20.29v-12.87h-20.29v-21.98h-12.87v21.98h-13.54v12.87h13.54v43.36c-.04,7.71,2.19,14.27,6.72,18.65,4.49,4.36,10.44,5.94,16.12,5.94h.09c3.91,0,7.85-.69,11.74-1.82l-3.6-12.36c-2.96.86-5.77,1.31-8.14,1.3Z"/>
   <path fill="url(#pilotlogo_g1)" d="M665.8,77.58c-14.41,0-27.51,5.95-36.91,15.52-9.42,9.55-15.24,22.79-15.24,37.34,0,14.55,5.82,27.78,15.24,37.34,9.4,9.56,22.5,15.52,36.91,15.52h0c14.4,0,27.5-5.95,36.9-15.52,9.42-9.56,15.24-22.79,15.24-37.34,0-14.54-5.82-27.78-15.24-37.34-9.41-9.56-22.5-15.52-36.91-15.52ZM693.54,158.74c-7.14,7.24-16.9,11.67-27.74,11.67-10.84,0-20.6-4.44-27.74-11.67-7.13-7.25-11.54-17.22-11.54-28.31,0-11.09,4.41-21.06,11.54-28.31,7.14-7.24,16.9-11.67,27.74-11.67,10.84,0,20.6,4.44,27.74,11.67,7.13,7.25,11.54,17.22,11.54,28.31,0,11.09-4.41,21.06-11.54,28.31Z"/>
   <path fill="url(#pilotlogo_g2)" d="M804.64,139.25c-1.92-3.25-4.56-5.79-7.44-7.71-5.07-3.37-10.84-5.12-16.65-6.57-8.71-2.11-17.75-3.52-24.5-6.24-3.38-1.34-6.12-2.95-8.13-4.89-1.93-1.88-3.31-4.01-4.19-7.13-.05-.46-.07-.9-.07-1.33.05-4.43,2.07-7.86,6.3-10.9,4.21-2.95,10.61-4.9,17.65-4.88,9.78,0,20.53,3.61,28.81,11.9l9.1-9.1c-10.95-10.94-25.04-15.67-37.91-15.67-9.3.02-18.09,2.42-24.99,7.18-6.87,4.68-11.88,12.36-11.83,21.46,0,1.11.07,2.23.22,3.36l.05.39.1.37c1.22,4.83,3.52,8.97,6.5,12.22,5.25,5.72,12.1,8.69,18.89,10.77,10.21,3.05,20.96,4.35,28.25,7.14,3.65,1.36,6.24,2.99,7.78,4.79,1.51,1.83,2.47,3.89,2.52,7.94-.06,5.39-2.27,9.29-6.5,12.54-4.22,3.18-10.64,5.25-17.98,5.23-10.82,0-23.4-4.38-33.74-14.73l-9.1,9.1c12.79,12.79,28.61,18.5,42.84,18.5,9.66-.01,18.7-2.6,25.69-7.8,6.98-5.13,11.72-13.33,11.66-22.85,0-4.94-1.13-9.43-3.34-13.13Z"/>
-</svg></div>
+</svg><div id="pilotos-version-home" class="dh-version" style="min-height:10px">…</div></div>
     <div class="dh-icons" style="position:relative">
       <div class="dh-icon" id="dh-gear-btn" onclick="openGearPanel(event)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
@@ -8718,7 +8724,7 @@ html.day .fp-ym-st-col.free .fp-ym-st-rng{color:var(--fp-gd)}
       </div>
     </div>
   </div>
-  <div id="pilotos-version-home" style="text-align:center;padding:18px 12px 28px;min-height:14px;color:rgba(148,198,255,.45);opacity:.85">…</div>
+  <div style="height:28px"></div>
 </div>
 
 <!-- ════════════ OES ════════════ -->
@@ -8889,7 +8895,7 @@ html.day .fp-ym-st-col.free .fp-ym-st-rng{color:var(--fp-gd)}
 
 <!-- ════════════ SKYVIEW ════════════ -->
 <div class="screen" id="scr-skyview" style="overflow:hidden;">
-  <div id="skyview-react-root" style="height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;zoom:1.35;"></div>
+  <div id="skyview-react-root" style="height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;zoom:var(--sky-zoom,1.3);"></div>
 </div>
 
 <!-- ════════════ PAY ════════════ -->
@@ -25636,7 +25642,19 @@ function SkyViewPilotOS() {
 }
 
 // ══════════ MOUNT POINT ══════════
+// Zoom proporcional de SkyView: ancho de diseño fijo (DESIGN_W) escalado al ancho real del
+// dispositivo, con tope para no agigantar en web. iPhone≈1.3, iPad≈2.x, web tope. Mismo diseño en todos.
+var _SKY_DESIGN_W = 290, _SKY_ZOOM_CAP = 2.4;
+function _skyApplyZoom(){
+  var w = window.innerWidth || document.documentElement.clientWidth || 390;
+  var z = Math.max(1.0, Math.min(w / _SKY_DESIGN_W, _SKY_ZOOM_CAP));
+  document.documentElement.style.setProperty('--sky-zoom', z.toFixed(3));
+}
+_skyApplyZoom();
+window.addEventListener('resize', _skyApplyZoom, { passive: true });
+window.addEventListener('orientationchange', _skyApplyZoom, { passive: true });
 window.__mountSkyView = function () {
+  _skyApplyZoom();
   var rootEl = document.getElementById('skyview-react-root');
   if (rootEl && !rootEl._swMounted) {
     rootEl._swMounted = true;
