@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.15">
+  <meta name="version" content="Beta.16">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.15","builtAt":"2026-06-16T17:03:33Z","commit":"3555654","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.16","builtAt":"2026-06-16T17:10:05Z","commit":"ca9318f","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -8786,8 +8786,13 @@ html.day .fp-ym-st-col.free .fp-ym-st-rng{color:var(--fp-gd)}
 #scr-oes .fb-card.fail{background:rgba(255,82,82,.1)!important;border-color:rgba(255,82,82,.3)!important;color:#fca5a5!important}
 #scr-oes .mc-opt{padding:10px 14px!important;border-radius:10px!important;font-size:12px!important;background:rgba(255,255,255,.05)!important;border:1px solid rgba(255,255,255,.1)!important;color:#e8eeff!important;display:block;width:100%;text-align:left;cursor:pointer;transition:all .15s;margin-bottom:6px}
 #scr-oes .mc-opt:not([disabled]):hover{background:rgba(41,121,255,.12)!important;border-color:rgba(41,121,255,.3)!important}
-#scr-oes .mc-opt.correct{background:rgba(0,230,118,.12)!important;border-color:rgba(0,230,118,.35)!important;color:#a7f3d0!important}
-#scr-oes .mc-opt.wrong{background:rgba(255,82,82,.12)!important;border-color:rgba(255,82,82,.35)!important;color:#fca5a5!important}
+#scr-oes .mc-opt.correct{background:rgba(0,230,118,.12)!important;border-color:rgba(0,230,118,.5)!important;color:#ffffff!important;font-weight:600!important}
+#scr-oes .mc-opt.wrong{background:rgba(255,82,82,.12)!important;border-color:rgba(255,82,82,.5)!important;color:#ffffff!important;font-weight:600!important}
+#scr-oes .fb-card .fbt{color:#e2e8f0!important}
+#scr-oes .fb-card.fail .fbt{color:#fecaca!important}
+#scr-oes .fb-card.pass .fbt{color:#bbf7d0!important}
+#scr-oes .fb-card.part .fbt{color:#fde68a!important}
+#scr-oes .fb-card .fbr{color:#7dd3fc!important}
 #scr-oes .chat-inp{background:rgba(255,255,255,.03)!important;border-top:1px solid rgba(255,255,255,.07)!important;padding:10px 12px!important}
 #scr-oes .chat-ta{background:rgba(255,255,255,.06)!important;border:1px solid rgba(255,255,255,.1)!important;color:#e8eeff!important;border-radius:10px!important;font-size:13px!important}
 #scr-oes .chat-ta::placeholder{color:rgba(232,238,255,.3)!important}
@@ -29555,7 +29560,7 @@ window.rstShowOptionsMenu = function(){
       iconBg:'rgba(99,102,241,.55)', iconBgDay:'rgba(99,102,241,.18)',
       label:'Exportar calendario',
       sub:'ICS · Calendario del sistema',
-      action:'rosterExportICS()'
+      action:'rosterExportOpen()'
     },
     { notif: true },
     {
@@ -30988,9 +30993,25 @@ window.goTo = function(key){
 // ════════════════════════════════════════════════
 
 // ── ICS Calendar Export ──
-window.rosterExportICS = function(){
+window.rosterExportICS = function(opts){
   try {
     if(!RST.entries.length){ if(typeof showToast==='function') showToast('No hay datos en el roster'); return; }
+
+    opts = opts || {};
+    var from = opts.from || null, to = opts.to || null;
+    // Filtrar por rango de fechas (strings YYYY-MM-DD, comparables lexicográficamente)
+    var entries = RST.entries.filter(function(e){
+      return (!from || e.date >= from) && (!to || e.date <= to);
+    });
+    if(!entries.length){ if(typeof showToast==='function') showToast('No hay actividad en el rango seleccionado'); return; }
+
+    // Color del calendario (hex + nombre CSS3 para la propiedad COLOR de RFC 7986)
+    var COLOR_NAMES = {
+      '#7C3AED':'purple', '#2563EB':'blue', '#0D9488':'teal',
+      '#16A34A':'green', '#EA580C':'orange', '#DC2626':'red'
+    };
+    var calColor = (opts.color || '#7C3AED').toUpperCase();
+    var calColorName = opts.colorName || COLOR_NAMES[calColor] || 'purple';
 
     var lines = [
       'BEGIN:VCALENDAR',
@@ -31000,8 +31021,8 @@ window.rosterExportICS = function(){
       'METHOD:PUBLISH',
       'X-WR-CALNAME:PilotOS',
       'NAME:PilotOS',
-      'X-APPLE-CALENDAR-COLOR:#7C3AED',
-      'COLOR:purple',
+      'X-APPLE-CALENDAR-COLOR:'+calColor,
+      'COLOR:'+calColorName,
       'X-WR-TIMEZONE:UTC',
       'BEGIN:VTIMEZONE',
       'TZID:UTC',
@@ -31023,7 +31044,7 @@ window.rosterExportICS = function(){
 
     // Group flights by date to handle multi-leg as one event
     var flightsByDate = {};
-    RST.entries.forEach(function(e){
+    entries.forEach(function(e){
       if(e.type==='flight'){
         if(!flightsByDate[e.date]) flightsByDate[e.date]=[];
         flightsByDate[e.date].push(e);
@@ -31126,7 +31147,7 @@ window.rosterExportICS = function(){
     });
 
     // Add non-flight all-day events
-    RST.entries.forEach(function(e){
+    entries.forEach(function(e){
       if(e.type==='flight') return;
       var lbl = typeLabels[e.type]||e.type;
       lines.push('BEGIN:VEVENT');
@@ -31156,10 +31177,113 @@ window.rosterExportICS = function(){
     document.body.appendChild(a);
     a.click();
     setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 5000);
-    if(typeof showToast==='function') showToast('📅 PilotOS_Roster.ics descargado · En Apple Calendar el calendario se llama "PilotOS" (morado). En Google Calendar: añádelo desde "Otros calendarios" y elige el color morado manualmente.', 'info', 6000);
+    var colLbl = { purple:'morado', blue:'azul', teal:'turquesa', green:'verde', orange:'naranja', red:'rojo' }[calColorName] || calColorName;
+    if(typeof showToast==='function') showToast('📅 PilotOS_Roster.ics descargado · En Apple Calendar el calendario "PilotOS" usará el color '+colLbl+'. En Google Calendar el color no se puede forzar por archivo: añádelo desde "Otros calendarios" y elige el color a mano.', 'info', 6500);
   } catch(ex){
     if(typeof showToast==='function') showToast('Error al exportar: '+ex.message);
   }
+};
+
+// ── Panel de selección previo a exportar (rango + color) ──
+window.rosterExportOpen = function(){
+  if(!RST.entries.length){ if(typeof showToast==='function') showToast('No hay datos en el roster'); return; }
+
+  var MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  var COLORS = [
+    { hex:'#7C3AED', name:'purple' }, { hex:'#2563EB', name:'blue' },
+    { hex:'#0D9488', name:'teal' },   { hex:'#16A34A', name:'green' },
+    { hex:'#EA580C', name:'orange' }, { hex:'#DC2626', name:'red' }
+  ];
+  // Estado del panel
+  var state = { mode:'month', color:'#7C3AED', colorName:'purple' };
+
+  // Rango "mes actual" desde la vista del calendario
+  function monthRange(){
+    var y = RST.viewYear, mo = RST.viewMonth;
+    var pad = function(n){ return String(n).padStart(2,'0'); };
+    var last = new Date(y, mo+1, 0).getDate();
+    return { from: y+'-'+pad(mo+1)+'-01', to: y+'-'+pad(mo+1)+'-'+pad(last) };
+  }
+  var mr = monthRange();
+  var monthLbl = MESES[RST.viewMonth] + ' ' + RST.viewYear;
+
+  var swatches = COLORS.map(function(c){
+    var sel = c.hex===state.color;
+    return '<button type="button" class="rex-sw'+(sel?' sel':'')+'" data-hex="'+c.hex+'" data-name="'+c.name+'" '
+      + 'style="width:36px;height:36px;border-radius:50%;border:2px solid '+(sel?'var(--fp-ink)':'transparent')+';'
+      + 'background:'+c.hex+';cursor:pointer;padding:0;-webkit-appearance:none;transition:transform .12s,border-color .12s;'
+      + 'box-shadow:0 0 0 2px rgba(0,0,0,.15) inset"></button>';
+  }).join('');
+
+  var ov = document.createElement('div');
+  ov.id = 'fp-overlay';
+  ov.innerHTML =
+    '<div id="fp-sheet">'
+    + '<div class="fp-handle"></div>'
+    + '<div class="fp-title">📊 Exportar calendario</div>'
+    + '<div class="fp-sub">Elige qué parte del roster exportar y el color del calendario. El archivo .ics se añade a tu calendario del sistema.</div>'
+    + '<div class="fp-scroll">'
+    +   '<div class="fp-seclabel">Qué exportar</div>'
+    +   '<div class="fp-presets">'
+    +     '<button type="button" class="fp-preset active" data-mode="month">Mes<small>'+monthLbl+'</small></button>'
+    +     '<button type="button" class="fp-preset" data-mode="custom">Rango<small>personalizado</small></button>'
+    +     '<button type="button" class="fp-preset" data-mode="all">Todo<small>el roster</small></button>'
+    +   '</div>'
+    +   '<div id="rex-custom" class="fp-vac-add" style="display:none;margin-top:12px">'
+    +     '<input type="date" id="rex-from" title="Desde" value="'+mr.from+'">'
+    +     '<div style="color:var(--fp-muted);font-family:\'Space Mono\',monospace">→</div>'
+    +     '<input type="date" id="rex-to" title="Hasta" value="'+mr.to+'">'
+    +   '</div>'
+    +   '<div class="fp-seclabel">Color del calendario</div>'
+    +   '<div id="rex-swatches" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">'+swatches+'</div>'
+    +   '<div style="margin-top:12px;padding:9px 12px;border-radius:11px;font-size:11px;line-height:1.45;'
+    +        'background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);color:#F59E0B">'
+    +     '⚠️ El color solo se aplica en <b>Apple Calendar</b>. Google Calendar ignora el color del archivo .ics: tendrás que asignarlo a mano tras importar.'
+    +   '</div>'
+    + '</div>'
+    + '<div class="fp-actions">'
+    +   '<button class="fp-btn fp-clear" id="rex-cancel">Cancelar</button>'
+    +   '<button class="fp-btn fp-save" id="rex-go">Exportar</button>'
+    + '</div>'
+    + '</div>';
+  ov.addEventListener('click', function(e){ if(e.target===ov) fpCloseModal(); });
+  document.body.appendChild(ov);
+
+  // Modo de exportación
+  ov.querySelectorAll('.fp-preset').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      ov.querySelectorAll('.fp-preset').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      state.mode = btn.dataset.mode;
+      document.getElementById('rex-custom').style.display = (state.mode==='custom') ? 'flex' : 'none';
+    });
+  });
+  // Selector de color
+  ov.querySelectorAll('.rex-sw').forEach(function(sw){
+    sw.addEventListener('click', function(){
+      ov.querySelectorAll('.rex-sw').forEach(function(s){ s.classList.remove('sel'); s.style.borderColor='transparent'; });
+      sw.classList.add('sel'); sw.style.borderColor='var(--fp-ink)';
+      state.color = sw.dataset.hex; state.colorName = sw.dataset.name;
+    });
+  });
+  // Coherencia de fechas en rango personalizado
+  (function(){ var f=document.getElementById('rex-from'), t=document.getElementById('rex-to');
+    if(f) f.addEventListener('change', function(){ if(f.value && (!t.value || t.value < f.value)) t.value = f.value; }); })();
+
+  document.getElementById('rex-cancel').addEventListener('click', fpCloseModal);
+  document.getElementById('rex-go').addEventListener('click', function(){
+    var from=null, to=null;
+    if(state.mode==='month'){ var r=monthRange(); from=r.from; to=r.to; }
+    else if(state.mode==='custom'){
+      from=document.getElementById('rex-from').value;
+      to=document.getElementById('rex-to').value;
+      if(!from||!to){ if(typeof showToast==='function') showToast('Elige fecha de inicio y fin'); return; }
+      if(to < from){ if(typeof showToast==='function') showToast('La fecha fin debe ser posterior'); return; }
+    }
+    // 'all' → from/to quedan null (sin filtro)
+    fpCloseModal();
+    window.rosterExportICS({ from:from, to:to, color:state.color, colorName:state.colorName });
+  });
 };
 
 // ── PWA Notifications ──
