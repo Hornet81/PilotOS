@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.53">
+  <meta name="version" content="Beta.54">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.53","builtAt":"2026-06-17T18:07:04Z","commit":"f0bf698","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.54","builtAt":"2026-06-17T19:49:04Z","commit":"aefd93b","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -9513,9 +9513,11 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       <div class="input-row">
         <textarea id="user-input" placeholder="Pregunta sobre FCOM, tu logbook, EASA, procedimientos..." rows="1"
           onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        <button class="mic-b" id="cafi-mic" onclick="toggleMic('cafi')" title="Dictar por voz (toca para grabar / toca para parar)" style="flex:0 0 auto"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="9" y="2" width="6" height="12" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="9" y1="22" x2="15" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
         <button class="send-btn" id="send-btn" onclick="cafiSendMessage()">➤</button>
       </div>
-      <div class="input-hint" id="input-hint">↵ Enviar · Shift+↵ nueva línea · FCOM KB + Logbook + EASA activos</div>
+      <div class="vst-row" id="cafi-vst" style="display:none;text-align:center;margin-top:4px"><div class="vdot"></div><span id="cafi-vst-t">Escuchando...</span></div>
+      <div class="input-hint" id="input-hint">↵ Enviar · Shift+↵ nueva línea · 🎤 dicta por voz · FCOM KB + Logbook + EASA activos</div>
     </div>
   </div>
 </div>
@@ -13539,6 +13541,7 @@ function cafiInit(){
   if (img2 && src1) { img2.src = src1; img2.style.display = 'block'; }
   var token = lsGet('cafi_auth_token', '');
   if (!token) { setTimeout(cafiShowAuth, 500); }
+  try{ initMic('cafi'); }catch(e){} // habilita el botón de dictado por voz (STT)
 }
 function showCafiKeyPrompt(){
   var p = document.getElementById('cafi-key-prompt');
@@ -13593,6 +13596,9 @@ function playMicDone(){_tone(620,0,0.09,0.55);_tone(880,0.1,0.11,0.5);}
 var micSt={oes:{sr:null,on:false,mr:null,stream:null,chunks:null,whisper:false,_to:null},cafi:{sr:null,on:false,mr:null,stream:null,chunks:null,whisper:false,_to:null}};
 var _sttWhisperBlocked=false;   // true si el plan no incluye Whisper (free) → caer a dictado del navegador
 function _mediaRecOk(){return !!(window.MediaRecorder&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia);}
+// El textarea destino según el contexto del micro: CAFI usa #user-input; el resto #<id>-ta
+function _micTaId(id){return id==='cafi'?'user-input':id+'-ta';}
+function _micFill(id,txt){var ta=document.getElementById(_micTaId(id));if(!ta)return;ta.value=txt;if(id==='cafi'){try{autoResize(ta);}catch(e){}ta.focus();}}
 function initMic(id){
   const SRC=window.SpeechRecognition||window.webkitSpeechRecognition;
   const btn=document.getElementById(id+'-mic');
@@ -13604,7 +13610,7 @@ function initMic(id){
   }
   const sr=new SRC();sr.lang='es-ES';sr.continuous=false;sr.interimResults=true;
   sr.onstart=()=>{micSt[id].on=true;playMicStart();if(btn)btn.classList.add('listening');if(orb)orb.classList.add('listening');const vs=document.getElementById(id+'-vst');if(vs){vs.style.display='flex';}const vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent='Escuchando...';};
-  sr.onresult=e=>{let f='',t='';for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)f+=e.results[i][0].transcript;else t+=e.results[i][0].transcript;}const ta=document.getElementById(id+'-ta');if(ta)ta.value=f||t;const vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent=f?'✓ Capturado':'Escuchando...';if(f)playMicDone();};
+  sr.onresult=e=>{let f='',t='';for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)f+=e.results[i][0].transcript;else t+=e.results[i][0].transcript;}_micFill(id,f||t);const vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent=f?'✓ Capturado':'Escuchando...';if(f)playMicDone();};
   sr.onerror=e=>{const msg=e.error==='not-allowed'?'Permite el micrófono en el navegador':e.error==='no-speech'?'No se detectó voz':'Error: '+e.error;const vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent=msg;const vs=document.getElementById(id+'-vst');if(vs)vs.style.display='flex';stopMic(id);};
   sr.onend=()=>{stopMic(id);if(id==='oes'){setTimeout(function(){var ta=document.getElementById('oes-ta');if(ta&&ta.value.trim()&&!OS.answered)oesSend();},600);}};
   micSt[id].sr=sr;if(btn)btn.disabled=false;
@@ -13641,7 +13647,7 @@ function whisperFinish(id){
       })
       .then(function(j){
         if(!j)return;
-        var ta=document.getElementById(id+'-ta');if(ta)ta.value=(j.text||'').trim();
+        _micFill(id,(j.text||'').trim());
         if(vt)vt.textContent=j.text?'✓ Capturado':'No se detectó voz';
         if(j.text){playMicDone();if(id==='oes')setTimeout(function(){var t=document.getElementById('oes-ta');if(t&&t.value.trim()&&!OS.answered)oesSend();},300);}
       })
@@ -13653,7 +13659,7 @@ function whisperFinish(id){
 function startBrowserSR(id){
   micSt[id].sr=null;initMic(id);
   if(!micSt[id].sr){var vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent='Voz no disponible en este navegador';var vs=document.getElementById(id+'-vst');if(vs)vs.style.display='flex';return;}
-  try{var ta=document.getElementById(id+'-ta');if(ta)ta.value='';micSt[id].sr.start();}
+  try{var ta=document.getElementById(_micTaId(id));if(ta)ta.value='';micSt[id].sr.start();}
   catch(e){var vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent='Error: '+e.message;var vs=document.getElementById(id+'-vst');if(vs)vs.style.display='flex';}
 }
 function toggleMic(id){
