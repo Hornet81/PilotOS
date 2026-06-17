@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.49">
+  <meta name="version" content="Beta.50">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.49","builtAt":"2026-06-17T17:41:17Z","commit":"394c7d4","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.50","builtAt":"2026-06-17T17:46:23Z","commit":"5641cd1","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -13572,8 +13572,9 @@ function whisperFinish(id){
     var _sttBase=lsGet('cafi_backend_url','https://api.pilotos.aero');
     fetch(_sttBase+'/api/stt',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('cafi_auth_token')},body:JSON.stringify({audio_base64:b64,mime:blob.type})})
       .then(function(r){
-        if(r.status===429){_sttWhisperBlocked=true;if(vt)vt.textContent='Voz Whisper disponible en Pro — usando dictado básico';return null;}
-        if(!r.ok)return null;return r.json();
+        if(r.status===429){_sttWhisperBlocked=true;if(vt)vt.textContent='Voz Whisper disponible en Pro — usa el micro de nuevo (dictado básico)';return null;}
+        if(!r.ok){_sttWhisperBlocked=true;if(vt)vt.textContent='Transcripción no disponible — usa el micro de nuevo';return null;}
+        return r.json();
       })
       .then(function(j){
         if(!j)return;
@@ -13581,7 +13582,7 @@ function whisperFinish(id){
         if(vt)vt.textContent=j.text?'✓ Capturado':'No se detectó voz';
         if(j.text){playMicDone();if(id==='oes')setTimeout(function(){var t=document.getElementById('oes-ta');if(t&&t.value.trim()&&!OS.answered)oesSend();},300);}
       })
-      .catch(function(){if(vt)vt.textContent='Error de transcripción';});
+      .catch(function(){_sttWhisperBlocked=true;if(vt)vt.textContent='Transcripción no disponible — usa el micro de nuevo';});
   };
   reader.readAsDataURL(blob);
   setTimeout(function(){var v=document.getElementById(id+'-vst');if(v&&!micSt[id].on)v.style.display='none';},4000);
