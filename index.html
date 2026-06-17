@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.38">
+  <meta name="version" content="Beta.39">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.38","builtAt":"2026-06-17T09:09:57Z","commit":"65f94ed","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.39","builtAt":"2026-06-17T09:12:20Z","commit":"d885bbf","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -9031,9 +9031,12 @@ html.day #scr-oes .ot-ex-card,html.day #scr-oes .ot-stump,html.day #scr-oes .ot-
 @keyframes oes-freq{0%{transform:scaleY(.12)}100%{transform:scaleY(1)}}
 .ot-mic-orb{width:60px;height:60px;border-radius:50%;background:rgba(4,8,20,.85);border:1.5px solid rgba(0,200,224,.4);display:flex;align-items:center;justify-content:center;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;box-shadow:0 0 22px rgba(0,200,224,.2),0 0 6px rgba(0,200,224,.4);cursor:pointer;transition:border-color .2s,box-shadow .2s}
 .ot-mic-orb svg{width:28px;height:28px;color:#00c8e0;filter:drop-shadow(0 0 5px rgba(0,200,224,.75)) drop-shadow(0 0 2px rgba(41,121,255,.55))}
-.ot-mic-orb.listening{border-color:rgba(255,60,60,.8)!important;animation:orb-rec .75s ease-in-out infinite alternate}
+.ot-mic-orb.listening:not(.orb-tap){border-color:rgba(255,60,60,.8)!important;animation:orb-rec .75s ease-in-out infinite alternate}
 .ot-mic-orb.listening svg{color:#ff6060;filter:drop-shadow(0 0 6px rgba(255,60,60,.8))}
+.ot-mic-orb.orb-tap{animation:orb-tap .38s cubic-bezier(.36,.07,.19,.97) forwards!important}
+@keyframes orb-tap{0%{transform:translate(-50%,-50%) scale(1)}22%{transform:translate(-50%,-50%) scale(1.22)}48%{transform:translate(-50%,-50%) scale(0.9)}70%{transform:translate(-50%,-50%) scale(1.12)}100%{transform:translate(-50%,-50%) scale(1)}}
 @keyframes orb-rec{from{box-shadow:0 0 16px rgba(255,60,60,.25),0 0 5px rgba(255,60,60,.4)}to{box-shadow:0 0 32px rgba(255,60,60,.55),0 0 14px rgba(255,60,60,.7)}}
+.ot-wave-wrap:has(.ot-mic-orb.listening) .ot-fb{background:#e03030!important;box-shadow:0 0 6px #e03030!important}
 .ot-mic-status{font-size:8px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:rgba(232,238,255,.3);text-align:center}
 .ot-chat-col{display:flex;flex-direction:column;border-bottom:1px solid rgba(255,255,255,.06)}
 @media(min-width:680px){.ot-chat-col{border-bottom:none}}
@@ -13409,6 +13412,8 @@ function initMic(id){
   micSt[id].sr=sr;if(btn)btn.disabled=false;
 }
 function toggleMic(id){
+  var orbEl=document.getElementById(id+'-orb');
+  if(orbEl){orbEl.classList.add('orb-tap');setTimeout(function(){orbEl.classList.remove('orb-tap');},400);}
   if(micSt[id].on){stopMic(id);return;}
   micSt[id].sr=null;
   initMic(id);
