@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.36">
+  <meta name="version" content="Beta.37">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.36","builtAt":"2026-06-17T08:58:22Z","commit":"be5a35e","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.37","builtAt":"2026-06-17T09:02:54Z","commit":"46ef7bd","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -13346,7 +13346,6 @@ function initMic(id){
   const btn=document.getElementById(id+'-mic');
   const orb=document.getElementById(id+'-orb');
   if(!SRC){if(btn)btn.disabled=true;if(orb){orb.style.opacity='.4';orb.style.cursor='not-allowed';orb.title='Voz no disponible en este navegador';}return;}
-  if(micSt[id].sr)return;
   const sr=new SRC();sr.lang='es-ES';sr.continuous=false;sr.interimResults=true;
   sr.onstart=()=>{micSt[id].on=true;if(btn)btn.classList.add('listening');if(orb)orb.classList.add('listening');const vs=document.getElementById(id+'-vst');if(vs){vs.style.display='flex';}const vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent='Escuchando...';};
   sr.onresult=e=>{let f='',t='';for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)f+=e.results[i][0].transcript;else t+=e.results[i][0].transcript;}const ta=document.getElementById(id+'-ta');if(ta)ta.value=f||t;const vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent=f?'✓ Capturado':'Escuchando...';};
@@ -13356,10 +13355,11 @@ function initMic(id){
 }
 function toggleMic(id){
   if(micSt[id].on){stopMic(id);return;}
-  if(!micSt[id].sr){initMic(id);}
-  if(!micSt[id].sr){var vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent='Voz no disponible';var vs=document.getElementById(id+'-vst');if(vs)vs.style.display='flex';return;}
+  micSt[id].sr=null;
+  initMic(id);
+  if(!micSt[id].sr){var vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent='Voz no disponible en este navegador';var vs=document.getElementById(id+'-vst');if(vs)vs.style.display='flex';return;}
   try{var ta=document.getElementById(id+'-ta');if(ta)ta.value='';micSt[id].sr.start();}
-  catch(e){var vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent='Error al iniciar mic: '+e.message;var vs=document.getElementById(id+'-vst');if(vs)vs.style.display='flex';}
+  catch(e){var vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent='Error: '+e.message;var vs=document.getElementById(id+'-vst');if(vs)vs.style.display='flex';}
 }
 function stopMic(id){micSt[id].on=false;const b=document.getElementById(id+'-mic');if(b)b.classList.remove('listening');var orb=document.getElementById(id+'-orb');if(orb)orb.classList.remove('listening');try{if(micSt[id].sr)micSt[id].sr.stop();}catch(e){}setTimeout(()=>{const v=document.getElementById(id+'-vst');if(v)v.style.display='none';},1500);}
 
