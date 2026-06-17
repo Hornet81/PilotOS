@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.50">
+  <meta name="version" content="Beta.51">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.50","builtAt":"2026-06-17T17:46:23Z","commit":"5641cd1","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.51","builtAt":"2026-06-17T17:53:24Z","commit":"7b1e321","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -9191,6 +9191,20 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           </select>
           <span id="oes-ai-voice-tag" title="La voz es generada por IA, no es una persona real" style="display:inline-flex;align-items:center;gap:4px;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.05em;padding:3px 8px;border-radius:10px;border:1px solid rgba(255,171,64,.3);background:rgba(255,171,64,.1);color:#ffab40">● VOZ IA</span>
         </div>
+        <div class="oes-voice-ctl2" style="display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:6px">
+          <label style="display:inline-flex;align-items:center;gap:5px;font-family:'Space Mono',monospace;font-size:9px;color:rgba(232,238,255,.55)">⏩ Velocidad
+            <select id="oes-voice-rate" onchange="setOesVoiceRate(this.value)" title="Velocidad de la voz" style="font-family:'Space Mono',monospace;font-size:10px;padding:3px 6px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:#0d1530;color:#e8eeff;cursor:pointer">
+              <option value="0.9">Lenta</option>
+              <option value="1">Normal</option>
+              <option value="1.1" selected>Ágil</option>
+              <option value="1.25">Rápida</option>
+              <option value="1.4">Muy rápida</option>
+            </select>
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:5px;font-family:'Space Mono',monospace;font-size:9px;color:rgba(232,238,255,.55)">🔉 Volumen
+            <input id="oes-voice-vol" type="range" min="0" max="1" step="0.1" value="1" oninput="setOesVoiceVol(this.value)" title="Volumen de la voz" style="width:80px;cursor:pointer;accent-color:#00c8e0">
+          </label>
+        </div>
         <div class="vst-row" id="oes-vst" style="display:none;text-align:center"><div class="vdot"></div><span id="oes-vst-t">Escuchando...</span></div>
         <div class="ot-bot-row" style="flex-direction:column;align-items:stretch;width:100%;padding-top:6px">
           <button class="nb" id="oes-nbtn" onclick="oesNext()" disabled>Siguiente →</button>
@@ -12339,6 +12353,8 @@ let OS={sys:null,type:'ALL',mode:'mc',q:0,pass:0,part:0,fail:0,idx:-1,answered:f
 // ── Voz del examinador (TTS) ──
 let oesVoiceOn=true;            // toggle de usuario (memoria de sesión)
 let oesVoiceName='onyx';       // voz por defecto (onyx/ash masculinas; nova/coral/shimmer femeninas)
+let oesVoiceRate=1.1;          // velocidad de reproducción (playbackRate); >1 = más rápido
+let oesVoiceVol=1.0;           // volumen (0..1)
 let _oesAudio=null;            // Audio en curso, para evitar solapamientos
 let _oesTtsBlocked=false;     // true si el plan no incluye voz (free) → avisar una vez
 // ¿Está activo un modo con voz? (Oral Exam o Line Check; NO Q-Bank ni flashcards)
@@ -12346,15 +12362,28 @@ function oesVoiceModeActive(){
   var s=document.getElementById('scr-oes');
   return !!s&&(s.classList.contains('mode-oral')||s.classList.contains('mode-linecheck'));
 }
+// Quita citas a documentos/índices para que la voz no las lea (en pantalla sí se ven)
+function _stripVoiceRefs(s){
+  return String(s)
+    // paréntesis con referencia: (FCOM ...), (QRH ...), (FCTM/DSC-30), (LIM-AG-OPS)...
+    .replace(/\(\s*(?:FCOM|FCTM|QRH|MEL|OM[\s\-]?[A-D]?|AMC|GM|CS|SOP|EASA|PART|DSC|PRO|ABN|NNC|LIM|OXY)[^)]*\)/gi,' ')
+    // referencia suelta: FCOM 1.20.10 / QRH 2.15 / DSC-24 / FCTM AOP-...
+    .replace(/\b(?:FCOM|FCTM|QRH|MEL|OM[\s\-]?[A-D]?|AMC|GM|SOP|DSC|PRO|ABN|NNC)\b[\s:]*[\dIVXivx][\w.\-\/]*/gi,' ')
+    // códigos de índice tipo LIM-AG-OPS, DSC-36, AOP-12
+    .replace(/\b[A-Z]{2,4}(?:-[A-Z0-9]{1,5}){1,3}\b/g,' ')
+    // "Ref:"/"Ref."/"Reference" y sellos de versión (VLG DEC 25 / Issue 03 DEC 25)
+    .replace(/\b(?:ref(?:erencia|erence)?\.?:?)\b/gi,' ')
+    .replace(/\b(?:VLG|Issue)\b[\s\w]*?\b[A-Z]{3}\s*\d{2}\b/gi,' ')
+    .replace(/\s+/g,' ').trim();
+}
 async function oesSpeak(text){
   try{
     if(!oesVoiceOn||!oesVoiceModeActive())return;
-    // Limpia HTML, marcas ✓/✗ y emojis para que no los lea raro
-    var clean=String(text)
+    // Limpia HTML, marcas ✓/✗, emojis y referencias a documentos/índices
+    var clean=_stripVoiceRefs(String(text)
       .replace(/<[^>]*>/g,' ')
       .replace(/[✓✗◑✅❌🔊⏱️→•]/g,' ')
-      .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}]/gu,' ')
-      .replace(/\s+/g,' ').trim();
+      .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}]/gu,' '));
     if(!clean)return;
     if(clean.length>800)clean=clean.slice(0,800);
     var _ttsBase=lsGet('cafi_backend_url','https://api.pilotos.aero');
@@ -12368,6 +12397,8 @@ async function oesSpeak(text){
     var blob=await r.blob();var url=URL.createObjectURL(blob);
     if(_oesAudio){try{_oesAudio.pause();}catch(e){}}
     var a=new Audio(url);_oesAudio=a;
+    a.volume=oesVoiceVol;a.playbackRate=oesVoiceRate;
+    a.onloadedmetadata=function(){try{a.playbackRate=oesVoiceRate;}catch(e){}}; // algunos navegadores resetean al cargar
     a.onended=function(){URL.revokeObjectURL(url);if(_oesAudio===a)_oesAudio=null;};
     a.play().catch(function(){});
   }catch(e){/* la voz es opcional: si falla, la app sigue en texto */}
@@ -12378,6 +12409,8 @@ function toggleOesVoice(){
   updOesVoiceUI();
 }
 function setOesVoiceName(v){oesVoiceName=v;}
+function setOesVoiceRate(v){oesVoiceRate=parseFloat(v)||1;if(_oesAudio){try{_oesAudio.playbackRate=oesVoiceRate;}catch(e){}}}
+function setOesVoiceVol(v){oesVoiceVol=Math.max(0,Math.min(1,parseFloat(v)));if(_oesAudio){try{_oesAudio.volume=oesVoiceVol;}catch(e){}}}
 function updOesVoiceUI(){
   var btn=document.getElementById('oes-voice-toggle');
   if(btn){btn.classList.toggle('on',oesVoiceOn);btn.textContent=oesVoiceOn?'🔊 Voz':'🔇 Voz';}
