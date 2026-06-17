@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.48">
+  <meta name="version" content="Beta.49">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.48","builtAt":"2026-06-17T17:33:07Z","commit":"575600c","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.49","builtAt":"2026-06-17T17:41:17Z","commit":"394c7d4","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -12357,7 +12357,8 @@ async function oesSpeak(text){
       .replace(/\s+/g,' ').trim();
     if(!clean)return;
     if(clean.length>800)clean=clean.slice(0,800);
-    var r=await fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('cafi_auth_token')},body:JSON.stringify({text:clean,voice:oesVoiceName||undefined})});
+    var _ttsBase=lsGet('cafi_backend_url','https://api.pilotos.aero');
+    var r=await fetch(_ttsBase+'/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('cafi_auth_token')},body:JSON.stringify({text:clean,voice:oesVoiceName||undefined})});
     if(r.status===429){
       // Plan sin voz o límite alcanzado: el texto ya está en pantalla, no molestar
       if(!_oesTtsBlocked){_oesTtsBlocked=true;var st=document.querySelector('#scr-oes .ot-mic-status');if(st)st.textContent='Voz disponible en Pro';}
@@ -13526,12 +13527,18 @@ function _ac(){try{if(!_aCtx||_aCtx.state==='closed')_aCtx=new(window.AudioConte
 function _tone(freq,delay,dur,vol,type){try{var c=_ac();if(!c)return;var o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type=type||'sine';o.frequency.value=freq;g.gain.setValueAtTime(0,c.currentTime+delay);g.gain.linearRampToValueAtTime(vol,c.currentTime+delay+0.012);g.gain.exponentialRampToValueAtTime(0.0001,c.currentTime+delay+dur);o.start(c.currentTime+delay);o.stop(c.currentTime+delay+dur+0.015);}catch(e){}}
 function playMicStart(){try{var c=_ac();if(!c)return;var o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type='sine';o.frequency.setValueAtTime(360,c.currentTime);o.frequency.linearRampToValueAtTime(720,c.currentTime+0.16);g.gain.setValueAtTime(0.6,c.currentTime);g.gain.exponentialRampToValueAtTime(0.0001,c.currentTime+0.2);o.start(c.currentTime);o.stop(c.currentTime+0.22);}catch(e){}}
 function playMicDone(){_tone(620,0,0.09,0.55);_tone(880,0.1,0.11,0.5);}
-var micSt={oes:{sr:null,on:false},cafi:{sr:null,on:false}};
+var micSt={oes:{sr:null,on:false,mr:null,stream:null,chunks:null,whisper:false,_to:null},cafi:{sr:null,on:false,mr:null,stream:null,chunks:null,whisper:false,_to:null}};
+var _sttWhisperBlocked=false;   // true si el plan no incluye Whisper (free) → caer a dictado del navegador
+function _mediaRecOk(){return !!(window.MediaRecorder&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia);}
 function initMic(id){
   const SRC=window.SpeechRecognition||window.webkitSpeechRecognition;
   const btn=document.getElementById(id+'-mic');
   const orb=document.getElementById(id+'-orb');
-  if(!SRC){if(btn)btn.disabled=true;if(orb){orb.style.opacity='.4';orb.style.cursor='not-allowed';orb.title='Voz no disponible en este navegador';}return;}
+  if(!SRC){
+    // Sin Web Speech API (p.ej. iOS Safari): si hay MediaRecorder, el micro sigue activo vía Whisper
+    if(_mediaRecOk()){if(btn)btn.disabled=false;micSt[id].sr=null;return;}
+    if(btn)btn.disabled=true;if(orb){orb.style.opacity='.4';orb.style.cursor='not-allowed';orb.title='Voz no disponible en este navegador';}return;
+  }
   const sr=new SRC();sr.lang='es-ES';sr.continuous=false;sr.interimResults=true;
   sr.onstart=()=>{micSt[id].on=true;playMicStart();if(btn)btn.classList.add('listening');if(orb)orb.classList.add('listening');const vs=document.getElementById(id+'-vst');if(vs){vs.style.display='flex';}const vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent='Escuchando...';};
   sr.onresult=e=>{let f='',t='';for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)f+=e.results[i][0].transcript;else t+=e.results[i][0].transcript;}const ta=document.getElementById(id+'-ta');if(ta)ta.value=f||t;const vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent=f?'✓ Capturado':'Escuchando...';if(f)playMicDone();};
@@ -13539,17 +13546,67 @@ function initMic(id){
   sr.onend=()=>{stopMic(id);if(id==='oes'){setTimeout(function(){var ta=document.getElementById('oes-ta');if(ta&&ta.value.trim()&&!OS.answered)oesSend();},600);}};
   micSt[id].sr=sr;if(btn)btn.disabled=false;
 }
-function toggleMic(id){
-  var orbEl=document.getElementById(id+'-orb');
-  if(orbEl){orbEl.classList.add('orb-tap');setTimeout(function(){orbEl.classList.remove('orb-tap');},400);}
-  if(micSt[id].on){stopMic(id);return;}
-  micSt[id].sr=null;
-  initMic(id);
+function _micUI(id,txt){var btn=document.getElementById(id+'-mic');if(btn)btn.classList.add('listening');var orb=document.getElementById(id+'-orb');if(orb)orb.classList.add('listening');var vs=document.getElementById(id+'-vst');if(vs)vs.style.display='flex';var vt=document.getElementById(id+'-vst-t');if(vt&&txt)vt.textContent=txt;}
+// ── STT vía Whisper (MediaRecorder → /api/stt) ──
+function startWhisperRec(id){
+  navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
+    var st=micSt[id];st.stream=stream;st.chunks=[];
+    var mr;try{mr=new MediaRecorder(stream);}catch(e){try{stream.getTracks().forEach(t=>t.stop());}catch(_){}startBrowserSR(id);return;}
+    st.mr=mr;st.whisper=true;st.on=true;
+    mr.ondataavailable=function(e){if(e.data&&e.data.size)st.chunks.push(e.data);};
+    mr.onstop=function(){whisperFinish(id);};
+    mr.start();playMicStart();_micUI(id,'Grabando… toca para parar');
+    st._to=setTimeout(function(){if(st.on&&st.whisper)stopMic(id);},30000); // tope de seguridad 30s
+  }).catch(function(){startBrowserSR(id);}); // sin permiso/dispositivo → dictado del navegador
+}
+function whisperFinish(id){
+  var st=micSt[id];var chunks=st.chunks||[];st.whisper=false;
+  if(st.stream){try{st.stream.getTracks().forEach(t=>t.stop());}catch(e){}st.stream=null;}
+  var vt=document.getElementById(id+'-vst-t');
+  if(!chunks.length){if(vt)vt.textContent='No se detectó voz';return;}
+  var blob=new Blob(chunks,{type:(st.mr&&st.mr.mimeType)||'audio/webm'});st.chunks=[];
+  if(vt)vt.textContent='Transcribiendo…';
+  var reader=new FileReader();
+  reader.onloadend=function(){
+    var b64=String(reader.result).split(',')[1]||'';
+    var _sttBase=lsGet('cafi_backend_url','https://api.pilotos.aero');
+    fetch(_sttBase+'/api/stt',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('cafi_auth_token')},body:JSON.stringify({audio_base64:b64,mime:blob.type})})
+      .then(function(r){
+        if(r.status===429){_sttWhisperBlocked=true;if(vt)vt.textContent='Voz Whisper disponible en Pro — usando dictado básico';return null;}
+        if(!r.ok)return null;return r.json();
+      })
+      .then(function(j){
+        if(!j)return;
+        var ta=document.getElementById(id+'-ta');if(ta)ta.value=(j.text||'').trim();
+        if(vt)vt.textContent=j.text?'✓ Capturado':'No se detectó voz';
+        if(j.text){playMicDone();if(id==='oes')setTimeout(function(){var t=document.getElementById('oes-ta');if(t&&t.value.trim()&&!OS.answered)oesSend();},300);}
+      })
+      .catch(function(){if(vt)vt.textContent='Error de transcripción';});
+  };
+  reader.readAsDataURL(blob);
+  setTimeout(function(){var v=document.getElementById(id+'-vst');if(v&&!micSt[id].on)v.style.display='none';},4000);
+}
+function startBrowserSR(id){
+  micSt[id].sr=null;initMic(id);
   if(!micSt[id].sr){var vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent='Voz no disponible en este navegador';var vs=document.getElementById(id+'-vst');if(vs)vs.style.display='flex';return;}
   try{var ta=document.getElementById(id+'-ta');if(ta)ta.value='';micSt[id].sr.start();}
   catch(e){var vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent='Error: '+e.message;var vs=document.getElementById(id+'-vst');if(vs)vs.style.display='flex';}
 }
-function stopMic(id){micSt[id].on=false;const b=document.getElementById(id+'-mic');if(b)b.classList.remove('listening');var orb=document.getElementById(id+'-orb');if(orb)orb.classList.remove('listening');try{if(micSt[id].sr)micSt[id].sr.stop();}catch(e){}setTimeout(()=>{const v=document.getElementById(id+'-vst');if(v)v.style.display='none';},1500);}
+function toggleMic(id){
+  var orbEl=document.getElementById(id+'-orb');
+  if(orbEl){orbEl.classList.add('orb-tap');setTimeout(function(){orbEl.classList.remove('orb-tap');},400);}
+  if(micSt[id].on){stopMic(id);return;}
+  // Whisper primero (mejor precisión + iOS); fallback automático al dictado del navegador
+  if(!_sttWhisperBlocked&&_mediaRecOk()){startWhisperRec(id);return;}
+  startBrowserSR(id);
+}
+function stopMic(id){
+  var st=micSt[id];st.on=false;if(st._to){clearTimeout(st._to);st._to=null;}
+  const b=document.getElementById(id+'-mic');if(b)b.classList.remove('listening');var orb=document.getElementById(id+'-orb');if(orb)orb.classList.remove('listening');
+  if(st.whisper&&st.mr){try{if(st.mr.state!=='inactive')st.mr.stop();}catch(e){}return;} // onstop → whisperFinish (no ocultar aún)
+  try{if(st.sr)st.sr.stop();}catch(e){}
+  setTimeout(()=>{const v=document.getElementById(id+'-vst');if(v)v.style.display='none';},1500);
+}
 
 
 // ══════════════════════════════════════════════════════════════════
