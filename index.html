@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.46">
+  <meta name="version" content="Beta.47">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.46","builtAt":"2026-06-17T11:37:54Z","commit":"6430970","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.47","builtAt":"2026-06-17T17:19:12Z","commit":"621d24c","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -8937,6 +8937,9 @@ html.day #scr-oes .ot-progress{background:#06091a!important}
 .qbm-sel{flex:1;font-size:11px;color:rgba(232,238,255,.5);line-height:1.4}
 .qbm-go{padding:11px 20px;background:linear-gradient(135deg,#0a9d5c,#00e676);border:none;border-radius:10px;color:#04140a;font-size:11px;font-weight:800;letter-spacing:.06em;cursor:pointer;white-space:nowrap}
 .qbm-go:disabled{opacity:.4;cursor:default}
+.qbm-prog{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding:9px 12px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(255,255,255,.02);font-size:11px;color:rgba(232,238,255,.55)}
+.qbm-reset{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:rgba(232,238,255,.7);font-size:10px;font-weight:700;letter-spacing:.04em;padding:6px 11px;border-radius:8px;cursor:pointer;white-space:nowrap}
+.qbm-reset:hover{background:rgba(255,82,82,.12);border-color:rgba(255,82,82,.4);color:#ff8a8a}
 .ot-answer-panel{flex-direction:column;background:#06091a;border-left:1px solid rgba(255,255,255,.06);padding:14px;gap:10px;overflow-y:auto}
 .ot-ans-tabs{display:flex;gap:6px;margin-bottom:6px;flex-shrink:0}
 .ot-ans-tab{flex:1;padding:9px 6px;font-size:9px;font-weight:700;letter-spacing:.08em;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(232,238,255,.45);cursor:pointer;transition:all .15s;text-transform:uppercase}
@@ -12336,6 +12339,14 @@ const QB_FAMILIES=[
 ];
 function qbCount(type,sys){return QB.filter(q=>(type==='ALL'||q.type===type)&&(!sys||q.sys===sys)).length;}
 function qbSysName(key){for(const f of QB_FAMILIES){const s=f.sys.find(x=>x[0]===key);if(s)return s[1];}return key;}
+// ── Anti-repeat: preguntas ya vistas (persistente en este dispositivo via localStorage) ──
+function qbId(q){var s=q.q,h=0;for(var i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))|0;}return 'q'+(h>>>0).toString(36);}
+var QBSEEN=new Set();
+try{QBSEEN=new Set(JSON.parse(localStorage.getItem('pilotos_qb_seen')||'[]'));}catch(e){}
+function qbSaveSeen(){try{localStorage.setItem('pilotos_qb_seen',JSON.stringify(Array.from(QBSEEN)));}catch(e){}}
+function qbMarkSeen(q){if(!q)return;QBSEEN.add(qbId(q));qbSaveSeen();}
+function qbSeenCount(type,sys){return QB.filter(function(q){return (type==='ALL'||q.type===type)&&(!sys||q.sys===sys)&&QBSEEN.has(qbId(q));}).length;}
+function qbResetSeen(){QBSEEN=new Set();qbSaveSeen();var s=document.getElementById('scr-oes');if(s&&s.classList.contains('qb-picking'))renderQbMenu();}
 function renderQbMenu(){
   const m=document.getElementById('oes-msgs');if(!m)return;
   const types=QB_TYPES.map(t=>`<button class="qbm-type${t[0]===OS.type?' on':''}" onclick="qbSetType('${t[0]}')">${t[1]}${t[0]!=='ALL'?' <span style="opacity:.55">'+qbCount(t[0],null)+'</span>':''}</button>`).join('');
@@ -12345,7 +12356,9 @@ function renderQbMenu(){
     const open=OS.sys&&f.sys.some(s=>s[0]===OS.sys);
     return `<div class="qbm-fam${open?' open':''}"><div class="qbm-fhead" onclick="this.parentNode.classList.toggle('open')"><div class="qbm-ficon">${f.ic}</div><div class="qbm-fname">${f.n}</div><div class="qbm-fcount">${fc} Q</div><svg class="qbm-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg></div><div class="qbm-sys">${chips}</div></div>`;
   }).join('');
-  m.innerHTML=`<div class="qbm-wrap"><div class="qbm-lbl">¿Qué quieres practicar?</div><div class="qbm-types">${types}</div><div class="qbm-lbl">Por sistema (ATA)</div>${fams}<div class="qbm-bar"><div class="qbm-sel" id="qbm-sel"></div><button class="qbm-go" id="qbm-go" onclick="qbStartPractice()">Practicar →</button></div></div>`;
+  const seenAll=qbSeenCount('ALL',null);
+  const prog=`<div class="qbm-prog"><span>Progreso: <b style="color:#7dd3fc">${seenAll}</b>/${QB.length} vistas</span><button class="qbm-reset" onclick="qbResetSeen()">↺ Reiniciar vistas</button></div>`;
+  m.innerHTML=`<div class="qbm-wrap"><div class="qbm-lbl">¿Qué quieres practicar?</div><div class="qbm-types">${types}</div><div class="qbm-lbl">Por sistema (ATA)</div>${fams}${prog}<div class="qbm-bar"><div class="qbm-sel" id="qbm-sel"></div><button class="qbm-go" id="qbm-go" onclick="qbStartPractice()">Practicar →</button></div></div>`;
   qbUpdSel();
 }
 function qbUpdSel(){
@@ -12353,7 +12366,8 @@ function qbUpdSel(){
   const tn=(QB_TYPES.find(t=>t[0]===OS.type)||['','Todas'])[1];
   const sysn=OS.sys?qbSysName(OS.sys):'todos los sistemas';
   const n=qbCount(OS.type,OS.sys);
-  el.innerHTML=`<b style="color:#5eead4">${tn}</b> · ${sysn} — <b>${n}</b> pregunta${n===1?'':'s'}`;
+  const seen=qbSeenCount(OS.type,OS.sys);const nuevas=n-seen;
+  el.innerHTML=`<b style="color:#5eead4">${tn}</b> · ${sysn} — <b>${n}</b> pregunta${n===1?'':'s'} · <span style="color:#7dd3fc">${nuevas} nueva${nuevas===1?'':'s'}</span>`;
   const go=document.getElementById('qbm-go');if(go)go.disabled=n===0;
 }
 function qbSetType(t){OS.type=t;renderQbMenu();}
@@ -12439,7 +12453,7 @@ function renderFB(fb){
 }
 function shuffleOpts(q){const arr=q.opts.slice(),c=arr[0];for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return{opts:arr,correct:arr.indexOf(c)};}
 function oesPick(btn,i,qi){
-  if(OS.answered)return;OS.answered=true;
+  if(OS.answered)return;OS.answered=true;qbMarkSeen(QB[qi]);
   const ok=i===OS.sh.correct;
   const p=document.getElementById('oes-mc-opts')||btn.closest('.opts');
   if(p)p.querySelectorAll('.oes-mc-btn,.opt').forEach((b,idx)=>{b.disabled=true;if(idx===OS.sh.correct)b.classList.add(ok&&idx===i?'correct':'reveal');else if(idx===i&&!ok)b.classList.add('wrong');});
@@ -12454,8 +12468,17 @@ function evalFree(ans,q){
 }
 function pickQ(){
   const pool=QB.filter(q=>(OS.type==='ALL'||q.type===OS.type)&&(!OS.sys||q.sys===OS.sys));if(!pool.length)return null;
-  const pI=pool.map(q=>QB.indexOf(q));const unused=pI.filter(i=>!OS.used.includes(i));const src=unused.length?unused:pI;
-  if(!unused.length)OS.used=[];const pick=src[Math.floor(Math.random()*src.length)];OS.used.push(pick);return QB[pick];
+  const pI=pool.map(q=>QB.indexOf(q));
+  // 1) preferir preguntas NO vistas (persistente)
+  let unseen=pI.filter(i=>!QBSEEN.has(qbId(QB[i])));
+  if(!unseen.length){
+    // todas vistas en este filtro → completar ciclo: limpiar sus marcas y avisar una vez
+    pool.forEach(q=>QBSEEN.delete(qbId(q)));qbSaveSeen();OS._justCycled=true;
+    unseen=pI.slice();OS.used=[];
+  }
+  // 2) evitar repetir dentro de la misma ronda
+  let src=unseen.filter(i=>!OS.used.includes(i));if(!src.length)src=unseen;
+  const pick=src[Math.floor(Math.random()*src.length)];OS.used.push(pick);return QB[pick];
 }
 function updOes(){['sq','sp','sx','sf'].forEach((id,i)=>document.getElementById(id).textContent=[OS.q,OS.pass,OS.part,OS.fail][i]);}
 function updateOesProg(){
@@ -12471,6 +12494,7 @@ function startOes(){
 }
 function oesNext(){
   const q=pickQ();if(!q){addOesMsg('ex','No hay más preguntas. Cambia categoría o haz reset.');return;}
+  if(OS._justCycled){OS._justCycled=false;addOesMsg('ex','✅ Has visto todas las preguntas de este filtro. Reinicio el ciclo para repasar.');}
   OS.idx=QB.indexOf(q);OS.answered=false;OS.q++;updOes();updateOesProg();var _nb2=document.getElementById('oes-nbtn');if(_nb2)_nb2.disabled=true;var _nqb=document.getElementById('oes-nbtn-qb');if(_nqb)_nqb.style.display='none';
   if(OS.mode==='mc'){
     OS.sh=shuffleOpts(q);addOesMsg('ex',q.q,null,null,OS.idx);renderOesMCPanel(OS.sh.opts,OS.idx);var _ta2=document.getElementById('oes-ta');if(_ta2){_ta2.value='';_ta2.disabled=false;}var _sb2b=document.getElementById('oes-sbtn');if(_sb2b)_sb2b.disabled=false;
@@ -12480,7 +12504,7 @@ function oesNext(){
 }
 function oesSend(){
   const ta=document.getElementById('oes-ta');const ans=ta.value.trim();if(!ans||OS.answered)return;
-  stopMic('oes');ta.value='';OS.answered=true;ta.disabled=true;var _sb2=document.getElementById('oes-sbtn');if(_sb2)_sb2.disabled=true;document.getElementById('oes-vst').style.display='none';
+  stopMic('oes');ta.value='';OS.answered=true;qbMarkSeen(QB[OS.idx]);ta.disabled=true;var _sb2=document.getElementById('oes-sbtn');if(_sb2)_sb2.disabled=true;document.getElementById('oes-vst').style.display='none';
   addOesMsg('me',ans);const fb=evalFree(ans,QB[OS.idx]);
   if(fb.score==='PASS')OS.pass++;else if(fb.score==='PARTIAL')OS.part++;else OS.fail++;
   updOes();setTimeout(()=>{addOesMsg('ex','',fb);var _nb=document.getElementById('oes-nbtn');if(_nb)_nb.disabled=false;var _nqb=document.getElementById('oes-nbtn-qb');if(_nqb)_nqb.style.display='block';},300);
