@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.47">
+  <meta name="version" content="Beta.48">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.47","builtAt":"2026-06-17T17:19:12Z","commit":"621d24c","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.48","builtAt":"2026-06-17T17:33:07Z","commit":"575600c","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -9180,6 +9180,17 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           </div>
         </div>
         <div class="ot-mic-status">AI Examiner · Ready</div>
+        <div class="oes-voice-ctl" style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:8px">
+          <button id="oes-voice-toggle" class="on" onclick="toggleOesVoice()" title="Activar/desactivar la voz del examinador" style="font-family:'Space Mono',monospace;font-size:10px;font-weight:700;padding:4px 10px;border-radius:10px;border:1px solid rgba(0,200,224,.3);background:rgba(0,200,224,.12);color:#00c8e0;cursor:pointer">🔊 Voz</button>
+          <select id="oes-voice-sel" onchange="setOesVoiceName(this.value)" title="Voz del examinador" style="font-family:'Space Mono',monospace;font-size:10px;padding:4px 6px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:#0d1530;color:#e8eeff;cursor:pointer">
+            <option value="onyx">Onyx ♂</option>
+            <option value="ash">Ash ♂</option>
+            <option value="nova">Nova ♀</option>
+            <option value="coral">Coral ♀</option>
+            <option value="shimmer">Shimmer ♀</option>
+          </select>
+          <span id="oes-ai-voice-tag" title="La voz es generada por IA, no es una persona real" style="display:inline-flex;align-items:center;gap:4px;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.05em;padding:3px 8px;border-radius:10px;border:1px solid rgba(255,171,64,.3);background:rgba(255,171,64,.1);color:#ffab40">● VOZ IA</span>
+        </div>
         <div class="vst-row" id="oes-vst" style="display:none;text-align:center"><div class="vdot"></div><span id="oes-vst-t">Escuchando...</span></div>
         <div class="ot-bot-row" style="flex-direction:column;align-items:stretch;width:100%;padding-top:6px">
           <button class="nb" id="oes-nbtn" onclick="oesNext()" disabled>Siguiente →</button>
@@ -12325,6 +12336,53 @@ const QB=[
 ];
 
 let OS={sys:null,type:'ALL',mode:'mc',q:0,pass:0,part:0,fail:0,idx:-1,answered:false,used:[],sh:null};
+// ── Voz del examinador (TTS) ──
+let oesVoiceOn=true;            // toggle de usuario (memoria de sesión)
+let oesVoiceName='onyx';       // voz por defecto (onyx/ash masculinas; nova/coral/shimmer femeninas)
+let _oesAudio=null;            // Audio en curso, para evitar solapamientos
+let _oesTtsBlocked=false;     // true si el plan no incluye voz (free) → avisar una vez
+// ¿Está activo un modo con voz? (Oral Exam o Line Check; NO Q-Bank ni flashcards)
+function oesVoiceModeActive(){
+  var s=document.getElementById('scr-oes');
+  return !!s&&(s.classList.contains('mode-oral')||s.classList.contains('mode-linecheck'));
+}
+async function oesSpeak(text){
+  try{
+    if(!oesVoiceOn||!oesVoiceModeActive())return;
+    // Limpia HTML, marcas ✓/✗ y emojis para que no los lea raro
+    var clean=String(text)
+      .replace(/<[^>]*>/g,' ')
+      .replace(/[✓✗◑✅❌🔊⏱️→•]/g,' ')
+      .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}]/gu,' ')
+      .replace(/\s+/g,' ').trim();
+    if(!clean)return;
+    if(clean.length>800)clean=clean.slice(0,800);
+    var r=await fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('cafi_auth_token')},body:JSON.stringify({text:clean,voice:oesVoiceName||undefined})});
+    if(r.status===429){
+      // Plan sin voz o límite alcanzado: el texto ya está en pantalla, no molestar
+      if(!_oesTtsBlocked){_oesTtsBlocked=true;var st=document.querySelector('#scr-oes .ot-mic-status');if(st)st.textContent='Voz disponible en Pro';}
+      return;
+    }
+    if(!r.ok)return;
+    var blob=await r.blob();var url=URL.createObjectURL(blob);
+    if(_oesAudio){try{_oesAudio.pause();}catch(e){}}
+    var a=new Audio(url);_oesAudio=a;
+    a.onended=function(){URL.revokeObjectURL(url);if(_oesAudio===a)_oesAudio=null;};
+    a.play().catch(function(){});
+  }catch(e){/* la voz es opcional: si falla, la app sigue en texto */}
+}
+function toggleOesVoice(){
+  oesVoiceOn=!oesVoiceOn;
+  if(!oesVoiceOn&&_oesAudio){try{_oesAudio.pause();}catch(e){}_oesAudio=null;}
+  updOesVoiceUI();
+}
+function setOesVoiceName(v){oesVoiceName=v;}
+function updOesVoiceUI(){
+  var btn=document.getElementById('oes-voice-toggle');
+  if(btn){btn.classList.toggle('on',oesVoiceOn);btn.textContent=oesVoiceOn?'🔊 Voz':'🔇 Voz';}
+  var tag=document.getElementById('oes-ai-voice-tag');
+  if(tag)tag.style.display=oesVoiceOn?'inline-flex':'none';
+}
 
 // ── Question Bank — registro de sistemas (ATA) + tipos de pregunta ──
 const QB_TYPES=[["ALL","Todas"],["GEN","General"],["LIM","Limitaciones"],["ABN","Emergencias"],["MEM","Memory items"],["PROC","Procedimientos"]];
@@ -12413,6 +12471,7 @@ function startOesOral(){
   var s=document.getElementById('scr-oes');if(s){s.classList.add('mode-oral');s.classList.remove('mode-qbank','mode-linecheck','mode-flash');}
   var ssc=document.getElementById('oes-ssc');if(ssc)ssc.remove();
   clearOesMsgs('ORAL EXAM SESSION','AI Examiner · TRE Mode');
+  _oesTtsBlocked=false;updOesVoiceUI();
   collapseOesCards();initMic('oes');oesNext();
 }
 function startOesQB(){
@@ -12444,6 +12503,11 @@ function addOesMsg(role,text,fb,opts,qi){
   if(opts){const L=['A','B','C','D'];oh='<div class="opts">'+opts.map((o,i)=>`<button class="opt" onclick="oesPick(this,${i},${qi})"><span class="ol">${L[i]}</span>${esc(o)}</button>`).join('')+'</div>';}
   d.innerHTML=`<div class="av2 ${ex?'ex':'me'}">${ex?'EX':'TÚ'}</div><div class="mi-body"><div class="mi-name">${ex?'Examinador EASA':'Candidato'}</div><div class="mi-text">${esc(text)}</div>${oh}${fb?renderFB(fb):''}</div>`;
   const m=document.getElementById('oes-msgs');m.appendChild(d);requestAnimationFrame(()=>m.scrollTop=m.scrollHeight);
+  // Voz del examinador: enunciado de pregunta o feedback (comment + respuesta correcta, breve)
+  if(ex){
+    if(fb){var ft=(fb.comment||'')+(fb.answer?'. Respuesta correcta: '+fb.answer:'');oesSpeak(ft);}
+    else if(text&&String(text).trim())oesSpeak(text);
+  }
 }
 function renderFB(fb){
   const mc={PASS:'p',PARTIAL:'x',FAIL:'f'};
@@ -12490,6 +12554,7 @@ function startOes(){
   var s=document.getElementById('scr-oes');if(s){s.classList.add('mode-linecheck');s.classList.remove('mode-qbank','mode-oral','mode-flash');}
   var ssc=document.getElementById('oes-ssc');if(ssc)ssc.remove();
   clearOesMsgs('LINE CHECK','50 preguntas · Modo TRE completo');
+  _oesTtsBlocked=false;updOesVoiceUI();
   collapseOesCards();initMic('oes');oesNext();
 }
 function oesNext(){
@@ -12510,7 +12575,7 @@ function oesSend(){
   updOes();setTimeout(()=>{addOesMsg('ex','',fb);var _nb=document.getElementById('oes-nbtn');if(_nb)_nb.disabled=false;var _nqb=document.getElementById('oes-nbtn-qb');if(_nqb)_nqb.style.display='block';},300);
 }
 function oesReset(){
-  stopMic('oes');OS={sys:OS.sys,type:OS.type,mode:OS.mode,q:0,pass:0,part:0,fail:0,idx:-1,answered:false,used:[],sh:null};updOes();
+  stopMic('oes');if(_oesAudio){try{_oesAudio.pause();}catch(e){}_oesAudio=null;}OS={sys:OS.sys,type:OS.type,mode:OS.mode,q:0,pass:0,part:0,fail:0,idx:-1,answered:false,used:[],sh:null};updOes();
   document.getElementById('oesp1').textContent='';document.getElementById('oesp2').textContent='';document.getElementById('oes-bar').style.width='0%';
   const m=document.getElementById('oes-msgs');m.innerHTML='';
   const sc=document.createElement('div');sc.className='start-sc';sc.id='oes-ssc';
