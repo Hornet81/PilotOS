@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.31">
+  <meta name="version" content="Beta.32">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.31","builtAt":"2026-06-17T08:27:01Z","commit":"297d54d","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.32","builtAt":"2026-06-17T08:30:32Z","commit":"d583d8a","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -8744,7 +8744,15 @@ html.day .fp-ym-st-col.free .fp-ym-st-rng{color:var(--fp-gd)}
 .oes-dt-mel{border-color:#b71c1c;color:#ef9a9a}
 .oes-dt-lim{border-color:#e65100;color:#ffb74d}
 /* Feature Cards */
-.ot-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.06)}
+.ot-cards-section{border-bottom:1px solid rgba(255,255,255,.06)}
+.ot-cards-toggle{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;cursor:pointer;user-select:none;transition:background .15s}
+.ot-cards-toggle:hover{background:rgba(255,255,255,.03)}
+.ot-cards-lbl{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(232,238,255,.35)}
+.ot-cards-chev{width:14px;height:14px;color:rgba(232,238,255,.3);transition:transform .25s;flex-shrink:0}
+.ot-cards-wrap{overflow:hidden;transition:max-height .32s ease,opacity .25s;max-height:700px;opacity:1}
+.ot-cards-section.collapsed .ot-cards-wrap{max-height:0;opacity:0}
+.ot-cards-section.collapsed .ot-cards-chev{transform:rotate(180deg)}
+.ot-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px 14px}
 @media(min-width:600px){.ot-cards{grid-template-columns:repeat(4,1fr)}}
 .ot-card{background:#0d1530;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:13px;display:flex;flex-direction:column;gap:8px;cursor:pointer;transition:border-color .2s,transform .15s}
 .ot-card:hover{border-color:rgba(255,255,255,.18);transform:translateY(-1px)}
@@ -9051,6 +9059,12 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       </div>
     </div>
     <!-- Feature Cards -->
+    <div class="ot-cards-section" id="oes-cards-section">
+      <div class="ot-cards-toggle" onclick="toggleOesCards()">
+        <span class="ot-cards-lbl">TRAINING MODES</span>
+        <svg class="ot-cards-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+      </div>
+      <div class="ot-cards-wrap">
     <div class="ot-cards">
       <div class="ot-card">
         <div class="ot-card-head">
@@ -9083,6 +9097,8 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
         </div>
         <ul class="ot-card-list"><li>50 preguntas</li><li>Modo TRE</li><li>Informe detallado</li></ul>
         <button class="ot-card-btn primary" onclick="activarOesCard(this);startOes()">START CHECK</button>
+      </div>
+    </div>
       </div>
     </div>
     <!-- Mid: 3-col mic | chat | progress -->
@@ -12261,6 +12277,12 @@ function setOesMode(m){
   document.getElementById('mb-mc').classList.toggle('on',m==='mc');
   document.getElementById('mb-tv').classList.toggle('on',m==='tv');
 }
+function toggleOesCards(){
+  var s=document.getElementById('oes-cards-section');if(s)s.classList.toggle('collapsed');
+}
+function collapseOesCards(){
+  var s=document.getElementById('oes-cards-section');if(s)s.classList.add('collapsed');
+}
 function activarOesCard(btn){
   document.querySelectorAll('#scr-oes .ot-card').forEach(function(c){c.classList.remove('act');});
   var card=btn.closest('.ot-card');if(card)card.classList.add('act');
@@ -12281,14 +12303,14 @@ function startOesOral(){
   var s=document.getElementById('scr-oes');if(s){s.classList.add('mode-oral');s.classList.remove('mode-qbank','mode-linecheck','mode-flash');}
   var ssc=document.getElementById('oes-ssc');if(ssc)ssc.remove();
   clearOesMsgs('ORAL EXAM SESSION','AI Examiner · TRE Mode');
-  initMic('oes');oesNext();
+  collapseOesCards();initMic('oes');oesNext();
 }
 function startOesQB(){
   setOesMode('mc');
   var s=document.getElementById('scr-oes');if(s){s.classList.add('mode-qbank');s.classList.remove('mode-oral','mode-linecheck','mode-flash');}
   var ssc=document.getElementById('oes-ssc');if(ssc)ssc.remove();
   clearOesMsgs('QUESTION BANK','Multiple Choice · Banco de preguntas');
-  oesNext();
+  collapseOesCards();oesNext();
 }
 function oesSetTab(tab){
   var mc=document.getElementById('oes-mc-panel'),wr=document.getElementById('oes-write-panel');
@@ -12350,7 +12372,7 @@ function startOes(){
   var s=document.getElementById('scr-oes');if(s){s.classList.add('mode-linecheck');s.classList.remove('mode-qbank','mode-oral','mode-flash');}
   var ssc=document.getElementById('oes-ssc');if(ssc)ssc.remove();
   clearOesMsgs('LINE CHECK','50 preguntas · Modo TRE completo');
-  initMic('oes');oesNext();
+  collapseOesCards();initMic('oes');oesNext();
 }
 function oesNext(){
   const q=pickQ();if(!q){addOesMsg('ex','No hay más preguntas. Cambia categoría o haz reset.');return;}
