@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.37">
+  <meta name="version" content="Beta.38">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.37","builtAt":"2026-06-17T09:02:54Z","commit":"46ef7bd","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.38","builtAt":"2026-06-17T09:09:57Z","commit":"65f94ed","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -8909,6 +8909,34 @@ html.day #scr-oes .ot-progress{background:#06091a!important}
 #scr-oes.mode-qbank .ot-answer-panel{display:flex!important}
 #scr-oes.mode-qbank .chat-msgs{max-height:16vh!important}
 #scr-oes.mode-oral .chat-msgs,#scr-oes.mode-linecheck .chat-msgs{max-height:50vh!important}
+/* ── QB Picker (selección sistema ATA + tipo) ── */
+#scr-oes.qb-picking .ot-answer-panel{display:none!important}
+#scr-oes.qb-picking.mode-qbank .ot-mid{grid-template-columns:1fr!important}
+#scr-oes.qb-picking.mode-qbank .chat-msgs{max-height:62vh!important}
+.qbm-wrap{padding:4px 2px 6px}
+.qbm-lbl{font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(232,238,255,.35);margin:12px 2px 9px}
+.qbm-lbl:first-child{margin-top:2px}
+.qbm-types{display:flex;flex-wrap:wrap;gap:7px}
+.qbm-type{font-size:11px;font-weight:600;padding:7px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:rgba(232,238,255,.6);cursor:pointer;transition:all .12s}
+.qbm-type.on{background:rgba(0,230,118,.14);border-color:rgba(0,230,118,.45);color:#5eead4}
+.qbm-fam{border:1px solid rgba(255,255,255,.08);border-radius:11px;margin-bottom:7px;overflow:hidden;background:rgba(255,255,255,.02)}
+.qbm-fhead{display:flex;align-items:center;gap:10px;padding:11px 13px;cursor:pointer;user-select:none}
+.qbm-ficon{width:26px;height:26px;border-radius:7px;background:rgba(41,121,255,.12);display:flex;align-items:center;justify-content:center;color:#64b5f6;flex-shrink:0;font-size:14px}
+.qbm-fname{font-size:12.5px;font-weight:600;color:#d8e2ff}
+.qbm-fcount{margin-left:auto;font-size:9px;font-weight:700;color:rgba(232,238,255,.3);letter-spacing:.05em}
+.qbm-chev{color:rgba(232,238,255,.3);transition:transform .18s;flex-shrink:0}
+.qbm-fam.open .qbm-chev{transform:rotate(180deg)}
+.qbm-sys{display:none;flex-wrap:wrap;gap:6px;padding:2px 13px 13px 49px}
+.qbm-fam.open .qbm-sys{display:flex}
+.qbm-syschip{font-size:11px;padding:6px 11px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(232,238,255,.62);cursor:pointer;transition:all .12s}
+.qbm-syschip:hover{border-color:rgba(41,121,255,.4)}
+.qbm-syschip.on{background:rgba(0,230,118,.16);border-color:rgba(0,230,118,.5);color:#5eead4;font-weight:600}
+.qbm-syschip.empty{opacity:.32;cursor:default}
+.qbm-syschip.empty:hover{border-color:rgba(255,255,255,.1)}
+.qbm-bar{position:sticky;bottom:0;display:flex;align-items:center;gap:12px;margin-top:10px;padding:12px 4px 6px;background:linear-gradient(to top,#06091a 72%,transparent)}
+.qbm-sel{flex:1;font-size:11px;color:rgba(232,238,255,.5);line-height:1.4}
+.qbm-go{padding:11px 20px;background:linear-gradient(135deg,#0a9d5c,#00e676);border:none;border-radius:10px;color:#04140a;font-size:11px;font-weight:800;letter-spacing:.06em;cursor:pointer;white-space:nowrap}
+.qbm-go:disabled{opacity:.4;cursor:default}
 .ot-answer-panel{flex-direction:column;background:#06091a;border-left:1px solid rgba(255,255,255,.06);padding:14px;gap:10px;overflow-y:auto}
 .ot-ans-tabs{display:flex;gap:6px;margin-bottom:6px;flex-shrink:0}
 .ot-ans-tab{flex:1;padding:9px 6px;font-size:9px;font-weight:700;letter-spacing:.08em;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(232,238,255,.45);cursor:pointer;transition:all .15s;text-transform:uppercase}
@@ -9207,20 +9235,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           <button class="mode-b on" id="mb-mc" onclick="setOesMode('mc')"></button>
           <button class="mode-b" id="mb-tv" onclick="setOesMode('tv')"></button>
           <div id="mhint">4 opciones</div>
-          <div id="cats">
-            <button class="chip on" data-cat="0">Random</button>
-            <button class="chip" data-cat="1">Air Sys</button>
-            <button class="chip" data-cat="2">Hydraulics</button>
-            <button class="chip" data-cat="3">Fuel</button>
-            <button class="chip" data-cat="4">Electrical</button>
-            <button class="chip" data-cat="5">FBW</button>
-            <button class="chip" data-cat="6">Autoflight</button>
-            <button class="chip" data-cat="7">Fire</button>
-            <button class="chip" data-cat="8">Gear</button>
-            <button class="chip" data-cat="9">Emergencias</button>
-            <button class="chip" data-cat="10">Limitaciones</button>
-            <button class="chip" data-cat="11">FCTM</button>
-          </div>
+          <div id="cats"></div>
         </div>
       </div>
       <!-- QB Answer Panel — visible en mode-qbank -->
@@ -9292,30 +9307,30 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       <div class="ot-explore-wrap">
         <div class="ot-hub-section-title">Explore by Topic</div>
         <div class="ot-ex-cards">
-          <div class="ot-ex-card" onclick="document.querySelector('[data-cat=\'1\']')?.click()">
+          <div class="ot-ex-card" onclick="qbQuick('ALL',null)">
             <div class="ot-ex-icon cyan"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
-            <div class="ot-ex-name">Systems</div>
-            <div class="ot-ex-count">1,245 Q</div>
+            <div class="ot-ex-name">Sistemas</div>
+            <div class="ot-ex-count">Por ATA</div>
           </div>
-          <div class="ot-ex-card" onclick="document.querySelector('[data-cat=\'9\']')?.click()">
+          <div class="ot-ex-card" onclick="qbQuick('ABN',null)">
             <div class="ot-ex-icon red"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
-            <div class="ot-ex-name">Emergency</div>
-            <div class="ot-ex-count">2,153 Q</div>
+            <div class="ot-ex-name">Emergencias</div>
+            <div class="ot-ex-count">Abnormal / QRH</div>
           </div>
-          <div class="ot-ex-card" onclick="document.querySelector('[data-cat=\'6\']')?.click()">
+          <div class="ot-ex-card" onclick="qbQuick('PROC',null)">
             <div class="ot-ex-icon blue"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 15 11 17 15 12"/></svg></div>
-            <div class="ot-ex-name">Procedures</div>
-            <div class="ot-ex-count">1,987 Q</div>
+            <div class="ot-ex-name">Procedimientos</div>
+            <div class="ot-ex-count">SOP & FCTM</div>
           </div>
-          <div class="ot-ex-card" onclick="document.querySelector('[data-cat=\'10\']')?.click()">
+          <div class="ot-ex-card" onclick="qbQuick('LIM',null)">
             <div class="ot-ex-icon grn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg></div>
-            <div class="ot-ex-name">Performance</div>
-            <div class="ot-ex-count">1,654 Q</div>
+            <div class="ot-ex-name">Limitaciones</div>
+            <div class="ot-ex-count">Límites A320</div>
           </div>
-          <div class="ot-ex-card" onclick="document.querySelector('[data-cat=\'11\']')?.click()">
+          <div class="ot-ex-card" onclick="qbQuick('MEM',null)">
             <div class="ot-ex-icon orange"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
-            <div class="ot-ex-name">MEL</div>
-            <div class="ot-ex-count">1,234 Q</div>
+            <div class="ot-ex-name">Memory items</div>
+            <div class="ot-ex-count">De memoria</div>
           </div>
         </div>
       </div>
@@ -12235,43 +12250,79 @@ if(!window._dhClickListenerAdded){
 
 // ── OES MODULE ──
 const QB=[
-{c:1,q:"¿Cuántos packs de aire acondicionado tiene el A320 y de dónde obtienen el bleed air? (DSC-21)",keys:["2","pack","bleed","motor","apu","crossbleed","zona","trim air"],answer:"2 packs. Reciben bleed air de los motores (válvulas HP/IP) o del APU via crossbleed. Temperatura regulada por zonas (Cockpit, Fwd, Aft Cabin) mediante trim air valves. (FCOM DSC-21)",opts:["2 packs — bleed de motores o APU, temperatura por zonas con trim air valves","3 packs: 2 motores + 1 APU, temperatura fija","2 packs solo de motores","1 pack principal + 1 emergencia"]},
-{c:1,q:"¿Cuál es la presión diferencial máxima estructural del A320? (LIM-AG-PRESS)",keys:["8.6","psi","safety valve","diferencial"],answer:"8,6 PSI estructural. Safety valves abren a 8,6 PSI. Altitud máxima cabina normal: 8.000 ft.",opts:["8,6 PSI — safety valves abren a 8,6 PSI","9,0 PSI — a 9,0 PSI","7,5 PSI — a 7,5 PSI","8,6 PSI — a 9,2 PSI"]},
-{c:2,q:"Según FCOM DSC-29-10-10, ¿a qué presión trabajan los sistemas hidráulicos del A320?",keys:["3000","2500","rat","blue","tres sistemas"],answer:"FCOM DSC-29-10-10: 'Normal system operating pressure is 3,000 PSI (2,500 PSI when powered by the RAT).' Tres sistemas: Green, Blue, Yellow. El fluido NO puede transferirse entre sistemas.",opts:["3.000 PSI normal; 2.500 PSI con RAT alimentando BLUE","3.000 PSI siempre incluido RAT","2.500 PSI normal; 3.000 PSI emergencia","3.000 Green/Yellow; 2.000 Blue"]},
-{c:2,q:"Según FCOM DSC-29-10-20, ¿cuándo activa el PTU automáticamente?",keys:["500 psi","ptu","diferencial","bidireccional"],answer:"FCOM DSC-29-10-20: 'The PTU comes into action automatically when the differential pressure between the green and yellow systems is greater than 500 PSI.' Bidireccional — no transfiere fluido.",opts:["Cuando la diferencial Green-Yellow supera 500 PSI","Con >1.000 PSI de diferencial","Con >300 PSI de diferencial","Solo manualmente por la tripulación"]},
-{c:2,q:"Según FCOM DSC-29-10-20, ¿en qué condición se despliega el RAT automáticamente?",keys:["rat","ac bus 1","ac bus 2","blue","2500"],answer:"FCOM DSC-29-10-20: 'The RAT deploys automatically if AC BUS 1 and AC BUS 2 are both lost.' Activa el sistema BLUE a 2.500 PSI y genera ~5 kVA eléctricos.",opts:["Si se pierden AC BUS 1 y AC BUS 2 simultáneamente","Si falla el motor 2","Manualmente desde el overhead","Si se pierden ambos motores independientemente de los buses"]},
-{c:3,q:"¿Cuál es el límite de desequilibrio entre wing tanks del A320?",keys:["500 kg","desequilibrio","ecam","manual"],answer:"500 kg. ECAM CAUTION si se supera. Gestión MANUAL: abrir crossfeed. No hay transferencia automática.",opts:["500 kg — ECAM CAUTION — gestión manual","750 kg — automático","300 kg — WARNING automático","1.000 kg — solo informativo"]},
-{c:3,q:"¿Cuándo se inhiben automáticamente las bombas del center tank?",keys:["750 kg","center tank","wing","inhibición"],answer:"Automáticamente cuando el wing tank cae por debajo de ~750 kg, para evitar descubrimiento de las entradas de bomba.",opts:["Cuando el wing tank baja de ~750 kg","Cuando el center tank llega a cero","Al abrir el crossfeed","En la emergencia eléctrica"]},
-{c:4,q:"¿Qué tensión y frecuencia generan los IDG del A320? (DSC-24)",keys:["115v","400hz","idg","28v","tr"],answer:"115V AC 400Hz. TRs (Transformer Rectifiers) convierten AC a 28V DC para los DC buses. (FCOM DSC-24-10)",opts:["115V AC 400Hz — 28V DC mediante TRs","115V AC 60Hz — 24V DC","230V AC 400Hz — 28V DC","115V AC 400Hz — 24V directamente de baterías"]},
-{c:5,q:"Según el FCTM (AOP-10-30-10), ¿qué es la 'control law' del A320?",keys:["control law","sidestick","respuesta","caracteristicas","manejo"],answer:"FCTM AOP-10-30-10: 'The relationship between the pilot input on the sidestick and the aircraft response is called the control law. The control law determines the handling characteristics of the aircraft.'",opts:["La relación entre el input del sidestick y la respuesta de la aeronave (FCTM AOP-10-30-10)","El software que controla los motores","La ley que regula las velocidades de maniobra","El sistema de protección contra el viento"]},
-{c:5,q:"Según el FCTM AOP-10-30-20, ¿qué debe hacer el PM si quiere actuar sobre el sidestick?",keys:["pm","i have control","sidestick","pushbutton","algebraica"],answer:"FCTM AOP-10-30-20: 'If the PM wants to act on the sidestick, the PM must: Clearly announce I have control, Press and maintain the sidestick pushbutton.' Los inputs se suman algebraicamente.",opts:["Anunciar 'I have control' y presionar el sidestick pushbutton (FCTM AOP-10-30-20)","Desconectar el AP primero","Esperar aprobación del PF","No puede actuar sobre el sidestick en ningún caso"]},
-{c:5,q:"Según el FCTM, ¿qué ocurre con los sidesticks cuando el autopiloto está enganchado?",keys:["autopilot","neutral","bloqueado","tactile","feedback"],answer:"FCTM AOP-10-30-10: 'When the autopilot is engaged: The sidesticks are locked in neutral position (immediate tactile feedback).'",opts:["Los sidesticks se bloquean en posición neutra con retroalimentación táctil inmediata","Los sidesticks se mueven siguiendo los comandos del AP","Los sidesticks se desconectan eléctricamente","Los sidesticks quedan libres pero inactivos"]},
-{c:5,q:"¿Cuáles son los límites de factor de carga del A320 en clean y con flaps? (LIM-AG-F_CTL)",keys:["-1","2.5","0","2","factor de carga","clean","flaps"],answer:"Clean: -1g a +2,5g. Con flaps/slats: 0g a +2g. (FCOM LIM-AG-F_CTL)",opts:["-1g a +2,5g clean; 0g a +2g con flaps","-1,5g a +3g clean","0g a +2,5g clean","-1g a +3g clean; 0g a +2,5g con flaps"]},
-{c:6,q:"Según el FCTM (AS-FG-10-1), ¿qué indica el modo MANAGED en el FCU?",keys:["managed","managed mode","fms","gps","f-pln","accuracy"],answer:"FCTM AS-FG-10-1: los modos managed requieren buena precisión de navegación FMS (o GPS PRIMARY) y un F-PLN activo apropiado. FCU muestra guiones (---) y objetivo en magenta en PFD.",opts:["FCU muestra guiones; objetivo FMGC en magenta; requiere FMS accuracy y F-PLN activo","FCU muestra valor numérico en azul","El piloto controla directamente la velocidad","Solo disponible con AP enganchado"]},
-{c:6,q:"¿Qué es el Cost Index y cuál es su rango? (DSC-22-70)",keys:["cost index","ci","combustible","tiempo","velocidad","economica"],answer:"CI es un ratio entre coste de tiempo y coste de combustible (0-999). CI=0: velocidad de mínimo combustible. CI=999: velocidad máxima. El FMGC calcula la velocidad ECON de crucero en función del CI.",opts:["Ratio tiempo/combustible (0-999); CI=0 mínimo combustible; CI=999 máxima velocidad","Índice de confort (0-100)","Factor de carga estructural","Parámetro de eficiencia del motor"]},
-{c:7,q:"¿Qué acciones realiza el FIRE PB de motor del A320? (DSC-26)",keys:["fuel sov","bleed valve","pack valve","idg","hydraulic firewall"],answer:"DSC-26: al presionar FIRE PB se cierra: fuel SOV, hydraulic firewall valve, bleed valve, pack valve; y se desconecta el IDG. Arma los agentes extintores para descarga giratoria.",opts:["Cierra fuel SOV + hyd firewall valve + bleed valve + pack valve + desconecta IDG","Solo cierra la fuel SOV","Cierra fuel SOV y para el motor","Descarga el agente directamente"]},
-{c:7,q:"¿Qué diferencia hay en la extinción de incendio de APU entre tierra y vuelo? (DSC-26)",keys:["tierra","automático","vuelo","manual","apu"],answer:"Tierra: APU para Y agente se descarga automáticamente sin acción de tripulación. Vuelo: tripulación actúa manualmente tras la advertencia del FIRE PB del APU. (FCOM DSC-26)",opts:["Tierra: extinción automática. Vuelo: tripulación actúa manualmente","Tierra: manual. Vuelo: automático","Siempre automático","Siempre manual"]},
-{c:8,q:"Según el FCOM Vueling LIM-AG-SPD, ¿cuáles son VLE, VLO extensión y VLO retracción?",keys:["280","0.67","vle","250","0.60","vlo","220","0.54"],answer:"VLE: 280 kt/M0,67. VLO extensión: 250 kt/M0,60. VLO retracción: 220 kt/M0,54. (FCOM VLG LIM-AG-SPD DEC 25)",opts:["VLE 280/M0,67 — VLO ext 250/M0,60 — VLO ret 220/M0,54","VLE 250/M0,60 — VLO ext 280/M0,67","VLE 300/M0,70 — VLO ext 260","VLE 260/M0,65 — VLO ext 250"]},
-{c:9,q:"Items de memoria para UNRELIABLE AIRSPEED INDICATION del A320:",keys:["ap","fd","a/thr","off","qrh"],answer:"AP OFF — FD OFF — A/THR OFF. Después aplicar pitch y thrust de la tabla UNRELIABLE AIRSPEED del QRH según fase de vuelo.",opts:["AP OFF — FD OFF — A/THR OFF (luego tabla QRH)","AP OFF — PITCH UP — THRUST TOGA","FD OFF — A/THR OFF — EMERGENCIA","AP OFF — FD OFF — ENG MODE IGN"]},
-{c:9,q:"Durante un RA del TCAS, ¿qué instrucción de ATC se ignora?",keys:["ra","atc","conflicto","prevalece","tcas"],answer:"El RA del TCAS prevalece siempre sobre las instrucciones de ATC. Si ATC da instrucción que conflicta con el RA, se sigue el RA y se informa a ATC.",opts:["Cualquier instrucción ATC que conflicte con el RA","Solo instrucciones de descenso","Las ATC si el RA ordena CLIMB","Ninguna — ATC siempre prevalece"]},
-{c:9,q:"Primera acción inmediata ante humo en cabina de vuelo:",keys:["oxígeno","máscara","100%","emergency","interphone"],answer:"Máscaras O2 al 100% EMERGENCY + comunicación por interphone. Luego identificar fuente y acciones ECAM.",opts:["Máscaras O2 100% EMERGENCY + interphone","Declarar emergencia y descender","Abrir RAM AIR","Identificar fuente antes"]},
-{c:10,q:"VMO y MMO del A320 según FCOM Vueling LIM-AG-SPD (Issue 03 DEC 25):",keys:["350","0.82","vmo","mmo"],answer:"VMO = 350 kt IAS. MMO = M 0,82. (FCOM VLG LIM-AG-SPD, Issue 03 DEC 25)",opts:["VMO 350 kt / MMO M 0,82","VMO 320 kt / MMO M 0,80","VMO 340 kt / MMO M 0,82","VMO 350 kt / MMO M 0,84"]},
-{c:10,q:"¿Cuál es la altitud máxima con slats y/o flaps extendidos? (LIM-AG-F_CTL)",keys:["20000","20.000","slats","flaps"],answer:"20.000 ft. Altitud certificada máxima: 39.800 ft. (FCOM VLG LIM-AG-F_CTL)",opts:["20.000 ft","15.000 ft","25.000 ft","10.000 ft"]},
-{c:10,q:"EGT máximo de arranque APU por debajo de 35.000 ft (LIM-APU):",keys:["1090","egt","apu","arranque"],answer:"1.090°C (< 35.000 ft). > 35.000 ft: 1.120°C. Operación continua: 675°C. (FCOM VLG LIM-APU)",opts:["1.090°C (< 35.000 ft)","900°C","1.200°C","675°C en todos los casos"]},
-{c:10,q:"Viento cruzado máximo demostrado en pista GOOD/DRY (LIM-AG-OPS):",keys:["38","demostrado","crosswind","good","dry"],answer:"38 kt (incluidas ráfagas) en GOOD/DRY. 29 kt en GOOD TO MEDIUM. 25 kt en MEDIUM. Valor demostrado en certificación, no limitación AFM. (FCOM VLG LIM-AG-OPS)",opts:["38 kt (gust included) en GOOD/DRY","29 kt en GOOD/DRY","25 kt en GOOD/DRY","45 kt en GOOD/DRY"]},
-{c:11,q:"Según el FCTM (AOP-10-20-20), ¿qué establece el concepto Dark Cockpit?",keys:["dark cockpit","overhead","sin iluminar","normal","anomalia","fault","off"],answer:"FCTM AOP-10-20-20: en configuración normal todos los pushbuttons del overhead panel deben estar sin iluminar. Luz FAULT (ámbar) = fallo. Luz blanca OFF = sistema desactivado/configuración no normal.",opts:["Overhead sin luces en normal; cualquier luz indica anomalía (FCTM AOP-10-20-20)","Cockpit con luz reducida","Pushbuttons verdes = normal","Solo FAULT amber indica anomalía"]},
-{c:11,q:"Según el FCTM (AOP-40), ¿cuál es el primer Golden Rule de Airbus para pilotos?",keys:["fly","navigate","communicate","golden rule","tasksharing","orden"],answer:"FCTM AOP-40: '1. Fly. Navigate. Communicate: In this order and with appropriate tasksharing.' Este orden es aplicable en TODAS las operaciones normales y situaciones anómalas/emergencia.",opts:["Fly, Navigate, Communicate en ese orden con tasksharing apropiado (FCTM AOP-40)","Communicate, Navigate, Fly","Aviate, Automate, Communicate","Manage, Monitor, Communicate"]},
-{c:11,q:"Según el FCTM AOP-10-30-10, ¿cuál es el concepto 'non back-driven thrust lever'?",keys:["non back-driven","thrust lever","autothrust","posicion","maximo autorizado","thrust lever position"],answer:"FCTM AOP-10-30-10: 'When the autothrust is engaged, the Thrust Lever Position determines the maximum authorized thrust that may be commanded by the autothrust.' Las palancas no se mueven cuando el A/THR gestiona el empuje.",opts:["La posición de la palanca determina el empuje máximo autorizado para el A/THR (FCTM AOP-10-30-10)","Las palancas se mueven físicamente con el A/THR","Las palancas no tienen efecto cuando el A/THR está activo","El A/THR mueve las palancas automáticamente"]},
+{sys:"AC",type:"GEN",q:"¿Cuántos packs de aire acondicionado tiene el A320 y de dónde obtienen el bleed air? (DSC-21)",keys:["2","pack","bleed","motor","apu","crossbleed","zona","trim air"],answer:"2 packs. Reciben bleed air de los motores (válvulas HP/IP) o del APU via crossbleed. Temperatura regulada por zonas (Cockpit, Fwd, Aft Cabin) mediante trim air valves. (FCOM DSC-21)",opts:["2 packs — bleed de motores o APU, temperatura por zonas con trim air valves","3 packs: 2 motores + 1 APU, temperatura fija","2 packs solo de motores","1 pack principal + 1 emergencia"]},
+{sys:"AC",type:"LIM",q:"¿Cuál es la presión diferencial máxima estructural del A320? (LIM-AG-PRESS)",keys:["8.6","psi","safety valve","diferencial"],answer:"8,6 PSI estructural. Safety valves abren a 8,6 PSI. Altitud máxima cabina normal: 8.000 ft.",opts:["8,6 PSI — safety valves abren a 8,6 PSI","9,0 PSI — a 9,0 PSI","7,5 PSI — a 7,5 PSI","8,6 PSI — a 9,2 PSI"]},
+{sys:"HYD",type:"GEN",q:"Según FCOM DSC-29-10-10, ¿a qué presión trabajan los sistemas hidráulicos del A320?",keys:["3000","2500","rat","blue","tres sistemas"],answer:"FCOM DSC-29-10-10: 'Normal system operating pressure is 3,000 PSI (2,500 PSI when powered by the RAT).' Tres sistemas: Green, Blue, Yellow. El fluido NO puede transferirse entre sistemas.",opts:["3.000 PSI normal; 2.500 PSI con RAT alimentando BLUE","3.000 PSI siempre incluido RAT","2.500 PSI normal; 3.000 PSI emergencia","3.000 Green/Yellow; 2.000 Blue"]},
+{sys:"HYD",type:"GEN",q:"Según FCOM DSC-29-10-20, ¿cuándo activa el PTU automáticamente?",keys:["500 psi","ptu","diferencial","bidireccional"],answer:"FCOM DSC-29-10-20: 'The PTU comes into action automatically when the differential pressure between the green and yellow systems is greater than 500 PSI.' Bidireccional — no transfiere fluido.",opts:["Cuando la diferencial Green-Yellow supera 500 PSI","Con >1.000 PSI de diferencial","Con >300 PSI de diferencial","Solo manualmente por la tripulación"]},
+{sys:"HYD",type:"GEN",q:"Según FCOM DSC-29-10-20, ¿en qué condición se despliega el RAT automáticamente?",keys:["rat","ac bus 1","ac bus 2","blue","2500"],answer:"FCOM DSC-29-10-20: 'The RAT deploys automatically if AC BUS 1 and AC BUS 2 are both lost.' Activa el sistema BLUE a 2.500 PSI y genera ~5 kVA eléctricos.",opts:["Si se pierden AC BUS 1 y AC BUS 2 simultáneamente","Si falla el motor 2","Manualmente desde el overhead","Si se pierden ambos motores independientemente de los buses"]},
+{sys:"FUEL",type:"LIM",q:"¿Cuál es el límite de desequilibrio entre wing tanks del A320?",keys:["500 kg","desequilibrio","ecam","manual"],answer:"500 kg. ECAM CAUTION si se supera. Gestión MANUAL: abrir crossfeed. No hay transferencia automática.",opts:["500 kg — ECAM CAUTION — gestión manual","750 kg — automático","300 kg — WARNING automático","1.000 kg — solo informativo"]},
+{sys:"FUEL",type:"GEN",q:"¿Cuándo se inhiben automáticamente las bombas del center tank?",keys:["750 kg","center tank","wing","inhibición"],answer:"Automáticamente cuando el wing tank cae por debajo de ~750 kg, para evitar descubrimiento de las entradas de bomba.",opts:["Cuando el wing tank baja de ~750 kg","Cuando el center tank llega a cero","Al abrir el crossfeed","En la emergencia eléctrica"]},
+{sys:"ELEC",type:"GEN",q:"¿Qué tensión y frecuencia generan los IDG del A320? (DSC-24)",keys:["115v","400hz","idg","28v","tr"],answer:"115V AC 400Hz. TRs (Transformer Rectifiers) convierten AC a 28V DC para los DC buses. (FCOM DSC-24-10)",opts:["115V AC 400Hz — 28V DC mediante TRs","115V AC 60Hz — 24V DC","230V AC 400Hz — 28V DC","115V AC 400Hz — 24V directamente de baterías"]},
+{sys:"FCTL",type:"GEN",q:"Según el FCTM (AOP-10-30-10), ¿qué es la 'control law' del A320?",keys:["control law","sidestick","respuesta","caracteristicas","manejo"],answer:"FCTM AOP-10-30-10: 'The relationship between the pilot input on the sidestick and the aircraft response is called the control law. The control law determines the handling characteristics of the aircraft.'",opts:["La relación entre el input del sidestick y la respuesta de la aeronave (FCTM AOP-10-30-10)","El software que controla los motores","La ley que regula las velocidades de maniobra","El sistema de protección contra el viento"]},
+{sys:"FCTL",type:"PROC",q:"Según el FCTM AOP-10-30-20, ¿qué debe hacer el PM si quiere actuar sobre el sidestick?",keys:["pm","i have control","sidestick","pushbutton","algebraica"],answer:"FCTM AOP-10-30-20: 'If the PM wants to act on the sidestick, the PM must: Clearly announce I have control, Press and maintain the sidestick pushbutton.' Los inputs se suman algebraicamente.",opts:["Anunciar 'I have control' y presionar el sidestick pushbutton (FCTM AOP-10-30-20)","Desconectar el AP primero","Esperar aprobación del PF","No puede actuar sobre el sidestick en ningún caso"]},
+{sys:"FCTL",type:"GEN",q:"Según el FCTM, ¿qué ocurre con los sidesticks cuando el autopiloto está enganchado?",keys:["autopilot","neutral","bloqueado","tactile","feedback"],answer:"FCTM AOP-10-30-10: 'When the autopilot is engaged: The sidesticks are locked in neutral position (immediate tactile feedback).'",opts:["Los sidesticks se bloquean en posición neutra con retroalimentación táctil inmediata","Los sidesticks se mueven siguiendo los comandos del AP","Los sidesticks se desconectan eléctricamente","Los sidesticks quedan libres pero inactivos"]},
+{sys:"FCTL",type:"LIM",q:"¿Cuáles son los límites de factor de carga del A320 en clean y con flaps? (LIM-AG-F_CTL)",keys:["-1","2.5","0","2","factor de carga","clean","flaps"],answer:"Clean: -1g a +2,5g. Con flaps/slats: 0g a +2g. (FCOM LIM-AG-F_CTL)",opts:["-1g a +2,5g clean; 0g a +2g con flaps","-1,5g a +3g clean","0g a +2,5g clean","-1g a +3g clean; 0g a +2,5g con flaps"]},
+{sys:"AF_FG",type:"GEN",q:"Según el FCTM (AS-FG-10-1), ¿qué indica el modo MANAGED en el FCU?",keys:["managed","managed mode","fms","gps","f-pln","accuracy"],answer:"FCTM AS-FG-10-1: los modos managed requieren buena precisión de navegación FMS (o GPS PRIMARY) y un F-PLN activo apropiado. FCU muestra guiones (---) y objetivo en magenta en PFD.",opts:["FCU muestra guiones; objetivo FMGC en magenta; requiere FMS accuracy y F-PLN activo","FCU muestra valor numérico en azul","El piloto controla directamente la velocidad","Solo disponible con AP enganchado"]},
+{sys:"AF_FM",type:"GEN",q:"¿Qué es el Cost Index y cuál es su rango? (DSC-22-70)",keys:["cost index","ci","combustible","tiempo","velocidad","economica"],answer:"CI es un ratio entre coste de tiempo y coste de combustible (0-999). CI=0: velocidad de mínimo combustible. CI=999: velocidad máxima. El FMGC calcula la velocidad ECON de crucero en función del CI.",opts:["Ratio tiempo/combustible (0-999); CI=0 mínimo combustible; CI=999 máxima velocidad","Índice de confort (0-100)","Factor de carga estructural","Parámetro de eficiencia del motor"]},
+{sys:"FIRE",type:"GEN",q:"¿Qué acciones realiza el FIRE PB de motor del A320? (DSC-26)",keys:["fuel sov","bleed valve","pack valve","idg","hydraulic firewall"],answer:"DSC-26: al presionar FIRE PB se cierra: fuel SOV, hydraulic firewall valve, bleed valve, pack valve; y se desconecta el IDG. Arma los agentes extintores para descarga giratoria.",opts:["Cierra fuel SOV + hyd firewall valve + bleed valve + pack valve + desconecta IDG","Solo cierra la fuel SOV","Cierra fuel SOV y para el motor","Descarga el agente directamente"]},
+{sys:"FIRE",type:"GEN",q:"¿Qué diferencia hay en la extinción de incendio de APU entre tierra y vuelo? (DSC-26)",keys:["tierra","automático","vuelo","manual","apu"],answer:"Tierra: APU para Y agente se descarga automáticamente sin acción de tripulación. Vuelo: tripulación actúa manualmente tras la advertencia del FIRE PB del APU. (FCOM DSC-26)",opts:["Tierra: extinción automática. Vuelo: tripulación actúa manualmente","Tierra: manual. Vuelo: automático","Siempre automático","Siempre manual"]},
+{sys:"GEAR",type:"LIM",q:"Según el FCOM Vueling LIM-AG-SPD, ¿cuáles son VLE, VLO extensión y VLO retracción?",keys:["280","0.67","vle","250","0.60","vlo","220","0.54"],answer:"VLE: 280 kt/M0,67. VLO extensión: 250 kt/M0,60. VLO retracción: 220 kt/M0,54. (FCOM VLG LIM-AG-SPD DEC 25)",opts:["VLE 280/M0,67 — VLO ext 250/M0,60 — VLO ret 220/M0,54","VLE 250/M0,60 — VLO ext 280/M0,67","VLE 300/M0,70 — VLO ext 260","VLE 260/M0,65 — VLO ext 250"]},
+{sys:"NAV",type:"MEM",q:"Items de memoria para UNRELIABLE AIRSPEED INDICATION del A320:",keys:["ap","fd","a/thr","off","qrh"],answer:"AP OFF — FD OFF — A/THR OFF. Después aplicar pitch y thrust de la tabla UNRELIABLE AIRSPEED del QRH según fase de vuelo.",opts:["AP OFF — FD OFF — A/THR OFF (luego tabla QRH)","AP OFF — PITCH UP — THRUST TOGA","FD OFF — A/THR OFF — EMERGENCIA","AP OFF — FD OFF — ENG MODE IGN"]},
+{sys:"SURV",type:"ABN",q:"Durante un RA del TCAS, ¿qué instrucción de ATC se ignora?",keys:["ra","atc","conflicto","prevalece","tcas"],answer:"El RA del TCAS prevalece siempre sobre las instrucciones de ATC. Si ATC da instrucción que conflicta con el RA, se sigue el RA y se informa a ATC.",opts:["Cualquier instrucción ATC que conflicte con el RA","Solo instrucciones de descenso","Las ATC si el RA ordena CLIMB","Ninguna — ATC siempre prevalece"]},
+{sys:"FIRE",type:"MEM",q:"Primera acción inmediata ante humo en cabina de vuelo:",keys:["oxígeno","máscara","100%","emergency","interphone"],answer:"Máscaras O2 al 100% EMERGENCY + comunicación por interphone. Luego identificar fuente y acciones ECAM.",opts:["Máscaras O2 100% EMERGENCY + interphone","Declarar emergencia y descender","Abrir RAM AIR","Identificar fuente antes"]},
+{sys:"AG",type:"LIM",q:"VMO y MMO del A320 según FCOM Vueling LIM-AG-SPD (Issue 03 DEC 25):",keys:["350","0.82","vmo","mmo"],answer:"VMO = 350 kt IAS. MMO = M 0,82. (FCOM VLG LIM-AG-SPD, Issue 03 DEC 25)",opts:["VMO 350 kt / MMO M 0,82","VMO 320 kt / MMO M 0,80","VMO 340 kt / MMO M 0,82","VMO 350 kt / MMO M 0,84"]},
+{sys:"FCTL",type:"LIM",q:"¿Cuál es la altitud máxima con slats y/o flaps extendidos? (LIM-AG-F_CTL)",keys:["20000","20.000","slats","flaps"],answer:"20.000 ft. Altitud certificada máxima: 39.800 ft. (FCOM VLG LIM-AG-F_CTL)",opts:["20.000 ft","15.000 ft","25.000 ft","10.000 ft"]},
+{sys:"APU",type:"LIM",q:"EGT máximo de arranque APU por debajo de 35.000 ft (LIM-APU):",keys:["1090","egt","apu","arranque"],answer:"1.090°C (< 35.000 ft). > 35.000 ft: 1.120°C. Operación continua: 675°C. (FCOM VLG LIM-APU)",opts:["1.090°C (< 35.000 ft)","900°C","1.200°C","675°C en todos los casos"]},
+{sys:"AG",type:"LIM",q:"Viento cruzado máximo demostrado en pista GOOD/DRY (LIM-AG-OPS):",keys:["38","demostrado","crosswind","good","dry"],answer:"38 kt (incluidas ráfagas) en GOOD/DRY. 29 kt en GOOD TO MEDIUM. 25 kt en MEDIUM. Valor demostrado en certificación, no limitación AFM. (FCOM VLG LIM-AG-OPS)",opts:["38 kt (gust included) en GOOD/DRY","29 kt en GOOD/DRY","25 kt en GOOD/DRY","45 kt en GOOD/DRY"]},
+{sys:"AG",type:"GEN",q:"Según el FCTM (AOP-10-20-20), ¿qué establece el concepto Dark Cockpit?",keys:["dark cockpit","overhead","sin iluminar","normal","anomalia","fault","off"],answer:"FCTM AOP-10-20-20: en configuración normal todos los pushbuttons del overhead panel deben estar sin iluminar. Luz FAULT (ámbar) = fallo. Luz blanca OFF = sistema desactivado/configuración no normal.",opts:["Overhead sin luces en normal; cualquier luz indica anomalía (FCTM AOP-10-20-20)","Cockpit con luz reducida","Pushbuttons verdes = normal","Solo FAULT amber indica anomalía"]},
+{sys:"AG",type:"GEN",q:"Según el FCTM (AOP-40), ¿cuál es el primer Golden Rule de Airbus para pilotos?",keys:["fly","navigate","communicate","golden rule","tasksharing","orden"],answer:"FCTM AOP-40: '1. Fly. Navigate. Communicate: In this order and with appropriate tasksharing.' Este orden es aplicable en TODAS las operaciones normales y situaciones anómalas/emergencia.",opts:["Fly, Navigate, Communicate en ese orden con tasksharing apropiado (FCTM AOP-40)","Communicate, Navigate, Fly","Aviate, Automate, Communicate","Manage, Monitor, Communicate"]},
+{sys:"AF_FG",type:"GEN",q:"Según el FCTM AOP-10-30-10, ¿cuál es el concepto 'non back-driven thrust lever'?",keys:["non back-driven","thrust lever","autothrust","posicion","maximo autorizado","thrust lever position"],answer:"FCTM AOP-10-30-10: 'When the autothrust is engaged, the Thrust Lever Position determines the maximum authorized thrust that may be commanded by the autothrust.' Las palancas no se mueven cuando el A/THR gestiona el empuje.",opts:["La posición de la palanca determina el empuje máximo autorizado para el A/THR (FCTM AOP-10-30-10)","Las palancas se mueven físicamente con el A/THR","Las palancas no tienen efecto cuando el A/THR está activo","El A/THR mueve las palancas automáticamente"]},
 ];
 
-let OS={cat:0,mode:'mc',q:0,pass:0,part:0,fail:0,idx:-1,answered:false,used:[],sh:null};
+let OS={sys:null,type:'ALL',mode:'mc',q:0,pass:0,part:0,fail:0,idx:-1,answered:false,used:[],sh:null};
 
-var _catsEl = document.getElementById('cats');
-if(_catsEl) _catsEl.addEventListener('click',e=>{
-  const b=e.target.closest('.chip');if(!b)return;
-  document.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));
-  b.classList.add('on');OS.cat=+b.dataset.cat;
-});
+// ── Question Bank — registro de sistemas (ATA) + tipos de pregunta ──
+const QB_TYPES=[["ALL","Todas"],["GEN","General"],["LIM","Limitaciones"],["ABN","Emergencias"],["MEM","Memory items"],["PROC","Procedimientos"]];
+const QB_FAMILIES=[
+ {n:"Aircraft general",ic:"✈",sys:[["AG","Aircraft general"],["DOORS","Doors"],["WIN","Cockpit windows"],["EQUIP","Equipment"],["WW","Water / waste"],["LIGHTS","Lights"]]},
+ {n:"Powerplant",ic:"⚙",sys:[["ENG","Engines"],["APU","APU"],["FIRE","Fire protection"],["FUEL","Fuel"]]},
+ {n:"Aire / presurización",ic:"❄",sys:[["AC","Air cond / press / vent"],["PNEU","Pneumatic"],["ICE","Ice & rain"],["O2","Oxygen"]]},
+ {n:"Hidráulico y vuelo",ic:"⬡",sys:[["HYD","Hydraulic"],["GEAR","Landing gear"],["FCTL","Flight controls"]]},
+ {n:"Eléctrico",ic:"⚡",sys:[["ELEC","Electrical"]]},
+ {n:"Auto Flight (FMGS)",ic:"⌖",sys:[["AF_GEN","General"],["AF_FM","Flight management"],["AF_FG","Flight guidance"],["AF_FA","Flight augmentation"],["AF_AOC","AOC functions"],["AF_PRINT","Print interface"]]},
+ {n:"Nav / Com / Vigilancia",ic:"⊹",sys:[["NAV","Navigation"],["SURV","Surveillance"],["COM","Communications"],["IND","Indicating / recording"],["INFO","Information systems"],["MAINT","Maintenance"]]}
+];
+function qbCount(type,sys){return QB.filter(q=>(type==='ALL'||q.type===type)&&(!sys||q.sys===sys)).length;}
+function qbSysName(key){for(const f of QB_FAMILIES){const s=f.sys.find(x=>x[0]===key);if(s)return s[1];}return key;}
+function renderQbMenu(){
+  const m=document.getElementById('oes-msgs');if(!m)return;
+  const types=QB_TYPES.map(t=>`<button class="qbm-type${t[0]===OS.type?' on':''}" onclick="qbSetType('${t[0]}')">${t[1]}${t[0]!=='ALL'?' <span style="opacity:.55">'+qbCount(t[0],null)+'</span>':''}</button>`).join('');
+  const fams=QB_FAMILIES.map(f=>{
+    const fc=f.sys.reduce((a,s)=>a+qbCount('ALL',s[0]),0);
+    const chips=f.sys.map(s=>{const c=qbCount('ALL',s[0]);return `<button class="qbm-syschip${s[0]===OS.sys?' on':''}${c?'':' empty'}" ${c?`onclick="qbSetSys('${s[0]}')"`:''}>${s[1]}${c?' · '+c:''}</button>`;}).join('');
+    const open=OS.sys&&f.sys.some(s=>s[0]===OS.sys);
+    return `<div class="qbm-fam${open?' open':''}"><div class="qbm-fhead" onclick="this.parentNode.classList.toggle('open')"><div class="qbm-ficon">${f.ic}</div><div class="qbm-fname">${f.n}</div><div class="qbm-fcount">${fc} Q</div><svg class="qbm-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg></div><div class="qbm-sys">${chips}</div></div>`;
+  }).join('');
+  m.innerHTML=`<div class="qbm-wrap"><div class="qbm-lbl">¿Qué quieres practicar?</div><div class="qbm-types">${types}</div><div class="qbm-lbl">Por sistema (ATA)</div>${fams}<div class="qbm-bar"><div class="qbm-sel" id="qbm-sel"></div><button class="qbm-go" id="qbm-go" onclick="qbStartPractice()">Practicar →</button></div></div>`;
+  qbUpdSel();
+}
+function qbUpdSel(){
+  const el=document.getElementById('qbm-sel');if(!el)return;
+  const tn=(QB_TYPES.find(t=>t[0]===OS.type)||['','Todas'])[1];
+  const sysn=OS.sys?qbSysName(OS.sys):'todos los sistemas';
+  const n=qbCount(OS.type,OS.sys);
+  el.innerHTML=`<b style="color:#5eead4">${tn}</b> · ${sysn} — <b>${n}</b> pregunta${n===1?'':'s'}`;
+  const go=document.getElementById('qbm-go');if(go)go.disabled=n===0;
+}
+function qbSetType(t){OS.type=t;renderQbMenu();}
+function qbSetSys(s){OS.sys=OS.sys===s?null:s;renderQbMenu();}
+function qbStartPractice(){
+  var s=document.getElementById('scr-oes');if(s)s.classList.remove('qb-picking');
+  const tn=(QB_TYPES.find(t=>t[0]===OS.type)||['','Todas'])[1];
+  clearOesMsgs('QUESTION BANK',tn+(OS.sys?' · '+qbSysName(OS.sys):'')+' · Multiple Choice');
+  OS.used=[];oesNext();
+}
+function qbQuick(type,sys){OS.type=type||'ALL';OS.sys=sys||null;startOesQB();}
 var _oesTaEl = document.getElementById('oes-ta');
 if(_oesTaEl) _oesTaEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&window.innerWidth>500){e.preventDefault();oesSend();}});
 
@@ -12310,10 +12361,9 @@ function startOesOral(){
 }
 function startOesQB(){
   setOesMode('mc');
-  var s=document.getElementById('scr-oes');if(s){s.classList.add('mode-qbank');s.classList.remove('mode-oral','mode-linecheck','mode-flash');}
+  var s=document.getElementById('scr-oes');if(s){s.classList.add('mode-qbank','qb-picking');s.classList.remove('mode-oral','mode-linecheck','mode-flash');}
   var ssc=document.getElementById('oes-ssc');if(ssc)ssc.remove();
-  clearOesMsgs('QUESTION BANK','Multiple Choice · Banco de preguntas');
-  collapseOesCards();oesNext();
+  collapseOesCards();renderQbMenu();
 }
 function oesSetTab(tab){
   var mc=document.getElementById('oes-mc-panel'),wr=document.getElementById('oes-write-panel');
@@ -12361,14 +12411,14 @@ function evalFree(ans,q){
   return{score:'FAIL',comment:`Insuficiente. Claves FCOM: ${q.keys.slice(0,6).join(', ')}.`,answer:q.answer};
 }
 function pickQ(){
-  const pool=OS.cat===0?QB:QB.filter(q=>q.c===OS.cat);if(!pool.length)return null;
+  const pool=QB.filter(q=>(OS.type==='ALL'||q.type===OS.type)&&(!OS.sys||q.sys===OS.sys));if(!pool.length)return null;
   const pI=pool.map(q=>QB.indexOf(q));const unused=pI.filter(i=>!OS.used.includes(i));const src=unused.length?unused:pI;
   if(!unused.length)OS.used=[];const pick=src[Math.floor(Math.random()*src.length)];OS.used.push(pick);return QB[pick];
 }
 function updOes(){['sq','sp','sx','sf'].forEach((id,i)=>document.getElementById(id).textContent=[OS.q,OS.pass,OS.part,OS.fail][i]);}
 function updateOesProg(){
-  const t=OS.cat===0?QB.length:QB.filter(q=>q.c===OS.cat).length;
-  const pct=Math.round((OS.used.length/t)*100);
+  const t=QB.filter(q=>(OS.type==='ALL'||q.type===OS.type)&&(!OS.sys||q.sys===OS.sys)).length;
+  const pct=t?Math.round((OS.used.length/t)*100):0;
   document.getElementById('oesp1').textContent=`${OS.used.length}/${t}`;document.getElementById('oesp2').textContent=pct+'%';document.getElementById('oes-bar').style.width=pct+'%';
 }
 function startOes(){
@@ -12394,13 +12444,13 @@ function oesSend(){
   updOes();setTimeout(()=>{addOesMsg('ex','',fb);var _nb=document.getElementById('oes-nbtn');if(_nb)_nb.disabled=false;var _nqb=document.getElementById('oes-nbtn-qb');if(_nqb)_nqb.style.display='block';},300);
 }
 function oesReset(){
-  stopMic('oes');OS={cat:OS.cat,mode:OS.mode,q:0,pass:0,part:0,fail:0,idx:-1,answered:false,used:[],sh:null};updOes();
+  stopMic('oes');OS={sys:OS.sys,type:OS.type,mode:OS.mode,q:0,pass:0,part:0,fail:0,idx:-1,answered:false,used:[],sh:null};updOes();
   document.getElementById('oesp1').textContent='';document.getElementById('oesp2').textContent='';document.getElementById('oes-bar').style.width='0%';
   const m=document.getElementById('oes-msgs');m.innerHTML='';
   const sc=document.createElement('div');sc.className='start-sc';sc.id='oes-ssc';
   sc.innerHTML=`<h2>Oral Exam Simulator</h2><p>FCOM & FCTM Vueling (Issue 03 DEC 25)</p><button class="start-btn" onclick="startOes()">Comenzar →</button>`;
   m.appendChild(sc);document.getElementById('oes-inp').style.display='none';var _nb2=document.getElementById('oes-nbtn');if(_nb2)_nb2.disabled=true;var _mc=document.getElementById('oes-mic');if(_mc)_mc.disabled=true;
-  var s=document.getElementById('scr-oes');if(s){s.classList.remove('mode-oral');s.classList.remove('mode-qbank');}
+  var s=document.getElementById('scr-oes');if(s){s.classList.remove('mode-oral');s.classList.remove('mode-qbank');s.classList.remove('qb-picking');}
   var mco=document.getElementById('oes-mc-opts');if(mco)mco.innerHTML='<div style="color:rgba(232,238,255,.25);font-size:12px;text-align:center;padding:28px 12px;line-height:1.6">Pulsa PRACTICAR<br>para empezar</div>';
   var _nqbr=document.getElementById('oes-nbtn-qb');if(_nqbr)_nqbr.style.display='none';
   oesSetTab('mc');
@@ -13340,6 +13390,11 @@ function cafiStartBubble(){
 }
 // ── END CAFI v3.1 ──
 // ── SPEECH ──
+var _aCtx=null;
+function _ac(){try{if(!_aCtx||_aCtx.state==='closed')_aCtx=new(window.AudioContext||window.webkitAudioContext)();if(_aCtx.state==='suspended')_aCtx.resume();return _aCtx;}catch(e){return null;}}
+function _tone(freq,delay,dur,vol,type){try{var c=_ac();if(!c)return;var o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type=type||'sine';o.frequency.value=freq;g.gain.setValueAtTime(0,c.currentTime+delay);g.gain.linearRampToValueAtTime(vol,c.currentTime+delay+0.012);g.gain.exponentialRampToValueAtTime(0.0001,c.currentTime+delay+dur);o.start(c.currentTime+delay);o.stop(c.currentTime+delay+dur+0.015);}catch(e){}}
+function playMicStart(){try{var c=_ac();if(!c)return;var o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type='sine';o.frequency.setValueAtTime(360,c.currentTime);o.frequency.linearRampToValueAtTime(720,c.currentTime+0.16);g.gain.setValueAtTime(0.22,c.currentTime);g.gain.exponentialRampToValueAtTime(0.0001,c.currentTime+0.2);o.start(c.currentTime);o.stop(c.currentTime+0.22);}catch(e){}}
+function playMicDone(){_tone(620,0,0.09,0.2);_tone(880,0.1,0.11,0.17);}
 var micSt={oes:{sr:null,on:false},cafi:{sr:null,on:false}};
 function initMic(id){
   const SRC=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -13347,8 +13402,8 @@ function initMic(id){
   const orb=document.getElementById(id+'-orb');
   if(!SRC){if(btn)btn.disabled=true;if(orb){orb.style.opacity='.4';orb.style.cursor='not-allowed';orb.title='Voz no disponible en este navegador';}return;}
   const sr=new SRC();sr.lang='es-ES';sr.continuous=false;sr.interimResults=true;
-  sr.onstart=()=>{micSt[id].on=true;if(btn)btn.classList.add('listening');if(orb)orb.classList.add('listening');const vs=document.getElementById(id+'-vst');if(vs){vs.style.display='flex';}const vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent='Escuchando...';};
-  sr.onresult=e=>{let f='',t='';for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)f+=e.results[i][0].transcript;else t+=e.results[i][0].transcript;}const ta=document.getElementById(id+'-ta');if(ta)ta.value=f||t;const vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent=f?'✓ Capturado':'Escuchando...';};
+  sr.onstart=()=>{micSt[id].on=true;playMicStart();if(btn)btn.classList.add('listening');if(orb)orb.classList.add('listening');const vs=document.getElementById(id+'-vst');if(vs){vs.style.display='flex';}const vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent='Escuchando...';};
+  sr.onresult=e=>{let f='',t='';for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)f+=e.results[i][0].transcript;else t+=e.results[i][0].transcript;}const ta=document.getElementById(id+'-ta');if(ta)ta.value=f||t;const vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent=f?'✓ Capturado':'Escuchando...';if(f)playMicDone();};
   sr.onerror=e=>{const msg=e.error==='not-allowed'?'Permite el micrófono en el navegador':e.error==='no-speech'?'No se detectó voz':'Error: '+e.error;const vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent=msg;const vs=document.getElementById(id+'-vst');if(vs)vs.style.display='flex';stopMic(id);};
   sr.onend=()=>{stopMic(id);if(id==='oes'){setTimeout(function(){var ta=document.getElementById('oes-ta');if(ta&&ta.value.trim()&&!OS.answered)oesSend();},600);}};
   micSt[id].sr=sr;if(btn)btn.disabled=false;
