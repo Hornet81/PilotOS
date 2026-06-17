@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.52">
+  <meta name="version" content="Beta.53">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.52","builtAt":"2026-06-17T17:57:38Z","commit":"615b9d7","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.53","builtAt":"2026-06-17T18:07:04Z","commit":"f0bf698","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -12603,12 +12603,40 @@ function oesNext(){
     document.getElementById('oes-vst').style.display='none';var _ta=document.getElementById('oes-ta');if(_ta){_ta.value='';_ta.disabled=false;}var _sb=document.getElementById('oes-sbtn');if(_sb)_sb.disabled=false;addOesMsg('ex',q.q);setTimeout(()=>{var t=document.getElementById('oes-ta');if(t)t.focus();},80);
   }
 }
+// Indicador temporal "Examinador evaluando…" mientras responde la IA
+function _oesThinking(txt){
+  var d=document.createElement('div');d.className='msg oes-thinking';
+  d.innerHTML='<div class="av2 ex">EX</div><div class="mi-body"><div class="mi-name">Examinador EASA</div><div class="mi-text" style="opacity:.55;font-style:italic">'+esc(txt)+'</div></div>';
+  var m=document.getElementById('oes-msgs');if(m){m.appendChild(d);requestAnimationFrame(()=>m.scrollTop=m.scrollHeight);}return d;
+}
+function _oesThinkingDone(d){if(d&&d.parentNode)d.parentNode.removeChild(d);}
+// Evalúa la respuesta libre: IA (concepto) con fallback al evaluador de keywords
+function gradeOesAnswer(ans,q,cb){
+  var think=_oesThinking('Evaluando tu respuesta…');
+  var base=lsGet('cafi_backend_url','https://api.pilotos.aero');
+  var done=false;
+  var fallback=function(){if(done)return;done=true;_oesThinkingDone(think);var fb=evalFree(ans,q);fb._engine='kw';cb(fb);};
+  var to=setTimeout(fallback,15000); // tope de seguridad
+  fetch(base+'/api/oral/grade',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('cafi_auth_token')},body:JSON.stringify({question:q.q,answer:ans,modelAnswer:q.answer})})
+    .then(function(r){if(!r.ok)return null;return r.json();})
+    .then(function(j){
+      if(done)return;clearTimeout(to);
+      if(!j||!j.score){fallback();return;}
+      done=true;_oesThinkingDone(think);
+      cb({score:j.score,comment:j.comment||'',answer:q.answer,_engine:'ai'});
+    })
+    .catch(function(){clearTimeout(to);fallback();});
+}
 function oesSend(){
   const ta=document.getElementById('oes-ta');const ans=ta.value.trim();if(!ans||OS.answered)return;
   stopMic('oes');ta.value='';OS.answered=true;qbMarkSeen(QB[OS.idx]);ta.disabled=true;var _sb2=document.getElementById('oes-sbtn');if(_sb2)_sb2.disabled=true;document.getElementById('oes-vst').style.display='none';
-  addOesMsg('me',ans);const fb=evalFree(ans,QB[OS.idx]);
-  if(fb.score==='PASS')OS.pass++;else if(fb.score==='PARTIAL')OS.part++;else OS.fail++;
-  updOes();setTimeout(()=>{addOesMsg('ex','',fb);var _nb=document.getElementById('oes-nbtn');if(_nb)_nb.disabled=false;var _nqb=document.getElementById('oes-nbtn-qb');if(_nqb)_nqb.style.display='block';},300);
+  addOesMsg('me',ans);
+  const q=QB[OS.idx];
+  gradeOesAnswer(ans,q,function(fb){
+    if(fb.score==='PASS')OS.pass++;else if(fb.score==='PARTIAL')OS.part++;else OS.fail++;
+    updOes();addOesMsg('ex','',fb);
+    var _nb=document.getElementById('oes-nbtn');if(_nb)_nb.disabled=false;var _nqb=document.getElementById('oes-nbtn-qb');if(_nqb)_nqb.style.display='block';
+  });
 }
 function oesReset(){
   stopMic('oes');if(_oesAudio){try{_oesAudio.pause();}catch(e){}_oesAudio=null;}OS={sys:OS.sys,type:OS.type,mode:OS.mode,q:0,pass:0,part:0,fail:0,idx:-1,answered:false,used:[],sh:null};updOes();
