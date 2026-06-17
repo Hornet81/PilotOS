@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.51">
+  <meta name="version" content="Beta.52">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.51","builtAt":"2026-06-17T17:53:24Z","commit":"7b1e321","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.52","builtAt":"2026-06-17T17:57:38Z","commit":"615b9d7","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -12379,11 +12379,13 @@ function _stripVoiceRefs(s){
 async function oesSpeak(text){
   try{
     if(!oesVoiceOn||!oesVoiceModeActive())return;
-    // Limpia HTML, marcas ✓/✗, emojis y referencias a documentos/índices
+    // Limpia HTML, marcas ✓/✗, emojis, referencias a documentos/índices y los "puntos clave"
     var clean=_stripVoiceRefs(String(text)
       .replace(/<[^>]*>/g,' ')
       .replace(/[✓✗◑✅❌🔊⏱️→•]/g,' ')
-      .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}]/gu,' '));
+      .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}]/gu,' ')
+      // Omite la enumeración de puntos clave del feedback (Claves/Mencionaste/Faltó/Añadir: ...)
+      .replace(/\b(?:claves(?:\s+fcom)?|mencionaste|falt[oó]|a[nñ]adir)\s*:(?:[^.]|\.\d)*\.?/gi,' '));
     if(!clean)return;
     if(clean.length>800)clean=clean.slice(0,800);
     var _ttsBase=lsGet('cafi_backend_url','https://api.pilotos.aero');
