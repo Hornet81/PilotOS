@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.22">
+  <meta name="version" content="Beta.23">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.22","builtAt":"2026-06-16T22:29:58Z","commit":"49e9167","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.23","builtAt":"2026-06-17T07:52:10Z","commit":"9199769","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -8793,6 +8793,9 @@ html.day .fp-ym-st-col.free .fp-ym-st-rng{color:var(--fp-gd)}
 #scr-oes .fb-card.pass .fbt{color:#bbf7d0!important}
 #scr-oes .fb-card.part .fbt{color:#fde68a!important}
 #scr-oes .fb-card .fbr{color:#e0f2fe!important;font-weight:500!important;border-top:1px solid rgba(224,242,254,.15)!important}
+.oes-mode-hdr{display:flex;flex-direction:column;align-items:center;gap:5px;padding:12px 0 10px;margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,.06)}
+.oes-mh-badge{font-size:9px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;background:rgba(41,121,255,.15);border:1px solid rgba(41,121,255,.35);color:#64b5f6;padding:4px 14px;border-radius:20px}
+.oes-mh-sub{font-size:10px;color:rgba(232,238,255,.35);letter-spacing:.03em}
 #scr-oes .mi-name{color:rgba(100,181,246,.65)!important;font-size:10px!important;letter-spacing:.4px!important}
 #scr-oes .mi-text{color:#e8eeff!important;font-size:13px!important;line-height:1.6!important}
 #scr-oes .opt{background:rgba(255,255,255,.06)!important;border:1px solid rgba(255,255,255,.12)!important;color:#d0d8ff!important;border-radius:10px!important;transition:all .12s!important}
@@ -12225,16 +12228,29 @@ function setOesMode(m){
   document.getElementById('mb-mc').classList.toggle('on',m==='mc');
   document.getElementById('mb-tv').classList.toggle('on',m==='tv');
 }
+function clearOesMsgs(title,sub){
+  var m=document.getElementById('oes-msgs');if(!m)return;
+  m.innerHTML='';
+  var h=document.createElement('div');h.className='oes-mode-hdr';
+  h.innerHTML='<span class="oes-mh-badge">'+title+'</span>'+(sub?'<span class="oes-mh-sub">'+sub+'</span>':'');
+  m.appendChild(h);
+  var mco=document.getElementById('oes-mc-opts');
+  if(mco)mco.innerHTML='<div style="color:rgba(232,238,255,.2);font-size:12px;text-align:center;padding:24px 12px;line-height:1.6">Cargando pregunta...</div>';
+  var _nqbr=document.getElementById('oes-nbtn-qb');if(_nqbr)_nqbr.style.display='none';
+  oesSetTab('mc');
+}
 function startOesOral(){
   setOesMode('tv');
   var s=document.getElementById('scr-oes');if(s){s.classList.add('mode-oral');s.classList.remove('mode-qbank');}
   var ssc=document.getElementById('oes-ssc');if(ssc)ssc.remove();
+  clearOesMsgs('ORAL EXAM SESSION','AI Examiner · TRE Mode');
   initMic('oes');oesNext();
 }
 function startOesQB(){
   setOesMode('mc');
   var s=document.getElementById('scr-oes');if(s){s.classList.add('mode-qbank');s.classList.remove('mode-oral');}
   var ssc=document.getElementById('oes-ssc');if(ssc)ssc.remove();
+  clearOesMsgs('QUESTION BANK','Multiple Choice · Banco de preguntas');
   oesNext();
 }
 function oesSetTab(tab){
@@ -12293,7 +12309,12 @@ function updateOesProg(){
   const pct=Math.round((OS.used.length/t)*100);
   document.getElementById('oesp1').textContent=`${OS.used.length}/${t}`;document.getElementById('oesp2').textContent=pct+'%';document.getElementById('oes-bar').style.width=pct+'%';
 }
-function startOes(){var ssc=document.getElementById('oes-ssc');if(ssc)ssc.remove();initMic('oes');oesNext();}
+function startOes(){
+  var s=document.getElementById('scr-oes');if(s){s.classList.add('mode-oral');s.classList.remove('mode-qbank');}
+  var ssc=document.getElementById('oes-ssc');if(ssc)ssc.remove();
+  clearOesMsgs('LINE CHECK','50 preguntas · Modo TRE completo');
+  initMic('oes');oesNext();
+}
 function oesNext(){
   const q=pickQ();if(!q){addOesMsg('ex','No hay más preguntas. Cambia categoría o haz reset.');return;}
   OS.idx=QB.indexOf(q);OS.answered=false;OS.q++;updOes();updateOesProg();var _nb2=document.getElementById('oes-nbtn');if(_nb2)_nb2.disabled=true;var _nqb=document.getElementById('oes-nbtn-qb');if(_nqb)_nqb.style.display='none';
