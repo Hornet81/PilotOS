@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.34">
+  <meta name="version" content="Beta.35">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.34","builtAt":"2026-06-17T08:50:17Z","commit":"c8725e3","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.35","builtAt":"2026-06-17T08:54:22Z","commit":"e80f852","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -9001,8 +9001,11 @@ html.day #scr-oes .ot-ex-card,html.day #scr-oes .ot-stump,html.day #scr-oes .ot-
 .ot-freq-bars{position:absolute;bottom:0;left:0;width:100%;height:100%;display:flex;align-items:flex-end;justify-content:center;gap:3px;padding:0 4px}
 .ot-fb{width:5px;height:var(--h,40px);background:var(--c,#00c8e0);border-radius:3px 3px 2px 2px;transform-origin:bottom;animation:oes-freq var(--dur,1.2s) ease-in-out var(--d,0s) infinite alternate;box-shadow:0 0 6px var(--c,#00c8e0)}
 @keyframes oes-freq{0%{transform:scaleY(.12)}100%{transform:scaleY(1)}}
-.ot-mic-orb{width:60px;height:60px;border-radius:50%;background:rgba(4,8,20,.85);border:1.5px solid rgba(0,200,224,.4);display:flex;align-items:center;justify-content:center;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;box-shadow:0 0 22px rgba(0,200,224,.2),0 0 6px rgba(0,200,224,.4)}
+.ot-mic-orb{width:60px;height:60px;border-radius:50%;background:rgba(4,8,20,.85);border:1.5px solid rgba(0,200,224,.4);display:flex;align-items:center;justify-content:center;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;box-shadow:0 0 22px rgba(0,200,224,.2),0 0 6px rgba(0,200,224,.4);cursor:pointer;transition:border-color .2s,box-shadow .2s}
 .ot-mic-orb svg{width:28px;height:28px;color:#00c8e0;filter:drop-shadow(0 0 5px rgba(0,200,224,.75)) drop-shadow(0 0 2px rgba(41,121,255,.55))}
+.ot-mic-orb.listening{border-color:rgba(255,60,60,.8)!important;animation:orb-rec .75s ease-in-out infinite alternate}
+.ot-mic-orb.listening svg{color:#ff6060;filter:drop-shadow(0 0 6px rgba(255,60,60,.8))}
+@keyframes orb-rec{from{box-shadow:0 0 16px rgba(255,60,60,.25),0 0 5px rgba(255,60,60,.4)}to{box-shadow:0 0 32px rgba(255,60,60,.55),0 0 14px rgba(255,60,60,.7)}}
 .ot-mic-status{font-size:8px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:rgba(232,238,255,.3);text-align:center}
 .ot-chat-col{display:flex;flex-direction:column;border-bottom:1px solid rgba(255,255,255,.06)}
 @media(min-width:680px){.ot-chat-col{border-bottom:none}}
@@ -9132,7 +9135,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
             <div class="ot-fb" style="--h:36px;--c:#1a6ec7;--d:.20s;--dur:1.4s"></div>
             <div class="ot-fb" style="--h:22px;--c:#1565c0;--d:.03s;--dur:0.8s"></div>
           </div>
-          <div class="ot-mic-orb">
+          <div class="ot-mic-orb" id="oes-orb" onclick="toggleMic('oes')" role="button" title="Pulsa para hablar">
             <svg viewBox="135 72 360 674" xmlns="http://www.w3.org/2000/svg">
               <path fill="currentColor" d="M232.25,499.35c21.57,21.57,50.51,33.74,81.02,33.74s59.45-12.17,81.02-33.74c21.57-21.57,33.74-50.42,33.74-80.93v-227.86c0-30.51-12.17-59.45-33.74-81.02-21.57-21.57-50.51-33.74-81.02-33.74s-59.45,12.17-81.02,33.74c-21.57,21.57-33.74,50.51-33.74,81.02v227.86c0,30.51,12.17,59.36,33.74,80.93h0Z"/>
               <path fill="currentColor" d="M486.28,304.49v113.93c0,47.56-19.45,90.79-50.79,122.13-31.34,31.43-74.66,50.88-122.22,50.88h0c-47.56,0-90.88-19.45-122.22-50.88-31.34-31.34-50.79-74.57-50.79-122.13v-113.93h32.54v113.93c0,38.62,15.76,73.74,41.29,99.18,25.44,25.44,60.56,41.29,99.18,41.29h0c38.62,0,73.74-15.85,99.18-41.29,25.53-25.44,41.29-60.56,41.29-99.18v-113.93h32.54Z"/>
@@ -13344,14 +13347,14 @@ function initMic(id){
   if(!SRC){if(btn)btn.disabled=true;return;}
   if(micSt[id].sr)return;
   const sr=new SRC();sr.lang='es-ES';sr.continuous=false;sr.interimResults=true;
-  sr.onstart=()=>{micSt[id].on=true;if(btn)btn.classList.add('listening');const vs=document.getElementById(id+'-vst');if(vs)vs.style.display='flex';};
+  sr.onstart=()=>{micSt[id].on=true;if(btn)btn.classList.add('listening');var orb=document.getElementById(id+'-orb');if(orb)orb.classList.add('listening');const vs=document.getElementById(id+'-vst');if(vs)vs.style.display='flex';};
   sr.onresult=e=>{let f='',t='';for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)f+=e.results[i][0].transcript;else t+=e.results[i][0].transcript;}const ta=document.getElementById(id+'-ta');if(ta)ta.value=f||t;const vt=document.getElementById(id+'-vst-t');if(f&&vt)vt.textContent='✓ Capturado';};
   sr.onerror=e=>{const vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent='Error: '+(e.error==='not-allowed'?'Permite el micrófono':e.error);stopMic(id);};
   sr.onend=()=>{stopMic(id);if(id==='oes'){setTimeout(function(){var ta=document.getElementById('oes-ta');if(ta&&ta.value.trim()&&!OS.answered)oesSend();},600);}};
   micSt[id].sr=sr;if(btn)btn.disabled=false;
 }
 function toggleMic(id){if(micSt[id].on)stopMic(id);else{try{document.getElementById(id+'-ta').value='';micSt[id].sr.start();}catch(e){}}}
-function stopMic(id){micSt[id].on=false;const b=document.getElementById(id+'-mic');if(b)b.classList.remove('listening');try{if(micSt[id].sr)micSt[id].sr.stop();}catch(e){}setTimeout(()=>{const v=document.getElementById(id+'-vst');if(v)v.style.display='none';},1500);}
+function stopMic(id){micSt[id].on=false;const b=document.getElementById(id+'-mic');if(b)b.classList.remove('listening');var orb=document.getElementById(id+'-orb');if(orb)orb.classList.remove('listening');try{if(micSt[id].sr)micSt[id].sr.stop();}catch(e){}setTimeout(()=>{const v=document.getElementById(id+'-vst');if(v)v.style.display='none';},1500);}
 
 
 // ══════════════════════════════════════════════════════════════════
