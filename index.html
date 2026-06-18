@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.61">
+  <meta name="version" content="Beta.62">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.61","builtAt":"2026-06-18T12:04:04Z","commit":"fb727b6","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.62","builtAt":"2026-06-18T12:09:39Z","commit":"e650607","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -12379,12 +12379,27 @@ let OS={sys:null,type:'ALL',mode:'mc',q:0,pass:0,part:0,fail:0,idx:-1,answered:f
 // ── Voz del examinador (TTS) ──
 let oesVoiceOn=true;            // toggle de usuario (memoria de sesión)
 let oesVoiceName='onyx';       // voz por defecto (onyx/ash masculinas; nova/coral/shimmer femeninas)
-let oesVoiceRate=1.1;          // velocidad de reproducción (playbackRate); >1 = más rápido
-let oesVoiceVol=1.0;           // volumen (0..1)
+let oesVoiceRate=1.25;         // velocidad de reproducción (playbackRate); por defecto "Rápida"
+let oesVoiceVol=1.0;           // volumen relativo del slider (0..1)
+let oesVoiceBoost=1.8;         // ganancia (>1) para que la voz suene por ENCIMA del 100% del elemento
 let _oesAudio=null;            // elemento <audio> PERSISTENTE y reutilizado (clave para desbloqueo de audio en móvil)
 let _oesAudioUrl=null;         // objectURL actual, para revocarlo
 let _oesTtsBlocked=false;     // true si el plan no incluye voz (free) → avisar una vez
+let _oesGain=null,_oesSrc=null,_oesWADead=false; // nodos Web Audio para amplificar la voz
 function _oesAudioGet(){ if(!_oesAudio){ _oesAudio=new Audio(); _oesAudio.preload='auto'; } return _oesAudio; }
+// Amplificación vía Web Audio. Solo captura el elemento si el AudioContext está ACTIVO
+// (si no, reproduce normal → nunca deja la voz muda en móvil). Idempotente.
+function _oesEnsureBoost(a){
+  if(_oesWADead||_oesGain) return;
+  try{
+    var ctx=(typeof _ac==='function')?_ac():null;
+    if(!ctx||ctx.state!=='running') return; // contexto no activo → no capturar; se intentará en la siguiente locución
+    _oesSrc=ctx.createMediaElementSource(a);
+    _oesGain=ctx.createGain();
+    _oesGain.gain.value=oesVoiceBoost*oesVoiceVol;
+    _oesSrc.connect(_oesGain);_oesGain.connect(ctx.destination);
+  }catch(e){ _oesWADead=true; }
+}
 // ¿Está activo un modo con voz? (Oral Exam o Line Check; NO Q-Bank ni flashcards)
 function oesVoiceModeActive(){
   var s=document.getElementById('scr-oes');
