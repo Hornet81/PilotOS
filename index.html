@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.55">
+  <meta name="version" content="Beta.56">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.55","builtAt":"2026-06-17T20:10:15Z","commit":"0c550df","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.56","builtAt":"2026-06-18T11:22:28Z","commit":"eab1794","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -12379,8 +12379,10 @@ let oesVoiceOn=true;            // toggle de usuario (memoria de sesión)
 let oesVoiceName='onyx';       // voz por defecto (onyx/ash masculinas; nova/coral/shimmer femeninas)
 let oesVoiceRate=1.1;          // velocidad de reproducción (playbackRate); >1 = más rápido
 let oesVoiceVol=1.0;           // volumen (0..1)
-let _oesAudio=null;            // Audio en curso, para evitar solapamientos
+let _oesAudio=null;            // elemento <audio> PERSISTENTE y reutilizado (clave para desbloqueo de audio en móvil)
+let _oesAudioUrl=null;         // objectURL actual, para revocarlo
 let _oesTtsBlocked=false;     // true si el plan no incluye voz (free) → avisar una vez
+function _oesAudioGet(){ if(!_oesAudio){ _oesAudio=new Audio(); _oesAudio.preload='auto'; } return _oesAudio; }
 // ¿Está activo un modo con voz? (Oral Exam o Line Check; NO Q-Bank ni flashcards)
 function oesVoiceModeActive(){
   var s=document.getElementById('scr-oes');
@@ -12421,17 +12423,21 @@ async function oesSpeak(text){
     }
     if(!r.ok)return;
     var blob=await r.blob();var url=URL.createObjectURL(blob);
-    if(_oesAudio){try{_oesAudio.pause();}catch(e){}}
-    var a=new Audio(url);_oesAudio=a;
+    // Reutiliza SIEMPRE el mismo elemento: una vez sonó la pregunta (dentro del gesto), queda
+    // desbloqueado y el feedback puede reproducirse aunque llegue 1 s después (fix móvil/iOS).
+    var a=_oesAudioGet();
+    try{a.pause();}catch(e){}
+    if(_oesAudioUrl){try{URL.revokeObjectURL(_oesAudioUrl);}catch(e){}}
+    _oesAudioUrl=url;a.src=url;try{a.currentTime=0;}catch(e){}
     a.volume=oesVoiceVol;a.playbackRate=oesVoiceRate;
     a.onloadedmetadata=function(){try{a.playbackRate=oesVoiceRate;}catch(e){}}; // algunos navegadores resetean al cargar
-    a.onended=function(){URL.revokeObjectURL(url);if(_oesAudio===a)_oesAudio=null;};
-    a.play().catch(function(){});
+    a.onended=function(){if(_oesAudioUrl){try{URL.revokeObjectURL(_oesAudioUrl);}catch(e){}_oesAudioUrl=null;}};
+    var _pp=a.play();if(_pp&&_pp.catch)_pp.catch(function(){});
   }catch(e){/* la voz es opcional: si falla, la app sigue en texto */}
 }
 function toggleOesVoice(){
   oesVoiceOn=!oesVoiceOn;
-  if(!oesVoiceOn&&_oesAudio){try{_oesAudio.pause();}catch(e){}_oesAudio=null;}
+  if(!oesVoiceOn&&_oesAudio){try{_oesAudio.pause();}catch(e){}}
   updOesVoiceUI();
 }
 function setOesVoiceName(v){oesVoiceName=v;}
@@ -12663,7 +12669,7 @@ function oesSend(){
   });
 }
 function oesReset(){
-  stopMic('oes');if(_oesAudio){try{_oesAudio.pause();}catch(e){}_oesAudio=null;}OS={sys:OS.sys,type:OS.type,mode:OS.mode,q:0,pass:0,part:0,fail:0,idx:-1,answered:false,used:[],sh:null};updOes();
+  stopMic('oes');if(_oesAudio){try{_oesAudio.pause();}catch(e){}}OS={sys:OS.sys,type:OS.type,mode:OS.mode,q:0,pass:0,part:0,fail:0,idx:-1,answered:false,used:[],sh:null};updOes();
   document.getElementById('oesp1').textContent='';document.getElementById('oesp2').textContent='';document.getElementById('oes-bar').style.width='0%';
   const m=document.getElementById('oes-msgs');m.innerHTML='';
   const sc=document.createElement('div');sc.className='start-sc';sc.id='oes-ssc';
