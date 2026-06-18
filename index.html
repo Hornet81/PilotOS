@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.67">
+  <meta name="version" content="Beta.68">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.67","builtAt":"2026-06-18T14:37:56Z","commit":"2cf9b72","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.68","builtAt":"2026-06-18T14:41:00Z","commit":"49dcc1f","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -33368,10 +33368,16 @@ var LDM = {
 
   frameTo:function(r){
     var p1=[this.wX(r[0]),this.wY(r[1])],p2=[this.wX(r[2]),this.wY(r[3])];
-    this.cam.tx=(p1[0]+p2[0])/2; this.cam.ty=(p1[1]+p2[1])/2;
     var dx=Math.abs(p2[0]-p1[0]),dy=Math.abs(p2[1]-p1[1]);
-    var sx=this.W/(dx*2.4+100),sy=this.H/(dy*2.4+100);
-    this.cam.ts=Math.min(Math.max(Math.min(sx,sy),1.0),5.5);
+    var len=Math.sqrt(dx*dx+dy*dy),bulge=len*0.28; // el arco bombea ~0.28·len hacia arriba
+    // Centro: punto medio de la cuerda, desplazado arriba para incluir el arco
+    this.cam.tx=(p1[0]+p2[0])/2;
+    this.cam.ty=(p1[1]+p2[1])/2 - bulge*0.35;
+    // Encuadre: extensión visual (cuerda + arco) + margen → zoom que llena la vista.
+    // Padding pequeño y tope alto para que las rutas cortas se acerquen de verdad.
+    var pad=46;
+    var sx=this.W/(dx+pad), sy=this.H/(dy+bulge+pad);
+    this.cam.ts=Math.min(Math.max(Math.min(sx,sy),1.0),6.0);
   },
   resetCam:function(){this.cam.tx=this.W/2;this.cam.ty=this.H/2;this.cam.ts=1;},
   updateCam:function(){
