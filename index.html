@@ -12,7 +12,7 @@
 <title>PilotOS</title>
   <meta name="version" content="Beta.62">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.62","builtAt":"2026-06-18T12:09:39Z","commit":"e650607","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.62","builtAt":"2026-06-18T12:16:51Z","commit":"b8e596e","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -9220,8 +9220,8 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
             <select id="oes-voice-rate" onchange="setOesVoiceRate(this.value)" title="Velocidad de la voz" style="font-family:'Space Mono',monospace;font-size:10px;padding:3px 6px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:#0d1530;color:#e8eeff;cursor:pointer">
               <option value="0.9">Lenta</option>
               <option value="1">Normal</option>
-              <option value="1.1" selected>Ágil</option>
-              <option value="1.25">Rápida</option>
+              <option value="1.1">Ágil</option>
+              <option value="1.25" selected>Rápida</option>
               <option value="1.4">Muy rápida</option>
             </select>
           </label>
@@ -12446,7 +12446,9 @@ async function oesSpeak(text){
     try{a.pause();}catch(e){}
     if(_oesAudioUrl){try{URL.revokeObjectURL(_oesAudioUrl);}catch(e){}}
     _oesAudioUrl=url;a.src=url;try{a.currentTime=0;}catch(e){}
-    a.volume=oesVoiceVol;a.playbackRate=oesVoiceRate;
+    _oesEnsureBoost(a); // amplifica si el contexto de audio está activo
+    if(_oesGain){a.volume=1;try{_oesGain.gain.value=oesVoiceBoost*oesVoiceVol;}catch(e){}}else{a.volume=Math.min(1,oesVoiceVol);}
+    a.playbackRate=oesVoiceRate;
     a.onloadedmetadata=function(){try{a.playbackRate=oesVoiceRate;}catch(e){}}; // algunos navegadores resetean al cargar
     a.onended=function(){if(_oesAudioUrl){try{URL.revokeObjectURL(_oesAudioUrl);}catch(e){}_oesAudioUrl=null;}};
     var _pp=a.play();if(_pp&&_pp.catch)_pp.catch(function(){});
@@ -12459,7 +12461,7 @@ function toggleOesVoice(){
 }
 function setOesVoiceName(v){oesVoiceName=v;}
 function setOesVoiceRate(v){oesVoiceRate=parseFloat(v)||1;if(_oesAudio){try{_oesAudio.playbackRate=oesVoiceRate;}catch(e){}}}
-function setOesVoiceVol(v){oesVoiceVol=Math.max(0,Math.min(1,parseFloat(v)));if(_oesAudio){try{_oesAudio.volume=oesVoiceVol;}catch(e){}}}
+function setOesVoiceVol(v){oesVoiceVol=Math.max(0,Math.min(1,parseFloat(v)));if(_oesGain){try{_oesGain.gain.value=oesVoiceBoost*oesVoiceVol;}catch(e){}}else if(_oesAudio){try{_oesAudio.volume=Math.min(1,oesVoiceVol);}catch(e){}}}
 function updOesVoiceUI(){
   var btn=document.getElementById('oes-voice-toggle');
   if(btn){btn.classList.toggle('on',oesVoiceOn);btn.textContent=oesVoiceOn?'🔊 Voz':'🔇 Voz';}
@@ -12554,7 +12556,7 @@ function startOesOral(){
   var s=document.getElementById('scr-oes');if(s){s.classList.add('mode-oral');s.classList.remove('mode-qbank','mode-linecheck','mode-flash');}
   var ssc=document.getElementById('oes-ssc');if(ssc)ssc.remove();
   clearOesMsgs('LIVE TRAINING','AI Examiner · TRE Mode');
-  _oesTtsBlocked=false;updOesVoiceUI();
+  _oesTtsBlocked=false;updOesVoiceUI();try{if(typeof _ac==='function')_ac();}catch(e){} // activa el contexto de audio (gesto) para la amplificación de voz
   collapseOesCards();initMic('oes');oesNext();
 }
 function startOesQB(){
@@ -12643,7 +12645,7 @@ function startOes(){
   var s=document.getElementById('scr-oes');if(s){s.classList.add('mode-linecheck');s.classList.remove('mode-qbank','mode-oral','mode-flash');}
   var ssc=document.getElementById('oes-ssc');if(ssc)ssc.remove();
   clearOesMsgs('LINE CHECK','50 preguntas · Modo TRE completo');
-  _oesTtsBlocked=false;updOesVoiceUI();
+  _oesTtsBlocked=false;updOesVoiceUI();try{if(typeof _ac==='function')_ac();}catch(e){} // activa el contexto de audio (gesto) para la amplificación de voz
   collapseOesCards();initMic('oes');oesNext();
 }
 function oesNext(){
