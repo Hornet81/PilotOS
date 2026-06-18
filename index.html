@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.74">
+  <meta name="version" content="Beta.75">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.74","builtAt":"2026-06-18T22:25:26Z","commit":"bc495ff","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.75","builtAt":"2026-06-18T22:42:12Z","commit":"b05f10a","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -3434,6 +3434,8 @@ html.day #ld-panel-mapa.ld-panel{background:#cfe0f0}
 @supports not (zoom:1){
   #skyview-react-root{ transform:scale(1.35); transform-origin:top left; width:calc(100%/1.35); height:calc(100%/1.35); }
 }
+/* Modo apaisado MAPAS/PERFIL: oculta cabecera, barra central y nav inferior (deja solo el selector de subtabs) */
+html.bp-land .sv-chrome{ display:none !important; }
 
 /* ════ SKYVIEW — Título header: animación de colores ════ */
 .sv-title{
@@ -26240,7 +26242,7 @@ function mountBrefProfile(host, leg) {
 
   const cv = $("cx"), ctx = cv.getContext("2d"), tip = $("tip");
   const mc = $("mini"), mctx = mc.getContext("2d");
-  const M = { l: 42, r: 42, t: 14, b: 26 };
+  const M = { l: 29, r: 30, t: 14, b: 26 };
   let W = 0, H = 0, dpr = 1; const buf = {}; let GEO = {};
   function mkBuf(n) { const c = buf[n] || document.createElement("canvas"); c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); buf[n] = c; const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H); return g; }
   const X = x => M.l + x * (W - M.l - M.r), Y = fl => M.t + (1 - fl / FLMAX) * (H - M.t - M.b);
@@ -26271,7 +26273,7 @@ function mountBrefProfile(host, leg) {
     if (lR.engel > 0.04) { ctx.globalAlpha = lR.engel; ctx.drawImage(buf.ice, 0, 0, buf.ice.width, buf.ice.height, 0, 0, W, H); ctx.globalAlpha = 1; }
     if (lR.perfil > 0.04) { ctx.save(); ctx.globalAlpha = lR.perfil; const n = Math.floor(profP * (GEO.prof.length - 1)); ctx.strokeStyle = P.cyan; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.shadowColor = P.cyan; ctx.shadowBlur = 11; ctx.beginPath(); for (let i = 0; i <= n; i++) { const p = GEO.prof[i]; i === 0 ? ctx.moveTo(p.px, p.py) : ctx.lineTo(p.px, p.py); } ctx.stroke(); ctx.shadowBlur = 0; const lead = GEO.prof[n]; if (lead && profP < 1) { ctx.fillStyle = "#fff"; ctx.shadowColor = P.cyan; ctx.shadowBlur = 12; ctx.beginPath(); ctx.arc(lead.px, lead.py, 3.5, 0, 7); ctx.fill(); ctx.shadowBlur = 0; } if (profP > 0.5) { ctx.shadowColor = "rgba(0,8,20,.9)"; ctx.shadowBlur = 4; [["TOC", 0.14], ["TOD", 0.86]].forEach(d => { const xx = d[1]; ctx.fillStyle = P.cyan; ctx.beginPath(); ctx.arc(X(xx), Y(CRZ), 3, 0, 7); ctx.fill(); ctx.fillStyle = P.white; ctx.font = "10px " + MONO; ctx.fillText(d[0], X(xx) - 8, Y(CRZ) - 9); }); ctx.fillStyle = P.cyan; ctx.font = "700 11px " + MONO; ctx.fillText("FL" + CRZ, X(0.5) - 12, Y(CRZ) - 9); } ctx.restore(); }
     if (lR.pirep > 0.04 && !COLS) PIREPS.forEach(p => { const px = X(p.f), py = Y(p.fl), ic = p.t === "ICE"; ctx.save(); ctx.globalAlpha = lR.pirep; ctx.translate(px, py); ctx.shadowColor = "rgba(0,0,0,.6)"; ctx.shadowBlur = 4; ctx.fillStyle = p.s === "SEV" ? P.red : ic ? "#5ac8eb" : "#FFD75A"; ctx.strokeStyle = "#0a1322"; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(0, -6.5); ctx.lineTo(6.5, 0); ctx.lineTo(0, 6.5); ctx.lineTo(-6.5, 0); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0; ctx.fillStyle = "#0a1322"; ctx.font = "700 8px " + MONO; ctx.textAlign = "center"; ctx.fillText(ic ? "I" : "T", 0, 3); ctx.restore(); ctx.textAlign = "left"; });
-    ctx.fillStyle = P.dim; ctx.font = "10px " + MONO; [0, 100, 200, 300, 400].forEach((fl, i) => { if (fl > FLMAX) return; const py = Y(fl); ctx.fillText("FL" + (fl < 100 ? "0" + fl : fl), 4, py + 3); ctx.fillStyle = P.dimmer; ctx.fillText([1013, 843, 701, 572, 466][i], W - M.r + 6, py + 3); ctx.fillStyle = P.dim; });
+    ctx.fillStyle = P.dim; ctx.font = "8px " + MONO; [0, 100, 200, 300, 400].forEach((fl, i) => { if (fl > FLMAX) return; const py = Y(fl); ctx.fillText("FL" + (fl < 100 ? "0" + fl : fl), 2, py + 3); ctx.fillStyle = P.dimmer; ctx.fillText([1013, 843, 701, 572, 466][i], W - M.r + 3, py + 3); ctx.fillStyle = P.dim; });
     ctx.fillStyle = P.dimmer; ctx.fillText("FL", 6, M.t - 3); ctx.fillText("hPa", W - M.r + 6, M.t - 3);
     ctx.strokeStyle = "rgba(255,255,255,.06)"; ctx.lineWidth = 1; [0.25, 0.5, 0.75].forEach(f => { const px = X(f); ctx.beginPath(); ctx.moveTo(px, M.t); ctx.lineTo(px, H - M.b); ctx.stroke(); });
     ctx.textAlign = "center"; WPTS.forEach(wp => { const px = X(wp.f), on = selWpt && selWpt.n === wp.n; ctx.strokeStyle = on ? "rgba(126,251,254,.45)" : "rgba(255,255,255,.12)"; ctx.lineWidth = on ? 1.5 : 1; ctx.beginPath(); ctx.moveTo(px, M.t); ctx.lineTo(px, H - M.b); ctx.stroke(); ctx.fillStyle = on ? P.cyan : "rgba(235,242,255,.9)"; ctx.font = "11px " + MONO; ctx.fillText(wp.n, px, H - 6); }); ctx.textAlign = "left"; ctx.lineWidth = 1;
@@ -26326,15 +26328,15 @@ function TabMaps(_ref51) {
     setMapTab = _useState26[1];
   const _lsA = useState(false), land = _lsA[0], setLand = _lsA[1];
   useEffect(function () {
-    const upd = function () { try { setLand(window.matchMedia("(orientation: landscape)").matches && window.innerHeight < 600); } catch (e) {} };
+    const upd = function () { try { const isL = window.matchMedia("(orientation: landscape)").matches && window.innerHeight < 600; setLand(isL); document.documentElement.classList.toggle("bp-land", isL); } catch (e) {} };
     upd();
     window.addEventListener("resize", upd);
     window.addEventListener("orientationchange", upd);
-    return function () { window.removeEventListener("resize", upd); window.removeEventListener("orientationchange", upd); };
+    return function () { window.removeEventListener("resize", upd); window.removeEventListener("orientationchange", upd); document.documentElement.classList.remove("bp-land"); };
   }, []);
   return /*#__PURE__*/React.createElement("div", {
     style: land ? {
-      position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, background: BG, overflowY: "auto", paddingBottom: 0
+      paddingBottom: 8
     } : {
       paddingBottom: 100
     }
@@ -27036,6 +27038,7 @@ function SkyViewPilotOS() {
       flexDirection: "column"
     }
   }, /*#__PURE__*/React.createElement(AnimatedBg, null), /*#__PURE__*/React.createElement("div", {
+    className: "sv-chrome",
     style: {
       position: "sticky",
       top: 0,
@@ -27218,7 +27221,7 @@ function SkyViewPilotOS() {
   }, leg.metarArr.cat, " \xB7 ", leg.metarArr.temp, " \xB7 ", leg.metarArr.qnh)))),
   /*#__PURE__*/React.createElement("div", {
     onClick: function () { setHdrCollapsed(function (v) { return !v; }); },
-    style: { position: "sticky", top: 42, zIndex: 24, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "5px 13px 6px", borderTop: "1px solid rgba(126,251,254,0.07)", borderBottom: "1px solid rgba(126,251,254,0.07)", background: "rgba(0,9,24,0.96)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", cursor: "pointer", userSelect: "none" }
+    className: "sv-chrome", style: { position: "sticky", top: 42, zIndex: 24, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "5px 13px 6px", borderTop: "1px solid rgba(126,251,254,0.07)", borderBottom: "1px solid rgba(126,251,254,0.07)", background: "rgba(0,9,24,0.96)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", cursor: "pointer", userSelect: "none" }
   },
     /*#__PURE__*/React.createElement("div", {
       style: { display: "flex", alignItems: "center", gap: 6, flex: "0 0 auto", padding: "3px 10px", borderRadius: 9, background: "linear-gradient(135deg,rgba(70,227,242,0.16),rgba(70,227,242,0.04))", border: "1px solid rgba(70,227,242,0.32)" }
@@ -27259,7 +27262,7 @@ function SkyViewPilotOS() {
     leg: leg,
     turbData: turbData
   })), /*#__PURE__*/React.createElement("div", {
-    style: {
+    className: "sv-chrome", style: {
       position: "sticky",
       bottom: 0,
       left: 0,
