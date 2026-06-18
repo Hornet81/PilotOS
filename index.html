@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.59">
+  <meta name="version" content="Beta.60">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.59","builtAt":"2026-06-18T11:56:04Z","commit":"759f1f8","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.60","builtAt":"2026-06-18T12:01:37Z","commit":"691371c","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -3884,7 +3884,7 @@ html.day .qrh-wrap[data-active="alt2"] .qrh-icao{color:#BE185D!important;}
 /* ══════════════════════════════════════════════
    DARK DASHBOARD v60 — #scr-home new UI
 ══════════════════════════════════════════════ */
-#scr-home{background:radial-gradient(ellipse 120% 60% at 50% -10%,rgba(30,58,140,.45) 0%,transparent 70%),#080C1A!important;}
+#scr-home{background:radial-gradient(ellipse 130% 72% at 50% -10%,rgba(34,64,146,.42) 0%,transparent 80%),#0E1531!important;}
 .dh-header{display:flex;align-items:center;justify-content:space-between;padding:18px 18px 12px;padding-top:calc(18px + env(safe-area-inset-top,0px));flex-shrink:0;background:transparent;}
 /* Versión bajo el logo en la barra superior de Home — pequeña pero legible */
 .dh-version{font-size:9.5px!important;line-height:1.3!important;letter-spacing:.2px;white-space:nowrap}
@@ -13648,10 +13648,47 @@ function initMic(id){
   sr.onstart=()=>{micSt[id].on=true;playMicStart();if(btn)btn.classList.add('listening');if(orb)orb.classList.add('listening');const vs=document.getElementById(id+'-vst');if(vs){vs.style.display='flex';}const vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent='Escuchando...';};
   sr.onresult=e=>{let f='',t='';for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)f+=e.results[i][0].transcript;else t+=e.results[i][0].transcript;}_micFill(id,f||t);const vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent=f?'✓ Capturado':'Escuchando...';if(f)playMicDone();};
   sr.onerror=e=>{const msg=e.error==='not-allowed'?'Permite el micrófono en el navegador':e.error==='no-speech'?'No se detectó voz':'Error: '+e.error;const vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent=msg;const vs=document.getElementById(id+'-vst');if(vs)vs.style.display='flex';stopMic(id);};
-  sr.onend=()=>{stopMic(id);if(id==='oes'){setTimeout(function(){var ta=document.getElementById('oes-ta');if(ta&&ta.value.trim()&&!OS.answered)oesSend();},150);}};
+  sr.onend=()=>{stopMic(id);if(id==='oes'){setTimeout(function(){var ta=document.getElementById('oes-ta');if(ta&&ta.value.trim()&&!OS.answered)oesSend();},150);}else if(id==='cafi'){setTimeout(function(){var ta=document.getElementById('user-input');if(ta&&ta.value.trim())cafiSendMessage();},150);}};
   micSt[id].sr=sr;if(btn)btn.disabled=false;
 }
 function _micUI(id,txt){var btn=document.getElementById(id+'-mic');if(btn)btn.classList.add('listening');var orb=document.getElementById(id+'-orb');if(orb)orb.classList.add('listening');var vs=document.getElementById(id+'-vst');if(vs)vs.style.display='flex';var vt=document.getElementById(id+'-vst-t');if(vt&&txt)vt.textContent=txt;}
+// ── VAD (detección de voz): para y envía solo tras un silencio ──
+// Cambia este valor para ajustar cuántos ms de silencio disparan el envío automático.
+var CAFI_VAD_SILENCE_MS=1000;   // 1 s de silencio → parar y enviar (baja a 500 si lo quieres más agresivo)
+var CAFI_VAD_LEVEL=0.022;       // umbral RMS por encima del cual se considera que hay voz
+function _startVad(id,stream){
+  try{
+    var st=micSt[id];var ac=_ac();if(!ac)return;
+    var src=ac.createMediaStreamSource(stream);
+    var an=ac.createAnalyser();an.fftSize=512;an.smoothingTimeConstant=0.5;
+    src.connect(an);   // solo al analyser (no al destino) → sin eco
+    var buf=new Uint8Array(an.fftSize);
+    st._vad={an:an,src:src,raf:null,spoke:false,silenceStart:0};
+    var tick=function(){
+      if(!st.on||!st.whisper||!st._vad){return;}
+      an.getByteTimeDomainData(buf);
+      var sum=0;for(var i=0;i<buf.length;i++){var v=(buf[i]-128)/128;sum+=v*v;}
+      var rms=Math.sqrt(sum/buf.length);
+      var now=performance.now();
+      if(rms>CAFI_VAD_LEVEL){
+        st._vad.spoke=true;st._vad.silenceStart=0;
+        var vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent='Escuchando…';
+      }else if(st._vad.spoke){
+        if(!st._vad.silenceStart){st._vad.silenceStart=now;}
+        else if(now-st._vad.silenceStart>=CAFI_VAD_SILENCE_MS){stopMic(id);return;}
+      }
+      st._vad.raf=requestAnimationFrame(tick);
+    };
+    st._vad.raf=requestAnimationFrame(tick);
+  }catch(e){}
+}
+function _stopVad(id){
+  var st=micSt[id];if(!st||!st._vad)return;
+  try{if(st._vad.raf)cancelAnimationFrame(st._vad.raf);}catch(e){}
+  try{st._vad.src.disconnect();}catch(e){}
+  try{st._vad.an.disconnect();}catch(e){}
+  st._vad=null;
+}
 // ── STT vía Whisper (MediaRecorder → /api/stt) ──
 function startWhisperRec(id){
   navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}).then(function(stream){
@@ -13660,7 +13697,8 @@ function startWhisperRec(id){
     st.mr=mr;st.whisper=true;st.on=true;
     mr.ondataavailable=function(e){if(e.data&&e.data.size)st.chunks.push(e.data);};
     mr.onstop=function(){whisperFinish(id);};
-    mr.start();playMicStart();_micUI(id,'Grabando… toca para parar');
+    mr.start();playMicStart();_micUI(id,id==='cafi'?'Habla… envío automático al callar':'Grabando… toca para parar');
+    if(id==='cafi')_startVad(id,stream);   // CAFI: para y envía solo tras silencio
     st._to=setTimeout(function(){if(st.on&&st.whisper)stopMic(id);},30000); // tope de seguridad 30s
   }).catch(function(){startBrowserSR(id);}); // sin permiso/dispositivo → dictado del navegador
 }
@@ -13685,7 +13723,7 @@ function whisperFinish(id){
         if(!j)return;
         _micFill(id,(j.text||'').trim());
         if(vt)vt.textContent=j.text?'✓ Capturado':'No se detectó voz';
-        if(j.text){playMicDone();if(id==='oes'){var t=document.getElementById('oes-ta');if(t&&t.value.trim()&&!OS.answered)oesSend();}}
+        if(j.text){playMicDone();if(id==='oes'){var t=document.getElementById('oes-ta');if(t&&t.value.trim()&&!OS.answered)oesSend();}else if(id==='cafi'){var ci=document.getElementById('user-input');if(ci&&ci.value.trim())cafiSendMessage();}}
       })
       .catch(function(){_sttWhisperBlocked=true;if(vt)vt.textContent='Transcripción no disponible — usa el micro de nuevo';});
   };
@@ -13708,6 +13746,7 @@ function toggleMic(id){
 }
 function stopMic(id){
   var st=micSt[id];st.on=false;if(st._to){clearTimeout(st._to);st._to=null;}
+  _stopVad(id);
   const b=document.getElementById(id+'-mic');if(b)b.classList.remove('listening');var orb=document.getElementById(id+'-orb');if(orb)orb.classList.remove('listening');
   if(st.whisper&&st.mr){try{if(st.mr.state!=='inactive')st.mr.stop();}catch(e){}return;} // onstop → whisperFinish (no ocultar aún)
   try{if(st.sr)st.sr.stop();}catch(e){}
