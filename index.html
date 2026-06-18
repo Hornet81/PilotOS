@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.56">
+  <meta name="version" content="Beta.57">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.56","builtAt":"2026-06-18T11:22:28Z","commit":"eab1794","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.57","builtAt":"2026-06-18T11:29:09Z","commit":"1491309","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -6661,10 +6661,12 @@ if('serviceWorker' in navigator){
         console.warn('[SW] Registration failed:', err);
       });
   });
-  // Recargar UNA vez cuando el SW nuevo toma control (tras [Actualizar])
+  // Recargar UNA vez cuando el SW nuevo toma control (SOLO tras pulsar [Actualizar])
   var __reloaded = false;
+  var __hadController = !!navigator.serviceWorker.controller; // ¿la página ya estaba controlada? (no en la 1ª visita)
   navigator.serviceWorker.addEventListener('controllerchange', function(){
     if(__reloaded) return;
+    if(!__hadController) return; // 1ª instalación del SW: no recargar (evita rebote inicial a Home)
     __reloaded = true;
     window.location.reload();
   });

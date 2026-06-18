@@ -1,7 +1,7 @@
 // PilotOS Service Worker
 // APP_VERSION lo reescribe scripts/stamp-version.js en cada deploy → cambia el
 // nombre del caché → los cachés de versiones viejas se borran al activar.
-const APP_VERSION   = 'Beta.56';
+const APP_VERSION   = 'Beta.57';
 
 const STATIC_CACHE  = 'pilotos-static-' + APP_VERSION;
 const FONT_CACHE    = 'pilotos-fonts-'  + APP_VERSION;
@@ -10,12 +10,13 @@ const CURRENT_CACHES = [STATIC_CACHE, FONT_CACHE];
 const PRECACHE_URLS = ['/'];
 
 self.addEventListener('install', function(e) {
-  // skipWaiting: el SW nuevo no se queda "en espera" detrás del viejo
+  // NO hacer skipWaiting aquí: el SW nuevo se queda EN ESPERA y el frontend
+  // muestra el botón "Actualizar". Solo se activa cuando el usuario lo pulsa
+  // (postMessage SKIP_WAITING). Así no se recarga la app sola → no te saca a Home.
   e.waitUntil(
     caches.open(STATIC_CACHE)
       .then(function(cache) { return cache.addAll(PRECACHE_URLS); })
-      .then(function() { return self.skipWaiting(); })
-      .catch(function() { return self.skipWaiting(); })
+      .catch(function() {})
   );
 });
 
