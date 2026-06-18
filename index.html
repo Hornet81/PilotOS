@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.69">
+  <meta name="version" content="Beta.70">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.69","builtAt":"2026-06-18T19:00:57Z","commit":"d32dfc5","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.70","builtAt":"2026-06-18T19:06:04Z","commit":"e1c18d5","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -34926,6 +34926,38 @@ function laShareWrapped() {
   var ind   = document.getElementById('ptr-indicator');
   var label = document.getElementById('ptr-label');
 
+  // Comprueba si hay una versión nueva de la app (fuerza reg.update()) y, si la hay,
+  // la activa y recarga directamente — sin tener que cerrar/reabrir Safari ni pulsar "Actualizar".
+  // Resuelve a true si va a recargar (hay update), false si la app ya está al día.
+  function ptrCheckAppUpdate(){
+    return new Promise(function(resolve){
+      var reg = window.__swReg;
+      if(!reg || !('serviceWorker' in navigator)){ resolve(false); return; }
+      // Ya hay un SW esperando → aplicar directamente
+      if(reg.waiting){ if(typeof window.__pilotosUpdate==='function') window.__pilotosUpdate(); resolve(true); return; }
+      var done = false;
+      var finish = function(applied){ if(done) return; done = true; resolve(applied); };
+      var onFound = function(){
+        var nw = reg.installing; if(!nw) return;
+        nw.addEventListener('statechange', function(){
+          if(nw.state === 'installed' && navigator.serviceWorker.controller){
+            try{ reg.removeEventListener('updatefound', onFound); }catch(e){}
+            if(typeof window.__pilotosUpdate==='function') window.__pilotosUpdate(); // activa + recarga
+            finish(true);
+          }
+        });
+      };
+      reg.addEventListener('updatefound', onFound);
+      Promise.resolve(reg.update()).then(function(){
+        // Margen para que el SW entrante pase a "installed"; si no aparece nada, app al día
+        setTimeout(function(){
+          if(reg.waiting){ if(typeof window.__pilotosUpdate==='function') window.__pilotosUpdate(); finish(true); }
+          else { try{ reg.removeEventListener('updatefound', onFound); }catch(e){} finish(false); }
+        }, 1600);
+      }).catch(function(){ try{ reg.removeEventListener('updatefound', onFound); }catch(e){} finish(false); });
+    });
+  }
+
   // Map screen key → refresh function
   function ptrRefresh(){
     var key = (typeof curScreen !== 'undefined') ? curScreen : 'home';
@@ -34942,7 +34974,11 @@ function laShareWrapped() {
     }
     if(key === 'home'){
       if(typeof dhUpdateRosterCard === 'function') dhUpdateRosterCard();
-      if(typeof ldManualPull === 'function') return ldManualPull();
+      return ptrCheckAppUpdate().then(function(applied){
+        if(applied) return; // hay versión nueva → la app se va a recargar
+        showToast && showToast('✓ App al día','info');
+        if(typeof ldManualPull === 'function') return ldManualPull();
+      });
     }
     // For other screens: just a visual tick
     return Promise.resolve();
