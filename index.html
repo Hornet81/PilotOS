@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.73">
+  <meta name="version" content="Beta.74">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.73","builtAt":"2026-06-18T21:57:53Z","commit":"814e57f","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.74","builtAt":"2026-06-18T22:25:26Z","commit":"bc495ff","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -26187,10 +26187,10 @@ function mountBrefProfile(host, leg) {
   };
 
   host.innerHTML = '<div data-bp="wrap" style="position:relative;font-family:' + sans + '">' +
-    '<div style="display:flex;align-items:center;gap:9px;padding:2px 2px 12px">' +
-      '<span style="font-size:15px">✈️</span>' +
-      '<div><div style="font-size:10px;letter-spacing:2.5px;color:' + P.cyan + ';font-weight:700;font-family:' + MONO + '">BREF · WX EN RUTA</div>' +
-      '<div style="font-family:' + MONO + ';font-size:14px;color:' + P.white + ';margin-top:1px">' + leg.dep + ' <span style="color:' + P.dim + '">→</span> ' + leg.arr + ' <span style="color:' + P.dimmer + ';font-size:11px">· ' + (leg.flight || '') + ' · FL' + CRZ + ' · ' + (leg.acType || 'A320') + '</span></div></div>' +
+    '<div style="display:flex;align-items:center;gap:7px;padding:0 2px 8px">' +
+      '<span style="font-size:12px">✈️</span>' +
+      '<div><div style="font-size:8.5px;letter-spacing:2px;color:' + P.cyan + ';font-weight:700;font-family:' + MONO + '">PERFIL RUTA</div>' +
+      '<div style="font-family:' + MONO + ';font-size:11px;color:' + P.white + ';margin-top:1px">' + leg.dep + ' <span style="color:' + P.dim + '">→</span> ' + leg.arr + ' <span style="color:' + P.dimmer + ';font-size:9px">· ' + (leg.flight || '') + ' · FL' + CRZ + ' · ' + (leg.acType || 'A320') + '</span></div></div>' +
       '<div style="flex:1"></div>' +
       '<div style="text-align:right"><span data-bp="src" style="display:inline-block;font-family:' + MONO + ';font-size:8.5px;letter-spacing:1px;color:#0a1322;background:' + C.cyan2 + ';padding:3px 8px;border-radius:999px;font-weight:700">CARGANDO…</span>' +
       '<div data-bp="valid" style="font-family:' + MONO + ';font-size:9.5px;color:' + P.dim + ';margin-top:4px"></div></div></div>' +
@@ -26202,7 +26202,7 @@ function mountBrefProfile(host, leg) {
         '<span data-bp="refcount" style="font-size:9.5px;color:' + P.dimmer + ';font-family:' + MONO + '"></span></div>' +
       '<div data-bp="refspop" style="display:none;gap:6px;flex-wrap:wrap;margin-top:9px;padding:10px;border:1px solid ' + P.line + ';border-radius:10px;background:rgba(0,0,0,0.2)"></div></div>' +
     '<div data-bp="cxwrap" style="position:relative">' +
-      '<canvas data-bp="cx" style="width:100%;height:300px;display:block"></canvas>' +
+      '<canvas data-bp="cx" style="width:100%;height:' + Math.max(300, Math.min(560, Math.round((window.innerHeight || 700) * 0.56))) + 'px;display:block"></canvas>' +
       '<div data-bp="tip" style="position:absolute;opacity:0;transition:opacity .14s;pointer-events:none;background:rgba(0,12,30,0.94);border:1px solid ' + P.line + ';border-radius:9px;padding:8px 10px;font-family:' + MONO + ';font-size:10.5px;line-height:1.55;z-index:5;white-space:nowrap;color:' + P.white + '"></div></div>' +
     '<div style="display:flex;align-items:center;gap:16px;padding:8px 2px 8px;flex-wrap:wrap">' +
       '<div style="display:flex;align-items:center;gap:8px"><span data-bp="legunit" style="font-size:10px;color:' + P.dim + ';font-family:' + MONO + '">°C</span><div data-bp="tgrad" style="width:160px;height:9px;border-radius:5px;position:relative"></div></div>' +
@@ -26285,14 +26285,26 @@ function mountBrefProfile(host, leg) {
   $("cxwrap").addEventListener("mousemove", ev => { const r = cv.getBoundingClientRect(); const mx = ev.clientX - r.left, my = ev.clientY - r.top; const x0 = xMin(), x1 = xMax(), y0 = yMin(), y1 = yMax(); if (mx < x0 || mx > x1 || my < y0 || my > y1) { cursorX = null; cursorY = null; tip.style.opacity = 0; needDraw = true; return; } cursorX = (mx - x0) / (x1 - x0); cursorY = my; needDraw = true; const fl = Math.round((1 - (my - y0) / (y1 - y0)) * FLMAX); let hit = null; if (!COLS) PIREPS.forEach(p => { if (Math.hypot(X(p.f) - mx, Y(p.fl) - my) < 11) hit = p; }); const T = Math.round(temp(fl, cursorX, tHour)), wsp = Math.round(windSpd(fl, cursorX, tHour)), wd = Math.round(windDir(fl, cursorX)), e = edr(fl, cursorX, tHour), rh = Math.round(hum(fl, cursorX) * 100); tip.innerHTML = hit ? '<span style="color:' + P.cyan + '">PIREP</span><br>' + hit.w : '<span style="color:' + P.cyan + '">FL' + ("" + fl).padStart(3, "0") + ' · ' + T + '°C</span><br>Viento ' + wd + '/' + wsp + 'kt<br>EDR ' + e.toFixed(2) + ' · ' + edrLbl(e) + '<br>HR ' + rh + '%'; tip.style.opacity = 1; const tw = tip.offsetWidth; tip.style.left = Math.min(mx + 14, W - tw + 8) + "px"; tip.style.top = (my + 12) + "px"; });
   $("cxwrap").addEventListener("mouseleave", () => { cursorX = null; cursorY = null; tip.style.opacity = 0; needDraw = true; });
   function setTime(v, fromPlay) { tHour = v; dirty = true; buildCols(); let hh, dd; if (WX) { const ts = WX.time[hourIdx()] || ""; dd = ts.slice(8, 10); hh = ts.slice(11, 13); } else { const dt = new Date(baseTime.getTime() + tHour * 3600e3); hh = String(dt.getUTCHours()).padStart(2, "0"); dd = String(dt.getUTCDate()).padStart(2, "0"); } $("valid").textContent = "VÁLIDO " + dd + "/" + hh + "00Z · +" + tHour + "h"; $("tlab").textContent = "+" + tHour + "h · " + hh + "Z"; if (fromPlay) $("time").value = tHour; if (selWpt) drawSnd(); updateInfo(); }
-  function updateInfo() { let mE = 0, eFL = CRZ; for (let x = 0; x <= 1; x += 0.04) for (let fl = 40; fl <= FLMAX; fl += 10) { const v = edr(fl, x, tHour); if (v > mE) { mE = v; eFL = fl; } } let jmax = 0, jfl = CRZ; for (let x = 0; x <= 1; x += 0.05) for (let fl = 240; fl <= FLMAX; fl += 10) { const s = windSpd(fl, x, tHour); if (s > jmax) { jmax = s; jfl = fl; } } const oat = Math.round(temp(CRZ, 0.5, tHour)); const ws = windSpd(CRZ, 0.5, tHour), wd = windDir(CRZ, 0.5), comp = Math.round(ws * Math.cos((wd - 250) * Math.PI / 180)); const compTxt = (comp >= 0 ? "+" : "") + comp + "kt " + (comp >= 0 ? "CARA" : "COLA"); let icMax = 0; for (let x = 0; x <= 1; x += 0.05) for (let fl = 20; fl <= 200; fl += 10) icMax = Math.max(icMax, icing(fl, x)); const icTxt = icMax < 0.4 ? "NO" : icMax < 1.2 ? "LIGERO" : "MODERADO"; const cards = [["TURB MÁX", edrLbl(mE) + " · FL" + Math.round(eFL / 10) * 10, mE >= 0.45 ? P.red : mE >= 0.2 ? "#FFB800" : P.white], ["EDR PICO", mE.toFixed(2), "#FFB800"], ["JET", Math.round(jmax) + "kt · FL" + Math.round(jfl / 10) * 10, "#FFD75A"], ["VIENTO CRZ", compTxt, comp >= 0 ? "#ff8a6a" : "#5dcaa5"], ["OAT CRZ", oat + "°C", "#5ab6e8"], ["ENGELAMIENTO", icTxt, icMax >= 0.4 ? "#5ac8eb" : P.white]]; $("haz").innerHTML = cards.map(c => '<div style="background:rgba(0,15,40,0.5);border:1px solid ' + P.line + ';border-radius:11px;padding:9px 11px;position:relative;overflow:hidden"><div style="position:absolute;left:0;top:0;bottom:0;width:2px;background:' + c[2] + ';opacity:.7"></div><div style="font-size:8.5px;letter-spacing:1px;color:' + P.dim + ';font-family:' + MONO + '">' + c[0] + '</div><div style="font-size:14px;margin-top:3px;color:' + c[2] + ';font-family:' + MONO + ';font-weight:700">' + c[1] + '</div></div>').join(""); }
+  function updateInfo() { let mE = 0, eFL = CRZ; for (let x = 0; x <= 1; x += 0.04) for (let fl = 40; fl <= FLMAX; fl += 10) { const v = edr(fl, x, tHour); if (v > mE) { mE = v; eFL = fl; } } let jmax = 0, jfl = CRZ; for (let x = 0; x <= 1; x += 0.05) for (let fl = 240; fl <= FLMAX; fl += 10) { const s = windSpd(fl, x, tHour); if (s > jmax) { jmax = s; jfl = fl; } } const oat = Math.round(temp(CRZ, 0.5, tHour)); const ws = windSpd(CRZ, 0.5, tHour), wd = windDir(CRZ, 0.5), comp = Math.round(ws * Math.cos((wd - 250) * Math.PI / 180)); const compTxt = (comp >= 0 ? "+" : "") + comp + "kt " + (comp >= 0 ? "CARA" : "COLA"); let icMax = 0; for (let x = 0; x <= 1; x += 0.05) for (let fl = 20; fl <= 200; fl += 10) icMax = Math.max(icMax, icing(fl, x)); const icTxt = icMax < 0.4 ? "NO" : icMax < 1.2 ? "LIGERO" : "MODERADO"; const cards = [["TURB MÁX", edrLbl(mE) + " · FL" + Math.round(eFL / 10) * 10, mE >= 0.45 ? P.red : mE >= 0.2 ? "#FFB800" : P.white], ["EDR PICO", mE.toFixed(2), "#FFB800"], ["JET", Math.round(jmax) + "kt · FL" + Math.round(jfl / 10) * 10, "#FFD75A"], ["VIENTO CRZ", compTxt, comp >= 0 ? "#ff8a6a" : "#5dcaa5"], ["OAT CRZ", oat + "°C", "#5ab6e8"], ["ENGELAMIENTO", icTxt, icMax >= 0.4 ? "#5ac8eb" : P.white]]; $("haz").innerHTML = cards.map(c => '<div style="background:rgba(0,15,40,0.5);border:1px solid ' + P.line + ';border-radius:10px;padding:7px 10px;position:relative;overflow:hidden"><div style="position:absolute;left:0;top:0;bottom:0;width:2px;background:' + c[2] + ';opacity:.7"></div><div style="font-size:8px;letter-spacing:1px;color:' + P.dim + ';font-family:' + MONO + '">' + c[0] + '</div><div style="font-size:12px;margin-top:2px;color:' + c[2] + ';font-family:' + MONO + ';font-weight:700">' + c[1] + '</div></div>').join(""); }
   $("time").addEventListener("input", e => setTime(+e.target.value));
   const playBtn = $("play");
   playBtn.addEventListener("click", () => { playing = !playing; playBtn.textContent = playing ? "⏸" : "▶"; playBtn.style.color = playing ? "#0a1322" : P.cyan; playBtn.style.background = playing ? P.cyan : "rgba(0,15,40,0.5)"; });
-  const onResize = () => { dirty = true; drawMini(); if (selWpt) drawSnd(); };
+  function applyOrient() {
+    const wrap = $("wrap"); if (!wrap) return;
+    const land = window.matchMedia("(orientation: landscape)").matches && window.innerHeight < 600;
+    const kids = wrap.children;
+    for (let i = 0; i < kids.length; i++) { const el = kids[i]; const keep = el.getAttribute && el.getAttribute("data-bp") === "cxwrap"; el.style.display = (land && !keep) ? "none" : ""; }
+    if (land) {
+      requestAnimationFrame(function () { const cw = $("cxwrap"); if (!cw) return; const top = cw.getBoundingClientRect().top; $("cx").style.height = Math.max(200, window.innerHeight - top - 12) + "px"; dirty = true; needDraw = true; });
+    } else {
+      $("cx").style.height = Math.max(300, Math.min(560, Math.round((window.innerHeight || 700) * 0.56))) + "px"; dirty = true; needDraw = true;
+    }
+  }
+  const onResize = () => { applyOrient(); dirty = true; needDraw = true; drawMini(); if (selWpt) drawSnd(); };
   window.addEventListener("resize", onResize);
-  updateSrc(); setTime(tHour); rebuild(); raf = requestAnimationFrame(frame); loadWX();
-  return function cleanup() { try { cancelAnimationFrame(raf); } catch (e) {} window.removeEventListener("resize", onResize); };
+  window.addEventListener("orientationchange", onResize);
+  updateSrc(); applyOrient(); setTime(tHour); rebuild(); raf = requestAnimationFrame(frame); loadWX();
+  return function cleanup() { try { cancelAnimationFrame(raf); } catch (e) {} window.removeEventListener("resize", onResize); window.removeEventListener("orientationchange", onResize); };
 }
 function MapProfile(_refBP) {
   const leg = _refBP.leg;
@@ -26312,8 +26324,18 @@ function TabMaps(_ref51) {
     _useState26 = _slicedToArray(_useState25, 2),
     mapTab = _useState26[0],
     setMapTab = _useState26[1];
+  const _lsA = useState(false), land = _lsA[0], setLand = _lsA[1];
+  useEffect(function () {
+    const upd = function () { try { setLand(window.matchMedia("(orientation: landscape)").matches && window.innerHeight < 600); } catch (e) {} };
+    upd();
+    window.addEventListener("resize", upd);
+    window.addEventListener("orientationchange", upd);
+    return function () { window.removeEventListener("resize", upd); window.removeEventListener("orientationchange", upd); };
+  }, []);
   return /*#__PURE__*/React.createElement("div", {
-    style: {
+    style: land ? {
+      position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, background: BG, overflowY: "auto", paddingBottom: 0
+    } : {
       paddingBottom: 100
     }
   }, /*#__PURE__*/React.createElement("div", {
