@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.57">
+  <meta name="version" content="Beta.58">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.57","builtAt":"2026-06-18T11:29:09Z","commit":"1491309","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.58","builtAt":"2026-06-18T11:46:29Z","commit":"5193afe","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -12573,7 +12573,13 @@ function addOesMsg(role,text,fb,opts,qi){
   const m=document.getElementById('oes-msgs');m.appendChild(d);requestAnimationFrame(()=>m.scrollTop=m.scrollHeight);
   // Voz del examinador: enunciado de pregunta o feedback (comment + respuesta correcta, breve)
   if(ex){
-    if(fb){var ft=(fb.comment||'')+(fb.answer?'. Respuesta correcta: '+fb.answer:'');oesSpeak(ft);}
+    if(fb){
+      // Voz: lee solo lo más completo, sin repetir. Comentario si es sustancial (IA);
+      // si es escueto (fallback keywords: "Insuficiente.") añade la respuesta modelo.
+      var _cm=(fb.comment||'').trim();
+      var ft=(_cm.length>=25)?_cm:(_cm+(fb.answer?'. '+fb.answer:''));
+      oesSpeak(ft);
+    }
     else if(text&&String(text).trim())oesSpeak(text);
   }
 }
