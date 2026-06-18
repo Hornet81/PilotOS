@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.65">
+  <meta name="version" content="Beta.66">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.65","builtAt":"2026-06-18T13:56:24Z","commit":"3dfe534","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.66","builtAt":"2026-06-18T14:09:22Z","commit":"6ad29f7","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -2186,6 +2186,42 @@ html.day .ld-rd-game{background:linear-gradient(135deg,rgba(124,58,237,.1),rgba(
 html.day .ld-rd-game-num{color:#6D28D9 !important}
 html.day .ld-rd-game-lbl{color:#475569 !important}
 html.day .ld-rd-bar{background:rgba(15,23,42,.1) !important}
+/* Fix badge "Reciente" — verde legible en modo día */
+html.day .ld-rd-badge{background:rgba(16,185,129,.16) !important;color:#047857 !important;border-color:rgba(5,150,105,.4) !important}
+
+/* ══ ROUTE DETAIL — Patrón temporal ══ */
+.ld-rd-temp{margin-top:11px;padding-top:11px;border-top:1px solid rgba(34,211,238,.06)}
+.ld-rd-temp-hdr{display:flex;align-items:center;gap:8px}
+.ld-rd-temp-lbl{font-family:'Space Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:rgba(248,250,252,.4)}
+.ld-rd-seg{margin-left:auto;display:flex;background:rgba(255,255,255,.05);border-radius:8px;padding:2px}
+.ld-rd-seg-btn{font-size:10px;padding:3px 10px;border-radius:6px;color:rgba(248,250,252,.4);cursor:pointer;font-family:'Space Mono',monospace;transition:background .15s}
+.ld-rd-seg-btn.on{background:rgba(124,58,237,.35);color:#C4B5FD}
+.ld-rd-temp-ins{display:flex;align-items:center;gap:7px;margin-top:9px;font-size:11px;color:rgba(248,250,252,.72);line-height:1.4}
+.ld-rd-temp-ins b{color:#A78BFA;font-weight:700}
+.ld-rd-temp-ins .ic{font-size:14px;flex-shrink:0}
+.ld-rd-franja{margin-top:11px}
+.ld-rd-franja-lbl{font-family:'Space Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.4px;color:rgba(248,250,252,.35);margin-bottom:1px}
+.ld-bars{display:flex;gap:3px;margin-top:8px}
+.ld-bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
+.ld-bar-col{width:100%;display:flex;align-items:flex-end;height:54px}
+.ld-bar{width:100%;border-radius:3px;background:rgba(34,211,238,.3)}
+.ld-bar.mid{background:rgba(34,211,238,.78)}
+.ld-bar.hi{background:#A78BFA;box-shadow:0 0 7px rgba(167,139,250,.6)}
+.ld-bar-lbl{font-family:'Space Mono',monospace;font-size:8.5px;color:rgba(248,250,252,.35)}
+.ld-bar-lbl.hi{color:#A78BFA}
+/* Patrón temporal — MODO DÍA */
+html.day .ld-rd-temp{border-top-color:rgba(15,23,42,.08) !important}
+html.day .ld-rd-temp-lbl,html.day .ld-rd-franja-lbl{color:#64748B !important}
+html.day .ld-rd-seg{background:rgba(15,23,42,.06) !important}
+html.day .ld-rd-seg-btn{color:#64748B !important}
+html.day .ld-rd-seg-btn.on{background:rgba(124,58,237,.18) !important;color:#6D28D9 !important}
+html.day .ld-rd-temp-ins{color:#475569 !important}
+html.day .ld-rd-temp-ins b{color:#6D28D9 !important}
+html.day .ld-bar{background:rgba(8,145,178,.3) !important}
+html.day .ld-bar.mid{background:rgba(8,145,178,.7) !important}
+html.day .ld-bar.hi{background:#7C3AED !important;box-shadow:0 0 7px rgba(124,58,237,.4) !important}
+html.day .ld-bar-lbl{color:#64748B !important}
+html.day .ld-bar-lbl.hi{color:#6D28D9 !important}
 
 /* ══ HOME CARD LOGBOOK (replace logo with text icon) ══ */
 .ld-home-icon{
@@ -33861,7 +33897,8 @@ function ldRouteStats(r){
     firstDate:null,lastDate:null,daysSince:null,
     otpCount:0,otpOnTime:0,delaySum:0,delayCount:0,
     pf:0,pm:0,ldgDay:0,ldgNight:0,nightMin:0,
-    regs:{},types:{},blockSeries:[]};
+    regs:{},types:{},blockSeries:[],
+    monthCounts:[0,0,0,0,0,0,0,0,0,0,0,0],yearCounts:{},hourBuckets:[0,0,0,0],hourTotal:0};
   var blocks=[];
   entries.forEach(function(e){
     if(_ldNorm(e.dep)===f) s.dirFT++; else s.dirTF++;
@@ -33869,7 +33906,11 @@ function ldRouteStats(r){
     if(bm!=null&&bm>0){ s.blockTotal+=bm; blocks.push(bm);
       if(s.blockMin==null||bm<s.blockMin) s.blockMin=bm;
       if(s.blockMax==null||bm>s.blockMax) s.blockMax=bm; }
-    if(e.date){ if(!s.firstDate||e.date<s.firstDate) s.firstDate=e.date; if(!s.lastDate||e.date>s.lastDate) s.lastDate=e.date; }
+    if(e.date){ if(!s.firstDate||e.date<s.firstDate) s.firstDate=e.date; if(!s.lastDate||e.date>s.lastDate) s.lastDate=e.date;
+      var mo=parseInt(e.date.slice(5,7))-1; if(mo>=0&&mo<12) s.monthCounts[mo]++;
+      var yr=e.date.slice(0,4); if(/^\d{4}$/.test(yr)) s.yearCounts[yr]=(s.yearCounts[yr]||0)+1; }
+    var dep=e.std||e.atd; // hora de salida (programada o real)
+    if(dep){ var hh=parseInt((dep+'').slice(0,2)); if(!isNaN(hh)&&hh>=0&&hh<24){ s.hourBuckets[hh<6?0:hh<12?1:hh<18?2:3]++; s.hourTotal++; } }
     if(e.date&&bm!=null&&bm>0) s.blockSeries.push({d:e.date,v:bm});
     var sta=ldT2mins(e.sta),ata=ldT2mins(e.ata);
     if(sta!=null&&ata!=null){ var dl=ata-sta; if(dl<-720)dl+=1440; if(dl>720)dl-=1440;
@@ -33898,7 +33939,49 @@ function ldRouteStats(r){
   s.otpPct=s.otpCount?Math.round(s.otpOnTime/s.otpCount*100):null;
   s.avgDelay=s.delayCount?Math.round(s.delaySum/s.delayCount):null;
   s.pfPct=(s.pf+s.pm)?Math.round(s.pf/(s.pf+s.pm)*100):null;
+  // ── Patrón temporal: pico, estacionalidad ──
+  s.monthTotal=s.monthCounts.reduce(function(a,b){return a+b;},0);
+  s.peakMonth=0; for(var mi=1;mi<12;mi++){ if(s.monthCounts[mi]>s.monthCounts[s.peakMonth]) s.peakMonth=mi; }
+  var summer=s.monthCounts[5]+s.monthCounts[6]+s.monthCounts[7]+s.monthCounts[8]; // jun–sep
+  var winter=s.monthCounts[11]+s.monthCounts[0]+s.monthCounts[1];                  // dic–feb
+  s.summerShare=s.monthTotal?summer/s.monthTotal:0;
+  s.winterShare=s.monthTotal?winter/s.monthTotal:0;
   return s;
+}
+var _MES_ES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function _ldBarsHtml(series){
+  var max=Math.max.apply(null,series.map(function(x){return x.v;}))||1;
+  return '<div class="ld-bars">'+series.map(function(x){
+    var hh=Math.max(3,Math.round(x.v/max*54)), t=x.v/max;
+    var cls=x.hi?'hi':(t>0.5?'mid':'');
+    return '<div class="ld-bar-wrap"><div class="ld-bar-col"><div class="ld-bar '+cls+'" style="height:'+hh+'px"></div></div>'
+      +'<div class="ld-bar-lbl'+(x.hi?' hi':'')+'">'+x.l+'</div></div>';
+  }).join('')+'</div>';
+}
+function ldRenderTemporal(view){
+  var s=window._ldRouteStatsCur; if(!s) return;
+  var body=document.getElementById('ld-temp-body'); if(!body) return;
+  var bm=document.getElementById('ld-seg-mes'), ba=document.getElementById('ld-seg-ano');
+  if(bm) bm.classList.toggle('on',view==='mes'); if(ba) ba.classList.toggle('on',view==='ano');
+  var html='';
+  if(view==='ano'){
+    var years=Object.keys(s.yearCounts).sort();
+    var maxN=Math.max.apply(null,years.map(function(y){return s.yearCounts[y];}));
+    html+=_ldBarsHtml(years.map(function(y){return {v:s.yearCounts[y],l:"'"+y.slice(2),hi:s.yearCounts[y]===maxN};}));
+    var rec=years.reduce(function(a,y){return s.yearCounts[y]>s.yearCounts[a]?y:a;},years[0]);
+    var ins='Tu año récord: <b>'+rec+'</b> ('+s.yearCounts[rec]+' sectores)';
+    if(years.length>=2){ var ly=years[years.length-1],py=years[years.length-2],d=s.yearCounts[ly]-s.yearCounts[py];
+      ins+=' · '+ly+': '+(d>0?'+':'')+d+' vs '+py; }
+    html+='<div class="ld-rd-temp-ins"><span class="ic">📈</span><span>'+ins+'</span></div>';
+  } else {
+    html+=_ldBarsHtml(s.monthCounts.map(function(v,i){return {v:v,l:_MLBLS[i],hi:i===s.peakMonth};}));
+    var ic,txt;
+    if(s.summerShare>=0.55){ ic='☀️'; txt='Ruta de verano — <b>'+Math.round(s.summerShare*100)+'%</b> entre junio y septiembre · pico en '+_MES_ES[s.peakMonth]; }
+    else if(s.winterShare>=0.5){ ic='❄️'; txt='Ruta de invierno — <b>'+Math.round(s.winterShare*100)+'%</b> entre diciembre y febrero · pico en '+_MES_ES[s.peakMonth]; }
+    else { ic='📅'; txt='Repartida todo el año · pico en <b>'+_MES_ES[s.peakMonth]+'</b>'; }
+    html+='<div class="ld-rd-temp-ins"><span class="ic">'+ic+'</span><span>'+txt+'</span></div>';
+  }
+  body.innerHTML=html;
 }
 function _ldSparkline(series){
   if(series.length<2) return '';
@@ -33969,12 +34052,29 @@ function ldRenderRouteDetail(r){
       +'<span class="ld-rd-game-lbl">'+lapLbl+' · '+_ldNum(s.totalKm)+' km acumulados'+(s.demo?' (ejemplo)':'')+'</span></div>'
       +'<div class="ld-rd-bar"><div class="ld-rd-bar-fill" style="width:'+barPct.toFixed(0)+'%"></div></div></div>';
   }
+  // ── Patrón temporal (meses/años) — sólo con volumen suficiente ──
+  var temporal='', franja='', showTemp=(!s.demo && s.monthTotal>=8);
+  if(showTemp){
+    temporal='<div class="ld-rd-temp"><div class="ld-rd-temp-hdr"><span class="ld-rd-temp-lbl">Patrón temporal</span>'
+      +'<div class="ld-rd-seg"><span id="ld-seg-mes" class="ld-rd-seg-btn on" onclick="ldRenderTemporal(\'mes\')">Meses</span>'
+      +'<span id="ld-seg-ano" class="ld-rd-seg-btn" onclick="ldRenderTemporal(\'ano\')">Años</span></div></div>'
+      +'<div id="ld-temp-body"></div></div>';
+  }
+  // ── Franja horaria de salida ──
+  if(!s.demo && s.hourTotal>=4){
+    var hb=s.hourBuckets, mxh=0; for(var hi=1;hi<4;hi++){ if(hb[hi]>hb[mxh]) mxh=hi; }
+    var hl=['Madr.','Mañ.','Tar.','Noc.'];
+    var hser=hb.map(function(v,i){return {v:v,l:hl[i],hi:i===mxh};});
+    franja='<div class="ld-rd-franja"><div class="ld-rd-franja-lbl">Franja de salida ('+s.hourTotal+' vuelos)</div>'+_ldBarsHtml(hser)+'</div>';
+  }
+  window._ldRouteStatsCur=s; // para ldRenderTemporal (toggle Meses/Años)
   host.innerHTML='<div class="ld-rd">'
     +'<div class="ld-rd-top"><div class="ld-rd-back" onclick="ldMapReset()">‹ Rutas</div>'
     +'<div class="ld-rd-title"><span class="ld-rd-dot" style="background:'+r.dot+';box-shadow:0 0 7px '+r.dot+'"></span>'+s.f+'<span class="ar">›</span>'+s.t+'</div></div>'
     +'<div class="ld-rd-grid">'+tilesHtml+'</div>'
-    +rows+spark+game
+    +rows+spark+temporal+franja+game
     +(s.demo?'<div style="font-size:9px;text-align:center;color:rgba(248,250,252,.3);margin-top:10px;font-family:Space Mono,monospace">Datos de ejemplo — añade vuelos para ver tus stats reales</div>':'');
+  if(showTemp) ldRenderTemporal('mes');
   if(cards) cards.style.display='none';
   host.style.display='block';
 }
