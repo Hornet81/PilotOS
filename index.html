@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.65">
+  <meta name="version" content="Beta.69">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.65","builtAt":"2026-06-18T18:58:49Z","commit":"d611d1b","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.69","builtAt":"2026-06-18T19:00:57Z","commit":"d32dfc5","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -2765,6 +2765,8 @@ html.day .ldm-times-wrap.mcdu-ok .ldm-inp.adsb-fill {
 #ld-panel-vuelos.ld-panel{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 #ld-panel-mapa.ld-panel{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#0B1020;flex-direction:column}
 #ld-panel-stats.ld-panel{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#060A14}
+/* Fondo del panel mapa en modo día — evita franja oscura bajo el mapa */
+html.day #ld-panel-mapa.ld-panel{background:#cfe0f0}
 /* ══ LOGBOOK DARK VUELOS PANEL ══ */
 #ld-panel-vuelos{background:#0B1020}
 #ld-panel-vuelos .scroll-body{background:#0B1020}
@@ -33819,11 +33821,16 @@ function ldMapTargetH(W){
   var body=document.getElementById('ld-drawer-body');
   var collapsed=body&&body.classList.contains('ld-drawer-closed');
   if(!collapsed) return normal;
-  var panel=document.getElementById('ld-panel-mapa');
+  var wrap=document.getElementById('ld-map-wrap');
   var handle=document.querySelector('.ld-drawer-handle');
-  if(!panel) return normal;
-  var cs=getComputedStyle(panel), padB=parseFloat(cs.paddingBottom)||0;
-  var avail=panel.clientHeight-padB-(handle?handle.offsetHeight:40)-2;
+  // Medir la barra de navegación fija (respeta el safe-area del dispositivo)
+  var nav=document.querySelector('.bottom-tabs');
+  if(!wrap) return normal;
+  var wrapTop=wrap.getBoundingClientRect().top;
+  var navTop=nav?nav.getBoundingClientRect().top:window.innerHeight;
+  var handleH=handle?handle.offsetHeight:40;
+  // Mapa + cabecera del cajón llegan justo a la barra inferior → sin franja negra
+  var avail=navTop-wrapTop-handleH-1;
   return Math.max(normal,Math.round(avail));
 }
 
