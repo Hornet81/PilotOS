@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.83">
+  <meta name="version" content="Beta.82">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.83","builtAt":"2026-06-22T09:30:22Z","commit":"49d223d","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.82","builtAt":"2026-06-22T09:35:41Z","commit":"0585913","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -22756,11 +22756,14 @@ function CCISectionBrief(_pcs) {
 /* ════════ TABS ════════ */
 function TabBrief(_ref21) {
   let leg = _ref21.leg;
+  let onOpenMaps = _ref21.onOpenMaps;
   return /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "12px 14px 100px"
     }
   }, /*#__PURE__*/React.createElement(Glass, {
+    style: { padding: "12px 13px", marginBottom: 10, border: "1px solid rgba(126,251,254,0.18)" }
+  }, /*#__PURE__*/React.createElement(MapProfile, { leg: leg, compact: true, onOpen: onOpenMaps })), /*#__PURE__*/React.createElement(Glass, {
     style: {
       padding: "13px 14px",
       marginBottom: 10,
@@ -26222,7 +26225,7 @@ function MapWind(_ref48) {
   );
 }
 /* ── PERFIL · corte vertical WX en ruta (mockup integrado · datos DEMO) ── */
-function mountBrefProfile(host, leg) {
+function mountBrefProfile(host, leg, compact, onOpen) {
   const P = { cyan: C.cyan, amber: C.yellow, red: C.red, dim: C.dim, dimmer: "rgba(170,210,250,0.92)", white: C.white, line: "rgba(126,251,254,0.12)", glass: "rgba(0,18,50,0.45)" };
   const MONO = mono;
   const $ = id => host.querySelector('[data-bp="' + id + '"]');
@@ -26284,7 +26287,7 @@ function mountBrefProfile(host, leg) {
   host.innerHTML = '<div data-bp="wrap" style="position:relative;font-family:' + sans + '">' +
     '<div style="display:flex;align-items:center;gap:7px;padding:0 2px 8px">' +
       '<span style="font-size:12px">✈️</span>' +
-      '<div><div style="font-size:8.5px;letter-spacing:2px;color:' + P.cyan + ';font-weight:700;font-family:' + MONO + '">PERFIL RUTA</div>' +
+      '<div><div data-bp="ttl" style="font-size:8.5px;letter-spacing:2px;color:' + P.cyan + ';font-weight:700;font-family:' + MONO + '">PERFIL RUTA</div>' +
       '<div style="font-family:' + MONO + ';font-size:11px;color:' + P.white + ';margin-top:1px">' + leg.dep + ' <span style="color:' + P.dim + '">→</span> ' + leg.arr + ' <span style="color:' + P.dimmer + ';font-size:9px">· ' + (leg.flight || '') + ' · FL' + CRZ + ' est · ' + (leg.acType || 'A320') + '</span></div></div>' +
       '<div style="flex:1"></div>' +
       '<div style="text-align:right"><span data-bp="src" style="display:inline-block;font-family:' + MONO + ';font-size:6.5px;letter-spacing:0.5px;color:#0a1322;background:' + C.cyan2 + ';padding:2px 6px;border-radius:999px;font-weight:700">CARGANDO…</span>' +
@@ -26394,6 +26397,7 @@ function mountBrefProfile(host, leg) {
   const playBtn = $("play");
   playBtn.addEventListener("click", () => { playing = !playing; playBtn.textContent = playing ? "⏸" : "▶"; playBtn.style.color = playing ? "#0a1322" : P.cyan; playBtn.style.background = playing ? P.cyan : "rgba(0,15,40,0.5)"; });
   function applyOrient() {
+    if (compact) return;
     const wrap = $("wrap"); if (!wrap) return;
     const land = window.matchMedia("(orientation: landscape)").matches && window.innerHeight < 600;
     const kids = wrap.children;
@@ -26407,19 +26411,26 @@ function mountBrefProfile(host, leg) {
   const onResize = () => { applyOrient(); dirty = true; needDraw = true; drawMini(); if (selWpt) drawSnd(); };
   window.addEventListener("resize", onResize);
   window.addEventListener("orientationchange", onResize);
-  updateSrc(); applyOrient(); setTime(tHour); rebuild(); raf = requestAnimationFrame(frame); loadWX();
+  function compactify() {
+    const wrap = $("wrap"); if (!wrap) return;
+    const ttl = $("ttl"); if (ttl) ttl.textContent = "WX EN RUTA";
+    const kids = wrap.children;
+    for (let i = 0; i < kids.length; i++) { const el = kids[i]; const bp = el.getAttribute && el.getAttribute("data-bp"); const keep = (i === 0) || (i === 1) || bp === "haz"; if (!keep) el.style.display = "none"; }
+    const b = document.createElement("button"); b.textContent = "VER PERFIL COMPLETO →"; b.style.cssText = "width:100%;font-family:" + MONO + ";font-size:10px;font-weight:700;letter-spacing:1px;color:" + P.cyan + ";background:rgba(126,251,254,0.10);border:1px solid rgba(126,251,254,0.4);border-radius:10px;padding:9px;cursor:pointer;margin-top:10px"; b.onclick = function () { if (typeof onOpen === "function") onOpen(); }; wrap.appendChild(b);
+  }
+  updateSrc(); setTime(tHour); rebuild(); if (compact) compactify(); else applyOrient(); raf = requestAnimationFrame(frame); loadWX();
   return function cleanup() { try { cancelAnimationFrame(raf); } catch (e) {} window.removeEventListener("resize", onResize); window.removeEventListener("orientationchange", onResize); };
 }
 function MapProfile(_refBP) {
-  const leg = _refBP.leg;
+  const leg = _refBP.leg, compact = _refBP.compact, onOpen = _refBP.onOpen;
   const hostRef = useRef(null);
   const legKey = leg ? ((leg.flight || "") + "|" + leg.dep + "|" + leg.arr + "|" + leg.cruiseFL) : "";
   useEffect(function () {
     const host = hostRef.current; if (!host || !leg) return;
-    const cleanup = mountBrefProfile(host, leg);
+    const cleanup = mountBrefProfile(host, leg, compact, onOpen);
     return cleanup;
-  }, [legKey]);
-  return /*#__PURE__*/React.createElement("div", { ref: hostRef, style: { minHeight: 470 } });
+  }, [legKey, compact]);
+  return /*#__PURE__*/React.createElement("div", { ref: hostRef, style: { minHeight: compact ? 0 : 470 } });
 }
 /* ── FULL MAPS TAB ── */
 function TabMaps(_ref51) {
@@ -27358,7 +27369,8 @@ function SkyViewPilotOS() {
       WebkitOverflowScrolling: "touch"
     }
   }, tab === "brief" && /*#__PURE__*/React.createElement(TabBrief, {
-    leg: leg
+    leg: leg,
+    onOpenMaps: function () { setTab("maps"); }
   }), tab === "meteo" && /*#__PURE__*/React.createElement(TabMeteoV2, {
     leg: leg
   }), tab === "notam" && /*#__PURE__*/React.createElement(TabNotamV2, {
