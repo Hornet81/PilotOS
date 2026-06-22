@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.85">
+  <meta name="version" content="Beta.86">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.85","builtAt":"2026-06-22T09:57:07Z","commit":"dd6e2a5","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.86","builtAt":"2026-06-22T10:08:27Z","commit":"6b14065","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -5934,13 +5934,17 @@ html.day #ld-mini-stats [style*="color:rgba(248,250,252,.3)"]{color:#475569 !imp
 html.day #ld-mini-stats [style*="color:#22D3EE"]{color:#0369A1 !important}
 html.day #ld-mini-stats [style*="color:rgba(180,160,255"]{color:#4C1D95 !important}
 
-/* ── Texto Sincronizando / Sincronizado ── */
-html.day #ld-sync-indicator span{color:#0369A1 !important}
-html.day #ld-sync-indicator [style*="color:#22D3EE"]{color:#0369A1 !important}
-html.day #ld-sync-indicator [style*="color:#67D7F5"]{color:#0891B2 !important}
-html.day #ld-sync-indicator [style*="color:rgba(248,250,252,.3)"]{color:#64748B !important}
-html.day #ld-sync-indicator [style*="color:#FBBF24"]{color:#B45309 !important}
-html.day #ld-sync-indicator [style*="color:#F87171"]{color:#B91C1C !important}
+/* ── Texto Sincronizando / Sincronizado (color por estado, modo día) ── */
+html.day #ld-sync-indicator[data-syncstate="ok"] .ld-sync-pill,
+html.day #ld-sync-indicator[data-syncstate="ok"] .ld-sync-pill span{color:#059669 !important}
+html.day #ld-sync-indicator[data-syncstate="syncing"] .ld-sync-pill,
+html.day #ld-sync-indicator[data-syncstate="syncing"] .ld-sync-pill span{color:#0891B2 !important}
+html.day #ld-sync-indicator[data-syncstate="error"] .ld-sync-pill,
+html.day #ld-sync-indicator[data-syncstate="error"] .ld-sync-pill span{color:#B45309 !important}
+html.day #ld-sync-indicator[data-syncstate="limit"] .ld-sync-pill,
+html.day #ld-sync-indicator[data-syncstate="limit"] .ld-sync-pill span{color:#B91C1C !important}
+html.day #ld-sync-indicator[data-syncstate="local"] .ld-sync-pill,
+html.day #ld-sync-indicator[data-syncstate="local"] .ld-sync-pill span{color:#64748B !important}
 
 /* ── Panel "Importar desde Roster" ── */
 html.day #ld-rst-import-sheet{
@@ -16225,7 +16229,7 @@ function ldResolveCode(raw){
   if(!m) return { full:'', category:'', categoryName:'' };
   var mainCode = m[1], subCode = m[2]||null;
   var codes = window._ldDelayCodes||[];
-  var entry = codes.find(function(c){ return c.code===mainCode; });
+  var entry = codes.find(function(c){ return String(c.code).padStart(2,'0')===mainCode; });
   if(!entry) return { full:'', category:'', categoryName:'' };
   var desc = entry.description;
   if(subCode && entry.subcodes && entry.subcodes[subCode])
@@ -16250,7 +16254,7 @@ function ldBuildACItems(query){
     var num = m[1], sub = m[2]||'';
     if(num.length===2 && sub){
       // e.g. "61A" — show this specific subcode
-      var entry = codes.find(function(c){ return c.code===num; });
+      var entry = codes.find(function(c){ return String(c.code).padStart(2,'0')===num; });
       if(entry){
         if(entry.subcodes && entry.subcodes[sub]){
           items.push({ code:num+sub, desc:entry.description+' · '+entry.subcodes[sub], cat:entry.category_name, indent:false });
@@ -16264,20 +16268,20 @@ function ldBuildACItems(query){
       }
     } else if(num.length===2){
       // e.g. "61" — show main + expand subcodes
-      var entry = codes.find(function(c){ return c.code===num; });
+      var entry = codes.find(function(c){ return String(c.code).padStart(2,'0')===num; });
       if(entry){
         items.push({ code:entry.code, desc:entry.description, cat:entry.category_name, indent:false });
         if(entry.subcodes) Object.keys(entry.subcodes).sort().forEach(function(k){
           items.push({ code:num+k, desc:entry.subcodes[k], cat:entry.category_name, indent:true });
         });
       } else {
-        codes.filter(function(c){ return c.code.startsWith(num); }).slice(0,10).forEach(function(c){
+        codes.filter(function(c){ return String(c.code).padStart(2,'0').startsWith(num); }).slice(0,10).forEach(function(c){
           items.push({ code:c.code, desc:c.description, cat:c.category_name, indent:false });
         });
       }
     } else {
       // 1-digit prefix e.g. "6" — all codes starting with that digit
-      codes.filter(function(c){ return c.code.startsWith(num); }).slice(0,20).forEach(function(c){
+      codes.filter(function(c){ return String(c.code).padStart(2,'0').startsWith(num); }).slice(0,20).forEach(function(c){
         items.push({ code:c.code, desc:c.description, cat:c.category_name, indent:false });
       });
     }
@@ -18897,7 +18901,8 @@ function ldSetSyncStatus(status, detail){
   };
   var v=map[status]||map['ok'];
   var label=detail?v[2]+' '+detail:v[2];
-  el.innerHTML='<span style="color:'+v[1]+';font-family:Space Mono,monospace;display:inline-flex;align-items:center;gap:6px;vertical-align:middle"><span style="font-size:20px;line-height:1">'+v[0]+'</span><span style="font-size:13px">'+label+'</span></span>';
+  el.setAttribute('data-syncstate', map[status]?status:'ok');
+  el.innerHTML='<span class="ld-sync-pill" style="color:'+v[1]+';font-family:Space Mono,monospace;display:inline-flex;align-items:center;gap:8px;vertical-align:middle;font-weight:600"><span style="font-size:28px;line-height:1">'+v[0]+'</span><span style="font-size:14px">'+label+'</span></span>';
 }
 
 // PULL — descargar desde el servidor y hacer merge
