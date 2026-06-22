@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.82">
+  <meta name="version" content="Beta.81">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.82","builtAt":"2026-06-22T09:26:16Z","commit":"e3bc1c2","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.81","builtAt":"2026-06-19T07:09:47Z","commit":"3e6b60e","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -3202,17 +3202,6 @@ html.day #ld-panel-mapa.ld-panel{background:#cfe0f0}
 .ld-upload-opt{display:flex;align-items:center;gap:6px;padding:10px 20px;border-radius:12px;cursor:pointer;font-family:'Space Grotesk',system-ui,sans-serif;font-size:14px;font-weight:700;background:linear-gradient(135deg,#6D28D9,#0891B2);color:#fff;box-shadow:0 4px 12px rgba(109,40,217,.25)}
 .ld-upload-gallery{background:#FFFFFF !important;color:#0F172A !important;border:1.5px solid rgba(30,58,164,.2);box-shadow:0 2px 8px rgba(30,58,164,.08) !important}
 
-
-/* CAFI chat tables */
-.cafi-tbl-wrap{overflow-x:auto;margin:10px 0;border-radius:12px;border:1px solid rgba(34,211,238,.18);-webkit-overflow-scrolling:touch}
-.cafi-tbl{width:100%;border-collapse:collapse;font-size:12.5px;background:rgba(7,20,40,.5)}
-.cafi-tbl th{background:rgba(34,211,238,.12);color:#a5e8ff;font-weight:700;text-align:left;padding:9px 12px;white-space:nowrap;border-bottom:1px solid rgba(34,211,238,.25)}
-.cafi-tbl td{padding:8px 12px;color:#cfe6f5;border-bottom:1px solid rgba(255,255,255,.05);vertical-align:top}
-.cafi-tbl tr:last-child td{border-bottom:none}
-.cafi-tbl tbody tr:nth-child(even){background:rgba(255,255,255,.025)}
-html.day .cafi-tbl{background:rgba(255,255,255,.6)}
-html.day .cafi-tbl th{background:rgba(124,58,237,.1);color:#4C1D95;border-bottom-color:rgba(124,58,237,.25)}
-html.day .cafi-tbl td{color:#1E0445;border-bottom-color:rgba(0,0,0,.06)}
 
 /* CAFI message text — readable colors */
 .mi-name { color: #1E3A5F !important; font-weight: 700 !important; }
@@ -13401,38 +13390,17 @@ function clearChat(){
 
 function formatContent(text) {
   // If text contains HTML tags, render directly without escaping
-  if (/<(br|li|strong|em|h[1-6]|div|span|ul|ol|p|table)[\s>]/i.test(text)) {
+  if (/<(br|li|strong|em|h[1-6]|div|span|ul|ol|p)[\s>]/i.test(text)) {
     return text;
   }
-  text = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-
-  // ── Markdown tables ──
-  text = text.replace(
-    /(^\|.+\|[ \t]*\n\|[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)+\|[ \t]*\n(?:\|.+\|[ \t]*\n?)+)/gm,
-    function(block){
-      var rows = block.trim().split('\n').filter(function(r){return r.trim();});
-      var header = rows[0].split('|').slice(1,-1).map(function(c){return c.trim();});
-      var body = rows.slice(2).map(function(r){
-        return r.split('|').slice(1,-1).map(function(c){return c.trim();});
-      });
-      var th = header.map(function(c){return '<th>'+c+'</th>';}).join('');
-      var trs = body.map(function(cells){
-        return '<tr>'+cells.map(function(c){return '<td>'+c+'</td>';}).join('')+'</tr>';
-      }).join('');
-      return '<div class="cafi-tbl-wrap"><table class="cafi-tbl"><thead><tr>'+th+'</tr></thead><tbody>'+trs+'</tbody></table></div>';
-    }
-  );
-
   return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
     .replace(/\*(.+?)\*/g,'<em>$1</em>')
     .replace(/`(.+?)`/g,'<code>$1</code>')
     .replace(/^### (.+)$/gm,'<h3>$1</h3>')
     .replace(/^- (.+)$/gm,'<li>$1</li>')
-    .replace(/(<\/div>)?\n\n/g, function(m){return m.indexOf('</div>')>-1?m:'<br><br>';})
-    .replace(/\n/g, function(){return '<br>';})
-    .replace(/<\/table><\/div><br>/g,'</table></div>')
-    .replace(/<br>(<div class="cafi-tbl-wrap">)/g,'$1');
+    .replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>');
 }
 
 function cafiAddMsg(role, content, kbUsed, logbookUsed) {
