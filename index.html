@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.82">
+  <meta name="version" content="Beta.83">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.82","builtAt":"2026-06-22T09:26:16Z","commit":"e3bc1c2","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.83","builtAt":"2026-06-22T09:30:22Z","commit":"49d223d","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -25510,37 +25510,64 @@ function TabNotamV2(_refN2) {
       scrollMode ? { overflowX: "auto" } : {})
   }, selKids);
 
-  // ── Banner ──
+  // ── Hero unificado (ICAO + nombre + rol + pista + viento + cifras) ──
   const cm = CATM[cur.cat];
-  const bCount = sevCount(curSplit.flight.concat(curSplit.n24));
-  const bChips = [];
-  if (bCount.d > 0) bChips.push(React.createElement("span", { key: "d", onClick: () => goToSev("danger"), style: { fontFamily: mono, fontSize: 9, fontWeight: 700, color: T.red, background: T.redBg, border: "1px solid " + T.redBd, borderRadius: 6, padding: "2px 7px", cursor: "pointer" } }, bCount.d + " CRÍT"));
-  if (bCount.w > 0) bChips.push(React.createElement("span", { key: "w", onClick: () => goToSev("warning"), style: { fontFamily: mono, fontSize: 9, fontWeight: 700, color: T.amb, background: T.ambBg, border: "1px solid " + T.ambBd, borderRadius: 6, padding: "2px 7px", cursor: "pointer" } }, bCount.w + " AVISO"));
-  if (bCount.d === 0 && bCount.w === 0) bChips.push(React.createElement("span", { key: "ok", style: { fontFamily: mono, fontSize: 9, fontWeight: 700, color: T.grn, background: T.grnBg, border: "1px solid " + T.grnBd, borderRadius: 6, padding: "2px 7px" } }, "OK"));
-  if (bCount.i > 0) bChips.push(React.createElement("span", { key: "i", onClick: () => goToSev("info"), style: { fontFamily: mono, fontSize: 9, fontWeight: 700, color: T.inf, background: T.infBg, border: "1px solid " + T.infBd, borderRadius: 6, padding: "2px 7px", cursor: "pointer" } }, bCount.i + " INFO"));
-  const banner = React.createElement("div", {
-    style: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10, padding: "8px 12px", borderRadius: 12, background: cm.bg, border: "1px solid " + cm.bd, borderLeft: "4px solid " + cm.c, boxShadow: T.cardSh }
-  },
-    React.createElement("span", { style: { fontFamily: mono, fontSize: 7.5, fontWeight: 700, letterSpacing: "1.5px", color: cm.c, background: "rgba(0,0,0,.18)", border: "1px solid " + cm.bd, borderRadius: 6, padding: "2px 6px" } }, cm.tag),
-    React.createElement("span", { style: { fontFamily: mono, fontSize: 10.5, fontWeight: 700, color: T.tx1, letterSpacing: ".5px" } }, cur.code, React.createElement("span", { style: { color: T.tx3, fontWeight: 400 } }, " · " + cur.icao)),
-    React.createElement("span", { style: { display: "flex", gap: 5, marginLeft: "auto", flexWrap: "wrap" } }, bChips),
-    React.createElement("button", { onClick: () => refreshRef.current && refreshRef.current(true), title: "Actualizar NOTAMs", style: { marginLeft: 8, width: 30, height: 30, borderRadius: 9, background: "transparent", border: "1px solid " + cm.bd, color: cm.c, cursor: "pointer", fontSize: 15, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, animation: loading ? "spin .8s linear infinite" : "none" } }, "↻")
-  );
-
-  // ── Pista en uso (activo) ──
+  const apName = (typeof _WX_NAMES !== 'undefined' && _WX_NAMES[cur.icao]) ? _WX_NAMES[cur.icao] : cur.code;
   const _rwy = cur.key === "dep" ? (leg.rwyDep || "") : cur.key === "arr" ? (leg.rwyArr || "") : (cur.rwy || "");
-  const rwyCard = React.createElement("div", {
-    style: { background: T.surf1, border: "1px solid " + T.cardBd, borderRadius: 14, padding: "10px 13px", marginBottom: 12, boxShadow: T.cardSh }
+  // Severidad peor del aeropuerto → color del hero (resto = color de la categoría)
+  const hW = worst(curSplit.flight.concat(curSplit.n24));
+  const heroSev = hW === "danger" ? { c: T.red, bg: T.redBg, bd: T.redBd }
+    : hW === "warning" ? { c: T.amb, bg: T.ambBg, bd: T.ambBd }
+    : { c: cm.c, bg: cm.bg, bd: cm.bd };
+  // Viento real desde METAR (solo dep/arr; alternados/extra no tienen METAR → se omite)
+  const _windSrc = cur.key === "dep" ? (leg.metar && leg.metar.wind) : cur.key === "arr" ? (leg.metarArr && leg.metarArr.wind) : null;
+  const _wind = _windSrc ? parseMetarWind(_windSrc) : null;
+  const hasWind = !!(_wind && _wind.spd > 0);
+  // Cifras
+  const hCount = sevCount(curSplit.flight.concat(curSplit.n24));
+  const hTotal = curSplit.flight.length + curSplit.n24.length;
+  const heroCells = [
+    { label: "CRÍTICO", n: hCount.d, sev: "danger",  col: T.red },
+    { label: "AVISO",   n: hCount.w, sev: "warning", col: T.amb },
+    { label: "INFO",    n: hCount.i, sev: "info",    col: T.inf },
+    { label: "TOTAL",   n: hTotal,   sev: null,      col: T.tx1 }
+  ];
+  const heroEl = React.createElement("div", {
+    style: { borderRadius: 16, background: heroSev.bg, border: "1px solid " + heroSev.bd, borderLeft: "4px solid " + heroSev.c, padding: "12px 13px", marginBottom: 12, boxShadow: T.cardSh }
   },
-    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 7, marginBottom: 7 } },
-      React.createElement("span", { style: { fontSize: 13 } }, "🛬"),
-      React.createElement("span", { style: { flex: 1, fontSize: 9.5, fontWeight: 600, color: T.tx1 } }, "Pista en uso · " + cur.code),
-      React.createElement("span", { style: { fontFamily: mono, fontSize: 7.5, fontWeight: 700, letterSpacing: "1px", color: T.amb, background: T.ambBg, border: "1px solid " + T.ambBd, borderRadius: 6, padding: "2px 6px" } }, "ESTIMADO")
+    // a) Fila superior: ICAO + nombre + rol + ↻
+    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 9, marginBottom: 11, paddingBottom: 11, borderBottom: "1px solid " + T.line } },
+      React.createElement("span", { style: { fontFamily: mono, fontSize: 21, fontWeight: 800, color: heroSev.c, letterSpacing: ".5px", lineHeight: 1, textShadow: "0 0 14px " + heroSev.bd, flexShrink: 0 } }, cur.icao),
+      React.createElement("span", { style: { flex: 1, minWidth: 0, fontSize: 11, fontWeight: 600, color: T.tx2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, apName),
+      React.createElement("span", { style: { fontFamily: mono, fontSize: 7, fontWeight: 700, letterSpacing: ".6px", color: cm.c, background: cm.bg, border: "1px solid " + cm.bd, borderRadius: 6, padding: "3px 7px", whiteSpace: "nowrap", flexShrink: 0 } }, cur.role),
+      React.createElement("button", { onClick: () => refreshRef.current && refreshRef.current(true), title: "Actualizar NOTAMs", style: { width: 30, height: 30, borderRadius: 9, background: "transparent", border: "1px solid " + heroSev.bd, color: heroSev.c, cursor: "pointer", fontSize: 15, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, animation: loading ? "spin .8s linear infinite" : "none" } }, "↻")
     ),
-    React.createElement("div", { style: { background: T.surf2, border: "1px solid " + T.line, borderRadius: 10, padding: "8px 11px" } },
-      React.createElement("div", { style: { fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "1.5px", color: T.tx3, marginBottom: 3 } }, cur.role + " · " + cur.code),
-      React.createElement("div", { style: { fontSize: 19, fontWeight: 800, color: T.grn, lineHeight: 1, letterSpacing: "1px" } }, _rwy || "—")
-    )
+    // c) Tira de pista en uso + viento
+    React.createElement("div", { style: { display: "flex", alignItems: "flex-end", gap: 12, marginBottom: 11 } },
+      React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+        React.createElement("div", { style: { fontFamily: mono, fontSize: 8, fontWeight: 700, letterSpacing: "1.5px", color: T.tx3, marginBottom: 3 } },
+          "PISTA EN USO ", React.createElement("span", { style: { color: T.amb } }, "· ESTIMADO")
+        ),
+        React.createElement("div", { style: { fontSize: 24, fontWeight: 800, color: T.grn, lineHeight: 1, letterSpacing: "1px" } }, _rwy || "—")
+      ),
+      hasWind && React.createElement("div", { style: { textAlign: "right", flexShrink: 0 } },
+        React.createElement("div", { style: { fontFamily: mono, fontSize: 8, fontWeight: 700, letterSpacing: "1.5px", color: T.tx3, marginBottom: 3 } }, "VIENTO"),
+        React.createElement("div", { style: { fontFamily: mono, fontSize: 17, fontWeight: 800, color: T.tx1, lineHeight: 1, letterSpacing: ".5px" } }, String(_wind.dir).padStart(3, "0") + "°/" + _wind.spd)
+      )
+    ),
+    // d) Franja de cifras (CRÍTICO / AVISO / INFO / TOTAL)
+    React.createElement("div", { style: { display: "flex", gap: 6 } }, heroCells.map(function (cl) {
+      const on = cl.n > 0;
+      const clickable = on && cl.sev;
+      return React.createElement("div", {
+        key: cl.label,
+        onClick: clickable ? function () { goToSev(cl.sev); } : null,
+        style: { flex: 1, textAlign: "center", padding: "7px 4px", borderRadius: 10, background: on ? T.surf1 : "transparent", border: "1px solid " + (on ? T.cardBd : T.line), cursor: clickable ? "pointer" : "default", opacity: on ? 1 : .5, transition: "all .18s" }
+      },
+        React.createElement("div", { style: { fontFamily: mono, fontSize: 18, fontWeight: 800, lineHeight: 1, color: on ? cl.col : T.tx3 } }, cl.n),
+        React.createElement("div", { style: { fontFamily: mono, fontSize: 7, fontWeight: 700, letterSpacing: ".6px", marginTop: 4, color: on ? cl.col : T.tx3 } }, cl.label)
+      );
+    }))
   );
 
   // ── NotamCard ──
@@ -25606,34 +25633,50 @@ function TabNotamV2(_refN2) {
       );
     });
   }
-  function section(skey, title, icon, accent, ns, openByDefault, subOpen) {
+  // Grupo plegable uniforme (cabecera con conteo + subtítulo; contenido = renderSevGroups)
+  function secGroup(skey, title, ns, openByDefault, subtitle, accent) {
     const isCol = collapsed[skey] === undefined ? !openByDefault : collapsed[skey];
-    return React.createElement("div", { style: { marginBottom: 12 } },
+    return React.createElement("div", { style: { marginBottom: 10 } },
       React.createElement("div", {
         onClick: () => toggleC(skey),
-        style: { display: "flex", alignItems: "center", gap: 8, padding: "8px 11px", borderRadius: 12, cursor: "pointer", background: T.surf1, border: "1px solid " + T.cardBd, boxShadow: T.cardSh }
+        style: { display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", borderRadius: 12, cursor: "pointer", background: T.surf1, border: "1px solid " + T.cardBd, boxShadow: T.cardSh }
       },
-        React.createElement("div", { style: { width: 24, height: 24, borderRadius: 7, background: accent.bg, border: "1px solid " + accent.bd, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: accent.c } }, icon),
-        React.createElement("div", { style: { flex: 1 } },
-          React.createElement("div", { style: { fontSize: 9.5, fontWeight: 600, color: T.tx1 } }, title),
-          React.createElement("div", { style: { fontFamily: mono, fontSize: 8, color: T.tx3, marginTop: 1 } }, ns.length ? ns.length + " NOTAMs · " + cur.code : "Sin NOTAMs")
+        React.createElement("span", { style: { fontFamily: mono, fontSize: 15, fontWeight: 800, color: accent.c, minWidth: 22, textAlign: "center", lineHeight: 1 } }, ns.length),
+        React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: T.tx1 } }, title),
+          React.createElement("div", { style: { fontFamily: mono, fontSize: 8, color: T.tx3, marginTop: 2 } }, subtitle)
         ),
-        ns.length > 0 && React.createElement("span", { style: { fontFamily: mono, fontSize: 13, fontWeight: 700, color: T.tx2 } }, ns.length),
         React.createElement("span", { style: { color: T.tx3, fontSize: 13, transform: isCol ? "none" : "rotate(90deg)", transition: ".18s" } }, "›")
       ),
-      !isCol && ns.length > 0 && renderSevGroups(ns, skey, subOpen)
+      !isCol && ns.length > 0 && renderSevGroups(ns, skey, openByDefault)
     );
   }
 
+  // Ventana de vuelo real desde STD/STA (formato "16:00z – 17:45z")
+  const _std = (leg.std && leg.std !== "null") ? leg.std : null;
+  const _sta = (leg.sta && leg.sta !== "null") ? leg.sta : null;
+  const winStr = (_std && _sta) ? (_std + "z – " + _sta + "z") : "Tu ventana de vuelo";
+
+  // "Afectan a tu vuelo"
   const flightSec = curSplit.flight.length === 0
-    ? React.createElement("div", { style: { marginBottom: 12, display: "flex", alignItems: "center", gap: 9, padding: "8px 11px", borderRadius: 12, background: T.grnBg, border: "1px solid " + T.grnBd } },
-        React.createElement("div", { style: { width: 26, height: 26, borderRadius: 8, background: T.grnBg, border: "1px solid " + T.grnBd, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: T.grn } }, "✓"),
-        React.createElement("div", { style: { flex: 1 } },
-          React.createElement("div", { style: { fontSize: 9.5, fontWeight: 600, color: T.grn } }, "Afectan al vuelo"),
-          React.createElement("div", { style: { fontFamily: mono, fontSize: 8, color: T.tx3, marginTop: 1 } }, "Sin NOTAMs en tu ventana de vuelo")
-        )
+    ? React.createElement("div", { style: { marginBottom: 10, display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", borderRadius: 12, background: T.grnBg, border: "1px solid " + T.grnBd, borderLeft: "4px solid " + T.grn } },
+        React.createElement("div", { style: { width: 26, height: 26, borderRadius: 8, background: T.grnBg, border: "1px solid " + T.grnBd, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: T.grn, flexShrink: 0 } }, "✓"),
+        React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: T.grn } }, "Afectan a tu vuelo"),
+          React.createElement("div", { style: { fontFamily: mono, fontSize: 8, color: T.tx3, marginTop: 2 } }, winStr)
+        ),
+        React.createElement("span", { style: { fontFamily: mono, fontSize: 7.5, fontWeight: 700, letterSpacing: "1px", color: T.grn, background: T.grnBg, border: "1px solid " + T.grnBd, borderRadius: 6, padding: "3px 8px", flexShrink: 0 } }, "DESPEJADO")
       )
-    : section("sec_flight", "Afectan al vuelo", "✈️", { c: T.amb, bg: T.ambBg, bd: T.ambBd }, curSplit.flight, true, true);
+    : secGroup("sec_flight", "Afectan a tu vuelo", curSplit.flight, true, winStr, { c: T.amb, bg: T.ambBg, bd: T.ambBd });
+
+  // "Próximas 24 horas"
+  const _c24 = sevCount(curSplit.n24);
+  const sub24 = curSplit.n24.length ? (_c24.w + " aviso · " + _c24.i + " info") : "Sin NOTAMs";
+  const n24Sec = secGroup("sec_24h", "Próximas 24 horas", curSplit.n24, false, sub24, { c: T.amb, bg: T.ambBg, bd: T.ambBd });
+
+  // "Permanentes"
+  const subPerm = curSplit.perm.length ? (curSplit.perm.length + (curSplit.perm.length === 1 ? " permanente" : " permanentes")) : "Sin NOTAMs";
+  const permSec = secGroup("sec_perm", "Permanentes", curSplit.perm, false, subPerm, { c: T.tx2, bg: T.surf2, bd: T.line2 });
 
   const addPanel = addOpen ? React.createElement("div", { style: { position: "absolute", top: "100%", left: 0, right: 0, marginTop: 7, background: T.floatBg, border: "1px solid " + T.extra, borderRadius: 14, padding: "11px 13px", boxShadow: "0 14px 36px rgba(0,0,0,.45)", zIndex: 30 } },
     React.createElement("div", { style: { fontFamily: mono, fontSize: 8.5, fontWeight: 700, color: T.extra, marginBottom: 6, letterSpacing: ".5px" } }, "🔍 AÑADIR AEROPUERTO"),
@@ -25646,19 +25689,11 @@ function TabNotamV2(_refN2) {
   const pullInd = React.createElement("div", { key: "pull", style: { height: loading ? 34 : pullDist, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", transition: pullDist === 0 ? "height .25s" : "none" } },
     React.createElement("span", { style: { fontFamily: mono, fontSize: 11, fontWeight: 700, color: loading ? T.cyan : T.tx3 } }, loading ? "↻ Actualizando NOTAMs…" : (pullDist > 50 ? "↑ Suelta para actualizar" : "↓ Desliza para actualizar")));
 
-  const apName = (typeof _WX_NAMES !== 'undefined' && _WX_NAMES[cur.icao]) ? _WX_NAMES[cur.icao] : cur.code;
-  const frameHead = React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 9, padding: "2px 2px 11px", marginBottom: 12, borderBottom: "1px solid " + T.line } },
-    React.createElement("span", { style: { fontFamily: mono, fontSize: 16, fontWeight: 800, color: cm.c, letterSpacing: ".5px", textShadow: "0 0 14px " + cm.bd } }, cur.icao),
-    React.createElement("span", { style: { flex: 1, minWidth: 0, fontSize: 11, fontWeight: 600, color: T.tx2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, apName),
-    React.createElement("span", { style: { fontFamily: mono, fontSize: 7, fontWeight: 700, letterSpacing: ".6px", color: cm.c, background: cm.bg, border: "1px solid " + cm.bd, borderRadius: 6, padding: "3px 7px", whiteSpace: "nowrap" } }, cur.role)
-  );
   const frame = React.createElement("div", { style: { border: "1px solid " + cm.bd, borderRadius: 16, background: T.floatBg, boxShadow: T.cardSh, padding: "13px 12px 14px", position: "relative", zIndex: 1 } },
-    frameHead,
-    banner,
-    rwyCard,
+    heroEl,
     flightSec,
-    section("sec_24h", "Próximas 24 horas", "⏰", { c: T.amb, bg: T.ambBg, bd: T.ambBd }, curSplit.n24, false, false),
-    section("sec_perm", "Permanentes", "∞", { c: T.tx2, bg: T.surf2, bd: T.line2 }, curSplit.perm, false, false)
+    n24Sec,
+    permSec
   );
   return React.createElement("div", { ref: rootRef, style: { padding: "12px 14px 100px", fontFamily: sans, background: day ? _skyPhaseGrad(phase) : T.pageBg, minHeight: "100%", position: "relative", transition: "background .8s ease" } },
     pullInd,
