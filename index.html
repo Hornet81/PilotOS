@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.88">
+  <meta name="version" content="Beta.89">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.88","builtAt":"2026-06-22T13:25:21Z","commit":"b615848","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.89","builtAt":"2026-06-22T17:00:00Z","commit":"pending","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -22379,6 +22379,19 @@ function calcWindComponents(windDir, windSpd, rwyHdg) {
     tailwind: headwind < 0
   };
 }
+/* ── Formato unificado de componentes de viento (notación cabina) ──
+   head: + = viento de cara, − = viento de cola (igual que calcWindComponents/_wxComp)
+   Cara → "HW -Nkt" (negativo) · Cola → "TW +Nkt" (positivo) · Cruzado → "N kt R/L" */
+function fmtAlongWind(head) {
+  head = Math.round(head || 0);
+  if (head < 0) return "TW +" + Math.abs(head) + "kt";
+  return "HW " + (head > 0 ? "-" + head : "0") + "kt";
+}
+function fmtCrossWind(absxw, side) {
+  var s = (side === "DERECHA" || side === "R") ? "R"
+        : (side === "IZQUIERDA" || side === "L") ? "L" : "";
+  return Math.round(Math.abs(absxw || 0)) + " kt" + (s ? (" " + s) : "");
+}
 function parseMetarWind(windStr) {
   // e.g. "090°/8kt" → { dir:90, spd:8 }
   const m = windStr.match(/(\d+)[°\/]+(\d+)/);
@@ -22397,6 +22410,7 @@ function WindBar(_ref18) {
     max = _ref18.max,
     color = _ref18.color,
     label = _ref18.label,
+    valueText = _ref18.valueText,
     _ref18$unit = _ref18.unit,
     unit = _ref18$unit === void 0 ? "" : _ref18$unit;
   const pct = Math.min(Math.abs(value) / max * 100, 100);
@@ -22426,7 +22440,7 @@ function WindBar(_ref18) {
       color,
       fontFamily: mono
     }
-  }, Math.abs(value), unit)), /*#__PURE__*/React.createElement("div", {
+  }, valueText != null ? valueText : [Math.abs(value), unit])), /*#__PURE__*/React.createElement("div", {
     style: {
       height: 5,
       borderRadius: 3,
@@ -22634,14 +22648,14 @@ function WindCard(_ref19) {
     value: headwind,
     max: 40,
     color: hwColor,
-    label: tailwind ? "⬇ VIENTO DE COLA" : "⬆ VIENTO DE CARA",
-    unit: "kt"
+    label: tailwind ? "⬇" : "⬆",
+    valueText: fmtAlongWind(headwind)
   }), /*#__PURE__*/React.createElement(WindBar, {
     value: crosswind,
     max: 25,
     color: xwColor,
-    label: "\u2194 CRUZADO ".concat(crossSide),
-    unit: "kt"
+    label: "\u2194",
+    valueText: fmtCrossWind(crosswind, crossSide)
   }), crosswind > 15 && /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 7,
@@ -22664,7 +22678,7 @@ function WindCard(_ref19) {
       fontFamily: mono,
       fontWeight: 700
     }
-  }, "XW ", crosswind, "kt \xB7 VERIF. LIMITACIONES A320")), tailwind && /*#__PURE__*/React.createElement("div", {
+  }, fmtCrossWind(crosswind, crossSide), " \xB7 VERIF. LIMITACIONES A320")), tailwind && /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 7,
       background: "rgba(255,184,0,0.1)",
@@ -22686,7 +22700,7 @@ function WindCard(_ref19) {
       fontFamily: mono,
       fontWeight: 700
     }
-  }, "TAILWIND ", Math.abs(headwind), "kt \xB7 M\xC1X 10kt OPS")));
+  }, fmtAlongWind(headwind), " \xB7 M\xC1X 10kt OPS")));
 }
 function WindCards(_ref20) {
   let leg = _ref20.leg, onWx = _ref20.onWx;
@@ -23642,17 +23656,25 @@ function TafBlock(_ref24) {
         fontFamily: mono
       }
     }, p.label))), p.sig && /*#__PURE__*/React.createElement("span", {
-      style: {
-        background: "".concat(ts.text, "20"),
-        border: "1px solid ".concat(ts.text, "50"),
-        color: ts.text,
-        borderRadius: 5,
-        padding: "2px 7px",
-        fontSize: 8,
-        fontFamily: mono,
-        fontWeight: 700
-      }
-    }, p.sig)), /*#__PURE__*/React.createElement("div", {
+      style: (() => {
+        const CRIT_WX = /\b(TSRA|TSGR|FZRA|FZFG|FZDZ|\+TSRA|\+TS|TS\b|GR\b|FC\b|VA\b|SS\b|DS\b)/;
+        const WARN_WX = /\b(FG\b|\+RA|\+SN|\+RASN|SQ\b)/;
+        const isCrit = CRIT_WX.test(p.sig);
+        const isWarn = !isCrit && WARN_WX.test(p.sig);
+        const col = isCrit ? "#FF3B30" : isWarn ? "#FF9500" : ts.text;
+        return {
+          background: "".concat(col, "22"),
+          border: "1px solid ".concat(col, "70"),
+          color: col,
+          borderRadius: 5,
+          padding: "2px 7px",
+          fontSize: 8,
+          fontFamily: mono,
+          fontWeight: 700,
+          boxShadow: isCrit ? "0 0 6px ".concat(col, "60") : "none"
+        };
+      })()
+    }, ((/\b(TSRA|TSGR|FZRA|FZFG|FZDZ|\+TSRA|\+TS|TS\b|GR\b|FC\b|VA\b|SS\b|DS\b)/.test(p.sig)) ? "⚠ " : "") + p.sig)), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
         gap: 8,
@@ -24868,7 +24890,7 @@ function TabMeteoV2(_refM2){
           r.id===useRwy?React.createElement("span",{style:{position:"absolute",top:-7,left:"50%",transform:"translateX(-50%)",fontFamily:mono,fontSize:6,fontWeight:700,letterSpacing:".5px",color:T.grn,background:"rgba(7,18,14,.95)",border:"1px solid "+T.grnBd,borderRadius:5,padding:"1px 5px",whiteSpace:"nowrap"}},"EN USO"):null,
           React.createElement("div",{style:{fontFamily:mono,fontSize:13,fontWeight:700,lineHeight:1,color:on?T.cyan:T.tx1,textShadow:on?"0 0 14px rgba(91,232,245,.5)":"none"}},r.id),
           React.createElement("div",{style:{fontFamily:mono,fontSize:7,color:T.tx3,fontWeight:700,marginTop:3}},String(r.hdg).padStart(3,"0")+"°"),
-          React.createElement("div",{style:{fontFamily:mono,fontSize:7.5,fontWeight:700,color:sc,marginTop:4}},"✕"+cc.absxw)
+          React.createElement("div",{style:{fontFamily:mono,fontSize:7.5,fontWeight:700,color:sc,marginTop:4}},fmtCrossWind(cc.absxw,cc.side))
         );
       });
       // ── viento (lectura) + cruzado (reloj + barra vs límite) + cara (chip) ──
@@ -24890,9 +24912,9 @@ function TabMeteoV2(_refM2){
         React.createElement("div",{style:{flex:1,minWidth:0}},
           React.createElement("div",{style:{display:"flex",alignItems:"baseline",gap:6,marginBottom:8}},
             React.createElement("div",{style:{flex:1,minWidth:0}},
-              React.createElement("div",{style:{fontSize:10,fontWeight:700,color:xwExceed?T.red:T.alt}},"Viento cruzado · "+c.side),
+              React.createElement("div",{style:{fontFamily:mono,fontSize:8.5,fontWeight:700,letterSpacing:".5px",color:xwExceed?T.red:T.alt}},"CRUZADO"),
               React.createElement("div",{style:{fontFamily:mono,fontSize:7,fontWeight:700,color:T.tx3,marginTop:2}},"DESDE "+String(xwFrom).padStart(3,"0")+"°")),
-            React.createElement("div",{style:{fontSize:20,fontWeight:800,lineHeight:1,color:xwExceed?T.red:T.alt}},c.absxw,React.createElement("span",{style:{fontSize:9,color:T.tx2,fontWeight:600}}," kt")),
+            React.createElement("div",{style:{fontSize:20,fontWeight:800,lineHeight:1,color:xwExceed?T.red:T.alt}},fmtCrossWind(c.absxw,c.side)),
             xwExceed?React.createElement("span",{style:{fontFamily:mono,fontSize:6.5,fontWeight:700,color:"#fff",background:T.red,borderRadius:5,padding:"2px 6px",whiteSpace:"nowrap"}},"EXCEDE 38"):null),
           React.createElement("div",{style:{position:"relative",height:11,borderRadius:6,background:"linear-gradient(90deg,"+T.grn+" 0 33.3%,"+T.amb+" 33.3% 55.6%,"+T.red+" 55.6% 84.4%,#B23A50 84.4% 100%)"}},
             React.createElement("div",{style:{position:"absolute",top:-3,bottom:-3,left:"84.4%",width:2.5,background:"#fff",borderRadius:2,boxShadow:"0 0 5px rgba(255,255,255,.6)"}}),
