@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.87">
+  <meta name="version" content="Beta.88">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.87","builtAt":"2026-06-22T10:18:48Z","commit":"2c8bd54","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.88","builtAt":"2026-06-22T10:53:53Z","commit":"b6bac93","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -4496,6 +4496,23 @@ html.day .dh-b-soon{
   color:#1E3A8A!important;
   border-color:rgba(30,58,138,.3)!important;
   font-weight:700!important;
+}
+/* Badge "Live" del Pay Check: la card FFB800 sigue oscura en día →
+   píldora clara + texto ámbar oscuro para que se lea (no marrón sobre oscuro) */
+html.day .dh-card-pay[style*="FFB800"] .dh-b-amber{
+  background:rgba(255,255,255,.92)!important;
+  color:#78350F!important;
+  border-color:rgba(120,53,15,.35)!important;
+  font-weight:800!important;
+}
+html.day .dh-card-pay[style*="FFB800"] .dh-b-amber::before{background:#B45309!important}
+/* Badge "Pronto" del Simulador: la card B5179E sigue oscura en día →
+   mantener la píldora rosa con texto blanco (máximo contraste) */
+html.day .dh-card-mid[style*="B5179E"] .dh-b-soon{
+  background:linear-gradient(135deg,#EC4899,#F472B6)!important;
+  color:#fff!important;
+  border:none!important;
+  font-weight:800!important;
 }
 
 /* ── Bottom tabs — cristal azul ── */
@@ -22409,7 +22426,7 @@ function WindCard(_ref19) {
       letterSpacing: 1,
       lineHeight: 1
     }
-  }, icao)), /*#__PURE__*/React.createElement("div", {
+  }, (typeof iataToIcao === "function" ? iataToIcao(icao) : icao))), /*#__PURE__*/React.createElement("div", {
     style: {
       position: "relative",
       width: 42,
@@ -22811,7 +22828,7 @@ function TabBrief(_ref21) {
       fontFamily: mono,
       color: C.white
     }
-  }, leg.dep), /*#__PURE__*/React.createElement("div", {
+  }, (typeof iataToIcao === "function" ? iataToIcao(leg.dep) : leg.dep)), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       flexDirection: "column",
@@ -22841,7 +22858,7 @@ function TabBrief(_ref21) {
       fontFamily: mono,
       color: C.white
     }
-  }, leg.arr))), /*#__PURE__*/React.createElement("div", {
+  }, (typeof iataToIcao === "function" ? iataToIcao(leg.arr) : leg.arr)))), /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: "right"
     }
@@ -22901,7 +22918,45 @@ function TabBrief(_ref21) {
         fontFamily: mono
       }
     }, v));
-  }))), /*#__PURE__*/React.createElement(WindCards, {
+  })), (function () {
+    var _cci = typeof getCCI === "function" ? getCCI((typeof iataToIcao === "function" ? iataToIcao(leg.arr) : leg.arr) || leg.arr) : null;
+    var _da = _cci && _cci.usual_alternates && _cci.usual_alternates.length ? _cci.usual_alternates.map(function (a) {
+      return a.icao;
+    }) : typeof DEST_ALTS !== "undefined" && DEST_ALTS[leg.num] ? (DEST_ALTS[leg.num].destAlts || []).map(function (a) {
+      return a.icao || a;
+    }) : [];
+    if (!_da.length && typeof ALTERNATES_DB !== "undefined") {
+      var _k = typeof iataToIcao === "function" ? iataToIcao(leg.arr) : leg.arr;
+      _da = ALTERNATES_DB[_k] || [];
+    }
+    if (!_da.length) return null;
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: 8,
+        paddingTop: 7,
+        borderTop: "1px solid rgba(126,251,254,0.12)",
+        display: "flex",
+        alignItems: "center",
+        gap: 7
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 6.5,
+        color: C.dimmer,
+        fontFamily: mono,
+        letterSpacing: "1.5px",
+        fontWeight: 700
+      }
+    }, "ALTN"), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        fontWeight: 700,
+        color: C.cyan,
+        fontFamily: mono,
+        letterSpacing: "0.5px"
+      }
+    }, _da.slice(0, 2).join("  \xB7  ")));
+  })()), /*#__PURE__*/React.createElement(WindCards, {
     leg: leg,
     onWx: onOpenWx
   }), /*#__PURE__*/React.createElement(Glass, {
