@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.82">
+  <meta name="version" content="Beta.84">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.82","builtAt":"2026-06-22T09:35:41Z","commit":"0585913","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.84","builtAt":"2026-06-22T09:48:35Z","commit":"257ecfe","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -24564,7 +24564,7 @@ function TabMeteoV2(_refM2){
     },
       ap.custom&&React.createElement("div",{onClick:function(e){e.stopPropagation();removeAirport(ap.icao);},style:{position:"absolute",top:-5,right:1,width:18,height:18,borderRadius:"50%",background:T.floatBg,border:"1px solid "+T.line2,color:T.tx2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,zIndex:5}},"×"),
       React.createElement("div",{style:{fontFamily:mono,fontSize:7.5,fontWeight:700,letterSpacing:".8px",color:isOn?T.cyan:cm.c,whiteSpace:"nowrap"}},selLabel(ap)),
-      React.createElement("div",{style:{fontSize:scrollMode?14:16,fontWeight:700,letterSpacing:".4px",lineHeight:1,color:isOn?T.cyan:T.tx1,textShadow:isOn?"0 0 12px "+cm.bd:"none"}},ap.code),
+      React.createElement("div",{style:{fontSize:scrollMode?14:16,fontWeight:700,letterSpacing:".4px",lineHeight:1,color:isOn?T.cyan:T.tx1,textShadow:isOn?"0 0 12px "+cm.bd:"none"}},ap.icao),
       sev?React.createElement("div",{style:{fontFamily:mono,fontSize:7,fontWeight:700,letterSpacing:".3px",padding:"1px 5px",borderRadius:4,color:sev.c,background:sev.bg,border:"1px solid "+sev.bd}},ci.short):null,
       isOn?React.createElement("div",{style:{position:"absolute",bottom:-1,left:"26%",right:"26%",height:2,borderRadius:2,background:T.cyan,boxShadow:"0 0 8px "+T.cyan}}):null
     ));
@@ -25368,7 +25368,7 @@ function TabNotamV2(_refN2) {
   function doRefresh(force) {
     const ICAOf = c => iataToIcao(c) || c;
     const list = [ICAOf(leg.dep), ICAOf(leg.arr)]
-      .concat((leg.alts || []).slice(0, 2).map(function (a) { return ICAOf(a.icao); }))
+      .concat(alts.map(function (a) { return ICAOf(a.icao); }))
       .concat(customAps.map(function (c) { return c.icao; }))
       .filter(function (v, i, arr) { return v && arr.indexOf(v) === i; });
     setLoading(true);
@@ -25395,7 +25395,11 @@ function TabNotamV2(_refN2) {
   }, []);
 
   const ICAO = c => iataToIcao(c) || c;
-  const alts = (leg.alts || []).slice(0, 2);
+  // Alternativos del CCI del DESTINO (si lo tenemos); fallback a leg.alts — igual que la sección WX
+  const _destCci = (typeof getCCI === 'function') ? getCCI(ICAO(leg.arr)) : null;
+  const alts = (_destCci && _destCci.usual_alternates && _destCci.usual_alternates.length)
+    ? _destCci.usual_alternates.slice(0, 4).map(function (a) { return { icao: a.icao, city: a.name }; })
+    : (leg.alts || []).slice(0, 2);
   const airports = [
     { key: "dep", cat: "route", role: "ORIGEN",  code: leg.dep, icao: ICAO(leg.dep) },
     { key: "arr", cat: "route", role: "DESTINO", code: leg.arr, icao: ICAO(leg.arr) }
@@ -25405,6 +25409,11 @@ function TabNotamV2(_refN2) {
   const active = airports.some(a => a.key === activeSel) ? activeSel : airports[0].key;
   const cur = airports.find(a => a.key === active) || airports[0];
   const phase = day ? _skyPhase(cur.icao) : 'night';
+
+  // ── Nombre del aeropuerto activo desde la base de datos (cache + /api/airports/:icao) ──
+  useEffect(function () {
+    ensureAirportNames([cur.icao], function () { setTk(function (t) { return t + 1; }); });
+  }, [cur.icao]);
 
   const CATM = {
     route: { c: T.route, bg: T.routeBg, bd: T.routeBd, tag: "RUTA" },
@@ -25501,7 +25510,7 @@ function TabNotamV2(_refN2) {
     },
       ap.custom && React.createElement("div", { onClick: function (e) { e.stopPropagation(); removeAirport(ap.icao); }, style: { position: "absolute", top: -5, right: 1, width: 18, height: 18, borderRadius: "50%", background: T.floatBg, border: "1px solid " + T.line2, color: T.tx2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, zIndex: 5 } }, "×"),
       React.createElement("div", { style: { fontFamily: mono, fontSize: 7.5, fontWeight: 700, letterSpacing: ".8px", color: isOn ? T.cyan : cm.c, whiteSpace: "nowrap" } }, ap.role),
-      React.createElement("div", { style: { fontSize: scrollMode ? 14 : 16, fontWeight: 700, letterSpacing: ".4px", lineHeight: 1, color: isOn ? T.cyan : T.tx1, textShadow: isOn ? "0 0 12px " + cm.bd : "none" } }, ap.code),
+      React.createElement("div", { style: { fontSize: scrollMode ? 14 : 16, fontWeight: 700, letterSpacing: ".4px", lineHeight: 1, color: isOn ? T.cyan : T.tx1, textShadow: isOn ? "0 0 12px " + cm.bd : "none" } }, ap.icao),
       React.createElement("div", { style: { fontFamily: mono, fontSize: 7, fontWeight: 700, letterSpacing: ".3px", padding: "1px 5px", borderRadius: 4, color: sevB.c, background: sevB.bg, border: "1px solid " + sevB.bd } }, sevB.label),
       isOn ? React.createElement("div", { style: { position: "absolute", bottom: -1, left: "26%", right: "26%", height: 2, borderRadius: 2, background: T.cyan, boxShadow: "0 0 8px " + T.cyan } }) : null
     ));
@@ -25515,7 +25524,10 @@ function TabNotamV2(_refN2) {
 
   // ── Hero unificado (ICAO + nombre + rol + pista + viento + cifras) ──
   const cm = CATM[cur.cat];
-  const apName = (typeof _WX_NAMES !== 'undefined' && _WX_NAMES[cur.icao]) ? _WX_NAMES[cur.icao] : cur.code;
+  const _dbApName = (typeof airportName === 'function') ? airportName(cur.icao) : null;
+  const apName = (_dbApName && _dbApName !== cur.icao)
+    ? _dbApName
+    : ((typeof _WX_NAMES !== 'undefined' && _WX_NAMES[cur.icao]) ? _WX_NAMES[cur.icao] : cur.code);
   const _rwy = cur.key === "dep" ? (leg.rwyDep || "") : cur.key === "arr" ? (leg.rwyArr || "") : (cur.rwy || "");
   // Severidad peor del aeropuerto → color del hero (resto = color de la categoría)
   const hW = worst(curSplit.flight.concat(curSplit.n24));
