@@ -428,7 +428,10 @@ html.day .warn.cold{background:rgba(254,226,226,.72) !important;border-color:rgb
     <div class="cond">
       <div class="fg">
         <label class="fl">Elevación aeródromo <span class="u">ft</span></label>
-        <input class="fi" type="number" id="elev" value="350" step="10" inputmode="numeric">
+        <div class="temp-wrap">
+          <button class="sign-btn" id="elevSignBtn" type="button" aria-label="Cambiar signo">+</button>
+          <input class="fi temp-in" type="text" id="elev" value="350" inputmode="decimal" autocomplete="off">
+        </div>
       </div>
       <div class="fg">
         <label class="fl">Temp. en el campo <span class="u">°C</span></label>
@@ -685,9 +688,33 @@ oatEl.addEventListener('input', function(){
   updISA();
 });
 
+// ── botón de signo para la ELEVACIÓN (aeródromos bajo el nivel del mar) ──
+var elevEl = document.getElementById('elev');
+var elevSignBtn = document.getElementById('elevSignBtn');
+var elevNeg = false;   // arranca en +350
+function updateElevSignBtn(){
+  elevSignBtn.classList.toggle('neg', elevNeg);
+  elevSignBtn.textContent = elevNeg ? '−' : '+';
+}
+function getElev(){ return (elevNeg ? -1 : 1) * Math.abs(num(elevEl.value)); }
+elevSignBtn.addEventListener('click', function(){
+  elevNeg = !elevNeg;
+  updateElevSignBtn();
+  updISA();
+});
+elevEl.addEventListener('input', function(){
+  var v = elevEl.value;
+  if(v.indexOf('-')!==-1) elevNeg = true;
+  else if(v.indexOf('+')!==-1) elevNeg = false;
+  var cleaned = v.replace(/[^0-9.,]/g,'');
+  if(cleaned !== v){ elevEl.value = cleaned; }
+  updateElevSignBtn();
+  updISA();
+});
+
 // ── ISA readout live ──
 function updISA(){
-  var elev = num(document.getElementById('elev').value);
+  var elev = getElev();
   var oat  = getOAT();
   var isa  = isaTempAt(elev);
   var dev  = oat - isa;
@@ -696,8 +723,8 @@ function updISA(){
   dv.textContent = (dev>=0?'+':'−')+Math.abs(dev).toFixed(1)+' °C';
   dv.style.color = dev < -0.5 ? 'var(--red)' : (dev > 0.5 ? 'var(--green)' : 'var(--ink)');
   updateSignBtn();
+  updateElevSignBtn();
 }
-document.getElementById('elev').addEventListener('input', updISA);
 
 // ── redondeo de la corrección: hacia arriba a 10 ft (conservador, como Lido) ──
 function r10up(x){ return Math.ceil(x/10)*10; }
@@ -705,7 +732,7 @@ function r10up(x){ return Math.ceil(x/10)*10; }
 // ── CÁLCULO PRINCIPAL ──
 function calculate(noScroll){
   if(!noScroll){ sortWaypoints(); renderWps(); }   // al pulsar Calcular, ordena/agrupa el editor
-  var elev  = num(document.getElementById('elev').value);
+  var elev  = getElev();
   var oat   = getOAT();
   var gpPub = num(document.getElementById('gpPub').value);
   if(gpPub<=0) gpPub = 3.00;
