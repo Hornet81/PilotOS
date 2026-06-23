@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.103">
+  <meta name="version" content="Beta.104">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.103","builtAt":"2026-06-23T13:31:04Z","commit":"0966a25","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.104","builtAt":"2026-06-23T13:55:18Z","commit":"8f34492","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -11109,7 +11109,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
         <div class="ldm-row2">
           <div class="ldm-fg">
             <label class="ldm-lbl">OUT <span class="ldm-tag ldm-tag-act">Blocks Off</span><span class="ldm-tag ldm-tag-src" id="ldsrc_atd"></span></label>
-            <input class="ldm-inp" type="time" id="ld_atd" oninput="ldAutoBlock();ldUpdateDayBadges();ldCheckDelay();ldValidateSequence()" onchange="ldAutoBlock();ldUpdateDayBadges();ldCheckDelay();ldValidateSequence()">
+            <input class="ldm-inp" type="time" id="ld_atd" onfocus="ldSeedTime('ld_atd','ld_sched_out')" oninput="ldAutoBlock();ldUpdateDayBadges();ldCheckDelay();ldValidateSequence()" onchange="ldAutoBlock();ldUpdateDayBadges();ldCheckDelay();ldValidateSequence()">
           </div>
           <div class="ldm-fg">
             <label class="ldm-lbl">OFF <span class="ldm-tag ldm-tag-off">Takeoff</span><span class="ldm-tag ldm-tag-src" id="ldsrc_std"></span><span id="ld_std_p1" class="ldm-p1" style="display:none">+1</span></label>
@@ -11124,7 +11124,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           </div>
           <div class="ldm-fg">
             <label class="ldm-lbl">ON <span class="ldm-tag ldm-tag-off">Landing</span><span class="ldm-tag ldm-tag-src" id="ldsrc_sta"></span><span id="ld_sta_p1" class="ldm-p1" style="display:none">+1</span></label>
-            <input class="ldm-inp" type="time" id="ld_sta" onfocus="ldSeedTime('ld_sta','ld_std')" oninput="ldAutoFlightTime();ldUpdateDayBadges();ldValidateSequence()" onchange="ldAutoFlightTime();ldUpdateDayBadges();ldValidateSequence()">
+            <input class="ldm-inp" type="time" id="ld_sta" onfocus="ldSeedTime('ld_sta','ld_sched_in')" oninput="ldAutoFlightTime();ldUpdateDayBadges();ldValidateSequence()" onchange="ldAutoFlightTime();ldUpdateDayBadges();ldValidateSequence()">
           </div>
         </div>
         <!-- Block Time + Flight Time row -->
@@ -16072,8 +16072,9 @@ function ldSwitchToPhotoMode(){
   var strip=document.getElementById('ld-ocr-avail-strip'); if(strip) strip.style.display='none';
 }
 function ldSeedTime(targetId, sourceId){
-  // Al enfocar un campo de hora vacío, precargar la hora del campo previo
-  // (OFF←OUT, ON←OFF, IN←ON) para que el tambor arranque en una hora útil.
+  // Al enfocar un campo de hora vacío, precargar una hora cercana para que el
+  // tambor arranque en una hora útil. Cadena:
+  //   OUT(BlocksOff)←SCHED OUT · OFF(Takeoff)←OUT · ON(Landing)←SCHED IN · IN(BlocksOn)←ON
   var t=document.getElementById(targetId), s=document.getElementById(sourceId);
   if(t && s && !t.value && s.value){ t.value=s.value; }
 }
@@ -18983,7 +18984,7 @@ function ldSetSyncStatus(status, detail){
   var v=map[status]||map['ok'];
   var label=detail?v[2]+' '+detail:v[2];
   el.setAttribute('data-syncstate', map[status]?status:'ok');
-  el.innerHTML='<span class="ld-sync-pill" style="color:'+v[1]+';font-family:Space Mono,monospace;display:inline-flex;align-items:center;gap:8px;vertical-align:middle;font-weight:600"><span style="font-size:28px;line-height:1">'+v[0]+'</span><span style="font-size:14px">'+label+'</span></span>';
+  el.innerHTML='<span class="ld-sync-pill" style="color:'+v[1]+';font-family:Space Mono,monospace;display:inline-flex;align-items:center;gap:5px;vertical-align:middle;font-weight:600"><span style="font-size:18px;line-height:1">'+v[0]+'</span><span style="font-size:12px">'+label+'</span></span>';
 }
 
 // PULL — descargar desde el servidor y hacer merge
@@ -28153,10 +28154,16 @@ function rstRenderStats(){
   //              NOTE: the plain time in the PDF (f.checkin) IS the firma,
   //              so path 3 is also exact when data comes from PDF import.
   Object.keys(dayFlights).forEach(function(date){
-    var legs = dayFlights[date].sort(function(a,b){
-      var aT = t2m(a.std_actual||a.std||'00:00');
-      var bT = t2m(b.std_actual||b.std||'00:00');
-      return aT - bT;
+    var _dfl = dayFlights[date];
+    // Orden DÍA DE SERVICIO (NO reloj): el leg de madrugada que CIERRA el duty (ej. 00:10) no
+    // debe ir primero. Ancla = checkin (firma) más temprano, o STD mínimo. Sin esto la duty se
+    // dispara (report 00:10 → last 23:39 ≈ 23h en vez de 8h) e infla el total mensual.
+    var _dCks = _dfl.map(function(f){ return f.checkin; }).filter(function(c){ return c && c.indexOf(':')>-1; });
+    var _dAnchor = _dCks.length
+      ? Math.min.apply(null, _dCks.map(t2m))
+      : Math.min.apply(null, _dfl.map(function(f){ return t2m(f.std_actual||f.std||'00:00'); }));
+    var legs = _dfl.slice().sort(function(a,b){
+      return ((t2m(a.std_actual||a.std||'00:00')-_dAnchor)+1440)%1440 - (((t2m(b.std_actual||b.std||'00:00')-_dAnchor)+1440)%1440);
     });
     // 1. eCrews dutyH (BlockDutyTimes.Item2) — most accurate when available
     var ecDutyH = '';
@@ -28335,21 +28342,28 @@ function rstFormatTime(t){
 // ── FDP / DP (ORO.FTL.205 Vueling: report -55min, debrief +20min) ──
 function rstCalcFDP(flights){
   if(!flights||!flights.length) return null;
+  var toMin = function(s){ return parseInt(s.split(':')[0])*60+parseInt(s.split(':')[1]); };
+  var _toMinSafe = function(s){ var p=(s||'').split(':'); return (+p[0]||0)*60+(+p[1]||0); };
+  // Orden DÍA DE SERVICIO (NO por reloj): un leg de madrugada que CIERRA el duty (vuelta a
+  // casa pasada medianoche, ej. 00:10) tiene hora de reloj pequeña; ordenar por reloj lo pone
+  // primero y el cálculo coge mal el report (STD−55 de ese leg) y el último leg → DP falso.
+  // Ancla = checkin (firma) más temprano, o STD mínimo si no hay checkin.
+  var _cks = flights.map(function(f){ return f.checkin; }).filter(function(c){ return c && c.indexOf(':')>-1; });
+  var _anchor = _cks.length
+    ? Math.min.apply(null, _cks.map(_toMinSafe))
+    : Math.min.apply(null, flights.map(function(f){ return _toMinSafe(f.std_actual||f.std); }));
   var sorted = flights.slice().sort(function(a,b){
-    var aT = a.std_actual||a.std||''; var bT = b.std_actual||b.std||'';
-    return aT.localeCompare(bT);
+    return (((_toMinSafe(a.std_actual||a.std)-_anchor)+1440)%1440) - (((_toMinSafe(b.std_actual||b.std)-_anchor)+1440)%1440);
   });
   var first = sorted[0], last = sorted[sorted.length-1];
   // Prefer actual times (real operation) over scheduled
   var firstStd = first.std_actual || first.std;
   var lastSta  = last.sta_actual  || last.sta;
   if(!firstStd||!lastSta||firstStd.indexOf(':')<0||lastSta.indexOf(':')<0) return null;
-  var toMin = function(s){ return parseInt(s.split(':')[0])*60+parseInt(s.split(':')[1]); };
-  // Use checkin (firma) if available — it IS the report time from PDF/eCrews.
-  // Fallback: STD − 55 min (FTL standard when actual firma unknown).
-  var reportMin = first.checkin && first.checkin.indexOf(':')>-1
-    ? toMin(first.checkin)
-    : (toMin(firstStd)-55+1440)%1440;
+  // Report = checkin (firma) más temprano si existe — es el report real del PDF/eCrews, e INCLUYE
+  // el vuelo posicional inicial (el duty empieza con la firma del posicional, no se excluye).
+  // Fallback: STD del primer leg en orden de servicio − 55 min (estándar FTL si no hay firma).
+  var reportMin = _cks.length ? _anchor : (toMin(firstStd)-55+1440)%1440;
   var staMin = toMin(lastSta); if(staMin<reportMin) staMin+=1440;
   var fdpMin = staMin-reportMin;
   var _lastPosFlag = last.isPositioning || last.positioning || (last.dep && last.dep.charAt(0)==='*');

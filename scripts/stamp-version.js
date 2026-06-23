@@ -10,10 +10,15 @@
  *   3. sw.js          → const APP_VERSION = '...'  (cambia el nombre del caché → busta cachés viejos)
  *
  * Uso:
- *   node scripts/stamp-version.js            (usa el contenido de VERSION)
- *   node scripts/stamp-version.js Beta.02    (sobreescribe VERSION y sella)
+ *   node scripts/stamp-version.js            (AUTO: detecta la última Beta.N en git + origin y sella la siguiente libre)
+ *   node scripts/stamp-version.js auto       (igual que sin argumento)
+ *   node scripts/stamp-version.js Beta.99    (sella esa versión; ABORTA si ya existe en el historial)
+ *   node scripts/stamp-version.js Beta.99 --force   (fuerza aunque exista — usar con cuidado)
  *
- * Flujo de release: editar VERSION (o pasar arg) → node scripts/stamp-version.js → git add -A && commit && push
+ * Evita duplicados entre sesiones en paralelo: antes de sellar hace `git fetch` y
+ * escanea TODOS los commits (todas las ramas) + version.json/VERSION de origin/main.
+ *
+ * Flujo de release: node scripts/stamp-version.js → git add -A && commit && push
  */
 'use strict';
 
@@ -27,17 +32,54 @@ const VERSION_JSON = path.join(ROOT, 'version.json');
 const INDEX_HTML = path.join(ROOT, 'index.html');
 const SW_JS = path.join(ROOT, 'sw.js');
 
-// 1. Versión objetivo: argumento o archivo VERSION
-let version = (process.argv[2] || '').trim();
-if (version) {
-  fs.writeFileSync(VERSION_FILE, version + '\n');
+// ── Detectar números Beta YA usados (historial git + origin + locales) ──
+// Evita duplicados cuando varias sesiones comparten el mismo checkout.
+function detectUsedBetaNumbers() {
+  const used = new Set();
+  const add = (txt) => {
+    if (!txt) return;
+    const re = /Beta\.(\d+)/gi; let m;
+    while ((m = re.exec(txt))) used.add(parseInt(m[1], 10));
+  };
+  // Best-effort: traer lo último de otras sesiones (no fatal si no hay red)
+  try { execSync('git fetch --all -q', { cwd: ROOT, stdio: 'ignore' }); } catch (_) {}
+  // Mensajes de TODOS los commits (todas las ramas)
+  try { add(execSync('git log --all --format=%s', { cwd: ROOT }).toString()); } catch (_) {}
+  // version.json / VERSION en origin/main (lo realmente desplegado por otras sesiones)
+  for (const ref of ['origin/main:version.json', 'origin/main:VERSION']) {
+    try { add(execSync(`git show ${ref}`, { cwd: ROOT }).toString()); } catch (_) {}
+  }
+  // Locales
+  try { add(fs.readFileSync(VERSION_JSON, 'utf8')); } catch (_) {}
+  try { add(fs.readFileSync(VERSION_FILE, 'utf8')); } catch (_) {}
+  return used;
+}
+
+const FORCE = process.argv.includes('--force');
+let arg = (process.argv[2] || '').trim();
+if (arg === '--force') arg = ''; // "node stamp --force" → auto forzado
+
+const usedBeta = detectUsedBetaNumbers();
+const maxUsed = usedBeta.size ? Math.max.apply(null, Array.from(usedBeta)) : 0;
+
+// 1. Versión objetivo
+let version;
+if (!arg || /^(auto|next)$/i.test(arg)) {
+  version = 'Beta.' + (maxUsed + 1);
+  console.log(`[stamp] AUTO → última detectada Beta.${maxUsed}, sello ${version}`);
 } else {
-  version = fs.readFileSync(VERSION_FILE, 'utf8').trim();
+  version = arg;
+  const mm = version.match(/^Beta\.(\d+)$/i);
+  if (mm) {
+    const n = parseInt(mm[1], 10);
+    if (usedBeta.has(n) && !FORCE) {
+      console.error(`[stamp] ERROR: ${version} YA existe en el historial (máx detectada: Beta.${maxUsed}).`);
+      console.error(`[stamp]        Ejecuta sin argumento para auto (→ Beta.${maxUsed + 1}) o añade --force para forzar.`);
+      process.exit(1);
+    }
+  }
 }
-if (!version) {
-  console.error('[stamp] ERROR: no hay versión (ni argumento ni archivo VERSION)');
-  process.exit(1);
-}
+fs.writeFileSync(VERSION_FILE, version + '\n');
 
 // Canal según prefijo: Beta.* → beta, resto (v1.0, etc.) → prod
 const channel = /^beta/i.test(version) ? 'beta' : 'prod';
