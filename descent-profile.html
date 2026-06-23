@@ -185,6 +185,9 @@ select.fi option{background:#0a1530;color:var(--ink)}
 .wp-marker{fill:var(--bg0);stroke-width:2}
 .wp-lbl{font-family:'Space Mono',monospace;font-size:9px;font-weight:700;fill:var(--ink)}
 .wp-alt{font-family:'Space Mono',monospace;font-size:8px;fill:var(--amber)}
+/* fade-in escalonado de marcadores/etiquetas siguiendo el trazo */
+.pf-mk{opacity:0;animation:pfFade .4s ease forwards}
+@keyframes pfFade{from{opacity:0}to{opacity:1}}
 
 /* ── RESULTS TABLE ── */
 .res-tbl{margin-top:14px}
@@ -199,6 +202,14 @@ select.fi option{background:#0a1530;color:var(--ink)}
 .rt-val.pub{color:var(--ink2)}
 .rt-val.corr{color:var(--amber)}
 .rt-val.fly{color:var(--cyan2);font-size:15px}
+/* separador MAPt · FRUSTRADA + filas de frustrada (GA) */
+.rt-sep{display:flex;align-items:center;gap:10px;padding:11px 6px 8px}
+.rt-sep span{font-family:'Space Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1.4px;
+  color:var(--amber);white-space:nowrap;text-transform:uppercase}
+.rt-sep::before,.rt-sep::after{content:'';flex:1;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(251,191,36,.5),transparent)}
+.rt-ga{background:rgba(132,204,22,.07);border-radius:10px}
+.rt-ga .rt-val.fly{color:#A3E635}
 
 /* summary pills */
 .sum{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
@@ -367,6 +378,10 @@ html.day .rt-name small{color:#6B8275 !important}
 html.day .rt-val.pub{color:#3C5A49 !important}
 html.day .rt-val.corr{color:#B45309 !important}
 html.day .rt-val.fly{color:#15803D !important}
+html.day .rt-sep span{color:#B45309 !important}
+html.day .rt-sep::before,html.day .rt-sep::after{background:linear-gradient(90deg,transparent,rgba(202,138,4,.5),transparent) !important}
+html.day .rt-ga{background:rgba(77,124,15,.12) !important}
+html.day .rt-ga .rt-val.fly{color:#4D7C0F !important}
 /* Notas y avisos */
 html.day .note{background:rgba(254,249,195,.6) !important;border:1px solid rgba(202,138,4,.38) !important;color:#3C2E0A !important}
 html.day .note b{color:#B45309 !important}
@@ -403,8 +418,8 @@ html.day .warn.cold{background:rgba(254,226,226,.72) !important;border-color:rgb
       <div class="fg">
         <label class="fl">Temp. en el campo <span class="u">°C</span></label>
         <div class="temp-wrap">
-          <button class="sign-btn" id="signBtn" type="button" aria-label="Cambiar signo">±</button>
-          <input class="fi temp-in" type="text" id="oat" value="-15" inputmode="decimal" autocomplete="off">
+          <button class="sign-btn neg" id="signBtn" type="button" aria-label="Cambiar signo">−</button>
+          <input class="fi temp-in" type="text" id="oat" value="15" inputmode="decimal" autocomplete="off">
         </div>
       </div>
     </div>
@@ -599,33 +614,42 @@ function num(v){
 // ── botón de signo para la temperatura ──
 var oatEl = document.getElementById('oat');
 var signBtn = document.getElementById('signBtn');
-function syncSign(){
-  var raw = oatEl.value.trim();
-  signBtn.classList.toggle('neg', raw.indexOf('-')===0);
+// El SIGNO vive en el botón; el campo guarda solo el número (magnitud). OAT = signo · magnitud.
+var oatNeg = true;   // arranca en -15
+function updateSignBtn(){
+  signBtn.classList.toggle('neg', oatNeg);
+  signBtn.textContent = oatNeg ? '−' : '+';   // − / +
 }
+function getOAT(){ return (oatNeg ? -1 : 1) * Math.abs(num(oatEl.value)); }
 signBtn.addEventListener('click', function(){
-  var raw = oatEl.value.trim();
-  if(raw==='' || raw==='-'){ oatEl.value = raw==='-' ? '' : '-'; }
-  else if(raw.indexOf('-')===0){ oatEl.value = raw.slice(1); }
-  else { oatEl.value = '-'+raw; }
-  syncSign(); updISA();
-  oatEl.focus();
+  oatNeg = !oatNeg;
+  updateSignBtn();
+  updISA();
+});
+// Si el usuario teclea un signo, lo interpretamos y dejamos solo el número en el campo
+oatEl.addEventListener('input', function(){
+  var v = oatEl.value;
+  if(v.indexOf('-')!==-1) oatNeg = true;
+  else if(v.indexOf('+')!==-1) oatNeg = false;
+  var cleaned = v.replace(/[^0-9.,]/g,'');
+  if(cleaned !== v){ oatEl.value = cleaned; }
+  updateSignBtn();
+  updISA();
 });
 
 // ── ISA readout live ──
 function updISA(){
   var elev = num(document.getElementById('elev').value);
-  var oat  = num(oatEl.value);
+  var oat  = getOAT();
   var isa  = isaTempAt(elev);
   var dev  = oat - isa;
   document.getElementById('isaVal').textContent = (isa>=0?'+':'')+isa.toFixed(1)+' °C';
   var dv = document.getElementById('devVal');
   dv.textContent = (dev>=0?'+':'−')+Math.abs(dev).toFixed(1)+' °C';
   dv.style.color = dev < -0.5 ? 'var(--red)' : (dev > 0.5 ? 'var(--green)' : 'var(--ink)');
-  syncSign();
+  updateSignBtn();
 }
 document.getElementById('elev').addEventListener('input', updISA);
-oatEl.addEventListener('input', updISA);
 
 // ── redondeo de la corrección: hacia arriba a 10 ft (conservador, como Lido) ──
 function r10up(x){ return Math.ceil(x/10)*10; }
@@ -633,7 +657,7 @@ function r10up(x){ return Math.ceil(x/10)*10; }
 // ── CÁLCULO PRINCIPAL ──
 function calculate(noScroll){
   var elev  = num(document.getElementById('elev').value);
-  var oat   = num(oatEl.value);
+  var oat   = getOAT();
   var gpPub = num(document.getElementById('gpPub').value);
   if(gpPub<=0) gpPub = 3.00;
   var gaPub = num(document.getElementById('gaPub').value);   // % frustrada (opcional)
@@ -657,18 +681,26 @@ function calculate(noScroll){
 }
 
 // ── TABLA DE RESULTADOS ──
+function rtRowHtml(r, isGa){
+  var t = TYPES.find(function(x){return x.k===r.type})||TYPES[1];
+  var sub = (r.type==='ga') ? t.l+' · '+(r.dist>0?r.dist+' NM tras pista':'tras MAPt')
+                            : t.l+' · '+r.dist+' NM';
+  return '<div class="rt-row'+(isGa?' rt-ga':'')+'">'+
+    '<div class="rt-name">'+r.name+'<small>'+sub+'</small></div>'+
+    '<div class="rt-val pub">'+r.pub.toLocaleString()+'</div>'+
+    '<div class="rt-val corr">'+(r.corr>0?'+'+r.corr:'0')+'</div>'+
+    '<div class="rt-val fly">'+r.fly.toLocaleString()+'</div>'+
+  '</div>';
+}
 function drawResults(rows){
-  var html = rows.map(function(r){
-    var t = TYPES.find(function(x){return x.k===r.type})||TYPES[1];
-    var sub = (r.type==='ga') ? t.l+' · '+(r.dist>0?r.dist+' NM tras pista':'tras MAPt')
-                              : t.l+' · '+r.dist+' NM';
-    return '<div class="rt-row">'+
-      '<div class="rt-name">'+r.name+'<small>'+sub+'</small></div>'+
-      '<div class="rt-val pub">'+r.pub.toLocaleString()+'</div>'+
-      '<div class="rt-val corr">'+(r.corr>0?'+'+r.corr:'0')+'</div>'+
-      '<div class="rt-val fly">'+r.fly.toLocaleString()+'</div>'+
-    '</div>';
-  }).join('');
+  // Orden de vuelo: aproximación de lejos→cerca, luego (si hay GA) separador y frustrada de cerca→lejos
+  var appr = rows.filter(function(r){return r.type!=='ga';}).slice().sort(function(a,b){return b.dist-a.dist;});
+  var gas  = rows.filter(function(r){return r.type==='ga';}).slice().sort(function(a,b){return a.dist-b.dist;});
+  var html = appr.map(function(r){ return rtRowHtml(r,false); }).join('');
+  if(gas.length){
+    html += '<div class="rt-sep"><span>MAPt · FRUSTRADA</span></div>';
+    html += gas.map(function(r){ return rtRowHtml(r,true); }).join('');
+  }
   document.getElementById('resRows').innerHTML = html;
 }
 
@@ -787,47 +819,37 @@ function drawProfile(rows, elev){
   parts.push('<rect x="'+(mapX-16)+'" y="'+(groundY-3)+'" width="32" height="6" rx="1" fill="'+P.rwy+'" opacity=".85"/>');
   parts.push('<text class="axlbl" x="'+mapX+'" y="'+(groundY+15)+'" text-anchor="middle" fill="'+P.rwyTxt+'">RWY</text>');
 
-  // sendas de aproximación (descenso) en orden de distancia
-  var stdPts  = appr.map(function(r){ return X(r.dist)+','+Y(r.pub); });
-  var corrPts = appr.map(function(r){ return X(r.dist)+','+Y(r.fly); });
-  parts.push('<polyline class="glide-std" points="'+stdPts.join(' ')+'"/>');
-  parts.push('<polyline class="glide-corr" points="'+corrPts.join(' ')+'"/>');
+  // ── Sendas CONTINUAS: aproximación (descenso) + frustrada (ascenso tras la pista) ──
+  // Un único trazo para que la animación de "dibujado" recorra TODO, incluida la GA.
+  var apprStd  = appr.map(function(r){ return X(r.dist)+','+Y(r.pub); });
+  var apprCorr = appr.map(function(r){ return X(r.dist)+','+Y(r.fly); });
+  var gaStd    = gas.map(function(r){ return gaXof(r.dist)+','+Y(r.pub); });
+  var gaCorr   = gas.map(function(r){ return gaXof(r.dist)+','+Y(r.fly); });
+  parts.push('<polyline class="glide-std" points="'+apprStd.concat(gaStd).join(' ')+'"/>');
+  // pathLength normaliza la longitud → la animación se completa sea cual sea el recorrido
+  parts.push('<polyline class="glide-corr" pathLength="1400" points="'+apprCorr.concat(gaCorr).join(' ')+'"/>');
 
-  // ── Tramo(s) de FRUSTRADA (Go-Around): ascenso desde el umbral hasta cada GA Alt ──
-  if(gas.length){
-    var stdCol = day ? 'rgba(71,85,105,.6)' : 'rgba(232,244,255,.32)';
-    var endRow = appr.reduce(function(a,b){ return b.dist < a.dist ? b : a; }); // punto más cercano a pista
-    var pxP = mapX, pyP = Y(endRow.pub);   // arranque publicado en el umbral
-    var pxC = mapX, pyC = Y(endRow.fly);   // arranque corregido en el umbral
-    gas.forEach(function(r){
-      var gx = gaXof(r.dist), gyP = Y(r.pub), gyC = Y(r.fly);
-      parts.push('<line x1="'+pxP+'" y1="'+pyP+'" x2="'+gx+'" y2="'+gyP+'" stroke="'+stdCol+'" stroke-width="2" stroke-dasharray="5 5"/>');
-      parts.push('<line x1="'+pxC+'" y1="'+pyC+'" x2="'+gx+'" y2="'+gyC+'" stroke="'+P.amber+'" stroke-width="2.5" stroke-linecap="round" style="filter:drop-shadow(0 0 4px '+P.amber+')"/>');
-      if(Math.abs(gyP-gyC) > 1.5){
-        parts.push('<line x1="'+gx+'" y1="'+gyP+'" x2="'+gx+'" y2="'+gyC+'" stroke="'+P.amber+'" stroke-width="1" stroke-dasharray="2 2" opacity=".55"/>');
-      }
-      pxP=gx; pyP=gyP; pxC=gx; pyC=gyC;
-    });
+  // marcadores + etiquetas, con fade-in escalonado siguiendo el trazo
+  var nTot = appr.length + gas.length, di = 0;
+  function delayFor(){ var d = 0.35 + 0.95*(di/Math.max(1,nTot-1)); di++; return d.toFixed(2); }
+  function connector(x,yP,yC){ return Math.abs(yP-yC)>1.5
+    ? '<line x1="'+x+'" y1="'+yP+'" x2="'+x+'" y2="'+yC+'" stroke="'+P.amber+'" stroke-width="1" stroke-dasharray="2 2" opacity=".55"/>' : ''; }
+  function pushMk(x,yC,name,alt,col,dl){
+    var s=' style="animation-delay:'+dl+'s"';
+    parts.push('<circle class="wp-marker pf-mk" cx="'+x+'" cy="'+yC+'" r="4.5" stroke="'+col+'"'+s+'/>');
+    parts.push('<text class="wp-lbl pf-mk" x="'+x+'" y="'+(yC-14)+'" text-anchor="middle"'+s+'>'+name+'</text>');
+    parts.push('<text class="wp-alt pf-mk" x="'+x+'" y="'+(yC-25)+'" text-anchor="middle"'+s+'>'+alt+'</text>');
   }
-
-  // marcadores + etiquetas de aproximación
   appr.forEach(function(r){
     var x=X(r.dist), yC=Y(r.fly), yP=Y(r.pub);
     var col = r.type==='faf' ? P.faf : (r.type==='ma' ? P.ma : P.def);
-    if(Math.abs(yP-yC) > 1.5){
-      parts.push('<line x1="'+x+'" y1="'+yP+'" x2="'+x+'" y2="'+yC+'" stroke="'+P.amber+'" stroke-width="1" stroke-dasharray="2 2" opacity=".55"/>');
-    }
-    parts.push('<circle class="wp-marker" cx="'+x+'" cy="'+yC+'" r="4.5" stroke="'+col+'"/>');
-    parts.push('<text class="wp-lbl" x="'+x+'" y="'+(yC-14)+'" text-anchor="middle">'+r.name+'</text>');
-    parts.push('<text class="wp-alt" x="'+x+'" y="'+(yC-25)+'" text-anchor="middle">'+r.fly+'</text>');
+    parts.push(connector(x,yP,yC));
+    pushMk(x,yC,r.name,r.fly,col,delayFor());
   });
-
-  // marcadores + etiquetas de los puntos GA (tras la pista)
   gas.forEach(function(r){
-    var gx = gaXof(r.dist), gyy = Y(r.fly);
-    parts.push('<circle class="wp-marker" cx="'+gx+'" cy="'+gyy+'" r="4.5" stroke="'+(day?'#4D7C0F':'#84CC16')+'"/>');
-    parts.push('<text class="wp-lbl" x="'+gx+'" y="'+(gyy-14)+'" text-anchor="middle">'+r.name+'</text>');
-    parts.push('<text class="wp-alt" x="'+gx+'" y="'+(gyy-25)+'" text-anchor="middle">'+r.fly+'</text>');
+    var x=gaXof(r.dist), yC=Y(r.fly), yP=Y(r.pub);
+    parts.push(connector(x,yP,yC));
+    pushMk(x,yC,r.name,r.fly,(day?'#4D7C0F':'#84CC16'),delayFor());
   });
 
   svg.innerHTML = parts.join('');
