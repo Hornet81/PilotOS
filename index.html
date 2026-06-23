@@ -28889,15 +28889,23 @@ window.rosterSelectDay = function(dateStr){
   if(reportBadgeEl){
     var flightsForReport = dayEntries.filter(function(e){ return e.type==='flight' && (e.std||e.std_actual) && (e.std||e.std_actual).indexOf(':')>-1; });
     if(flightsForReport.length){
-      flightsForReport.sort(function(a,b){ return t2m(a.std_actual||a.std||'00:00')-t2m(b.std_actual||b.std||'00:00'); });
-      // Prefer non-positioning flight for report reference
-      var _repRef = flightsForReport.find(function(f){ return !f.isPositioning; }) || flightsForReport[0];
-      var checkinDirect = _repRef.checkin;
+      // Orden DÍA DE SERVICIO (no reloj) anclado al checkin más temprano (firma). El report es la
+      // firma del PRIMER leg del duty e INCLUYE el posicional inicial (no se excluye): el duty
+      // empieza al firmar para el posicional. Ordenar por reloj o excluir el posicional cogía un
+      // leg de madrugada (00:10) sin firma y daba un report falso (STD−55 = 23:15).
+      var _rCks = flightsForReport.map(function(f){ return f.checkin; }).filter(function(c){ return c && c.indexOf(':')>-1; });
+      var _rAnchor = _rCks.length
+        ? Math.min.apply(null, _rCks.map(t2m))
+        : Math.min.apply(null, flightsForReport.map(function(f){ return t2m(f.std_actual||f.std||'00:00'); }));
+      flightsForReport.sort(function(a,b){
+        return ((t2m(a.std_actual||a.std||'00:00')-_rAnchor)+1440)%1440 - (((t2m(b.std_actual||b.std||'00:00')-_rAnchor)+1440)%1440);
+      });
+      var _repRef = flightsForReport[0]; // primer leg del duty (puede ser posicional: lleva la firma)
       var reportMin, reportStr, reportSub;
-      if(checkinDirect && checkinDirect.indexOf(':') > -1){
-        reportMin = t2m(checkinDirect);
-        reportStr = checkinDirect;
-        // Label: distinguish eCrews live data (has debrief field) from PDF import
+      if(_rCks.length){
+        // Firma real = checkin (sign-on) más temprano del duty
+        reportMin = _rAnchor;
+        reportStr = String(Math.floor(_rAnchor/60)).padStart(2,'0')+':'+String(_rAnchor%60).padStart(2,'0');
         reportSub = _repRef.debrief ? 'Firma real (eCrews)' : 'Firma (PDF)';
       } else {
         // No report time available — badge hidden below
@@ -29162,9 +29170,14 @@ window.rosterSelectDay = function(dateStr){
     if(_realFlights.length > 0){
       try {
         rstDetectTZ();
-        var sorted = _realFlights.slice().sort(function(a,b){
-          return (a.std_actual||a.std||'').localeCompare(b.std_actual||b.std||'');
-        });
+        // Orden DÍA DE SERVICIO anclado al checkin (firma) más temprano — no por reloj. Así el
+        // primer leg del duty (posicional con firma 18:10) queda primero y la etiqueta acierta.
+        var _ftlCks = _realFlights.map(function(f){ return f.checkin; }).filter(function(c){ return c && c.indexOf(':')>-1; });
+        var _ftlAnchor = _ftlCks.length
+          ? Math.min.apply(null, _ftlCks.map(t2m))
+          : Math.min.apply(null, _realFlights.map(function(f){ return t2m(f.std_actual||f.std||'00:00'); }));
+        var _ftlOrder = function(a,b){ return ((t2m(a.std_actual||a.std||'00:00')-_ftlAnchor)+1440)%1440 - (((t2m(b.std_actual||b.std||'00:00')-_ftlAnchor)+1440)%1440); };
+        var sorted = _realFlights.slice().sort(_ftlOrder);
         // Block hours del día (solo vuelos operacionales, no posicionales)
         var _dayBlockMin = 0;
         _realFlights.forEach(function(f){
@@ -29178,7 +29191,7 @@ window.rosterSelectDay = function(dateStr){
         });
         var _dayBlockStr = _dayBlockMin>0 ? Math.floor(_dayBlockMin/60)+'h'+(('0'+(_dayBlockMin%60)).slice(-2))+'m' : '—';
         // Detect if last flight is positional (no debrief)
-        var _sortedFTL = _realFlights.slice().sort(function(a,b){ return (a.std_actual||a.std||'').localeCompare(b.std_actual||b.std||''); });
+        var _sortedFTL = _realFlights.slice().sort(_ftlOrder);
         var _lastFTL = _sortedFTL[_sortedFTL.length-1];
         var _lastFTLIsPos = _lastFTL && (_lastFTL.isPositioning||_lastFTL.positioning||(_lastFTL.dep&&_lastFTL.dep.charAt(0)==='*'));
         var fdp = rstCalcFDP(_realFlights);
@@ -29203,7 +29216,7 @@ window.rosterSelectDay = function(dateStr){
             + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px">'
             + '<div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Report</div>'
             + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+repDisp+' <span style="font-size:11px;color:#64748B">'+tzLabel+'</span></div>'
-            + '<div style="font-size:11px;color:#475569;margin-top:1px">'+(sorted[0].checkin?'Firma real':'STD − 55 min')+'</div>'
+            + '<div style="font-size:11px;color:#475569;margin-top:1px">'+(_ftlCks.length?'Firma real':'STD − 55 min')+'</div>'
             + '</div>'
             + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px">'
             + '<div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">FDP</div>'
