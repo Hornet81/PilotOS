@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.102">
+  <meta name="version" content="Beta.103">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.102","builtAt":"2026-06-23T11:58:35Z","commit":"c9c8b58","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.103","builtAt":"2026-06-23T13:31:04Z","commit":"0966a25","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -27826,9 +27826,19 @@ function rstRenderCalendar(){
       var _awDs = y+'-'+String(mo+1).padStart(2,'0')+'-'+String(_aw).padStart(2,'0');
       var _awFlts2 = entriesForDate(_awDs).filter(function(e){ return e.type==='flight'; });
       if(_awFlts2.length > 0){
+        var _tm2=function(t){var p=(t||'').split(':');return(+p[0]||0)*60+(+p[1]||0);};
+        // Posición final del día = ARR de la ÚLTIMA pata en orden DÍA DE SERVICIO (NO por reloj).
+        // Un vuelo de madrugada que cierra el duty (vuelta a casa pasada medianoche) tiene STD de
+        // reloj pequeño (ej. 00:14); ordenar por reloj lo pondría primero y elegiría un outstation
+        // como posición final → lunas fantasma. Anclamos al report (checkin más temprano, o STD
+        // mínimo) y ordenamos por minutos transcurridos desde el report.
+        // Regla luna: solo si la posición final ≠ base. Operar de noche y volver a casa NO es luna.
+        var _ck = _awFlts2.map(function(f){ return f.checkin; }).filter(function(c){ return c && c.indexOf(':')>-1; });
+        var _anchor = _ck.length
+          ? Math.min.apply(null, _ck.map(_tm2))
+          : Math.min.apply(null, _awFlts2.map(function(f){ return _tm2(f.std_actual||f.std); }));
         var _awSorted2 = _awFlts2.slice().sort(function(a,b){
-          var _tm2=function(t){var p=(t||'00:00').split(':');return(+p[0]||0)*60+(+p[1]||0);};
-          return _tm2(a.std_actual||a.std) - _tm2(b.std_actual||b.std);
+          return (((_tm2(a.std_actual||a.std)-_anchor)+1440)%1440) - (((_tm2(b.std_actual||b.std)-_anchor)+1440)%1440);
         });
         var _awArr2 = (_awSorted2[_awSorted2.length-1].arr||'').replace(/^\*/,'').toUpperCase();
         if(_awArr2.length===3) _curPos = _awArr2;
@@ -27905,25 +27915,35 @@ function rstRenderCalendar(){
     var dayHasWarnings = dayEntries.some(function(e){ return e.warnings && e.warnings.length > 0; });
     var warnBadge = dayHasWarnings ? '<div style="position:absolute;top:-6px;left:-6px;width:18px;height:18px;border-radius:50%;background:#F59E0B;border:2px solid #FFFFFF;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#FFFFFF;line-height:1;z-index:5;box-shadow:0 1px 5px rgba(245,158,11,.5)">!</div>' : '';
 
-    // ── Crossover detection: check if previous day had a flight arriving on this day ──
-    // A "crossover" means STD < STA when wrapped around midnight (sta < std in minutes).
-    // The rules for the top banner fraction (per pilot request):
-    //   arrival 00:00–08:00 → 1/3 red (small duty tail)
-    //   arrival 08:01–16:00 → 2/3 red
-    //   arrival 16:01–23:59 → all red
+    // ── Crossover detection: hora de fin de la invasión en ESTE día ──
+    // Regla de tercios (hora de fin de invasión = STA del último leg del duty anterior):
+    //   00:00–07:59 → 1 tercio   08:00–15:59 → 2 tercios   16:00–23:59 → 3 tercios
     var crossoverArrMin = -1;
-    (function(){
+    // Prioridad 1: hora de invasión propagada por el backend a ESTE día (campo invasionEnd, o
+    // entry overnight_continuation con arr_time). Cubre el leg que sale Y llega de madrugada
+    // (00:14→02:02), que el test sta<std del día anterior no detecta.
+    dayEntries.forEach(function(e){
+      var _iv = e.invasionEnd || (e.type==='overnight_continuation' ? e.arr_time : null);
+      if(_iv && typeof _iv==='string' && _iv.indexOf(':') > -1){
+        var _ivM = parseInt(_iv.split(':')[0])*60 + parseInt(_iv.split(':')[1]);
+        if(_ivM > crossoverArrMin) crossoverArrMin = _ivM;
+      }
+    });
+    // Prioridad 2 (fallback): derivarlo del vuelo del día anterior que cruza medianoche
+    // (flag crossesMidnight del backend, o envoltura por reloj sta<std).
+    if(crossoverArrMin < 0) (function(){
       var pd = new Date(y, mo, d-1);
       if(pd.getMonth() < 0) return; // guard for day 1
       var prevDate = pd.getFullYear()+'-'+String(pd.getMonth()+1).padStart(2,'0')+'-'+String(pd.getDate()).padStart(2,'0');
       entriesForDate(prevDate).forEach(function(pe){
         if(pe.type !== 'flight') return;
-        var eStd = pe.std_actual || pe.std;
         var eSta = pe.sta_actual || pe.sta;
-        if(!eStd || !eSta || eStd.indexOf(':') < 0 || eSta.indexOf(':') < 0) return;
-        var stdM = parseInt(eStd.split(':')[0])*60 + parseInt(eStd.split(':')[1]);
+        if(!eSta || eSta.indexOf(':') < 0) return;
         var staM = parseInt(eSta.split(':')[0])*60 + parseInt(eSta.split(':')[1]);
-        if(staM < stdM && staM > crossoverArrMin) { // crosses midnight → arrival is on *this* day
+        var eStd = pe.std_actual || pe.std;
+        var stdM = (eStd && eStd.indexOf(':') > -1) ? (parseInt(eStd.split(':')[0])*60 + parseInt(eStd.split(':')[1])) : null;
+        var wraps = (pe.crossesMidnight === true) || (stdM !== null && staM < stdM);
+        if(wraps && staM > crossoverArrMin) { // crosses midnight → arrival is on *this* day
           crossoverArrMin = staM;
         }
       });
@@ -27967,10 +27987,11 @@ function rstRenderCalendar(){
     var barTopHTML = '';
     if(crossoverArrMin >= 0){
       // ── Crossover bar: same height as a normal single-activity bar (20px) ──
-      // Divided into 3 vertical thirds filled left→right by arrival time:
-      //   00:00–08:00 → 1st third   08:01–16:00 → 1st+2nd   16:01–23:59 → all 3
-      // Applies to any overnight flight in any roster — no hardcoded dates.
-      var xSplit = crossoverArrMin <= 480 ? 1 : (crossoverArrMin <= 960 ? 2 : 3);
+      // Tercios según la HORA DE FIN de la invasión (cortes de 8h):
+      //   00:00–07:59 → 1 tercio   08:00–15:59 → 2 tercios   16:00–23:59 → 3 tercios
+      // (08:00 ya es 2 tercios; 16:00 ya es 3 tercios — comparación estricta < en los cortes).
+      // Aplica a cualquier vuelo que cruza medianoche en cualquier roster — sin fechas fijas.
+      var xSplit = crossoverArrMin < 480 ? 1 : (crossoverArrMin < 960 ? 2 : 3);
       var _xEmpty = '#48c9b0';
       var _xRed   = '#c0392b';
       barTopHTML = '<div style="position:absolute;top:0;left:0;right:0;height:20px;display:flex;border-radius:7px 7px 0 0;overflow:hidden;z-index:1">'
@@ -28901,9 +28922,22 @@ window.rosterSelectDay = function(dateStr){
 
     var html = '<div style="display:flex;flex-direction:column;gap:8px">';
 
-    // Separate flights and non-flights — always sort legs earliest→latest
+    // Separate flights and non-flights — ordenar por DÍA DE SERVICIO, no por reloj.
+    // Un leg que sale de madrugada (00:14) tras cruzar medianoche es el ÚLTIMO del duty;
+    // ordenar por reloj lo pondría primero. Anclamos al report (checkin más temprano, o
+    // STD mínimo) y ordenamos por minutos transcurridos desde el report.
     var flights    = dayEntries.filter(function(e){ return e.type==='flight'; });
-    flights.sort(function(a,b){ return t2m(a.std_actual||a.std||'00:00') - t2m(b.std_actual||b.std||'00:00'); });
+    (function(){
+      var _ck = flights.map(function(f){ return f.checkin; }).filter(function(c){ return c && c.indexOf(':')>-1; });
+      var _anchor = _ck.length
+        ? Math.min.apply(null, _ck.map(function(c){ return t2m(c); }))
+        : (flights.length ? Math.min.apply(null, flights.map(function(f){ return t2m(f.std_actual||f.std||'00:00'); })) : 0);
+      flights.sort(function(a,b){
+        var am = ((t2m(a.std_actual||a.std||'00:00')-_anchor)+1440)%1440;
+        var bm = ((t2m(b.std_actual||b.std||'00:00')-_anchor)+1440)%1440;
+        return am - bm;
+      });
+    })();
     var nonFlights = dayEntries.filter(function(e){ return e.type!=='flight' && e.type!=='overnight_continuation'; });
 
     // ── Continuación de vuelo nocturno (cruce de medianoche) ──────────────────
@@ -28916,9 +28950,13 @@ window.rosterSelectDay = function(dateStr){
       })();
       entriesForDate(_prevContDs).forEach(function(pe){
         if(pe.type!=='flight') return;
-        var peStd=pe.std_actual||pe.std, peSta=pe.sta_actual||pe.sta;
-        if(!peStd||!peSta||peStd.indexOf(':')<0||peSta.indexOf(':')<0) return;
-        if(t2m(peSta) < t2m(peStd)){
+        var peSta=pe.sta_actual||pe.sta;
+        if(!peSta||peSta.indexOf(':')<0) return;
+        // Cruce de medianoche: flag del backend (crossesMidnight) O envoltura por reloj (sta<std).
+        // El flag cubre el leg que sale Y llega de madrugada (00:14→02:02), que sta<std no detecta.
+        var peStd=pe.std_actual||pe.std;
+        var _wraps = (pe.crossesMidnight===true) || (peStd&&peStd.indexOf(':')>-1 && t2m(peSta) < t2m(peStd));
+        if(_wraps){
           // Vuelo nocturno del día anterior llega hoy: insertar leg de continuación al inicio
           flights.unshift({
             type:'flight', date:dateStr,
