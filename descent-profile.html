@@ -135,6 +135,8 @@ select.fi option{background:#0a1530;color:var(--ink)}
 .tp-faf{background:rgba(139,92,246,.14);color:#C4B5FD}
 .tp-ma{background:rgba(251,113,133,.12);color:var(--red)}
 .tp-wp{background:rgba(232,244,255,.06);color:var(--ink2)}
+/* El desplegable de tipo de waypoint: opciones legibles (en noche el texto quedaba sobre fondo claro del popup) */
+.wp-type-sel option{background:#0a1530;color:#E8F4FF}
 
 .add-wp{width:100%;padding:11px;border-radius:13px;border:1px dashed var(--line2);background:transparent;
   color:var(--cyan2);font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:600;cursor:pointer;
@@ -303,6 +305,8 @@ html.day .tp-iaf{background:rgba(21,128,61,.14) !important;color:#15803D !import
 html.day .tp-faf{background:rgba(109,40,217,.14) !important;color:#6D28D9 !important}
 html.day .tp-ma{background:rgba(220,38,38,.12) !important;color:#DC2626 !important}
 html.day .tp-wp{background:rgba(6,40,22,.06) !important;color:#3C5A49 !important}
+html.day .wp-type-sel{color:#3C5A49 !important}
+html.day .wp-type-sel option{background:#fff;color:#06281A}
 html.day .add-wp{border:1px dashed rgba(21,128,61,.5) !important;color:#15803D !important}
 /* Botón calcular: degradado verde→lima→oro (logo) */
 html.day .calc{
@@ -390,6 +394,17 @@ html.day .warn.cold{background:rgba(254,226,226,.72) !important;border-color:rgb
       <div class="fg">
         <label class="fl">Grad. frustrada <span class="u">%</span></label>
         <input class="fi" type="text" id="gaPub" value="" inputmode="decimal" autocomplete="off" placeholder="opcional">
+      </div>
+    </div>
+
+    <div class="cond" style="margin-top:11px">
+      <div class="fg">
+        <label class="fl">Alt. frustrada · GA <span class="u">ft</span></label>
+        <input class="fi" type="number" id="gaAlt" value="" step="100" inputmode="numeric" placeholder="opcional">
+      </div>
+      <div class="fg">
+        <label class="fl">Dist. GA tras pista <span class="u">NM</span></label>
+        <input class="fi" type="text" id="gaDist" value="" inputmode="decimal" autocomplete="off" placeholder="auto">
       </div>
     </div>
 
@@ -611,16 +626,26 @@ function calculate(noScroll){
     };
   });
 
-  drawProfile(rows, elev);
-  drawResults(rows);
-  drawSummary(rows, oat, elev, gpPub, gaPub);
+  // Punto de frustrada (Go-Around): altitud a alcanzar TRAS la pista, también se corrige por frío
+  var gaAltV = num(document.getElementById('gaAlt').value);
+  var gaPoint = null;
+  if(gaAltV > 0){
+    var hGa    = gaAltV - elev;
+    var corrGa = r10up(icaoCorrection(hGa, oat));
+    gaPoint = { pub:gaAltV, corr:corrGa, fly:gaAltV + corrGa, hAbove:hGa,
+                dist:num(document.getElementById('gaDist').value) };
+  }
+
+  drawProfile(rows, elev, gaPoint);
+  drawResults(rows, gaPoint);
+  drawSummary(rows, oat, elev, gpPub, gaPub, gaPoint);
 
   document.getElementById('profileWrap').classList.add('show');
   if(!noScroll) document.getElementById('profileWrap').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 // ── TABLA DE RESULTADOS ──
-function drawResults(rows){
+function drawResults(rows, gaPoint){
   var html = rows.map(function(r){
     var t = TYPES.find(function(x){return x.k===r.type})||TYPES[1];
     return '<div class="rt-row">'+
@@ -630,12 +655,22 @@ function drawResults(rows){
       '<div class="rt-val fly">'+r.fly.toLocaleString()+'</div>'+
     '</div>';
   }).join('');
+  if(gaPoint){
+    html += '<div class="rt-row">'+
+      '<div class="rt-name">GA<small>FRUST · '+(gaPoint.dist>0?gaPoint.dist+' NM':'tras MAPt')+'</small></div>'+
+      '<div class="rt-val pub">'+gaPoint.pub.toLocaleString()+'</div>'+
+      '<div class="rt-val corr">'+(gaPoint.corr>0?'+'+gaPoint.corr:'0')+'</div>'+
+      '<div class="rt-val fly">'+gaPoint.fly.toLocaleString()+'</div>'+
+    '</div>';
+  }
   document.getElementById('resRows').innerHTML = html;
 }
 
 // ── RESUMEN ──
-function drawSummary(rows, oat, elev, gpPub, gaPub){
-  var maxC = Math.max.apply(null, rows.map(function(r){return r.corr}));
+function drawSummary(rows, oat, elev, gpPub, gaPub, gaPoint){
+  var corrs = rows.map(function(r){return r.corr});
+  if(gaPoint) corrs.push(gaPoint.corr);
+  var maxC = Math.max.apply(null, corrs);
   document.getElementById('maxCorr').textContent = (maxC>0?'+':'')+maxC+' ft';
 
   // Fracción de corrección por frío referida a 1000 ft sobre el campo.
@@ -676,7 +711,7 @@ function drawSummary(rows, oat, elev, gpPub, gaPub){
 }
 
 // ── DIBUJO DEL PERFIL (SVG) ── signature element ──
-function drawProfile(rows, elev){
+function drawProfile(rows, elev, gaPoint){
   var svg = document.getElementById('pfSvg');
   // Paleta del gráfico según tema (día = verdes/ámbar del logo, alto contraste)
   var day = document.documentElement.classList.contains('day');
@@ -696,12 +731,18 @@ function drawProfile(rows, elev){
   var minDist = Math.min.apply(null, rows.map(function(r){return r.dist}));
   var maxAlt  = Math.max.apply(null, rows.map(function(r){return Math.max(r.pub,r.fly)}));
   var minAlt  = Math.min(elev, Math.min.apply(null, rows.map(function(r){return r.pub})));
+  if(gaPoint){ maxAlt = Math.max(maxAlt, gaPoint.pub, gaPoint.fly); minAlt = Math.min(minAlt, gaPoint.pub); }
   var altSpan = maxAlt - minAlt; if(altSpan<=0) altSpan=1000;
   maxAlt += altSpan*0.12;  // headroom
 
-  // X: distancia decrece hacia el aeropuerto (derecha = pista)
-  function X(dist){ return padL + (1 - (dist-minDist)/((maxDist-minDist)||1)) * plotW; }
+  // Si hay frustrada, reservamos una franja a la DERECHA de la pista para el ascenso GA
+  var gaZoneW = gaPoint ? plotW*0.26 : 0;
+  var apW = plotW - gaZoneW;
+  // X: distancia decrece hacia el aeropuerto (derecha = umbral/pista); el ascenso GA va tras la pista
+  function X(dist){ return padL + (1 - (dist-minDist)/((maxDist-minDist)||1)) * apW; }
   function Y(alt){ return padT + (1 - (alt-minAlt)/(maxAlt-minAlt)) * plotH; }
+  var mapX = padL + apW;                          // posición del umbral (MAPt, dist mínima)
+  var gaX  = padL + apW + gaZoneW*0.62;           // posición del punto GA tras la pista
 
   var parts = [];
   parts.push('<defs>'+
@@ -728,9 +769,9 @@ function drawProfile(rows, elev){
   var groundY = Y(elev);
   parts.push('<rect x="'+padL+'" y="'+groundY+'" width="'+plotW+'" height="'+(H-padB-groundY)+'" class="terrain"/>');
   parts.push('<line x1="'+padL+'" y1="'+groundY+'" x2="'+(W-padR)+'" y2="'+groundY+'" stroke="'+P.ground+'" stroke-width="1.5"/>');
-  // runway block at right
-  parts.push('<rect x="'+(W-padR-30)+'" y="'+(groundY-3)+'" width="34" height="6" rx="1" fill="'+P.rwy+'" opacity=".85"/>');
-  parts.push('<text class="axlbl" x="'+(W-padR-13)+'" y="'+(groundY+15)+'" text-anchor="middle" fill="'+P.rwyTxt+'">RWY</text>');
+  // runway block en el umbral (MAPt)
+  parts.push('<rect x="'+(mapX-16)+'" y="'+(groundY-3)+'" width="32" height="6" rx="1" fill="'+P.rwy+'" opacity=".85"/>');
+  parts.push('<text class="axlbl" x="'+mapX+'" y="'+(groundY+15)+'" text-anchor="middle" fill="'+P.rwyTxt+'">RWY</text>');
 
   // build path strings
   var stdPts = rows.map(function(r){ return X(r.dist)+','+Y(r.pub); });
@@ -738,6 +779,21 @@ function drawProfile(rows, elev){
 
   parts.push('<polyline class="glide-std" points="'+stdPts.join(' ')+'"/>');
   parts.push('<polyline class="glide-corr" points="'+corrPts.join(' ')+'"/>');
+
+  // ── Tramo de FRUSTRADA (Go-Around): ascenso tras la pista hasta la GA Alt ──
+  if(gaPoint){
+    var endRow = rows.reduce(function(a,b){ return b.dist < a.dist ? b : a; }); // punto más cercano a pista (MAPt)
+    var exX = X(endRow.dist), eyP = Y(endRow.pub), eyC = Y(endRow.fly);
+    var gyP = Y(gaPoint.pub), gyC = Y(gaPoint.fly);
+    var stdCol = day ? 'rgba(71,85,105,.6)' : 'rgba(232,244,255,.32)';
+    // ascenso publicado (sin corregir) y corregido (a volar)
+    parts.push('<line x1="'+exX+'" y1="'+eyP+'" x2="'+gaX+'" y2="'+gyP+'" stroke="'+stdCol+'" stroke-width="2" stroke-dasharray="5 5"/>');
+    parts.push('<line x1="'+exX+'" y1="'+eyC+'" x2="'+gaX+'" y2="'+gyC+'" stroke="'+P.amber+'" stroke-width="2.5" stroke-linecap="round" style="filter:drop-shadow(0 0 4px '+P.amber+')"/>');
+    // conector pub->corr en el punto GA
+    if(Math.abs(gyP-gyC) > 1.5){
+      parts.push('<line x1="'+gaX+'" y1="'+gyP+'" x2="'+gaX+'" y2="'+gyC+'" stroke="'+P.amber+'" stroke-width="1" stroke-dasharray="2 2" opacity=".55"/>');
+    }
+  }
 
   // markers + labels
   rows.forEach(function(r,i){
@@ -753,6 +809,14 @@ function drawProfile(rows, elev){
     parts.push('<text class="wp-lbl" x="'+x+'" y="'+(yC-14)+'" text-anchor="middle">'+r.name+'</text>');
     parts.push('<text class="wp-alt" x="'+x+'" y="'+(yC-25)+'" text-anchor="middle">'+r.fly+'</text>');
   });
+
+  // marcador + etiqueta del punto GA
+  if(gaPoint){
+    var gx = gaX, gyy = Y(gaPoint.fly);
+    parts.push('<circle class="wp-marker" cx="'+gx+'" cy="'+gyy+'" r="4.5" stroke="'+P.ma+'"/>');
+    parts.push('<text class="wp-lbl" x="'+gx+'" y="'+(gyy-14)+'" text-anchor="middle">GA</text>');
+    parts.push('<text class="wp-alt" x="'+gx+'" y="'+(gyy-25)+'" text-anchor="middle">'+gaPoint.fly+'</text>');
+  }
 
   svg.innerHTML = parts.join('');
   // retrigger draw animation
