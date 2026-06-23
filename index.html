@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.105">
+  <meta name="version" content="Beta.106">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.105","builtAt":"2026-06-23T14:04:07Z","commit":"e7f190e","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.106","builtAt":"2026-06-23T14:10:10Z","commit":"85cd6cc","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -11097,11 +11097,11 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
         <div class="ldm-row2 ldm-sched-row" style="margin-bottom:6px">
           <div class="ldm-fg">
             <label class="ldm-lbl">SCHED OUT <span class="ldm-tag ldm-tag-sched">STD</span></label>
-            <input class="ldm-inp" type="time" id="ld_sched_out" oninput="ldCheckDelay();ldValidateSequence()" onchange="ldCheckDelay();ldValidateSequence()">
+            <input class="ldm-inp" type="time" id="ld_sched_out" oninput="ldSeedTime('ld_atd','ld_sched_out');ldCheckDelay();ldValidateSequence()" onchange="ldSeedTime('ld_atd','ld_sched_out');ldCheckDelay();ldValidateSequence()">
           </div>
           <div class="ldm-fg">
             <label class="ldm-lbl">SCHED IN <span class="ldm-tag ldm-tag-sched">STA</span></label>
-            <input class="ldm-inp" type="time" id="ld_sched_in" oninput="ldValidateSequence()" onchange="ldValidateSequence()">
+            <input class="ldm-inp" type="time" id="ld_sched_in" oninput="ldSeedTime('ld_sta','ld_sched_in');ldValidateSequence()" onchange="ldSeedTime('ld_sta','ld_sched_in');ldValidateSequence()">
           </div>
         </div>
         <div class="ldm-times-wrap" id="ldm-times-wrap">
@@ -11109,7 +11109,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
         <div class="ldm-row2">
           <div class="ldm-fg">
             <label class="ldm-lbl">OUT <span class="ldm-tag ldm-tag-act">Blocks Off</span><span class="ldm-tag ldm-tag-src" id="ldsrc_atd"></span></label>
-            <input class="ldm-inp" type="time" id="ld_atd" onfocus="ldSeedTime('ld_atd','ld_sched_out')" oninput="ldAutoBlock();ldUpdateDayBadges();ldCheckDelay();ldValidateSequence()" onchange="ldAutoBlock();ldUpdateDayBadges();ldCheckDelay();ldValidateSequence()">
+            <input class="ldm-inp" type="time" id="ld_atd" onfocus="ldSeedTime('ld_atd','ld_sched_out')" oninput="ldSeedTime('ld_std','ld_atd');ldAutoBlock();ldUpdateDayBadges();ldCheckDelay();ldValidateSequence()" onchange="ldSeedTime('ld_std','ld_atd');ldAutoBlock();ldUpdateDayBadges();ldCheckDelay();ldValidateSequence()">
           </div>
           <div class="ldm-fg">
             <label class="ldm-lbl">OFF <span class="ldm-tag ldm-tag-off">Takeoff</span><span class="ldm-tag ldm-tag-src" id="ldsrc_std"></span><span id="ld_std_p1" class="ldm-p1" style="display:none">+1</span></label>
@@ -11124,7 +11124,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           </div>
           <div class="ldm-fg">
             <label class="ldm-lbl">ON <span class="ldm-tag ldm-tag-off">Landing</span><span class="ldm-tag ldm-tag-src" id="ldsrc_sta"></span><span id="ld_sta_p1" class="ldm-p1" style="display:none">+1</span></label>
-            <input class="ldm-inp" type="time" id="ld_sta" onfocus="ldSeedTime('ld_sta','ld_sched_in')" oninput="ldAutoFlightTime();ldUpdateDayBadges();ldValidateSequence()" onchange="ldAutoFlightTime();ldUpdateDayBadges();ldValidateSequence()">
+            <input class="ldm-inp" type="time" id="ld_sta" onfocus="ldSeedTime('ld_sta','ld_sched_in')" oninput="ldSeedTime('ld_ata','ld_sta');ldAutoFlightTime();ldUpdateDayBadges();ldValidateSequence()" onchange="ldSeedTime('ld_ata','ld_sta');ldAutoFlightTime();ldUpdateDayBadges();ldValidateSequence()">
           </div>
         </div>
         <!-- Block Time + Flight Time row -->
@@ -16072,8 +16072,10 @@ function ldSwitchToPhotoMode(){
   var strip=document.getElementById('ld-ocr-avail-strip'); if(strip) strip.style.display='none';
 }
 function ldSeedTime(targetId, sourceId){
-  // Al enfocar un campo de hora vacío, precargar una hora cercana para que el
-  // tambor arranque en una hora útil. Cadena:
+  // Precarga una hora cercana en un campo de hora VACÍO para que el tambor
+  // arranque en una hora útil. Se llama PROACTIVAMENTE al confirmar el campo
+  // origen (no solo onfocus) porque en iOS el tambor nativo se abre antes de
+  // que onfocus pueda cambiar el valor. Cadena:
   //   OUT(BlocksOff)←SCHED OUT · OFF(Takeoff)←OUT · ON(Landing)←SCHED IN · IN(BlocksOn)←ON
   var t=document.getElementById(targetId), s=document.getElementById(sourceId);
   if(t && s && !t.value && s.value){ t.value=s.value; }
