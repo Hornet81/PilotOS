@@ -151,6 +151,17 @@ select.fi option{background:#0a1530;color:var(--ink)}
   color:var(--cyan2);font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:600;cursor:pointer;
   letter-spacing:.4px;transition:background .18s}
 .add-wp:active{background:rgba(34,211,238,.08)}
+.add-row{display:flex;gap:9px}
+.add-row .add-wp{flex:1;width:auto}
+.add-ga{color:#A3E635;border-color:rgba(132,204,22,.5)}
+.add-ga:active{background:rgba(132,204,22,.10)}
+/* separador MAPt · FRUSTRADA dentro del editor de puntos */
+.wp-sep{display:flex;align-items:center;gap:10px;margin:5px 2px 11px}
+.wp-sep span{font-family:'Space Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1.4px;
+  color:var(--amber);white-space:nowrap;text-transform:uppercase}
+.wp-sep::before,.wp-sep::after{content:'';flex:1;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(251,191,36,.5),transparent)}
+.wp-ga{background:rgba(132,204,22,.07);border-color:rgba(132,204,22,.28)}
 
 /* ── CALC BUTTON ── */
 .calc{width:100%;margin-top:18px;padding:15px;border:none;border-radius:16px;cursor:pointer;
@@ -331,6 +342,10 @@ html.day .tp-ga{background:rgba(77,124,15,.16) !important;color:#3F6212 !importa
 html.day .wp-type-sel{color:#3C5A49 !important}
 html.day .wp-type-sel option{background:#fff;color:#06281A}
 html.day .add-wp{border:1px dashed rgba(21,128,61,.5) !important;color:#15803D !important}
+html.day .add-ga{color:#3F6212 !important;border-color:rgba(77,124,15,.5) !important}
+html.day .wp-sep span{color:#B45309 !important}
+html.day .wp-sep::before,html.day .wp-sep::after{background:linear-gradient(90deg,transparent,rgba(202,138,4,.5),transparent) !important}
+html.day .wp-ga{background:rgba(77,124,15,.10) !important;border-color:rgba(77,124,15,.3) !important}
 /* Botón calcular: degradado verde→lima→oro (logo) */
 html.day .calc{
   background:linear-gradient(115deg,#15803D 0%,#22C55E 30%,#A3E635 60%,#FACC15 100%) !important;
@@ -452,7 +467,10 @@ html.day .warn.cold{background:rgba(254,226,226,.72) !important;border-color:rgb
       <div>Punto</div><div>Alt. pub. (ft)</div><div>Dist. (NM)</div><div></div>
     </div>
     <div id="wpList"></div>
-    <button class="add-wp" id="addWp">+ Añadir punto</button>
+    <div class="add-row">
+      <button class="add-wp" id="addWp">+ Añadir punto</button>
+      <button class="add-wp add-ga" id="addGa">+ Frustrada (GA)</button>
+    </div>
   </div>
 
   <button class="calc" id="calcBtn">Calcular perfil →</button>
@@ -551,11 +569,29 @@ function typeOpts(sel){
   }).join('');
 }
 
+// Mantener el array agrupado y ordenado: aproximación (lejos→cerca) + frustrada GA (cerca→lejos)
+function sortWaypoints(){
+  var appr = waypoints.filter(function(w){return w.type!=='ga';}).sort(function(a,b){return b.dist-a.dist;});
+  var gas  = waypoints.filter(function(w){return w.type==='ga';}).sort(function(a,b){return a.dist-b.dist;});
+  waypoints = appr.concat(gas);
+}
+function recalcIfShown(){
+  var pw = document.getElementById('profileWrap');
+  if(pw && pw.classList.contains('show')) calculate(true);
+}
 function renderWps(){
   wpList.innerHTML = '';
+  var sepDone = false;
   waypoints.forEach(function(w,i){
+    if(w.type==='ga' && !sepDone){   // separador antes del primer punto de frustrada
+      var sep = document.createElement('div');
+      sep.className = 'wp-sep';
+      sep.innerHTML = '<span>MAPt · FRUSTRADA</span>';
+      wpList.appendChild(sep);
+      sepDone = true;
+    }
     var row = document.createElement('div');
-    row.className = 'wp';
+    row.className = 'wp' + (w.type==='ga' ? ' wp-ga' : '');
     row.innerHTML =
       '<div>'+
         '<input class="fi wp-name" data-i="'+i+'" data-f="name" value="'+w.name+'" maxlength="6">'+
@@ -575,31 +611,43 @@ wpList.addEventListener('input', function(e){
   if(f==='name') waypoints[i].name = e.target.value;
   else if(f==='alt') waypoints[i].alt = num(e.target.value);
   else if(f==='dist') waypoints[i].dist = num(e.target.value);
+  // No reordenamos al teclear (evita que las filas salten bajo el cursor); se ordena en cada acción/Calcular
 });
 wpList.addEventListener('change', function(e){
   if(e.target.classList.contains('wp-type-sel')){
     var i = +e.target.getAttribute('data-i');
     var k = e.target.value;
     waypoints[i].type = k;
-    // Autocompletar el nombre con la etiqueta del tipo elegido (editable después)
     var t = TYPES.find(function(x){return x.k===k;});
-    if(t) waypoints[i].name = t.l;
+    if(t) waypoints[i].name = t.l;   // autocompletar nombre (editable)
+    sortWaypoints();                 // reagrupar: los GA bajan bajo el separador
     renderWps();
-    // Si ya hay perfil calculado, refrescar al instante (para que el GA aparezca sin re-pulsar)
-    var pw = document.getElementById('profileWrap');
-    if(pw && pw.classList.contains('show')) calculate(true);
+    recalcIfShown();
   }
 });
 wpList.addEventListener('click', function(e){
   if(e.target.classList.contains('wp-del')){
     var i = +e.target.getAttribute('data-i');
-    if(waypoints.length>2){ waypoints.splice(i,1); renderWps(); }
+    if(waypoints.length>2){ waypoints.splice(i,1); sortWaypoints(); renderWps(); recalcIfShown(); }
   }
 });
+// + Añadir punto de APROXIMACIÓN
 document.getElementById('addWp').addEventListener('click', function(){
-  var last = waypoints[waypoints.length-1];
-  waypoints.splice(waypoints.length-1, 0, {name:'WPT', type:'wp', alt:Math.round(last.alt+1000), dist:Math.round(last.dist+3)});
-  renderWps();
+  var appr = waypoints.filter(function(w){return w.type!=='ga';});
+  var ref = appr.length ? appr.reduce(function(a,b){return b.dist<a.dist?b:a;}) : {alt:2000, dist:5};
+  waypoints.push({name:'WPT', type:'wp', alt:Math.round(ref.alt+1000), dist:Math.round((ref.dist||0)+3)});
+  sortWaypoints(); renderWps(); recalcIfShown();
+});
+// + Añadir FRUSTRADA (GA)
+document.getElementById('addGa').addEventListener('click', function(){
+  var gas = waypoints.filter(function(w){return w.type==='ga';});
+  var appr = waypoints.filter(function(w){return w.type!=='ga';});
+  var ref = gas.length ? gas[gas.length-1] : null;
+  var base = appr.length ? appr.reduce(function(a,b){return b.dist<a.dist?b:a;}).alt : 1500;
+  waypoints.push({ name:'GA', type:'ga',
+                   alt:  ref ? Math.round(ref.alt+1000) : Math.round(base+1000),
+                   dist: ref ? (ref.dist+3) : 3 });
+  sortWaypoints(); renderWps(); recalcIfShown();
 });
 
 // ── parse numérico tolerante (admite "-", "," decimal, vacío) ──
@@ -656,6 +704,7 @@ function r10up(x){ return Math.ceil(x/10)*10; }
 
 // ── CÁLCULO PRINCIPAL ──
 function calculate(noScroll){
+  if(!noScroll){ sortWaypoints(); renderWps(); }   // al pulsar Calcular, ordena/agrupa el editor
   var elev  = num(document.getElementById('elev').value);
   var oat   = getOAT();
   var gpPub = num(document.getElementById('gpPub').value);
