@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Approach Path Calculator · PilotOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg0:#02060f;
+  --bg1:#050c1c;
+  --bg2:#0a1530;
+  --cyan:#22D3EE;
+  --cyan2:#67E8F9;
+  --cyanDim:#0E7490;
+  --violet:#8B5CF6;
+  --amber:#FBBF24;
+  --amber2:#F59E0B;
+  --red:#FB7185;
+  --green:#34D399;
+  --ink:#E8F4FF;
+  --ink2:rgba(232,244,255,.62);
+  --ink3:rgba(232,244,255,.38);
+  --line:rgba(34,211,238,.16);
+  --line2:rgba(34,211,238,.30);
+  --glass:rgba(10,21,48,.55);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:'Space Grotesk',-apple-system,system-ui,sans-serif;
+  color:var(--ink);
+  background:
+    radial-gradient(ellipse 70% 40% at 50% -8%,rgba(34,211,238,.14) 0%,transparent 60%),
+    radial-gradient(ellipse 50% 35% at 88% 90%,rgba(139,92,246,.10) 0%,transparent 55%),
+    linear-gradient(180deg,var(--bg1) 0%,var(--bg0) 55%,#01040a 100%);
+  background-attachment:fixed;
+  min-height:100%;
+  -webkit-font-smoothing:antialiased;
+  overscroll-behavior:none;
+}
+.wrap{max-width:520px;margin:0 auto;padding:0 18px 120px;position:relative}
+
+/* ── HEADER ── */
+.hdr{
+  position:sticky;top:0;z-index:30;
+  display:flex;align-items:center;gap:12px;
+  padding:calc(14px + env(safe-area-inset-top,0)) 0 14px;
+  background:linear-gradient(180deg,rgba(2,6,15,.92),rgba(2,6,15,.6) 70%,transparent);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+}
+.back{font-size:13px;color:var(--cyan2);font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px;opacity:.9}
+.hdr-t{font-size:14px;font-weight:600;letter-spacing:.3px;flex:1}
+.hdr-chip{font-family:'Space Mono',monospace;font-size:9px;font-weight:700;color:var(--cyan2);
+  border:1px solid var(--line2);border-radius:20px;padding:4px 9px;letter-spacing:.5px;
+  background:rgba(34,211,238,.08)}
+
+/* ── HERO ── */
+.hero{padding:18px 0 6px}
+.eye{display:flex;align-items:center;gap:7px;font-size:10px;font-weight:700;letter-spacing:2px;
+  text-transform:uppercase;color:var(--cyan2);margin-bottom:9px;font-family:'Space Mono',monospace}
+.eye::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--cyan);
+  box-shadow:0 0 8px var(--cyan)}
+.hero h1{font-family:'Saira Condensed',sans-serif;font-weight:700;font-size:40px;line-height:.95;
+  letter-spacing:.5px;text-transform:uppercase}
+.hero h1 span{background:linear-gradient(120deg,var(--cyan),var(--violet));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{font-size:13px;color:var(--ink2);margin-top:8px;line-height:1.6;max-width:90%}
+
+/* ── SECTION LABEL ── */
+.sep{display:flex;align-items:center;gap:11px;margin:24px 0 13px}
+.sep span{font-family:'Space Mono',monospace;font-size:10px;font-weight:700;color:var(--cyan2);
+  text-transform:uppercase;letter-spacing:1.6px;white-space:nowrap}
+.sep::before,.sep::after{content:'';flex:1;height:1px;
+  background:linear-gradient(90deg,transparent,var(--line2),transparent)}
+.sep::before{flex:0 0 14px}
+
+/* ── CARD ── */
+.card{background:var(--glass);border:1px solid var(--line);border-radius:20px;padding:16px;
+  position:relative;overflow:hidden;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.card::after{content:'';position:absolute;top:0;left:12%;right:12%;height:1px;
+  background:linear-gradient(90deg,transparent,var(--line2),transparent)}
+
+/* ── CONDITIONS GRID ── */
+.cond{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.fg{display:flex;flex-direction:column;gap:6px}
+.fl{font-size:10px;font-weight:600;color:var(--ink2);text-transform:uppercase;letter-spacing:.8px;
+  display:flex;align-items:center;gap:5px}
+.fl .u{color:var(--cyan2);font-family:'Space Mono',monospace}
+.fi{background:rgba(2,6,15,.7);border:1px solid rgba(34,211,238,.18);border-radius:12px;
+  padding:11px 13px;font-family:'Space Mono',monospace;font-size:17px;font-weight:700;color:var(--ink);
+  outline:none;width:100%;transition:border-color .18s,box-shadow .18s;-webkit-appearance:none;appearance:none}
+.fi:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(34,211,238,.12)}
+select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2367E8F9' stroke-width='1.6' fill='none'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 13px center;padding-right:34px}
+select.fi option{background:#0a1530;color:var(--ink)}
+
+/* temperature input with sign toggle */
+.temp-wrap{display:flex;gap:8px;align-items:stretch}
+.temp-wrap .temp-in{flex:1}
+.sign-btn{flex:0 0 44px;border:1px solid rgba(34,211,238,.18);border-radius:12px;
+  background:rgba(2,6,15,.7);color:var(--cyan2);font-family:'Space Mono',monospace;font-size:20px;
+  font-weight:700;cursor:pointer;transition:background .15s,border-color .15s;line-height:1}
+.sign-btn:active{background:rgba(34,211,238,.14);border-color:var(--cyan)}
+.sign-btn.neg{color:var(--red);border-color:rgba(251,113,133,.3);background:rgba(251,113,133,.08)}
+
+/* temp readout strip */
+.isa{margin-top:13px;display:flex;align-items:center;justify-content:space-between;
+  padding:10px 13px;border-radius:12px;background:rgba(2,6,15,.5);border:1px solid var(--line)}
+.isa-l{font-size:10px;color:var(--ink2);text-transform:uppercase;letter-spacing:.8px;font-weight:600}
+.isa-v{font-family:'Space Mono',monospace;font-weight:700;font-size:15px}
+
+/* ── WAYPOINT ROWS ── */
+.wp-head{display:grid;grid-template-columns:1.3fr 1fr 1fr auto;gap:9px;padding:0 4px 8px;
+  font-size:9px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:1px;
+  font-family:'Space Mono',monospace}
+.wp{display:grid;grid-template-columns:1.3fr 1fr 1fr auto;gap:9px;align-items:center;
+  padding:9px;border-radius:14px;background:rgba(2,6,15,.4);border:1px solid var(--line);margin-bottom:9px;
+  transition:border-color .18s}
+.wp:focus-within{border-color:var(--line2)}
+.wp .fi{padding:9px 10px;font-size:15px}
+.wp .wp-name{font-weight:600;font-family:'Space Grotesk',sans-serif;letter-spacing:.3px}
+.wp-corr{font-family:'Space Mono',monospace;font-weight:700;font-size:14px;color:var(--amber);
+  text-align:right;min-width:52px;white-space:nowrap}
+.wp-corr.zero{color:var(--ink3)}
+.wp-del{width:26px;height:26px;border-radius:8px;border:1px solid var(--line);background:transparent;
+  color:var(--ink3);font-size:15px;cursor:pointer;display:grid;place-items:center;line-height:1}
+.wp-del:active{background:rgba(251,113,133,.12);color:var(--red)}
+.wp-type{font-size:8px;font-weight:700;letter-spacing:.6px;padding:2px 6px;border-radius:6px;
+  text-transform:uppercase;font-family:'Space Mono',monospace;align-self:start;width:fit-content;margin-top:3px}
+.tp-iaf{background:rgba(34,211,238,.12);color:var(--cyan2)}
+.tp-faf{background:rgba(139,92,246,.14);color:#C4B5FD}
+.tp-ma{background:rgba(251,113,133,.12);color:var(--red)}
+.tp-wp{background:rgba(232,244,255,.06);color:var(--ink2)}
+
+.add-wp{width:100%;padding:11px;border-radius:13px;border:1px dashed var(--line2);background:transparent;
+  color:var(--cyan2);font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:600;cursor:pointer;
+  letter-spacing:.4px;transition:background .18s}
+.add-wp:active{background:rgba(34,211,238,.08)}
+
+/* ── CALC BUTTON ── */
+.calc{width:100%;margin-top:18px;padding:15px;border:none;border-radius:16px;cursor:pointer;
+  font-family:'Saira Condensed',sans-serif;font-weight:700;font-size:17px;letter-spacing:1.5px;
+  text-transform:uppercase;color:#02060f;
+  background:linear-gradient(120deg,var(--cyan),var(--cyan2));
+  box-shadow:0 6px 24px rgba(34,211,238,.35),inset 0 1px 0 rgba(255,255,255,.4)}
+.calc:active{transform:translateY(1px);box-shadow:0 3px 14px rgba(34,211,238,.3)}
+
+/* ── PROFILE VISUAL (SIGNATURE) ── */
+.profile-wrap{display:none}
+.profile-wrap.show{display:block;animation:rise .5s cubic-bezier(.2,.7,.3,1)}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+.pf-card{background:linear-gradient(180deg,rgba(5,12,28,.85),rgba(2,6,15,.92));
+  border:1px solid var(--line2);border-radius:22px;padding:16px 12px 12px;position:relative;overflow:hidden}
+.pf-svg{width:100%;display:block;overflow:visible}
+.pf-legend{display:flex;gap:16px;justify-content:center;margin-top:10px;flex-wrap:wrap}
+.pf-leg{display:flex;align-items:center;gap:7px;font-size:10px;color:var(--ink2);font-weight:500}
+.pf-leg i{width:18px;height:0;border-top-width:2.5px;border-top-style:solid;border-radius:2px}
+.leg-std i{border-top-color:var(--ink3);border-top-style:dashed}
+.leg-corr i{border-top-color:var(--amber)}
+
+/* dashed glide path animation */
+.glide-std{stroke:rgba(232,244,255,.32);stroke-width:2;stroke-dasharray:5 5;fill:none}
+.glide-corr{stroke:var(--amber);stroke-width:2.5;fill:none;
+  filter:drop-shadow(0 0 5px rgba(251,191,36,.5));
+  stroke-dasharray:1400;stroke-dashoffset:1400;animation:draw 1.3s .25s ease forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.terrain{fill:url(#terrainGrad)}
+.gridline{stroke:rgba(34,211,238,.08);stroke-width:1}
+.axlbl{fill:var(--ink3);font-family:'Space Mono',monospace;font-size:9px}
+.wp-marker{fill:var(--bg0);stroke-width:2}
+.wp-lbl{font-family:'Space Mono',monospace;font-size:9px;font-weight:700;fill:var(--ink)}
+.wp-alt{font-family:'Space Mono',monospace;font-size:8px;fill:var(--amber)}
+
+/* ── RESULTS TABLE ── */
+.res-tbl{margin-top:14px}
+.rt-row{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr;gap:6px;padding:11px 10px;
+  border-bottom:1px solid var(--line);align-items:center}
+.rt-row.head{font-size:9px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.8px;
+  font-family:'Space Mono',monospace;border-bottom:1px solid var(--line2)}
+.rt-row.head>div:not(:first-child){text-align:right}
+.rt-name{font-weight:600;font-size:13px;display:flex;flex-direction:column;gap:3px}
+.rt-name small{font-size:8px;color:var(--ink3);font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:.5px}
+.rt-val{font-family:'Space Mono',monospace;font-weight:700;font-size:14px;text-align:right}
+.rt-val.pub{color:var(--ink2)}
+.rt-val.corr{color:var(--amber)}
+.rt-val.fly{color:var(--cyan2);font-size:15px}
+
+/* summary pills */
+.sum{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.sum-pill{background:rgba(2,6,15,.5);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.sum-pill .l{font-size:9px;color:var(--ink2);text-transform:uppercase;letter-spacing:.9px;font-weight:600;margin-bottom:5px}
+.sum-pill .v{font-family:'Space Mono',monospace;font-weight:700;font-size:20px}
+.v.amber{color:var(--amber)}.v.cyan{color:var(--cyan2)}.v.green{color:var(--green)}.v.red{color:var(--red)}
+
+/* glide path before/after strip */
+.gp-cmp{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:12px;
+  padding:13px;border-radius:14px;background:rgba(2,6,15,.5);border:1px solid var(--line)}
+.gpc{display:flex;flex-direction:column;align-items:center;gap:4px}
+.gpc-l{font-size:9px;color:var(--ink2);text-transform:uppercase;letter-spacing:1px;font-weight:600}
+.gpc-v{font-family:'Space Mono',monospace;font-weight:700;font-size:22px;color:var(--ink2)}
+.gpc-v.hot{color:var(--amber)}
+.gpc-arrow{color:var(--cyan2);font-size:20px;opacity:.7}
+
+/* mile-by-mile table uses 4 equal cols */
+
+.note{margin-top:14px;font-size:11px;color:var(--ink3);line-height:1.65;padding:11px 13px;
+  border-radius:12px;background:rgba(251,191,36,.05);border:1px solid rgba(251,191,36,.16)}
+.note b{color:var(--amber);font-weight:700}
+
+.warn{margin-top:12px;display:none;align-items:center;gap:9px;padding:11px 13px;border-radius:12px;
+  background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.2);font-size:12px;color:var(--green);line-height:1.5}
+.warn.cold{background:rgba(251,113,133,.06);border-color:rgba(251,113,133,.22);color:var(--red)}
+.warn.show{display:flex}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hdr">
+    <div class="back" onclick="if(window.parent&&window.parent!==window&&window.parent.goTo){window.parent.goTo('tools')}">‹ Tools</div>
+    <div class="hdr-t">Approach Path Calculator</div>
+    <div class="hdr-chip">ICAO · DOC 8168</div>
+  </div>
+
+  <div class="hero">
+    <div class="eye">Cold Temperature Correction</div>
+    <h1>Perfil de<br><span>Descenso</span></h1>
+    <p>Corrige las altitudes de aproximación por temperatura. Introduce la elevación y temperatura del campo, y las alturas publicadas: PilotOS calcula la altimetría real y la altitud a volar.</p>
+  </div>
+
+  <!-- CONDICIONES DEL CAMPO -->
+  <div class="sep"><span>Condiciones del campo</span></div>
+  <div class="card">
+    <div class="cond">
+      <div class="fg">
+        <label class="fl">Elevación aeródromo <span class="u">ft</span></label>
+        <input class="fi" type="number" id="elev" value="350" step="10" inputmode="numeric">
+      </div>
+      <div class="fg">
+        <label class="fl">Temp. en el campo <span class="u">°C</span></label>
+        <div class="temp-wrap">
+          <button class="sign-btn" id="signBtn" type="button" aria-label="Cambiar signo">±</button>
+          <input class="fi temp-in" type="text" id="oat" value="-15" inputmode="decimal" autocomplete="off">
+        </div>
+      </div>
+    </div>
+
+    <div class="cond" style="margin-top:11px">
+      <div class="fg">
+        <label class="fl">Senda de descenso <span class="u">°</span></label>
+        <input class="fi" type="text" id="gpPub" value="3.00" inputmode="decimal" autocomplete="off">
+      </div>
+      <div class="fg">
+        <label class="fl">Grad. frustrada <span class="u">%</span></label>
+        <input class="fi" type="text" id="gaPub" value="" inputmode="decimal" autocomplete="off" placeholder="opcional">
+      </div>
+    </div>
+
+    <div class="isa">
+      <span class="isa-l">ISA a esa elevación</span>
+      <span class="isa-v" id="isaVal">+14.3 °C</span>
+    </div>
+    <div class="isa" style="margin-top:9px">
+      <span class="isa-l">Desviación ISA</span>
+      <span class="isa-v" id="devVal">−29.3 °C</span>
+    </div>
+  </div>
+
+  <!-- PUNTOS DE LA APROXIMACIÓN -->
+  <div class="sep"><span>Puntos de la aproximación</span></div>
+  <div class="card">
+    <div class="wp-head">
+      <div>Punto</div><div>Alt. pub. (ft)</div><div>Dist. (NM)</div><div></div>
+    </div>
+    <div id="wpList"></div>
+    <button class="add-wp" id="addWp">+ Añadir punto</button>
+  </div>
+
+  <button class="calc" id="calcBtn">Calcular perfil →</button>
+
+  <!-- ── RESULTADO: PERFIL VISUAL ── -->
+  <div class="profile-wrap" id="profileWrap">
+
+    <div class="sep"><span>Perfil estándar vs corregido</span></div>
+    <div class="pf-card">
+      <svg class="pf-svg" id="pfSvg" viewBox="0 0 520 280" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="pf-legend">
+        <div class="pf-leg leg-std"><i></i> Senda publicada (sin corrección)</div>
+        <div class="pf-leg leg-corr"><i></i> Senda a volar (corregida)</div>
+      </div>
+    </div>
+
+    <div class="warn" id="warnBox"></div>
+
+    <!-- RESUMEN -->
+    <div class="sum">
+      <div class="sum-pill"><div class="l">Corrección máxima</div><div class="v amber" id="maxCorr">—</div></div>
+      <div class="sum-pill"><div class="l">Senda corregida a volar</div><div class="v cyan" id="realGp">—</div></div>
+    </div>
+    <div class="gp-cmp" id="gpCmp">
+      <div class="gpc"><span class="gpc-l">Senda pub.</span><span class="gpc-v" id="gpPubOut">3.00°</span></div>
+      <div class="gpc-arrow">→</div>
+      <div class="gpc"><span class="gpc-l">Senda volar</span><span class="gpc-v hot" id="gpCorrOut">3.00°</span></div>
+    </div>
+    <div class="gp-cmp" id="gaCmp" style="display:none;margin-top:10px">
+      <div class="gpc"><span class="gpc-l">Frustrada pub.</span><span class="gpc-v" id="gaPubOut">—</span></div>
+      <div class="gpc-arrow">→</div>
+      <div class="gpc"><span class="gpc-l">Frustrada volar</span><span class="gpc-v hot" id="gaCorrOut">—</span></div>
+    </div>
+
+    <!-- TABLA -->
+    <div class="sep"><span>Altitudes a volar</span></div>
+    <div class="card res-tbl" style="padding:4px 12px">
+      <div class="rt-row head">
+        <div>Punto</div><div>Pub.</div><div>Corr.</div><div>Volar</div>
+      </div>
+      <div id="resRows"></div>
+    </div>
+
+    <div class="note">
+      <b>Procedimiento.</b> La corrección por temperatura fría se aplica a la <b>altura sobre el aeródromo</b>, no a la elevación. Súmala a la altitud publicada y vuela la altitud corregida. Con frío la senda real es más pronunciada: aumenta el ángulo al valor corregido. Notifica a ATC si vuelas altitudes corregidas en espacio controlado.
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Modelo atmosférico ISA ──
+var LAPSE = 0.0065;        // °C/m
+var FT_PER_M = 3.28084;
+
+function isaTempAt(elevFt){
+  // ISA temp (°C) a una elevación dada
+  return 15 - (elevFt / FT_PER_M) * LAPSE;
+}
+
+// ── Corrección ICAO por temperatura fría ──
+// ΔH = Hgp · (15 − T0) / (273 + T0 − 0.5·λ·Hgp)
+//  Hgp = altura sobre el aeródromo (m), T0 = temp del campo (°C)
+function icaoCorrection(heightAboveAeroFt, oat){
+  if(heightAboveAeroFt <= 0) return 0;
+  var H = heightAboveAeroFt / FT_PER_M;              // m
+  var dH = H * (15 - oat) / (273 + oat - 0.5*LAPSE*H);
+  var corrFt = dH * FT_PER_M;
+  return corrFt > 0 ? corrFt : 0;                     // sólo con frío
+}
+
+// ── Estado: waypoints ──
+var TYPES = [
+  {k:'iaf', l:'IAF', cls:'tp-iaf'},
+  {k:'wp',  l:'WPT', cls:'tp-wp'},
+  {k:'faf', l:'FAF', cls:'tp-faf'},
+  {k:'ma',  l:'MAPt',cls:'tp-ma'}
+];
+var waypoints = [
+  {name:'IAF',  type:'iaf', alt:5000, dist:14},
+  {name:'IF',   type:'wp',  alt:3000, dist:8},
+  {name:'FAF',  type:'faf', alt:2000, dist:5},
+  {name:'MAPt', type:'ma',  alt:520,  dist:0}
+];
+
+var wpList = document.getElementById('wpList');
+
+function typeOpts(sel){
+  return TYPES.map(function(t){
+    return '<option value="'+t.k+'"'+(t.k===sel?' selected':'')+'>'+t.l+'</option>';
+  }).join('');
+}
+
+function renderWps(){
+  wpList.innerHTML = '';
+  waypoints.forEach(function(w,i){
+    var row = document.createElement('div');
+    row.className = 'wp';
+    row.innerHTML =
+      '<div>'+
+        '<input class="fi wp-name" data-i="'+i+'" data-f="name" value="'+w.name+'" maxlength="6">'+
+        '<select class="wp-type-sel" data-i="'+i+'" style="margin-top:4px;font-size:9px;background:transparent;border:none;color:var(--ink2);font-family:Space Mono,monospace;outline:none;padding:0;cursor:pointer">'+typeOpts(w.type)+'</select>'+
+      '</div>'+
+      '<input class="fi" type="number" data-i="'+i+'" data-f="alt" value="'+w.alt+'" step="100" inputmode="numeric">'+
+      '<input class="fi" type="number" data-i="'+i+'" data-f="dist" value="'+w.dist+'" step="0.5" inputmode="decimal">'+
+      '<button class="wp-del" data-i="'+i+'">×</button>';
+    wpList.appendChild(row);
+  });
+}
+
+wpList.addEventListener('input', function(e){
+  var i = e.target.getAttribute('data-i'), f = e.target.getAttribute('data-f');
+  if(i==null) return;
+  i = +i;
+  if(f==='name') waypoints[i].name = e.target.value;
+  else if(f==='alt') waypoints[i].alt = num(e.target.value);
+  else if(f==='dist') waypoints[i].dist = num(e.target.value);
+});
+wpList.addEventListener('change', function(e){
+  if(e.target.classList.contains('wp-type-sel')){
+    waypoints[+e.target.getAttribute('data-i')].type = e.target.value;
+  }
+});
+wpList.addEventListener('click', function(e){
+  if(e.target.classList.contains('wp-del')){
+    var i = +e.target.getAttribute('data-i');
+    if(waypoints.length>2){ waypoints.splice(i,1); renderWps(); }
+  }
+});
+document.getElementById('addWp').addEventListener('click', function(){
+  var last = waypoints[waypoints.length-1];
+  waypoints.splice(waypoints.length-1, 0, {name:'WPT', type:'wp', alt:Math.round(last.alt+1000), dist:Math.round(last.dist+3)});
+  renderWps();
+});
+
+// ── parse numérico tolerante (admite "-", "," decimal, vacío) ──
+function num(v){
+  if(v==null) return 0;
+  v = (''+v).replace(',', '.').trim();
+  if(v==='' || v==='-' || v==='+' || v==='.') return 0;
+  var n = parseFloat(v);
+  return isNaN(n) ? 0 : n;
+}
+
+// ── botón de signo para la temperatura ──
+var oatEl = document.getElementById('oat');
+var signBtn = document.getElementById('signBtn');
+function syncSign(){
+  var raw = oatEl.value.trim();
+  signBtn.classList.toggle('neg', raw.indexOf('-')===0);
+}
+signBtn.addEventListener('click', function(){
+  var raw = oatEl.value.trim();
+  if(raw==='' || raw==='-'){ oatEl.value = raw==='-' ? '' : '-'; }
+  else if(raw.indexOf('-')===0){ oatEl.value = raw.slice(1); }
+  else { oatEl.value = '-'+raw; }
+  syncSign(); updISA();
+  oatEl.focus();
+});
+
+// ── ISA readout live ──
+function updISA(){
+  var elev = num(document.getElementById('elev').value);
+  var oat  = num(oatEl.value);
+  var isa  = isaTempAt(elev);
+  var dev  = oat - isa;
+  document.getElementById('isaVal').textContent = (isa>=0?'+':'')+isa.toFixed(1)+' °C';
+  var dv = document.getElementById('devVal');
+  dv.textContent = (dev>=0?'+':'−')+Math.abs(dev).toFixed(1)+' °C';
+  dv.style.color = dev < -0.5 ? 'var(--red)' : (dev > 0.5 ? 'var(--green)' : 'var(--ink)');
+  syncSign();
+}
+document.getElementById('elev').addEventListener('input', updISA);
+oatEl.addEventListener('input', updISA);
+
+// ── redondeo de la corrección: hacia arriba a 10 ft (conservador, como Lido) ──
+function r10up(x){ return Math.ceil(x/10)*10; }
+
+// ── CÁLCULO PRINCIPAL ──
+function calculate(){
+  var elev  = num(document.getElementById('elev').value);
+  var oat   = num(oatEl.value);
+  var gpPub = num(document.getElementById('gpPub').value);
+  if(gpPub<=0) gpPub = 3.00;
+  var gaPub = num(document.getElementById('gaPub').value);   // % frustrada (opcional)
+
+  var rows = waypoints.map(function(w){
+    var hAbove = w.alt - elev;
+    var corr   = icaoCorrection(hAbove, oat);
+    var corrR  = r10up(corr);          // corrección redondeada a +10 ft
+    return {
+      name:w.name, type:w.type, dist:w.dist,
+      pub:w.alt, corr:corrR, fly:w.alt + corrR, hAbove:hAbove, corrRaw:corr
+    };
+  });
+
+  drawProfile(rows, elev);
+  drawResults(rows);
+  drawSummary(rows, oat, elev, gpPub, gaPub);
+
+  document.getElementById('profileWrap').classList.add('show');
+  document.getElementById('profileWrap').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// ── TABLA DE RESULTADOS ──
+function drawResults(rows){
+  var html = rows.map(function(r){
+    var t = TYPES.find(function(x){return x.k===r.type})||TYPES[1];
+    return '<div class="rt-row">'+
+      '<div class="rt-name">'+r.name+'<small>'+t.l+' · '+r.dist+' NM</small></div>'+
+      '<div class="rt-val pub">'+r.pub.toLocaleString()+'</div>'+
+      '<div class="rt-val corr">'+(r.corr>0?'+'+r.corr:'0')+'</div>'+
+      '<div class="rt-val fly">'+r.fly.toLocaleString()+'</div>'+
+    '</div>';
+  }).join('');
+  document.getElementById('resRows').innerHTML = html;
+}
+
+// ── RESUMEN ──
+function drawSummary(rows, oat, elev, gpPub, gaPub){
+  var maxC = Math.max.apply(null, rows.map(function(r){return r.corr}));
+  document.getElementById('maxCorr').textContent = (maxC>0?'+':'')+maxC+' ft';
+
+  // Fracción de corrección por frío referida a 1000 ft sobre el campo.
+  // Misma base que las altitudes → coherente con la tabla y con Lido.
+  var corrFrac = icaoCorrection(1000, oat) / 1000;     // 0 si no hace frío
+
+  // Senda corregida: con frío el descenso geométrico real es más pronunciado.
+  var tanC   = Math.tan(gpPub*Math.PI/180) * (1 + corrFrac);
+  var gpCorr = Math.atan(tanC) * 180/Math.PI;
+
+  document.getElementById('realGp').textContent   = gpCorr.toFixed(1)+'°';
+  document.getElementById('gpPubOut').textContent = gpPub.toFixed(1)+'°';
+  var gco = document.getElementById('gpCorrOut');
+  gco.textContent = gpCorr.toFixed(1)+'°';
+  gco.classList.toggle('hot', gpCorr > gpPub + 0.04);
+
+  // Gradiente de subida de la frustrada (opcional): se incrementa igual.
+  var gaCmp = document.getElementById('gaCmp');
+  if(gaPub > 0){
+    var gaCorr = gaPub * (1 + corrFrac);
+    document.getElementById('gaPubOut').textContent  = gaPub.toFixed(1)+'%';
+    var gac = document.getElementById('gaCorrOut');
+    gac.textContent = gaCorr.toFixed(1)+'%';
+    gac.classList.toggle('hot', gaCorr > gaPub + 0.04);
+    gaCmp.style.display = 'flex';
+  } else {
+    gaCmp.style.display = 'none';
+  }
+
+  var warn = document.getElementById('warnBox');
+  if(maxC >= 100){
+    warn.className = 'warn cold show';
+    warn.innerHTML = '❄ Temperatura fría: corrección obligatoria. Las altitudes publicadas te dejarían <b style="color:var(--red)">por debajo</b> de la senda segura. Vuela las altitudes corregidas y la senda de '+gpCorr.toFixed(1)+'°.';
+  } else {
+    warn.className = 'warn show';
+    warn.innerHTML = '✓ Sin corrección significativa (&lt; 100 ft). Las altitudes y la senda publicadas son válidas en estas condiciones.';
+  }
+}
+
+// ── DIBUJO DEL PERFIL (SVG) ── signature element ──
+function drawProfile(rows, elev){
+  var svg = document.getElementById('pfSvg');
+  var W=520, H=280, padL=42, padR=58, padT=20, padB=34;
+  var plotW = W-padL-padR, plotH = H-padT-padB;
+
+  var maxDist = Math.max.apply(null, rows.map(function(r){return r.dist}));
+  var minDist = Math.min.apply(null, rows.map(function(r){return r.dist}));
+  var maxAlt  = Math.max.apply(null, rows.map(function(r){return Math.max(r.pub,r.fly)}));
+  var minAlt  = Math.min(elev, Math.min.apply(null, rows.map(function(r){return r.pub})));
+  var altSpan = maxAlt - minAlt; if(altSpan<=0) altSpan=1000;
+  maxAlt += altSpan*0.12;  // headroom
+
+  // X: distancia decrece hacia el aeropuerto (derecha = pista)
+  function X(dist){ return padL + (1 - (dist-minDist)/((maxDist-minDist)||1)) * plotW; }
+  function Y(alt){ return padT + (1 - (alt-minAlt)/(maxAlt-minAlt)) * plotH; }
+
+  var parts = [];
+  parts.push('<defs>'+
+    '<linearGradient id="terrainGrad" x1="0" y1="0" x2="0" y2="1">'+
+      '<stop offset="0%" stop-color="rgba(34,211,238,.10)"/>'+
+      '<stop offset="100%" stop-color="rgba(34,211,238,.02)"/>'+
+    '</linearGradient>'+
+    '<linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">'+
+      '<stop offset="0%" stop-color="rgba(139,92,246,.05)"/>'+
+      '<stop offset="100%" stop-color="transparent"/>'+
+    '</linearGradient>'+
+  '</defs>');
+
+  // grid altitude lines + labels
+  var nLines=4;
+  for(var g=0; g<=nLines; g++){
+    var a = minAlt + (maxAlt-minAlt)*(g/nLines);
+    var y = Y(a);
+    parts.push('<line class="gridline" x1="'+padL+'" y1="'+y+'" x2="'+(W-padR)+'" y2="'+y+'"/>');
+    parts.push('<text class="axlbl" x="'+(padL-7)+'" y="'+(y+3)+'" text-anchor="end">'+Math.round(a/100)*100+'</text>');
+  }
+
+  // terrain / runway
+  var groundY = Y(elev);
+  parts.push('<rect x="'+padL+'" y="'+groundY+'" width="'+plotW+'" height="'+(H-padB-groundY)+'" class="terrain"/>');
+  parts.push('<line x1="'+padL+'" y1="'+groundY+'" x2="'+(W-padR)+'" y2="'+groundY+'" stroke="rgba(34,211,238,.5)" stroke-width="1.5"/>');
+  // runway block at right
+  parts.push('<rect x="'+(W-padR-30)+'" y="'+(groundY-3)+'" width="34" height="6" rx="1" fill="var(--cyan2)" opacity=".85"/>');
+  parts.push('<text class="axlbl" x="'+(W-padR-13)+'" y="'+(groundY+15)+'" text-anchor="middle" fill="rgba(34,211,238,.7)">RWY</text>');
+
+  // build path strings
+  var stdPts = rows.map(function(r){ return X(r.dist)+','+Y(r.pub); });
+  var corrPts= rows.map(function(r){ return X(r.dist)+','+Y(r.fly); });
+
+  parts.push('<polyline class="glide-std" points="'+stdPts.join(' ')+'"/>');
+  parts.push('<polyline class="glide-corr" points="'+corrPts.join(' ')+'"/>');
+
+  // markers + labels
+  rows.forEach(function(r,i){
+    var x=X(r.dist), yC=Y(r.fly), yP=Y(r.pub);
+    var col = r.type==='faf' ? 'var(--violet)' : (r.type==='ma' ? 'var(--red)' : 'var(--cyan)');
+    // connector pub->corr if correction
+    if(Math.abs(yP-yC) > 1.5){
+      parts.push('<line x1="'+x+'" y1="'+yP+'" x2="'+x+'" y2="'+yC+'" stroke="var(--amber)" stroke-width="1" stroke-dasharray="2 2" opacity=".55"/>');
+    }
+    parts.push('<circle class="wp-marker" cx="'+x+'" cy="'+yC+'" r="4.5" stroke="'+col+'"/>');
+    // label above
+    var above = i % 2 === 0 ? -12 : -12;
+    parts.push('<text class="wp-lbl" x="'+x+'" y="'+(yC-14)+'" text-anchor="middle">'+r.name+'</text>');
+    parts.push('<text class="wp-alt" x="'+x+'" y="'+(yC-25)+'" text-anchor="middle">'+r.fly+'</text>');
+  });
+
+  svg.innerHTML = parts.join('');
+  // retrigger draw animation
+  var cp = svg.querySelector('.glide-corr');
+  if(cp){ cp.style.animation='none'; void cp.getBoundingClientRect(); cp.style.animation=''; }
+}
+
+document.getElementById('calcBtn').addEventListener('click', calculate);
+
+// init
+renderWps();
+updISA();
+</script>
+</body>
+</html>
