@@ -25008,7 +25008,24 @@ function TabMeteoV2(_refM2){
       const b=BANDC[s.type]||BANDC.BASE;
       return React.createElement("div",{key:i,style:{display:"flex",gap:9,padding:"8px 2px",borderBottom:i<segs.length-1?"1px solid "+T.line:"none"}},
         React.createElement("span",{style:{flex:"0 0 auto",alignSelf:"flex-start",fontFamily:mono,fontSize:7.5,fontWeight:700,letterSpacing:".5px",padding:"2px 6px",borderRadius:5,color:b.c,background:b.bg,border:"1px solid "+b.bd,whiteSpace:"nowrap"}},s.type),
-        React.createElement("div",{style:{flex:1,fontFamily:mono,fontSize:9,lineHeight:1.55,color:T.tx2,wordBreak:"break-word"}},s.text));
+        React.createElement("div",{style:{flex:1,fontFamily:mono,fontSize:9,lineHeight:1.55,color:T.tx2,wordBreak:"break-word"}},(function(){
+          const CRIT=/\b(TSRA|TSGR|FZRA|FZFG|FZDZ|\+TSRA|\+TS|TS\b|GR\b|FC\b|VA\b|SS\b|DS\b)/g;
+          const WARN=/\b(FG\b|\+RA\b|\+SN\b|\+RASN\b|SQ\b)/g;
+          const txt=s.text;
+          const parts=[];let last=0;
+          const matches=[];
+          let mm;const re=/\b(TSRA|TSGR|FZRA|FZFG|FZDZ|\+TSRA|\+TS|TS\b|GR\b|FC\b|VA\b|SS\b|DS\b|FG\b|\+RA\b|\+SN\b|\+RASN\b|SQ\b)/g;
+          while((mm=re.exec(txt))!==null) matches.push(mm);
+          matches.forEach(function(m){
+            if(m.index>last) parts.push(txt.slice(last,m.index));
+            const isCrit=CRIT.test(m[0]);CRIT.lastIndex=0;
+            const col=isCrit?"#FF3B30":"#FF9500";
+            parts.push(React.createElement("span",{key:m.index,style:{color:col,fontWeight:700,textShadow:"0 0 6px "+col+"80"}},(isCrit?"⚠ ":"")+m[0]));
+            last=m.index+m[0].length;
+          });
+          if(last<txt.length) parts.push(txt.slice(last));
+          return parts.length?parts:txt;
+        })()));
     }):React.createElement("div",{style:{fontFamily:mono,fontSize:9.5,color:T.tx3,textAlign:"center",padding:"10px 0"}},"Sin TAF disponible para "+cur.icao);
     const metarBody=React.createElement("div",{style:{padding:"13px 16px 16px"}},
       React.createElement("div",{style:{fontSize:10,color:T.tx3,marginBottom:8,fontFamily:mono}},"Actualizado "+(metarObs.ago||"—")),
