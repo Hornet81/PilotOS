@@ -464,7 +464,7 @@ html.day .warn.cold{background:rgba(254,226,226,.72) !important;border-color:rgb
   <div class="sep"><span>Puntos de la aproximación</span></div>
   <div class="card">
     <div class="wp-head">
-      <div>Punto</div><div>Alt. pub. (ft)</div><div>Dist. (NM)</div><div></div>
+      <div>Punto</div><div>Alt. pub. (ft)</div><div>Dist. NM · opc.</div><div></div>
     </div>
     <div id="wpList"></div>
     <div class="add-row">
@@ -598,7 +598,7 @@ function renderWps(){
         '<select class="wp-type-sel" data-i="'+i+'" style="margin-top:4px;font-size:9px;background:transparent;border:none;color:var(--ink2);font-family:Space Mono,monospace;outline:none;padding:0;cursor:pointer">'+typeOpts(w.type)+'</select>'+
       '</div>'+
       '<input class="fi" type="number" data-i="'+i+'" data-f="alt" value="'+w.alt+'" step="100" inputmode="numeric">'+
-      '<input class="fi" type="number" data-i="'+i+'" data-f="dist" value="'+w.dist+'" step="0.5" inputmode="decimal">'+
+      '<input class="fi" type="number" data-i="'+i+'" data-f="dist" value="'+(w.dist||'')+'" step="0.5" inputmode="decimal" placeholder="opc.">'+
       '<button class="wp-del" data-i="'+i+'">×</button>';
     wpList.appendChild(row);
   });
@@ -813,13 +813,24 @@ function drawProfile(rows, elev){
 
   // Puntos de aproximación (descenso) ordenados por distancia (lejos→cerca de la pista)
   // y puntos de FRUSTRADA (tipo GA), que se dibujan TRAS la pista.
-  var appr = rows.filter(function(r){ return r.type!=='ga'; }).slice().sort(function(a,b){ return b.dist - a.dist; });
-  var gas  = rows.filter(function(r){ return r.type==='ga'; }).slice().sort(function(a,b){ return a.dist - b.dist; });
-  if(appr.length===0) appr = rows.slice();
+  var appr = rows.filter(function(r){ return r.type!=='ga'; }).slice();
+  var gas  = rows.filter(function(r){ return r.type==='ga'; }).slice();
+  if(appr.length===0){ appr = rows.slice(); gas = []; }
 
   var dists   = appr.map(function(r){return r.dist;});
   var maxDist = Math.max.apply(null, dists);
   var minDist = Math.min.apply(null, dists);
+  var useDist = (maxDist - minDist) > 0.0001;   // ¿hay distancias diferenciadas? (la distancia es OPCIONAL)
+
+  // Orden de dibujo: por distancia si la hay; si no, por altitud (la corrección no necesita distancia)
+  if(useDist){
+    appr.sort(function(a,b){ return b.dist - a.dist; });   // lejos→cerca
+    gas.sort(function(a,b){ return a.dist - b.dist; });     // cerca→lejos
+  } else {
+    appr.sort(function(a,b){ return b.pub - a.pub; });      // alto→bajo (= lejos→cerca)
+    gas.sort(function(a,b){ return a.pub - b.pub; });        // bajo→alto (= cerca→lejos)
+  }
+
   var maxAlt  = Math.max.apply(null, rows.map(function(r){return Math.max(r.pub,r.fly)}));
   var minAlt  = Math.min(elev, Math.min.apply(null, rows.map(function(r){return r.pub})));
   var altSpan = maxAlt - minAlt; if(altSpan<=0) altSpan=1000;
@@ -828,15 +839,24 @@ function drawProfile(rows, elev){
   // Si hay frustrada, reservamos una franja a la DERECHA de la pista para el ascenso GA
   var gaZoneW = gas.length ? plotW*0.28 : 0;
   var apW = plotW - gaZoneW;
-  // X: la distancia decrece hacia el aeropuerto (derecha = umbral/pista)
-  function X(dist){ return padL + (1 - (dist-minDist)/((maxDist-minDist)||1)) * apW; }
   function Y(alt){ return padT + (1 - (alt-minAlt)/(maxAlt-minAlt)) * plotH; }
-  var mapX = padL + apW;                                 // umbral de pista (punto de dist mínima)
+  var mapX = padL + apW;                                 // umbral de pista
   var gaMax = gas.length ? Math.max.apply(null, gas.map(function(r){return r.dist>0?r.dist:0;})) : 0;
-  function gaXof(d){                                     // X de un punto GA dentro de la franja reservada
-    var f = gaMax>0 ? (d>0? d/gaMax : 0.5) : 0.6;
-    return mapX + gaZoneW * (0.30 + 0.62*Math.max(0,Math.min(1,f)));
-  }
+
+  // X de cada punto: por distancia, o repartido uniformemente si no se han puesto distancias
+  appr.forEach(function(r,idx){
+    r._x = useDist
+      ? padL + (1 - (r.dist-minDist)/((maxDist-minDist)||1)) * apW
+      : padL + (appr.length<=1 ? 0.5 : idx/(appr.length-1)) * apW;
+  });
+  gas.forEach(function(r,idx){
+    if(useDist && gaMax>0){
+      var f = r.dist>0 ? r.dist/gaMax : 0.5;
+      r._x = mapX + gaZoneW * (0.30 + 0.62*Math.max(0,Math.min(1,f)));
+    } else {
+      r._x = mapX + gaZoneW * (gas.length<=1 ? 0.6 : (0.30 + 0.62*(idx/Math.max(1,gas.length-1))));
+    }
+  });
 
   var parts = [];
   parts.push('<defs>'+
@@ -869,10 +889,10 @@ function drawProfile(rows, elev){
 
   // ── Sendas CONTINUAS: aproximación (descenso) + frustrada (ascenso tras la pista) ──
   // Un único trazo para que la animación de "dibujado" recorra TODO, incluida la GA.
-  var apprStd  = appr.map(function(r){ return X(r.dist)+','+Y(r.pub); });
-  var apprCorr = appr.map(function(r){ return X(r.dist)+','+Y(r.fly); });
-  var gaStd    = gas.map(function(r){ return gaXof(r.dist)+','+Y(r.pub); });
-  var gaCorr   = gas.map(function(r){ return gaXof(r.dist)+','+Y(r.fly); });
+  var apprStd  = appr.map(function(r){ return r._x+','+Y(r.pub); });
+  var apprCorr = appr.map(function(r){ return r._x+','+Y(r.fly); });
+  var gaStd    = gas.map(function(r){ return r._x+','+Y(r.pub); });
+  var gaCorr   = gas.map(function(r){ return r._x+','+Y(r.fly); });
   parts.push('<polyline class="glide-std" points="'+apprStd.concat(gaStd).join(' ')+'"/>');
   // pathLength normaliza la longitud → la animación se completa sea cual sea el recorrido
   parts.push('<polyline class="glide-corr" pathLength="1400" points="'+apprCorr.concat(gaCorr).join(' ')+'"/>');
@@ -889,13 +909,13 @@ function drawProfile(rows, elev){
     parts.push('<text class="wp-alt pf-mk" x="'+x+'" y="'+(yC-25)+'" text-anchor="middle"'+s+'>'+alt+'</text>');
   }
   appr.forEach(function(r){
-    var x=X(r.dist), yC=Y(r.fly), yP=Y(r.pub);
+    var x=r._x, yC=Y(r.fly), yP=Y(r.pub);
     var col = r.type==='faf' ? P.faf : (r.type==='ma' ? P.ma : P.def);
     parts.push(connector(x,yP,yC));
     pushMk(x,yC,r.name,r.fly,col,delayFor());
   });
   gas.forEach(function(r){
-    var x=gaXof(r.dist), yC=Y(r.fly), yP=Y(r.pub);
+    var x=r._x, yC=Y(r.fly), yP=Y(r.pub);
     parts.push(connector(x,yP,yC));
     pushMk(x,yC,r.name,r.fly,(day?'#4D7C0F':'#84CC16'),delayFor());
   });
