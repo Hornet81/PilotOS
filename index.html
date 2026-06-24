@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.109">
+  <meta name="version" content="Beta.110">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.109","builtAt":"2026-06-24T19:22:17Z","commit":"93b3541","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.110","builtAt":"2026-06-24T19:36:06Z","commit":"47ce538","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -28042,12 +28042,18 @@ function rstRenderCalendar(){
         barItems.push({ bg:fc.bg, tx:fc.tx, lbl: timeStr });
       }
       nonFlights.forEach(function(e){
-        var tc2 = TC[e.type]||TC.other;
+        // Override por CÓDIGO de color (EBT/EVA/REU/VAC...): la barra de la celda
+        // se pinta y rotula con el icono+code reales; si no hay code en el mapa,
+        // color del tipo + code/etiqueta genérica.
+        var _csb = (e.code && RST_CODE_STYLE[String(e.code).toUpperCase()]) || null;
+        var tc2 = _csb || TC[e.type] || TC.other;
         // Use e.code when available (shows SPAR, ART, REU, NROF… instead of generic type)
         var typeLabels = {standby:'STBY',osb:'OSB',off:'OFF',vacation:'VAC',f:'F',ef:'EF',srof:'SROF',noff:'NOFF',aoff:'AOFF',nrof:'NROF',meof:'MEOF',ebt:'SIM',eva:'SIM',lm:'LM',training:'TR',sick:'SICK',other:'?'};
-        barItems.push({ bg:tc2.bg, tx:tc2.tx, lbl: e.code || typeLabels[e.type] || e.type });
+        var _emo = _csb ? (_csb.emoji || '') : '';
+        barItems.push({ bg:tc2.bg, tx:tc2.tx, lbl: _emo + (e.code || typeLabels[e.type] || e.type) });
       });
-      glowCol = (TC[dayEntries[0].type]||TC.other).gl;
+      var _g0 = (dayEntries[0].code && RST_CODE_STYLE[String(dayEntries[0].code).toUpperCase()]) || null;
+      glowCol = (_g0 || TC[dayEntries[0].type] || TC.other).gl;
     }
 
     var barTopHTML = '';
@@ -29322,8 +29328,13 @@ window.rosterSelectDay = function(dateStr){
       var _cs2 = (e.code && window.RST_CODE_STYLE && window.RST_CODE_STYLE[String(e.code).toUpperCase()]) || null;
       var cfg = _cs2 || TC2[e.type] || {bg:'#bdc3c7', tx:'#fff'};
       var lbl = e.code || typeLabels[e.type] || e.type;
-      var hasTime = e.std && e.std!=='null' && String(e.std).indexOf(':')>-1;
-      var hasEnd  = e.sta && e.sta!=='null' && String(e.sta).indexOf(':')>-1;
+      // La hora de la actividad puede venir en std/sta (vuelos y actividades),
+      // start/end (LM, EBT, REU...) o checkin/checkout (standby/OSB). Mostrarla
+      // sea cual sea el campo — nunca esconder una hora que el roster trae.
+      var _t0 = e.std || e.start || e.checkin;
+      var _t1 = e.sta || e.end  || e.checkout;
+      var hasTime = _t0 && _t0!=='null' && String(_t0).indexOf(':')>-1;
+      var hasEnd  = _t1 && _t1!=='null' && String(_t1).indexOf(':')>-1;
       var fullDescriptions = {
         standby:'Imaginaria', osb:'Out of Standby',
         off:'Día libre', f:'Franco', ef:'Franco ex-ruta',
@@ -29338,7 +29349,7 @@ window.rosterSelectDay = function(dateStr){
         + '<div style="flex:1;background:#F8FAFF;border:1px solid rgba(30,58,164,.08);border-left:none;padding:10px 13px;display:flex;align-items:center;justify-content:space-between">'
         + '<span style="font-size:12px;font-weight:600;color:#1E3A5F">'+desc+'</span>'
         + (hasTime||hasEnd
-            ? '<span style="font-size:11px;font-weight:600;color:#475569;font-family:\'Space Mono\',monospace">'+(hasTime?rstFormatTime(e.std):'--:--')+' – '+(hasEnd?rstFormatTime(e.sta):'--:--')+'</span>'
+            ? '<span style="font-size:11px;font-weight:600;color:#475569;font-family:\'Space Mono\',monospace">'+(hasTime?rstFormatTime(_t0):'--:--')+' – '+(hasEnd?rstFormatTime(_t1):'--:--')+'</span>'
             : '<span style="font-size:11px;color:#94A3B8">Todo el día</span>')
         + '</div>'
         + '</div>';
