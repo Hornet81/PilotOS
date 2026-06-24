@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.112">
+  <meta name="version" content="Beta.113">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.112","builtAt":"2026-06-24T20:09:53Z","commit":"c6ba30c","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.113","builtAt":"2026-06-24T20:39:03Z","commit":"fcfdac6","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -28133,7 +28133,19 @@ function rstRenderCalendar(){
 // ── Stats ──
 function rstRenderStats(){
   var flights=0, blockMin=0, standby=0, off=0, dutyDays=0, dutyMin=0;
-  var _lmBlocks={}; // tracks {start,end} per date for LM sessions → first→last block
+  // Bloques de duty de actividad de tierra por fecha (LM, EBT, EVA, training, AAI):
+  // fusiona la ventana de TODAS las actividades del día (primer inicio → último fin)
+  // en un único duty, que se añade a dutyMin/dutyDays tras el bucle. Evita doble
+  // conteo de días con varias actividades (p.ej. EBT + LMCC).
+  var _lmBlocks={};
+  function _accDuty(date, s, en){
+    if(!date || !s || !en || String(s).indexOf(':')<0 || String(en).indexOf(':')<0) return;
+    if(!_lmBlocks[date]){ _lmBlocks[date]={start:s,end:en}; }
+    else {
+      if(t2m(s)  < t2m(_lmBlocks[date].start)) _lmBlocks[date].start = s;
+      if(t2m(en) > t2m(_lmBlocks[date].end))   _lmBlocks[date].end   = en;
+    }
+  }
   var y=RST.viewYear, mo=RST.viewMonth;
 
   // Check if PDF-extracted totals are stored for this month
@@ -28188,6 +28200,10 @@ function rstRenderStats(){
           var _sbEff = /^HSBY$/i.test(e.code||'') ? Math.max(0, _sbD - 120) : _sbD;
           // 25% credit (non-activated standby)
           if(_sbEff > 0){ dutyMin += Math.round(_sbEff * 0.25); dutyDays++; }
+        } else {
+          // Standby sin checkin/checkout pero con ventana (AAI, actividad
+          // aeroportuaria): cuenta como duty COMPLETO (std→sta), no 25%.
+          _accDuty(e.date, e.std||e.start, e.sta||e.end);
         }
       } else if(e.type==='osb'){
         var _osbStart = e.checkin, _osbEnd = e.checkout;
@@ -28205,15 +28221,11 @@ function rstRenderStats(){
       // from first session start to last session end (not the sum of durations),
       // so 1-min gaps between sessions (LMF2 07:00-07:30 / LMCC 07:31-07:51)
       // are included. Accumulated in _lmBlocks; added to dutyMin after the loop.
-      var _lmS = e.start, _lmE = e.end;
-      if(_lmS && _lmE && _lmS.indexOf(':')>-1 && _lmE.indexOf(':')>-1){
-        if(!_lmBlocks[e.date]){
-          _lmBlocks[e.date] = {start:_lmS, end:_lmE};
-        } else {
-          if(t2m(_lmS) < t2m(_lmBlocks[e.date].start)) _lmBlocks[e.date].start = _lmS;
-          if(t2m(_lmE) > t2m(_lmBlocks[e.date].end))   _lmBlocks[e.date].end   = _lmE;
-        }
-      }
+      _accDuty(e.date, e.start, e.end);
+    } else if(e.type==='ebt' || e.type==='eva' || e.type==='training'){
+      // Formación / EBT / EVA / reuniones (REU): el duty es la ventana completa
+      // (std→sta o start→end). Cuenta para el total mensual de DUTY HOURS.
+      _accDuty(e.date, e.std||e.start, e.sta||e.end);
     } else if(e.type==='sick') { /* count separately if needed */ }
     else if(e.type !== 'flight' && e.type !== 'overnight_continuation') off++;
   });
