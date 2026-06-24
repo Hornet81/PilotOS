@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.113">
+  <meta name="version" content="Beta.114">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.113","builtAt":"2026-06-24T20:39:03Z","commit":"fcfdac6","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.114","builtAt":"2026-06-24T20:51:49Z","commit":"0b5d2d2","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -29379,44 +29379,67 @@ window.rosterSelectDay = function(dateStr){
       return s && en && String(s).indexOf(':')>-1 && String(en).indexOf(':')>-1;
     });
     if(_actEntries.length && flights.length === 0){
-      _actEntries.forEach(function(_actE){
-        var _aCkin = _actE.checkin && _actE.checkout;            // standby/OSB "genuino"
-        var _aS    = _aCkin ? _actE.checkin  : (_actE.std||_actE.start);
-        var _aEnd  = _aCkin ? _actE.checkout : (_actE.sta||_actE.end);
-        var _aWin  = t2m(_aEnd) - t2m(_aS); if(_aWin < 0) _aWin += 1440;
-        var _aIsStby = _aCkin && (_actE.type==='standby' || _actE.type==='osb');
-        var _aIsHsby = /^HSBY$/i.test(_actE.code||'');
-        // Standby: DP = 25% de la ventana (HSBY descuenta 2h de movilización).
-        // Resto de actividades (REU/EBT/EVA/AAI/training/LM): DP = ventana completa.
-        var _aEff = _aIsHsby ? Math.max(0, _aWin - 120) : _aWin;
-        var _aDutyMin = _aIsStby ? Math.round(_aEff * 0.25) : _aWin;
-        var _typeNames = {standby:'Standby', osb:'OSB', ebt:'EBT', eva:'EVA', training:'Formación', lm:'e-Learning', other:'Actividad'};
-        var _aName = _actE.code || _typeNames[_actE.type] || 'Actividad';
-        var _aStartLbl = _aIsStby ? 'Check-in' : 'Inicio';
-        var _aEndLbl   = _aIsStby ? 'Check-out' : 'Fin';
-        var _aDpNote   = _aIsStby ? '(25% standby)' : '(duty completo)';
-        var _aWinNote  = _aIsStby ? 'ORO.FTL standby' : 'ORO.FTL.205 · duty';
-        html += '<div style="background:#EFF6FF;border:1.5px solid rgba(30,58,164,.2);border-radius:12px;padding:12px 13px;margin-top:2px">'
-          + '<div style="font-size:12px;font-weight:800;color:#1E3A5F;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📋 Límites FTL · ORO.FTL.205 <span style="font-weight:600;color:#475569">· '+_aName+'</span></div>'
-          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
-          + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px">'
-          + '<div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">'+_aStartLbl+'</div>'
-          + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+_aS+' UTC</div>'
-          + '<div style="font-size:11px;color:#475569;margin-top:1px">'+_aName+'</div>'
-          + '</div>'
-          + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px">'
-          + '<div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">'+_aEndLbl+'</div>'
-          + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+_aEnd+' UTC</div>'
-          + '<div style="font-size:11px;color:#475569;margin-top:1px">'+_aName+'</div>'
-          + '</div>'
-          + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px;grid-column:span 2;display:flex;align-items:center;justify-content:space-between">'
-          + '<div><div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">DP (Duty Period)</div>'
-          + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+_durF(_aDutyMin)+' <span style="font-size:11px;font-weight:500;color:#475569">'+_aDpNote+'</span></div></div>'
-          + '<div style="text-align:right"><div style="font-size:11px;color:#475569">Ventana: '+_durF(_aWin)+'</div><div style="font-size:11px;color:#64748B">'+_aWinNote+'</div></div>'
-          + '</div>'
-          + '</div>'
-          + '</div>';
+      // Una jornada puede tener VARIAS actividades (EBT + LMCC, OSB3 + AAI…). Se
+      // muestra UN ÚNICO cuadro que fusiona el duty: ventana desde el inicio de la
+      // PRIMERA actividad hasta el fin de la ÚLTIMA. El DP se calcula por
+      // componentes: standby/OSB al 25%; actividades de tierra por su span real
+      // (primer inicio → último fin del grupo de tierra, incluidos los huecos —
+      // así un EBT+LMCC da el duty continuo correcto, p.ej. 02:50→10:55 = 8h05m).
+      var _allStart=null, _allEnd=null;
+      _actEntries.forEach(function(e){
+        var s=e.checkin||e.std||e.start, en=e.checkout||e.sta||e.end;
+        if(s  && String(s ).indexOf(':')>-1 && (_allStart===null || t2m(s )<t2m(_allStart))) _allStart=s;
+        if(en && String(en).indexOf(':')>-1 && (_allEnd  ===null || t2m(en)>t2m(_allEnd  ))) _allEnd=en;
       });
+      var _winMin = (_allStart!==null && _allEnd!==null) ? (((t2m(_allEnd)-t2m(_allStart))+1440)%1440) : 0;
+      var _stby   = _actEntries.filter(function(e){ return e.checkin && e.checkout && (e.type==='standby'||e.type==='osb'); });
+      var _ground = _actEntries.filter(function(e){ return !(e.checkin && e.checkout && (e.type==='standby'||e.type==='osb')); });
+      var _dp = 0;
+      _stby.forEach(function(e){
+        var w=(((t2m(e.checkout)-t2m(e.checkin))+1440)%1440);
+        var eff=/^HSBY$/i.test(e.code||'') ? Math.max(0,w-120) : w;
+        _dp += Math.round(eff*0.25);
+      });
+      if(_ground.length){
+        var _gS=null,_gE=null;
+        _ground.forEach(function(e){
+          var s=e.std||e.start, en=e.sta||e.end;
+          if(s  && String(s ).indexOf(':')>-1 && (_gS===null||t2m(s )<t2m(_gS))) _gS=s;
+          if(en && String(en).indexOf(':')>-1 && (_gE===null||t2m(en)>t2m(_gE))) _gE=en;
+        });
+        if(_gS!==null && _gE!==null) _dp += (((t2m(_gE)-t2m(_gS))+1440)%1440);
+      }
+      var _typeNames = {standby:'Standby', osb:'OSB', ebt:'EBT', eva:'EVA', training:'Formación', lm:'e-Learning', other:'Actividad'};
+      var _nameOf = function(e){ return e.code || _typeNames[e.type] || 'Actividad'; };
+      var _codes = _actEntries.map(_nameOf).join(' + ');
+      var _pureStby = _ground.length===0;
+      var _multi = _actEntries.length > 1;
+      var _startLbl = _pureStby ? 'Check-in' : 'Inicio';
+      var _endLbl   = _pureStby ? 'Check-out' : 'Fin';
+      var _dpNote   = _pureStby ? '(25% standby)' : (_stby.length ? '(actividad + standby)' : '(duty completo)');
+      var _winNote  = _pureStby ? 'ORO.FTL standby' : 'ORO.FTL.205 · duty';
+      var _subStart = _multi ? _nameOf(_actEntries[0]) : _codes;
+      var _subEnd   = _multi ? _nameOf(_actEntries[_actEntries.length-1]) : _codes;
+      html += '<div style="background:#EFF6FF;border:1.5px solid rgba(30,58,164,.2);border-radius:12px;padding:12px 13px;margin-top:2px">'
+        + '<div style="font-size:12px;font-weight:800;color:#1E3A5F;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📋 Límites FTL · ORO.FTL.205 <span style="font-weight:600;color:#475569">· '+_codes+'</span></div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
+        + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px">'
+        + '<div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">'+_startLbl+'</div>'
+        + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+(_allStart||'--:--')+' UTC</div>'
+        + '<div style="font-size:11px;color:#475569;margin-top:1px">'+_subStart+'</div>'
+        + '</div>'
+        + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px">'
+        + '<div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">'+_endLbl+'</div>'
+        + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+(_allEnd||'--:--')+' UTC</div>'
+        + '<div style="font-size:11px;color:#475569;margin-top:1px">'+_subEnd+'</div>'
+        + '</div>'
+        + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px;grid-column:span 2;display:flex;align-items:center;justify-content:space-between">'
+        + '<div><div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">DP (Duty Period)</div>'
+        + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+_durF(_dp)+' <span style="font-size:11px;font-weight:500;color:#475569">'+_dpNote+'</span></div></div>'
+        + '<div style="text-align:right"><div style="font-size:11px;color:#475569">Ventana: '+_durF(_winMin)+'</div><div style="font-size:11px;color:#64748B">'+_winNote+'</div></div>'
+        + '</div>'
+        + '</div>'
+        + '</div>';
     }
 
     // ── Panel para día de continuación (aterrizaje nocturno del día anterior) ──
