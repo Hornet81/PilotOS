@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.108">
+  <meta name="version" content="Beta.109">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.108","builtAt":"2026-06-24T18:53:44Z","commit":"c848c89","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.109","builtAt":"2026-06-24T19:22:17Z","commit":"93b3541","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -27903,6 +27903,22 @@ function rstRenderCalendar(){
     other:    { bg:'#bdc3c7', bd:'#a8b2b8',             tx:'#555',    lbl:'?',      gl:'rgba(189,195,199,.5)' },
     overnight_continuation: { bg:'#0e7490', bd:'#0c6f87', tx:'#FFFFFF', lbl:'↓',   gl:'rgba(14,116,144,.4)' }
   };
+  // ── Regla de CÓDIGOS DE COLOR ────────────────────────────────────────────
+  // Acento por CÓDIGO de actividad (override del color del tipo). Permite que
+  // EBT/EVA/REU/VAC tengan su propia línea de color, emoji y descripción en la
+  // celda del calendario Y en el detalle del día, venga la entrada de la skill,
+  // del grid Vueling o de eCrews. Extensible: añade un código y queda pintado
+  // en toda la app. Se busca por code en MAYÚSCULAS.
+  var RST_CODE_STYLE = window.RST_CODE_STYLE = {
+    VAC:  { bg:'#f59e0b', bd:'#d97706', tx:'#3a2400', gl:'rgba(245,158,11,.5)', emoji:'🏖', desc:'Vacaciones' },
+    RVAC: { bg:'#f59e0b', bd:'#d97706', tx:'#3a2400', gl:'rgba(245,158,11,.5)', emoji:'🏖', desc:'Vacaciones' },
+    PVAC: { bg:'#f59e0b', bd:'#d97706', tx:'#3a2400', gl:'rgba(245,158,11,.5)', emoji:'🏖', desc:'Vacaciones' },
+    EBT:  { bg:'#8b5cf6', bd:'#7c3aed', tx:'#FFFFFF', gl:'rgba(139,92,246,.5)', emoji:'🖥', desc:'EBT · Evidence-Based Training' },
+    EVA:  { bg:'#6d28d9', bd:'#5b21b6', tx:'#FFFFFF', gl:'rgba(109,40,217,.5)', emoji:'🖥', desc:'EVA · Evaluación en simulador' },
+    EVAL: { bg:'#6d28d9', bd:'#5b21b6', tx:'#FFFFFF', gl:'rgba(109,40,217,.5)', emoji:'🖥', desc:'EVA · Evaluación en simulador' },
+    REU:  { bg:'#0891b2', bd:'#0e7490', tx:'#FFFFFF', gl:'rgba(8,145,178,.5)',  emoji:'👥', desc:'Reunión' },
+    MTG:  { bg:'#0891b2', bd:'#0e7490', tx:'#FFFFFF', gl:'rgba(8,145,178,.5)',  emoji:'👥', desc:'Reunión' }
+  };
   var cells = '';
   // Pre-load logbook entries once outside loop (performance fix)
   var _lbEntries = [];
@@ -27926,15 +27942,21 @@ function rstRenderCalendar(){
       var t = dayEntries[0].type || 'other';
       var cfg = TC[t] || TC.other;
       bg = cfg.bg; border = cfg.bd; textCol = cfg.tx; glowCol = cfg.gl;
+      // Override por CÓDIGO de color (EBT/EVA/REU/VAC...): la celda se pinta según
+      // el code real del roster, no solo según el tipo.
+      var _cs = (dayEntries[0].code && RST_CODE_STYLE[String(dayEntries[0].code).toUpperCase()]) || null;
+      if(_cs){ bg = _cs.bg; border = _cs.bd; textCol = _cs.tx; glowCol = _cs.gl; }
       if(t === 'flight'){
         var legCount = dayEntries.length;
         cellLabel = legCount > 1 ? '✈×'+legCount : '✈';
       } else {
         // Mostrar el CÓDIGO real del roster (PT, VAC, EBT, REU...) si existe,
-        // conservando el emoji del tipo. Así no se colapsan todos los off/training
-        // en una sola etiqueta genérica. Si no hay code, se usa la etiqueta del tipo.
+        // conservando el emoji (del código de color si lo hay, si no del tipo).
+        // Así no se colapsan todos los off/training en una etiqueta genérica.
         var _code = dayEntries[0].code;
-        if(_code){
+        if(_cs){
+          cellLabel = (_cs.emoji || '') + _code;
+        } else if(_code){
           var _m = (cfg.lbl||'').match(/^[^\w]+/);   // emoji/prefijo del tipo (☕, 🖥, 🏖...)
           var _emoji = _m ? _m[0] : '';
           cellLabel = _emoji + _code;
@@ -29295,7 +29317,10 @@ window.rosterSelectDay = function(dateStr){
 
     // ── Non-flight activities as color banners ──
     nonFlights.forEach(function(e){
-      var cfg = TC2[e.type] || {bg:'#bdc3c7', tx:'#fff'};
+      // Override por CÓDIGO de color (EBT/EVA/REU/VAC...): la línea del detalle
+      // se pinta según el code real, igual que la celda del calendario.
+      var _cs2 = (e.code && window.RST_CODE_STYLE && window.RST_CODE_STYLE[String(e.code).toUpperCase()]) || null;
+      var cfg = _cs2 || TC2[e.type] || {bg:'#bdc3c7', tx:'#fff'};
       var lbl = e.code || typeLabels[e.type] || e.type;
       var hasTime = e.std && e.std!=='null' && String(e.std).indexOf(':')>-1;
       var hasEnd  = e.sta && e.sta!=='null' && String(e.sta).indexOf(':')>-1;
@@ -29305,7 +29330,7 @@ window.rosterSelectDay = function(dateStr){
         srof:'Libre por subasta', noff:'Libre asignado',
         lm:'e-Learning', training:'Simulador', ebt:'EBT: Evidence-Based Training', eva:'EVA: Evaluación', sick:'Baja médica', aoff:'Día libre anual', nrof:'Día libre no ganado', meof:'Baja médica (Medical Off)', other:'Otro'
       };
-      var desc = fullDescriptions[e.type] || lbl;
+      var desc = (_cs2 && _cs2.desc) || fullDescriptions[e.type] || lbl;
       html += '<div style="display:flex;align-items:center;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">'
         + '<div style="background:'+cfg.bg+';padding:12px 14px;display:flex;align-items:center;justify-content:center;min-width:58px">'
         + '<span style="font-size:13px;font-weight:900;color:'+cfg.tx+';letter-spacing:.5px;white-space:nowrap">'+lbl+'</span>'
