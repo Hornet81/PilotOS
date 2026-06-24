@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.107">
+  <meta name="version" content="Beta.108">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.107","builtAt":"2026-06-23T14:17:20Z","commit":"296a9c7","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.108","builtAt":"2026-06-24T18:53:44Z","commit":"c848c89","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -27930,7 +27930,17 @@ function rstRenderCalendar(){
         var legCount = dayEntries.length;
         cellLabel = legCount > 1 ? '✈×'+legCount : '✈';
       } else {
-        cellLabel = cfg.lbl;
+        // Mostrar el CÓDIGO real del roster (PT, VAC, EBT, REU...) si existe,
+        // conservando el emoji del tipo. Así no se colapsan todos los off/training
+        // en una sola etiqueta genérica. Si no hay code, se usa la etiqueta del tipo.
+        var _code = dayEntries[0].code;
+        if(_code){
+          var _m = (cfg.lbl||'').match(/^[^\w]+/);   // emoji/prefijo del tipo (☕, 🖥, 🏖...)
+          var _emoji = _m ? _m[0] : '';
+          cellLabel = _emoji + _code;
+        } else {
+          cellLabel = cfg.lbl;
+        }
       }
     }
 
@@ -29286,7 +29296,7 @@ window.rosterSelectDay = function(dateStr){
     // ── Non-flight activities as color banners ──
     nonFlights.forEach(function(e){
       var cfg = TC2[e.type] || {bg:'#bdc3c7', tx:'#fff'};
-      var lbl = typeLabels[e.type] || e.type;
+      var lbl = e.code || typeLabels[e.type] || e.type;
       var hasTime = e.std && e.std!=='null' && String(e.std).indexOf(':')>-1;
       var hasEnd  = e.sta && e.sta!=='null' && String(e.sta).indexOf(':')>-1;
       var fullDescriptions = {
@@ -32155,6 +32165,8 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
         'N/S':  {type:'off', code:'N/S'},       // No show
 
         // ── FORMACIÓN / TRAINING ─────────────────────────────────────
+        'EBT':  {type:'ebt', code:'EBT'},       // Evidence-Based Training (simulador)
+        'EVA':  {type:'eva', code:'EVA'},       // Evaluación en simulador
         'SIM':  {type:'training', code:'SIM'},  // Simulator practice
         'LPC':  {type:'training', code:'SIM'},  // License proficiency check
         'OPC':  {type:'training', code:'SIM'},  // Operating proficiency check
