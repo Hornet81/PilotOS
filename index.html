@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.111">
+  <meta name="version" content="Beta.112">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.111","builtAt":"2026-06-24T20:01:06Z","commit":"aa0c191","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.112","builtAt":"2026-06-24T20:09:53Z","commit":"c6ba30c","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -29355,36 +29355,56 @@ window.rosterSelectDay = function(dateStr){
         + '</div>';
     });
 
-    // ── Panel FTL para días de STANDBY (sin vuelos activados) ──
-    var _sbEntries = dayEntries.filter(function(e){ return (e.type==='standby'||e.type==='osb') && e.checkin && e.checkout; });
-    if(_sbEntries.length > 0 && flights.length === 0){
-      var _sbE = _sbEntries[0];
-      var _sbD = t2m(_sbE.checkout) - t2m(_sbE.checkin);
-      if(_sbD < 0) _sbD += 1440;
-      // HSBY: deducir 2h de movilización antes del 25% (mismo criterio que RosterStats)
-      var _sbEff2 = /^HSBY$/i.test(_sbE.code||'') ? Math.max(0, _sbD - 120) : _sbD;
-      var _sbDutyMin = Math.round(_sbEff2 * 0.25);
-      var _durF = function(m){ return Math.floor(m/60)+'h'+String(m%60).padStart(2,'0')+'m'; };
-      html += '<div style="background:#EFF6FF;border:1.5px solid rgba(30,58,164,.2);border-radius:12px;padding:12px 13px;margin-top:2px">'
-        + '<div style="font-size:12px;font-weight:800;color:#1E3A5F;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📋 Límites FTL · ORO.FTL.205</div>'
-        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
-        + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px">'
-        + '<div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Inicio</div>'
-        + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+_sbE.checkin+' UTC</div>'
-        + '<div style="font-size:11px;color:#475569;margin-top:1px">Check-in standby</div>'
-        + '</div>'
-        + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px">'
-        + '<div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Fin</div>'
-        + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+_sbE.checkout+' UTC</div>'
-        + '<div style="font-size:11px;color:#475569;margin-top:1px">Check-out standby</div>'
-        + '</div>'
-        + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px;grid-column:span 2;display:flex;align-items:center;justify-content:space-between">'
-        + '<div><div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">DP (Duty Period)</div>'
-        + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+_durF(_sbDutyMin)+' <span style="font-size:11px;font-weight:500;color:#475569">(25% standby)</span></div></div>'
-        + '<div style="text-align:right"><div style="font-size:11px;color:#475569">Ventana: '+_durF(_sbD)+'</div><div style="font-size:11px;color:#64748B">ORO.FTL standby</div></div>'
-        + '</div>'
-        + '</div>'
-        + '</div>';
+    // ── Panel FTL por ACTIVIDAD (sin vuelos activados) ──
+    // Toda actividad no-vuelo tiene un periodo de duty: standby/OSB usan
+    // checkin/checkout; REU/EBT/EVA/AAI/training/LM usan std/sta (o start/end).
+    // Mostramos un cuadro ORO.FTL.205 por cada una con su ventana y su DP.
+    var _durF = function(m){ return Math.floor(m/60)+'h'+String(m%60).padStart(2,'0')+'m'; };
+    var _actEntries = dayEntries.filter(function(e){
+      if(e.type==='flight' || e.type==='overnight_continuation') return false;
+      if(e.type==='off' || e.type==='vacation' || e.type==='f') return false; // descanso, no es duty
+      var s = e.checkin||e.std||e.start, en = e.checkout||e.sta||e.end;
+      return s && en && String(s).indexOf(':')>-1 && String(en).indexOf(':')>-1;
+    });
+    if(_actEntries.length && flights.length === 0){
+      _actEntries.forEach(function(_actE){
+        var _aCkin = _actE.checkin && _actE.checkout;            // standby/OSB "genuino"
+        var _aS    = _aCkin ? _actE.checkin  : (_actE.std||_actE.start);
+        var _aEnd  = _aCkin ? _actE.checkout : (_actE.sta||_actE.end);
+        var _aWin  = t2m(_aEnd) - t2m(_aS); if(_aWin < 0) _aWin += 1440;
+        var _aIsStby = _aCkin && (_actE.type==='standby' || _actE.type==='osb');
+        var _aIsHsby = /^HSBY$/i.test(_actE.code||'');
+        // Standby: DP = 25% de la ventana (HSBY descuenta 2h de movilización).
+        // Resto de actividades (REU/EBT/EVA/AAI/training/LM): DP = ventana completa.
+        var _aEff = _aIsHsby ? Math.max(0, _aWin - 120) : _aWin;
+        var _aDutyMin = _aIsStby ? Math.round(_aEff * 0.25) : _aWin;
+        var _typeNames = {standby:'Standby', osb:'OSB', ebt:'EBT', eva:'EVA', training:'Formación', lm:'e-Learning', other:'Actividad'};
+        var _aName = _actE.code || _typeNames[_actE.type] || 'Actividad';
+        var _aStartLbl = _aIsStby ? 'Check-in' : 'Inicio';
+        var _aEndLbl   = _aIsStby ? 'Check-out' : 'Fin';
+        var _aDpNote   = _aIsStby ? '(25% standby)' : '(duty completo)';
+        var _aWinNote  = _aIsStby ? 'ORO.FTL standby' : 'ORO.FTL.205 · duty';
+        html += '<div style="background:#EFF6FF;border:1.5px solid rgba(30,58,164,.2);border-radius:12px;padding:12px 13px;margin-top:2px">'
+          + '<div style="font-size:12px;font-weight:800;color:#1E3A5F;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📋 Límites FTL · ORO.FTL.205 <span style="font-weight:600;color:#475569">· '+_aName+'</span></div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
+          + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px">'
+          + '<div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">'+_aStartLbl+'</div>'
+          + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+_aS+' UTC</div>'
+          + '<div style="font-size:11px;color:#475569;margin-top:1px">'+_aName+'</div>'
+          + '</div>'
+          + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px">'
+          + '<div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">'+_aEndLbl+'</div>'
+          + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+_aEnd+' UTC</div>'
+          + '<div style="font-size:11px;color:#475569;margin-top:1px">'+_aName+'</div>'
+          + '</div>'
+          + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px;grid-column:span 2;display:flex;align-items:center;justify-content:space-between">'
+          + '<div><div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">DP (Duty Period)</div>'
+          + '<div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+_durF(_aDutyMin)+' <span style="font-size:11px;font-weight:500;color:#475569">'+_aDpNote+'</span></div></div>'
+          + '<div style="text-align:right"><div style="font-size:11px;color:#475569">Ventana: '+_durF(_aWin)+'</div><div style="font-size:11px;color:#64748B">'+_aWinNote+'</div></div>'
+          + '</div>'
+          + '</div>'
+          + '</div>';
+      });
     }
 
     // ── Panel para día de continuación (aterrizaje nocturno del día anterior) ──
