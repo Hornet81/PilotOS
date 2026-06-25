@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.114">
+  <meta name="version" content="Beta.115">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.114","builtAt":"2026-06-24T20:51:49Z","commit":"0b5d2d2","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.115","builtAt":"2026-06-25T11:16:42Z","commit":"ee9abf5","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -28023,19 +28023,22 @@ function rstRenderCalendar(){
       var nonFlights = dayEntries.filter(function(e){ return e.type!=='flight' && e.type!=='overnight_continuation'; });
       if(flights.length){
         var fc = TC['flight'];
-        // For eCrews: use checkin (firma real). Fallback: STD − 55 min
-        var _realFlights = flights.filter(function(f){ return !f.isPositioning; });
-        var _flightRef = _realFlights.length ? _realFlights[0] : flights[0];
-        var checkinDirect = _flightRef.checkin;
-        var firstStd = _flightRef.std_actual || _flightRef.std;
+        // Hora de FIRMA (report) de la jornada para la tira de la celda. Es la
+        // firma del PRIMER leg del duty — INDEPENDIENTE del orden de los legs y de
+        // si alguno es posicional. La firma = el checkin más temprano de CUALQUIER
+        // leg (solo el primer leg del duty lo trae). Si ningún leg tiene checkin,
+        // se estima con el STD más temprano − 55 min. (Antes se cogía el primer leg
+        // no-posicional y, si venía sin checkin o desordenado tras merge/sync, se
+        // pintaba el STD−55 de un leg cualquiera → hora "random".)
+        var _t2m = function(t){ var x = String(t).split(':'); return parseInt(x[0])*60 + parseInt(x[1]); };
+        var _cks  = flights.map(function(f){ return f.checkin; }).filter(function(c){ return c && String(c).indexOf(':')>-1; }).map(_t2m);
+        var _stds = flights.map(function(f){ return f.std || f.std_actual; }).filter(function(s){ return s && String(s).indexOf(':')>-1; }).map(_t2m);
+        var _fmtM = function(m){ m = ((m%1440)+1440)%1440; return String(Math.floor(m/60)).padStart(2,'0') + ':' + String(m%60).padStart(2,'0'); };
         var timeStr;
-        if(checkinDirect && checkinDirect.indexOf(':') > -1){
-          timeStr = '✈ ' + checkinDirect;
-        } else if(firstStd && firstStd.indexOf(':') > -1){
-          var repM = parseInt(firstStd.split(':')[0])*60 + parseInt(firstStd.split(':')[1]) - 55;
-          if(repM < 0) repM += 1440;
-          var repStr = String(Math.floor(repM/60)).padStart(2,'0') + ':' + String(repM%60).padStart(2,'0');
-          timeStr = '✈ ' + repStr;
+        if(_cks.length){
+          timeStr = '✈ ' + _fmtM(Math.min.apply(null, _cks));               // firma real
+        } else if(_stds.length){
+          timeStr = '✈ ' + _fmtM(Math.min.apply(null, _stds) - 55);         // STD más temprano − 55
         } else {
           timeStr = '✈';
         }
