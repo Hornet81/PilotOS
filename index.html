@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.118">
+  <meta name="version" content="Beta.119">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.118","builtAt":"2026-06-25T18:51:48Z","commit":"1d26a3e","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.119","builtAt":"2026-06-25T20:29:50Z","commit":"07db8e8","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -28202,7 +28202,7 @@ function rstRenderStats(){
           // Resto de SBY (2SBY, NSBY, ASBY…): ventana completa al 25%.
           var _sbEff = /^HSBY$/i.test(e.code||'') ? Math.max(0, _sbD - 120) : _sbD;
           // 25% credit (non-activated standby)
-          if(_sbEff > 0){ dutyMin += Math.round(_sbEff * 0.25); dutyDays++; }
+          if(_sbEff > 0){ dutyMin += Math.round(_sbEff * 0.25); if(!e.midnightTail) dutyDays++; }
         } else {
           // Standby sin checkin/checkout pero con ventana (AAI, actividad
           // aeroportuaria): cuenta como duty COMPLETO (std→sta), no 25%.
@@ -29443,6 +29443,27 @@ window.rosterSelectDay = function(dateStr){
         + '</div>'
         + '</div>'
         + '</div>';
+    }
+
+    // ── Cola de guardia que cruzó medianoche (00:00 → fin) en un día CON vuelos ──
+    // La guardia del día anterior cruzó las 00:00; su tramo de hoy (00:00→fin) es un
+    // periodo de duty APARTE que se suma al día. Como el cuadro de actividad de arriba
+    // se oculta cuando hay vuelos, lo mostramos en su propio cuadro (DP = 25%).
+    if(flights.length > 0){
+      var _sbTail = dayEntries.find(function(e){ return e.midnightTail && (e.type==='standby'||e.type==='osb') && e.checkin && e.checkout; });
+      if(_sbTail){
+        var _twin = (((t2m(_sbTail.checkout)-t2m(_sbTail.checkin))+1440)%1440);
+        var _teff = /^HSBY$/i.test(_sbTail.code||'') ? Math.max(0,_twin-120) : _twin;
+        var _tdp  = Math.round(_teff*0.25);
+        var _dfT  = function(m){ return Math.floor(m/60)+'h'+String(m%60).padStart(2,'0')+'m'; };
+        html += '<div style="background:#EFF6FF;border:1.5px solid rgba(30,58,164,.2);border-radius:12px;padding:12px 13px;margin-top:2px">'
+          + '<div style="font-size:12px;font-weight:800;color:#1E3A5F;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">↓ Cola de guardia (cruce de medianoche) <span style="font-weight:600;color:#475569">· '+(_sbTail.code||'Standby')+'</span></div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
+          + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px"><div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Check-in</div><div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+_sbTail.checkin+' UTC</div></div>'
+          + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px"><div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Check-out</div><div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+_sbTail.checkout+' UTC</div></div>'
+          + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px;grid-column:span 2;display:flex;align-items:center;justify-content:space-between"><div><div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">DP (Duty Period)</div><div style="font-size:16px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace">'+_dfT(_tdp)+' <span style="font-size:11px;font-weight:500;color:#475569">(25% standby)</span></div></div><div style="text-align:right"><div style="font-size:11px;color:#475569">Ventana: '+_dfT(_twin)+'</div><div style="font-size:11px;color:#64748B">viene del día anterior</div></div></div>'
+          + '</div></div>';
+      }
     }
 
     // ── Panel para día de continuación (aterrizaje nocturno del día anterior) ──
