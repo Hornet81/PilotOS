@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.119">
+  <meta name="version" content="Beta.120">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.119","builtAt":"2026-06-25T20:29:50Z","commit":"07db8e8","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.120","builtAt":"2026-06-25T20:52:21Z","commit":"fe53bf7","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -27888,7 +27888,7 @@ function rstRenderCalendar(){
     osb:      { bg:'#2e6da4', bd:'#286091',             tx:'#FFFFFF', lbl:'✈OSB',  gl:'rgba(46,109,164,.5)' },
     off:      { bg:'#48c9b0', bd:'#3db49d',             tx:'#FFFFFF', lbl:'☕OFF',  gl:'rgba(72,201,176,.5)' },
     vacation: { bg:'#f59e0b', bd:'#d97706',             tx:'#3a2400', lbl:'🏖VAC', gl:'rgba(245,158,11,.5)' },
-    f:        { bg:'#48c9b0', bd:'#3db49d',             tx:'#FFFFFF', lbl:'☕F',    gl:'rgba(72,201,176,.5)' },
+    f:        { bg:'#ec7063', bd:'#d35f55',             tx:'#FFFFFF', lbl:'F',     gl:'rgba(236,112,99,.5)' },
     ef:       { bg:'#2980b9', bd:'#2471a3',             tx:'#FFFFFF', lbl:'✓EF',   gl:'rgba(41,128,185,.5)' },
     srof:     { bg:'#1abc9c', bd:'#17a589',             tx:'#FFFFFF', lbl:'☕SROF', gl:'rgba(26,188,156,.5)' },
     noff:     { bg:'#2ecc71', bd:'#27ae60',             tx:'#FFFFFF', lbl:'☕NOFF', gl:'rgba(46,204,113,.5)' },
@@ -27918,6 +27918,15 @@ function rstRenderCalendar(){
     EVAL: { bg:'#6d28d9', bd:'#5b21b6', tx:'#FFFFFF', gl:'rgba(109,40,217,.5)', emoji:'🖥', desc:'EVA · Evaluación en simulador' },
     REU:  { bg:'#0891b2', bd:'#0e7490', tx:'#FFFFFF', gl:'rgba(8,145,178,.5)',  emoji:'👥', desc:'Reunión' },
     MTG:  { bg:'#0891b2', bd:'#0e7490', tx:'#FFFFFF', gl:'rgba(8,145,178,.5)',  emoji:'👥', desc:'Reunión' }
+  };
+  // Icono de taza (descanso) para las tiras OFF/SROF del calendario. Inline SVG
+  // (la PWA funciona offline). fill = color del texto de la tira.
+  var _REST_ICON = function(col){
+    return '<svg viewBox="0 0 595.28 841.89" width="7" height="9" style="vertical-align:-1px;margin-right:2px;flex:0 0 auto"><g fill="'+col+'">'
+      + '<path d="M233.82,366.25c81.88-132.29-46.27-68.52-48.91-203.2-56.12,130.92,105.33,88.19,48.91,203.2Z"/>'
+      + '<path d="M300.94,307.7c68.34-158.02-125.1-103.93-57.36-238.33-96.9,155.61,55.55,80.61,57.36,238.33Z"/>'
+      + '<path d="M575.97,512c-1.48-27.45-14.61-43.93-40.14-50.36-16.26-4.1-37.09-3.99-62.55-2.81.96-11.55,1.4-22.47,1.4-32.49,0-23.18-101.96-41.97-227.73-41.97s-227.73,18.79-227.73,41.97c0,101.31,45.22,294.92,209.79,294.92h35.88c56.21,0,98.49-22.59,129.8-56.37,46.87-4.35,92.25-24.48,128.57-57.21,34.04-30.67,54.24-67.34,52.71-95.68ZM388.95,436.06c-39.63,6.07-90.06,9.41-142,9.41s-102.37-3.34-142-9.41c-21.21-3.25-35.85-6.7-45.83-9.72,9.98-3.02,24.62-6.47,45.83-9.72,39.63-6.07,90.06-9.41,142-9.41s102.37,3.34,142,9.41c21.21,3.25,35.85,6.7,45.83,9.72-9.98,3.02-24.62,6.47-45.83,9.72ZM505.24,587.67c-15.62,14.08-45.27,36.07-86.45,46.01,28.77-44.54,44.46-99.35,51.42-147.73,25.19-1.25,45.36-1.63,59.05,1.82,11.84,2.99,18.88,8.15,19.82,25.7.86,15.94-12.49,45.97-43.84,74.21Z"/>'
+      + '</g></svg>';
   };
   var cells = '';
   // Pre-load logbook entries once outside loop (performance fix)
@@ -28021,6 +28030,9 @@ function rstRenderCalendar(){
       var barItems = [];
       var flights = dayEntries.filter(function(e){ return e.type==='flight'; });
       var nonFlights = dayEntries.filter(function(e){ return e.type!=='flight' && e.type!=='overnight_continuation'; });
+      // Hora de inicio de una tira (para ordenarlas cronológicamente). Devuelve
+      // null si no hay hora. Ojo: 00:00 = 0 (válido), no confundir con ausencia.
+      var _barMin = function(t){ if(!t||String(t).indexOf(':')<0) return null; var x=String(t).split(':'); return parseInt(x[0])*60+parseInt(x[1]); };
       if(flights.length){
         var fc = TC['flight'];
         // Hora de FIRMA (report) de la jornada para la tira de la celda. Es la
@@ -28042,7 +28054,8 @@ function rstRenderCalendar(){
         } else {
           timeStr = '✈';
         }
-        barItems.push({ bg:fc.bg, tx:fc.tx, lbl: timeStr });
+        var _fSort = _cks.length ? Math.min.apply(null,_cks) : (_stds.length ? (Math.min.apply(null,_stds)-55) : 9999);
+        barItems.push({ bg:fc.bg, tx:fc.tx, lbl: timeStr, sortMin:_fSort });
       }
       nonFlights.forEach(function(e){
         // Override por CÓDIGO de color (EBT/EVA/REU/VAC...): la barra de la celda
@@ -28053,10 +28066,16 @@ function rstRenderCalendar(){
         // Use e.code when available (shows SPAR, ART, REU, NROF… instead of generic type)
         var typeLabels = {standby:'STBY',osb:'OSB',off:'OFF',vacation:'VAC',f:'F',ef:'EF',srof:'SROF',noff:'NOFF',aoff:'AOFF',nrof:'NROF',meof:'MEOF',ebt:'SIM',eva:'SIM',lm:'LM',training:'TR',sick:'SICK',other:'?'};
         var _emo = _csb ? (_csb.emoji || '') : '';
-        barItems.push({ bg:tc2.bg, tx:tc2.tx, lbl: _emo + (e.code || typeLabels[e.type] || e.type) });
+        // OFF y SROF llevan el icono de taza (descanso); el resto, su emoji de código si lo hay.
+        var _icon = (e.type==='off' || e.type==='srof') ? _REST_ICON(tc2.tx) : _emo;
+        // Hora de inicio para ordenar la tira (checkin → std → start). null si no hay.
+        var _ns = _barMin(e.checkin); if(_ns===null) _ns = _barMin(e.std); if(_ns===null) _ns = _barMin(e.start); if(_ns===null) _ns = 9999;
+        barItems.push({ bg:tc2.bg, tx:tc2.tx, lbl: _icon + (e.code || typeLabels[e.type] || e.type), sortMin:_ns });
       });
       var _g0 = (dayEntries[0].code && RST_CODE_STYLE[String(dayEntries[0].code).toUpperCase()]) || null;
       glowCol = (_g0 || TC[dayEntries[0].type] || TC.other).gl;
+      // Apila las tiras de ARRIBA a ABAJO por hora de inicio (la más temprana arriba).
+      barItems.sort(function(a,b){ return (a.sortMin==null?9999:a.sortMin) - (b.sortMin==null?9999:b.sortMin); });
     }
 
     var barTopHTML = '';
