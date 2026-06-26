@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.127">
+  <meta name="version" content="Beta.128">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.127","builtAt":"2026-06-26T15:01:58Z","commit":"a3ca1b7","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.128","builtAt":"2026-06-26T15:07:08Z","commit":"5b8a01a","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -19203,9 +19203,22 @@ async function ldDeltaPull(since){
     var isFull=body.full||!since;
     var deletedCount=0;
     var before=ldEntries.filter(function(e){return e&&e.type!=='__ac_db__';}).length;
+    // Conjunto de entradas VIVAS en el servidor (fuente de verdad). Al borrar, el
+    // servidor elimina la fila → la entrada borrada NO aparece aquí.
+    var _srvAliveIds=new Set();
+    serverEntries.forEach(function(e){ if(e&&e.id&&e.type!=='__ac_db__') _srvAliveIds.add(e.id); });
+    var _lastSyncTomb=ldGetLastSync()||'';
+    // Borrado ROBUSTO — NO compara savedAt (reloj del dispositivo que creó el vuelo)
+    // contra deleted_at (reloj del servidor); eso fallaba con relojes desfasados.
+    // Una entrada local se borra si: tiene tombstone Y el servidor ya no la tiene
+    // viva Y no es un re-add local pendiente de subir (savedAt > lastSync, ambos
+    // del MISMO reloj de ESTE dispositivo → comparación fiable).
     ldEntries=ldEntries.filter(function(e){
       if(!e||e.type==='__ac_db__') return true;
-      return !tombWins(e.id, e.savedAt);
+      if(!(e.id in tombMap)) return true;             // sin tombstone → conservar
+      if(_srvAliveIds.has(e.id)) return true;         // viva en el servidor (re-add) → conservar
+      if((e.savedAt||'') > _lastSyncTomb) return true; // re-add local sin subir → conservar
+      return false;                                   // borrada de verdad → quitar
     });
     deletedCount=before-ldEntries.filter(function(e){return e&&e.type!=='__ac_db__';}).length;
     // Limpiar de la cola local de pendientes solo los IDs realmente borrados aquí.
