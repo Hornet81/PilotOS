@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.125">
+  <meta name="version" content="Beta.126">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.125","builtAt":"2026-06-26T14:32:04Z","commit":"006ea67","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.126","builtAt":"2026-06-26T14:54:36Z","commit":"9890f6b","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -19244,7 +19244,9 @@ async function ldDeltaPull(since){
         var _srvIds=new Set(realServer.map(function(e){return e.id;}));
         var _pendDel=ldDelLoad();
         var _stranded=ldEntries.some(function(e){
-          return e&&e.id&&e.type!=='__ac_db__'&&!_srvIds.has(e.id)&&!(e.id in _pendDel);
+          // NO tratar como "varado" un vuelo con tombstone: ese debe BORRARSE
+          // localmente, no re-subirse (evita resucitar borrados de otro dispositivo).
+          return e&&e.id&&e.type!=='__ac_db__'&&!_srvIds.has(e.id)&&!(e.id in _pendDel)&&!(e.id in tombMap);
         });
         if(_stranded){
           _ldSelfHealScheduled=true;
@@ -19311,14 +19313,15 @@ async function ldManualPull(){
   if(btn){ btn.style.opacity='.5'; btn.style.pointerEvents='none'; }
   try{
     var lastSync=ldGetLastSync(), syncStart=new Date().toISOString();
-    // Pull-to-refresh / sync manual = reconciliación AUTORITATIVA: push COMPLETO
-    // (since=null) para que cualquier vuelo varado solo-local por un push fallido
-    // del pasado llegue al servidor y el otro dispositivo pueda bajarlo. El
-    // servidor hace upsert por id, así que re-enviar todo es idempotente y seguro.
-    var pushOk=await ldDeltaPush(null);
-    if(!pushOk){ showToast('⚠ No se pudo conectar con el servidor','error'); ldSetSyncStatus('error'); return; }
+    // PULL primero: aplica los borrados de otros dispositivos (tombstones) ANTES
+    // de subir nada, para no re-subir —ni resucitar— un vuelo borrado en otro sitio.
     var result=await ldDeltaPull(lastSync);
     if(!result){ showToast('⚠ Error al descargar datos del servidor','error'); ldSetSyncStatus('error'); return; }
+    // PUSH COMPLETO: reconciliación autoritativa para vuelos varados solo-local
+    // (push fallido en el pasado). Idempotente — el servidor hace upsert por id y
+    // descarta re-subidas de vuelos con tombstone más nuevo (anti-resurrección).
+    var pushOk=await ldDeltaPush(null);
+    if(!pushOk){ showToast('⚠ No se pudo conectar con el servidor','error'); ldSetSyncStatus('error'); return; }
     ldSetLastSync(syncStart); ldSetSyncStatus('ok');
     if(result.newCount>0||result.deletedCount>0){
       var parts=[];
