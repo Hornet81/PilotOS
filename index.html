@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.130">
+  <meta name="version" content="Beta.131">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.130","builtAt":"2026-06-26T15:30:09Z","commit":"7c3dbfd","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.131","builtAt":"2026-06-26T15:37:35Z","commit":"df11e51","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -2837,6 +2837,7 @@ html.day #ld-panel-mapa.ld-panel{background:#cfe0f0}
   transition:background .25s,backdrop-filter .25s;
 }
 .ld-fmonth::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(34,211,238,.15),transparent)}
+.ld-fmonth-tot{position:absolute;right:14px;top:0;bottom:0;display:flex;align-items:center;font-size:10px;letter-spacing:.5px;color:inherit;opacity:.85;pointer-events:none}
 .ld-fmonth.is-sticky{
   background:rgba(11,16,32,.92);
   -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
@@ -17116,6 +17117,13 @@ function ldRender(){
   function ldFmtBlock(mins){if(!mins)return null;var h=Math.floor(mins/60),m=mins%60;return h+'h '+(m<10?'0':'')+m+'m';}
   function ldGetDow(dateStr){if(!dateStr)return'';var p=dateStr.split('-');var d=new Date(+p[0],+p[1]-1,+p[2]);return DAYS_ES[d.getDay()]||'';}
 
+  // ── Total de block por mes (todo el conjunto filtrado, no solo la página) ──
+  var monthTotals={};
+  ldFiltered.forEach(function(e){
+    var mk=e.date?e.date.slice(0,7):'0000-00';
+    monthTotals[mk]=(monthTotals[mk]||0)+ldParseMins(e.block);
+  });
+
   // ── Agrupar primero por mes, luego por día ─────────────────────
   var monthGroups={}, monthOrder=[];
   page.forEach(function(e){
@@ -17133,7 +17141,10 @@ function ldRender(){
     var mg=monthGroups[mk];
     // ── Centinela + cabecera de mes (sticky) ──
     html+='<div class="ld-month-sentinel" data-month="'+mk+'"></div>';
-    html+='<div class="ld-fmonth" data-month="'+mk+'">'+ldFmtMonth(mk+'-01')+'</div>';
+    var _mTotStr=ldFmtBlock(monthTotals[mk]);
+    html+='<div class="ld-fmonth" data-month="'+mk+'">'+ldFmtMonth(mk+'-01')
+      +(_mTotStr?'<span class="ld-fmonth-tot">'+_mTotStr+'</span>':'')
+      +'</div>';
 
     mg.dayOrder.forEach(function(dk){
       var flights=mg.days[dk];
