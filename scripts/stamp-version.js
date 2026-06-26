@@ -56,8 +56,37 @@ function detectUsedBetaNumbers() {
 }
 
 const FORCE = process.argv.includes('--force');
+const RECOMMIT = process.argv.includes('--recommit');
 let arg = (process.argv[2] || '').trim();
 if (arg === '--force') arg = ''; // "node stamp --force" → auto forzado
+if (arg === '--recommit') arg = '';
+
+// ── Modo --recommit: re-sella SOLO el campo commit con el HEAD actual ──
+// Uso tras el commit del cambio para que la home muestre el SHA real
+// (un archivo estático no puede llevar el hash de su propio commit; este
+//  segundo paso graba el SHA del commit que SÍ contiene el cambio).
+// No bumpea versión ni cambia builtAt: reutiliza lo que ya hay en version.json.
+if (RECOMMIT) {
+  let head = null;
+  try { head = execSync('git rev-parse --short HEAD', { cwd: ROOT }).toString().trim() || null; } catch (_) {}
+  if (!head) { console.error('[stamp] ERROR --recommit: no pude leer HEAD'); process.exit(1); }
+
+  const vj = JSON.parse(fs.readFileSync(VERSION_JSON, 'utf8'));
+  vj.commit = head;
+  fs.writeFileSync(VERSION_JSON, JSON.stringify(vj, null, 2) + '\n');
+
+  let html2 = fs.readFileSync(INDEX_HTML, 'utf8');
+  const winRe2 = /window\.__PILOTOS_VERSION__=\{[^}]*\};/;
+  if (winRe2.test(html2)) {
+    const embedded2 = JSON.stringify({ version: vj.version, builtAt: vj.builtAt, commit: head, channel: vj.channel });
+    html2 = html2.replace(winRe2, `window.__PILOTOS_VERSION__=${embedded2};`);
+    fs.writeFileSync(INDEX_HTML, html2);
+  } else {
+    console.warn('[stamp] AVISO --recommit: no encontré window.__PILOTOS_VERSION__ en index.html');
+  }
+  console.log('[stamp] RECOMMIT OK →', JSON.stringify({ version: vj.version, builtAt: vj.builtAt, commit: head }));
+  process.exit(0);
+}
 
 const usedBeta = detectUsedBetaNumbers();
 const maxUsed = usedBeta.size ? Math.max.apply(null, Array.from(usedBeta)) : 0;
