@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.124">
+  <meta name="version" content="Beta.125">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.124","builtAt":"2026-06-26T14:08:51Z","commit":"400dfa5","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.125","builtAt":"2026-06-26T14:32:04Z","commit":"42a151c","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -19172,6 +19172,9 @@ async function ldDeltaPush(since){
   }catch(e){ console.error('[DeltaPush] Network error:',e.message); return false; }
 }
 
+// Evita relanzar el push de auto-curación en bucle mientras uno está en marcha
+var _ldSelfHealScheduled=false;
+
 async function ldDeltaPull(since){
   var token=ldAuthHeaders(); if(!token) return null;
   try{
@@ -19229,6 +19232,29 @@ async function ldDeltaPull(since){
     });
     ldDeduplicateEntries();
     ldSaveData(); ldRender(); ldStats(); ldUpdatePlanBanners();
+    // ── AUTO-CURACIÓN ──────────────────────────────────────────────────────
+    // El pull trae SIEMPRE el servidor completo (el backend ignora `since`).
+    // Si algún vuelo existe solo en local (push pasado fallido / desfase de
+    // reloj que dejó el vuelo varado), nunca volvería a subirse en delta. Lo
+    // detectamos aquí y lanzamos UN push completo para que el servidor —y por
+    // tanto el otro dispositivo— lo recupere. Sin esto, el usuario tenía que
+    // editar el vuelo a mano para forzar su re-subida.
+    if(isFull && !_ldSelfHealScheduled){
+      try{
+        var _srvIds=new Set(realServer.map(function(e){return e.id;}));
+        var _pendDel=ldDelLoad();
+        var _stranded=ldEntries.some(function(e){
+          return e&&e.id&&e.type!=='__ac_db__'&&!_srvIds.has(e.id)&&!(e.id in _pendDel);
+        });
+        if(_stranded){
+          _ldSelfHealScheduled=true;
+          console.log('[Sync] Vuelo(s) solo-local detectado(s) — re-subida completa para curar el sync');
+          setTimeout(function(){
+            ldDeltaPush(null).finally(function(){ _ldSelfHealScheduled=false; });
+          }, 800);
+        }
+      }catch(_e){ /* no bloquear el pull por la auto-curación */ }
+    }
     return {newCount:newCount, deletedCount:deletedCount};
   }catch(e){ console.error('[DeltaPull] Error:',e.message); return null; }
 }
@@ -19285,7 +19311,11 @@ async function ldManualPull(){
   if(btn){ btn.style.opacity='.5'; btn.style.pointerEvents='none'; }
   try{
     var lastSync=ldGetLastSync(), syncStart=new Date().toISOString();
-    var pushOk=await ldDeltaPush(lastSync);
+    // Pull-to-refresh / sync manual = reconciliación AUTORITATIVA: push COMPLETO
+    // (since=null) para que cualquier vuelo varado solo-local por un push fallido
+    // del pasado llegue al servidor y el otro dispositivo pueda bajarlo. El
+    // servidor hace upsert por id, así que re-enviar todo es idempotente y seguro.
+    var pushOk=await ldDeltaPush(null);
     if(!pushOk){ showToast('⚠ No se pudo conectar con el servidor','error'); ldSetSyncStatus('error'); return; }
     var result=await ldDeltaPull(lastSync);
     if(!result){ showToast('⚠ Error al descargar datos del servidor','error'); ldSetSyncStatus('error'); return; }
