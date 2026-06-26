@@ -10,9 +10,9 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PilotOS</title>
-  <meta name="version" content="Beta.126">
+  <meta name="version" content="Beta.127">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.126","builtAt":"2026-06-26T14:54:36Z","commit":"eb36aab","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.127","builtAt":"2026-06-26T15:01:58Z","commit":"a4b27ac","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -19317,10 +19317,11 @@ async function ldManualPull(){
     // de subir nada, para no re-subir —ni resucitar— un vuelo borrado en otro sitio.
     var result=await ldDeltaPull(lastSync);
     if(!result){ showToast('⚠ Error al descargar datos del servidor','error'); ldSetSyncStatus('error'); return; }
-    // PUSH COMPLETO: reconciliación autoritativa para vuelos varados solo-local
-    // (push fallido en el pasado). Idempotente — el servidor hace upsert por id y
-    // descarta re-subidas de vuelos con tombstone más nuevo (anti-resurrección).
-    var pushOk=await ldDeltaPush(null);
+    // PUSH DELTA: sube solo lo cambiado desde el último sync (rápido aunque el
+    // logbook sea grande). Los vuelos varados solo-local los recupera la
+    // auto-curación de ldDeltaPull (full push puntual SOLO cuando los detecta),
+    // así no re-subimos todo el logbook en cada sync manual.
+    var pushOk=await ldDeltaPush(lastSync);
     if(!pushOk){ showToast('⚠ No se pudo conectar con el servidor','error'); ldSetSyncStatus('error'); return; }
     ldSetLastSync(syncStart); ldSetSyncStatus('ok');
     if(result.newCount>0||result.deletedCount>0){
