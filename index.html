@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.131">
+  <meta name="version" content="Beta.132">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.131","builtAt":"2026-06-26T15:37:35Z","commit":"a75ed19","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.132","builtAt":"2026-06-26T15:49:35Z","commit":"69d901b","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -32878,18 +32878,28 @@ window.rosterExportICS = function(opts){
     lines.push('END:VCALENDAR');
 
     var icsContent = lines.join('\r\n');
-    // Use anchor download — works in Safari and shows save dialog
     var blob = new Blob([icsContent], {type:'text/calendar;charset=utf-8'});
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = 'PilotOS_Roster.ics';
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 5000);
     var colLbl = { purple:'morado', blue:'azul', teal:'turquesa', green:'verde', orange:'naranja', red:'rojo' }[calColorName] || calColorName;
-    if(typeof showToast==='function') showToast('📅 PilotOS_Roster.ics descargado · En Apple Calendar el calendario "PilotOS" usará el color '+colLbl+'. En Google Calendar el color no se puede forzar por archivo: añádelo desde "Otros calendarios" y elige el color a mano.', 'info', 6500);
+    // En iOS/iPadOS standalone (PWA) un blob por <a download> NO descarga nada →
+    // usamos el share sheet del sistema (permite "Añadir a Calendario" o guardar).
+    // En escritorio/Android se cae a la descarga por ancla de toda la vida.
+    var icsFile = null;
+    try { icsFile = new File([blob], 'PilotOS_Roster.ics', {type:'text/calendar'}); } catch(_){}
+    if(icsFile && navigator.canShare && navigator.canShare({files:[icsFile]})){
+      navigator.share({files:[icsFile], title:'PilotOS Roster'})
+        .then(function(){ if(typeof showToast==='function') showToast('📅 Roster exportado · ábrelo en Calendario para añadirlo. El color "'+colLbl+'" solo se aplica en Apple Calendar.', 'info', 6000); })
+        .catch(function(){ /* el usuario canceló el share — sin ruido */ });
+    } else {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'PilotOS_Roster.ics';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 5000);
+      if(typeof showToast==='function') showToast('📅 PilotOS_Roster.ics descargado · En Apple Calendar el calendario "PilotOS" usará el color '+colLbl+'. En Google Calendar el color no se puede forzar por archivo: añádelo desde "Otros calendarios" y elige el color a mano.', 'info', 6500);
+    }
   } catch(ex){
     if(typeof showToast==='function') showToast('Error al exportar: '+ex.message);
   }
@@ -32957,7 +32967,11 @@ window.rosterExportOpen = function(){
     +   '<button class="fp-btn fp-save" id="rex-go">Exportar</button>'
     + '</div>'
     + '</div>';
-  ov.addEventListener('click', function(e){ if(e.target===ov) fpCloseModal(); });
+  // Cierre local: fpCloseModal vive en OTRO scope (IIFE de los modales fp) y NO
+  // es accesible aquí → referenciarlo lanzaba ReferenceError y dejaba los botones
+  // Cancelar y Exportar SIN cablear. Cerramos quitando el overlay directamente.
+  function rexClose(){ if(ov && ov.parentNode) ov.parentNode.removeChild(ov); }
+  ov.addEventListener('click', function(e){ if(e.target===ov) rexClose(); });
   document.body.appendChild(ov);
 
   // Modo de exportación
@@ -32981,7 +32995,7 @@ window.rosterExportOpen = function(){
   (function(){ var f=document.getElementById('rex-from'), t=document.getElementById('rex-to');
     if(f) f.addEventListener('change', function(){ if(f.value && (!t.value || t.value < f.value)) t.value = f.value; }); })();
 
-  document.getElementById('rex-cancel').addEventListener('click', fpCloseModal);
+  document.getElementById('rex-cancel').addEventListener('click', rexClose);
   document.getElementById('rex-go').addEventListener('click', function(){
     var from=null, to=null;
     if(state.mode==='month'){ var r=monthRange(); from=r.from; to=r.to; }
@@ -32992,8 +33006,8 @@ window.rosterExportOpen = function(){
       if(to < from){ if(typeof showToast==='function') showToast('La fecha fin debe ser posterior'); return; }
     }
     // 'all' → from/to quedan null (sin filtro)
-    fpCloseModal();
     window.rosterExportICS({ from:from, to:to, color:state.color, colorName:state.colorName });
+    rexClose();
   });
 };
 
