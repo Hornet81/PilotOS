@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.132">
+  <meta name="version" content="Beta.133">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.132","builtAt":"2026-06-26T15:49:35Z","commit":"b22336f","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.133","builtAt":"2026-06-26T15:56:24Z","commit":"81d8777","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -10631,8 +10631,20 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       <div style="height:2px;background:rgba(34,211,238,.08);border-radius:1px;margin-bottom:10px;overflow:hidden">
         <div id="ld_pag_bar" style="height:100%;background:linear-gradient(90deg,#7C3AED,#22D3EE);border-radius:1px;transition:width .35s ease;width:0%"></div>
       </div>
-      <!-- Controls -->
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <!-- Info -->
+      <div style="text-align:center;margin-bottom:9px">
+        <div id="ld_pag_dates" style="font-family:'Space Mono',monospace;font-size:11px;color:rgba(248,250,252,.55);letter-spacing:.3px;line-height:1.3"></div>
+        <div id="ld_pag_num" style="font-family:'Space Mono',monospace;font-size:9px;color:rgba(34,211,238,.4);letter-spacing:.8px;margin-top:1px"></div>
+      </div>
+      <!-- Controles CENTRADOS (no quedan bajo el FAB) · « primera ‹ ant. › sig. » última -->
+      <div style="display:flex;align-items:center;justify-content:center;gap:8px">
+        <button id="ld_pag_first" onclick="ldGoPage(1)" title="Primera página" style="
+          width:36px;height:36px;border-radius:10px;flex-shrink:0;
+          background:rgba(17,24,39,.7);border:1px solid rgba(34,211,238,.15);
+          color:rgba(34,211,238,.7);font-size:18px;cursor:pointer;
+          display:flex;align-items:center;justify-content:center;
+          transition:all .15s;-webkit-tap-highlight-color:transparent
+        ">«</button>
         <button id="ld_pag_prev" onclick="ldGoPage(ldPage-1)" style="
           width:36px;height:36px;border-radius:10px;flex-shrink:0;
           background:rgba(17,24,39,.7);border:1px solid rgba(34,211,238,.15);
@@ -10640,10 +10652,6 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           display:flex;align-items:center;justify-content:center;
           transition:all .15s;-webkit-tap-highlight-color:transparent
         ">‹</button>
-        <div style="flex:1;text-align:center">
-          <div id="ld_pag_dates" style="font-family:'Space Mono',monospace;font-size:11px;color:rgba(248,250,252,.55);letter-spacing:.3px;line-height:1.3"></div>
-          <div id="ld_pag_num" style="font-family:'Space Mono',monospace;font-size:9px;color:rgba(34,211,238,.4);letter-spacing:.8px;margin-top:1px"></div>
-        </div>
         <button id="ld_pag_next" onclick="ldGoPage(ldPage+1)" style="
           width:36px;height:36px;border-radius:10px;flex-shrink:0;
           background:rgba(17,24,39,.7);border:1px solid rgba(34,211,238,.15);
@@ -10651,6 +10659,13 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           display:flex;align-items:center;justify-content:center;
           transition:all .15s;-webkit-tap-highlight-color:transparent
         ">›</button>
+        <button id="ld_pag_last" onclick="ldGoLast()" title="Última página" style="
+          width:36px;height:36px;border-radius:10px;flex-shrink:0;
+          background:rgba(17,24,39,.7);border:1px solid rgba(34,211,238,.15);
+          color:rgba(34,211,238,.7);font-size:18px;cursor:pointer;
+          display:flex;align-items:center;justify-content:center;
+          transition:all .15s;-webkit-tap-highlight-color:transparent
+        ">»</button>
       </div>
     </div>
 
@@ -17282,11 +17297,16 @@ function ldRender(){
   }
   if(numEl) numEl.textContent='Pág '+ldPage+' / '+pages+' · '+total+' vuelos';
 
-  // Prev/next buttons
+  // First/Prev/Next/Last buttons
+  var first=document.getElementById('ld_pag_first');
   var prev=document.getElementById('ld_pag_prev');
   var next=document.getElementById('ld_pag_next');
-  if(prev){ prev.disabled=ldPage<=1; prev.style.opacity=ldPage<=1?'.25':'1'; prev.style.cursor=ldPage<=1?'default':'pointer'; }
-  if(next){ next.disabled=ldPage>=pages; next.style.opacity=ldPage>=pages?'.25':'1'; next.style.cursor=ldPage>=pages?'default':'pointer'; }
+  var last=document.getElementById('ld_pag_last');
+  var atStart=ldPage<=1, atEnd=ldPage>=pages;
+  if(first){ first.disabled=atStart; first.style.opacity=atStart?'.25':'1'; first.style.cursor=atStart?'default':'pointer'; }
+  if(prev){ prev.disabled=atStart; prev.style.opacity=atStart?'.25':'1'; prev.style.cursor=atStart?'default':'pointer'; }
+  if(next){ next.disabled=atEnd; next.style.opacity=atEnd?'.25':'1'; next.style.cursor=atEnd?'default':'pointer'; }
+  if(last){ last.disabled=atEnd; last.style.opacity=atEnd?'.25':'1'; last.style.cursor=atEnd?'default':'pointer'; }
 
   // Day mode: boost top border glow on day groups + force dark header texts
   if(document.documentElement.classList.contains('day')){
@@ -17303,6 +17323,7 @@ function ldRender(){
   }
 }
 function ldGoPage(p){ldPage=p;ldRender();ldInitFabObserver();}
+function ldGoLast(){ var pages=Math.max(1,Math.ceil((ldFiltered?ldFiltered.length:0)/LD_PER)); ldGoPage(pages); }
 function ldFilter(){ldPage=1;ldRender();ldInitFabObserver();}
 
 // FAB contextual: circle in corner when pagination visible
@@ -32718,6 +32739,7 @@ window.rosterExportICS = function(opts){
 
     // Color del calendario (hex + nombre CSS3 para la propiedad COLOR de RFC 7986)
     var COLOR_NAMES = {
+      '#FFCC00':'yellow',
       '#7C3AED':'purple', '#2563EB':'blue', '#0D9488':'teal',
       '#16A34A':'green', '#EA580C':'orange', '#DC2626':'red'
     };
@@ -32879,7 +32901,7 @@ window.rosterExportICS = function(opts){
 
     var icsContent = lines.join('\r\n');
     var blob = new Blob([icsContent], {type:'text/calendar;charset=utf-8'});
-    var colLbl = { purple:'morado', blue:'azul', teal:'turquesa', green:'verde', orange:'naranja', red:'rojo' }[calColorName] || calColorName;
+    var colLbl = { yellow:'amarillo (Vueling)', purple:'morado', blue:'azul', teal:'turquesa', green:'verde', orange:'naranja', red:'rojo' }[calColorName] || calColorName;
     // En iOS/iPadOS standalone (PWA) un blob por <a download> NO descarga nada →
     // usamos el share sheet del sistema (permite "Añadir a Calendario" o guardar).
     // En escritorio/Android se cae a la descarga por ancla de toda la vida.
@@ -32911,12 +32933,13 @@ window.rosterExportOpen = function(){
 
   var MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
   var COLORS = [
+    { hex:'#FFCC00', name:'yellow' },                                  // Vueling
     { hex:'#7C3AED', name:'purple' }, { hex:'#2563EB', name:'blue' },
     { hex:'#0D9488', name:'teal' },   { hex:'#16A34A', name:'green' },
     { hex:'#EA580C', name:'orange' }, { hex:'#DC2626', name:'red' }
   ];
-  // Estado del panel
-  var state = { mode:'month', color:'#7C3AED', colorName:'purple' };
+  // Estado del panel — por defecto, amarillo Vueling
+  var state = { mode:'month', color:'#FFCC00', colorName:'yellow' };
 
   // Rango "mes actual" desde la vista del calendario
   function monthRange(){
