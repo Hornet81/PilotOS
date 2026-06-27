@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.148">
+  <meta name="version" content="Beta.149">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.148","builtAt":"2026-06-27T15:22:15Z","commit":"1360a22","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.149","builtAt":"2026-06-27T15:50:01Z","commit":"671e2c4","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -20773,7 +20773,7 @@ function buildAISystem(leg, turbData) {
   const turbSummary = turbData ? turbData.map((p, i) => "WP".concat(i + 1, ":EDR").concat(p.edr.toFixed(2))).join(" ") : "datos cargando";
   return "Eres ARIA (Aviation Route Intelligence Assistant), copiloto IA de PilotOS SkyView.\nLeg: ".concat(leg.flight, " ").concat(leg.dep, "\u2192").concat(leg.arr, " \xB7 STD ").concat(leg.std, " \xB7 STA ").concat(leg.sta, " \xB7 Block ").concat(leg.block, " \xB7 FL").concat(leg.cruiseFL, "\nMETAR DEP: ").concat(leg.metar.raw, " \u2192 ").concat(leg.metar.cat, "\nMETAR ARR: ").concat(leg.metarArr.raw, " \u2192 ").concat(leg.metarArr.cat, "\nRWY DEP: ").concat(leg.rwyDep, " \xB7 RWY ARR: ").concat(leg.rwyArr, "\nAlternates: ").concat(leg.alts.map(a => "".concat(a.icao, "(").concat(a.city, ") RWY").concat(a.rwy, " ").concat(a.cat)).join(" | "), "\nPIREPs: ").concat(leg.pireps.length ? leg.pireps.map(p => "".concat(p.type, " ").concat(p.fl, " ").concat(p.msg, " (").concat(p.ac, " ").concat(p.time, ")")).join(". ") : "Sin PIREPs.", "\nNOTAMs: ").concat((NOTAMS_BY_LEG[leg.num] || []).map(n => "".concat(n.id, ":").concat(n.title)).join(". "), "\nPerfil turbulencia NOAA GTG: ").concat(turbSummary, "\nFatiga: ").concat(FATIGUE.level, " (").concat(FATIGUE.score, "/100) \xB7 Descanso ").concat(FATIGUE.hoursRest, "h\nResponde en espa\xF1ol profesional. Para BRIEFING COMPLETO usa estas secciones:\n1.\u2708\uFE0F RESUMEN  2.\uD83C\uDF24 METEOROLOG\xCDA (descifra METARs)  3.\u26A1 TURBULENCIA (interpreta EDR)  4.\u26A0\uFE0F NOTAMs (explica operacionalmente)  5.\uD83D\uDD04 PIREPs  6.\uD83D\uDCA4 FATIGA\xD7CONDICIONES  7.\u2705 RECOMENDACIONES\nM\xE1x 400 palabras briefing completo, 150 palabras otras preguntas.");
 }
-try { window.buildAISystem = buildAISystem; } catch (e) {}
+try { window.buildAISystem = buildAISystem; window.getRouteCoords = getRouteCoords; window.fetchTurbulenceProfile = fetchTurbulenceProfile; } catch (e) {}
 
 /* ════════════════════════════════════════
    NOAA API CALLS
@@ -26919,6 +26919,11 @@ function TabAria(_ref52) {
       key: j
     }, p))));
   }
+  return /*#__PURE__*/React.createElement("div", {
+    id: "aria-inline-root",
+    style: { height: "calc(100vh - 112px)", display: "flex", flexDirection: "column", position: "relative", zIndex: 1, overflow: "hidden" },
+    ref: function (el) { if (el && !el.__am && window.__ariaMount) { el.__am = 1; try { window.__ariaMount(el); } catch (e) {} } }
+  });
   return /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -36970,24 +36975,41 @@ document.addEventListener('DOMContentLoaded', function(){
   function stripZ(s){ return String(s||'').replace(/[^0-9:]/g,''); }
   function getPos(){ return new Promise(function(res){ if(!navigator.geolocation) return res(null); var done=false; function fin(v){ if(done)return; done=true; res(v); } try{ navigator.geolocation.getCurrentPosition(function(p){ fin({lat:p.coords.latitude,lon:p.coords.longitude}); }, function(){ fin(null); }, {timeout:6000,maximumAge:300000}); }catch(e){ fin(null); } setTimeout(function(){ fin(null); },7000); }); }
   function gatherLegs(){ var legs=(window.buildLegsFromRoster&&window.buildLegsFromRoster())||[]; return legs.map(function(l){ var di=(window.iataToIcao&&window.iataToIcao(l.dep))||l.dep; var ai=(window.iataToIcao&&window.iataToIcao(l.arr))||l.arr; return {flight:l.flight,dep:l.dep,arr:l.arr,depIcao:di,arrIcao:ai,std:stripZ(l.std),sta:stripZ(l.sta),acType:l.acType,arrMs:l._arrMs}; }); }
+  async function ctxSys(leg,turbData){
+    var turb=turbData;
+    if((!turb||!turb.length) && leg && window.getRouteCoords && window.fetchTurbulenceProfile){
+      try{ var co=window.getRouteCoords(leg.dep,leg.arr); if(co&&co.length){ turb=await window.fetchTurbulenceProfile(co,leg.cruiseFL); } }catch(e){}
+    }
+    return window.buildAISystem ? window.buildAISystem(leg,turb) : '';
+  }
+  function chatLog(role,text){ var box=q('#ar-chat'); if(!box)return null; var w=document.createElement('div'); w.style.cssText='margin-bottom:9px;display:flex;'+(role==='you'?'justify-content:flex-end':'justify-content:flex-start'); var b=document.createElement('div'); b.style.cssText='max-width:88%;font-size:13px;line-height:1.45;padding:9px 12px;border-radius:13px;'+(role==='you'?'background:linear-gradient(135deg,rgba(10,60,75,.55),rgba(10,163,199,.32));color:#eaf3f8':'background:rgba(8,20,27,.9);color:#cfe6ef;border:1px solid rgba(63,210,240,.12)'); b.textContent=text; w.appendChild(b); box.appendChild(w); try{ b.scrollIntoView({behavior:'smooth',block:'nearest'}); }catch(e){} return b; }
+  async function chatSend(text){ text=(text||'').trim(); if(!text)return; var tk=token(); if(!tk){ chatLog('aria','Inicia sesión para usar ARIA.'); return; } chatLog('you',text); var th=chatLog('aria','…'); try{ var ctx=window.__ariaCtx||{}; var sys=ctx.leg?await ctxSys(ctx.leg,ctx.turbData):''; var r=await fetch(BACKEND+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({messages:[{role:'user',content:text}],logbook_context:sys,scope:'briefing'})}); var j=await r.json(); var ans=(j.content&&j.content.map(function(b){return b.text||'';}).join(''))||(j.message?j.message:'No tengo respuesta.'); ans=ans.replace(/[*#`]/g,''); if(th)th.textContent=ans; }catch(e){ if(th)th.textContent='⚠ Error de conexión.'; } }
 
   var audios=[],curAudio=null,playing=false,paused=false,total=0,acc=0,k=0,durs=[],SENT=[],PEL=[],SEG=[],GAP=850;
 
   function renderText(txt){
     var tr=q('#ar-tr'); if(!tr)return; tr.innerHTML=''; SENT=[]; PEL=[]; SEG=[];
-    String(txt).split(/\s*·{2,}\s*/).forEach(function(seg){
-      seg=(seg||'').trim(); if(!seg)return; var start=SENT.length;
+    var META=[['🌅','BIENVENIDA'],['🗺️','OPERATIVA'],['🌤️','LA METEO'],['⚠️','NOTAM'],['✦','CIERRE']];
+    var segs=String(txt).split(/\s*·{2,}\s*/).map(function(s){return s.trim();}).filter(Boolean);
+    var single=segs.length<=1;
+    segs.forEach(function(seg,si){
+      var meta=single?['✦','BRIEFING']:(META[si]||META[META.length-1]);
+      var card=document.createElement('div'); card.style.cssText='display:flex;gap:10px;padding:10px 11px;border-radius:13px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);margin-bottom:8px;transition:background .25s,border-color .25s';
+      var ic=document.createElement('div'); ic.style.cssText='width:28px;height:28px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;background:rgba(63,210,240,.12);border:1px solid rgba(63,210,240,.25)'; ic.textContent=meta[0];
+      var bw=document.createElement('div'); bw.style.cssText='min-width:0;flex:1';
+      var lbl=document.createElement('div'); lbl.style.cssText='font-size:9px;font-weight:800;letter-spacing:1px;color:#3fd2f0;margin-bottom:3px'; lbl.textContent=meta[1];
+      var bt=document.createElement('div'); bt.style.cssText='font-size:13px;line-height:1.5;color:#9fb3bd';
+      var start=SENT.length;
       seg.split(/\n\s*\n/).forEach(function(par){
         var sents=par.replace(/\n/g,' ').trim().match(/[^.!?]+[.!?]+|\S+$/g)||[par.trim()];
-        sents.forEach(function(s){ s=s.trim(); if(!s)return; SENT.push(s);
-          var p=document.createElement('p'); p.textContent=s; p.style.cssText='margin:0 0 10px;transition:color .2s'; tr.appendChild(p); PEL.push(p); });
+        sents.forEach(function(s){ s=s.trim(); if(!s)return; SENT.push(s); var sp=document.createElement('span'); sp.textContent=s+' '; sp.style.transition='color .2s'; bt.appendChild(sp); PEL.push(sp); });
       });
-      if(SENT.length>start){ SEG.push({from:start,to:SENT.length-1});
-        var dv=document.createElement('div'); dv.style.cssText='height:1px;background:rgba(63,210,240,0.18);margin:4px 0 14px'; tr.appendChild(dv); }
+      SEG.push({from:start,to:SENT.length-1,card:card});
+      bw.appendChild(lbl); bw.appendChild(bt); card.appendChild(ic); card.appendChild(bw); tr.appendChild(card);
     });
     if(!SEG.length&&SENT.length) SEG.push({from:0,to:SENT.length-1});
   }
-  function hi(a,b){ PEL.forEach(function(p,i){ p.style.color=(i>=a&&i<=b)?'#eaf3f8':'#9fb3bd'; }); if(PEL[a])PEL[a].scrollIntoView({behavior:'smooth',block:'center'}); }
+  function hi(a,b){ PEL.forEach(function(sp,i){ sp.style.color=(i>=a&&i<=b)?'#eaf3f8':'#9fb3bd'; }); for(var s=0;s<SEG.length;s++){ var sg=SEG[s]; if(sg.card){ var live=(a>=sg.from&&a<=sg.to); sg.card.style.background=live?'rgba(10,163,199,.13)':'rgba(255,255,255,.03)'; sg.card.style.borderColor=live?'rgba(63,210,240,.45)':'rgba(255,255,255,.06)'; } } if(PEL[a]){ try{ PEL[a].scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){} } }
   function chunk(max){ var out=[]; var segs=SEG.length?SEG:[{from:0,to:SENT.length-1}]; for(var s=0;s<segs.length;s++){ var sg=segs[s],buf='',cf=sg.from; for(var i=sg.from;i<=sg.to;i++){ var st=SENT[i]; if(buf&&(buf.length+1+st.length)>max){ out.push({text:buf,from:cf,to:i-1,gap:false}); buf=st; cf=i; } else buf=buf?buf+' '+st:st; } if(buf)out.push({text:buf,from:cf,to:sg.to,gap:(s<segs.length-1)}); } return out; }
   async function ttsBlob(text){ var r=await fetch(BACKEND+'/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify({text:text,voice:(CUR.voice||'nova'),lang:CUR.lang})}); if(r.status===429){ var j=await r.json().catch(function(){return{};}); throw new Error(j.message||'Voz no disponible en tu plan'); } if(!r.ok) throw new Error('Error de voz '+r.status); var b=await r.blob(); return new Audio(URL.createObjectURL(b)); }
   async function prepareVoice(){
@@ -37029,7 +37051,7 @@ document.addEventListener('DOMContentLoaded', function(){
         var ctx=window.__ariaCtx||{}; var leg=ctx.leg;
         if(!leg){ stat('No hay vuelo activo en SkyView.'); return _done(gen); }
         stat('Analizando este vuelo con ARIA…');
-        var sys=(window.buildAISystem?window.buildAISystem(leg,ctx.turbData):'');
+        var sys=await ctxSys(leg,ctx.turbData);
         var r2=await fetch(BACKEND+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({messages:[{role:'user',content:'Genera un briefing operacional completo de este vuelo: descifra METARs, NOTAMs, PIREPs, turbulencia y fatiga, con recomendaciones claras. Sin asteriscos ni markdown, texto hablado.'}],logbook_context:sys,scope:'briefing'})});
         var d2=await r2.json(); txt=(d2.content&&d2.content.map(function(b){return b.text||'';}).join(''))||(d2.message?'⚠ '+d2.message:'Sin respuesta');
       }
@@ -37098,7 +37120,7 @@ document.addEventListener('DOMContentLoaded', function(){
       if(!said){ if(vOn)vTurn(); return; }
       vLog('you',said);
       if(/^(no|nada|ya est|terminar|gracias|eso es todo|nada m)/i.test(said)){ vSpeak(CUR.lang==='en'?'Understood. Have a good flight.':'Entendido. Buen vuelo y buen servicio.',function(){ vStop(); }); return; }
-      var ctx=window.__ariaCtx||{}; var sys=(ctx.leg&&window.buildAISystem?window.buildAISystem(ctx.leg,ctx.turbData):'');
+      var ctx=window.__ariaCtx||{}; var sys=ctx.leg?await ctxSys(ctx.leg,ctx.turbData):'';
       var rc=await fetch(BACKEND+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({messages:[{role:'user',content:said+'\n\n(Responde breve, en voz, español de España, máximo 90 palabras, sin asteriscos.)'}],logbook_context:sys,scope:'briefing'})});
       var cj=await rc.json(); var ans=(cj.content&&cj.content.map(function(b){return b.text||'';}).join(''))||(cj.message?cj.message:'No tengo respuesta.');
       ans=ans.replace(/[*#_`]/g,'');
@@ -37113,38 +37135,43 @@ document.addEventListener('DOMContentLoaded', function(){
     R=root;
     var voiceOpts=VOICES.map(function(v){ return '<option value="'+v[0]+'"'+(v[0]===CUR.voice?' selected':'')+'>'+v[1]+'</option>'; }).join('');
     root.innerHTML=
-      '<div style="margin-top:6px">'+
-        '<div style="display:flex;border:1px solid rgba(63,210,240,.25);border-radius:11px;overflow:hidden;background:rgba(255,255,255,.03)">'+
-          '<button data-sc="hoy" class="ar-sc" style="flex:1;border:none;background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff;font-weight:700;font-size:10.5px;padding:7px;font-family:inherit">Hoy · jornada</button>'+
-          '<button data-sc="leg" class="ar-sc" style="flex:1;border:none;background:transparent;color:#9fb3bd;font-weight:700;font-size:10.5px;padding:7px;font-family:inherit">Este vuelo</button>'+
-        '</div>'+
-        '<div style="margin-top:8px;background:rgba(255,255,255,.04);border:1px solid rgba(63,210,240,.18);border-radius:14px;padding:10px">'+
+      '<div style="display:flex;align-items:center;gap:10px;padding:9px 13px;border-bottom:1px solid rgba(63,210,240,.18);flex-shrink:0">'+
+        '<div style="position:relative;width:38px;height:38px;flex-shrink:0">'+
+          '<img src="aria.jpg" alt="ARIA" style="width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid rgba(63,210,240,.7)">'+
+          '<span style="position:absolute;right:-1px;bottom:-1px;width:10px;height:10px;border-radius:50%;background:#4dff91;border:2px solid #06121a"></span></div>'+
+        '<div style="flex:1;min-width:0"><div style="font-weight:800;letter-spacing:1px;font-size:14px;color:#eaf3f8;font-family:ui-monospace,monospace">ARIA</div>'+
+          '<div style="font-size:8px;color:#7fb3c4;font-family:ui-monospace,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Aviation Route Intelligence Agent</div></div>'+
+        '<button id="ar-gear" style="width:30px;height:30px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#9fb3bd;font-size:13px;flex-shrink:0">⚙</button>'+
+      '</div>'+
+      '<div id="ar-set" style="display:none;margin:9px 13px 0;padding:11px;border:1px solid rgba(255,255,255,.1);border-radius:12px;background:rgba(0,0,0,.22);flex-shrink:0">'+
+        '<div style="font-size:9px;color:#6c818d;margin-bottom:5px">IDIOMA</div>'+
+        '<div style="display:flex;border:1px solid rgba(255,255,255,.12);border-radius:9px;overflow:hidden;margin-bottom:10px">'+
+          '<button data-lg="es" class="ar-lg" style="flex:1;border:none;padding:7px;font-size:12px;font-weight:700;font-family:inherit">Español</button>'+
+          '<button data-lg="en" class="ar-lg" style="flex:1;border:none;padding:7px;font-size:12px;font-weight:700;font-family:inherit">English</button></div>'+
+        '<div style="font-size:9px;color:#6c818d;margin-bottom:5px">VOZ</div>'+
+        '<select id="ar-voice" style="width:100%;background:#0b1418;color:#eaf3f8;border:1px solid rgba(255,255,255,.14);border-radius:9px;padding:8px;font-size:13px;font-family:inherit;margin-bottom:10px">'+voiceOpts+'</select>'+
+        '<div style="font-size:9px;color:#6c818d;margin-bottom:4px">VELOCIDAD <span id="ar-rl"></span></div>'+
+        '<input id="ar-rate" type="range" min="0.7" max="1.4" step="0.05" style="width:100%;accent-color:#0aa3c7;margin-bottom:8px">'+
+        '<div style="font-size:9px;color:#6c818d;margin-bottom:4px">VOLUMEN <span id="ar-vl"></span></div>'+
+        '<input id="ar-vol" type="range" min="0" max="1" step="0.05" style="width:100%;accent-color:#0aa3c7">'+
+      '</div>'+
+      '<div style="padding:9px 13px 0;flex-shrink:0"><div style="display:flex;border:1px solid rgba(63,210,240,.25);border-radius:11px;overflow:hidden;background:rgba(255,255,255,.03)">'+
+        '<button data-sc="hoy" class="ar-sc" style="flex:1;border:none;color:#fff;font-weight:700;font-size:11px;padding:8px;font-family:inherit">Hoy · jornada</button>'+
+        '<button data-sc="leg" class="ar-sc" style="flex:1;border:none;color:#9fb3bd;font-weight:700;font-size:11px;padding:8px;font-family:inherit">Este vuelo</button></div></div>'+
+      '<div style="flex:1;min-height:0;overflow-y:auto;padding:10px 13px 14px">'+
+        '<div style="background:rgba(255,255,255,.04);border:1px solid rgba(63,210,240,.18);border-radius:14px;padding:11px">'+
           '<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">'+
-            '<span style="font-size:10px;font-weight:800;letter-spacing:1px;color:#eaf3f8">BRIEFING DE ARIA</span>'+
-            '<span style="margin-left:auto;font-size:8px;font-weight:800;letter-spacing:.5px;color:#04141b;background:#3fd2f0;padding:3px 8px;border-radius:20px">VOZ · NOVA</span>'+
-            '<button id="ar-gear" style="width:28px;height:28px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#9fb3bd;font-size:12px">⚙</button>'+
-          '</div>'+
-          '<div id="ar-set" style="display:none;margin-bottom:12px;padding:11px;border:1px solid rgba(255,255,255,.1);border-radius:12px;background:rgba(0,0,0,.18)">'+
-            '<div style="font-size:9px;color:#6c818d;margin-bottom:5px">IDIOMA</div>'+
-            '<div style="display:flex;border:1px solid rgba(255,255,255,.12);border-radius:9px;overflow:hidden;margin-bottom:10px">'+
-              '<button data-lg="es" class="ar-lg" style="flex:1;border:none;padding:7px;font-size:12px;font-weight:700;font-family:inherit">Español</button>'+
-              '<button data-lg="en" class="ar-lg" style="flex:1;border:none;padding:7px;font-size:12px;font-weight:700;font-family:inherit">English</button></div>'+
-            '<div style="font-size:9px;color:#6c818d;margin-bottom:5px">VOZ</div>'+
-            '<select id="ar-voice" style="width:100%;background:#0b1418;color:#eaf3f8;border:1px solid rgba(255,255,255,.14);border-radius:9px;padding:8px;font-size:13px;font-family:inherit;margin-bottom:10px">'+voiceOpts+'</select>'+
-            '<div style="font-size:9px;color:#6c818d;margin-bottom:4px">VELOCIDAD <span id="ar-rl"></span></div>'+
-            '<input id="ar-rate" type="range" min="0.7" max="1.4" step="0.05" style="width:100%;accent-color:#0aa3c7;margin-bottom:8px">'+
-            '<div style="font-size:9px;color:#6c818d;margin-bottom:4px">VOLUMEN <span id="ar-vl"></span></div>'+
-            '<input id="ar-vol" type="range" min="0" max="1" step="0.05" style="width:100%;accent-color:#0aa3c7">'+
-          '</div>'+
-          '<button id="ar-gen" style="width:100%;padding:8px;border:none;border-radius:10px;background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff;font-size:11px;font-weight:700;letter-spacing:.3px;font-family:inherit">▶ Generar briefing</button>'+
-          '<div id="ar-player" style="display:none;align-items:center;gap:9px;margin-top:12px">'+
-            '<button id="ar-play" disabled style="flex-shrink:0;width:50px;height:50px;border-radius:50%;border:none;background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff;font-size:19px;opacity:.5">▶</button>'+
+            '<span style="font-size:10px;font-weight:800;letter-spacing:1px;color:#eaf3f8">BRIEFING</span>'+
+            '<span style="margin-left:auto;font-size:8px;font-weight:800;letter-spacing:.5px;color:#04141b;background:#3fd2f0;padding:3px 8px;border-radius:20px">VOZ · NOVA</span></div>'+
+          '<button id="ar-gen" style="width:100%;padding:9px;border:none;border-radius:10px;background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff;font-size:11px;font-weight:700;letter-spacing:.3px;font-family:inherit">▶ Generar briefing</button>'+
+          '<div id="ar-player" style="display:none;align-items:center;gap:9px;margin-top:11px">'+
+            '<button id="ar-play" disabled style="flex-shrink:0;width:48px;height:48px;border-radius:50%;border:none;background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff;font-size:18px;opacity:.5">▶</button>'+
             '<div style="flex:1"><div id="ar-bar" style="height:8px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden;cursor:pointer"><div id="ar-fill" style="height:100%;width:0;background:linear-gradient(90deg,#0aa3c7,#3fd2f0);pointer-events:none"></div></div>'+
               '<div style="display:flex;justify-content:space-between;font-size:9.5px;color:#6c818d;margin-top:4px"><span id="ar-cur">0:00</span><span id="ar-tot">0:00</span></div></div>'+
-            '<button id="ar-back" disabled title="Atrás 15s" style="flex-shrink:0;width:44px;height:44px;border-radius:50%;border:1px solid rgba(63,210,240,.4);background:rgba(10,163,199,.12);color:#cdeefb;font-size:11px;font-weight:700;opacity:.5;font-family:ui-monospace,monospace">↺15</button>'+
+            '<button id="ar-back" disabled title="Atrás 15s" style="flex-shrink:0;width:42px;height:42px;border-radius:50%;border:1px solid rgba(63,210,240,.4);background:rgba(10,163,199,.12);color:#cdeefb;font-size:11px;font-weight:700;opacity:.5;font-family:ui-monospace,monospace">↺15</button>'+
           '</div>'+
           '<div id="ar-status" style="font-size:10.5px;color:#3fd2f0;margin-top:9px;min-height:13px;text-align:center"></div>'+
-          '<div id="ar-tr" style="margin-top:8px;max-height:170px;overflow-y:auto;font-size:13px;line-height:1.5;color:#9fb3bd"></div>'+
+          '<div id="ar-tr" style="margin-top:10px"></div>'+
         '</div>'+
         '<div id="ar-vdock" style="display:none;margin-top:10px;background:rgba(63,210,240,.07);border:1px solid rgba(63,210,240,.3);border-radius:16px;padding:13px">'+
           '<div id="ar-vtitle" style="font-size:12.5px;color:#cdeefb;text-align:center;margin-bottom:10px">¿Profundizamos en algo? Pregúntale a ARIA por voz</div>'+
@@ -37152,9 +37179,20 @@ document.addEventListener('DOMContentLoaded', function(){
             '<button id="ar-vmic" style="border:none;border-radius:13px;padding:11px 20px;color:#fff;font-size:13px;font-weight:800;font-family:inherit;background:linear-gradient(135deg,#063a4a,#0aa3c7)">🎤 Hablar</button>'+
             '<button id="ar-vend" style="display:none;align-items:center;border:1px solid rgba(255,255,255,.2);border-radius:13px;padding:11px 16px;color:#cdeefb;font-size:12px;font-weight:700;background:rgba(255,255,255,.05);font-family:inherit">Terminar</button>'+
           '</div>'+
-          '<div id="ar-vlog" style="margin-top:11px;max-height:160px;overflow-y:auto"></div>'+
+          '<div id="ar-vlog" style="margin-top:11px"></div>'+
+        '</div>'+
+        '<div id="ar-chat" style="margin-top:12px"></div>'+
+      '</div>'+
+      '<div style="flex-shrink:0;border-top:1px solid rgba(63,210,240,.15);padding:7px 13px 9px;background:rgba(6,16,22,.6)">'+
+        '<div id="ar-chips" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:7px"></div>'+
+        '<div style="display:flex;align-items:center;gap:8px">'+
+          '<input id="ar-input" placeholder="Pregunta a ARIA sobre tu vuelo…" style="flex:1;min-width:0;background:rgba(6,16,22,.92);border:1px solid rgba(63,210,240,.25);border-radius:13px;padding:10px 13px;font-size:12.5px;color:#eaf3f8;font-family:inherit;outline:none">'+
+          '<button id="ar-send" style="width:40px;height:40px;border-radius:50%;border:none;background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff;font-size:16px;flex-shrink:0">↑</button>'+
         '</div>'+
       '</div>';
+
+    var CHIPS=['¿Turbulencia en ruta?','Alternativos','¿Riesgo de fatiga?','Meteo de llegada'];
+    var chipsBox=q('#ar-chips'); if(chipsBox){ CHIPS.forEach(function(c){ var cb=document.createElement('button'); cb.textContent=c; cb.style.cssText='flex-shrink:0;white-space:nowrap;font-size:11px;color:#cdeefb;border:1px solid rgba(63,210,240,.3);background:rgba(10,163,199,.08);padding:6px 11px;border-radius:18px;font-family:inherit'; cb.onclick=function(){ chatSend(c); }; chipsBox.appendChild(cb); }); }
 
     function paintScope(){ R.querySelectorAll('.ar-sc').forEach(function(b){ var on=b.getAttribute('data-sc')===SCOPE; b.style.background=on?'linear-gradient(135deg,#063a4a,#0aa3c7)':'transparent'; b.style.color=on?'#fff':'#9fb3bd'; }); }
     function paintLg(){ R.querySelectorAll('.ar-lg').forEach(function(b){ var on=b.getAttribute('data-lg')===CUR.lang; b.style.background=on?'linear-gradient(135deg,#063a4a,#0aa3c7)':'transparent'; b.style.color=on?'#fff':'#9fb3bd'; }); }
@@ -37171,6 +37209,9 @@ document.addEventListener('DOMContentLoaded', function(){
     var vl=q('#ar-vl'); var vo=q('#ar-vol'); if(vo){ vo.value=VOL; if(vl)vl.textContent=Math.round(VOL*100)+'%'; vo.oninput=function(){ VOL=parseFloat(vo.value); saveCfg('vol',VOL); if(vl)vl.textContent=Math.round(VOL*100)+'%'; if(curAudio)curAudio.volume=VOL; }; }
     q('#ar-vmic').onclick=vStart;
     q('#ar-vend').onclick=vStop;
+    var inp=q('#ar-input'), snd=q('#ar-send');
+    if(snd)snd.onclick=function(){ if(inp){ var v=inp.value; inp.value=''; chatSend(v); } };
+    if(inp)inp.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); var v=inp.value; inp.value=''; chatSend(v); } });
   }
 
   window.__ariaMount=function(container){ try{ buildPanel(container); }catch(e){} };
