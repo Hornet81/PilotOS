@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.163">
+  <meta name="version" content="Beta.164">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.163","builtAt":"2026-06-27T18:34:56Z","commit":"58b3ad0","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.164","builtAt":"2026-06-27T18:52:29Z","commit":"1aaad44","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -28418,7 +28418,15 @@ function rstRenderStats(){
       // (std→sta o start→end). Cuenta para el total mensual de DUTY HOURS.
       _accDuty(e.date, e.std||e.start, e.sta||e.end);
     } else if(e.type==='sick') { /* count separately if needed */ }
-    else if(e.type !== 'flight' && e.type !== 'overnight_continuation') off++;
+    else if(e.type !== 'flight' && e.type !== 'overnight_continuation'){
+      // Cualquier actividad de TIERRA con ventana horaria (REUT, FOS, F de reserva y
+      // códigos no catalogados con horas) computa como DUTY (ventana completa). Sin
+      // ventana = día libre real → off. _accDuty fusiona por fecha (no duplica).
+      var _gS = e.std||e.start, _gE = e.sta||e.end;
+      if(_gS && _gE && String(_gS).indexOf(':')>-1 && String(_gE).indexOf(':')>-1){
+        _accDuty(e.date, _gS, _gE);
+      } else { off++; }
+    }
   });
 
   // Duty hours: per operating day
