@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.152">
+  <meta name="version" content="Beta.153">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.152","builtAt":"2026-06-27T16:10:06Z","commit":"6fa482e","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.153","builtAt":"2026-06-27T16:39:49Z","commit":"6b054b4","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -27520,9 +27520,8 @@ function SkyViewPilotOS() {
   }, "\u2039")), /*#__PURE__*/React.createElement("div", {
     style: { flex: 1, textAlign: "center" }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "sv-title",
-    style: { fontSize: 14, letterSpacing: "3px" }
-  }, "SkyView")), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 14, letterSpacing: "4px", fontWeight: 800, color: C.white, fontFamily: mono }
+  }, (MAIN_TABS.find(function (t) { return t.id === tab; }) || { label: tab.toUpperCase() }).label)), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -27530,23 +27529,7 @@ function SkyViewPilotOS() {
       flex: 1,
       gap: 9
     }
-  }, hasAlert && /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 4
-    }
-  }, /*#__PURE__*/React.createElement(GlowDot, {
-    color: "#ff4d6d",
-    size: 5
-  }), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 7,
-      color: "#ff4d6d",
-      fontFamily: mono,
-      fontWeight: 700
-    }
-  }, "CR\xCDTICO")), /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 8,
       color: C.dimmer,
@@ -27554,23 +27537,49 @@ function SkyViewPilotOS() {
     }
   }, utc))), /*#__PURE__*/React.createElement("div", {
     className: "sv-chrome",
-    style: {
-      maxHeight: hdrCollapsed ? 0 : 80,
-      overflow: "hidden",
-      opacity: hdrCollapsed ? 0 : 1,
-      transition: "max-height .32s ease, opacity .25s ease"
+    style: { position: "sticky", top: 0, zIndex: 24, display: "flex", alignItems: "center", gap: 11, padding: "2px 13px 9px", background: "rgba(0,9,24,0.96)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: "1px solid rgba(126,251,254,0.08)" }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { flex: 1, minWidth: 0 }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", alignItems: "center", height: 18 }
+  }, (function () {
+    var legsArr = EFFECTIVE_LEGS, line = [];
+    for (var j = 0; j <= legsArr.length; j++) {
+      var endpoint = (j === legIdx || j === legIdx + 1);
+      var lbl = j === 0 ? legsArr[0].dep : legsArr[j - 1].arr;
+      var dgr = j >= 1 && (NOTAMS_BY_LEG[legsArr[j - 1].num] || []).some(function (n) { return n.sev === "danger"; });
+      line.push(/*#__PURE__*/React.createElement("div", {
+        key: "n" + j,
+        onClick: (function (jj, hd) { return function () { if (hd) { setLegIdx(jj - 1); setTurbData(null); setTab("notam"); } }; })(j, dgr),
+        style: { position: "relative", width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: endpoint ? C.cyan : "#2a4150", border: "2px solid #0a1820", boxShadow: endpoint ? "0 0 7px " + C.cyan : "none", cursor: dgr ? "pointer" : "default" }
+      }, dgr ? /*#__PURE__*/React.createElement("div", { key: "d", style: { position: "absolute", top: -5, right: -5, width: 6, height: 6, borderRadius: "50%", background: "#ff4d6d", boxShadow: "0 0 5px #ff4d6d" } }) : null,
+        /*#__PURE__*/React.createElement("span", { key: "l", style: { position: "absolute", top: 9, left: "50%", transform: "translateX(-50%)", fontSize: 7, fontFamily: mono, color: endpoint ? C.cyan : C.dimmer, whiteSpace: "nowrap" } }, lbl)));
+      if (j < legsArr.length) {
+        var active = j === legIdx;
+        line.push(/*#__PURE__*/React.createElement("div", {
+          key: "s" + j,
+          onClick: (function (jj) { return function () { setLegIdx(jj); setTurbData(null); }; })(j),
+          style: { flex: 1, height: 3, borderRadius: 3, margin: "0 1px", cursor: "pointer", background: active ? "linear-gradient(90deg," + C.teal + ",#3fd2f0)" : "#21323d", boxShadow: active ? "0 0 8px rgba(63,210,240,.5)" : "none" }
+        }));
+      }
     }
-  }, /*#__PURE__*/React.createElement(LegSelector, {
-    activeLeg: legIdx,
-    onChange: idx => {
-      setLegIdx(idx);
-      setTurbData(null);
-    }
-  })), /*#__PURE__*/React.createElement("div", {
+    return line;
+  })()), /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", alignItems: "baseline", gap: 8, marginTop: 13 }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: { fontSize: 12, fontWeight: 800, color: C.white, fontFamily: mono, letterSpacing: "0.5px" }
+  }, leg.flight), /*#__PURE__*/React.createElement("span", {
+    style: { fontSize: 11, color: C.cyan, fontFamily: mono, fontWeight: 700 }
+  }, leg.dep, " \u2192 ", leg.arr), /*#__PURE__*/React.createElement("span", {
+    style: { marginLeft: "auto", fontSize: 10, color: C.dim, fontFamily: mono }
+  }, leg.std, " \u2192 ", leg.sta))), EFFECTIVE_LEGS.length > 1 && /*#__PURE__*/React.createElement("div", {
+    onClick: function () { setLegIdx((legIdx + 1) % EFFECTIVE_LEGS.length); setTurbData(null); },
+    style: { width: 30, height: 30, borderRadius: 9, border: "1px solid " + C.cyan + "40", background: C.cyan + "14", color: C.cyan, fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer" }
+  }, "\u21c4")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "none"
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  },/*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -27660,30 +27669,7 @@ function SkyViewPilotOS() {
       color: "#4dff91",
       fontFamily: mono
     }
-  }, leg.metarArr.cat, " \xB7 ", leg.metarArr.temp, " \xB7 ", leg.metarArr.qnh)))),
-  /*#__PURE__*/React.createElement("div", {
-    onClick: function () { setHdrCollapsed(function (v) { return !v; }); },
-    className: "sv-chrome", style: { position: "sticky", top: 42, zIndex: 24, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "5px 13px 6px", borderTop: "1px solid rgba(126,251,254,0.07)", borderBottom: "1px solid rgba(126,251,254,0.07)", background: "rgba(0,9,24,0.96)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", cursor: "pointer", userSelect: "none" }
-  },
-    /*#__PURE__*/React.createElement("div", {
-      style: { display: "flex", alignItems: "center", gap: 6, flex: "0 0 auto", padding: "3px 10px", borderRadius: 9, background: "linear-gradient(135deg,rgba(70,227,242,0.16),rgba(70,227,242,0.04))", border: "1px solid rgba(70,227,242,0.32)" }
-    }, /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, lineHeight: 1 } }, "🛫"),
-      /*#__PURE__*/React.createElement("div", { style: { lineHeight: 1 } },
-        /*#__PURE__*/React.createElement("div", { style: { fontSize: 6, fontFamily: mono, fontWeight: 700, letterSpacing: "0.9px", color: "rgba(126,251,254,0.6)" } }, "SALIDA"),
-        /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, fontFamily: mono, fontWeight: 800, color: C.cyan, marginTop: 1.5, textShadow: "0 0 8px rgba(70,227,242,0.45)" } }, leg.std))),
-    /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", flex: 1, minWidth: 0 } },
-      /*#__PURE__*/React.createElement("div", {
-        style: { fontSize: 7, fontFamily: mono, fontWeight: 800, color: "rgba(126,251,254,0.4)", letterSpacing: "4px" }
-      }, "\xB7 ", (MAIN_TABS.find(function(t){ return t.id === tab; }) || { label: tab.toUpperCase() }).label, " \xB7"),
-      /*#__PURE__*/React.createElement("div", {
-        style: { fontSize: 13, lineHeight: 1, color: C.cyan, marginTop: 1, opacity: 0.9, transition: "transform .25s ease" }
-      }, hdrCollapsed ? "▼" : "▲")),
-    /*#__PURE__*/React.createElement("div", {
-      style: { display: "flex", alignItems: "center", gap: 6, flex: "0 0 auto", padding: "3px 10px", borderRadius: 9, background: "linear-gradient(135deg,rgba(167,139,250,0.18),rgba(167,139,250,0.05))", border: "1px solid rgba(167,139,250,0.34)" }
-    }, /*#__PURE__*/React.createElement("div", { style: { lineHeight: 1, textAlign: "right" } },
-        /*#__PURE__*/React.createElement("div", { style: { fontSize: 6, fontFamily: mono, fontWeight: 700, letterSpacing: "0.9px", color: "rgba(167,139,250,0.78)" } }, "LLEGADA"),
-        /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, fontFamily: mono, fontWeight: 800, color: "#A78BFA", marginTop: 1.5, textShadow: "0 0 8px rgba(167,139,250,0.45)" } }, leg.sta)),
-      /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, lineHeight: 1 } }, "🛬"))), /*#__PURE__*/React.createElement("div", {
+  }, leg.metarArr.cat, " \xB7 ", leg.metarArr.temp, " \xB7 ", leg.metarArr.qnh)))), /*#__PURE__*/React.createElement("div", {
     style: {
       position: "relative",
       zIndex: 1,
