@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.168">
+  <meta name="version" content="Beta.169">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.168","builtAt":"2026-06-27T19:34:37Z","commit":"999318a","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.169","builtAt":"2026-06-27T20:36:41Z","commit":"2e2a358","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -37169,10 +37169,10 @@ document.addEventListener('DOMContentLoaded', function(){
       } else {
         var ctx=window.__ariaCtx||{}; var leg=ctx.leg;
         if(!leg){ stat('No hay vuelo activo en SkyView.'); return _done(gen); }
-        stat('Analizando este vuelo con ARIA…');
-        var sys=await ctxSys(leg,ctx.turbData);
-        var r2=await fetch(BACKEND+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({messages:[{role:'user',content:'Genera un briefing operacional completo de este vuelo: descifra METARs, NOTAMs, PIREPs, turbulencia y fatiga, con recomendaciones claras. Sin asteriscos ni markdown, texto hablado.'+(CUR.lang==='en'?' Write the ENTIRE briefing in fluent native English.':'')}],logbook_context:sys,scope:'briefing'})});
-        var d2=await r2.json(); txt=(d2.content&&d2.content.map(function(b){return b.text||'';}).join(''))||(d2.message?'⚠ '+d2.message:'Sin respuesta');
+        stat(CUR.lang==='en'?'Generating briefing with ARIA…':'Generando briefing con ARIA…');
+        var all=gatherLegs(); var one=all.filter(function(L){ return L.flight===leg.flight && L.dep===leg.dep && L.arr===leg.arr; }); if(!one.length){ var di=(window.iataToIcao&&window.iataToIcao(leg.dep))||leg.dep, ai=(window.iataToIcao&&window.iataToIcao(leg.arr))||leg.arr; one=[{flight:leg.flight,dep:leg.dep,arr:leg.arr,depIcao:di,arrIcao:ai,std:stripZ(leg.std),sta:stripZ(leg.sta),acType:leg.acType,arrMs:leg._arrMs}]; } else { one=[one[0]]; }
+        var r2=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({legs:one,pilot:pilotName()||undefined,lang:CUR.lang,localHour:new Date().getHours()})});
+        if(!r2.ok){ var je=await r2.json().catch(function(){return{};}); stat('⚠ '+(je.message||je.error||('Error '+r2.status))); return _done(gen); } var d2=await r2.json(); txt=d2.text||'';
       }
       if(!txt){ stat('⚠ ARIA no devolvió texto'); return _done(gen); } LAST_TEXT=txt; LAST_SCOPE=SCOPE;
       renderText(txt); if(pl)pl.style.display='flex'; stat('Preparando voz…');
@@ -37188,29 +37188,29 @@ document.addEventListener('DOMContentLoaded', function(){
   function unlockAudio(){ try{ if(!_va)_va=new Audio(); _va.muted=true; _va.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACBWAQACABAAZGF0YQAAAAA='; var pp=_va.play(); if(pp&&pp.then){ pp.then(function(){ try{_va.pause();_va.currentTime=0;}catch(e){} _va.muted=false; }).catch(function(){ _va.muted=false; }); } }catch(e){} try{ if(!_ac)_ac=new (window.AudioContext||window.webkitAudioContext)(); if(_ac.state==='suspended')_ac.resume(); }catch(e){} }
   async function ttsFetchUrl(text){ var r=await fetch(BACKEND+'/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify({text:text,voice:(CUR.voice||'nova'),lang:CUR.lang})}); if(r.status===429){ var j=await r.json().catch(function(){return{};}); throw new Error(j.message||'Voz no disponible'); } if(!r.ok) throw new Error('tts '+r.status); var b=await r.blob(); return URL.createObjectURL(b); }
   function beep(){ try{ if(!_ac)_ac=new (window.AudioContext||window.webkitAudioContext)(); if(_ac.state==='suspended')_ac.resume(); var o=_ac.createOscillator(),g=_ac.createGain(); o.type='sine'; o.frequency.value=880; o.connect(g); g.connect(_ac.destination); var t=_ac.currentTime; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.18,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.30); o.start(t); o.stop(t+0.32); }catch(e){} }
-  function autoAsk(){ showVoiceDock(true); var t=q('#ar-vtitle'); if(t)t.textContent=(CUR.lang==='en'?'…':'Un momento…'); vSpeak(CUR.lang==='en'?'Would you like me to go deeper on anything, or do you have a question?':'¿Quieres que te profundice en algo o tienes alguna pregunta?', function(){ ensureMic().then(function(){ vOn=true; var e=q('#ar-vend'); if(e)e.style.display='inline-flex'; if(t)t.textContent=(CUR.lang==='en'?'Listening… speak':'Escuchando… habla'); vBtn('listen'); beep(); setTimeout(function(){ if(vOn)vTurn(); },420); }).catch(function(){ if(t)t.textContent=(CUR.lang==='en'?'Tap to talk':'Toca «Hablar» para preguntar'); }); }); }
-  function showVoiceDock(emphasis){ var dk=q('#ar-vdock'); if(dk){ dk.style.display='block'; if(emphasis){ var t=q('#ar-vtitle'); if(t)t.textContent=(CUR.lang==='en'?'Anything else? Tap to talk':'¿Profundizamos en algo? Toca y habla'); } } }
-  function hideVoiceDock(){ var dk=q('#ar-vdock'); if(dk)dk.style.display='none'; }
-  function vLog(role,txt){ var box=q('#ar-vlog'); if(!box)return; var p=document.createElement('div'); p.style.cssText='font-size:13px;line-height:1.5;margin:0 0 9px;color:'+(role==='you'?'#9fb3bd':'#eaf3f8'); var tag=document.createElement('span'); tag.style.cssText='color:#3fd2f0;font-size:10px;font-weight:800;letter-spacing:1px'; tag.textContent=(role==='you'?'TÚ · ':'ARIA · '); p.appendChild(tag); p.appendChild(document.createTextNode(txt)); box.appendChild(p); box.scrollTop=box.scrollHeight; }
+  function autoAsk(){ var msg=(CUR.lang==='en'?'Would you like me to go deeper on anything, or do you have a question?':'¿Quieres que te profundice en algo o tienes alguna pregunta?'); chatLog('aria',msg); stat(CUR.lang==='en'?'Tap the mic to ask':'Pulsa el micro para preguntar'); vSpeak(msg, function(){ vStart(); }); }
+  function showVoiceDock(){}
+  function hideVoiceDock(){}
+  function vLog(role,txt){ chatLog(role,txt); }
   function vSpeak(text,onEnd){
     if(!_va){ try{ _va=new Audio(); }catch(e){} }
     var parts=[]; var s=String(text).replace(/\s+/g,' ').trim(); while(s.length){ if(s.length<=720){ parts.push(s); break; } var cut=s.lastIndexOf('. ',720); if(cut<300)cut=720; parts.push(s.slice(0,cut+1)); s=s.slice(cut+1).trim(); }
     var i=0; function next(){ if(i>=parts.length){ if(onEnd)onEnd(); return; } ttsFetchUrl(parts[i]).then(function(url){ try{ _va.onended=function(){ try{URL.revokeObjectURL(url);}catch(e){} i++; next(); }; _va.muted=false; _va.src=url; _va.volume=VOL; _va.playbackRate=RATE; var pp=_va.play(); if(pp&&pp.catch)pp.catch(function(){ i++; next(); }); }catch(e){ i++; next(); } }).catch(function(){ if(onEnd)onEnd(); }); }
     next();
   }
-  function vBtn(state){ var b=q('#ar-vmic'); if(!b)return; if(state==='listen'){ b.textContent='● Escuchando…'; b.style.background='linear-gradient(135deg,#7a1d1d,#e24b4a)'; } else if(state==='think'){ b.textContent='… ARIA piensa'; b.style.background='rgba(10,163,199,.25)'; } else { b.textContent='🎤 Hablar'; b.style.background='linear-gradient(135deg,#063a4a,#0aa3c7)'; } }
+  function vBtn(state){ var b=q('#ar-mic'); if(!b)return; if(state==='listen'){ b.textContent='●'; b.style.background='linear-gradient(135deg,#7a1d1d,#e24b4a)'; } else if(state==='think'){ b.textContent='…'; b.style.background='rgba(10,163,199,.35)'; } else { b.textContent='🎤'; b.style.background='linear-gradient(135deg,#063a4a,#0aa3c7)'; } }
   async function vStart(){
     if(vOn){ vStop(); return; }
     var tk=token(); if(!tk){ stat('Inicia sesión para la voz'); return; }
     unlockAudio();
     try{ await ensureMic(); }
-    catch(e){ var t=q('#ar-vtitle'); if(t)t.textContent='Sin acceso al micrófono'; return; }
-    vOn=true; var tg=q('#ar-vend'); if(tg)tg.style.display='inline-flex';
-    var t2=q('#ar-vtitle'); if(t2)t2.textContent=(CUR.lang==='en'?'Listening… speak':'Escuchando… habla'); vBtn('listen'); beep();
+    catch(e){ stat(CUR.lang==='en'?'No microphone access':'Sin acceso al micrófono'); return; }
+    vOn=true;
+    stat(CUR.lang==='en'?'● Listening… speak':'● Escuchando… habla'); vBtn('listen'); beep();
     setTimeout(function(){ if(vOn)vTurn(); },380);
   }
   function releaseMic(){ try{ if(vStream)vStream.getTracks().forEach(function(t){t.stop();}); }catch(e){} vStream=null; try{ if(vAC)vAC.close(); }catch(e){} vAC=null; }
-  function vStop(){ vOn=false; try{ if(vRec&&vRec.state!=='inactive')vRec.stop(); }catch(e){} releaseMic(); vBtn('idle'); var tg=q('#ar-vend'); if(tg)tg.style.display='none'; var t=q('#ar-vtitle'); if(t)t.textContent=(CUR.lang==='en'?'Voice conversation ended':'Conversación terminada'); }
+  function vStop(){ vOn=false; try{ if(vRec&&vRec.state!=='inactive')vRec.stop(); }catch(e){} releaseMic(); vBtn('idle'); stat(''); }
   async function vTurn(){
     if(!vOn)return;
     try{ await ensureMic(); }catch(e){ vStop(); return; }
@@ -37232,7 +37232,7 @@ document.addEventListener('DOMContentLoaded', function(){
     var blob=chunks.length?new Blob(chunks,{type:(vRec&&vRec.mimeType)||'audio/webm'}):null;
     releaseMic();
     if(!blob){ if(vOn)vTurn(); return; }
-    vBtn('think');
+    vBtn('think'); stat(CUR.lang==='en'?'… ARIA':'… ARIA piensa');
     var rd=new FileReader(); rd.onloadend=function(){ var b64=String(rd.result).split(',')[1]||''; vSend(b64,blob.type); }; rd.readAsDataURL(blob);
   }
   async function vSend(b64,mime){
@@ -37287,7 +37287,7 @@ document.addEventListener('DOMContentLoaded', function(){
         '<div style="background:rgba(255,255,255,.04);border:1px solid rgba(63,210,240,.18);border-radius:14px;padding:11px">'+
           '<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">'+
             '<span style="font-size:10px;font-weight:800;letter-spacing:1px;color:#eaf3f8">BRIEFING</span>'+
-            '<span style="margin-left:auto;font-size:8px;font-weight:800;letter-spacing:.5px;color:#04141b;background:#3fd2f0;padding:3px 8px;border-radius:20px">VOZ · NOVA</span></div>'+
+            '<span style="margin-left:auto;font-size:8px;font-weight:800;letter-spacing:.5px;color:#04141b;background:#3fd2f0;padding:3px 8px;border-radius:20px" id="ar-vpill">VOZ · '+(CUR.voice||'nova').toUpperCase()+'</span></div>'+
           '<button id="ar-gen" style="width:100%;padding:9px;border:none;border-radius:10px;background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff;font-size:11px;font-weight:700;letter-spacing:.3px;font-family:inherit">▶ Generar briefing</button>'+
           '<div id="ar-player" style="display:none;align-items:center;gap:9px;margin-top:11px">'+
             '<button id="ar-play" disabled style="flex-shrink:0;width:48px;height:48px;border-radius:50%;border:none;background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff;font-size:18px;opacity:.5">▶</button>'+
@@ -37313,6 +37313,7 @@ document.addEventListener('DOMContentLoaded', function(){
         '<div id="ar-chips" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:7px"></div>'+
         '<div style="display:flex;align-items:center;gap:8px">'+
           '<input id="ar-input" placeholder="Pregunta a ARIA sobre tu vuelo…" style="flex:1;min-width:0;background:rgba(6,16,22,.92);border:1px solid rgba(63,210,240,.25);border-radius:13px;padding:10px 13px;font-size:12.5px;color:#eaf3f8;font-family:inherit;outline:none">'+
+          '<button id="ar-mic" title="Hablar con ARIA" style="width:40px;height:40px;border-radius:50%;border:none;background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff;font-size:16px;flex-shrink:0">🎤</button>'+
           '<button id="ar-send" style="width:40px;height:40px;border-radius:50%;border:none;background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff;font-size:16px;flex-shrink:0">↑</button>'+
         '</div>'+
       '</div>';
@@ -37331,19 +37332,20 @@ document.addEventListener('DOMContentLoaded', function(){
     q('#ar-back').onclick=function(){ rewind(15); };
     var stp=q('#ar-stop'); if(stp)stp.onclick=stopBriefing;
     var bar=q('#ar-bar'); if(bar)bar.onclick=function(ev){ if(!audios.length||!total)return; var r=bar.getBoundingClientRect(); seekToPlay(Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width))*total); };
-    var vsel=q('#ar-voice'); if(vsel)vsel.onchange=function(){ CUR.voice=vsel.value; saveCfg('voice',vsel.value); };
+    var vsel=q('#ar-voice'); if(vsel)vsel.onchange=function(){ CUR.voice=vsel.value; saveCfg('voice',vsel.value); var vp=q('#ar-vpill'); if(vp)vp.textContent='VOZ · '+vsel.value.toUpperCase(); if(audios.length)stat(CUR.lang==='en'?'Voice changed — tap Regenerate to apply':'Voz cambiada — pulsa Generar de nuevo para aplicarla'); };
     var rl=q('#ar-rl'); var rs=q('#ar-rate'); if(rs){ rs.value=RATE; if(rl)rl.textContent=RATE.toFixed(2)+'×'; rs.oninput=function(){ RATE=parseFloat(rs.value)||1; saveCfg('rate',RATE); if(rl)rl.textContent=RATE.toFixed(2)+'×'; if(curAudio)curAudio.playbackRate=RATE; }; }
     var vl=q('#ar-vl'); var vo=q('#ar-vol'); if(vo){ vo.value=VOL; if(vl)vl.textContent=Math.round(VOL*100)+'%'; vo.oninput=function(){ VOL=parseFloat(vo.value); saveCfg('vol',VOL); if(vl)vl.textContent=Math.round(VOL*100)+'%'; if(curAudio)curAudio.volume=VOL; }; }
-    q('#ar-vmic').onclick=vStart;
-    q('#ar-vend').onclick=vStop;
+    var mic=q('#ar-mic'); if(mic)mic.onclick=vStart;
     var inp=q('#ar-input'), snd=q('#ar-send');
     if(snd)snd.onclick=function(){ if(inp){ var v=inp.value; inp.value=''; chatSend(v); } };
     if(inp)inp.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); var v=inp.value; inp.value=''; chatSend(v); } });
   }
 
   function _stopAll(){ try{ if(curAudio)curAudio.pause(); }catch(e){} try{ if(_va){ _va.pause(); _va.onended=null; } }catch(e){} try{ vStop(); }catch(e){} playing=false; paused=false; audios=[]; curAudio=null; k=0; acc=0; }
-  window.__ariaStop=function(){ _stopAll(); };
-  window.__ariaMount=function(container){ try{ _stopAll(); buildPanel(container); }catch(e){ try{ buildPanel(container); }catch(e2){} } };
+  function _pauseKeep(){ try{ if(curAudio)curAudio.pause(); }catch(e){} try{ if(_va){ _va.pause(); _va.onended=null; } }catch(e){} if(playing)paused=true; try{ vStop(); }catch(e){} }
+  function restoreState(){ if(!LAST_TEXT||!audios.length)return; renderText(LAST_TEXT); var pl=q('#ar-player'); if(pl)pl.style.display='flex'; var pb=q('#ar-play'); if(pb){ pb.disabled=false; pb.style.opacity='1'; pb.textContent=(playing&&!paused)?'⏸':'▶'; } var bk=q('#ar-back'); if(bk){ bk.disabled=false; bk.style.opacity='1'; } var sb=q('#ar-stop'); if(sb){ sb.disabled=false; sb.style.opacity='1'; } var tot=q('#ar-tot'); if(tot)tot.textContent=fmt(total); var el=curElapsed(); var f=q('#ar-fill'); if(f&&total)f.style.width=Math.min(100,el/total*100)+'%'; var c=q('#ar-cur'); if(c)c.textContent=fmt(el); if(audios[k])hi(audios[k].from,audios[k].to); var gen=q('#ar-gen'); if(gen)gen.textContent=(CUR.lang==='en'?'▶ Regenerate':'▶ Generar de nuevo'); }
+  window.__ariaStop=function(){ _pauseKeep(); };
+  window.__ariaMount=function(container){ try{ buildPanel(container); restoreState(); }catch(e){ try{ buildPanel(container); }catch(e2){} } };
 })();
 </script>
 
