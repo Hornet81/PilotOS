@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.162">
+  <meta name="version" content="Beta.163">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.162","builtAt":"2026-06-27T18:33:54Z","commit":"f341ee8","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.163","builtAt":"2026-06-27T18:34:56Z","commit":"58b3ad0","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -37004,7 +37004,7 @@ document.addEventListener('DOMContentLoaded', function(){
     return window.buildAISystem ? window.buildAISystem(leg,turb) : '';
   }
   function chatLog(role,text){ var box=q('#ar-chat'); if(!box)return null; var w=document.createElement('div'); w.style.cssText='margin-bottom:9px;display:flex;'+(role==='you'?'justify-content:flex-end':'justify-content:flex-start'); var b=document.createElement('div'); b.style.cssText='max-width:88%;font-size:13px;line-height:1.45;padding:9px 12px;border-radius:13px;'+(role==='you'?'background:linear-gradient(135deg,rgba(10,60,75,.55),rgba(10,163,199,.32));color:#eaf3f8':'background:rgba(8,20,27,.9);color:#cfe6ef;border:1px solid rgba(63,210,240,.12)'); b.textContent=text; w.appendChild(b); box.appendChild(w); try{ b.scrollIntoView({behavior:'smooth',block:'nearest'}); }catch(e){} return b; }
-  async function chatSend(text){ text=(text||'').trim(); if(!text)return; var tk=token(); if(!tk){ chatLog('aria','Inicia sesión para usar ARIA.'); return; } chatLog('you',text); var th=chatLog('aria','…'); try{ var ctx=window.__ariaCtx||{}; var sys=ctx.leg?await ctxSys(ctx.leg,ctx.turbData):''; var r=await fetch(BACKEND+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({messages:[{role:'user',content:text}],logbook_context:sys,scope:'briefing'})}); var j=await r.json(); var ans=(j.content&&j.content.map(function(b){return b.text||'';}).join(''))||(j.message?j.message:'No tengo respuesta.'); ans=ans.replace(/[*#`]/g,''); if(th)th.textContent=ans; }catch(e){ if(th)th.textContent='⚠ Error de conexión.'; } }
+  async function chatSend(text){ text=(text||'').trim(); if(!text)return; var tk=token(); if(!tk){ chatLog('aria','Inicia sesión para usar ARIA.'); return; } chatLog('you',text); var th=chatLog('aria','…'); try{ var ctx=window.__ariaCtx||{}; var sys=ctx.leg?await ctxSys(ctx.leg,ctx.turbData):''; var r=await fetch(BACKEND+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({messages:[{role:'user',content:text+(CUR.lang==='en'?'\n\n(Reply in English.)':'\n\n(Responde en español de España.)')}],logbook_context:sys,scope:'briefing'})}); var j=await r.json(); var ans=(j.content&&j.content.map(function(b){return b.text||'';}).join(''))||(j.message?j.message:'No tengo respuesta.'); ans=ans.replace(/[*#`]/g,''); if(th)th.textContent=ans; }catch(e){ if(th)th.textContent='⚠ Error de conexión.'; } }
 
   var audios=[],curAudio=null,playing=false,paused=false,total=0,acc=0,k=0,durs=[],SENT=[],PEL=[],SEG=[],GAP=850;
 
@@ -37146,7 +37146,7 @@ document.addEventListener('DOMContentLoaded', function(){
       vLog('you',said);
       if(/^(no|nada|ya est|terminar|gracias|eso es todo|nada m)/i.test(said)){ vSpeak(CUR.lang==='en'?'Understood. Have a good flight.':'Entendido. Buen vuelo y buen servicio.',function(){ vStop(); }); return; }
       var ctx=window.__ariaCtx||{}; var sys=ctx.leg?await ctxSys(ctx.leg,ctx.turbData):'';
-      var rc=await fetch(BACKEND+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({messages:[{role:'user',content:said+'\n\n(Responde breve, en voz, español de España, máximo 90 palabras, sin asteriscos.)'}],logbook_context:sys,scope:'briefing'})});
+      var rc=await fetch(BACKEND+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({messages:[{role:'user',content:said+(CUR.lang==='en'?'\n\n(Reply briefly, spoken style, in English, maximum 90 words, no asterisks.)':'\n\n(Responde breve, en voz, español de España, máximo 90 palabras, sin asteriscos.)')}],logbook_context:sys,scope:'briefing'})});
       var cj=await rc.json(); var ans=(cj.content&&cj.content.map(function(b){return b.text||'';}).join(''))||(cj.message?cj.message:'No tengo respuesta.');
       ans=ans.replace(/[*#_`]/g,'');
       vLog('aria',ans);
