@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.166">
+  <meta name="version" content="Beta.167">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.166","builtAt":"2026-06-27T19:26:24Z","commit":"52f056d","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.167","builtAt":"2026-06-27T19:33:52Z","commit":"46e05c1","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -31559,7 +31559,13 @@ window.addEventListener('offline', function(){
 function rstPushAllMonths(entries){
   var months = {};
   (entries||[]).forEach(function(e){ if(e.date) months[e.date.slice(0,7)] = true; });
-  Object.keys(months).forEach(function(m){ if(window.rstPushMonth) window.rstPushMonth(m); });
+  Object.keys(months).forEach(function(m){
+    // Un IMPORT = el mes está vivo (alta deliberada) → limpia el flag de borrado ANTES
+    // de subir, si no la guarda anti-resurrección de rstPushMonth bloquearía la subida
+    // del re-import (caso real: borras julio y lo vuelves a importar → no sincronizaba).
+    try{ localStorage.removeItem('pilotOS_deleted_month_'+m); }catch(e){}
+    if(window.rstPushMonth) window.rstPushMonth(m);
+  });
 }
 
 window.rstPullFromServer = async function(){
@@ -31632,6 +31638,21 @@ window.rstPullFromServer = async function(){
       RST.entries=localKept;
       changed=true;
     }
+
+    // ── 3) Auto-curación: meses SOLO en local (push fallido) → re-subir ──
+    // Recupera un mes que existe en este dispositivo pero NO llegó al servidor (p.ej. un
+    // re-import cuyo push se bloqueó). NO resucita borrados: salta meses con tombstone
+    // del servidor o con flag de borrado local. Push fire-and-forget.
+    try{
+      var _localMonths={};
+      RST.entries.forEach(function(e){ if(e.date) _localMonths[e.date.slice(0,7)]=true; });
+      Object.keys(_localMonths).forEach(function(lm){
+        if(serverByMonth[lm]) return;                              // ya está en el servidor
+        if(serverDeleted.indexOf(lm)>=0) return;                   // tombstoned → no resucitar
+        if(localStorage.getItem('pilotOS_deleted_month_'+lm)) return; // borrado local → no resucitar
+        if(window.rstPushMonth) window.rstPushMonth(lm);           // mes huérfano vivo → subir
+      });
+    }catch(e){}
 
     if(!changed) return 0;
 
@@ -37050,6 +37071,7 @@ document.addEventListener('DOMContentLoaded', function(){
     vol:(lg('db_vol',null)!=null?parseFloat(lg('db_vol','1')):1) }; }
   function saveCfg(kk,v){ try{ localStorage.setItem('db_'+kk,v); }catch(e){} }
   var CUR=cfg(), RATE=CUR.rate, VOL=CUR.vol, SCOPE='hoy';
+  var LAST_TEXT='', LAST_SCOPE='';
 
   var R=null;
   function q(s){ return R?R.querySelector(s):null; }
@@ -37067,7 +37089,19 @@ document.addEventListener('DOMContentLoaded', function(){
     return window.buildAISystem ? window.buildAISystem(leg,turb) : '';
   }
   function chatLog(role,text){ var box=q('#ar-chat'); if(!box)return null; var w=document.createElement('div'); w.style.cssText='margin-bottom:9px;display:flex;'+(role==='you'?'justify-content:flex-end':'justify-content:flex-start'); var b=document.createElement('div'); b.style.cssText='max-width:88%;font-size:13px;line-height:1.45;padding:9px 12px;border-radius:13px;'+(role==='you'?'background:linear-gradient(135deg,rgba(10,60,75,.55),rgba(10,163,199,.32));color:#eaf3f8':'background:rgba(8,20,27,.9);color:#cfe6ef;border:1px solid rgba(63,210,240,.12)'); b.textContent=text; w.appendChild(b); box.appendChild(w); try{ b.scrollIntoView({behavior:'smooth',block:'nearest'}); }catch(e){} return b; }
-  async function chatSend(text){ text=(text||'').trim(); if(!text)return; var tk=token(); if(!tk){ chatLog('aria','Inicia sesión para usar ARIA.'); return; } chatLog('you',text); var th=chatLog('aria','…'); try{ var ctx=window.__ariaCtx||{}; var sys=ctx.leg?await ctxSys(ctx.leg,ctx.turbData):''; var r=await fetch(BACKEND+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({messages:[{role:'user',content:text+(CUR.lang==='en'?'\n\n(Reply in English.)':'\n\n(Responde en español de España.)')}],logbook_context:sys,scope:'briefing'})}); var j=await r.json(); var ans=(j.content&&j.content.map(function(b){return b.text||'';}).join(''))||(j.message?j.message:'No tengo respuesta.'); ans=ans.replace(/[*#`]/g,''); if(th)th.textContent=ans; }catch(e){ if(th)th.textContent='⚠ Error de conexión.'; } }
+  async function qaContext(){
+    var ctx=window.__ariaCtx||{};
+    var langLine=(CUR.lang==='en'?'\n\nReply in English.':'\n\nResponde en castellano de España.');
+    if(LAST_SCOPE==='hoy' && LAST_TEXT){
+      var legs=gatherLegs();
+      var routes=legs.map(function(l){ return l.flight+' '+l.dep+'→'+l.arr+' ('+l.std+'-'+l.sta+'Z)'; }).join(' | ');
+      return 'Eres ARIA. Acabas de entregar al piloto este BRIEFING DE TODA LA JORNADA (varios sectores). Responde SOLO sobre la jornada de hoy y este briefing, breve y hablado. IMPORTANTE: TODOS estos sectores ESTÁN cubiertos por el briefing; NUNCA digas que no has informado de un aeropuerto que aparezca abajo.\n\nSECTORES DE HOY: '+routes+'\n\nBRIEFING ENTREGADO:\n'+LAST_TEXT+langLine;
+    }
+    var base = ctx.leg ? await ctxSys(ctx.leg, ctx.turbData) : '';
+    if(LAST_TEXT && LAST_SCOPE==='leg'){ base = base+'\n\nBRIEFING YA ENTREGADO DE ESTE VUELO (responde coherente con él):\n'+LAST_TEXT; }
+    return base;
+  }
+  async function chatSend(text){ text=(text||'').trim(); if(!text)return; var tk=token(); if(!tk){ chatLog('aria','Inicia sesión para usar ARIA.'); return; } chatLog('you',text); var th=chatLog('aria','…'); try{ var sys=await qaContext(); var r=await fetch(BACKEND+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({messages:[{role:'user',content:text+(CUR.lang==='en'?'\n\n(Reply in English.)':'\n\n(Responde en español de España.)')}],logbook_context:sys,scope:'briefing'})}); var j=await r.json(); var ans=(j.content&&j.content.map(function(b){return b.text||'';}).join(''))||(j.message?j.message:'No tengo respuesta.'); ans=ans.replace(/[*#`]/g,''); if(th)th.textContent=ans; }catch(e){ if(th)th.textContent='⚠ Error de conexión.'; } }
 
   var audios=[],curAudio=null,playing=false,paused=false,total=0,acc=0,k=0,durs=[],SENT=[],PEL=[],SEG=[],GAP=850;
 
@@ -37113,6 +37147,7 @@ document.addEventListener('DOMContentLoaded', function(){
   function curElapsed(){ return acc+((curAudio&&curAudio.currentTime)||0); }
   function seekToPlay(target){ if(!audios.length||!total)return; target=Math.max(0,Math.min(target,total)); if(curAudio){ try{curAudio.pause();}catch(e){} curAudio.onended=null; curAudio.ontimeupdate=null; } var t=target,idx=0; while(idx<durs.length-1&&t>=durs[idx]){ t-=durs[idx]; idx++; } k=idx; acc=0; for(var j=0;j<idx;j++)acc+=durs[j]; try{ audios[idx].a.currentTime=Math.max(0,Math.min(t,durs[idx]-0.05)); }catch(e){} playing=true; paused=false; var pb=q('#ar-play'); if(pb)pb.textContent='⏸'; var f=q('#ar-fill'); if(f)f.style.width=Math.min(100,target/total*100)+'%'; var c=q('#ar-cur'); if(c)c.textContent=fmt(target); playK(); }
   function rewind(sec){ if(!audios.length)return; seekToPlay(curElapsed()-sec); }
+  function stopBriefing(){ try{ if(curAudio)curAudio.pause(); }catch(e){} try{ if(_va){ _va.pause(); _va.onended=null; } }catch(e){} playing=false; paused=true; var pb=q('#ar-play'); if(pb)pb.textContent='▶'; hi(-1,-1); stat(CUR.lang==='en'?'■ Briefing stopped — ask me anything':'■ Briefing detenido — pregúntame lo que quieras'); showVoiceDock(true); }
   function togglePlay(){ if(!audios.length)return; var pb=q('#ar-play'); if(!playing){ playing=true; paused=false; acc=0; k=0; if(pb)pb.textContent='⏸'; unlockAudio(); playK(); } else if(paused){ paused=false; if(pb)pb.textContent='⏸'; if(curAudio){ if(curAudio.ended)playK(); else curAudio.play(); } } else { paused=true; if(pb)pb.textContent='▶'; if(curAudio)curAudio.pause(); } }
 
   async function generate(){
@@ -37136,13 +37171,13 @@ document.addEventListener('DOMContentLoaded', function(){
         if(!leg){ stat('No hay vuelo activo en SkyView.'); return _done(gen); }
         stat('Analizando este vuelo con ARIA…');
         var sys=await ctxSys(leg,ctx.turbData);
-        var r2=await fetch(BACKEND+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({messages:[{role:'user',content:'Genera un briefing operacional completo de este vuelo: descifra METARs, NOTAMs, PIREPs, turbulencia y fatiga, con recomendaciones claras. Sin asteriscos ni markdown, texto hablado.'}],logbook_context:sys,scope:'briefing'})});
+        var r2=await fetch(BACKEND+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({messages:[{role:'user',content:'Genera un briefing operacional completo de este vuelo: descifra METARs, NOTAMs, PIREPs, turbulencia y fatiga, con recomendaciones claras. Sin asteriscos ni markdown, texto hablado.'+(CUR.lang==='en'?' Write the ENTIRE briefing in fluent native English.':'')}],logbook_context:sys,scope:'briefing'})});
         var d2=await r2.json(); txt=(d2.content&&d2.content.map(function(b){return b.text||'';}).join(''))||(d2.message?'⚠ '+d2.message:'Sin respuesta');
       }
-      if(!txt){ stat('⚠ ARIA no devolvió texto'); return _done(gen); }
+      if(!txt){ stat('⚠ ARIA no devolvió texto'); return _done(gen); } LAST_TEXT=txt; LAST_SCOPE=SCOPE;
       renderText(txt); if(pl)pl.style.display='flex'; stat('Preparando voz…');
       var ok=await prepareVoice();
-      if(ok){ var pb=q('#ar-play'); if(pb){ pb.disabled=false; pb.style.opacity='1'; } var bk=q('#ar-back'); if(bk){ bk.disabled=false; bk.style.opacity='1'; } stat(CUR.lang==='en'?'▶ Ready · plays offline':'▶ Listo · pulsa play (suena sin cobertura)'); showVoiceDock(false); }
+      if(ok){ var pb=q('#ar-play'); if(pb){ pb.disabled=false; pb.style.opacity='1'; } var bk=q('#ar-back'); if(bk){ bk.disabled=false; bk.style.opacity='1'; } var sb=q('#ar-stop'); if(sb){ sb.disabled=false; sb.style.opacity='1'; } stat(CUR.lang==='en'?'▶ Ready · plays offline':'▶ Listo · pulsa play (suena sin cobertura)'); showVoiceDock(false); }
     }catch(e){ stat('⚠ '+(e&&e.message||e)); }
     _done(gen);
   }
@@ -37208,7 +37243,7 @@ document.addEventListener('DOMContentLoaded', function(){
       if(!said){ if(vOn)vTurn(); return; }
       vLog('you',said);
       if(/^(no|nada|ya est|terminar|gracias|eso es todo|nada m)/i.test(said)){ vSpeak(CUR.lang==='en'?'Understood. Have a good flight.':'Entendido. Buen vuelo y buen servicio.',function(){ vStop(); }); return; }
-      var ctx=window.__ariaCtx||{}; var sys=ctx.leg?await ctxSys(ctx.leg,ctx.turbData):'';
+      var sys=await qaContext();
       var rc=await fetch(BACKEND+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({messages:[{role:'user',content:said+(CUR.lang==='en'?'\n\n(Reply briefly, spoken style, in English, maximum 90 words, no asterisks.)':'\n\n(Responde breve, en voz, español de España, máximo 90 palabras, sin asteriscos.)')}],logbook_context:sys,scope:'briefing'})});
       var cj=await rc.json(); var ans=(cj.content&&cj.content.map(function(b){return b.text||'';}).join(''))||(cj.message?cj.message:'No tengo respuesta.');
       ans=ans.replace(/[*#_`]/g,'');
@@ -37259,6 +37294,7 @@ document.addEventListener('DOMContentLoaded', function(){
             '<div style="flex:1"><div id="ar-bar" style="height:8px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden;cursor:pointer"><div id="ar-fill" style="height:100%;width:0;background:linear-gradient(90deg,#0aa3c7,#3fd2f0);pointer-events:none"></div></div>'+
               '<div style="display:flex;justify-content:space-between;font-size:9.5px;color:#6c818d;margin-top:4px"><span id="ar-cur">0:00</span><span id="ar-tot">0:00</span></div></div>'+
             '<button id="ar-back" disabled title="Atrás 15s" style="flex-shrink:0;width:42px;height:42px;border-radius:50%;border:1px solid rgba(63,210,240,.4);background:rgba(10,163,199,.12);color:#cdeefb;font-size:11px;font-weight:700;opacity:.5;font-family:ui-monospace,monospace">↺15</button>'+
+            '<button id="ar-stop" disabled title="Finalizar" style="flex-shrink:0;width:42px;height:42px;border-radius:50%;border:1px solid rgba(255,90,90,.45);background:rgba(255,90,90,.12);color:#ff9a9a;font-size:12px;font-weight:700;opacity:.5;font-family:inherit">■</button>'+
           '</div>'+
           '<div id="ar-status" style="font-size:10.5px;color:#3fd2f0;margin-top:9px;min-height:13px;text-align:center"></div>'+
           '<div id="ar-tr" style="margin-top:10px"></div>'+
@@ -37293,6 +37329,7 @@ document.addEventListener('DOMContentLoaded', function(){
     q('#ar-gen').onclick=generate;
     q('#ar-play').onclick=togglePlay;
     q('#ar-back').onclick=function(){ rewind(15); };
+    var stp=q('#ar-stop'); if(stp)stp.onclick=stopBriefing;
     var bar=q('#ar-bar'); if(bar)bar.onclick=function(ev){ if(!audios.length||!total)return; var r=bar.getBoundingClientRect(); seekToPlay(Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width))*total); };
     var vsel=q('#ar-voice'); if(vsel)vsel.onchange=function(){ CUR.voice=vsel.value; saveCfg('voice',vsel.value); };
     var rl=q('#ar-rl'); var rs=q('#ar-rate'); if(rs){ rs.value=RATE; if(rl)rl.textContent=RATE.toFixed(2)+'×'; rs.oninput=function(){ RATE=parseFloat(rs.value)||1; saveCfg('rate',RATE); if(rl)rl.textContent=RATE.toFixed(2)+'×'; if(curAudio)curAudio.playbackRate=RATE; }; }
