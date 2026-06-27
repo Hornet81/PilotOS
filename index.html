@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.165">
+  <meta name="version" content="Beta.166">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.165","builtAt":"2026-06-27T19:04:44Z","commit":"ac6cc26","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.166","builtAt":"2026-06-27T19:26:24Z","commit":"28f0143","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -31475,6 +31475,11 @@ function rstSyncUpdateBadge(month, state){
 window.rstPushMonth = async function(month){
   var token=''; try{ token=lsGet('cafi_auth_token',''); }catch(e){}
   if(!token||!month) return;
+  // NO RESUCITAR un mes borrado: si este dispositivo ya sabe que el mes está borrado
+  // (flag puesto por el pull al ver el tombstone, o por borrado local), no lo subas —
+  // si no, un push tardío lo devolvería a la vida y borraría el tombstone en el server.
+  // Un re-import limpia este flag (ver rstPushAllMonths/import), así que sí se sube.
+  try{ if(localStorage.getItem('pilotOS_deleted_month_'+month)){ rstSyncRemovePending(month); return; } }catch(e){}
   var entries = RST.entries.filter(function(e){ return e.date && e.date.slice(0,7)===month; });
   if(!entries.length) return;
   var viewed = (RST.viewYear+'-'+String(RST.viewMonth+1).padStart(2,'0') === month);
@@ -31527,7 +31532,11 @@ window.rstRetryDeletes = async function(){
 window.rstSyncRetryPending = async function(){
   var token=''; try{ token=lsGet('cafi_auth_token',''); }catch(e){}
   if(!token) return;
-  await window.rstRetryDeletes();                 // primero propaga borrados offline (tombstones)
+  await window.rstRetryDeletes();                 // 1) propaga borrados offline (crea tombstones)
+  // 2) PULL ANTES DE PUSH: aplica los borrados remotos (tombstones) y marca los meses
+  //    borrados localmente, para que el push siguiente NO los resucite. Sin esto, un mes
+  //    que el otro dispositivo borró se volvía a subir al reintentar la cola pendiente.
+  try{ if(typeof rstPullFromServer==='function') await rstPullFromServer(); }catch(e){}
   var pending = rstSyncGetPending();
   for(var _pi=0; _pi<pending.length; _pi++){
     await window.rstPushMonth(pending[_pi]);
