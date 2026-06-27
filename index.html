@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.142">
+  <meta name="version" content="Beta.143">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.142","builtAt":"2026-06-27T13:23:28Z","commit":"14f32d3","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.143","builtAt":"2026-06-27T13:28:53Z","commit":"d7d5a1e","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -27303,8 +27303,20 @@ function buildLegsFromRoster() {
     }).sort(function (a, b) {
       return (a.date + ' ' + (a.std || '')).localeCompare(b.date + ' ' + (b.std || ''));
     });
-    if (!survivors.length) return null;
-    var firstDate = survivors[0].date;
+    // ⚠️ TEMPORAL (PENDIENTE arreglar bien cuando ARIA esté estable): si no hay ningún
+    // vuelo "próximo" (todos con llegada+ROLL_BUFFER_H ya pasada), en vez de devolver null
+    // (que dejaría SkyView/ARIA sin leg) caemos al ÚLTIMO día con vuelos del roster, para
+    // poder seguir trabajando con ARIA con datos reales. Revisar la ventana ROLL_BUFFER_H
+    // y este fallback más adelante.
+    var firstDate;
+    if (survivors.length) {
+      firstDate = survivors[0].date;
+    } else {
+      var _flightDays = entries.filter(function (e) { return e.type === 'flight' && e.dep && e.arr; })
+                               .map(function (e) { return e.date; }).sort();
+      if (!_flightDays.length) return null;
+      firstDate = _flightDays[_flightDays.length - 1];
+    }
     // Mantener TODAS las legs de ese día, ordenadas por hora de salida.
     var upcoming = entries.filter(function (e) {
       return e.type === 'flight' && e.dep && e.arr && e.date === firstDate;
