@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.136">
+  <meta name="version" content="Beta.137">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.136","builtAt":"2026-06-27T11:44:21Z","commit":"114b571","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.137","builtAt":"2026-06-27T11:51:26Z","commit":"61700b0","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -36751,9 +36751,10 @@ document.addEventListener('DOMContentLoaded', function(){
   function token(){ try{ return localStorage.getItem('cafi_auth_token')||''; }catch(e){ return ''; } }
   function pilotName(){ try{ return localStorage.getItem('pilot_name')||'Comandante'; }catch(e){ return 'Comandante'; } }
   function stripZ(s){ return String(s||'').replace(/[^0-9:]/g,''); }
-  function cfg(){ return { lang: localStorage.getItem('db_lang')||'es', gender: localStorage.getItem('db_gender')||'male', rate: parseFloat(localStorage.getItem('db_rate'))||1, vol: localStorage.getItem('db_vol')!=null?parseFloat(localStorage.getItem('db_vol')):1 }; }
+  function cfg(){ return { lang: localStorage.getItem('db_lang')||'es', voice: localStorage.getItem('db_voice')||'onyx', rate: parseFloat(localStorage.getItem('db_rate'))||1, vol: localStorage.getItem('db_vol')!=null?parseFloat(localStorage.getItem('db_vol')):1 }; }
   function saveCfg(k,v){ try{ localStorage.setItem('db_'+k, v); }catch(e){} }
   function seg(a){ return 'flex:1;padding:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;'+(a?'background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff':'background:transparent;color:#9fb3bd'); }
+  var VOICES=[['onyx','Onyx — hombre, grave'],['echo','Echo — hombre, claro'],['ash','Ash — hombre, cálido'],['ballad','Ballad — hombre, narrador'],['nova','Nova — mujer, cercana'],['shimmer','Shimmer — mujer, suave'],['coral','Coral — mujer, expresiva'],['sage','Sage — mujer, serena'],['alloy','Alloy — neutra'],['fable','Fable — neutra, británica'],['verse','Verse — versátil']];
   var CUR = cfg(), RATE = CUR.rate, VOL = CUR.vol;
 
   var ov, audios=[], curAudio=null, playing=false, paused=false, total=0, acc=0, k=0, durs=[], SENT=[], PEL=[];
@@ -36766,6 +36767,7 @@ document.addEventListener('DOMContentLoaded', function(){
   function close(){ try{ if(curAudio)curAudio.pause(); }catch(e){} playing=false; if(ov){ ov.remove(); ov=null; } audios=[]; SENT=[]; PEL=[]; }
 
   function build(){
+    var VOICE_OPTS = VOICES.map(function(v){ return '<option value="'+v[0]+'"'+(v[0]===CUR.voice?' selected':'')+'>'+v[1]+'</option>'; }).join('');
     ov = el('<div id="db-ov" style="position:fixed;inset:0;z-index:99999;background:rgba(8,5,2,0.97);display:flex;flex-direction:column;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#f3ede6;overscroll-behavior:contain"></div>');
     ov.innerHTML =
       '<div style="display:flex;align-items:center;gap:11px;padding:16px 16px 12px;border-bottom:1px solid rgba(10,163,199,0.25)">'+
@@ -36780,8 +36782,7 @@ document.addEventListener('DOMContentLoaded', function(){
             '<div style="display:flex;border:1px solid rgba(255,255,255,0.12);border-radius:9px;overflow:hidden">'+
               '<button data-g="lang" data-v="es">Español</button><button data-g="lang" data-v="en">English</button></div></div>'+
           '<div style="margin-bottom:10px"><div style="font-size:9px;color:#7d6f5f;letter-spacing:.5px;margin-bottom:5px">VOZ</div>'+
-            '<div style="display:flex;border:1px solid rgba(255,255,255,0.12);border-radius:9px;overflow:hidden">'+
-              '<button data-g="gender" data-v="male">&#9794; Hombre</button><button data-g="gender" data-v="female">&#9792; Mujer</button></div></div>'+
+            '<select id="db-voice" style="width:100%;background:#0b1418;color:#f3ede6;border:1px solid rgba(255,255,255,0.14);border-radius:9px;padding:9px;font-size:13px;font-family:inherit">'+VOICE_OPTS+'</select></div>'+
           '<div style="margin-bottom:10px"><div style="font-size:9px;color:#7d6f5f;letter-spacing:.5px;margin-bottom:5px">VELOCIDAD <span id="db-rate-lbl"></span></div>'+
             '<input id="db-rate" type="range" min="0.7" max="1.4" step="0.05" style="width:100%;accent-color:#0aa3c7"></div>'+
           '<div style="margin-bottom:4px"><div style="font-size:9px;color:#7d6f5f;letter-spacing:.5px;margin-bottom:5px">VOLUMEN <span id="db-vol-lbl"></span></div>'+
@@ -36805,10 +36806,11 @@ document.addEventListener('DOMContentLoaded', function(){
     var vl=q('#db-vol-lbl'); if(vl)vl.textContent=Math.round(VOL*100)+'%';
     var rs=q('#db-rate'); if(rs){ rs.value=RATE; rs.oninput=function(){ RATE=parseFloat(rs.value)||1; saveCfg('rate',RATE); if(rl)rl.textContent=RATE.toFixed(2)+'×'; if(curAudio)curAudio.playbackRate=RATE; }; }
     var vs=q('#db-vol'); if(vs){ vs.value=VOL; vs.oninput=function(){ VOL=parseFloat(vs.value); saveCfg('vol',VOL); if(vl)vl.textContent=Math.round(VOL*100)+'%'; if(curAudio)curAudio.volume=VOL; }; }
-    function paintSeg(g){ var v=(g==='lang')?CUR.lang:CUR.gender; var bs=ov.querySelectorAll('[data-g="'+g+'"]'); for(var i=0;i<bs.length;i++){ bs[i].setAttribute('style', seg(bs[i].getAttribute('data-v')===v)); } }
+    function paintSeg(g){ var v=CUR[g]; var bs=ov.querySelectorAll('[data-g="'+g+'"]'); for(var i=0;i<bs.length;i++){ bs[i].setAttribute('style', seg(bs[i].getAttribute('data-v')===v)); } }
     var segs=ov.querySelectorAll('[data-g]');
-    for(var i=0;i<segs.length;i++){ (function(b){ b.onclick=function(){ var g=b.getAttribute('data-g'), v=b.getAttribute('data-v'); if(g==='lang')CUR.lang=v; else CUR.gender=v; saveCfg(g,v); paintSeg(g); }; })(segs[i]); }
-    paintSeg('lang'); paintSeg('gender');
+    for(var i=0;i<segs.length;i++){ (function(b){ b.onclick=function(){ var g=b.getAttribute('data-g'), v=b.getAttribute('data-v'); CUR[g]=v; saveCfg(g,v); paintSeg(g); }; })(segs[i]); }
+    paintSeg('lang');
+    var vsel=q('#db-voice'); if(vsel){ vsel.value=CUR.voice; vsel.onchange=function(){ CUR.voice=vsel.value; saveCfg('voice',vsel.value); }; }
     var gen=q('#db-gen'); if(gen)gen.onclick=generate;
   }
 
@@ -36842,7 +36844,7 @@ document.addEventListener('DOMContentLoaded', function(){
     for(var i=0;i<chunks.length;i++){
       status('Generando voz '+(i+1)+'/'+chunks.length+'…');
       var r;
-      try{ r=await fetch(BACKEND+'/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({text:chunks[i].text,voice:(CUR.gender==='female'?'nova':'onyx')})}); }
+      try{ r=await fetch(BACKEND+'/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({text:chunks[i].text,voice:(CUR.voice||'onyx')})}); }
       catch(e){ status('⚠ Sin conexión para la voz'); return false; }
       if(r.status===429){ var j=await r.json().catch(function(){return{};}); status('⚠ '+(j.message||'Voz no disponible en tu plan')); return false; }
       if(!r.ok){ status('⚠ Error de voz '+r.status); return false; }
@@ -36883,7 +36885,7 @@ document.addEventListener('DOMContentLoaded', function(){
     if(!tk){ status(CUR.lang==='en'?'Sign in to generate the briefing.':'Inicia sesión para generar el briefing.'); return _genDone(gen); }
     try{
       status(CUR.lang==='en'?'Generating briefing with ARIA…':'Generando briefing con ARIA…');
-      var r=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({legs:legs,pilot:pilotName(),lang:CUR.lang})});
+      var r=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({legs:legs,pilot:pilotName(),lang:CUR.lang,localHour:new Date().getHours()})});
       if(!r.ok){ var j=await r.json().catch(function(){return{};}); status('⚠ '+(j.message||j.error||('Error '+r.status))); return _genDone(gen); }
       var d=await r.json();
       if(!d.text){ status('⚠ ARIA no devolvió texto'); return _genDone(gen); }
