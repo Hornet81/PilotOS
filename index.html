@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.164">
+  <meta name="version" content="Beta.165">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.164","builtAt":"2026-06-27T18:52:29Z","commit":"33d65c6","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.165","builtAt":"2026-06-27T19:04:44Z","commit":"7c1fb7d","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -31410,14 +31410,10 @@ window.rosterClearAll = function(){
   try { localStorage.removeItem('pilotOS_pdf_block_'+monthToDelete); } catch(e){}
   try { localStorage.removeItem('pilotOS_pdf_duty_'+monthToDelete); } catch(e){}
 
-  // Delete from server (fire-and-forget)
-  var token=''; try{ token=lsGet('cafi_auth_token',''); }catch(e){}
-  if(token){
-    fetch(ldBackendUrl()+'/api/roster?month='+monthToDelete, {
-      method: 'DELETE',
-      headers: { 'Authorization': 'Bearer '+token }
-    }).catch(function(){/* offline — ok */});
-  }
+  // Borrado en el servidor → crea el TOMBSTONE del mes (se propaga al otro
+  // dispositivo en su próximo pull). Si no hay red, se encola y se reintenta al
+  // reconectar (rstDeleteMonthServer/rstRetryDeletes), igual que el logbook.
+  if(window.rstDeleteMonthServer) window.rstDeleteMonthServer(monthToDelete);
 
   rstRenderCalendar();
   rstRenderStats();
@@ -31504,12 +31500,35 @@ window.rstPushMonth = async function(month){
   }
 };
 
-// Retry all pending months (called on reconnect)
+// ── Cola de BORRADOS pendientes (delete offline → propaga al reconectar) ──
+// Igual que el logbook: si el DELETE no llega (sin red), se encola el mes y se
+// reintenta al reconectar, para que el tombstone acabe creándose en el servidor.
+var _ROSTER_DEL_KEY='pilotOS_roster_del_pending';
+function rstDelGetPending(){ try{ return JSON.parse(localStorage.getItem(_ROSTER_DEL_KEY)||'[]'); }catch(e){ return []; } }
+function rstDelSetPending(a){ try{ localStorage.setItem(_ROSTER_DEL_KEY, JSON.stringify(a)); }catch(e){} }
+function rstDelAddPending(m){ var q=rstDelGetPending(); if(q.indexOf(m)<0){ q.push(m); rstDelSetPending(q); } }
+function rstDelRemovePending(m){ rstDelSetPending(rstDelGetPending().filter(function(x){ return x!==m; })); }
+// Borra un mes en el servidor (crea el tombstone). Si falla (offline), lo encola.
+window.rstDeleteMonthServer = async function(month){
+  var token=''; try{ token=lsGet('cafi_auth_token',''); }catch(e){}
+  if(!token||!month) return;
+  try{
+    var r=await fetch(ldBackendUrl()+'/api/roster?month='+month,{ method:'DELETE', headers:{'Authorization':'Bearer '+token} });
+    if(!r.ok && r.status!==404) throw new Error('DELETE '+r.status);
+    rstDelRemovePending(month);
+  }catch(e){ rstDelAddPending(month); }
+};
+window.rstRetryDeletes = async function(){
+  var q=rstDelGetPending(); if(!q.length) return;
+  for(var i=0;i<q.length;i++){ await window.rstDeleteMonthServer(q[i]); }
+};
+
+// Retry all pending months + deletes (called on reconnect)
 window.rstSyncRetryPending = async function(){
-  var pending = rstSyncGetPending();
-  if(!pending.length) return;
   var token=''; try{ token=lsGet('cafi_auth_token',''); }catch(e){}
   if(!token) return;
+  await window.rstRetryDeletes();                 // primero propaga borrados offline (tombstones)
+  var pending = rstSyncGetPending();
   for(var _pi=0; _pi<pending.length; _pi++){
     await window.rstPushMonth(pending[_pi]);
   }
@@ -31544,7 +31563,7 @@ window.rstPullFromServer = async function(){
     if(!r.ok) return -1;
     var body=await r.json();
     var serverEntries=body.entries||[];
-    if(!serverEntries.length) return 0;
+    var serverDeleted=body.deleted_months||[];   // meses con tombstone (borrados en otro dispositivo)
 
     // Meses con cambios locales pendientes de push (sin red en el momento del import)
     var _pendingMonths={};
@@ -31559,10 +31578,33 @@ window.rstPullFromServer = async function(){
       serverByMonth[m].push(se);
     });
 
-    // Decidir qué meses aceptar del servidor:
+    var changed=false, added=0;
+
+    // ── 1) Aplicar BORRADOS remotos (tombstones de mes, como el logbook) ──
+    // Un mes local se borra SOLO si: el servidor lo marcó borrado Y NO está vivo en el
+    // servidor (no re-importado) Y no hay cambios locales pendientes Y no es un re-import
+    // local reciente (<60s). En la duda NO se borra → nunca se pierde dato propio.
+    serverDeleted.forEach(function(dm){
+      if(!dm) return;
+      if(serverByMonth[dm]) return;                          // vivo en servidor → no borrar
+      if(_pendingMonths[dm]) return;                         // cambios locales sin pushear → conservar
+      var _rt=new Date(lsGet('pilotOS_import_ts_'+dm,'')||0).getTime()||0;
+      if(_rt > Date.now()-60000) return;                     // re-import local muy reciente → conservar
+      var hadLocal = RST.entries.some(function(e){ return e.date && e.date.slice(0,7)===dm; });
+      if(hadLocal){
+        RST.entries = RST.entries.filter(function(e){ return !e.date || e.date.slice(0,7)!==dm; });
+        changed=true;
+      }
+      try{ localStorage.setItem('pilotOS_deleted_month_'+dm,'1'); }catch(e){}
+      try{ localStorage.removeItem('pilotOS_import_ts_'+dm); }catch(e){}
+      try{ localStorage.removeItem('pilotOS_pdf_block_'+dm); }catch(e){}
+      try{ localStorage.removeItem('pilotOS_pdf_duty_'+dm); }catch(e){}
+      try{ localStorage.removeItem('pilotOS_roster_initial_h_'+dm); }catch(e){}
+    });
+
+    // ── 2) Aceptar/AÑADIR meses del servidor ──
     // - Skip si hay cambios locales pendientes de sync (push no completado)
     // - Skip si se importó en los últimos 60s (protege la carrera import→pull inmediato)
-    // - El servidor SIEMPRE gana sobre borrados locales
     var acceptMonths=[];
     Object.keys(serverByMonth).forEach(function(month){
       if(_pendingMonths[month]) return;
@@ -31571,23 +31613,25 @@ window.rstPullFromServer = async function(){
       acceptMonths.push(month);
       try{ localStorage.removeItem('pilotOS_deleted_month_'+month); }catch(e){}
     });
-    if(!acceptMonths.length) return 0;
+    if(acceptMonths.length){
+      var localKept=RST.entries.filter(function(e){
+        return !e.date || acceptMonths.indexOf(e.date.slice(0,7))===-1;
+      });
+      acceptMonths.forEach(function(month){
+        serverByMonth[month].forEach(function(se){ localKept.push(se); added++; });
+      });
+      RST.entries=localKept;
+      changed=true;
+    }
 
-    // Reemplazar el mes completo desde servidor
-    var localKept=RST.entries.filter(function(e){
-      return !e.date || acceptMonths.indexOf(e.date.slice(0,7))===-1;
-    });
-    var added=0;
-    acceptMonths.forEach(function(month){
-      serverByMonth[month].forEach(function(se){ localKept.push(se); added++; });
-    });
+    if(!changed) return 0;
 
-    if(!RST.viewYear && localKept.length){
-      var _fm=localKept[localKept.length-1].date||'';
+    if(!RST.viewYear && RST.entries.length){
+      var _fm=RST.entries[RST.entries.length-1].date||'';
       if(_fm){ var _fp=_fm.split('-'); RST.viewYear=parseInt(_fp[0]); RST.viewMonth=parseInt(_fp[1])-1; }
     }
 
-    RST.entries=localKept.sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+    RST.entries=RST.entries.sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
     rstSave();
     try{ rstRenderCalendar(); rstRenderStats(); rstRenderFlights(); rosterShowCalendar(); }catch(ex){}
     if(typeof dhUpdateRosterCard==='function') dhUpdateRosterCard();
@@ -36809,7 +36853,9 @@ document.addEventListener('DOMContentLoaded', function(){
     ov.innerHTML =
       '<div style="display:flex;align-items:center;gap:11px;padding:16px 16px 12px;border-bottom:1px solid rgba(10,163,199,0.25)">'+
         '<div style="position:relative;width:42px;height:42px;flex-shrink:0">'+
-          '<img src="aria.jpg" alt="ARIA" style="width:42px;height:42px;border-radius:50%;object-fit:cover;border:2px solid #0aa3c7;box-shadow:0 0 14px rgba(10,163,199,0.5);display:block">'+
+          '<div style="width:42px;height:42px;border-radius:50%;overflow:hidden;border:2px solid #0aa3c7;box-shadow:0 0 14px rgba(10,163,199,0.5);box-sizing:border-box">'+
+            '<img src="aria.jpg" alt="" style="width:150%;height:150%;object-fit:cover;object-position:center 14%;display:block">'+
+          '</div>'+
           '<div style="position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:#0aa3c7;border:2px solid rgba(8,5,2,0.97);display:flex;align-items:center;justify-content:center;font-size:9px">🎧</div>'+
         '</div>'+
         '<div style="flex:1"><div style="font-weight:800;letter-spacing:1px;font-size:15px">BRIEFING DE HOY</div>'+
@@ -37170,7 +37216,9 @@ document.addEventListener('DOMContentLoaded', function(){
     root.innerHTML=
       '<div style="display:flex;align-items:center;gap:10px;padding:9px 13px;border-bottom:1px solid rgba(63,210,240,.18);flex-shrink:0">'+
         '<div style="position:relative;width:38px;height:38px;flex-shrink:0">'+
-          '<img src="aria.jpg" alt="ARIA" style="width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid rgba(63,210,240,.7)">'+
+          '<div style="width:38px;height:38px;border-radius:50%;overflow:hidden;border:2px solid rgba(63,210,240,.7);box-sizing:border-box">'+
+            '<img src="aria.jpg" alt="" style="width:150%;height:150%;object-fit:cover;object-position:center 14%;display:block">'+
+          '</div>'+
           '<span style="position:absolute;right:-1px;bottom:-1px;width:10px;height:10px;border-radius:50%;background:#4dff91;border:2px solid #06121a"></span></div>'+
         '<div style="flex:1;min-width:0"><div style="font-weight:800;letter-spacing:1px;font-size:14px;color:#eaf3f8;font-family:ui-monospace,monospace">ARIA</div>'+
           '<div style="font-size:8px;color:#7fb3c4;font-family:ui-monospace,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Aviation Route Intelligence Agent</div></div>'+
