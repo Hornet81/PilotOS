@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.144">
+  <meta name="version" content="Beta.145">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.144","builtAt":"2026-06-27T13:47:15Z","commit":"798ece8","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.145","builtAt":"2026-06-27T14:23:44Z","commit":"f5dac68","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -20773,6 +20773,7 @@ function buildAISystem(leg, turbData) {
   const turbSummary = turbData ? turbData.map((p, i) => "WP".concat(i + 1, ":EDR").concat(p.edr.toFixed(2))).join(" ") : "datos cargando";
   return "Eres ARIA (Aviation Route Intelligence Assistant), copiloto IA de PilotOS SkyView.\nLeg: ".concat(leg.flight, " ").concat(leg.dep, "\u2192").concat(leg.arr, " \xB7 STD ").concat(leg.std, " \xB7 STA ").concat(leg.sta, " \xB7 Block ").concat(leg.block, " \xB7 FL").concat(leg.cruiseFL, "\nMETAR DEP: ").concat(leg.metar.raw, " \u2192 ").concat(leg.metar.cat, "\nMETAR ARR: ").concat(leg.metarArr.raw, " \u2192 ").concat(leg.metarArr.cat, "\nRWY DEP: ").concat(leg.rwyDep, " \xB7 RWY ARR: ").concat(leg.rwyArr, "\nAlternates: ").concat(leg.alts.map(a => "".concat(a.icao, "(").concat(a.city, ") RWY").concat(a.rwy, " ").concat(a.cat)).join(" | "), "\nPIREPs: ").concat(leg.pireps.length ? leg.pireps.map(p => "".concat(p.type, " ").concat(p.fl, " ").concat(p.msg, " (").concat(p.ac, " ").concat(p.time, ")")).join(". ") : "Sin PIREPs.", "\nNOTAMs: ").concat((NOTAMS_BY_LEG[leg.num] || []).map(n => "".concat(n.id, ":").concat(n.title)).join(". "), "\nPerfil turbulencia NOAA GTG: ").concat(turbSummary, "\nFatiga: ").concat(FATIGUE.level, " (").concat(FATIGUE.score, "/100) \xB7 Descanso ").concat(FATIGUE.hoursRest, "h\nResponde en espa\xF1ol profesional. Para BRIEFING COMPLETO usa estas secciones:\n1.\u2708\uFE0F RESUMEN  2.\uD83C\uDF24 METEOROLOG\xCDA (descifra METARs)  3.\u26A1 TURBULENCIA (interpreta EDR)  4.\u26A0\uFE0F NOTAMs (explica operacionalmente)  5.\uD83D\uDD04 PIREPs  6.\uD83D\uDCA4 FATIGA\xD7CONDICIONES  7.\u2705 RECOMENDACIONES\nM\xE1x 400 palabras briefing completo, 150 palabras otras preguntas.");
 }
+try { window.buildAISystem = buildAISystem; } catch (e) {}
 
 /* ════════════════════════════════════════
    NOAA API CALLS
@@ -26812,6 +26813,7 @@ function TabMaps(_ref51) {
 function TabAria(_ref52) {
   let leg = _ref52.leg,
     turbData = _ref52.turbData;
+  try { window.__ariaCtx = { leg: leg, turbData: turbData }; } catch (e) {}
   const _useState27 = useState([{
       role: "assistant",
       content: "Buenos d\xEDas \u2600\uFE0F Soy **ARIA**, tu copiloto IA.\n\nTengo cargado **".concat(leg.flight, " ").concat(leg.dep, "\u2192").concat(leg.arr, "** FL").concat(leg.cruiseFL, " con toda la informaci\xF3n del leg.\n\nPulsa **\"Generar Briefing IA\"** para an\xE1lisis completo de METARs, NOTAMs, PIREPs, turbulencia NOAA y fatiga.")
@@ -27006,46 +27008,10 @@ function TabAria(_ref52) {
       color: "rgba(255,140,66,0.6)",
       fontFamily: mono
     }
-  }, "~800/msg"))), /*#__PURE__*/React.createElement("button", {
-    onClick: () => send("Genera un briefing operacional completo de este vuelo. Descifra y analiza todos los METARs, NOTAMs, PIREPs, perfil de turbulencia NOAA, aeropuertos alternativos y cruza con mi nivel de fatiga. Incluye recomendaciones operacionales claras."),
-    disabled: loading,
-    style: {
-      width: "100%",
-      marginTop: 8,
-      padding: "9px 14px",
-      background: loading ? "rgba(100,40,0,0.4)" : "linear-gradient(135deg,#7a3000,".concat(C.orange, ")"),
-      border: "1px solid ".concat(C.orange, "55"),
-      borderRadius: 10,
-      cursor: loading ? "default" : "pointer",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
-      boxShadow: loading ? "none" : "0 0 20px ".concat(C.glowO),
-      transition: "all 0.2s"
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 14
-    }
-  }, loading ? "⏳" : "✦"), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      fontWeight: 800,
-      color: C.white,
-      fontFamily: mono,
-      letterSpacing: "1px"
-    }
-  }, loading ? "Generando briefing…" : "GENERAR BRIEFING IA COMPLETO"), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 8,
-      color: "rgba(255,200,150,0.6)",
-      fontFamily: mono
-    }
-  }, "~800 tokens")), /*#__PURE__*/React.createElement("button", {
-    onClick: function () { try { if (window.__driveBriefing) window.__driveBriefing(); } catch (e) {} },
-    style: { width: "100%", marginTop: 8, padding: "9px 14px", background: "linear-gradient(135deg,#063a4a,#0aa3c7)", border: "1px solid #0aa3c755", borderRadius: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: "0 0 18px rgba(10,163,199,0.35)", transition: "all 0.2s" }
-  }, /*#__PURE__*/React.createElement("span", { style: { fontSize: 14 } }, "🎧"), /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, fontWeight: 800, color: "#eaf9ff", fontFamily: mono, letterSpacing: "1px" } }, "BRIEFING DE HOY · AUDIO"))), /*#__PURE__*/React.createElement("div", {
+  }, "~800/msg"))), /*#__PURE__*/React.createElement("div", {
+    id: "aria-inline-root",
+    ref: function (el) { if (el && !el.__am && window.__ariaMount) { el.__am = 1; try { window.__ariaMount(el); } catch (e) {} } }
+  })), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "5px 14px",
       background: "rgba(20,8,0,0.9)",
@@ -36977,6 +36943,229 @@ document.addEventListener('DOMContentLoaded', function(){
     q('#db-route').textContent = legs.map(function(l){return l.dep+'→'+l.arr;}).join('   ·   ');
     status(CUR.lang==='en'?'Choose language and voice, then press Generate.':'Elige idioma y voz, luego pulsa Generar.');
   };
+})();
+</script>
+
+<script>
+/* ════════ ARIA · sección unificada (briefing inline + voz) ════════ */
+(function(){
+  function lg(k,d){ try{ var v=localStorage.getItem(k); return v!=null?v:d; }catch(e){ return d; } }
+  var BACKEND=lg('cafi_backend_url','https://api.pilotos.aero');
+  function token(){ return lg('cafi_auth_token',''); }
+  function pilotName(){ return lg('pilot_name','') ; }
+  var ALLOW=['nova','shimmer','coral','sage','alloy'];
+  var VOICES=[['nova','Nova — cercana (por defecto)'],['shimmer','Shimmer — suave'],['coral','Coral — expresiva'],['sage','Sage — serena'],['alloy','Alloy — neutra']];
+  function cfg(){ return { lang:lg('db_lang','es'),
+    voice:(function(){ var v=lg('db_voice','nova'); return ALLOW.indexOf(v)>=0?v:'nova'; })(),
+    rate:parseFloat(lg('db_rate','1'))||1,
+    vol:(lg('db_vol',null)!=null?parseFloat(lg('db_vol','1')):1) }; }
+  function saveCfg(kk,v){ try{ localStorage.setItem('db_'+kk,v); }catch(e){} }
+  var CUR=cfg(), RATE=CUR.rate, VOL=CUR.vol, SCOPE='hoy';
+
+  var R=null;
+  function q(s){ return R?R.querySelector(s):null; }
+  function fmt(t){ t=Math.max(0,Math.round(t||0)); return Math.floor(t/60)+':'+String(t%60).padStart(2,'0'); }
+  function stat(s){ var e=q('#ar-status'); if(e)e.textContent=s||''; }
+
+  function stripZ(s){ return String(s||'').replace(/[^0-9:]/g,''); }
+  function getPos(){ return new Promise(function(res){ if(!navigator.geolocation) return res(null); var done=false; function fin(v){ if(done)return; done=true; res(v); } try{ navigator.geolocation.getCurrentPosition(function(p){ fin({lat:p.coords.latitude,lon:p.coords.longitude}); }, function(){ fin(null); }, {timeout:6000,maximumAge:300000}); }catch(e){ fin(null); } setTimeout(function(){ fin(null); },7000); }); }
+  function gatherLegs(){ var legs=(window.buildLegsFromRoster&&window.buildLegsFromRoster())||[]; return legs.map(function(l){ var di=(window.iataToIcao&&window.iataToIcao(l.dep))||l.dep; var ai=(window.iataToIcao&&window.iataToIcao(l.arr))||l.arr; return {flight:l.flight,dep:l.dep,arr:l.arr,depIcao:di,arrIcao:ai,std:stripZ(l.std),sta:stripZ(l.sta),acType:l.acType,arrMs:l._arrMs}; }); }
+
+  var audios=[],curAudio=null,playing=false,paused=false,total=0,acc=0,k=0,durs=[],SENT=[],PEL=[],SEG=[],GAP=850;
+
+  function renderText(txt){
+    var tr=q('#ar-tr'); if(!tr)return; tr.innerHTML=''; SENT=[]; PEL=[]; SEG=[];
+    String(txt).split(/\s*·{2,}\s*/).forEach(function(seg){
+      seg=(seg||'').trim(); if(!seg)return; var start=SENT.length;
+      seg.split(/\n\s*\n/).forEach(function(par){
+        var sents=par.replace(/\n/g,' ').trim().match(/[^.!?]+[.!?]+|\S+$/g)||[par.trim()];
+        sents.forEach(function(s){ s=s.trim(); if(!s)return; SENT.push(s);
+          var p=document.createElement('p'); p.textContent=s; p.style.cssText='margin:0 0 10px;transition:color .2s'; tr.appendChild(p); PEL.push(p); });
+      });
+      if(SENT.length>start){ SEG.push({from:start,to:SENT.length-1});
+        var dv=document.createElement('div'); dv.style.cssText='height:1px;background:rgba(63,210,240,0.18);margin:4px 0 14px'; tr.appendChild(dv); }
+    });
+    if(!SEG.length&&SENT.length) SEG.push({from:0,to:SENT.length-1});
+  }
+  function hi(a,b){ PEL.forEach(function(p,i){ p.style.color=(i>=a&&i<=b)?'#eaf3f8':'#9fb3bd'; }); if(PEL[a])PEL[a].scrollIntoView({behavior:'smooth',block:'center'}); }
+  function chunk(max){ var out=[]; var segs=SEG.length?SEG:[{from:0,to:SENT.length-1}]; for(var s=0;s<segs.length;s++){ var sg=segs[s],buf='',cf=sg.from; for(var i=sg.from;i<=sg.to;i++){ var st=SENT[i]; if(buf&&(buf.length+1+st.length)>max){ out.push({text:buf,from:cf,to:i-1,gap:false}); buf=st; cf=i; } else buf=buf?buf+' '+st:st; } if(buf)out.push({text:buf,from:cf,to:sg.to,gap:(s<segs.length-1)}); } return out; }
+  async function ttsBlob(text){ var r=await fetch(BACKEND+'/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify({text:text,voice:(CUR.voice||'nova'),lang:CUR.lang})}); if(r.status===429){ var j=await r.json().catch(function(){return{};}); throw new Error(j.message||'Voz no disponible en tu plan'); } if(!r.ok) throw new Error('Error de voz '+r.status); var b=await r.blob(); return new Audio(URL.createObjectURL(b)); }
+  async function prepareVoice(){
+    var chunks=chunk(760); audios=[];
+    for(var i=0;i<chunks.length;i++){ stat('Generando voz '+(i+1)+'/'+chunks.length+'…'); var a=await ttsBlob(chunks[i].text); a.preload='auto'; audios.push({a:a,from:chunks[i].from,to:chunks[i].to,gap:chunks[i].gap}); }
+    await Promise.all(audios.map(function(o){ return new Promise(function(res){ if(o.a.readyState>=1)return res(); o.a.onloadedmetadata=function(){res();}; setTimeout(res,1500); }); }));
+    durs=audios.map(function(o){ return isFinite(o.a.duration)?o.a.duration:6; }); total=durs.reduce(function(x,y){return x+y;},0);
+    var tot=q('#ar-tot'); if(tot)tot.textContent=fmt(total); return true;
+  }
+  function playK(){
+    if(k>=audios.length){ playing=false; var pb=q('#ar-play'); if(pb)pb.textContent='▶'; hi(-1,-1); stat('✓ Fin del briefing'); var f=q('#ar-fill'); if(f)f.style.width='100%'; showVoiceDock(true); return; }
+    var o=audios[k]; curAudio=o.a; hi(o.from,o.to); try{ o.a.playbackRate=RATE; o.a.volume=VOL; }catch(e){}
+    o.a.ontimeupdate=function(){ var el=acc+(o.a.currentTime||0); var f=q('#ar-fill'); if(f)f.style.width=Math.min(100,el/total*100)+'%'; var c=q('#ar-cur'); if(c)c.textContent=fmt(el); };
+    o.a.onended=function(){ acc+=durs[k]; var g=o.gap; k++; if(playing&&!paused){ if(g) setTimeout(function(){ if(playing&&!paused)playK(); },GAP); else playK(); } };
+    var pp=o.a.play(); if(pp&&pp.catch)pp.catch(function(){});
+  }
+  function curElapsed(){ return acc+((curAudio&&curAudio.currentTime)||0); }
+  function seekToPlay(target){ if(!audios.length||!total)return; target=Math.max(0,Math.min(target,total)); if(curAudio){ try{curAudio.pause();}catch(e){} curAudio.onended=null; curAudio.ontimeupdate=null; } var t=target,idx=0; while(idx<durs.length-1&&t>=durs[idx]){ t-=durs[idx]; idx++; } k=idx; acc=0; for(var j=0;j<idx;j++)acc+=durs[j]; try{ audios[idx].a.currentTime=Math.max(0,Math.min(t,durs[idx]-0.05)); }catch(e){} playing=true; paused=false; var pb=q('#ar-play'); if(pb)pb.textContent='⏸'; var f=q('#ar-fill'); if(f)f.style.width=Math.min(100,target/total*100)+'%'; var c=q('#ar-cur'); if(c)c.textContent=fmt(target); playK(); }
+  function rewind(sec){ if(!audios.length)return; seekToPlay(curElapsed()-sec); }
+  function togglePlay(){ if(!audios.length)return; var pb=q('#ar-play'); if(!playing){ playing=true; paused=false; acc=0; k=0; if(pb)pb.textContent='⏸'; playK(); } else if(paused){ paused=false; if(pb)pb.textContent='⏸'; if(curAudio){ if(curAudio.ended)playK(); else curAudio.play(); } } else { paused=true; if(pb)pb.textContent='▶'; if(curAudio)curAudio.pause(); } }
+
+  async function generate(){
+    var gen=q('#ar-gen'); if(gen){ gen.disabled=true; gen.style.opacity='.6'; gen.textContent=(CUR.lang==='en'?'Generating…':'Generando…'); }
+    try{ if(curAudio)curAudio.pause(); }catch(e){} playing=false; paused=false; k=0; acc=0; audios=[];
+    var f=q('#ar-fill'); if(f)f.style.width='0'; var c0=q('#ar-cur'); if(c0)c0.textContent='0:00'; var tr=q('#ar-tr'); if(tr)tr.innerHTML='';
+    var pl=q('#ar-player'); if(pl)pl.style.display='none'; hideVoiceDock();
+    var tk=token(); if(!tk){ stat('Inicia sesión para generar el briefing.'); return _done(gen); }
+    try{
+      var txt='';
+      if(SCOPE==='hoy'){
+        var legs=gatherLegs();
+        if(!legs.length){ stat(CUR.lang==='en'?'No active flight detected right now.':'No se detecta ningún vuelo activo ahora mismo.'); return _done(gen); }
+        stat(CUR.lang==='en'?'Generating briefing with ARIA…':'Generando briefing con ARIA…');
+        var pos=await getPos(); var body={legs:legs,pilot:pilotName()||undefined,lang:CUR.lang,localHour:new Date().getHours()}; if(pos){ body.userLat=pos.lat; body.userLon=pos.lon; }
+        var r=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify(body)});
+        if(!r.ok){ var j=await r.json().catch(function(){return{};}); stat('⚠ '+(j.message||j.error||('Error '+r.status))); return _done(gen); }
+        var d=await r.json(); txt=d.text||'';
+      } else {
+        var ctx=window.__ariaCtx||{}; var leg=ctx.leg;
+        if(!leg){ stat('No hay vuelo activo en SkyView.'); return _done(gen); }
+        stat('Analizando este vuelo con ARIA…');
+        var sys=(window.buildAISystem?window.buildAISystem(leg,ctx.turbData):'');
+        var r2=await fetch(BACKEND+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({messages:[{role:'user',content:'Genera un briefing operacional completo de este vuelo: descifra METARs, NOTAMs, PIREPs, turbulencia y fatiga, con recomendaciones claras. Sin asteriscos ni markdown, texto hablado.'}],logbook_context:sys})});
+        var d2=await r2.json(); txt=(d2.content&&d2.content.map(function(b){return b.text||'';}).join(''))||(d2.message?'⚠ '+d2.message:'Sin respuesta');
+      }
+      if(!txt){ stat('⚠ ARIA no devolvió texto'); return _done(gen); }
+      renderText(txt); if(pl)pl.style.display='flex'; stat('Preparando voz…');
+      var ok=await prepareVoice();
+      if(ok){ var pb=q('#ar-play'); if(pb){ pb.disabled=false; pb.style.opacity='1'; } var bk=q('#ar-back'); if(bk){ bk.disabled=false; bk.style.opacity='1'; } stat(CUR.lang==='en'?'▶ Ready · plays offline':'▶ Listo · pulsa play (suena sin cobertura)'); showVoiceDock(false); }
+    }catch(e){ stat('⚠ '+(e&&e.message||e)); }
+    _done(gen);
+  }
+  function _done(gen){ gen=gen||q('#ar-gen'); if(gen){ gen.disabled=false; gen.style.opacity='1'; gen.textContent=(CUR.lang==='en'?'▶ Regenerate':'▶ Generar de nuevo'); } }
+
+  var vOn=false,vStream=null,vRec=null,vChunks=[],vAC=null;
+  function showVoiceDock(emphasis){ var dk=q('#ar-vdock'); if(dk){ dk.style.display='block'; if(emphasis){ var t=q('#ar-vtitle'); if(t)t.textContent=(CUR.lang==='en'?'Anything else? Tap to talk':'¿Profundizamos en algo? Toca y habla'); } } }
+  function hideVoiceDock(){ var dk=q('#ar-vdock'); if(dk)dk.style.display='none'; }
+  function vLog(role,txt){ var box=q('#ar-vlog'); if(!box)return; var p=document.createElement('div'); p.style.cssText='font-size:13px;line-height:1.5;margin:0 0 9px;color:'+(role==='you'?'#9fb3bd':'#eaf3f8'); var tag=document.createElement('span'); tag.style.cssText='color:#3fd2f0;font-size:10px;font-weight:800;letter-spacing:1px'; tag.textContent=(role==='you'?'TÚ · ':'ARIA · '); p.appendChild(tag); p.appendChild(document.createTextNode(txt)); box.appendChild(p); box.scrollTop=box.scrollHeight; }
+  function vSpeak(text,onEnd){
+    var parts=[]; var s=String(text).replace(/\s+/g,' ').trim(); while(s.length){ if(s.length<=720){ parts.push(s); break; } var cut=s.lastIndexOf('. ',720); if(cut<300)cut=720; parts.push(s.slice(0,cut+1)); s=s.slice(cut+1).trim(); }
+    var i=0; function next(){ if(i>=parts.length){ if(onEnd)onEnd(); return; } ttsBlob(parts[i]).then(function(a){ a.volume=VOL; a.playbackRate=RATE; a.onended=function(){ i++; next(); }; var pp=a.play(); if(pp&&pp.catch)pp.catch(function(){ i++; next(); }); }).catch(function(){ if(onEnd)onEnd(); }); }
+    next();
+  }
+  function vBtn(state){ var b=q('#ar-vmic'); if(!b)return; if(state==='listen'){ b.textContent='● Escuchando…'; b.style.background='linear-gradient(135deg,#7a1d1d,#e24b4a)'; } else if(state==='think'){ b.textContent='… ARIA piensa'; b.style.background='rgba(10,163,199,.25)'; } else { b.textContent='🎤 Hablar'; b.style.background='linear-gradient(135deg,#063a4a,#0aa3c7)'; } }
+  async function vStart(){
+    if(vOn){ vStop(); return; }
+    var tk=token(); if(!tk){ stat('Inicia sesión para la voz'); return; }
+    try{ vStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}); }
+    catch(e){ var t=q('#ar-vtitle'); if(t)t.textContent='Sin acceso al micrófono'; return; }
+    vOn=true; var tg=q('#ar-vend'); if(tg)tg.style.display='inline-flex';
+    vSpeak(CUR.lang==='en'?'Tell me, what would you like to go deeper on?':'Dime, ¿qué quieres que profundice?', function(){ if(vOn)vTurn(); });
+  }
+  function vStop(){ vOn=false; try{ if(vRec&&vRec.state!=='inactive')vRec.stop(); }catch(e){} try{ if(vStream)vStream.getTracks().forEach(function(t){t.stop();}); }catch(e){} vStream=null; try{ if(vAC)vAC.close(); }catch(e){} vAC=null; vBtn('idle'); var tg=q('#ar-vend'); if(tg)tg.style.display='none'; var t=q('#ar-vtitle'); if(t)t.textContent=(CUR.lang==='en'?'Voice conversation ended':'Conversación terminada'); }
+  function vTurn(){
+    if(!vOn||!vStream)return; vBtn('listen'); vChunks=[];
+    var mr; try{ mr=new MediaRecorder(vStream); }catch(e){ vStop(); return; } vRec=mr;
+    mr.ondataavailable=function(e){ if(e.data&&e.data.size)vChunks.push(e.data); };
+    mr.onstop=function(){ vFinish(); };
+    mr.start();
+    var spoke=false,silence=0,hardStop;
+    try{ vAC=new (window.AudioContext||window.webkitAudioContext)(); var src=vAC.createMediaStreamSource(vStream); var an=vAC.createAnalyser(); an.fftSize=512; src.connect(an); var buf=new Uint8Array(an.fftSize);
+      var iv=setInterval(function(){ if(!vOn||!vRec||vRec.state==='inactive'){ clearInterval(iv); return; } an.getByteTimeDomainData(buf); var sum=0; for(var i=0;i<buf.length;i++){ var v=(buf[i]-128)/128; sum+=v*v; } var rms=Math.sqrt(sum/buf.length); if(rms>0.045){ spoke=true; silence=0; } else { silence+=120; } if(spoke&&silence>1300){ clearInterval(iv); try{mr.stop();}catch(e){} } if(!spoke&&silence>7000){ clearInterval(iv); try{mr.stop();}catch(e){} } },120);
+      hardStop=setTimeout(function(){ try{mr.stop();}catch(e){} },16000);
+    }catch(e){ hardStop=setTimeout(function(){ try{mr.stop();}catch(e){} },6000); }
+    mr._cleanup=function(){ if(hardStop)clearTimeout(hardStop); };
+  }
+  function vFinish(){
+    if(vRec&&vRec._cleanup)vRec._cleanup();
+    var chunks=vChunks; vChunks=[];
+    if(!chunks.length){ if(vOn)vTurn(); return; }
+    var blob=new Blob(chunks,{type:(vRec&&vRec.mimeType)||'audio/webm'});
+    vBtn('think');
+    var rd=new FileReader(); rd.onloadend=function(){ var b64=String(rd.result).split(',')[1]||''; vSend(b64,blob.type); }; rd.readAsDataURL(blob);
+  }
+  async function vSend(b64,mime){
+    try{
+      var tk=token();
+      var rs=await fetch(BACKEND+'/api/stt',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({audio_base64:b64,mime:mime})});
+      var sj=await rs.json().catch(function(){return{};}); var said=(sj.text||'').trim();
+      if(!said){ if(vOn)vTurn(); return; }
+      vLog('you',said);
+      if(/^(no|nada|ya est|terminar|gracias|eso es todo|nada m)/i.test(said)){ vSpeak(CUR.lang==='en'?'Understood. Have a good flight.':'Entendido. Buen vuelo y buen servicio.',function(){ vStop(); }); return; }
+      var ctx=window.__ariaCtx||{}; var sys=(ctx.leg&&window.buildAISystem?window.buildAISystem(ctx.leg,ctx.turbData):'');
+      var rc=await fetch(BACKEND+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({messages:[{role:'user',content:said+'\n\n(Responde breve, en voz, español de España, máximo 90 palabras, sin asteriscos.)'}],logbook_context:sys})});
+      var cj=await rc.json(); var ans=(cj.content&&cj.content.map(function(b){return b.text||'';}).join(''))||(cj.message?cj.message:'No tengo respuesta.');
+      ans=ans.replace(/[*#_`]/g,'');
+      vLog('aria',ans);
+      vSpeak(ans,function(){ if(vOn)vTurn(); });
+    }catch(e){ if(vOn)vTurn(); }
+  }
+
+  function toggleSettings(){ var s=q('#ar-set'); if(s)s.style.display=(s.style.display==='block'?'none':'block'); }
+
+  function buildPanel(root){
+    R=root;
+    var voiceOpts=VOICES.map(function(v){ return '<option value="'+v[0]+'"'+(v[0]===CUR.voice?' selected':'')+'>'+v[1]+'</option>'; }).join('');
+    root.innerHTML=
+      '<div style="margin-top:10px">'+
+        '<div style="display:flex;border:1px solid rgba(63,210,240,.25);border-radius:13px;overflow:hidden;background:rgba(255,255,255,.03)">'+
+          '<button data-sc="hoy" class="ar-sc" style="flex:1;border:none;background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff;font-weight:800;font-size:12px;padding:9px;font-family:inherit">Hoy · jornada</button>'+
+          '<button data-sc="leg" class="ar-sc" style="flex:1;border:none;background:transparent;color:#9fb3bd;font-weight:800;font-size:12px;padding:9px;font-family:inherit">Este vuelo</button>'+
+        '</div>'+
+        '<div style="margin-top:10px;background:rgba(255,255,255,.04);border:1px solid rgba(63,210,240,.18);border-radius:16px;padding:13px">'+
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:11px">'+
+            '<span style="font-size:11px;font-weight:800;letter-spacing:1.2px;color:#eaf3f8">BRIEFING DE ARIA</span>'+
+            '<span style="margin-left:auto;font-size:8px;font-weight:800;letter-spacing:.5px;color:#04141b;background:#3fd2f0;padding:3px 8px;border-radius:20px">VOZ · NOVA</span>'+
+            '<button id="ar-gear" style="width:28px;height:28px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#9fb3bd;font-size:12px">⚙</button>'+
+          '</div>'+
+          '<div id="ar-set" style="display:none;margin-bottom:12px;padding:11px;border:1px solid rgba(255,255,255,.1);border-radius:12px;background:rgba(0,0,0,.18)">'+
+            '<div style="font-size:9px;color:#6c818d;margin-bottom:5px">IDIOMA</div>'+
+            '<div style="display:flex;border:1px solid rgba(255,255,255,.12);border-radius:9px;overflow:hidden;margin-bottom:10px">'+
+              '<button data-lg="es" class="ar-lg" style="flex:1;border:none;padding:7px;font-size:12px;font-weight:700;font-family:inherit">Español</button>'+
+              '<button data-lg="en" class="ar-lg" style="flex:1;border:none;padding:7px;font-size:12px;font-weight:700;font-family:inherit">English</button></div>'+
+            '<div style="font-size:9px;color:#6c818d;margin-bottom:5px">VOZ</div>'+
+            '<select id="ar-voice" style="width:100%;background:#0b1418;color:#eaf3f8;border:1px solid rgba(255,255,255,.14);border-radius:9px;padding:8px;font-size:13px;font-family:inherit;margin-bottom:10px">'+voiceOpts+'</select>'+
+            '<div style="font-size:9px;color:#6c818d;margin-bottom:4px">VELOCIDAD <span id="ar-rl"></span></div>'+
+            '<input id="ar-rate" type="range" min="0.7" max="1.4" step="0.05" style="width:100%;accent-color:#0aa3c7;margin-bottom:8px">'+
+            '<div style="font-size:9px;color:#6c818d;margin-bottom:4px">VOLUMEN <span id="ar-vl"></span></div>'+
+            '<input id="ar-vol" type="range" min="0" max="1" step="0.05" style="width:100%;accent-color:#0aa3c7">'+
+          '</div>'+
+          '<button id="ar-gen" style="width:100%;padding:11px;border:none;border-radius:11px;background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff;font-size:12px;font-weight:800;letter-spacing:.5px;font-family:inherit">▶ Generar briefing</button>'+
+          '<div id="ar-player" style="display:none;align-items:center;gap:9px;margin-top:12px">'+
+            '<button id="ar-play" disabled style="flex-shrink:0;width:50px;height:50px;border-radius:50%;border:none;background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff;font-size:19px;opacity:.5">▶</button>'+
+            '<div style="flex:1"><div id="ar-bar" style="height:8px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden;cursor:pointer"><div id="ar-fill" style="height:100%;width:0;background:linear-gradient(90deg,#0aa3c7,#3fd2f0);pointer-events:none"></div></div>'+
+              '<div style="display:flex;justify-content:space-between;font-size:9.5px;color:#6c818d;margin-top:4px"><span id="ar-cur">0:00</span><span id="ar-tot">0:00</span></div></div>'+
+            '<button id="ar-back" disabled title="Atrás 15s" style="flex-shrink:0;width:44px;height:44px;border-radius:50%;border:1px solid rgba(63,210,240,.4);background:rgba(10,163,199,.12);color:#cdeefb;font-size:11px;font-weight:700;opacity:.5;font-family:ui-monospace,monospace">↺15</button>'+
+          '</div>'+
+          '<div id="ar-status" style="font-size:10.5px;color:#3fd2f0;margin-top:9px;min-height:13px;text-align:center"></div>'+
+          '<div id="ar-tr" style="margin-top:8px;max-height:260px;overflow-y:auto;font-size:14px;line-height:1.5;color:#9fb3bd"></div>'+
+        '</div>'+
+        '<div id="ar-vdock" style="display:none;margin-top:10px;background:rgba(63,210,240,.07);border:1px solid rgba(63,210,240,.3);border-radius:16px;padding:13px">'+
+          '<div id="ar-vtitle" style="font-size:12.5px;color:#cdeefb;text-align:center;margin-bottom:10px">¿Profundizamos en algo? Pregúntale a ARIA por voz</div>'+
+          '<div style="display:flex;gap:9px;justify-content:center">'+
+            '<button id="ar-vmic" style="border:none;border-radius:13px;padding:11px 20px;color:#fff;font-size:13px;font-weight:800;font-family:inherit;background:linear-gradient(135deg,#063a4a,#0aa3c7)">🎤 Hablar</button>'+
+            '<button id="ar-vend" style="display:none;align-items:center;border:1px solid rgba(255,255,255,.2);border-radius:13px;padding:11px 16px;color:#cdeefb;font-size:12px;font-weight:700;background:rgba(255,255,255,.05);font-family:inherit">Terminar</button>'+
+          '</div>'+
+          '<div id="ar-vlog" style="margin-top:11px;max-height:160px;overflow-y:auto"></div>'+
+        '</div>'+
+      '</div>';
+
+    function paintScope(){ R.querySelectorAll('.ar-sc').forEach(function(b){ var on=b.getAttribute('data-sc')===SCOPE; b.style.background=on?'linear-gradient(135deg,#063a4a,#0aa3c7)':'transparent'; b.style.color=on?'#fff':'#9fb3bd'; }); }
+    function paintLg(){ R.querySelectorAll('.ar-lg').forEach(function(b){ var on=b.getAttribute('data-lg')===CUR.lang; b.style.background=on?'linear-gradient(135deg,#063a4a,#0aa3c7)':'transparent'; b.style.color=on?'#fff':'#9fb3bd'; }); }
+    R.querySelectorAll('.ar-sc').forEach(function(b){ b.onclick=function(){ SCOPE=b.getAttribute('data-sc'); paintScope(); }; });
+    R.querySelectorAll('.ar-lg').forEach(function(b){ b.onclick=function(){ CUR.lang=b.getAttribute('data-lg'); saveCfg('lang',CUR.lang); paintLg(); }; });
+    paintScope(); paintLg();
+    q('#ar-gear').onclick=toggleSettings;
+    q('#ar-gen').onclick=generate;
+    q('#ar-play').onclick=togglePlay;
+    q('#ar-back').onclick=function(){ rewind(15); };
+    var bar=q('#ar-bar'); if(bar)bar.onclick=function(ev){ if(!audios.length||!total)return; var r=bar.getBoundingClientRect(); seekToPlay(Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width))*total); };
+    var vsel=q('#ar-voice'); if(vsel)vsel.onchange=function(){ CUR.voice=vsel.value; saveCfg('voice',vsel.value); };
+    var rl=q('#ar-rl'); var rs=q('#ar-rate'); if(rs){ rs.value=RATE; if(rl)rl.textContent=RATE.toFixed(2)+'×'; rs.oninput=function(){ RATE=parseFloat(rs.value)||1; saveCfg('rate',RATE); if(rl)rl.textContent=RATE.toFixed(2)+'×'; if(curAudio)curAudio.playbackRate=RATE; }; }
+    var vl=q('#ar-vl'); var vo=q('#ar-vol'); if(vo){ vo.value=VOL; if(vl)vl.textContent=Math.round(VOL*100)+'%'; vo.oninput=function(){ VOL=parseFloat(vo.value); saveCfg('vol',VOL); if(vl)vl.textContent=Math.round(VOL*100)+'%'; if(curAudio)curAudio.volume=VOL; }; }
+    q('#ar-vmic').onclick=vStart;
+    q('#ar-vend').onclick=vStop;
+  }
+
+  window.__ariaMount=function(container){ try{ buildPanel(container); }catch(e){} };
 })();
 </script>
 
