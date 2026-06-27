@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.135">
+  <meta name="version" content="Beta.136">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.135","builtAt":"2026-06-27T11:29:14Z","commit":"558ed35","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.136","builtAt":"2026-06-27T11:44:21Z","commit":"fd2dd56","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -36751,6 +36751,10 @@ document.addEventListener('DOMContentLoaded', function(){
   function token(){ try{ return localStorage.getItem('cafi_auth_token')||''; }catch(e){ return ''; } }
   function pilotName(){ try{ return localStorage.getItem('pilot_name')||'Comandante'; }catch(e){ return 'Comandante'; } }
   function stripZ(s){ return String(s||'').replace(/[^0-9:]/g,''); }
+  function cfg(){ return { lang: localStorage.getItem('db_lang')||'es', gender: localStorage.getItem('db_gender')||'male', rate: parseFloat(localStorage.getItem('db_rate'))||1, vol: localStorage.getItem('db_vol')!=null?parseFloat(localStorage.getItem('db_vol')):1 }; }
+  function saveCfg(k,v){ try{ localStorage.setItem('db_'+k, v); }catch(e){} }
+  function seg(a){ return 'flex:1;padding:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;'+(a?'background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff':'background:transparent;color:#9fb3bd'); }
+  var CUR = cfg(), RATE = CUR.rate, VOL = CUR.vol;
 
   var ov, audios=[], curAudio=null, playing=false, paused=false, total=0, acc=0, k=0, durs=[], SENT=[], PEL=[];
 
@@ -36770,7 +36774,22 @@ document.addEventListener('DOMContentLoaded', function(){
         '<div style="font-size:9px;color:#3fd2f0;letter-spacing:.5px" id="db-route">Preparando…</div></div>'+
         '<button id="db-close" style="background:none;border:1px solid rgba(255,255,255,0.2);color:#f3ede6;border-radius:9px;width:34px;height:34px;font-size:18px;cursor:pointer">✕</button>'+
       '</div>'+
-      '<div style="padding:16px">'+
+      '<div style="padding:14px 16px 2px">'+
+        '<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(10,163,199,0.2);border-radius:12px;padding:12px">'+
+          '<div style="margin-bottom:10px"><div style="font-size:9px;color:#7d6f5f;letter-spacing:.5px;margin-bottom:5px">IDIOMA</div>'+
+            '<div style="display:flex;border:1px solid rgba(255,255,255,0.12);border-radius:9px;overflow:hidden">'+
+              '<button data-g="lang" data-v="es">Español</button><button data-g="lang" data-v="en">English</button></div></div>'+
+          '<div style="margin-bottom:10px"><div style="font-size:9px;color:#7d6f5f;letter-spacing:.5px;margin-bottom:5px">VOZ</div>'+
+            '<div style="display:flex;border:1px solid rgba(255,255,255,0.12);border-radius:9px;overflow:hidden">'+
+              '<button data-g="gender" data-v="male">&#9794; Hombre</button><button data-g="gender" data-v="female">&#9792; Mujer</button></div></div>'+
+          '<div style="margin-bottom:10px"><div style="font-size:9px;color:#7d6f5f;letter-spacing:.5px;margin-bottom:5px">VELOCIDAD <span id="db-rate-lbl"></span></div>'+
+            '<input id="db-rate" type="range" min="0.7" max="1.4" step="0.05" style="width:100%;accent-color:#0aa3c7"></div>'+
+          '<div style="margin-bottom:4px"><div style="font-size:9px;color:#7d6f5f;letter-spacing:.5px;margin-bottom:5px">VOLUMEN <span id="db-vol-lbl"></span></div>'+
+            '<input id="db-vol" type="range" min="0" max="1" step="0.05" style="width:100%;accent-color:#0aa3c7"></div>'+
+          '<button id="db-gen" style="width:100%;margin-top:10px;padding:11px;border:none;border-radius:10px;cursor:pointer;background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff;font-size:12px;font-weight:800;letter-spacing:.5px;font-family:inherit">&#9654; Generar briefing</button>'+
+        '</div>'+
+      '</div>'+
+      '<div style="padding:12px 16px 16px">'+
         '<div style="display:flex;align-items:center;gap:12px">'+
           '<button id="db-play" disabled style="flex-shrink:0;width:56px;height:56px;border-radius:50%;border:none;cursor:pointer;background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff;font-size:22px;opacity:.5">▶</button>'+
           '<div style="flex:1"><div style="height:7px;border-radius:6px;background:rgba(255,255,255,0.08);overflow:hidden"><div id="db-fill" style="height:100%;width:0;background:linear-gradient(90deg,#0aa3c7,#3fd2f0)"></div></div>'+
@@ -36782,6 +36801,15 @@ document.addEventListener('DOMContentLoaded', function(){
     document.body.appendChild(ov);
     q('#db-close').onclick = close;
     q('#db-play').onclick = togglePlay;
+    var rl=q('#db-rate-lbl'); if(rl)rl.textContent=RATE.toFixed(2)+'×';
+    var vl=q('#db-vol-lbl'); if(vl)vl.textContent=Math.round(VOL*100)+'%';
+    var rs=q('#db-rate'); if(rs){ rs.value=RATE; rs.oninput=function(){ RATE=parseFloat(rs.value)||1; saveCfg('rate',RATE); if(rl)rl.textContent=RATE.toFixed(2)+'×'; if(curAudio)curAudio.playbackRate=RATE; }; }
+    var vs=q('#db-vol'); if(vs){ vs.value=VOL; vs.oninput=function(){ VOL=parseFloat(vs.value); saveCfg('vol',VOL); if(vl)vl.textContent=Math.round(VOL*100)+'%'; if(curAudio)curAudio.volume=VOL; }; }
+    function paintSeg(g){ var v=(g==='lang')?CUR.lang:CUR.gender; var bs=ov.querySelectorAll('[data-g="'+g+'"]'); for(var i=0;i<bs.length;i++){ bs[i].setAttribute('style', seg(bs[i].getAttribute('data-v')===v)); } }
+    var segs=ov.querySelectorAll('[data-g]');
+    for(var i=0;i<segs.length;i++){ (function(b){ b.onclick=function(){ var g=b.getAttribute('data-g'), v=b.getAttribute('data-v'); if(g==='lang')CUR.lang=v; else CUR.gender=v; saveCfg(g,v); paintSeg(g); }; })(segs[i]); }
+    paintSeg('lang'); paintSeg('gender');
+    var gen=q('#db-gen'); if(gen)gen.onclick=generate;
   }
 
   function gatherLegs(){
@@ -36814,7 +36842,7 @@ document.addEventListener('DOMContentLoaded', function(){
     for(var i=0;i<chunks.length;i++){
       status('Generando voz '+(i+1)+'/'+chunks.length+'…');
       var r;
-      try{ r=await fetch(BACKEND+'/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({text:chunks[i].text,voice:'onyx'})}); }
+      try{ r=await fetch(BACKEND+'/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({text:chunks[i].text,voice:(CUR.gender==='female'?'nova':'onyx')})}); }
       catch(e){ status('⚠ Sin conexión para la voz'); return false; }
       if(r.status===429){ var j=await r.json().catch(function(){return{};}); status('⚠ '+(j.message||'Voz no disponible en tu plan')); return false; }
       if(!r.ok){ status('⚠ Error de voz '+r.status); return false; }
@@ -36831,6 +36859,7 @@ document.addEventListener('DOMContentLoaded', function(){
   function playK(){
     if(k>=audios.length){ playing=false; var pb=q('#db-play'); if(pb)pb.textContent='▶'; hi(-1,-1); status('✓ Fin del briefing'); var f=q('#db-fill'); if(f)f.style.width='100%'; return; }
     var o=audios[k]; curAudio=o.a; hi(o.from,o.to);
+    try{ o.a.playbackRate=RATE; o.a.volume=VOL; }catch(e){}
     o.a.ontimeupdate=function(){ var elp=acc+(o.a.currentTime||0); var f=q('#db-fill'); if(f)f.style.width=Math.min(100,elp/total*100)+'%'; var c=q('#db-cur'); if(c)c.textContent=fmt(elp); };
     o.a.onended=function(){ acc+=durs[k]; k++; if(playing&&!paused)playK(); };
     var pp=o.a.play(); if(pp&&pp.catch)pp.catch(function(){});
@@ -36843,24 +36872,35 @@ document.addEventListener('DOMContentLoaded', function(){
     else { paused=true; if(pb)pb.textContent='▶'; if(curAudio)curAudio.pause(); }
   }
 
-  window.__driveBriefing = async function(){
+  async function generate(){
+    var gen=q('#db-gen'); if(gen){ gen.disabled=true; gen.style.opacity='.6'; gen.textContent=(CUR.lang==='en'?'Generating…':'Generando…'); }
+    try{ if(curAudio)curAudio.pause(); }catch(e){}
+    playing=false; paused=false; k=0; acc=0; audios=[];
+    var pb0=q('#db-play'); if(pb0){ pb0.disabled=true; pb0.style.opacity='.5'; pb0.textContent='▶'; }
+    var f=q('#db-fill'); if(f)f.style.width='0'; var c0=q('#db-cur'); if(c0)c0.textContent='0:00'; var tr=q('#db-tr'); if(tr)tr.innerHTML='';
+    var legs=gatherLegs(); var tk=token();
+    if(!legs.length){ status(CUR.lang==='en'?'No roster loaded for today.':'No hay roster cargado para hoy.'); return _genDone(gen); }
+    if(!tk){ status(CUR.lang==='en'?'Sign in to generate the briefing.':'Inicia sesión para generar el briefing.'); return _genDone(gen); }
+    try{
+      status(CUR.lang==='en'?'Generating briefing with ARIA…':'Generando briefing con ARIA…');
+      var r=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({legs:legs,pilot:pilotName(),lang:CUR.lang})});
+      if(!r.ok){ var j=await r.json().catch(function(){return{};}); status('⚠ '+(j.message||j.error||('Error '+r.status))); return _genDone(gen); }
+      var d=await r.json();
+      if(!d.text){ status('⚠ ARIA no devolvió texto'); return _genDone(gen); }
+      renderText(d.text);
+      var ok=await prepareVoice();
+      if(ok){ var pb=q('#db-play'); if(pb){ pb.disabled=false; pb.style.opacity='1'; } status(CUR.lang==='en'?'▶ Ready · press play':'▶ Listo · pulsa play'); }
+    }catch(e){ status('⚠ Error: '+(e&&e.message||e)); }
+    _genDone(gen);
+  }
+  function _genDone(gen){ gen=gen||q('#db-gen'); if(gen){ gen.disabled=false; gen.style.opacity='1'; gen.textContent=(CUR.lang==='en'?'▶ Regenerate':'▶ Generar de nuevo'); } }
+
+  window.__driveBriefing = function(){
     build();
     var legs = gatherLegs();
-    if(!legs.length){ status('No hay roster cargado para hoy. Importa tu roster primero.'); q('#db-route').textContent='Sin vuelos'; return; }
+    if(!legs.length){ status(CUR.lang==='en'?'No roster loaded for today. Import your roster first.':'No hay roster cargado para hoy. Importa tu roster primero.'); q('#db-route').textContent='Sin vuelos'; var g=q('#db-gen'); if(g){ g.disabled=true; g.style.opacity='.5'; } return; }
     q('#db-route').textContent = legs.map(function(l){return l.dep+'→'+l.arr;}).join('   ·   ');
-    var tk=token();
-    if(!tk){ status('Inicia sesión para generar el briefing.'); return; }
-    try{
-      var r=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({legs:legs,pilot:pilotName()})});
-      if(!r.ok){ var j=await r.json().catch(function(){return{};}); status('⚠ '+(j.message||j.error||('Error '+r.status))); return; }
-      var d=await r.json();
-      if(!d.text){ status('⚠ ARIA no devolvió texto'); return; }
-      renderText(d.text);
-      status('Preparando voz…');
-      var ok=await prepareVoice();
-      var pb=q('#db-play');
-      if(ok && pb){ pb.disabled=false; pb.style.opacity='1'; status('▶ Listo · pulsa play'); }
-    }catch(e){ status('⚠ Error: '+(e&&e.message||e)); }
+    status(CUR.lang==='en'?'Choose language and voice, then press Generate.':'Elige idioma y voz, luego pulsa Generar.');
   };
 })();
 </script>
