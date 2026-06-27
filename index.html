@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.141">
+  <meta name="version" content="Beta.142">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.141","builtAt":"2026-06-27T13:15:11Z","commit":"dc4c916","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.142","builtAt":"2026-06-27T13:23:28Z","commit":"f5d23e8","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -27466,6 +27466,20 @@ function SkyViewPilotOS() {
       if (keys.length) { keys.forEach(k => { CCI_BY_ICAO[k] = map[k]; }); setTick(x => x + 1); }
     });
   }, [legIdx]);
+  // Sin roster real para hoy (ningún leg cuya llegada+3h siga en el futuro): no mostramos
+  // el LEGS de ejemplo (BCN-MAD demo). Avisamos de que no hay vuelo activo.
+  if (!_rosterLegs || !_rosterLegs.length) return /*#__PURE__*/React.createElement("div", {
+    style: { height: "100%", background: BG, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "40px 28px", fontFamily: sans, position: "relative" }
+  }, /*#__PURE__*/React.createElement(AnimatedBg, null), /*#__PURE__*/React.createElement("div", {
+    style: { position: "relative", zIndex: 1, maxWidth: 330 }
+  }, /*#__PURE__*/React.createElement("img", {
+    src: "aria.jpg", alt: "ARIA",
+    style: { width: 64, height: 64, borderRadius: "50%", objectFit: "cover", border: "2px solid ".concat(C.cyan || "#3fd2f0", "66"), marginBottom: 16, opacity: 0.92 }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 17, fontWeight: 800, color: C.white, fontFamily: mono, letterSpacing: "0.5px", marginBottom: 10 }
+  }, "No se detecta ningún vuelo"), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 13, color: C.dim, lineHeight: 1.6 }
+  }, "No hay ningún leg activo ahora mismo. Cuando tengas un vuelo próximo en tu roster aparecerá aquí automáticamente, con su meteo, NOTAMs y briefing.")));
   const now = new Date();
   const utc = "".concat(String(now.getUTCHours()).padStart(2, "0"), ":").concat(String(now.getUTCMinutes()).padStart(2, "0"), "Z");
   const hasAlert = (NOTAMS_BY_LEG[leg.num] || []).some(n => n.sev === "danger");
@@ -36906,7 +36920,7 @@ document.addEventListener('DOMContentLoaded', function(){
     var pb0=q('#db-play'); if(pb0){ pb0.disabled=true; pb0.style.opacity='.5'; pb0.textContent='▶'; }
     var f=q('#db-fill'); if(f)f.style.width='0'; var c0=q('#db-cur'); if(c0)c0.textContent='0:00'; var tr=q('#db-tr'); if(tr)tr.innerHTML='';
     var legs=gatherLegs(); var tk=token();
-    if(!legs.length){ status(CUR.lang==='en'?'No roster loaded for today.':'No hay roster cargado para hoy.'); return _genDone(gen); }
+    if(!legs.length){ status(CUR.lang==='en'?'No active flight detected right now.':'No se detecta ningún vuelo activo ahora mismo.'); return _genDone(gen); }
     if(!tk){ status(CUR.lang==='en'?'Sign in to generate the briefing.':'Inicia sesión para generar el briefing.'); return _genDone(gen); }
     try{
       status(CUR.lang==='en'?'Locating & generating…':'Ubicación y generando…');
@@ -36929,7 +36943,7 @@ document.addEventListener('DOMContentLoaded', function(){
   window.__driveBriefing = function(){
     build();
     var legs = gatherLegs();
-    if(!legs.length){ status(CUR.lang==='en'?'No roster loaded for today. Import your roster first.':'No hay roster cargado para hoy. Importa tu roster primero.'); q('#db-route').textContent='Sin vuelos'; var g=q('#db-gen'); if(g){ g.disabled=true; g.style.opacity='.5'; } return; }
+    if(!legs.length){ status(CUR.lang==='en'?'No active flight detected right now.':'No se detecta ningún vuelo activo ahora mismo.'); q('#db-route').textContent=(CUR.lang==='en'?'No flight':'Sin vuelos'); var g=q('#db-gen'); if(g){ g.disabled=true; g.style.opacity='.5'; } return; }
     q('#db-route').textContent = legs.map(function(l){return l.dep+'→'+l.arr;}).join('   ·   ');
     status(CUR.lang==='en'?'Choose language and voice, then press Generate.':'Elige idioma y voz, luego pulsa Generar.');
   };
