@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.151">
+  <meta name="version" content="Beta.152">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.151","builtAt":"2026-06-27T16:06:50Z","commit":"0227cb9","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.152","builtAt":"2026-06-27T16:10:06Z","commit":"122a96f","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -37090,8 +37090,11 @@ document.addEventListener('DOMContentLoaded', function(){
     var t2=q('#ar-vtitle'); if(t2)t2.textContent=(CUR.lang==='en'?'Listening… speak':'Escuchando… habla'); vBtn('listen'); beep();
     setTimeout(function(){ if(vOn)vTurn(); },380);
   }
-  function vStop(){ vOn=false; try{ if(vRec&&vRec.state!=='inactive')vRec.stop(); }catch(e){} try{ if(vStream)vStream.getTracks().forEach(function(t){t.stop();}); }catch(e){} vStream=null; try{ if(vAC)vAC.close(); }catch(e){} vAC=null; vBtn('idle'); var tg=q('#ar-vend'); if(tg)tg.style.display='none'; var t=q('#ar-vtitle'); if(t)t.textContent=(CUR.lang==='en'?'Voice conversation ended':'Conversación terminada'); }
-  function vTurn(){
+  function releaseMic(){ try{ if(vStream)vStream.getTracks().forEach(function(t){t.stop();}); }catch(e){} vStream=null; try{ if(vAC)vAC.close(); }catch(e){} vAC=null; }
+  function vStop(){ vOn=false; try{ if(vRec&&vRec.state!=='inactive')vRec.stop(); }catch(e){} releaseMic(); vBtn('idle'); var tg=q('#ar-vend'); if(tg)tg.style.display='none'; var t=q('#ar-vtitle'); if(t)t.textContent=(CUR.lang==='en'?'Voice conversation ended':'Conversación terminada'); }
+  async function vTurn(){
+    if(!vOn)return;
+    try{ await ensureMic(); }catch(e){ vStop(); return; }
     if(!vOn||!vStream)return; vBtn('listen'); vChunks=[];
     var mr; try{ mr=new MediaRecorder(vStream); }catch(e){ vStop(); return; } vRec=mr;
     mr.ondataavailable=function(e){ if(e.data&&e.data.size)vChunks.push(e.data); };
@@ -37107,8 +37110,9 @@ document.addEventListener('DOMContentLoaded', function(){
   function vFinish(){
     if(vRec&&vRec._cleanup)vRec._cleanup();
     var chunks=vChunks; vChunks=[];
-    if(!chunks.length){ if(vOn)vTurn(); return; }
-    var blob=new Blob(chunks,{type:(vRec&&vRec.mimeType)||'audio/webm'});
+    var blob=chunks.length?new Blob(chunks,{type:(vRec&&vRec.mimeType)||'audio/webm'}):null;
+    releaseMic();
+    if(!blob){ if(vOn)vTurn(); return; }
     vBtn('think');
     var rd=new FileReader(); rd.onloadend=function(){ var b64=String(rd.result).split(',')[1]||''; vSend(b64,blob.type); }; rd.readAsDataURL(blob);
   }
