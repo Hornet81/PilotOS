@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.139">
+  <meta name="version" content="Beta.140">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.139","builtAt":"2026-06-27T12:24:48Z","commit":"42ada8c","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.140","builtAt":"2026-06-27T12:33:03Z","commit":"4fbb61d","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -36751,6 +36751,7 @@ document.addEventListener('DOMContentLoaded', function(){
   function token(){ try{ return localStorage.getItem('cafi_auth_token')||''; }catch(e){ return ''; } }
   function pilotName(){ try{ return localStorage.getItem('pilot_name')||'Comandante'; }catch(e){ return 'Comandante'; } }
   function stripZ(s){ return String(s||'').replace(/[^0-9:]/g,''); }
+  function getPos(){ return new Promise(function(res){ if(!navigator.geolocation) return res(null); var done=false; function fin(v){ if(done)return; done=true; res(v); } try{ navigator.geolocation.getCurrentPosition(function(p){ fin({lat:p.coords.latitude, lon:p.coords.longitude}); }, function(){ fin(null); }, { timeout:6000, maximumAge:300000 }); }catch(e){ fin(null); } setTimeout(function(){ fin(null); }, 7000); }); }
   function cfg(){ return { lang: localStorage.getItem('db_lang')||'es', voice: localStorage.getItem('db_voice')||'nova', rate: parseFloat(localStorage.getItem('db_rate'))||1, vol: localStorage.getItem('db_vol')!=null?parseFloat(localStorage.getItem('db_vol')):1 }; }
   function saveCfg(k,v){ try{ localStorage.setItem('db_'+k, v); }catch(e){} }
   function seg(a){ return 'flex:1;padding:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;'+(a?'background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff':'background:transparent;color:#9fb3bd'); }
@@ -36895,8 +36896,12 @@ document.addEventListener('DOMContentLoaded', function(){
     if(!legs.length){ status(CUR.lang==='en'?'No roster loaded for today.':'No hay roster cargado para hoy.'); return _genDone(gen); }
     if(!tk){ status(CUR.lang==='en'?'Sign in to generate the briefing.':'Inicia sesión para generar el briefing.'); return _genDone(gen); }
     try{
+      status(CUR.lang==='en'?'Locating & generating…':'Ubicación y generando…');
+      var pos=await getPos();
+      var body={legs:legs,pilot:pilotName(),lang:CUR.lang,localHour:new Date().getHours()};
+      if(pos){ body.userLat=pos.lat; body.userLon=pos.lon; }
       status(CUR.lang==='en'?'Generating briefing with ARIA…':'Generando briefing con ARIA…');
-      var r=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({legs:legs,pilot:pilotName(),lang:CUR.lang,localHour:new Date().getHours()})});
+      var r=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify(body)});
       if(!r.ok){ var j=await r.json().catch(function(){return{};}); status('⚠ '+(j.message||j.error||('Error '+r.status))); return _genDone(gen); }
       var d=await r.json();
       if(!d.text){ status('⚠ ARIA no devolvió texto'); return _genDone(gen); }
