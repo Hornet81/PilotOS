@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.175">
+  <meta name="version" content="Beta.176">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.175","builtAt":"2026-06-28T15:58:15Z","commit":"fb20a17","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.176","builtAt":"2026-06-28T16:21:51Z","commit":"7006f24","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -20303,6 +20303,59 @@ function calcBestRwy(icao,windDir,windSpd,utcHHMM){
   return _bestRwyFromList(candidates,windDir,windSpd);
 }
 
+// ── Preferencias de pista por aeropuerto (configuraciones nombradas) ──
+// Estima pista DEP/ARR cuando no hay ATIS reciente: cruza horario local + viento + reglas del CCI.
+const RUNWAY_PREFS = {
+  LEBL: {
+    tz:"Europe/Madrid", maxTailKt:10, neverLand:["20"],
+    configs:{
+      W:{label:"Oeste", dep:"24L", arr:"24R"},   // óptima de día (máximo flujo)
+      E:{label:"Este",  dep:"06R", arr:"06L"},
+      N:{label:"Noche", dep:"06R", arr:"02"}      // 23:00–07:00 LT
+    },
+    schedule:[
+      {from:"07:00", to:"23:00", def:"W", alts:["E"]},
+      {from:"23:00", to:"07:00", def:"N", alts:["E","W"]}
+    ]
+  }
+};
+function _rwyHdgDeg(id){var n=parseInt(String(id).replace(/[^0-9]/g,''),10);return ((isNaN(n)?0:n)*10)%360;}
+function _rwyHeadComp(id,dir,spd){var d=(dir-_rwyHdgDeg(id)+360)%360;return spd*Math.cos(d*Math.PI/180);} // + cara / - cola
+function _rwyCfgTail(cfg,dir,spd){return Math.max(-_rwyHeadComp(cfg.dep,dir,spd),-_rwyHeadComp(cfg.arr,dir,spd));}
+// Hora local HH:MM del aeropuerto (tz de prefs o del CCI); fallback UTC
+function _icaoLocalHHMM(icao,tzPref){
+  var tz=tzPref||((typeof getCCI==='function'&&getCCI(icao))?getCCI(icao).timezone:null);
+  if(!tz) return new Date().toISOString().slice(11,16);
+  try{ return new Intl.DateTimeFormat('en-GB',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:tz}).format(new Date()); }
+  catch(e){ return new Date().toISOString().slice(11,16); }
+}
+// Config de pista en servicio estimada: {dep,arr,label,source:'RULES'} o null si el aeropuerto no tiene prefs
+function calcRwyConfig(icao,windDir,windSpd){
+  var P=RUNWAY_PREFS[icao]; if(!P) return null;
+  var lt=_icaoLocalHHMM(icao,P.tz), win=null;
+  for(var i=0;i<P.schedule.length;i++){ if(_rwyTimeInRange(lt,P.schedule[i].from,P.schedule[i].to)){win=P.schedule[i];break;} }
+  if(!win) win=P.schedule[0];
+  var maxT=(P.maxTailKt==null?10:P.maxTailKt), calm=!windSpd||windSpd<3;
+  var def=P.configs[win.def], best=def, bestT=_rwyCfgTail(def,windDir,windSpd);
+  if(!calm && bestT>=maxT){   // cola considerable en la config por defecto → buscar alternativa con menos cola
+    var alts=win.alts||[], chosen=null, chosenT=Infinity;
+    for(var j=0;j<alts.length;j++){ var c=P.configs[alts[j]]; if(!c)continue; var t=_rwyCfgTail(c,windDir,windSpd); if(t<chosenT){chosenT=t;chosen=c;} }
+    if(chosen && chosenT<bestT) best=chosen;
+  }
+  return {dep:best.dep, arr:best.arr, label:best.label, source:"RULES"};
+}
+// Antigüedad del ATIS en horas (Infinity si no hay marca de tiempo legible)
+function _atisAgeHrs(atisD){
+  if(!atisD||!atisD.cards||!atisD.cards.length) return Infinity;
+  var newest=null;
+  for(var i=0;i<atisD.cards.length;i++){
+    var mm=String(atisD.cards[i].time||'').match(/(\d{4})-(\d{2})-(\d{2})\D+(\d{2}):(\d{2})/);
+    if(mm){ var t=Date.UTC(+mm[1],+mm[2]-1,+mm[3],+mm[4],+mm[5]); if(newest==null||t>newest)newest=t; }
+  }
+  if(newest==null) return Infinity;
+  return (Date.now()-newest)/3600000;
+}
+
 // Calcula pista en uso a partir del viento del METAR (dir viento → cabecera más cercana)
 function calcRwyFromMetar(metarRaw) {
   if (!metarRaw) return null;
@@ -24912,17 +24965,25 @@ function TabMeteoV2(_refM2){
       : ((typeof _WX_NAMES!=='undefined'&&_WX_NAMES[cur.icao])?_WX_NAMES[cur.icao]:cur.code);
     // ── Pista(s) en servicio: ATIS (dep/arr) → única del aeropuerto → estimada por viento ──
     const atisD=atisStore[cur.icao];
-    const aDep=(atisD&&atisD.depRwy)||[], aArr=(atisD&&atisD.arrRwy)||[], aGen=(atisD&&atisD.rwy)||[];
+    const _atisStale=(function(){var a=_atisAgeHrs(atisD);return isFinite(a)&&a>2;})();   // ATIS de más de 2 h no manda
+    const aDep=(!_atisStale&&atisD&&atisD.depRwy)||[], aArr=(!_atisStale&&atisD&&atisD.arrRwy)||[], aGen=(!_atisStale&&atisD&&atisD.rwy)||[];
     const rwListH=_runwaysForIcao(cur.icao)||[];
+    const rwCfgH=calcRwyConfig(cur.icao,pw.dir,pw.spd);
     const bestRwyH=calcBestRwy(cur.icao,pw.dir,pw.spd,nowUtc)||calcRwyFromMetar(m.raw);
-    let rwDep=null,rwArr=null,rwSingle=null,rwSrc=null;
+    let rwDep=null,rwArr=null,rwSingle=null,rwSrc=null,rwLabel=null;
     if(aDep.length||aArr.length){
       rwDep=aDep.length?aDep.join("/"):null; rwArr=aArr.length?aArr.join("/"):null;
       if(rwDep&&rwArr&&rwDep===rwArr){ rwSingle=rwDep; rwDep=null; rwArr=null; }
       rwSrc="ATIS";
     } else if(aGen.length){ rwSingle=aGen.join("/"); rwSrc="ATIS"; }
+    else if(rwCfgH){
+      rwDep=rwCfgH.dep; rwArr=rwCfgH.arr; rwLabel=rwCfgH.label;
+      if(rwDep===rwArr){ rwSingle=rwDep; rwDep=null; rwArr=null; }
+      rwSrc="ESTIMADA";
+    }
     else if(rwListH.length===1){ rwSingle=rwListH[0].id; rwSrc="UNICA"; }
     else if(bestRwyH){ rwSingle=bestRwyH; rwSrc="VIENTO"; }
+    const rwCol=(rwSrc==="ESTIMADA")?T.amb:null;   // ámbar = estimada por reglas+viento (vs cian = ATIS)
     const rwyChip=function(icoNode,lab,val,col,grow){
       return React.createElement("div",{key:lab,style:{flex:grow?1:"0 0 auto",minWidth:0,display:"flex",alignItems:"center",gap:10,background:"linear-gradient(135deg,"+_rgba(col,.15)+","+_rgba(col,.04)+"), "+T.surf2,border:"1px solid "+_rgba(col,.34),borderRadius:13,padding:"9px 12px",boxShadow:"0 4px 16px "+_rgba(col,.12)}},
         React.createElement("div",{style:{minWidth:32,height:32,padding:"0 6px",borderRadius:9,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",gap:3,background:_rgba(col,.13),border:"1px solid "+_rgba(col,.26)}},icoNode),
@@ -24934,13 +24995,17 @@ function TabMeteoV2(_refM2){
     if(rwDep||rwArr||rwSingle){
       const chips=[];
       if(rwDep||rwArr){
-        if(rwDep) chips.push(rwyChip(_runwayIco("to",T.cyan,25),"DESPEGUE",rwDep,T.cyan,true));
-        if(rwArr) chips.push(rwyChip(_runwayIco("lg",T.alt,25),"ATERRIZAJE",rwArr,T.alt,true));
+        if(rwDep) chips.push(rwyChip(_runwayIco("to",rwCol||T.cyan,25),"DESPEGUE",rwDep,rwCol||T.cyan,true));
+        if(rwArr) chips.push(rwyChip(_runwayIco("lg",rwCol||T.alt,25),"ATERRIZAJE",rwArr,rwCol||T.alt,true));
       } else {
-        const dualIco=React.createElement(React.Fragment,null,_runwayIco("to",T.cyan,18),_runwayIco("lg",T.cyan,18));
-        chips.push(rwyChip(dualIco,"PISTA EN SERVICIO",rwSingle,T.cyan,true));
+        const _dc=rwCol||T.cyan;
+        const dualIco=React.createElement(React.Fragment,null,_runwayIco("to",_dc,18),_runwayIco("lg",_dc,18));
+        chips.push(rwyChip(dualIco,"PISTA EN SERVICIO",rwSingle,_dc,true));
       }
-      const srcTxt=rwSrc==="ATIS"?"Pista en servicio · ATIS":rwSrc==="UNICA"?"Pista única del aeropuerto":"Estimada por viento (sin ATIS)";
+      const srcTxt=rwSrc==="ATIS"?"Pista en servicio · ATIS"
+        :rwSrc==="ESTIMADA"?("Estimada · "+(rwLabel?("config "+rwLabel+" + viento"):"reglas + viento"))
+        :rwSrc==="UNICA"?"Pista única del aeropuerto"
+        :"Estimada por viento (sin ATIS)";
       runwayRow=React.createElement("div",{style:{marginTop:11}},
         React.createElement("div",{style:{display:"flex",gap:8,alignItems:"stretch"}},chips),
         React.createElement("div",{style:{fontFamily:mono,fontSize:7,fontWeight:700,letterSpacing:".4px",color:T.tx3,marginTop:6}},"▪ "+srcTxt));
@@ -25568,9 +25633,12 @@ function RwyInUsePanel(_ref_rwy) {
   const _nowUtc = new Date().toISOString().slice(11,16);
   const _dw = parseMetarWind((leg.metar && leg.metar.wind) || '—');
   const _aw = parseMetarWind((leg.metarArr && leg.metarArr.wind) || '—');
-  const rwyDep = leg.rwyDep || calcBestRwy(iataToIcao(leg.dep),_dw.dir,_dw.spd,_nowUtc) || calcRwyFromMetar(depMetarRaw);
-  const rwyArr = leg.rwyArr || calcBestRwy(iataToIcao(leg.arr),_aw.dir,_aw.spd,_nowUtc) || calcRwyFromMetar(arrMetarRaw);
+  const _depCfg = calcRwyConfig(iataToIcao(leg.dep),_dw.dir,_dw.spd);
+  const _arrCfg = calcRwyConfig(iataToIcao(leg.arr),_aw.dir,_aw.spd);
+  const rwyDep = leg.rwyDep || (_depCfg&&_depCfg.dep) || calcBestRwy(iataToIcao(leg.dep),_dw.dir,_dw.spd,_nowUtc) || calcRwyFromMetar(depMetarRaw);
+  const rwyArr = leg.rwyArr || (_arrCfg&&_arrCfg.arr) || calcBestRwy(iataToIcao(leg.arr),_aw.dir,_aw.spd,_nowUtc) || calcRwyFromMetar(arrMetarRaw);
   const estimated = !leg.rwyDep || !leg.rwyArr;
+  const _cfgLabel = (!leg.rwyDep&&_depCfg)?_depCfg.label : (!leg.rwyArr&&_arrCfg)?_arrCfg.label : null;
 
   // Extract wind string for display: e.g. "250/12kt"
   function windStr(raw) {
@@ -25605,12 +25673,12 @@ function RwyInUsePanel(_ref_rwy) {
     React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 8 } },
       React.createElement("span", { style: { fontSize: 16 } }, "🛬"),
       React.createElement("span", { style: { fontSize: 8, color: C.cyan, fontFamily: mono, fontWeight: 700, letterSpacing: "1.5px" } }, "RUNWAY IN USE"),
-      estimated && React.createElement("span", { style: { fontSize: 7, color: "#FFB800", fontFamily: mono, fontWeight: 700, background: "rgba(255,184,0,0.12)", border: "1px solid rgba(255,184,0,0.3)", borderRadius: 4, padding: "1px 5px" } }, "ESTIMADO")
+      estimated && React.createElement("span", { style: { fontSize: 7, color: "#FFB800", fontFamily: mono, fontWeight: 700, background: "rgba(255,184,0,0.12)", border: "1px solid rgba(255,184,0,0.3)", borderRadius: 4, padding: "1px 5px" } }, _cfgLabel ? ("ESTIMADO · " + _cfgLabel) : "ESTIMADO")
     ),
     React.createElement("div", { style: { display: "flex", gap: 12 } },
-      React.createElement(RwyEntry, { label: "DEP", icao: leg.dep, rwy: rwyDep, wind: wDep }),
+      React.createElement(RwyEntry, { label: "DESPEGUE", icao: leg.dep, rwy: rwyDep, wind: wDep }),
       React.createElement("div", { style: { width: 1, background: "rgba(126,251,254,0.08)", alignSelf: "stretch" } }),
-      React.createElement(RwyEntry, { label: "ARR", icao: leg.arr, rwy: rwyArr, wind: wArr })
+      React.createElement(RwyEntry, { label: "ATERRIZAJE", icao: leg.arr, rwy: rwyArr, wind: wArr })
     )
   );
 }
@@ -37161,7 +37229,8 @@ document.addEventListener('DOMContentLoaded', function(){
   function curElapsed(){ return acc+((curAudio&&curAudio.currentTime)||0); }
   function seekToPlay(target){ if(!audios.length||!total)return; _gen++; mediaSetup(); target=Math.max(0,Math.min(target,total)); if(curAudio){ try{curAudio.pause();}catch(e){} curAudio.onended=null; curAudio.ontimeupdate=null; } var t=target,idx=0; while(idx<durs.length-1&&t>=durs[idx]){ t-=durs[idx]; idx++; } k=idx; acc=0; for(var j=0;j<idx;j++)acc+=durs[j]; try{ audios[idx].a.currentTime=Math.max(0,Math.min(t,durs[idx]-0.05)); }catch(e){} playing=true; paused=false; var pb=q('#ar-play'); if(pb)pb.textContent='⏸'; var f=q('#ar-fill'); if(f)f.style.width=Math.min(100,target/total*100)+'%'; var c=q('#ar-cur'); if(c)c.textContent=fmt(target); playK(); applyChrome(); }
   function rewind(sec){ if(!audios.length)return; seekToPlay(curElapsed()-sec); }
-  function applyChrome(){ var col=playing&&!paused; ['#ar-scope','#ar-gen'].forEach(function(sel){ var el=q(sel); if(el){ if(col)el.classList.add('ar-collapsed'); else el.classList.remove('ar-collapsed'); } }); mediaState(); }
+  function showDeckTransport(on){ var pl=q('#ar-player'),gn=q('#ar-gen'); if(pl)pl.style.display=on?'flex':'none'; if(gn)gn.style.display=on?'none':'block'; }
+  function applyChrome(){ var col=playing&&!paused; ['#ar-dhead'].forEach(function(sel){ var el=q(sel); if(el){ if(col)el.classList.add('ar-collapsed'); else el.classList.remove('ar-collapsed'); } }); mediaState(); }
   function stopBriefing(){ _gen++; try{ if(curAudio)curAudio.pause(); }catch(e){} try{ if(_va){ _va.pause(); _va.onended=null; } }catch(e){} playing=false; paused=true; var pb=q('#ar-play'); if(pb)pb.textContent='▶'; hi(-1,-1); stat(CUR.lang==='en'?'■ Briefing stopped — ask me anything':'■ Briefing detenido — pregúntame lo que quieras'); showVoiceDock(true); applyChrome(); }
   function togglePlay(){ if(!audios.length)return; var pb=q('#ar-play'); if(!playing){ _gen++; mediaSetup(); playing=true; paused=false; acc=0; k=0; if(pb)pb.textContent='⏸'; unlockAudio(); playK(); } else if(paused){ paused=false; if(pb)pb.textContent='⏸'; if(curAudio){ if(curAudio.ended)playK(); else curAudio.play(); } } else { paused=true; if(pb)pb.textContent='▶'; if(curAudio)curAudio.pause(); } applyChrome(); }
 
@@ -37190,9 +37259,9 @@ document.addEventListener('DOMContentLoaded', function(){
         if(!r2.ok){ var je=await r2.json().catch(function(){return{};}); stat('⚠ '+(je.message||je.error||('Error '+r2.status))); return _done(gen); } var d2=await r2.json(); txt=d2.text||'';
       }
       if(!txt){ stat('⚠ ARIA no devolvió texto'); return _done(gen); } LAST_TEXT=txt; LAST_SCOPE=SCOPE;
-      renderText(txt); if(pl)pl.style.display='flex'; stat('Preparando voz…');
+      renderText(txt); showDeckTransport(true); stat('Preparando voz…');
       var ok=await prepareVoice();
-      if(ok){ var pb=q('#ar-play'); if(pb){ pb.disabled=false; pb.style.opacity='1'; } var bk=q('#ar-back'); if(bk){ bk.disabled=false; bk.style.opacity='1'; } var sb=q('#ar-stop'); if(sb){ sb.disabled=false; sb.style.opacity='1'; } stat(CUR.lang==='en'?'▶ Ready · plays offline':'▶ Listo · pulsa play (suena sin cobertura)'); showVoiceDock(false); }
+      if(ok){ var pb=q('#ar-play'); if(pb){ pb.disabled=false; pb.style.opacity='1'; } var bk=q('#ar-back'); if(bk){ bk.disabled=false; bk.style.opacity='1'; } var sb=q('#ar-stop'); if(sb){ sb.disabled=false; sb.style.opacity='1'; } var rg=q('#ar-regen'); if(rg){ rg.disabled=false; rg.style.opacity='1'; } stat(CUR.lang==='en'?'▶ Ready · plays offline':'▶ Listo · pulsa play (suena sin cobertura)'); showVoiceDock(false); }
     }catch(e){ stat('⚠ '+(e&&e.message||e)); }
     _done(gen);
   }
@@ -37285,7 +37354,6 @@ document.addEventListener('DOMContentLoaded', function(){
           '<span style="position:absolute;right:-1px;bottom:-1px;width:10px;height:10px;border-radius:50%;background:#4dff91;border:2px solid #06121a"></span></div>'+
         '<div style="flex:1;min-width:0"><div style="font-weight:800;letter-spacing:1px;font-size:14px;color:#eaf3f8;font-family:ui-monospace,monospace">ARIA</div>'+
           '<div style="font-size:8px;color:#7fb3c4;font-family:ui-monospace,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Aviation Route Intelligence Agent</div></div>'+
-        '<button id="ar-gear" style="width:30px;height:30px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#9fb3bd;font-size:13px;flex-shrink:0">⚙</button>'+
       '</div>'+
       '<div id="ar-set" style="display:none;margin:9px 13px 0;padding:11px;border:1px solid rgba(255,255,255,.1);border-radius:12px;background:rgba(0,0,0,.22);flex-shrink:0">'+
         '<div style="font-size:9px;color:#6c818d;margin-bottom:5px">IDIOMA</div>'+
@@ -37299,26 +37367,25 @@ document.addEventListener('DOMContentLoaded', function(){
         '<div style="font-size:9px;color:#6c818d;margin-bottom:4px">VOLUMEN <span id="ar-vl"></span></div>'+
         '<input id="ar-vol" type="range" min="0" max="1" step="0.05" style="width:100%;accent-color:#0aa3c7">'+
       '</div>'+
-      '<div id="ar-scope" class="ar-collapsing" style="padding:9px 13px 0;flex-shrink:0"><div style="display:flex;border:1px solid rgba(63,210,240,.25);border-radius:11px;overflow:hidden;background:rgba(255,255,255,.03)">'+
-        '<button data-sc="hoy" class="ar-sc" style="flex:1;border:none;color:#fff;font-weight:700;font-size:11px;padding:8px;font-family:inherit">Hoy · jornada</button>'+
-        '<button data-sc="leg" class="ar-sc" style="flex:1;border:none;color:#9fb3bd;font-weight:700;font-size:11px;padding:8px;font-family:inherit">Este vuelo</button></div></div>'+
       '<div style="flex:1;min-height:0;overflow-y:auto;padding:10px 13px 14px">'+
-          '<div id="ar-player" style="display:none;position:sticky;top:0;z-index:6;align-items:center;gap:8px;margin:0 0 10px;padding:8px 10px;border-radius:13px;background:rgba(8,18,26,.85);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(63,210,240,.22);box-shadow:0 6px 18px rgba(0,0,0,.35)">'+
-            '<button id="ar-play" disabled style="flex-shrink:0;width:38px;height:38px;border-radius:50%;border:none;background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff;font-size:15px;opacity:.5">▶</button>'+
-            '<div style="flex:1;min-width:0"><div id="ar-bar" style="height:7px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden;cursor:pointer"><div id="ar-fill" style="height:100%;width:0;background:linear-gradient(90deg,#0aa3c7,#3fd2f0);pointer-events:none"></div></div>'+
-              '<div style="display:flex;justify-content:space-between;font-size:9px;color:#6c818d;margin-top:3px"><span id="ar-cur">0:00</span><span id="ar-tot">0:00</span></div></div>'+
-            '<button id="ar-back" disabled title="Atrás 15s" style="flex-shrink:0;width:34px;height:34px;border-radius:50%;border:1px solid rgba(63,210,240,.4);background:rgba(10,163,199,.12);color:#cdeefb;font-size:9px;font-weight:700;opacity:.5;font-family:ui-monospace,monospace">↺15</button>'+
-            '<button id="ar-stop" disabled title="Finalizar" style="flex-shrink:0;width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,90,90,.45);background:rgba(255,90,90,.12);color:#ff9a9a;font-size:11px;opacity:.5">■</button>'+
-          '</div>'+
-        '<div style="background:rgba(255,255,255,.04);border:1px solid rgba(63,210,240,.18);border-radius:14px;padding:11px">'+
-          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">'+
-            '<span style="font-size:10px;font-weight:800;letter-spacing:1px;color:#eaf3f8">BRIEFING</span>'+
-            '<span style="margin-left:auto;font-size:8px;font-weight:800;letter-spacing:.5px;color:#04141b;background:#3fd2f0;padding:3px 8px;border-radius:20px" id="ar-vpill">VOZ · '+(CUR.voice||'nova').toUpperCase()+'</span></div>'+
-          '<button id="ar-gen" class="ar-collapsing" style="width:100%;padding:9px;border:none;border-radius:10px;background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff;font-size:11px;font-weight:700;letter-spacing:.3px;font-family:inherit">▶ Generar briefing</button>'+
-
-          '<div id="ar-status" style="font-size:10.5px;color:#3fd2f0;margin-top:9px;min-height:13px;text-align:center"></div>'+
-          '<div id="ar-tr" style="margin-top:10px"></div>'+
+        '<div id="ar-deck" style="position:sticky;top:0;z-index:6;border-radius:16px;padding:9px 10px;margin:0 0 11px;background:rgba(8,18,26,.86);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(63,210,240,.2);box-shadow:0 8px 26px rgba(0,0,0,.4)">'+
+          '<div id="ar-dhead" class="ar-collapsing" style="display:flex;align-items:center;gap:7px;margin-bottom:9px">'+
+            '<div id="ar-scope" style="flex:1;display:flex;border:1px solid rgba(63,210,240,.25);border-radius:11px;overflow:hidden;background:rgba(255,255,255,.03)">'+
+              '<button data-sc="hoy" class="ar-sc" style="flex:1;border:none;color:#fff;font-weight:700;font-size:11px;padding:8px 5px;font-family:inherit">Hoy · jornada</button>'+
+              '<button data-sc="leg" class="ar-sc" style="flex:1;border:none;color:#9fb3bd;font-weight:700;font-size:11px;padding:8px 5px;font-family:inherit">Este vuelo</button></div>'+
+            '<button id="ar-vpill" title="Cambiar voz" style="display:flex;align-items:center;gap:5px;flex-shrink:0;border:1px solid rgba(63,210,240,.3);background:rgba(63,210,240,.08);color:#cdeefb;font-size:9.5px;font-weight:800;letter-spacing:.3px;padding:7px 9px;border-radius:10px;font-family:ui-monospace,monospace">🎙 '+(CUR.voice||'nova').toUpperCase()+'</button>'+
+            '<button id="ar-gear" style="flex-shrink:0;width:32px;height:32px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#9fb3bd;font-size:13px">⚙</button></div>'+
+          '<button id="ar-gen" style="width:100%;padding:11px;border:none;border-radius:11px;background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff;font-size:12px;font-weight:800;letter-spacing:.3px;font-family:inherit;box-shadow:0 6px 18px rgba(10,163,199,.32)">▶ Generar briefing</button>'+
+          '<div id="ar-player" style="display:none;align-items:center;gap:8px">'+
+            '<button id="ar-play" disabled style="flex-shrink:0;width:46px;height:46px;border-radius:50%;border:none;background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff;font-size:18px;opacity:.5;box-shadow:0 5px 16px rgba(10,163,199,.4)">▶</button>'+
+            '<div style="flex:1;min-width:0"><div id="ar-bar" style="height:7px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden;cursor:pointer"><div id="ar-fill" style="height:100%;width:0;background:linear-gradient(90deg,#0aa3c7,#3fd2f0);box-shadow:0 0 8px rgba(63,210,240,.5);pointer-events:none"></div></div>'+
+              '<div style="display:flex;justify-content:space-between;font-size:9px;color:#6c818d;margin-top:3px;font-family:ui-monospace,monospace"><span id="ar-cur">0:00</span><span id="ar-tot">0:00</span></div></div>'+
+            '<button id="ar-back" disabled title="Atrás 15s" style="flex-shrink:0;width:33px;height:33px;border-radius:50%;border:1px solid rgba(63,210,240,.4);background:rgba(10,163,199,.12);color:#cdeefb;font-size:9px;font-weight:700;opacity:.5;font-family:ui-monospace,monospace">↺15</button>'+
+            '<button id="ar-regen" disabled title="Regenerar" style="flex-shrink:0;width:33px;height:33px;border-radius:50%;border:1px solid rgba(63,210,240,.3);background:rgba(63,210,240,.06);color:#3fd2f0;font-size:15px;opacity:.5">↻</button>'+
+            '<button id="ar-stop" disabled title="Finalizar" style="flex-shrink:0;width:33px;height:33px;border-radius:50%;border:1px solid rgba(255,90,90,.45);background:rgba(255,90,90,.12);color:#ff9a9a;font-size:11px;opacity:.5">■</button></div>'+
         '</div>'+
+          '<div id="ar-status" style="font-size:10.5px;color:#3fd2f0;margin-top:0;min-height:13px;text-align:center"></div>'+
+          '<div id="ar-tr" style="margin-top:10px"></div>'+
         '<div id="ar-vdock" style="display:none;margin-top:10px;background:rgba(63,210,240,.07);border:1px solid rgba(63,210,240,.3);border-radius:16px;padding:13px">'+
           '<div id="ar-vtitle" style="font-size:12.5px;color:#cdeefb;text-align:center;margin-bottom:10px">¿Profundizamos en algo? Pregúntale a ARIA por voz</div>'+
           '<div style="display:flex;gap:9px;justify-content:center">'+
@@ -37351,8 +37418,10 @@ document.addEventListener('DOMContentLoaded', function(){
     q('#ar-play').onclick=togglePlay;
     q('#ar-back').onclick=function(){ rewind(15); };
     var stp=q('#ar-stop'); if(stp)stp.onclick=stopBriefing;
+    var rgn=q('#ar-regen'); if(rgn)rgn.onclick=generate;
+    var vpl=q('#ar-vpill'); if(vpl)vpl.onclick=toggleSettings;
     var bar=q('#ar-bar'); if(bar)bar.onclick=function(ev){ if(!audios.length||!total)return; var r=bar.getBoundingClientRect(); seekToPlay(Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width))*total); };
-    var vsel=q('#ar-voice'); if(vsel)vsel.onchange=function(){ CUR.voice=vsel.value; saveCfg('voice',vsel.value); var vp=q('#ar-vpill'); if(vp)vp.textContent='VOZ · '+vsel.value.toUpperCase(); if(audios.length)stat(CUR.lang==='en'?'Voice changed — tap Regenerate to apply':'Voz cambiada — pulsa Generar de nuevo para aplicarla'); };
+    var vsel=q('#ar-voice'); if(vsel)vsel.onchange=function(){ CUR.voice=vsel.value; saveCfg('voice',vsel.value); var vp=q('#ar-vpill'); if(vp)vp.textContent='🎙 '+vsel.value.toUpperCase(); if(audios.length)stat(CUR.lang==='en'?'Voice changed — tap Regenerate to apply':'Voz cambiada — pulsa Generar de nuevo para aplicarla'); };
     var rl=q('#ar-rl'); var rs=q('#ar-rate'); if(rs){ rs.value=RATE; if(rl)rl.textContent=RATE.toFixed(2)+'×'; rs.oninput=function(){ RATE=parseFloat(rs.value)||1; saveCfg('rate',RATE); if(rl)rl.textContent=RATE.toFixed(2)+'×'; if(curAudio)curAudio.playbackRate=RATE; }; }
     var vl=q('#ar-vl'); var vo=q('#ar-vol'); if(vo){ vo.value=VOL; if(vl)vl.textContent=Math.round(VOL*100)+'%'; vo.oninput=function(){ VOL=parseFloat(vo.value); saveCfg('vol',VOL); if(vl)vl.textContent=Math.round(VOL*100)+'%'; if(curAudio)curAudio.volume=VOL; }; }
     var mic=q('#ar-mic'); if(mic)mic.onclick=vStart;
@@ -37363,7 +37432,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
   function _stopAll(){ try{ if(curAudio)curAudio.pause(); }catch(e){} try{ if(_va){ _va.pause(); _va.onended=null; } }catch(e){} try{ vStop(); }catch(e){} playing=false; paused=false; audios=[]; curAudio=null; k=0; acc=0; }
   function _pauseKeep(){ try{ if(curAudio)curAudio.pause(); }catch(e){} try{ if(_va){ _va.pause(); _va.onended=null; } }catch(e){} if(playing)paused=true; try{ vStop(); }catch(e){} }
-  function restoreState(){ if(!LAST_TEXT||!audios.length)return; renderText(LAST_TEXT); var pl=q('#ar-player'); if(pl)pl.style.display='flex'; var pb=q('#ar-play'); if(pb){ pb.disabled=false; pb.style.opacity='1'; pb.textContent=(playing&&!paused)?'⏸':'▶'; } var bk=q('#ar-back'); if(bk){ bk.disabled=false; bk.style.opacity='1'; } var sb=q('#ar-stop'); if(sb){ sb.disabled=false; sb.style.opacity='1'; } var tot=q('#ar-tot'); if(tot)tot.textContent=fmt(total); var el=curElapsed(); var f=q('#ar-fill'); if(f&&total)f.style.width=Math.min(100,el/total*100)+'%'; var c=q('#ar-cur'); if(c)c.textContent=fmt(el); if(audios[k])hi(audios[k].from,audios[k].to); var gen=q('#ar-gen'); if(gen)gen.textContent=(CUR.lang==='en'?'▶ Regenerate':'▶ Generar de nuevo'); applyChrome(); }
+  function restoreState(){ if(!LAST_TEXT||!audios.length)return; renderText(LAST_TEXT); showDeckTransport(true); var pb=q('#ar-play'); if(pb){ pb.disabled=false; pb.style.opacity='1'; pb.textContent=(playing&&!paused)?'⏸':'▶'; } var bk=q('#ar-back'); if(bk){ bk.disabled=false; bk.style.opacity='1'; } var sb=q('#ar-stop'); if(sb){ sb.disabled=false; sb.style.opacity='1'; } var rg=q('#ar-regen'); if(rg){ rg.disabled=false; rg.style.opacity='1'; } var tot=q('#ar-tot'); if(tot)tot.textContent=fmt(total); var el=curElapsed(); var f=q('#ar-fill'); if(f&&total)f.style.width=Math.min(100,el/total*100)+'%'; var c=q('#ar-cur'); if(c)c.textContent=fmt(el); if(audios[k])hi(audios[k].from,audios[k].to); var gen=q('#ar-gen'); if(gen)gen.textContent=(CUR.lang==='en'?'▶ Regenerate':'▶ Generar de nuevo'); applyChrome(); }
   window.__ariaStop=function(){ _pauseKeep(); };
   window.__ariaMount=function(container){ try{ buildPanel(container); restoreState(); }catch(e){ try{ buildPanel(container); }catch(e2){} } };
 })();
