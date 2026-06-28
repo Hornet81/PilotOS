@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.185">
+  <meta name="version" content="Beta.186">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.185","builtAt":"2026-06-28T17:28:53Z","commit":"63c95a9","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.186","builtAt":"2026-06-28T17:46:05Z","commit":"89e042a","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -20825,11 +20825,24 @@ const SEV = {
     label: "INFO"
   }
 };
-function buildAISystem(leg, turbData) {
+function buildAISystem(leg, turbData, windData) {
   const turbSummary = turbData ? turbData.map((p, i) => "WP".concat(i + 1, ":EDR").concat(p.edr.toFixed(2))).join(" ") : "datos cargando";
-  return "Eres ARIA (Aviation Route Intelligence Assistant), copiloto IA de PilotOS SkyView.\nLeg: ".concat(leg.flight, " ").concat(leg.dep, "\u2192").concat(leg.arr, " \xB7 STD ").concat(leg.std, " \xB7 STA ").concat(leg.sta, " \xB7 Block ").concat(leg.block, " \xB7 FL").concat(leg.cruiseFL, "\nMETAR DEP: ").concat(leg.metar.raw, " \u2192 ").concat(leg.metar.cat, "\nMETAR ARR: ").concat(leg.metarArr.raw, " \u2192 ").concat(leg.metarArr.cat, "\nRWY DEP: ").concat(leg.rwyDep, " \xB7 RWY ARR: ").concat(leg.rwyArr, "\nAlternates: ").concat(leg.alts.map(a => "".concat(a.icao, "(").concat(a.city, ") RWY").concat(a.rwy, " ").concat(a.cat)).join(" | "), "\nPIREPs: ").concat(leg.pireps.length ? leg.pireps.map(p => "".concat(p.type, " ").concat(p.fl, " ").concat(p.msg, " (").concat(p.ac, " ").concat(p.time, ")")).join(". ") : "Sin PIREPs.", "\nNOTAMs: ").concat((NOTAMS_BY_LEG[leg.num] || []).map(n => "".concat(n.id, ":").concat(n.title)).join(". "), "\nPerfil turbulencia NOAA GTG: ").concat(turbSummary, "\nFatiga: ").concat(FATIGUE.level, " (").concat(FATIGUE.score, "/100) \xB7 Descanso ").concat(FATIGUE.hoursRest, "h\nResponde en espa\xF1ol profesional. Para BRIEFING COMPLETO usa estas secciones:\n1.\u2708\uFE0F RESUMEN  2.\uD83C\uDF24 METEOROLOG\xCDA (descifra METARs)  3.\u26A1 TURBULENCIA (interpreta EDR)  4.\u26A0\uFE0F NOTAMs (explica operacionalmente)  5.\uD83D\uDD04 PIREPs  6.\uD83D\uDCA4 FATIGA\xD7CONDICIONES  7.\u2705 RECOMENDACIONES\nM\xE1x 400 palabras briefing completo, 150 palabras otras preguntas.");
+  const windSummary = windData && windData.length ? windData.map(w => "FL".concat(w.fl, " ").concat(w.dir, "\u00b0/").concat(w.speed, "kt")).join(", ") : "datos cargando";
+  return "Eres ARIA (Aviation Route Intelligence Assistant), copiloto IA de PilotOS SkyView.\nLeg: ".concat(leg.flight, " ").concat(leg.dep, "\u2192").concat(leg.arr, " \xB7 STD ").concat(leg.std, " \xB7 STA ").concat(leg.sta, " \xB7 Block ").concat(leg.block, " \xB7 FL").concat(leg.cruiseFL, "\nMETAR DEP: ").concat(leg.metar.raw, " \u2192 ").concat(leg.metar.cat, "\nMETAR ARR: ").concat(leg.metarArr.raw, " \u2192 ").concat(leg.metarArr.cat, "\nRWY DEP: ").concat(leg.rwyDep, " \xB7 RWY ARR: ").concat(leg.rwyArr, "\nAlternates: ").concat(leg.alts.map(a => "".concat(a.icao, "(").concat(a.city, ") RWY").concat(a.rwy, " ").concat(a.cat)).join(" | "), "\nPIREPs: ").concat(leg.pireps.length ? leg.pireps.map(p => "".concat(p.type, " ").concat(p.fl, " ").concat(p.msg, " (").concat(p.ac, " ").concat(p.time, ")")).join(". ") : "Sin PIREPs.", "\nNOTAMs: ").concat((NOTAMS_BY_LEG[leg.num] || []).map(n => "".concat(n.id, ":").concat(n.title)).join(". "), "\nPerfil turbulencia NOAA GTG: ").concat(turbSummary, "\nVientos en ruta (TOC\u2192crucero\u2192descenso, Open-Meteo): ").concat(windSummary, " (crucero \u2248 FL").concat(leg.cruiseFL, ")\nFatiga: ").concat(FATIGUE.level, " (").concat(FATIGUE.score, "/100) \xB7 Descanso ").concat(FATIGUE.hoursRest, "h\nResponde en espa\xF1ol profesional. Para BRIEFING COMPLETO usa estas secciones:\n1.\u2708\uFE0F RESUMEN  2.\uD83C\uDF24 METEOROLOG\xCDA (descifra METARs)  3.\u26A1 TURBULENCIA (interpreta EDR)  4.\u26A0\uFE0F NOTAMs (explica operacionalmente)  5.\uD83D\uDD04 PIREPs  6.\uD83D\uDCA4 FATIGA\xD7CONDICIONES  7.\u2705 RECOMENDACIONES\nM\xE1x 400 palabras briefing completo, 150 palabras otras preguntas.");
 }
 try { window.buildAISystem = buildAISystem; window.getRouteCoords = getRouteCoords; window.fetchTurbulenceProfile = fetchTurbulenceProfile; } catch (e) {}
+async function fetchRouteWinds(dep, arr) {
+  try {
+    var mid = getRouteMidpoint(dep, arr);
+    var LV = [{fl:100,hpa:700},{fl:180,hpa:500},{fl:240,hpa:400},{fl:300,hpa:300},{fl:340,hpa:250},{fl:390,hpa:200}];
+    var params = LV.map(function(l){ return "wind_speed_"+l.hpa+"hPa,wind_direction_"+l.hpa+"hPa,temperature_"+l.hpa+"hPa"; }).join(",");
+    var url = "https://api.open-meteo.com/v1/forecast?latitude="+mid[0].toFixed(4)+"&longitude="+mid[1].toFixed(4)+"&hourly="+params+"&wind_speed_unit=kn&timezone=UTC&forecast_days=1";
+    var r = await fetch(url); if (!r.ok) return null;
+    var d = await r.json(); var h = d.hourly; var hr = new Date().getUTCHours();
+    return LV.map(function(l){ return { fl:l.fl, hpa:l.hpa, speed:Math.round((h["wind_speed_"+l.hpa+"hPa"]||[])[hr]||0), dir:Math.round((h["wind_direction_"+l.hpa+"hPa"]||[])[hr]||0), temp:Math.round((h["temperature_"+l.hpa+"hPa"]||[])[hr]||0) }; });
+  } catch (e) { return null; }
+}
+try { window.fetchRouteWinds = fetchRouteWinds; } catch (e) {}
 
 /* ════════════════════════════════════════
    NOAA API CALLS
@@ -27606,7 +27619,7 @@ function SkyViewPilotOS() {
     style: { flex: 1, textAlign: "center" }
   }, /*#__PURE__*/React.createElement("div", {
     style: { fontSize: 14, letterSpacing: "4px", fontWeight: 800, color: C.white, fontFamily: mono }
-  }, tab === "aria" ? "ARIA" : (MAIN_TABS.find(function (t) { return t.id === tab; }) || { label: tab.toUpperCase() }).label), tab === "aria" ? /*#__PURE__*/React.createElement("div", { style: { fontSize: 6.5, letterSpacing: "2px", fontWeight: 600, color: "#7fb3c4", fontFamily: mono, marginTop: 2 } }, "Aviation Route Intelligence Agent") : null), /*#__PURE__*/React.createElement("div", {
+  }, tab === "aria" ? "ARIA" : (MAIN_TABS.find(function (t) { return t.id === tab; }) || { label: tab.toUpperCase() }).label), tab === "aria" ? /*#__PURE__*/React.createElement("div", { style: { fontSize: 6.5, letterSpacing: "1px", fontWeight: 600, color: "#7fb3c4", fontFamily: mono, marginTop: 1, whiteSpace: "nowrap" } }, "Aviation Route Intelligence Agent") : null), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -37178,30 +37191,46 @@ document.addEventListener('DOMContentLoaded', function(){
   function stripZ(s){ return String(s||'').replace(/[^0-9:]/g,''); }
   function getPos(){ return new Promise(function(res){ if(!navigator.geolocation) return res(null); var done=false; function fin(v){ if(done)return; done=true; res(v); } try{ navigator.geolocation.getCurrentPosition(function(p){ fin({lat:p.coords.latitude,lon:p.coords.longitude}); }, function(){ fin(null); }, {timeout:6000,maximumAge:300000}); }catch(e){ fin(null); } setTimeout(function(){ fin(null); },7000); }); }
   function prevDayRoutes(legs){ try{ if(!legs||!legs.length||!legs[0].date) return []; var raw=localStorage.getItem('pilotOS_roster'); if(!raw) return []; var ents=JSON.parse(raw); if(!Array.isArray(ents)) return []; var d=new Date(legs[0].date+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()-1); var prev=d.toISOString().slice(0,10); var out=[]; ents.forEach(function(e){ if(e.type==='flight'&&e.dep&&e.arr&&e.date===prev){ out.push(e.dep+'-'+e.arr); } }); return out; }catch(e){ return []; } }
-  function gatherLegs(){ var legs=(window.buildLegsFromRoster&&window.buildLegsFromRoster())||[]; return legs.map(function(l){ var di=(window.iataToIcao&&window.iataToIcao(l.dep))||l.dep; var ai=(window.iataToIcao&&window.iataToIcao(l.arr))||l.arr; return {flight:l.flight,dep:l.dep,arr:l.arr,depIcao:di,arrIcao:ai,std:stripZ(l.std),sta:stripZ(l.sta),acType:l.acType,arrMs:l._arrMs,date:l.date}; }); }
+  function gatherLegs(){ var legs=(window.buildLegsFromRoster&&window.buildLegsFromRoster())||[]; return legs.map(function(l){ var di=(window.iataToIcao&&window.iataToIcao(l.dep))||l.dep; var ai=(window.iataToIcao&&window.iataToIcao(l.arr))||l.arr; return {flight:l.flight,dep:l.dep,arr:l.arr,depIcao:di,arrIcao:ai,std:stripZ(l.std),sta:stripZ(l.sta),acType:l.acType,arrMs:l._arrMs,date:l.date,cruiseFL:l.cruiseFL}; }); }
   async function ctxSys(leg,turbData){
     var turb=turbData;
     if((!turb||!turb.length) && leg && window.getRouteCoords && window.fetchTurbulenceProfile){
       try{ var co=window.getRouteCoords(leg.dep,leg.arr); if(co&&co.length){ turb=await window.fetchTurbulenceProfile(co,leg.cruiseFL); } }catch(e){}
     }
-    return window.buildAISystem ? window.buildAISystem(leg,turb) : '';
+    var winds=null;
+    if(leg && window.fetchRouteWinds){ try{ winds=await window.fetchRouteWinds(leg.dep,leg.arr); }catch(e){} }
+    return window.buildAISystem ? window.buildAISystem(leg,turb,winds) : '';
   }
   function chatLog(role,text){ var box=q('#ar-chat'); if(!box)return null; var w=document.createElement('div'); w.style.cssText='margin-bottom:9px;display:flex;'+(role==='you'?'justify-content:flex-end':'justify-content:flex-start'); var b=document.createElement('div'); b.style.cssText='max-width:88%;font-size:12px;line-height:1.45;padding:8px 11px;border-radius:13px;'+(role==='you'?'background:linear-gradient(135deg,rgba(10,60,75,.55),rgba(10,163,199,.32));color:#eaf3f8':'background:rgba(8,20,27,.9);color:#cfe6ef;border:1px solid rgba(63,210,240,.12)'); b.textContent=text; w.appendChild(b); box.appendChild(w); try{ b.scrollIntoView({behavior:'smooth',block:'nearest'}); }catch(e){} return b; }
-  async function qaContext(){
+  function _matchAskedLeg(question, legs, activeLeg){
+    if(!question||!legs||!legs.length) return null;
+    var t=' '+String(question).toLowerCase().replace(/[\u2192\-]/g,' ')+' ';
+    function toks(iata){ var ic=(window.iataToIcao&&window.iataToIcao(iata))||iata; var nm=(window._WX_NAMES&&window._WX_NAMES[ic])||''; var a=[iata.toLowerCase(),ic.toLowerCase()]; var w=nm.toLowerCase().replace(/airport|aeropuerto|intl|international/g,' ').trim().split(/[\s\/,]+/)[0]; if(w&&w.length>=3)a.push(w); return a; }
+    function hit(arr){ return arr.some(function(x){ return t.indexOf(' '+x+' ')>=0; }); }
+    for(var i=0;i<legs.length;i++){ var L=legs[i]; if(hit(toks(L.dep))&&hit(toks(L.arr))){ if(activeLeg && L.flight===activeLeg.flight && L.dep===activeLeg.dep && L.arr===activeLeg.arr) return null; return L; } }
+    return null;
+  }
+  async function _liveSectorBlock(leg){
+    var ts='no disponible', ws='no disponible';
+    try{ var co=window.getRouteCoords(leg.dep,leg.arr); if(co&&co.length){ var tb=await window.fetchTurbulenceProfile(co, leg.cruiseFL||300); if(tb&&tb.length) ts=tb.map(function(p,i){return 'WP'+(i+1)+':EDR'+p.edr.toFixed(2);}).join(' '); } }catch(e){}
+    try{ var wd=await window.fetchRouteWinds(leg.dep,leg.arr); if(wd&&wd.length) ws=wd.map(function(w){return 'FL'+w.fl+' '+w.dir+'\u00b0/'+w.speed+'kt';}).join(', '); }catch(e){}
+    return '\n\nDATOS EN VIVO DEL SECTOR PREGUNTADO ('+leg.dep+'\u2192'+leg.arr+'): Turbulencia NOAA GTG: '+ts+' (EDR <0.15 poca, 0.15-0.30 moderada, >0.30 fuerte). Vientos en ruta (TOC\u2192crucero\u2192descenso, Open-Meteo): '+ws+'. Responde sobre ESE sector con estos datos en vivo.';
+  }
+  async function qaContext(question){
     var ctx=window.__ariaCtx||{};
     var langLine=(CUR.lang==='en'?'\n\nReply in English.':'\n\nResponde en castellano de España.');
     var dayLegs=gatherLegs();
     var dayList=dayLegs.length?dayLegs.map(function(l){ return l.flight+' '+l.dep+'→'+l.arr+' ('+l.std+'-'+l.sta+'Z)'; }).join(' | '):'';
-    var dayHdr=dayList?('JORNADA COMPLETA DE HOY (TODOS los sectores que vuela el piloto): '+dayList+'. El piloto VUELA todos estos sectores hoy: NUNCA digas que no hace un sector que esté en esta lista. Si te preguntan por un sector que no está en el briefing de abajo, reconócelo como parte de su jornada y responde lo que puedas; si no tienes su detalle, dilo y ofrece briefarlo. '):'';
+    var dayHdr=dayList?('JORNADA COMPLETA DE HOY (TODOS los sectores que vuela el piloto): '+dayList+'. El piloto VUELA todos estos sectores hoy: NUNCA digas que no hace un sector que esté en esta lista. Si te preguntan por un sector que no está en el briefing de abajo, reconócelo como parte de su jornada y responde lo que puedas; si no tienes su detalle, dilo y ofrece briefarlo. '):''; var askedBlock=''; try{ var _ask=_matchAskedLeg(question,dayLegs,(window.__ariaCtx||{}).leg); if(_ask)askedBlock=await _liveSectorBlock(_ask); }catch(e){}
     if(LAST_SCOPE==='hoy' && LAST_TEXT){
-      return 'Eres ARIA, copiloto del piloto para TODA su jornada. '+dayHdr+'\n\nBRIEFING ENTREGADO:\n'+LAST_TEXT+langLine;
+      return 'Eres ARIA, copiloto del piloto para TODA su jornada. '+dayHdr+askedBlock+'\n\nBRIEFING ENTREGADO:\n'+LAST_TEXT+langLine;
     }
     var base = ctx.leg ? await ctxSys(ctx.leg, ctx.turbData) : '';
-    base = 'Eres ARIA, copiloto del piloto para TODA su jornada. '+dayHdr+'\n\n'+base;
+    base = 'Eres ARIA, copiloto del piloto para TODA su jornada. '+dayHdr+askedBlock+'\n\n'+base;
     if(LAST_TEXT && LAST_SCOPE==='leg'){ base = base+'\n\nBRIEFING YA ENTREGADO DEL SECTOR ACTIVO:\n'+LAST_TEXT; }
     return base+langLine;
   }
-  async function chatSend(text){ text=(text||'').trim(); if(!text)return; var tk=token(); if(!tk){ chatLog('aria','Inicia sesión para usar ARIA.'); return; } chatLog('you',text); var th=chatLog('aria','…'); try{ var sys=await qaContext(); var r=await fetch(BACKEND+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({messages:[{role:'user',content:text+(CUR.lang==='en'?'\n\n(Reply in English.)':'\n\n(Responde en español de España.)')}],logbook_context:sys,scope:'briefing'})}); var j=await r.json(); var ans=(j.content&&j.content.map(function(b){return b.text||'';}).join(''))||(j.message?j.message:'No tengo respuesta.'); ans=ans.replace(/[*#`]/g,''); if(th)th.textContent=ans; }catch(e){ if(th)th.textContent='⚠ Error de conexión.'; } }
+  async function chatSend(text){ text=(text||'').trim(); if(!text)return; var tk=token(); if(!tk){ chatLog('aria','Inicia sesión para usar ARIA.'); return; } chatLog('you',text); var th=chatLog('aria','…'); try{ var sys=await qaContext(text); var r=await fetch(BACKEND+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({messages:[{role:'user',content:text+(CUR.lang==='en'?'\n\n(Reply in English.)':'\n\n(Responde en español de España.)')}],logbook_context:sys,scope:'briefing'})}); var j=await r.json(); var ans=(j.content&&j.content.map(function(b){return b.text||'';}).join(''))||(j.message?j.message:'No tengo respuesta.'); ans=ans.replace(/[*#`]/g,''); if(th)th.textContent=ans; }catch(e){ if(th)th.textContent='⚠ Error de conexión.'; } }
 
   var audios=[],curAudio=null,playing=false,paused=false,total=0,acc=0,k=0,durs=[],SENT=[],PEL=[],SEG=[],GAP=850;
 
@@ -37353,7 +37382,7 @@ document.addEventListener('DOMContentLoaded', function(){
       if(!said){ if(vOn)vTurn(); return; }
       vLog('you',said);
       if(/^(no|nada|ya est|terminar|gracias|eso es todo|nada m)/i.test(said)){ vSpeak(CUR.lang==='en'?'Understood. Have a good flight.':'Entendido. Buen vuelo y buen servicio.',function(){ vStop(); }); return; }
-      var sys=await qaContext();
+      var sys=await qaContext(said);
       var rc=await fetch(BACKEND+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({messages:[{role:'user',content:said+(CUR.lang==='en'?'\n\n(Reply briefly, spoken style, in English, maximum 90 words, no asterisks.)':'\n\n(Responde breve, en voz, español de España, máximo 90 palabras, sin asteriscos.)')}],logbook_context:sys,scope:'briefing'})});
       var cj=await rc.json(); var ans=(cj.content&&cj.content.map(function(b){return b.text||'';}).join(''))||(cj.message?cj.message:'No tengo respuesta.');
       ans=ans.replace(/[*#_`]/g,'');
