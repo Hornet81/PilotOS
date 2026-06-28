@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.179">
+  <meta name="version" content="Beta.180">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.179","builtAt":"2026-06-28T16:40:25Z","commit":"1b3de2e","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.180","builtAt":"2026-06-28T16:48:45Z","commit":"a45fcec","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -27468,7 +27468,14 @@ function SkyViewPilotOS() {
     setTick = _useState42[1];
   const _hcol = useState(false), hdrCollapsed = _hcol[0], setHdrCollapsed = _hcol[1];
   useEffect(() => {
-    const t = setInterval(() => setTick(x => x + 1), 1000);
+    // Antes esto re-renderizaba TODO SkyView cada segundo solo para el reloj UTC.
+    // Ahora actualiza únicamente el nodo del reloj en el DOM (sin re-render del árbol).
+    const t = setInterval(() => {
+      const el = document.getElementById("sw-utc-clock");
+      if (!el) return;
+      const n = new Date();
+      el.textContent = "".concat(String(n.getUTCHours()).padStart(2, "0"), ":").concat(String(n.getUTCMinutes()).padStart(2, "0"), "Z");
+    }, 1000);
     return () => clearInterval(t);
   }, []);
   // Si un leg desaparece (ya pasó su hora) y el índice activo queda fuera de rango, volver al primero
@@ -27531,7 +27538,7 @@ function SkyViewPilotOS() {
   // el LEGS de ejemplo (BCN-MAD demo). Avisamos de que no hay vuelo activo.
   if (!_rosterLegs || !_rosterLegs.length) return /*#__PURE__*/React.createElement("div", {
     style: { height: "100%", background: BG, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "40px 28px", fontFamily: sans, position: "relative" }
-  }, /*#__PURE__*/React.createElement(AnimatedBg, null), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
     style: { position: "relative", zIndex: 1, maxWidth: 330 }
   }, /*#__PURE__*/React.createElement("img", {
     src: "aria.jpg", alt: "ARIA",
@@ -27556,7 +27563,7 @@ function SkyViewPilotOS() {
       display: "flex",
       flexDirection: "column"
     }
-  }, /*#__PURE__*/React.createElement(AnimatedBg, null), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
     className: "sv-chrome",
     style: {
       position: "sticky",
@@ -27608,6 +27615,7 @@ function SkyViewPilotOS() {
       gap: 9
     }
   }, /*#__PURE__*/React.createElement("span", {
+    id: "sw-utc-clock",
     style: {
       fontSize: 8,
       color: C.dimmer,
