@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.189">
+  <meta name="version" content="Beta.190">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.189","builtAt":"2026-06-28T18:24:00Z","commit":"a67a0c5","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.190","builtAt":"2026-06-28T20:49:13Z","commit":"c96c622","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -11371,8 +11371,46 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       <button onclick="ldECrewsSyncClose()" style="background:rgba(255,255,255,.07);border:none;border-radius:50%;width:32px;height:32px;color:rgba(248,250,252,.5);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
     </div>
 
-    <!-- State: waiting -->
-    <div id="ec-state-waiting" style="padding:24px 20px 28px">
+    <style>.ec-spin{width:30px;height:30px;border:3px solid rgba(34,211,238,.25);border-top-color:#22d3ee;border-radius:50%;animation:ecspin 1s linear infinite;display:inline-block}@keyframes ecspin{to{transform:rotate(360deg)}}#ec-month-list .ec-month{display:flex;align-items:center;justify-content:space-between;width:100%;padding:13px 15px;margin-bottom:9px;background:rgba(255,255,255,.04);border:1.5px solid rgba(8,145,178,.3);border-radius:13px;color:#F0FFFE;font-family:'Space Grotesk',sans-serif;font-size:14px;cursor:pointer;text-align:left}#ec-month-list .ec-month:hover{border-color:#22d3ee;background:rgba(34,211,238,.08)}#ec-month-list .ec-month.cur{border-color:#22d3ee;background:rgba(34,211,238,.1);box-shadow:0 0 0 1px #22d3ee inset}#ec-month-list .ec-mbadge{font-family:'Space Mono',monospace;font-size:11px;color:#22d3ee;font-weight:700}#ec-month-list .ec-now{font-family:'Space Grotesk',sans-serif;font-size:9px;font-weight:800;color:#031018;background:#22d3ee;border-radius:99px;padding:1px 7px;margin-left:7px}</style>
+
+    <!-- State: credenciales (flujo proxy headless) -->
+    <div id="ec-state-creds" style="display:none;padding:22px 20px 26px">
+      <div style="font-family:'Space Mono',monospace;font-size:11px;color:rgba(248,250,252,.5);line-height:1.6;margin-bottom:18px">Conecta tu cuenta de Vueling. Te pediremos confirmar un número en tu móvil (Authenticator / Outlook). Tu contraseña no se guarda.</div>
+      <label style="display:block;font-family:'Space Grotesk',sans-serif;font-size:11px;color:rgba(8,145,178,.8);margin-bottom:6px">Email de Vueling</label>
+      <input id="ec-email" type="email" autocomplete="off" placeholder="nombre.apellido@vueling.com" style="width:100%;padding:12px 13px;background:rgba(255,255,255,.04);border:1.5px solid rgba(8,145,178,.3);border-radius:11px;color:#F0FFFE;font-family:'Space Mono',monospace;font-size:14px;outline:none;margin-bottom:12px;box-sizing:border-box">
+      <label style="display:block;font-family:'Space Grotesk',sans-serif;font-size:11px;color:rgba(8,145,178,.8);margin-bottom:6px">Contraseña</label>
+      <input id="ec-pass" type="password" autocomplete="off" placeholder="••••••••" style="width:100%;padding:12px 13px;background:rgba(255,255,255,.04);border:1.5px solid rgba(8,145,178,.3);border-radius:11px;color:#F0FFFE;font-family:'Space Mono',monospace;font-size:14px;outline:none;margin-bottom:14px;box-sizing:border-box">
+      <label style="display:flex;gap:9px;align-items:flex-start;font-family:'Space Mono',monospace;font-size:10px;color:rgba(248,250,252,.5);line-height:1.5;margin-bottom:16px;cursor:pointer">
+        <input id="ec-consent" type="checkbox" style="margin-top:2px;flex-shrink:0">
+        <span>Autorizo a PilotOS a iniciar sesión en eCrews en mi nombre solo para importar mi roster. Mi contraseña no se almacena.</span>
+      </label>
+      <div id="ec-creds-err" style="display:none;font-family:'Space Mono',monospace;font-size:11px;color:#fca5a5;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.35);border-radius:10px;padding:10px 12px;margin-bottom:12px"></div>
+      <button id="ec-connect-btn" onclick="ecProxyConnect()" style="width:100%;padding:14px;background:linear-gradient(135deg,#0891B2,#0369A1);border:none;border-radius:13px;color:#fff;font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:800;cursor:pointer">Conectar con eCrews</button>
+    </div>
+
+    <!-- State: number-match -->
+    <div id="ec-state-number" style="display:none;padding:26px 20px 28px;text-align:center">
+      <div style="font-family:'Space Mono',monospace;font-size:11px;color:rgba(248,250,252,.5);line-height:1.6;margin-bottom:14px">Abre tu app (Authenticator / Outlook) y escribe este número para aprobar:</div>
+      <div id="ec-number" style="font-family:'Space Grotesk',sans-serif;font-size:58px;font-weight:800;color:#22d3ee;letter-spacing:.05em;margin-bottom:6px">—</div>
+      <div style="margin:14px 0"><div class="ec-spin"></div></div>
+      <div id="ec-number-msg" style="font-family:'Space Mono',monospace;font-size:11px;color:rgba(8,145,178,.8)">Esperando tu aprobación…</div>
+      <button onclick="ecProxyCancel()" style="margin-top:16px;background:none;border:none;color:rgba(248,250,252,.3);font-family:'Space Mono',monospace;font-size:11px;cursor:pointer">Cancelar</button>
+    </div>
+
+    <!-- State: fetching -->
+    <div id="ec-state-fetching" style="display:none;padding:34px 20px 38px;text-align:center">
+      <div style="margin-bottom:16px"><div class="ec-spin"></div></div>
+      <div style="font-family:'Space Mono',monospace;font-size:12px;color:rgba(248,250,252,.55);line-height:1.6">Leyendo tu calendario en eCrews…</div>
+    </div>
+
+    <!-- State: month picker -->
+    <div id="ec-state-months" style="display:none;padding:20px 18px 26px">
+      <div id="ec-months-sub" style="font-family:'Space Mono',monospace;font-size:11px;color:rgba(248,250,252,.5);line-height:1.6;margin-bottom:14px">✅ Roster capturado. ¿Qué mes quieres importar?</div>
+      <div id="ec-month-list"></div>
+    </div>
+
+    <!-- State: waiting (LEGACY bookmarklet — ya no se muestra, pendiente de limpiar) -->
+    <div id="ec-state-waiting" style="display:none;padding:24px 20px 28px">
 
       <!-- Step 1 -->
       <div style="display:flex;gap:14px;margin-bottom:20px;align-items:flex-start">
@@ -32378,14 +32416,10 @@ window.ldECrewsSyncOpen = function(){
   // Auto-select mobile tab on touch devices
   setTimeout(function(){ window.ecShowTab(isMobile ? 'mobile' : 'desktop'); }, 0);
 
-  // Reset state
+  // Reset → mostrar el flujo proxy (credenciales). El bookmarklet legacy queda oculto.
   _ecParsedEntries = [];
-  var ws = document.getElementById('ec-state-waiting');
-  var rs = document.getElementById('ec-state-received');
-  if(ws) ws.style.display = 'block';
-  if(rs) rs.style.display = 'none';
-  var wt = document.getElementById('ec-wait-text');
-  if(wt) wt.textContent = 'Esperando datos de eCrews…';
+  _ecProxyReset();
+  _ecShowState('ec-state-creds');
 
   var ov = document.getElementById('ec-sync-overlay');
   if(ov){ ov.style.display='flex'; document.body.style.overflow='hidden'; }
@@ -32397,7 +32431,113 @@ window.ldECrewsSyncClose = function(){
   document.body.style.overflow = '';
   if(_ecSyncTab && !_ecSyncTab.closed){ try{ _ecSyncTab.close(); }catch(e){} }
   _ecSyncTab = null;
+  _ecProxyReset();
 };
+
+// ══════════════════════════════════════════════════════════════════
+// ECREWS PROXY (login headless server-side) — sustituye al bookmarklet.
+// Reutiliza _ecParseSchedulerEvents/_ecHandleData (Opción A).
+// ══════════════════════════════════════════════════════════════════
+var _ecProxySid = null, _ecProxyPollTimer = null, _ecProxyRoster = null, _ecProxyByMonth = [];
+function _ecApiBase(){ return lsGet('cafi_backend_url','https://api.pilotos.aero'); }
+function _ecApiTok(){ return localStorage.getItem('cafi_auth_token'); }
+
+function _ecShowState(id){
+  ['ec-state-creds','ec-state-number','ec-state-fetching','ec-state-months','ec-state-waiting','ec-state-received'].forEach(function(s){
+    var el = document.getElementById(s); if(el) el.style.display = (s===id ? 'block' : 'none');
+  });
+}
+function _ecProxyReset(){
+  if(_ecProxyPollTimer){ clearInterval(_ecProxyPollTimer); _ecProxyPollTimer = null; }
+  _ecProxySid = null; _ecProxyRoster = null; _ecProxyByMonth = [];
+  var e = document.getElementById('ec-creds-err'); if(e) e.style.display = 'none';
+  var b = document.getElementById('ec-connect-btn'); if(b){ b.disabled = false; b.textContent = 'Conectar con eCrews'; }
+}
+
+window.ecProxyConnect = function(){
+  var email = (document.getElementById('ec-email')||{}).value || '';
+  var pass  = (document.getElementById('ec-pass')||{}).value || '';
+  var consent = (document.getElementById('ec-consent')||{}).checked;
+  var err = document.getElementById('ec-creds-err');
+  function showErr(m){ if(err){ err.textContent = m; err.style.display = 'block'; } }
+  if(err) err.style.display = 'none';
+  if(!email || !pass){ showErr('Introduce email y contraseña.'); return; }
+  if(!consent){ showErr('Marca la casilla para autorizar la conexión.'); return; }
+  var btn = document.getElementById('ec-connect-btn'); if(btn){ btn.disabled = true; btn.textContent = 'Conectando…'; }
+  fetch(_ecApiBase()+'/api/ecrews/login', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+_ecApiTok()},
+    body: JSON.stringify({ email: email.trim(), password: pass, consent: true })
+  })
+  .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
+  .then(function(res){
+    if(!res.ok || res.j.status === 'ERROR'){ throw new Error(res.j.error || 'No se pudo conectar'); }
+    _ecProxySid = res.j.sessionId;
+    var n = document.getElementById('ec-number'); if(n) n.textContent = res.j.number || '…';
+    _ecShowState('ec-state-number');
+    _ecProxyStartPoll();
+  })
+  .catch(function(e){ showErr(e.message); if(btn){ btn.disabled = false; btn.textContent = 'Conectar con eCrews'; } });
+};
+
+function _ecProxyStartPoll(){
+  if(_ecProxyPollTimer) clearInterval(_ecProxyPollTimer);
+  _ecProxyPollTimer = setInterval(function(){
+    if(!_ecProxySid){ return; }
+    fetch(_ecApiBase()+'/api/ecrews/login/status?sessionId='+encodeURIComponent(_ecProxySid), { headers:{'Authorization':'Bearer '+_ecApiTok()} })
+    .then(function(r){ return r.json(); })
+    .then(function(v){
+      if(!v || v.error) return;
+      var n = document.getElementById('ec-number'); if(v.number && n && n.textContent !== v.number) n.textContent = v.number;
+      if(v.status === 'FETCHING'){ _ecShowState('ec-state-fetching'); }
+      if(v.status === 'ERROR'){
+        clearInterval(_ecProxyPollTimer); _ecProxyPollTimer = null;
+        _ecShowState('ec-state-creds');
+        var e = document.getElementById('ec-creds-err'); if(e){ e.textContent = v.error || 'Error en eCrews'; e.style.display = 'block'; }
+        var b = document.getElementById('ec-connect-btn'); if(b){ b.disabled = false; b.textContent = 'Conectar con eCrews'; }
+      }
+      if(v.status === 'COMPLETE'){
+        clearInterval(_ecProxyPollTimer); _ecProxyPollTimer = null;
+        _ecProxyRoster = v.roster; _ecProxyByMonth = (v.meta && v.meta.byMonth) || [];
+        var secs = v.meta && v.meta.seconds;
+        var sub = document.getElementById('ec-months-sub');
+        if(sub) sub.textContent = '✅ Roster capturado' + (secs ? (' en '+secs+'s') : '') + '. ¿Qué mes importar?';
+        ecRenderMonths();
+        _ecShowState('ec-state-months');
+      }
+    })
+    .catch(function(){});
+  }, 2000);
+}
+
+window.ecProxyCancel = function(){
+  if(_ecProxySid){
+    fetch(_ecApiBase()+'/api/ecrews/login/cancel', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+_ecApiTok()}, body: JSON.stringify({ sessionId: _ecProxySid }) }).catch(function(){});
+  }
+  _ecProxyReset();
+  _ecShowState('ec-state-creds');
+};
+
+var _EC_MES = ['','enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function _ecMonthLabel(ym){ var p = (ym||'').split('-'); return (_EC_MES[+p[1]] || ym) + ' ' + p[0]; }
+function ecRenderMonths(){
+  var wrap = document.getElementById('ec-month-list'); if(!wrap) return; wrap.innerHTML = '';
+  var now = new Date(); var cur = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+  (_ecProxyByMonth||[]).forEach(function(m){
+    var isCur = m.month === cur;
+    var b = document.createElement('button'); b.className = 'ec-month' + (isCur ? ' cur' : '');
+    b.innerHTML = '<span>' + _ecMonthLabel(m.month) + (isCur ? '<span class="ec-now">MES ACTUAL</span>' : '') + '</span><span class="ec-mbadge">' + m.flights + ' vuelos · ' + m.events + ' ev</span>';
+    b.onclick = function(){ ecPickMonth(m.month); };
+    wrap.appendChild(b);
+  });
+}
+function ecPickMonth(ym){
+  if(!_ecProxyRoster) return;
+  var evs = (_ecProxyRoster.SchedulerEvents||[]).filter(function(e){ return String(e.start||'').slice(0,7) === ym; });
+  // ocultar estados del flujo proxy; _ecHandleData mostrará ec-state-received
+  ['ec-state-creds','ec-state-number','ec-state-fetching','ec-state-months'].forEach(function(id){ var el = document.getElementById(id); if(el) el.style.display = 'none'; });
+  _ecHandleData({ SchedulerEvents: evs, BlockDutyTimes: _ecProxyRoster.BlockDutyTimes || {}, PeriodStart: ym + '-01' });
+}
 
 // ── Open eCrews tab ──────────────────────────────────────────────
 window.ldECrewsOpenTab = function(){
