@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.177">
+  <meta name="version" content="Beta.178">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.177","builtAt":"2026-06-28T16:29:39Z","commit":"3d7626c","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.178","builtAt":"2026-06-28T16:39:47Z","commit":"f3c1d50","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -22880,8 +22880,10 @@ function WindCards(_ref20) {
   const _aIcao = iataToIcao(leg.arr);
   const _dw = parseMetarWind(leg.metar.wind);
   const _aw = parseMetarWind(leg.metarArr.wind);
-  const _dRwy = calcBestRwy(_dIcao,_dw.dir,_dw.spd,_nowUtc)||calcRwyFromMetar(leg.metar.raw);
-  const _aRwy = calcBestRwy(_aIcao,_aw.dir,_aw.spd,_nowUtc)||calcRwyFromMetar(leg.metarArr.raw);
+  const _dCfg = calcRwyConfig(_dIcao,_dw.dir,_dw.spd);
+  const _aCfg = calcRwyConfig(_aIcao,_aw.dir,_aw.spd);
+  const _dRwy = leg.rwyDep || (_dCfg&&_dCfg.dep) || calcBestRwy(_dIcao,_dw.dir,_dw.spd,_nowUtc)||calcRwyFromMetar(leg.metar.raw);
+  const _aRwy = leg.rwyArr || (_aCfg&&_aCfg.arr) || calcBestRwy(_aIcao,_aw.dir,_aw.spd,_nowUtc)||calcRwyFromMetar(leg.metarArr.raw);
   return /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -25056,17 +25058,21 @@ function TabMeteoV2(_refM2){
     // ── Componente de viento por pista ──
     let rwys=(_runwaysForIcao(cur.icao)||[]).slice();
     const useRwy=calcBestRwy(cur.icao,pw.dir,pw.spd,nowUtc)||calcRwyFromMetar(m.raw);
+    // Pistas en servicio = misma cascada que el hero (ATIS/reglas/viento). Marca DEP y ARR.
+    const _inUse=new Set();
+    [rwSingle,rwDep,rwArr].forEach(function(s){ if(s) String(s).split("/").forEach(function(x){ x=x.trim(); if(x)_inUse.add(x); }); });
+    const _primaryUse=String(rwDep||rwSingle||rwArr||useRwy||"").split("/")[0];
     if(!rwys.length&&useRwy) rwys=[{id:useRwy,hdg:parseInt(String(useRwy).replace(/[LRC]/g,""))*10}];
     let windCard;
     if(!rwys.length){
       windCard=React.createElement("div",{style:{marginBottom:13,background:T.surf1,border:"1px solid "+T.line2,borderRadius:18,padding:"14px 16px",fontFamily:mono,fontSize:10.5,color:T.tx3,textAlign:"center"}},"Sin datos de pista para "+cur.code);
     }else{
-      const selId=(rwySel&&rwys.some(function(r){return r.id===rwySel;}))?rwySel:(useRwy&&rwys.some(function(r){return r.id===useRwy;})?useRwy:rwys[0].id);
+      const selId=(rwySel&&rwys.some(function(r){return r.id===rwySel;}))?rwySel:((_primaryUse&&rwys.some(function(r){return r.id===_primaryUse;}))?_primaryUse:(useRwy&&rwys.some(function(r){return r.id===useRwy;})?useRwy:rwys[0].id));
       const rw=rwys.find(function(r){return r.id===selId;})||rwys[0];
       const spd=gust||pw.spd;
       const c=_wxComp(rw.hdg,pw.dir,spd);
       const isHead=c.head>=0;
-      const enUso=(rw.id===useRwy);
+      const enUso=_inUse.has(rw.id);
       const bandClr={grn:T.grn,amb:T.amb,red:T.red}, bandBg={grn:T.grnBg,amb:T.ambBg,red:T.redBg}, bandBd={grn:T.grnBd,amb:T.ambBd,red:T.redBd};
       const rh=_wxHumidity(tC,dC);
       const visTxt=visM>=9999?"10+":visM>=1000?(visM/1000).toFixed(visM%1000?1:0).replace(".0",""):String(visM);
@@ -25076,7 +25082,7 @@ function TabMeteoV2(_refM2){
       const chips=rwys.map(function(r){
         const cc=_wxComp(r.hdg,pw.dir,spd), sc=bandClr[_wxBand(cc.absxw)], on=r.id===selId;
         return React.createElement("div",{key:r.id,onClick:function(){setRwy(r.id);},style:{position:"relative",flex:"1 0 auto",minWidth:54,background:on?"rgba(91,232,245,.08)":T.surf1,border:"1px solid "+(on?"rgba(91,232,245,.45)":T.line),borderBottom:"2px solid "+sc,borderRadius:11,padding:"10px 8px 6px",cursor:"pointer",textAlign:"center",boxShadow:on?"0 0 0 1px rgba(91,232,245,.22)":"none",transition:".15s"}},
-          r.id===useRwy?React.createElement("span",{style:{position:"absolute",top:-7,left:"50%",transform:"translateX(-50%)",fontFamily:mono,fontSize:6,fontWeight:700,letterSpacing:".5px",color:T.grn,background:"rgba(7,18,14,.95)",border:"1px solid "+T.grnBd,borderRadius:5,padding:"1px 5px",whiteSpace:"nowrap"}},"EN USO"):null,
+          _inUse.has(r.id)?React.createElement("span",{style:{position:"absolute",top:-7,left:"50%",transform:"translateX(-50%)",fontFamily:mono,fontSize:6,fontWeight:700,letterSpacing:".5px",color:T.grn,background:"rgba(7,18,14,.95)",border:"1px solid "+T.grnBd,borderRadius:5,padding:"1px 5px",whiteSpace:"nowrap"}},"EN USO"):null,
           React.createElement("div",{style:{fontFamily:mono,fontSize:13,fontWeight:700,lineHeight:1,color:on?T.cyan:T.tx1,textShadow:on?"0 0 14px rgba(91,232,245,.5)":"none"}},r.id),
           React.createElement("div",{style:{fontFamily:mono,fontSize:7,color:T.tx3,fontWeight:700,marginTop:3}},String(r.hdg).padStart(3,"0")+"°"),
           React.createElement("div",{style:{fontFamily:mono,fontSize:7.5,fontWeight:700,color:sc,marginTop:4}},fmtCrossWind(cc.absxw,cc.side))
@@ -37356,6 +37362,7 @@ document.addEventListener('DOMContentLoaded', function(){
           '<div style="font-size:8px;color:#7fb3c4;font-family:ui-monospace,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Aviation Route Intelligence Agent</div></div>'+
       '</div>'+
       '<div id="ar-set" style="display:none;margin:9px 13px 0;padding:11px;border:1px solid rgba(255,255,255,.1);border-radius:12px;background:rgba(0,0,0,.22);flex-shrink:0">'+
+        '<div style="display:flex;align-items:center;margin-bottom:10px"><span style="font-size:10px;font-weight:800;letter-spacing:1px;color:#cdeefb">VOZ Y AJUSTES</span><button id="ar-setclose" style="margin-left:auto;width:26px;height:26px;border-radius:8px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.05);color:#9fb3bd;font-size:13px">✕</button></div>'+
         '<div style="font-size:9px;color:#6c818d;margin-bottom:5px">IDIOMA</div>'+
         '<div style="display:flex;border:1px solid rgba(255,255,255,.12);border-radius:9px;overflow:hidden;margin-bottom:10px">'+
           '<button data-lg="es" class="ar-lg" style="flex:1;border:none;padding:7px;font-size:12px;font-weight:700;font-family:inherit">Español</button>'+
@@ -37420,6 +37427,7 @@ document.addEventListener('DOMContentLoaded', function(){
     var stp=q('#ar-stop'); if(stp)stp.onclick=stopBriefing;
     var rgn=q('#ar-regen'); if(rgn)rgn.onclick=generate;
     var vpl=q('#ar-vpill'); if(vpl)vpl.onclick=toggleSettings;
+    var stc=q('#ar-setclose'); if(stc)stc.onclick=function(){ var st=q('#ar-set'); if(st)st.style.display='none'; };
     var bar=q('#ar-bar'); if(bar)bar.onclick=function(ev){ if(!audios.length||!total)return; var r=bar.getBoundingClientRect(); seekToPlay(Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width))*total); };
     var vsel=q('#ar-voice'); if(vsel)vsel.onchange=function(){ CUR.voice=vsel.value; saveCfg('voice',vsel.value); var vp=q('#ar-vpill'); if(vp)vp.textContent='🎙 '+vsel.value.toUpperCase(); if(audios.length)stat(CUR.lang==='en'?'Voice changed — tap Regenerate to apply':'Voz cambiada — pulsa Generar de nuevo para aplicarla'); };
     var rl=q('#ar-rl'); var rs=q('#ar-rate'); if(rs){ rs.value=RATE; if(rl)rl.textContent=RATE.toFixed(2)+'×'; rs.oninput=function(){ RATE=parseFloat(rs.value)||1; saveCfg('rate',RATE); if(rl)rl.textContent=RATE.toFixed(2)+'×'; if(curAudio)curAudio.playbackRate=RATE; }; }
