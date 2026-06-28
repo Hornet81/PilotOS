@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.186">
+  <meta name="version" content="Beta.187">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.186","builtAt":"2026-06-28T17:46:05Z","commit":"89e042a","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.187","builtAt":"2026-06-28T17:52:47Z","commit":"26e0520","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -37268,7 +37268,7 @@ document.addEventListener('DOMContentLoaded', function(){
   }
   function playK(){ var myGen=_gen; for(var _i=0;_i<audios.length;_i++){ if(_i!==k){ try{ audios[_i].a.pause(); }catch(e){} } } try{ if(_va)_va.pause(); }catch(e){}
     if(k>=audios.length){ playing=false; var pb=q('#ar-play'); if(pb)pb.textContent='▶'; hi(-1,-1); stat('✓ Fin del briefing'); var f=q('#ar-fill'); if(f)f.style.width='100%'; applyChrome(); autoAsk(); return; }
-    var o=audios[k]; curAudio=o.a; hi(o.from,o.to); try{ o.a.playbackRate=RATE; o.a.volume=VOL; }catch(e){}
+    var o=audios[k]; curAudio=o.a; hi(o.from,o.to); try{ o.a.playbackRate=RATE; o.a.volume=vMuted?0:VOL; }catch(e){}
     o.a.ontimeupdate=function(){ var el=acc+(o.a.currentTime||0); var f=q('#ar-fill'); if(f)f.style.width=Math.min(100,el/total*100)+'%'; var c=q('#ar-cur'); if(c)c.textContent=fmt(el); };
     o.a.onended=function(){ if(myGen!==_gen) return; acc+=durs[k]; var g=o.gap; k++; if(playing&&!paused){ if(g) setTimeout(function(){ if(playing&&!paused&&myGen===_gen)playK(); },GAP); else playK(); } };
     var pp=o.a.play(); if(pp&&pp.catch)pp.catch(function(){}); try{ if('mediaSession' in navigator)navigator.mediaSession.playbackState='playing'; }catch(e){} mediaMeta(); mediaPos();
@@ -37315,7 +37315,7 @@ document.addEventListener('DOMContentLoaded', function(){
   }
   function _done(gen){ gen=gen||q('#ar-gen'); if(gen){ gen.disabled=false; gen.style.opacity='1'; gen.textContent=(CUR.lang==='en'?'▶ Regenerate':'▶ Generar de nuevo'); } }
 
-  var vOn=false,vStream=null,vRec=null,vChunks=[],vAC=null,_va=null,_ac=null,vSpeaking=false,_spk=0;
+  var vOn=false,vStream=null,vRec=null,vChunks=[],vAC=null,_va=null,_ac=null,vSpeaking=false,_spk=0,vMuted=false;
   function ensureMic(){ if(vStream) return Promise.resolve(vStream); if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) return Promise.reject(); return navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}).then(function(s){ vStream=s; return s; }); }
   function unlockAudio(){ try{ if(!_va)_va=new Audio(); _va.muted=true; _va.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACBWAQACABAAZGF0YQAAAAA='; var pp=_va.play(); if(pp&&pp.then){ pp.then(function(){ try{_va.pause();_va.currentTime=0;}catch(e){} _va.muted=false; }).catch(function(){ _va.muted=false; }); } }catch(e){} try{ if(!_ac)_ac=new (window.AudioContext||window.webkitAudioContext)(); if(_ac.state==='suspended')_ac.resume(); }catch(e){} }
   async function ttsFetchUrl(text){ var r=await fetch(BACKEND+'/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify({text:text,voice:(CUR.voice||'nova'),lang:CUR.lang})}); if(r.status===429){ var j=await r.json().catch(function(){return{};}); throw new Error(j.message||'Voz no disponible'); } if(!r.ok) throw new Error('tts '+r.status); var b=await r.blob(); return URL.createObjectURL(b); }
@@ -37325,7 +37325,7 @@ document.addEventListener('DOMContentLoaded', function(){
   function mediaPos(){ try{ if('mediaSession' in navigator && navigator.mediaSession.setPositionState && isFinite(total) && total>0){ navigator.mediaSession.setPositionState({duration:total, position:Math.max(0,Math.min(curElapsed(),total)), playbackRate:RATE||1}); } }catch(e){} }
   function mediaState(){ try{ if('mediaSession' in navigator) navigator.mediaSession.playbackState=(playing&&!paused)?'playing':(audios.length?'paused':'none'); }catch(e){} }
   function bindVis(){ if(_visBound) return; _visBound=true; try{ document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible'){ try{ for(var i=0;i<audios.length;i++){ if(audios[i].a!==curAudio){ try{ audios[i].a.pause(); }catch(e){} } } }catch(e){} mediaState(); } }); }catch(e){} }
-  function autoAsk(){ var msg=(CUR.lang==='en'?'Would you like me to go deeper on anything, or do you have a question?':'¿Quieres que te profundice en algo o tienes alguna pregunta?'); chatLog('aria',msg); stat(CUR.lang==='en'?'Tap the mic to ask':'Pulsa el micro para preguntar'); vSpeak(msg, function(){ vStart(); }); }
+  function autoAsk(){ var hidden=false; try{ hidden=document.hidden; }catch(e){} if(vMuted||hidden){ var bye=(CUR.lang==='en'?'That is the full briefing. Have a safe flight.':'Eso es todo el briefing. Buen vuelo.'); chatLog('aria',bye); stat(CUR.lang==='en'?'Open the app to ask by voice':'Abre la app para preguntar por voz'); if(!vMuted){ vSpeak(bye, function(){ vBtn('idle'); }); } return; } var msg=(CUR.lang==='en'?'Would you like me to go deeper on anything, or do you have a question?':'¿Quieres que te profundice en algo o tienes alguna pregunta?'); chatLog('aria',msg); stat(CUR.lang==='en'?'Tap the mic to ask':'Pulsa el micro para preguntar'); vSpeak(msg, function(){ vStart(); }); }
   function showVoiceDock(){}
   function hideVoiceDock(){}
   function vLog(role,txt){ chatLog(role,txt); }
@@ -37334,7 +37334,7 @@ document.addEventListener('DOMContentLoaded', function(){
     if(!_va){ try{ _va=new Audio(); }catch(e){} }
     var parts=[]; var s=String(text).replace(/\s+/g,' ').trim(); while(s.length){ if(s.length<=720){ parts.push(s); break; } var cut=s.lastIndexOf('. ',720); if(cut<300)cut=720; parts.push(s.slice(0,cut+1)); s=s.slice(cut+1).trim(); }
     var spk=++_spk; vSpeaking=true; vBtn('speak');
-    var i=0; function next(){ if(spk!==_spk) return; if(i>=parts.length){ vSpeaking=false; if(onEnd)onEnd(); return; } ttsFetchUrl(parts[i]).then(function(url){ if(spk!==_spk){ try{URL.revokeObjectURL(url);}catch(e){} return; } try{ _va.onended=function(){ try{URL.revokeObjectURL(url);}catch(e){} if(spk!==_spk)return; i++; next(); }; _va.muted=false; _va.src=url; _va.volume=VOL; _va.playbackRate=RATE; var pp=_va.play(); if(pp&&pp.catch)pp.catch(function(){ i++; next(); }); }catch(e){ i++; next(); } }).catch(function(){ if(spk===_spk){ vSpeaking=false; if(onEnd)onEnd(); } }); }
+    var i=0; function next(){ if(spk!==_spk) return; if(i>=parts.length){ vSpeaking=false; if(onEnd)onEnd(); return; } ttsFetchUrl(parts[i]).then(function(url){ if(spk!==_spk){ try{URL.revokeObjectURL(url);}catch(e){} return; } try{ _va.onended=function(){ try{URL.revokeObjectURL(url);}catch(e){} if(spk!==_spk)return; i++; next(); }; _va.muted=false; _va.src=url; _va.volume=vMuted?0:VOL; _va.playbackRate=RATE; var pp=_va.play(); if(pp&&pp.catch)pp.catch(function(){ i++; next(); }); }catch(e){ i++; next(); } }).catch(function(){ if(spk===_spk){ vSpeaking=false; if(onEnd)onEnd(); } }); }
     next();
   }
   function vBtn(state){ var b=q('#ar-act'); if(!b)return; if(state==='listen'){ b.innerHTML='●'; b.style.background='linear-gradient(135deg,#7a1d1d,#e24b4a)'; } else if(state==='think'){ b.innerHTML='…'; b.style.background='rgba(10,163,199,.35)'; } else if(state==='speak'){ b.innerHTML='■'; b.style.fontSize='13px'; b.style.background='linear-gradient(135deg,#7a1d1d,#e24b4a)'; } else { b.innerHTML=MIC_SVG; b.style.fontSize='16px'; b.style.background='linear-gradient(135deg,#063a4a,#0aa3c7)'; } }
@@ -37421,7 +37421,7 @@ document.addEventListener('DOMContentLoaded', function(){
               '<button data-sc="hoy" class="ar-sc" style="flex:1;border:none;color:#fff;font-weight:700;font-size:10px;padding:7px 4px;font-family:inherit">Hoy · jornada</button>'+
               '<button data-sc="leg" class="ar-sc" style="flex:1;border:none;color:#9fb3bd;font-weight:700;font-size:10px;padding:7px 4px;font-family:inherit">Este vuelo</button></div>'+
             '<button id="ar-vpill" title="Cambiar voz" style="display:flex;align-items:center;gap:4px;flex-shrink:0;border:none;background:transparent;color:#7fb3c4;font-size:9px;font-weight:700;letter-spacing:.3px;padding:2px 3px;font-family:ui-monospace,monospace">🎙 '+(CUR.voice||'nova').toUpperCase()+'</button>'+
-            '<button id="ar-gear" style="flex-shrink:0;width:32px;height:32px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#9fb3bd;display:flex;align-items:center;justify-content:center;padding:0">'+TURBINE_SVG+'</button></div>'+
+            '<button id="ar-mute" title="Silenciar voz" style="flex-shrink:0;width:30px;height:30px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#9fb3bd;display:flex;align-items:center;justify-content:center;font-size:13px">🔊</button>'+'<button id="ar-gear" style="flex-shrink:0;width:32px;height:32px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#9fb3bd;display:flex;align-items:center;justify-content:center;padding:0">'+TURBINE_SVG+'</button></div>'+
           '<button id="ar-gen" style="width:100%;padding:11px;border:none;border-radius:11px;background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff;font-size:12px;font-weight:800;letter-spacing:.3px;font-family:inherit;box-shadow:0 6px 18px rgba(10,163,199,.32)">▶ Generar briefing</button>'+
           '<div id="ar-player" style="display:none;align-items:center;gap:8px">'+
             '<button id="ar-play" disabled style="flex-shrink:0;width:46px;height:46px;border-radius:50%;border:none;background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff;font-size:18px;opacity:.5;box-shadow:0 5px 16px rgba(10,163,199,.4)">▶</button>'+
@@ -37460,6 +37460,7 @@ document.addEventListener('DOMContentLoaded', function(){
     R.querySelectorAll('.ar-lg').forEach(function(b){ b.onclick=function(){ CUR.lang=b.getAttribute('data-lg'); saveCfg('lang',CUR.lang); paintLg(); }; });
     paintScope(); paintLg();
     q('#ar-gear').onclick=toggleSettings;
+    var mut=q('#ar-mute'); if(mut)mut.onclick=function(){ vMuted=!vMuted; mut.textContent=vMuted?'🔇':'🔊'; mut.style.color=vMuted?'#ff9a9a':'#9fb3bd'; mut.style.borderColor=vMuted?'rgba(255,90,90,.4)':'rgba(255,255,255,.12)'; try{ if(curAudio)curAudio.volume=vMuted?0:VOL; }catch(e){} try{ if(_va)_va.volume=vMuted?0:VOL; }catch(e){} };
     q('#ar-gen').onclick=generate;
     q('#ar-play').onclick=togglePlay;
     q('#ar-back').onclick=function(){ rewind(15); };
