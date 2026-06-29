@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.191">
+  <meta name="version" content="Beta.192">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.191","builtAt":"2026-06-29T08:48:17Z","commit":"d15a879","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.192","builtAt":"2026-06-29T08:59:53Z","commit":"5a0cff9","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -6447,6 +6447,15 @@ html.day #rst-upload-zone .upload-title{color:#0A1628 !important}
 html.day #rst-upload-zone .upload-sub{color:#334155 !important}
 html.day #rst-replace-hint{color:#475569 !important}
 html.day #rst-initial-hours-label{color:#0D6B6B !important}
+
+/* ── Importar desde eCrews (modo día) ── */
+html.day #rst-ecrews-link button{
+  background:linear-gradient(135deg,rgba(8,145,178,.14),rgba(6,95,120,.10)) !important;
+  border-color:rgba(8,145,178,.5) !important;
+  color:#0E7490 !important;
+}
+html.day #rst-ecrews-link span{color:rgba(3,105,161,.7) !important}
+html.day #rst-ecrews-link > div:last-child{color:#475569 !important}
 
 /* ── Botones Actualizar / Borrar / Exportar ── */
 html.day #scr-roster .rst-export-btn{
@@ -33021,10 +33030,22 @@ window.ldECrewsConfirm = function(){
   RST.entries.sort(function(a,b){ return a.date.localeCompare(b.date); });
   rstSave();
 
+  // Mes importado (el picker importa un solo mes → todas las entradas son del mismo).
+  var _ecMonth = (_ecParsedEntries.length && _ecParsedEntries[0].date) ? _ecParsedEntries[0].date.slice(0,7) : null;
+  if(_ecMonth){
+    var _ecP = _ecMonth.split('-'); RST.viewYear = parseInt(_ecP[0]); RST.viewMonth = parseInt(_ecP[1]) - 1;
+    // Ventana de protección (60s) para que rstPullFromServer no pise lo recién importado
+    try { localStorage.setItem('pilotOS_import_ts_'+_ecMonth, new Date().toISOString()); } catch(e){}
+    try { localStorage.removeItem('pilotOS_deleted_month_'+_ecMonth); } catch(e){}
+  }
+
   // Subir a la nube los meses importados: limpia el tombstone de mes y hace push.
-  // Sin esto, rstPullFromServer borraba lo recién importado (reaparecía el panel de
-  // subir archivo). Mismo patrón que el import de PDF (rstPushAllMonths).
+  // Sin esto, rstPullFromServer borraba lo recién importado. Mismo patrón que el PDF.
   if(typeof rstPushAllMonths === 'function') rstPushAllMonths(_ecParsedEntries);
+
+  // Mostrar el calendario y ocultar la zona de subir AL MOMENTO (como el import de PDF),
+  // sin esperar al servidor.
+  try { if(typeof rosterShowCalendar==='function') rosterShowCalendar(); } catch(e){}
 
   // Re-render everything including stats
   if(typeof rstRenderCalendar === 'function') rstRenderCalendar();
