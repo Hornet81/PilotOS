@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.201">
+  <meta name="version" content="Beta.202">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.201","builtAt":"2026-06-29T12:05:58Z","commit":"b667501","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.202","builtAt":"2026-06-29T12:09:38Z","commit":"be965da","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -29639,7 +29639,10 @@ window.rosterSelectDay = function(dateStr){
       var _staRef = e.sta || e.sta_actual;
       var stdM2=_stdRef&&String(_stdRef).indexOf(':')>-1?parseInt(_stdRef.split(':')[0])*60+parseInt(_stdRef.split(':')[1]):0;
       var staM2=_staRef&&String(_staRef).indexOf(':')>-1?parseInt(_staRef.split(':')[0])*60+parseInt(_staRef.split(':')[1]):9999;
-      var nextDay=_stdRef&&_staRef&&staM2<stdM2;
+      // +1 (día siguiente): envoltura por reloj (sta<std) O flag crossesMidnight del cruce de
+      // medianoche (leg que sale Y llega de madrugada, p.ej. 00:10→01:54, que no envuelve).
+      var nextDay=(e.crossesMidnight===true) || (_stdRef&&_staRef&&staM2<stdM2);
+      var _plus1=' <span style="background:#0369A1;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:6px">+1</span>';
       var flightCfg = TC2['flight'] || {bg:'#c0392b', tx:'#fff'};
       var legNum = flights.length > 1 ? (i+1) : '';
       var dispStd = stdOk ? rstFormatTime(e.std) : '--:--';
@@ -29709,14 +29712,17 @@ window.rosterSelectDay = function(dateStr){
         + (hasA ? '<div style="font-size:11px;color:#059669;font-family:\'Space Mono\',monospace;display:flex;align-items:center;gap:4px">'
             +'<span style="font-size:9px;font-weight:700;background:rgba(5,150,105,.1);color:#059669;border:1px solid rgba(5,150,105,.25);border-radius:4px;padding:0 4px;line-height:1.6">A</span>'
             +dispA_dep+' – '+dispA_arr+timeLabel
+            +(nextDay?_plus1:'')
             +'</div>' : '')
         + (hasE ? '<div style="font-size:11px;color:#D97706;font-family:\'Space Mono\',monospace;display:flex;align-items:center;gap:4px">'
             +'<span style="font-size:9px;font-weight:700;background:rgba(217,119,6,.1);color:#D97706;border:1px solid rgba(217,119,6,.25);border-radius:4px;padding:0 4px;line-height:1.6">E</span>'
             +dispE_dep+' – '+dispE_arr+timeLabel
+            +(nextDay?_plus1:'')
             +'</div>' : '')
         + (hasL ? '<div style="font-size:11px;color:#0891B2;font-family:\'Space Mono\',monospace;display:flex;align-items:center;gap:4px">'
             +'<span style="font-size:9px;font-weight:700;background:rgba(8,145,178,.12);color:#0891B2;border:1px solid rgba(8,145,178,.3);border-radius:4px;padding:0 4px;line-height:1.6">L</span>'
             +dispL_dep+' – '+dispL_arr+timeLabel
+            +(nextDay?_plus1:'')
             +(hasMismatch?' <span title="Difiere de A/E" style="font-size:10px;color:#EF4444">⚠</span>':'')
             +'</div>' : '')
         + '</div>'
