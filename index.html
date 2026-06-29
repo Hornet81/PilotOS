@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.202">
+  <meta name="version" content="Beta.203">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.202","builtAt":"2026-06-29T12:09:38Z","commit":"be965da","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.203","builtAt":"2026-06-29T13:13:49Z","commit":"2b4b6db","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -28335,6 +28335,15 @@ function rstRenderCalendar(){
       + '<line x1="424.26" y1="510.43" x2="424.26" y2="551.4"/>'
       + '</svg>';
   };
+  // Sombrilla de playa → VAC / RVAC / PVAC (vacaciones). Canopy festoneado + mástil.
+  // Importante: las vacaciones de eCrews llegan como type:'off', code:'VAC' → este
+  // icono DEBE comprobarse ANTES que la taza de descanso (e.type==='off').
+  var _VAC_ICON = function(col){
+    return '<svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:-2px;margin-right:2px;flex:0 0 auto"><g fill="'+col+'">'
+      + '<path d="M2.4,11C2.4,6,6.7,2.2,12,2.2S21.6,6,21.6,11q-2.4,2.2-4.8,0-2.4,2.2-4.8,0-2.4,2.2-4.8,0-2.4,2.2-4.8,0Z"/>'
+      + '<rect x="11.3" y="10.6" width="1.4" height="10" rx=".6"/>'
+      + '</g></svg>';
+  };
   var cells = '';
   // Pre-load logbook entries once outside loop (performance fix)
   var _lbEntries = [];
@@ -28478,6 +28487,7 @@ function rstRenderCalendar(){
         var _icon = (_codeU==='REU' || _codeU==='MTG') ? _MEET_ICON(tc2.tx, tc2.bg)   // reunión (antes que training)
                   : (_codeU==='FOS' || _codeU==='ART' || _codeU==='REUT') ? _GRAD_ICON(tc2.tx)  // gorro (antes que training)
                   : (_codeU==='OFIT') ? _OFFICE_ICON(tc2.tx)                          // oficina (antes que training)
+                  : (_codeU==='VAC' || _codeU==='RVAC' || _codeU==='PVAC' || e.type==='vacation') ? _VAC_ICON(tc2.tx)  // sombrilla (antes que off: eCrews da VAC como type off)
                   : (e.type==='off' || e.type==='srof') ? _REST_ICON(tc2.tx)
                   : (e.type==='standby') ? _STBY_ICON(tc2.tx)
                   : (e.type==='sick')    ? _SICK_ICON(tc2.tx)
@@ -28702,7 +28712,7 @@ function rstRenderStats(){
       legs.forEach(function(f){
         var _fp = (f.dep && f.dep.charAt(0)==='*') || f.isPositioning===true || f.positioning===true;
         if(_fp) return;
-        var _a = f.std_actual||f.std, _b = f.sta_actual||f.sta;
+        var _a = f.std_actual||f.std_estimated||f.std, _b = f.sta_actual||f.sta_estimated||f.sta;
         if(_a && _b && _a.indexOf(':')>-1 && _b.indexOf(':')>-1){ var _m=t2m(_b)-t2m(_a); if(_m<0)_m+=1440; blockMin+=_m; }
       });
     }
@@ -29524,10 +29534,10 @@ window.rosterSelectDay = function(dateStr){
       var _ck = flights.map(function(f){ return f.checkin; }).filter(function(c){ return c && c.indexOf(':')>-1; });
       var _anchor = _ck.length
         ? Math.min.apply(null, _ck.map(function(c){ return t2m(c); }))
-        : (flights.length ? Math.min.apply(null, flights.map(function(f){ return t2m(f.std_actual||f.std||'00:00'); })) : 0);
+        : (flights.length ? Math.min.apply(null, flights.map(function(f){ return t2m(f.std_actual||f.std_estimated||f.std||'00:00'); })) : 0);
       flights.sort(function(a,b){
-        var am = ((t2m(a.std_actual||a.std||'00:00')-_anchor)+1440)%1440;
-        var bm = ((t2m(b.std_actual||b.std||'00:00')-_anchor)+1440)%1440;
+        var am = ((t2m(a.std_actual||a.std_estimated||a.std||'00:00')-_anchor)+1440)%1440;
+        var bm = ((t2m(b.std_actual||b.std_estimated||b.std||'00:00')-_anchor)+1440)%1440;
         return am - bm;
       });
     })();
@@ -29676,7 +29686,7 @@ window.rosterSelectDay = function(dateStr){
       })();
       var isPos = (e.dep && e.dep.charAt(0) === '*') || e.isPositioning === true || e.positioning === true;
       // Block time
-      var _bStd = e.std_actual || e.std, _bSta = e.sta_actual || e.sta;
+      var _bStd = e.std_actual || e.std_estimated || e.std, _bSta = e.sta_actual || e.sta_estimated || e.sta;
       var blockMin = 0;
       if(_bStd && _bSta && String(_bStd).indexOf(':')>-1 && String(_bSta).indexOf(':')>-1){
         var _bsm=parseInt(_bStd.split(':')[0])*60+parseInt(_bStd.split(':')[1]);
@@ -29760,7 +29770,7 @@ window.rosterSelectDay = function(dateStr){
         _realFlights.forEach(function(f){
           var _fp = f.isPositioning||f.positioning||(f.dep&&f.dep.charAt(0)==='*');
           if(!_fp){
-            var _fs=f.std_actual||f.std, _fa=f.sta_actual||f.sta;
+            var _fs=f.std_actual||f.std_estimated||f.std, _fa=f.sta_actual||f.sta_estimated||f.sta;
             if(_fs&&_fa&&_fs.indexOf(':')>-1&&_fa.indexOf(':')>-1){
               var _fm=t2m(_fa)-t2m(_fs); if(_fm<0) _fm+=1440; _dayBlockMin+=_fm;
             }
@@ -32830,28 +32840,32 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
         // * para el parse. Es la marca per-leg fiable (IsDeadhead de evento no lo es).
         var legHasStar = /\*[A-Z]{3}/.test(line);
         line = line.replace(/\*([A-Z]{3})/g, '$1');
-        // Match: flightNum - DEP (Atime[⁺¹]) - ARR (Atime[⁺¹])
-        // (A?) capturado: sin A = programado (std/sta), con A = real (std_actual/sta_actual)
+        // Match: flightNum - DEP ([A|E]time[⁺¹]) - ARR ([A|E]time[⁺¹])
+        // Prefijo: A = real (actual), E = estimada, sin prefijo = programada (S).
+        // ⚠ CRÍTICO: aceptar TAMBIÉN 'E' — eCrews mete horas estimadas (p.ej. "(E1001)") y antes
+        // el regex solo aceptaba 'A?' → fallaba el match → la leg (y a veces el día entero, ej.
+        // 3-jul) se descartaba y el bloque/duty salían cortos.
         // (⁺¹|+1) opcional tras los 4 dígitos = esa hora cae en el día NATURAL siguiente.
-        // Sin esto el regex fallaba en "(A0010⁺¹)" y la leg que cruza medianoche se perdía.
-        var m = line.match(/^([A-Z0-9]+)\s+-\s+([A-Z]{3})\s+\((A?)(\d{4})(⁺¹|\+1)?\)\s+-\s+([A-Z]{3})\s+\((A?)(\d{4})(⁺¹|\+1)?\)/);
+        var m = line.match(/^([A-Z0-9]+)\s+-\s+([A-Z]{3})\s+\(([AES]?)(\d{4})(⁺¹|\+1)?\)\s+-\s+([A-Z]{3})\s+\(([AES]?)(\d{4})(⁺¹|\+1)?\)/);
         if(!m) return;
 
         var fNum       = m[1];
         var dep        = m[2];
-        var actualDep  = m[3] === 'A';
+        var pfxDep     = m[3];   // '', 'A', 'E', 'S'
         var tDep       = m[4].slice(0,2)+':'+m[4].slice(2);
         var depNext    = !!m[5];
         var arr        = m[6];
-        var actualArr  = m[7] === 'A';
+        var pfxArr     = m[7];
         var tArr       = m[8].slice(0,2)+':'+m[8].slice(2);
         var arrNext    = !!m[9];
 
-        // Regla del usuario: si CUALQUIERA de las dos horas del leg lleva 'A', el leg ya ha
-        // volado → las DOS horas son reales (van a std_actual/sta_actual juntas). eCrews a
-        // veces no marca con A la hora que salió puntual, pero es la real. Solo si NINGUNA
-        // lleva A el leg es programado (std/sta). Antes se separaban (una en S, otra en A).
-        var legActual = actualDep || actualArr;
+        // Categoría del leg (las dos horas van juntas a la misma fila — regla del usuario):
+        //  · si CUALQUIERA lleva 'A' → leg real (std_actual/sta_actual). eCrews a veces no marca
+        //    con A la hora que salió puntual, pero es la real.
+        //  · si no, si CUALQUIERA lleva 'E' → leg estimado (std_estimated/sta_estimated).
+        //  · si ninguna lleva prefijo → programado (std/sta).
+        var legActual = (pfxDep==='A' || pfxArr==='A');
+        var legEstim  = !legActual && (pfxDep==='E' || pfxArr==='E');
 
         // Convert ICAO to IATA if needed
         var depIATA = RST_ICAO_TO_IATA[dep] || dep;
@@ -32887,6 +32901,7 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
               airReturn: true, source: 'ECREWS'
             };
             if(legActual){ arEntry.std_actual = tDep; arEntry.sta_actual = tArr; }
+            else if(legEstim){ arEntry.std_estimated = tDep; arEntry.sta_estimated = tArr; }
             else { arEntry.std = tDep; arEntry.sta = tArr; }
             if(legCrosses) arEntry.crossesMidnight = true;
             if(legHasStar) arEntry.isPositioning = true;
@@ -32899,6 +32914,7 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
             source: 'ECREWS'
           };
           if(legActual){ sameAptEntry.std_actual = tDep; sameAptEntry.sta_actual = tArr; }
+          else if(legEstim){ sameAptEntry.std_estimated = tDep; sameAptEntry.sta_estimated = tArr; }
           else { sameAptEntry.std = tDep; sameAptEntry.sta = tArr; }
           entries.push(sameAptEntry);
           return;
@@ -32924,6 +32940,7 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
         if(legCrosses) legEntry.crossesMidnight = true;
         // Real (A en cualquiera de las dos) → ambas a *_actual; si no, ambas programadas.
         if(legActual){ legEntry.std_actual = tDep; legEntry.sta_actual = tArr; }
+        else if(legEstim){ legEntry.std_estimated = tDep; legEntry.sta_estimated = tArr; }
         else { legEntry.std = tDep; legEntry.sta = tArr; }
         entries.push(legEntry);
       });
@@ -33082,7 +33099,7 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
   (function(){
     function _t2m(t){ if(!t||String(t).indexOf(':')<0) return null; var p=String(t).split(':'); return (+p[0])*60+(+p[1]); }
     function _legBlk(e){
-      var s=_t2m(e.std_actual||e.std), a=_t2m(e.sta_actual||e.sta);
+      var s=_t2m(e.std_actual||e.std_estimated||e.std), a=_t2m(e.sta_actual||e.sta_estimated||e.sta);
       if(s===null||a===null) return null;
       var d=a-s; if(d<0) d+=1440; return d;
     }
@@ -33209,8 +33226,8 @@ function _ecHandleData(payload){
         html += '<span class="ec-pv-route" style="font-family:\'Space Mono\',monospace;font-size:12px;font-weight:600;color:#F0FFFE">'+f.dep+' › '+f.arr+'</span>';
         html += '<span class="ec-pv-fn" style="font-family:\'Space Mono\',monospace;font-size:10px;color:rgba(248,250,252,.35)">'+f.flightNum+'</span>';
         html += '</div>';
-        var _fStd = f.std_actual ? '(A)'+f.std_actual : (f.std||'?');
-        var _fSta = f.sta_actual ? '(A)'+f.sta_actual : (f.sta||'?');
+        var _fStd = f.std_actual ? '(A)'+f.std_actual : (f.std_estimated ? '(E)'+f.std_estimated : (f.std||'?'));
+        var _fSta = f.sta_actual ? '(A)'+f.sta_actual : (f.sta_estimated ? '(E)'+f.sta_estimated : (f.sta||'?'));
         html += '<span class="ec-pv-times" style="font-family:\'Space Mono\',monospace;font-size:10px;color:rgba(8,145,178,.7)">'+_fStd+' → '+_fSta+'</span>';
         html += '</div>';
       });
@@ -33245,6 +33262,8 @@ window.ldECrewsConfirm = function(){
       var ex = RST.entries[existingIdx];
       if(e.std_actual && !ex.std_actual) ex.std_actual = e.std_actual;
       if(e.sta_actual && !ex.sta_actual) ex.sta_actual = e.sta_actual;
+      if(e.std_estimated && !ex.std_estimated) ex.std_estimated = e.std_estimated;
+      if(e.sta_estimated && !ex.sta_estimated) ex.sta_estimated = e.sta_estimated;
       if(e.std && !ex.std) ex.std = e.std;
       if(e.sta && !ex.sta) ex.sta = e.sta;
       if(e.blockH  && !ex.blockH)  ex.blockH  = e.blockH;
@@ -33281,6 +33300,8 @@ window.ldECrewsConfirm = function(){
       if(e.sta)         entry.sta         = e.sta;
       if(e.std_actual)  entry.std_actual  = e.std_actual;
       if(e.sta_actual)  entry.sta_actual  = e.sta_actual;
+      if(e.std_estimated) entry.std_estimated = e.std_estimated; // horas estimadas (E)
+      if(e.sta_estimated) entry.sta_estimated = e.sta_estimated;
       if(e.checkin)     entry.checkin     = e.checkin;
       if(e.debrief)     entry.debrief     = e.debrief;
       if(e.blockH)      entry.blockH      = e.blockH;
