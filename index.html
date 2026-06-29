@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.196">
+  <meta name="version" content="Beta.197">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.196","builtAt":"2026-06-29T10:15:15Z","commit":"b96b238","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.197","builtAt":"2026-06-29T10:25:14Z","commit":"8034bc5","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -32756,9 +32756,11 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
       // Parse individual legs from details
       // Format: "XXXX  - BCN  (A0426) - BER  (A0711)"
       // o nº con sufijo letra (deadhead/posicional): "851D - BCN (A0340) - BIO (A0447)"
+      // \*? antes del aeropuerto: las legs de posicionamiento llevan "*IBZ" y no deben
+      // caer del filtro (si no, la leg posicional desaparecería del import).
       var legLines = details.split('\n').filter(function(l){
-        return /^\d{3,4}[A-Z]?\s+-\s+[A-Z]{3}/.test(l.trim()) ||
-               /^[A-Z]{2,3}\d+\s+-\s+[A-Z]{3}/.test(l.trim()) ||
+        return /^\d{3,4}[A-Z]?\s+-\s+\*?[A-Z]{3}/.test(l.trim()) ||
+               /^[A-Z]{2,3}\d+\s+-\s+\*?[A-Z]{3}/.test(l.trim()) ||
                /^TBD\d+/.test(l.trim());
       });
 
@@ -32774,7 +32776,10 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
 
       legLines.forEach(function(line){
         line = line.trim();
-        // Si algún aeropuerto lleva * (deadhead marker), retirarlo antes del parse
+        // eCrews marca las legs de POSICIONAMIENTO con un * delante del aeropuerto
+        // (p.ej. "3535 - *IBZ (A1852) - *BCN (A1954)"). Detectarlo ANTES de limpiar el
+        // * para el parse. Es la marca per-leg fiable (IsDeadhead de evento no lo es).
+        var legHasStar = /\*[A-Z]{3}/.test(line);
         line = line.replace(/\*([A-Z]{3})/g, '$1');
         // Match: flightNum - DEP (Atime[⁺¹]) - ARR (Atime[⁺¹])
         // (A?) capturado: sin A = programado (std/sta), con A = real (std_actual/sta_actual)
@@ -32829,6 +32834,7 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
             if(actualDep) arEntry.std_actual = tDep; else arEntry.std = tDep;
             if(actualArr) arEntry.sta_actual = tArr; else arEntry.sta = tArr;
             if(legCrosses) arEntry.crossesMidnight = true;
+            if(legHasStar) arEntry.isPositioning = true;
             entries.push(arEntry);
             return;
           }
@@ -32857,8 +32863,9 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
           dutyH:   bdt.Item2 || '',
           source:  'ECREWS'
         };
-        // Posicionamiento sólo cuando la jornada es deadhead de UNA sola leg (ver arriba).
-        if(markPositioning) legEntry.isPositioning = true;
+        // Posicionamiento: marca * per-leg de eCrews (fiable) o, en su defecto, jornada
+        // deadhead de UNA sola leg (heurística de respaldo cuando no hay *).
+        if(legHasStar || markPositioning) legEntry.isPositioning = true;
         if(legCrosses) legEntry.crossesMidnight = true;
         // Programado vs real según prefijo A
         if(actualDep) legEntry.std_actual = tDep; else legEntry.std = tDep;
@@ -33010,6 +33017,42 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
       return;
     }
   });
+
+  // ── Post-proceso: inferir POSICIONAMIENTO por bloque (BlockDutyTimes.Item1) ──
+  // eCrews NO marca el deadhead por-leg en el JSON crudo (el * solo está en su UI).
+  // Pero Item1 (bloque del día) = suma de las legs REALES (las posicionales no computan
+  // como bloque). Por diferencia: las legs cuyo bloque NO entra en esa suma = posicional.
+  // Se resuelve por subconjunto EXACTO (±1 min); si es ambiguo o no hay dato, no se toca
+  // (queda la heurística markPositioning de jornada deadhead de una sola leg).
+  (function(){
+    function _t2m(t){ if(!t||String(t).indexOf(':')<0) return null; var p=String(t).split(':'); return (+p[0])*60+(+p[1]); }
+    function _legBlk(e){
+      var s=_t2m(e.std_actual||e.std), a=_t2m(e.sta_actual||e.sta);
+      if(s===null||a===null) return null;
+      var d=a-s; if(d<0) d+=1440; return d;
+    }
+    var byDate={};
+    entries.forEach(function(e){ if(e.type==='flight'){ (byDate[e.date]=byDate[e.date]||[]).push(e); } });
+    Object.keys(byDate).forEach(function(d){
+      var legs=byDate[d];
+      var target=_t2m(((blockDutyTimes||{})[d]||{}).Item1);
+      if(target===null) return;                 // sin dato de bloque → no tocar
+      var blks=legs.map(_legBlk);
+      if(blks.some(function(b){return b===null;})) return;  // hora ilegible → no arriesgar
+      var total=blks.reduce(function(a,b){return a+b;},0);
+      if(target<=1){ legs.forEach(function(e){ e.isPositioning=true; }); return; }       // bloque 0 → todas posicionales
+      if(Math.abs(total-target)<=1){ legs.forEach(function(e){ delete e.isPositioning; }); return; } // todo bloque → ninguna
+      // Subconjunto exacto = legs reales; el complemento es posicionamiento.
+      var n=legs.length, matches=[];
+      for(var mask=1; mask<(1<<n); mask++){
+        var sum=0; for(var i=0;i<n;i++){ if(mask&(1<<i)) sum+=blks[i]; }
+        if(Math.abs(sum-target)<=1) matches.push(mask);
+      }
+      if(matches.length!==1) return;             // ambiguo o sin match → conservador, no tocar
+      var real=matches[0];
+      for(var j=0;j<n;j++){ if(real&(1<<j)) delete legs[j].isPositioning; else legs[j].isPositioning=true; }
+    });
+  })();
 
   return entries;
 }
