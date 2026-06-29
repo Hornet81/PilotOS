@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.197">
+  <meta name="version" content="Beta.198">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.197","builtAt":"2026-06-29T10:25:14Z","commit":"8034bc5","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.198","builtAt":"2026-06-29T10:41:33Z","commit":"afd89bc","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -32728,7 +32728,16 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
 
     // ── Standby ──
     if(type === 'standby'){
-      var sbCode = _extractCode(text);
+      // El código REAL de la guardia (HSBY/ASBY/OSBY…) está en la leg de `details`
+      // ("HSBY - IBZ (0255) - IBZ (1455)"), NO en `text` (que trae el código de pairing
+      // tipo "N155A"). Leerlo de details; fallback a _extractCode(text) si no aparece.
+      var _sbDetCode = '';
+      (details||'').split('\n').some(function(l){
+        var mm = l.trim().match(/^([A-Z0-9]{2,5})\s+-\s+\*?[A-Z]{3}\s+\(/);
+        if(mm){ _sbDetCode = mm[1].toUpperCase(); return true; }
+        return false;
+      });
+      var sbCode = _sbDetCode || _extractCode(text);
       var sbStart = (ev.start||'').slice(11,16);
       var sbEnd   = (ev.end||'').slice(11,16);
       entries.push({ date:date, type:'standby', code:sbCode, std:sbStart, sta:sbEnd, source:'ECREWS' });
@@ -32802,13 +32811,13 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
         var depIATA = RST_ICAO_TO_IATA[dep] || dep;
         var arrIATA = RST_ICAO_TO_IATA[arr] || arr;
 
-        // Fecha de la leg según los marcadores ⁺¹:
-        //  · AMBAS horas ⁺¹ (p.ej. 00:10→01:54) → la leg ENTERA es del día siguiente →
-        //    se mueve a date+1 y aparece sola en ese día (lo que pedía el usuario p/ día 23).
-        //  · sólo la LLEGADA ⁺¹ (sale antes de medianoche, llega después) → se queda en su
-        //    día y se marca crossesMidnight para que el calendario pinte la continuación 00:00→llegada.
-        var legDate    = (depNext && arrNext) ? _addDay(date) : date;
-        var legCrosses = (!depNext && arrNext);
+        // Cruce de medianoche (modelo PDF): el leg SIEMPRE se queda en el día de la jornada
+        // (date), aunque salga/llegue de madrugada (⁺¹). Si la LLEGADA es del día siguiente
+        // (arrNext) se marca crossesMidnight; un post-proceso propaga invasionEnd y crea la
+        // entrada overnight_continuation en el día siguiente (tercios + panel "Aterrizaje
+        // nocturno" con DP 00:00→fin). Así el calendario lo pinta igual que un roster PDF.
+        var legDate    = date;
+        var legCrosses = arrNext;
 
         // Guardia metida como leg A→A (OSB2/OSB3/OSBY, *SBY): es STANDBY, no vuelo/training.
         if(_isStandbyCode(fNum)){
@@ -33031,8 +33040,15 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
       if(s===null||a===null) return null;
       var d=a-s; if(d<0) d+=1440; return d;
     }
+    // Agrupar por DÍA DE BLOQUE: un leg que cruza medianoche (crossesMidnight) computa su
+    // bloque en el DÍA SIGUIENTE (eCrews contabiliza BlockDutyTimes por día natural). Si no
+    // se agrupa así, el subset-sum del día de origen marcaría el leg nocturno como posicional.
     var byDate={};
-    entries.forEach(function(e){ if(e.type==='flight'){ (byDate[e.date]=byDate[e.date]||[]).push(e); } });
+    entries.forEach(function(e){
+      if(e.type!=='flight') return;
+      var bday = e.crossesMidnight ? _addDay(e.date) : e.date;
+      (byDate[bday]=byDate[bday]||[]).push(e);
+    });
     Object.keys(byDate).forEach(function(d){
       var legs=byDate[d];
       var target=_t2m(((blockDutyTimes||{})[d]||{}).Item1);
@@ -33052,6 +33068,26 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
       var real=matches[0];
       for(var j=0;j<n;j++){ if(real&(1<<j)) delete legs[j].isPositioning; else legs[j].isPositioning=true; }
     });
+  })();
+
+  // ── Post-proceso: cruce de medianoche → invasionEnd + overnight_continuation ──
+  // Para cada vuelo con crossesMidnight, propaga su llegada al día siguiente como
+  // invasionEnd (regla de tercios) y crea una entrada overnight_continuation (habilita
+  // el panel "Aterrizaje nocturno": DP del día siguiente = 00:00 → llegada + 20 min).
+  // Mismo contrato que el parser PDF (server.js): el leg se queda en su día, el día
+  // siguiente recibe la cola. El día de origen capa de facto en 00:00 (su FDP es la jornada).
+  (function(){
+    var add=[];
+    entries.forEach(function(e){
+      if(e.type!=='flight' || !e.crossesMidnight) return;
+      var arr = e.sta_actual || e.sta;
+      if(!arr || String(arr).indexOf(':')<0) return;
+      var nd = _addDay(e.date);
+      entries.forEach(function(x){ if(x.date===nd && !x.invasionEnd) x.invasionEnd = arr; });
+      var hasCont = entries.concat(add).some(function(x){ return x.date===nd && x.type==='overnight_continuation'; });
+      if(!hasCont) add.push({ date:nd, type:'overnight_continuation', arr_time:arr, source:'ECREWS' });
+    });
+    if(add.length) entries.push.apply(entries, add);
   })();
 
   return entries;
@@ -33152,6 +33188,9 @@ window.ldECrewsConfirm = function(){
       if(e.times   && !ex.times)   ex.times   = e.times;
       if(e.debrief && !ex.debrief) ex.debrief = e.debrief;
       if(e.isPositioning) ex.isPositioning = true;
+      if(e.crossesMidnight) ex.crossesMidnight = true;
+      if(e.arr_time && !ex.arr_time) ex.arr_time = e.arr_time;
+      if(e.invasionEnd && !ex.invasionEnd) ex.invasionEnd = e.invasionEnd;
       skipped++;
       return;
     }
@@ -33181,12 +33220,16 @@ window.ldECrewsConfirm = function(){
       if(e.delay)       entry.delay       = e.delay;
       if(e.dutyCode)    entry.dutyCode    = e.dutyCode;
       if(e.isPositioning) entry.isPositioning = true;
+      if(e.crossesMidnight) entry.crossesMidnight = true; // cruce de medianoche (tercios + continuación)
     } else {
       entry.code = e.code;
       if(e.std)  entry.std  = e.std;
       if(e.sta)  entry.sta  = e.sta;
       if(e.std_actual) entry.std_actual = e.std_actual;
       if(e.sta_actual) entry.sta_actual = e.sta_actual;
+      // Cola de cruce de medianoche (overnight_continuation): hora de llegada del día anterior.
+      if(e.arr_time)    entry.arr_time    = e.arr_time;
+      if(e.invasionEnd) entry.invasionEnd = e.invasionEnd;
       // Conservar TODAS las horas de la actividad: standby/OSB usan checkin/checkout,
       // LM usa start/end, EBT/EVA traen briefing/sim/debrief en times. Sin esto la
       // hora del roster se pierde al guardar (la tira de duty mostraba "Todo el día").
