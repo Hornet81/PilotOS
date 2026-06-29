@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.205">
+  <meta name="version" content="Beta.206">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.205","builtAt":"2026-06-29T13:20:45Z","commit":"f939200","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.206","builtAt":"2026-06-29T13:22:48Z","commit":"afc6226","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -28921,9 +28921,9 @@ function rstCalcFDP(flights){
   var _cks = flights.map(function(f){ return f.checkin; }).filter(function(c){ return c && c.indexOf(':')>-1; });
   var _anchor = _cks.length
     ? Math.min.apply(null, _cks.map(_toMinSafe))
-    : Math.min.apply(null, flights.map(function(f){ return _toMinSafe(f.std_actual||f.std); }));
+    : Math.min.apply(null, flights.map(function(f){ return _toMinSafe(f.std_actual||f.std_estimated||f.std); }));
   var sorted = flights.slice().sort(function(a,b){
-    return (((_toMinSafe(a.std_actual||a.std)-_anchor)+1440)%1440) - (((_toMinSafe(b.std_actual||b.std)-_anchor)+1440)%1440);
+    return (((_toMinSafe(a.std_actual||a.std_estimated||a.std)-_anchor)+1440)%1440) - (((_toMinSafe(b.std_actual||b.std_estimated||b.std)-_anchor)+1440)%1440);
   });
   var first = sorted[0], last = sorted[sorted.length-1];
   var _isPos = function(f){ return !!(f.isPositioning || f.positioning || (f.dep && f.dep.charAt(0)==='*')); };
@@ -28933,10 +28933,10 @@ function rstCalcFDP(flights){
   var lastOper = null;
   for(var _k=sorted.length-1; _k>=0; _k--){ if(!_isPos(sorted[_k])){ lastOper = sorted[_k]; break; } }
   if(!lastOper) lastOper = last; // jornada 100% posicional → usa el último leg
-  // Prefer actual times (real operation) over scheduled
-  var firstStd    = first.std_actual    || first.std;
-  var lastOperSta = lastOper.sta_actual || lastOper.sta; // cierre del FDP (último operacional)
-  var lastSta     = last.sta_actual     || last.sta;     // cierre del DP (incluye posicional final)
+  // Prefer actual times (real operation) over estimated, then scheduled
+  var firstStd    = first.std_actual    || first.std_estimated    || first.std;
+  var lastOperSta = lastOper.sta_actual || lastOper.sta_estimated || lastOper.sta; // cierre del FDP (último operacional)
+  var lastSta     = last.sta_actual     || last.sta_estimated     || last.sta;     // cierre del DP (incluye posicional final)
   if(!firstStd||!lastOperSta||firstStd.indexOf(':')<0||lastOperSta.indexOf(':')<0) return null;
   if(!lastSta||lastSta.indexOf(':')<0) lastSta = lastOperSta;
   // Report = checkin (firma) más temprano si existe — es el report real del PDF/eCrews, e INCLUYE
@@ -29578,8 +29578,8 @@ window.rosterSelectDay = function(dateStr){
       if(i > 0){
         var prevE = flights[i-1];
         var stopovertxt = '—'; var diff3 = 0;
-        var prevSta = prevE.sta || prevE.sta_actual;
-        var currStd = e.std || e.std_actual;
+        var prevSta = prevE.sta_actual || prevE.sta_estimated || prevE.sta;
+        var currStd = e.std_actual || e.std_estimated || e.std;
         if(prevSta && String(prevSta).indexOf(':')>-1 && currStd && String(currStd).indexOf(':')>-1){
           var staM3=parseInt(prevSta.split(':')[0])*60+parseInt(prevSta.split(':')[1]);
           var stdM3=parseInt(currStd.split(':')[0])*60+parseInt(currStd.split(':')[1]);
