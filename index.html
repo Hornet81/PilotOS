@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.198">
+  <meta name="version" content="Beta.199">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.198","builtAt":"2026-06-29T10:41:33Z","commit":"afd89bc","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.199","builtAt":"2026-06-29T11:14:13Z","commit":"6342a17","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -28600,21 +28600,17 @@ function rstRenderStats(){
     if(parseInt(_dp[0])!==y || parseInt(_dp[1])-1!==mo) return;
     if(e.type==='flight'){
       flights++;
-      // Positioning flights (*BCN, e.isPositioning=true) count for duty and total VUELOS
-      // but NOT for block hours — the pilot flies as passenger, no block credit.
-      var isPos = (e.dep && e.dep.charAt(0) === '*') || e.isPositioning === true || e.positioning === true;
-      if(!isPos){
-        // Block hours: prefer actual times (already flown), fallback to scheduled
-        var effStd = e.std_actual || e.std;
-        var effSta = e.sta_actual || e.sta;
-        if(effStd && effSta){
-          var m = t2m(effSta) - t2m(effStd);
-          if(m < 0) m += 1440;
-          blockMin += m;
-        }
-      }
+      // Block hours se acumula por DÍA tras agrupar (ver loop de abajo): para eCrews usa el
+      // bloque OFICIAL del día (BlockDutyTimes.Item1) para cuadrar con la compañía; para
+      // PDF/manual cae a la suma por-leg. Positioning no cuenta como block.
       if(!dayFlights[e.date]) dayFlights[e.date]=[];
       dayFlights[e.date].push(e); // positioning still contributes to duty span
+    } else if(e.type==='overnight_continuation'){
+      // Cola de cruce de medianoche (eCrews): el día invadido no tiene leg de vuelo, pero
+      // SÍ tiene bloque y duty oficiales (Item1/Item2 = tramo 00:00→llegada/debrief). Se suman
+      // al total para cuadrar con la compañía. NO incrementa dutyDays (es la misma jornada).
+      if(e.blockH) blockMin += t2m(e.blockH);
+      if(e.dutyH)  dutyMin  += t2m(e.dutyH);
     } else if(e.type==='standby'||e.type==='osb'){
       standby++;
       // ── Vueling CBA standby duty rules ──────────────────────────────────
@@ -28693,6 +28689,23 @@ function rstRenderStats(){
     var legs = _dfl.slice().sort(function(a,b){
       return ((t2m(a.std_actual||a.std||'00:00')-_dAnchor)+1440)%1440 - (((t2m(b.std_actual||b.std||'00:00')-_dAnchor)+1440)%1440);
     });
+    // ── Block hours del día ──
+    // eCrews: usar el bloque OFICIAL del día (BlockDutyTimes.Item1, en e.blockH) → cuadra con
+    // la compañía (FTL/nómina). La suma por-leg (actual||programado) se desvía unos minutos
+    // porque eCrews no muestra todas las horas reales. Fallback (PDF/manual, sin blockH): suma
+    // por-leg no-posicional. Mismo criterio que el duty, que ya usa Item2.
+    var _ecBlockH = '';
+    for(var _bli=0; _bli<legs.length; _bli++){ if(legs[_bli].blockH){ _ecBlockH = legs[_bli].blockH; break; } }
+    if(_ecBlockH){
+      blockMin += t2m(_ecBlockH);
+    } else {
+      legs.forEach(function(f){
+        var _fp = (f.dep && f.dep.charAt(0)==='*') || f.isPositioning===true || f.positioning===true;
+        if(_fp) return;
+        var _a = f.std_actual||f.std, _b = f.sta_actual||f.sta;
+        if(_a && _b && _a.indexOf(':')>-1 && _b.indexOf(':')>-1){ var _m=t2m(_b)-t2m(_a); if(_m<0)_m+=1440; blockMin+=_m; }
+      });
+    }
     // 1. eCrews dutyH (BlockDutyTimes.Item2) — most accurate when available
     var ecDutyH = '';
     for(var _dli=0; _dli<legs.length; _dli++){
@@ -33085,7 +33098,16 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
       var nd = _addDay(e.date);
       entries.forEach(function(x){ if(x.date===nd && !x.invasionEnd) x.invasionEnd = arr; });
       var hasCont = entries.concat(add).some(function(x){ return x.date===nd && x.type==='overnight_continuation'; });
-      if(!hasCont) add.push({ date:nd, type:'overnight_continuation', arr_time:arr, source:'ECREWS' });
+      if(!hasCont){
+        // blockH/dutyH = bloque y duty OFICIALES del día invadido (Item1/Item2): eCrews
+        // contabiliza en ESTE día el tramo del leg que cruza (00:00→llegada) y su duty
+        // (00:00→debrief). Sin esto el total mensual perdería ese tramo (no hay leg de vuelo
+        // en el día invadido, solo esta continuación). eCrews ya reparte la jornada: el día
+        // de origen lleva Item2 = report→00:00 y el invadido Item2 = 00:00→debrief.
+        var _ndBDT = (blockDutyTimes||{})[nd] || {};
+        add.push({ date:nd, type:'overnight_continuation', arr_time:arr,
+                   blockH:_ndBDT.Item1||'', dutyH:_ndBDT.Item2||'', source:'ECREWS' });
+      }
     });
     if(add.length) entries.push.apply(entries, add);
   })();
@@ -33230,6 +33252,8 @@ window.ldECrewsConfirm = function(){
       // Cola de cruce de medianoche (overnight_continuation): hora de llegada del día anterior.
       if(e.arr_time)    entry.arr_time    = e.arr_time;
       if(e.invasionEnd) entry.invasionEnd = e.invasionEnd;
+      if(e.blockH)      entry.blockH      = e.blockH; // bloque oficial del día invadido (Item1)
+      if(e.dutyH)       entry.dutyH       = e.dutyH;  // duty oficial del día invadido (Item2)
       // Conservar TODAS las horas de la actividad: standby/OSB usan checkin/checkout,
       // LM usa start/end, EBT/EVA traen briefing/sim/debrief en times. Sin esto la
       // hora del roster se pierde al guardar (la tira de duty mostraba "Todo el día").
