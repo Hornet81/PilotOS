@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.195">
+  <meta name="version" content="Beta.196">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.195","builtAt":"2026-06-29T09:25:25Z","commit":"b6cb4de","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.196","builtAt":"2026-06-29T10:15:15Z","commit":"b96b238","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -32698,6 +32698,19 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
     return (lines[0]||'').trim().toUpperCase().split(/\s+/)[0] || '';
   }
 
+  // ¿El código de una leg A→A es en realidad una GUARDIA? (OSB2/OSB3/OSBY, *SBY, AA/AAI)
+  // eCrews mete la guardia como una "leg" mismo-aeropuerto; debe importarse como standby,
+  // NO como training ni como vuelo (lead confirmado: OSB3 salía como training).
+  function _isStandbyCode(c){
+    c = (c||'').toUpperCase();
+    return /^OSB[0-9]?$/.test(c) || /SBY$/.test(c) || c==='AA' || c==='AAI';
+  }
+  // Devuelve la fecha (YYYY-MM-DD) del día natural siguiente.
+  function _addDay(ds){
+    var d = new Date(ds+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+1);
+    return d.toISOString().slice(0,10);
+  }
+
   events.forEach(function(ev){
     var date = (ev.start||'').slice(0,10);
     if(!date) return;
@@ -32731,8 +32744,8 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
       return;
     }
 
-    // ── Flight duty ──
-    if(type === 'flight'){
+    // ── Flight duty (incl. type "Default" = jornada de posicionamiento suelta) ──
+    if(type === 'flight' || type === 'default'){
       var dutyCode = text.split('\n')[0].trim();
       var report   = ev.report || '';
       var debrief  = ev.debrief || '';
@@ -32742,36 +32755,61 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
 
       // Parse individual legs from details
       // Format: "XXXX  - BCN  (A0426) - BER  (A0711)"
-      // or      "XXXX  - BCN  (0426) - BER  (A0711)"
+      // o nº con sufijo letra (deadhead/posicional): "851D - BCN (A0340) - BIO (A0447)"
       var legLines = details.split('\n').filter(function(l){
-        return /^\d{3,4}\s+-\s+[A-Z]{3}/.test(l.trim()) ||
+        return /^\d{3,4}[A-Z]?\s+-\s+[A-Z]{3}/.test(l.trim()) ||
                /^[A-Z]{2,3}\d+\s+-\s+[A-Z]{3}/.test(l.trim()) ||
                /^TBD\d+/.test(l.trim());
       });
 
-      // IsDeadhead: true → toda la jornada es posicionamiento (no computa como bloque)
+      // IsDeadhead a nivel de EVENTO sólo significa "la jornada CONTIENE posicionamiento",
+      // no que todas las legs lo sean (eCrews no marca el deadhead por-leg en este payload).
+      // Sólo es fiable cuando hay UNA única leg de vuelo → toda la jornada es posicional.
+      // (Antes se marcaban TODAS las legs como posicionales → día 28 salía "todo posicional".)
       var isDeadhead = ev.IsDeadhead === true || ev.isDeadhead === true || (ev.type||'').toLowerCase() === 'deadhead';
+      var flightLegCount = legLines.filter(function(l){
+        return !_isStandbyCode((l.trim().split(/\s+/)[0]||''));
+      }).length;
+      var markPositioning = isDeadhead && flightLegCount === 1;
 
       legLines.forEach(function(line){
         line = line.trim();
         // Si algún aeropuerto lleva * (deadhead marker), retirarlo antes del parse
         line = line.replace(/\*([A-Z]{3})/g, '$1');
-        // Match: flightNum - DEP (Atime) - ARR (Atime)
+        // Match: flightNum - DEP (Atime[⁺¹]) - ARR (Atime[⁺¹])
         // (A?) capturado: sin A = programado (std/sta), con A = real (std_actual/sta_actual)
-        var m = line.match(/^([A-Z0-9]+)\s+-\s+([A-Z]{3})\s+\((A?)(\d{4})\)\s+-\s+([A-Z]{3})\s+\((A?)(\d{4})\)/);
+        // (⁺¹|+1) opcional tras los 4 dígitos = esa hora cae en el día NATURAL siguiente.
+        // Sin esto el regex fallaba en "(A0010⁺¹)" y la leg que cruza medianoche se perdía.
+        var m = line.match(/^([A-Z0-9]+)\s+-\s+([A-Z]{3})\s+\((A?)(\d{4})(⁺¹|\+1)?\)\s+-\s+([A-Z]{3})\s+\((A?)(\d{4})(⁺¹|\+1)?\)/);
         if(!m) return;
 
         var fNum       = m[1];
         var dep        = m[2];
         var actualDep  = m[3] === 'A';
         var tDep       = m[4].slice(0,2)+':'+m[4].slice(2);
-        var arr        = m[5];
-        var actualArr  = m[6] === 'A';
-        var tArr       = m[7].slice(0,2)+':'+m[7].slice(2);
+        var depNext    = !!m[5];
+        var arr        = m[6];
+        var actualArr  = m[7] === 'A';
+        var tArr       = m[8].slice(0,2)+':'+m[8].slice(2);
+        var arrNext    = !!m[9];
 
         // Convert ICAO to IATA if needed
         var depIATA = RST_ICAO_TO_IATA[dep] || dep;
         var arrIATA = RST_ICAO_TO_IATA[arr] || arr;
+
+        // Fecha de la leg según los marcadores ⁺¹:
+        //  · AMBAS horas ⁺¹ (p.ej. 00:10→01:54) → la leg ENTERA es del día siguiente →
+        //    se mueve a date+1 y aparece sola en ese día (lo que pedía el usuario p/ día 23).
+        //  · sólo la LLEGADA ⁺¹ (sale antes de medianoche, llega después) → se queda en su
+        //    día y se marca crossesMidnight para que el calendario pinte la continuación 00:00→llegada.
+        var legDate    = (depNext && arrNext) ? _addDay(date) : date;
+        var legCrosses = (!depNext && arrNext);
+
+        // Guardia metida como leg A→A (OSB2/OSB3/OSBY, *SBY): es STANDBY, no vuelo/training.
+        if(_isStandbyCode(fNum)){
+          entries.push({ date:legDate, type:'standby', code:fNum, std:tDep, sta:tArr, source:'ECREWS' });
+          return;
+        }
 
         // Mismo aeropuerto origen=destino (A→A). Distinguir SIN descartar nada:
         //  · Código = Nº DE VUELO real (dígitos, p.ej. 6342 / 6342A) → RETORNO A
@@ -32783,18 +32821,19 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
         if(depIATA === arrIATA){
           if(/^\d{3,4}[A-Z]?$/.test(fNum)){
             var arEntry = {
-              date: date, type: 'flight',
+              date: legDate, type: 'flight',
               flightNum: 'VY'+fNum, dep: depIATA, arr: arrIATA,
               checkin: report, debrief: debrief, dutyCode: dutyCode,
               airReturn: true, source: 'ECREWS'
             };
             if(actualDep) arEntry.std_actual = tDep; else arEntry.std = tDep;
             if(actualArr) arEntry.sta_actual = tArr; else arEntry.sta = tArr;
+            if(legCrosses) arEntry.crossesMidnight = true;
             entries.push(arEntry);
             return;
           }
           var sameAptEntry = {
-            date: date, type: 'training',
+            date: legDate, type: 'training',
             code: fNum,   // 'LMF1', 'LMSK', 'REU', etc.
             source: 'ECREWS'
           };
@@ -32804,24 +32843,8 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
           return;
         }
 
-        // OSBY/OSB3: Posicionamiento — sacado de guardia. Insertar como leg especial
-        if(fNum === 'OSBY' || fNum === 'OSB3'){
-          var posEntry = {
-            date: date, type: 'flight',
-            flightNum: fNum, dep: depIATA, arr: arrIATA,
-            checkin: report, debrief: debrief,
-            dutyCode: dutyCode,
-            isPositioning: true,
-            source: 'ECREWS'
-          };
-          if(actualDep) posEntry.std_actual = tDep; else posEntry.std = tDep;
-          if(actualArr) posEntry.sta_actual = tArr; else posEntry.sta = tArr;
-          entries.push(posEntry);
-          return;
-        }
-
         var legEntry = {
-          date:    date,
+          date:    legDate,
           type:    'flight',
           flightNum: 'VY'+fNum,
           dep:     depIATA,
@@ -32834,8 +32857,9 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
           dutyH:   bdt.Item2 || '',
           source:  'ECREWS'
         };
-        // Si el evento padre es deadhead, todas sus piernas son posicionamiento
-        if(isDeadhead) legEntry.isPositioning = true;
+        // Posicionamiento sólo cuando la jornada es deadhead de UNA sola leg (ver arriba).
+        if(markPositioning) legEntry.isPositioning = true;
+        if(legCrosses) legEntry.crossesMidnight = true;
         // Programado vs real según prefijo A
         if(actualDep) legEntry.std_actual = tDep; else legEntry.std = tDep;
         if(actualArr) legEntry.sta_actual = tArr; else legEntry.sta = tArr;
