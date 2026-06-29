@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.213">
+  <meta name="version" content="Beta.214">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.213","builtAt":"2026-06-29T13:54:09Z","commit":"9c83be6","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.214","builtAt":"2026-06-29T14:08:27Z","commit":"b42efed","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -32843,9 +32843,14 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
       // \*? antes del aeropuerto: las legs de posicionamiento llevan "*IBZ" y no deben
       // caer del filtro (si no, la leg posicional desaparecería del import).
       var legLines = details.split('\n').filter(function(l){
-        return /^\d{3,4}[A-Z]?\s+-\s+\*?[A-Z]{3}/.test(l.trim()) ||
-               /^[A-Z]{2,3}\d+\s+-\s+\*?[A-Z]{3}/.test(l.trim()) ||
-               /^TBD\d+/.test(l.trim());
+        var t = l.trim();
+        return /^\d{3,4}[A-Z]?\s+-\s+\*?[A-Z]{3}/.test(t) ||
+               /^[A-Z]{2,3}\d+\s+-\s+\*?[A-Z]{3}/.test(t) ||
+               /^TBD\d+/.test(t) ||
+               // Guardia metida como leg A→A con código SOLO letras (OSBY/ASBY/HSBY…):
+               // no acaba en dígito, así que los regex de arriba la descartaban y el
+               // standby desaparecía (ej. feb día 22: "OSBY - BCN (0300) - BCN (1100)").
+               (_isStandbyCode((t.split(/\s+/)[0]||'')) && /\s+-\s+\*?[A-Z]{3}\s+\(/.test(t));
       });
 
       // IsDeadhead a nivel de EVENTO sólo significa "la jornada CONTIENE posicionamiento",
