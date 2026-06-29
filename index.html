@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.223">
+  <meta name="version" content="Beta.224">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.223","builtAt":"2026-06-29T20:00:56Z","commit":"bb0a0cb","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.224","builtAt":"2026-06-29T20:07:33Z","commit":"69cdcbd","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -32849,9 +32849,14 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
       var code = _extractCode(text);
       // Franco (F / F2 / FR): es un día especial (activable la víspera), color coral
       // propio, NO el turquesa de OFF. eCrews lo entrega a veces como type 'off'.
+      // eCrews entrega también la ENFERMEDAD y el FRANCO como type 'off'. Cada uno
+      // tiene color propio: sick→naranja, franco→coral. NO el verde de OFF.
       var _cu = String(code||'').toUpperCase();
-      var _offType = (_cu==='F' || _cu==='F2' || _cu==='FR') ? 'f' : 'off';
-      entries.push({ date:date, type:_offType, code:code, source:'ECREWS' });
+      var _offType = (_cu==='F' || _cu==='F2' || _cu==='FR') ? 'f'
+                   : (_cu==='SICK' || _cu==='SICD' || _cu==='LSIC' || _cu==='DSIC' || _cu==='ERSK') ? 'sick'
+                   : 'off';
+      var _offCode = (_offType==='sick') ? 'SICK' : code;
+      entries.push({ date:date, type:_offType, code:_offCode, source:'ECREWS' });
       return;
     }
 
@@ -33108,11 +33113,12 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
         'INC':  {type:'off', code:'OFF'},       // Incidencias
 
         // ── ENFERMEDAD ───────────────────────────────────────────────
-        'SICK': {type:'off', code:'SICK'},      // Enfermedad
-        'SICD': {type:'off', code:'SICK'},      // Sick from duty
-        'LSIC': {type:'off', code:'SICK'},      // Enfermedad en línea
-        'DSIC': {type:'off', code:'SICK'},      // Enfermedad en destacamento
-        'ERSK': {type:'off', code:'SICK'},      // Sick on ERTE day
+        // type:'sick' (naranja), NO 'off' (verde): un sick tiene color propio.
+        'SICK': {type:'sick', code:'SICK'},     // Enfermedad
+        'SICD': {type:'sick', code:'SICK'},     // Sick from duty
+        'LSIC': {type:'sick', code:'SICK'},     // Enfermedad en línea
+        'DSIC': {type:'sick', code:'SICK'},     // Enfermedad en destacamento
+        'ERSK': {type:'sick', code:'SICK'},     // Sick on ERTE day
 
         // ── VACUNACIÓN / MÉDICO ──────────────────────────────────────
         'VCCN': {type:'off', code:'OFF'},       // Vaccination
