@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.214">
+  <meta name="version" content="Beta.215">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.214","builtAt":"2026-06-29T14:08:27Z","commit":"b42efed","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.215","builtAt":"2026-06-29T14:31:36Z","commit":"ee2c274","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -28264,6 +28264,7 @@ function rstRenderCalendar(){
     OFIT: { bg:'#5b8def', bd:'#4571d4', tx:'#FFFFFF', gl:'rgba(91,141,239,.5)', emoji:'🏢', desc:'OFIT · Formación en oficina' },
     ART:  { bg:'#a67c52', bd:'#8c6743', tx:'#FFFFFF', gl:'rgba(166,124,82,.5)', emoji:'🎓', desc:'ART · Annual Recurrent Training' },
     REUT: { bg:'#14857a', bd:'#0f6b62', tx:'#FFFFFF', gl:'rgba(20,133,122,.5)', emoji:'🎓', desc:'REUT · Formación recurrente' },
+    FOS:  { bg:'#4d7ea8', bd:'#3d6789', tx:'#FFFFFF', gl:'rgba(77,126,168,.5)', emoji:'🎓', desc:'FOS · Flight Operations (clase teórica)' },
     // Formación en tierra / e-learning (LM*, cursos, CBT…). NO es simulador → color
     // e icono propios (libro), distinto del gris+gamepad de EBT/EVA/SIM.
     TR:   { bg:'#0e8a8a', bd:'#0a6e6e', tx:'#FFFFFF', gl:'rgba(14,138,138,.5)', emoji:'📚', desc:'Formación en tierra' },
@@ -28272,6 +28273,15 @@ function rstRenderCalendar(){
     F:    { bg:'#ec7063', bd:'#d35f55', tx:'#FFFFFF', gl:'rgba(236,112,99,.5)', desc:'Franco' },
     F2:   { bg:'#ec7063', bd:'#d35f55', tx:'#FFFFFF', gl:'rgba(236,112,99,.5)', desc:'Franco' },
     FR:   { bg:'#ec7063', bd:'#d35f55', tx:'#FFFFFF', gl:'rgba(236,112,99,.5)', desc:'Franco' }
+  };
+  // Lookup de estilo por código: si el código no tiene estilo propio pero es un
+  // e-learning (LM*), usa el estilo genérico de formación en tierra (teal + libro)
+  // en vez de caer al gris del simulador. Los LM* a veces llegan con su código real
+  // (LMFG, LMCC…) cuando eCrews los manda como evento Training.
+  var _rstStyle = window._rstStyle = function(code){
+    if(!code) return null;
+    var u = String(code).toUpperCase();
+    return RST_CODE_STYLE[u] || (/^LM/.test(u) ? RST_CODE_STYLE.TR : null);
   };
   // Iconos inline (SVG) para las tiras del calendario. fill = color del texto de la
   // tira. La PWA funciona offline → todo embebido, sin assets externos.
@@ -28384,7 +28394,7 @@ function rstRenderCalendar(){
       bg = cfg.bg; border = cfg.bd; textCol = cfg.tx; glowCol = cfg.gl;
       // Override por CÓDIGO de color (EBT/EVA/REU/VAC...): la celda se pinta según
       // el code real del roster, no solo según el tipo.
-      var _cs = (dayEntries[0].code && RST_CODE_STYLE[String(dayEntries[0].code).toUpperCase()]) || null;
+      var _cs = _rstStyle(dayEntries[0].code);
       if(_cs){ bg = _cs.bg; border = _cs.bd; textCol = _cs.tx; glowCol = _cs.gl; }
       if(t === 'flight'){
         var legCount = dayEntries.length;
@@ -28492,7 +28502,7 @@ function rstRenderCalendar(){
         // Override por CÓDIGO de color (EBT/EVA/REU/VAC...): la barra de la celda
         // se pinta y rotula con el icono+code reales; si no hay code en el mapa,
         // color del tipo + code/etiqueta genérica.
-        var _csb = (e.code && RST_CODE_STYLE[String(e.code).toUpperCase()]) || null;
+        var _csb = _rstStyle(e.code);
         var tc2 = _csb || TC[e.type] || TC.other;
         // Use e.code when available (shows SPAR, ART, REU, NROF… instead of generic type)
         var typeLabels = {standby:'STBY',osb:'OSB',off:'OFF',vacation:'VAC',f:'F',ef:'EF',srof:'SROF',noff:'NOFF',aoff:'AOFF',nrof:'NROF',meof:'MEOF',ebt:'SIM',eva:'SIM',lm:'LM',training:'TR',sick:'SICK',other:'?'};
@@ -28513,7 +28523,7 @@ function rstRenderCalendar(){
         var _ns = _barMin(e.checkin); if(_ns===null) _ns = _barMin(e.std); if(_ns===null) _ns = _barMin(e.start); if(_ns===null) _ns = 9999;
         barItems.push({ bg:tc2.bg, tx:tc2.tx, lbl: _icon + (e.code || typeLabels[e.type] || e.type), sortMin:_ns });
       });
-      var _g0 = (dayEntries[0].code && RST_CODE_STYLE[String(dayEntries[0].code).toUpperCase()]) || null;
+      var _g0 = _rstStyle(dayEntries[0].code);
       glowCol = (_g0 || TC[dayEntries[0].type] || TC.other).gl;
       // Apila las tiras de ARRIBA a ABAJO por hora de inicio (la más temprana arriba).
       barItems.sort(function(a,b){ return (a.sortMin==null?9999:a.sortMin) - (b.sortMin==null?9999:b.sortMin); });
@@ -29862,7 +29872,8 @@ window.rosterSelectDay = function(dateStr){
     nonFlights.forEach(function(e){
       // Override por CÓDIGO de color (EBT/EVA/REU/VAC...): la línea del detalle
       // se pinta según el code real, igual que la celda del calendario.
-      var _cs2 = (e.code && window.RST_CODE_STYLE && window.RST_CODE_STYLE[String(e.code).toUpperCase()]) || null;
+      var _cs2 = window._rstStyle ? window._rstStyle(e.code)
+               : (e.code && window.RST_CODE_STYLE && window.RST_CODE_STYLE[String(e.code).toUpperCase()]) || null;
       var cfg = _cs2 || TC2[e.type] || {bg:'#bdc3c7', tx:'#fff'};
       var lbl = e.code || typeLabels[e.type] || e.type;
       // La hora de la actividad puede venir en std/sta (vuelos y actividades),
@@ -33073,6 +33084,8 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
         'LPC':  {type:'training', code:'SIM'},  // License proficiency check
         'OPC':  {type:'training', code:'SIM'},  // Operating proficiency check
         'ART':  {type:'training', code:'ART'},  // Annual recurrent training
+        'REUT': {type:'training', code:'REUT'}, // Reunión/formación recurrente instructor
+        'FOS':  {type:'training', code:'FOS'},  // Flight Operations — clase teórica instructor
         'SPAR': {type:'training', code:'SPAR'}, // Sparring
         'RFSV': {type:'training', code:'SIM'},  // Covid extraordinary refresher
         'RFSM': {type:'training', code:'SIM'},  // Refresher course
@@ -33106,7 +33119,12 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
         'FLT':  {type:'flight', code:'FLT', isPositioning:false},  // Flight duty (uploaded)
       };
 
-      var gMap   = EC_MAP[gCode] || {type:'off', code:gCode};
+      // Fallback robusto para códigos no listados: e-learning (LM*) → training,
+      // guardias (*SBY/OSB*) → standby, resto → off conservando la letra real.
+      var gMap   = EC_MAP[gCode]
+                || (/^LM/.test(gCode) ? {type:'training', code:'TR'}
+                :   _isStandbyCode(gCode) ? {type:'standby', code:gCode}
+                :   {type:'off', code:gCode});
       var gEntry = {
         date:   date,
         type:   gMap.type,
