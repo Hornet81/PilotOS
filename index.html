@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.199">
+  <meta name="version" content="Beta.200">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.199","builtAt":"2026-06-29T11:14:13Z","commit":"6342a17","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.200","builtAt":"2026-06-29T12:01:00Z","commit":"f094e5a","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -28752,6 +28752,25 @@ function rstRenderStats(){
     if(d > 0){ dutyMin += d; dutyDays++; }
   });
 
+  // ── OVERRIDE duty con el valor OFICIAL de eCrews (Item2) por día ──
+  // Decisión del usuario: en import eCrews los totales deben cuadrar con la compañía. El cálculo
+  // por reglas de arriba (25% guardia, etc.) se desvía e infla (las guardias eCrews van en std/sta,
+  // no checkin/checkout → caían a "ventana completa"; y OSB+vuelos doblaba el Item2). Cuando hay
+  // dato oficial (dutyH=Item2 en alguna entrada del mes), el duty mensual = Σ Item2 por día ÚNICO.
+  // PDF/manual no traen dutyH por entrada → se conserva el cálculo por reglas (+ override pdfDuty).
+  (function(){
+    var ecByDate = {};
+    RST.entries.forEach(function(e){
+      var _dp2 = e.date.split('-');
+      if(parseInt(_dp2[0])!==y || parseInt(_dp2[1])-1!==mo) return;
+      if(e.dutyH && String(e.dutyH).indexOf(':')>-1 && !(e.date in ecByDate)) ecByDate[e.date] = t2m(e.dutyH);
+    });
+    var _ecDays = Object.keys(ecByDate);
+    if(_ecDays.length){
+      dutyMin = _ecDays.reduce(function(s,d){ return s + ecByDate[d]; }, 0);
+    }
+  })();
+
   // Use PDF-extracted totals if available (more accurate — includes OSB/STBY/LM duty)
   // Safety guards:
   //   1. pdfBlock >> blockMin (>12h): PDF row-B has misread clock-times → discard pdfBlock
@@ -32820,6 +32839,12 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
         var tArr       = m[8].slice(0,2)+':'+m[8].slice(2);
         var arrNext    = !!m[9];
 
+        // Regla del usuario: si CUALQUIERA de las dos horas del leg lleva 'A', el leg ya ha
+        // volado → las DOS horas son reales (van a std_actual/sta_actual juntas). eCrews a
+        // veces no marca con A la hora que salió puntual, pero es la real. Solo si NINGUNA
+        // lleva A el leg es programado (std/sta). Antes se separaban (una en S, otra en A).
+        var legActual = actualDep || actualArr;
+
         // Convert ICAO to IATA if needed
         var depIATA = RST_ICAO_TO_IATA[dep] || dep;
         var arrIATA = RST_ICAO_TO_IATA[arr] || arr;
@@ -32853,8 +32878,8 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
               checkin: report, debrief: debrief, dutyCode: dutyCode,
               airReturn: true, source: 'ECREWS'
             };
-            if(actualDep) arEntry.std_actual = tDep; else arEntry.std = tDep;
-            if(actualArr) arEntry.sta_actual = tArr; else arEntry.sta = tArr;
+            if(legActual){ arEntry.std_actual = tDep; arEntry.sta_actual = tArr; }
+            else { arEntry.std = tDep; arEntry.sta = tArr; }
             if(legCrosses) arEntry.crossesMidnight = true;
             if(legHasStar) arEntry.isPositioning = true;
             entries.push(arEntry);
@@ -32865,8 +32890,8 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
             code: fNum,   // 'LMF1', 'LMSK', 'REU', etc.
             source: 'ECREWS'
           };
-          if(actualDep) sameAptEntry.std_actual = tDep; else sameAptEntry.std = tDep;
-          if(actualArr) sameAptEntry.sta_actual = tArr; else sameAptEntry.sta = tArr;
+          if(legActual){ sameAptEntry.std_actual = tDep; sameAptEntry.sta_actual = tArr; }
+          else { sameAptEntry.std = tDep; sameAptEntry.sta = tArr; }
           entries.push(sameAptEntry);
           return;
         }
@@ -32889,9 +32914,9 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
         // deadhead de UNA sola leg (heurística de respaldo cuando no hay *).
         if(legHasStar || markPositioning) legEntry.isPositioning = true;
         if(legCrosses) legEntry.crossesMidnight = true;
-        // Programado vs real según prefijo A
-        if(actualDep) legEntry.std_actual = tDep; else legEntry.std = tDep;
-        if(actualArr) legEntry.sta_actual = tArr; else legEntry.sta = tArr;
+        // Real (A en cualquiera de las dos) → ambas a *_actual; si no, ambas programadas.
+        if(legActual){ legEntry.std_actual = tDep; legEntry.sta_actual = tArr; }
+        else { legEntry.std = tDep; legEntry.sta = tArr; }
         entries.push(legEntry);
       });
       return;
@@ -33110,6 +33135,19 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
       }
     });
     if(add.length) entries.push.apply(entries, add);
+  })();
+
+  // ── Post-proceso: adjuntar bloque/duty OFICIALES (Item1/Item2) por fecha a TODA entrada ──
+  // Así cada día de actividad (vuelo, guardia, training) lleva su Item1/Item2. El total mensual
+  // usará el Item2 oficial por día (una vez), evitando el doble conteo y el "ventana completa"
+  // de las guardias (que se guardan con std/sta, no checkin/checkout). Cuadra con la compañía.
+  (function(){
+    entries.forEach(function(e){
+      var _bd = (blockDutyTimes||{})[e.date];
+      if(!_bd) return;
+      if(!e.blockH && _bd.Item1) e.blockH = _bd.Item1;
+      if(!e.dutyH  && _bd.Item2) e.dutyH  = _bd.Item2;
+    });
   })();
 
   return entries;
