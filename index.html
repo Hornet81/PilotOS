@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.206">
+  <meta name="version" content="Beta.207">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.206","builtAt":"2026-06-29T13:22:48Z","commit":"afc6226","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.207","builtAt":"2026-06-29T13:27:55Z","commit":"fe5ce85","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -28487,7 +28487,7 @@ function rstRenderCalendar(){
         var _icon = (_codeU==='REU' || _codeU==='MTG') ? _MEET_ICON(tc2.tx, tc2.bg)   // reunión (antes que training)
                   : (_codeU==='FOS' || _codeU==='ART' || _codeU==='REUT') ? _GRAD_ICON(tc2.tx)  // gorro (antes que training)
                   : (_codeU==='OFIT') ? _OFFICE_ICON(tc2.tx)                          // oficina (antes que training)
-                  : (_codeU==='VAC' || _codeU==='RVAC' || _codeU==='PVAC' || e.type==='vacation') ? _VAC_ICON(tc2.tx)  // sombrilla (antes que off: eCrews da VAC como type off)
+                  : (_codeU==='VAC' || _codeU==='RVAC' || _codeU==='PVAC' || e.type==='vacation') ? _VAC_ICON('#FFFFFF')  // sombrilla BLANCA (antes que off: eCrews da VAC como type off)
                   : (e.type==='off' || e.type==='srof') ? _REST_ICON(tc2.tx)
                   : (e.type==='standby') ? _STBY_ICON(tc2.tx)
                   : (e.type==='sick')    ? _SICK_ICON(tc2.tx)
@@ -29468,7 +29468,7 @@ window.rosterSelectDay = function(dateStr){
   // Add report time badge if there are flights
   var reportBadgeEl = document.getElementById('rst-detail-report');
   if(reportBadgeEl){
-    var flightsForReport = dayEntries.filter(function(e){ return e.type==='flight' && (e.std||e.std_actual) && (e.std||e.std_actual).indexOf(':')>-1; });
+    var flightsForReport = dayEntries.filter(function(e){ return e.type==='flight' && (e.std||e.std_actual||e.std_estimated) && (e.std||e.std_actual||e.std_estimated).indexOf(':')>-1; });
     if(flightsForReport.length){
       // Orden DÍA DE SERVICIO (no reloj) anclado al checkin más temprano (firma). El report es la
       // firma del PRIMER leg del duty e INCLUYE el posicional inicial (no se excluye): el duty
@@ -29477,9 +29477,9 @@ window.rosterSelectDay = function(dateStr){
       var _rCks = flightsForReport.map(function(f){ return f.checkin; }).filter(function(c){ return c && c.indexOf(':')>-1; });
       var _rAnchor = _rCks.length
         ? Math.min.apply(null, _rCks.map(t2m))
-        : Math.min.apply(null, flightsForReport.map(function(f){ return t2m(f.std_actual||f.std||'00:00'); }));
+        : Math.min.apply(null, flightsForReport.map(function(f){ return t2m(f.std_actual||f.std_estimated||f.std||'00:00'); }));
       flightsForReport.sort(function(a,b){
-        return ((t2m(a.std_actual||a.std||'00:00')-_rAnchor)+1440)%1440 - (((t2m(b.std_actual||b.std||'00:00')-_rAnchor)+1440)%1440);
+        return ((t2m(a.std_actual||a.std_estimated||a.std||'00:00')-_rAnchor)+1440)%1440 - (((t2m(b.std_actual||b.std_estimated||b.std||'00:00')-_rAnchor)+1440)%1440);
       });
       var _repRef = flightsForReport[0]; // primer leg del duty (puede ser posicional: lleva la firma)
       var reportMin, reportStr, reportSub;
