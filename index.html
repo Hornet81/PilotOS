@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.218">
+  <meta name="version" content="Beta.219">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.218","builtAt":"2026-06-29T19:06:48Z","commit":"6068e6e","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.219","builtAt":"2026-06-29T19:12:37Z","commit":"68c6a62","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -37753,7 +37753,7 @@ document.addEventListener('DOMContentLoaded', function(){
     if(leg && window.fetchRouteWinds){ try{ winds=await window.fetchRouteWinds(leg.dep,leg.arr); }catch(e){} }
     return window.buildAISystem ? window.buildAISystem(leg,turb,winds) : '';
   }
-  function chatLog(role,text){ var box=q('#ar-chat'); if(!box)return null; var w=document.createElement('div'); w.style.cssText='margin-bottom:9px;display:flex;'+(role==='you'?'justify-content:flex-end':'justify-content:flex-start'); var b=document.createElement('div'); b.style.cssText='max-width:88%;font-size:12px;line-height:1.45;padding:8px 11px;border-radius:13px;'+(role==='you'?'background:linear-gradient(135deg,rgba(10,60,75,.55),rgba(10,163,199,.32));color:#eaf3f8':'background:rgba(8,20,27,.9);color:#cfe6ef;border:1px solid rgba(63,210,240,.12)'); b.textContent=text; w.appendChild(b); box.appendChild(w); try{ b.scrollIntoView({behavior:'smooth',block:'nearest'}); }catch(e){} return b; }
+  function chatLog(role,text){ var box=q('#ar-chat'); if(!box)return null; var w=document.createElement('div'); w.style.cssText='margin-bottom:9px;display:flex;'+(role==='you'?'justify-content:flex-end':'justify-content:flex-start'); var b=document.createElement('div'); b.style.cssText='max-width:88%;font-size:12px;line-height:1.45;padding:8px 11px;border-radius:13px;'+(role==='you'?'background:linear-gradient(135deg,rgba(10,60,75,.55),rgba(10,163,199,.32));color:#eaf3f8':'background:rgba(8,20,27,.9);color:#cfe6ef;border:1px solid rgba(63,210,240,.12)'); b.textContent=text; w.appendChild(b); box.appendChild(w); try{ updateWelcome(); }catch(e){} try{ b.scrollIntoView({behavior:'smooth',block:'nearest'}); }catch(e){} return b; }
   function _matchAskedLeg(question, legs, activeLeg){
     if(!question||!legs||!legs.length) return null;
     var t=' '+String(question).toLowerCase().replace(/[\u2192\-]/g,' ')+' ';
@@ -37806,7 +37806,7 @@ document.addEventListener('DOMContentLoaded', function(){
       SEG.push({from:start,to:SENT.length-1,card:card});
       bw.appendChild(lbl); bw.appendChild(bt); card.appendChild(ic); card.appendChild(bw); tr.appendChild(card);
     });
-    if(!SEG.length&&SENT.length) SEG.push({from:0,to:SENT.length-1});
+    if(!SEG.length&&SENT.length) SEG.push({from:0,to:SENT.length-1}); try{ updateWelcome(); }catch(e){}
   }
   function hi(a,b){ PEL.forEach(function(sp,i){ sp.style.color=(i>=a&&i<=b)?'#eaf3f8':'#9fb3bd'; }); for(var s=0;s<SEG.length;s++){ var sg=SEG[s]; if(sg.card){ var live=(a>=sg.from&&a<=sg.to); sg.card.style.background=live?'rgba(10,163,199,.13)':'rgba(255,255,255,.03)'; sg.card.style.borderColor=live?'rgba(63,210,240,.45)':'rgba(255,255,255,.06)'; } } if(PEL[a]){ try{ PEL[a].scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){} } }
   function chunk(max){ var out=[]; var segs=SEG.length?SEG:[{from:0,to:SENT.length-1}]; for(var s=0;s<segs.length;s++){ var sg=segs[s],buf='',cf=sg.from; for(var i=sg.from;i<=sg.to;i++){ var st=SENT[i]; if(buf&&(buf.length+1+st.length)>max){ out.push({text:buf,from:cf,to:i-1,gap:false}); buf=st; cf=i; } else buf=buf?buf+' '+st:st; } if(buf)out.push({text:buf,from:cf,to:sg.to,gap:(s<segs.length-1)}); } return out; }
@@ -37829,7 +37829,8 @@ document.addEventListener('DOMContentLoaded', function(){
   function seekToPlay(target){ if(!audios.length||!total)return; _gen++; mediaSetup(); mediaMeta(); target=Math.max(0,Math.min(target,total)); if(curAudio){ try{curAudio.pause();}catch(e){} curAudio.onended=null; curAudio.ontimeupdate=null; } var t=target,idx=0; while(idx<durs.length-1&&t>=durs[idx]){ t-=durs[idx]; idx++; } k=idx; acc=0; for(var j=0;j<idx;j++)acc+=durs[j]; try{ audios[idx].a.currentTime=Math.max(0,Math.min(t,durs[idx]-0.05)); }catch(e){} playing=true; paused=false; var pb=q('#ar-play'); if(pb)pb.textContent='⏸'; var f=q('#ar-fill'); if(f)f.style.width=Math.min(100,target/total*100)+'%'; var c=q('#ar-cur'); if(c)c.textContent=fmt(target); playK(); applyChrome(); }
   function rewind(sec){ if(!audios.length)return; seekToPlay(curElapsed()-sec); }
   function showDeckTransport(on){ var pl=q('#ar-player'),gn=q('#ar-gen'); if(pl)pl.style.display=on?'flex':'none'; if(gn)gn.style.display=on?'none':'block'; }
-  function resetAria(){ _gen++; try{ if(curAudio)curAudio.pause(); }catch(e){} try{ for(var i=0;i<audios.length;i++){ try{audios[i].a.pause();}catch(e){} } }catch(e){} try{ if(_va){ _va.pause(); _va.onended=null; } }catch(e){} try{ vStop(); }catch(e){} audios=[]; curAudio=null; playing=false; paused=false; k=0; acc=0; total=0; durs=[]; SENT=[]; PEL=[]; SEG=[]; LAST_TEXT=''; LAST_SCOPE=''; var tr=q('#ar-tr'); if(tr)tr.innerHTML=''; var ch=q('#ar-chat'); if(ch)ch.innerHTML=''; var vl=q('#ar-vlog'); if(vl)vl.innerHTML=''; var f=q('#ar-fill'); if(f)f.style.width='0'; var c=q('#ar-cur'); if(c)c.textContent='0:00'; var tt=q('#ar-tot'); if(tt)tt.textContent='0:00'; showDeckTransport(false); var gen=q('#ar-gen'); if(gen){ gen.disabled=false; gen.style.opacity='1'; gen.textContent=(CUR.lang==='en'?'▶ Generate briefing':'▶ Generar briefing'); } hideVoiceDock(); stat(''); applyChrome(); mediaState(); var st=q('#ar-set'); if(st)st.style.display='none'; }
+  function updateWelcome(){ var w=q('#ar-welcome'); if(!w)return; var tr=q('#ar-tr'), ch=q('#ar-chat'); var hasBrief=(tr&&tr.children.length)||audios.length||LAST_TEXT; var hasChat=ch&&ch.children.length; w.style.display=(hasBrief||hasChat)?'none':'flex'; }
+  function resetAria(){ _gen++; try{ if(curAudio)curAudio.pause(); }catch(e){} try{ for(var i=0;i<audios.length;i++){ try{audios[i].a.pause();}catch(e){} } }catch(e){} try{ if(_va){ _va.pause(); _va.onended=null; } }catch(e){} try{ vStop(); }catch(e){} audios=[]; curAudio=null; playing=false; paused=false; k=0; acc=0; total=0; durs=[]; SENT=[]; PEL=[]; SEG=[]; LAST_TEXT=''; LAST_SCOPE=''; var tr=q('#ar-tr'); if(tr)tr.innerHTML=''; var ch=q('#ar-chat'); if(ch)ch.innerHTML=''; var vl=q('#ar-vlog'); if(vl)vl.innerHTML=''; var f=q('#ar-fill'); if(f)f.style.width='0'; var c=q('#ar-cur'); if(c)c.textContent='0:00'; var tt=q('#ar-tot'); if(tt)tt.textContent='0:00'; showDeckTransport(false); var gen=q('#ar-gen'); if(gen){ gen.disabled=false; gen.style.opacity='1'; gen.textContent=(CUR.lang==='en'?'▶ Generate briefing':'▶ Generar briefing'); } hideVoiceDock(); stat(''); applyChrome(); mediaState(); var st=q('#ar-set'); if(st)st.style.display='none'; try{ updateWelcome(); }catch(e){} }
   function applyChrome(){ var col=playing&&!paused; ['#ar-dhead'].forEach(function(sel){ var el=q(sel); if(el){ if(col)el.classList.add('ar-collapsed'); else el.classList.remove('ar-collapsed'); } }); mediaState(); }
   function stopBriefing(){ _gen++; try{ if(curAudio)curAudio.pause(); }catch(e){} try{ if(_va){ _va.pause(); _va.onended=null; } }catch(e){} playing=false; paused=true; var pb=q('#ar-play'); if(pb)pb.textContent='▶'; hi(-1,-1); stat(CUR.lang==='en'?'■ Briefing stopped — ask me anything':'■ Briefing detenido — pregúntame lo que quieras'); showVoiceDock(true); applyChrome(); }
   function togglePlay(){ if(!audios.length)return; var pb=q('#ar-play'); if(!playing){ _gen++; mediaSetup(); mediaMeta(); playing=true; paused=false; acc=0; k=0; if(pb)pb.textContent='⏸'; unlockAudio(); playK(); } else if(paused){ paused=false; if(pb)pb.textContent='⏸'; if(curAudio){ if(curAudio.ended)playK(); else curAudio.play(); } } else { paused=true; if(pb)pb.textContent='▶'; if(curAudio)curAudio.pause(); } applyChrome(); }
@@ -37989,6 +37990,14 @@ document.addEventListener('DOMContentLoaded', function(){
             '<button id="ar-regen" disabled title="Regenerar" style="flex-shrink:0;width:33px;height:33px;border-radius:50%;border:1px solid rgba(63,210,240,.3);background:rgba(63,210,240,.06);color:#3fd2f0;font-size:15px;opacity:.5">↻</button>'+
             '<button id="ar-stop" disabled title="Finalizar" style="flex-shrink:0;width:33px;height:33px;border-radius:50%;border:1px solid rgba(255,90,90,.45);background:rgba(255,90,90,.12);color:#ff9a9a;font-size:11px;opacity:.5">■</button></div>'+
         '</div>'+
+          '<div id="ar-welcome" style="display:flex;gap:11px;align-items:flex-start;padding:13px;border-radius:14px;background:rgba(10,163,199,.08);border:1px solid rgba(63,210,240,.2);margin-bottom:10px">'+
+            '<img src="aria.jpg" alt="" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid rgba(63,210,240,.6)">'+
+            '<div style="min-width:0">'+
+              '<div style="font-size:13px;font-weight:800;color:#eaf3f8;line-height:1.35;margin-bottom:5px">'+(CUR.lang==='en'?'Hi'+(pilotName()?' '+pilotName():'')+'. I am ARIA, your operational intelligence copilot.':'Hola'+(pilotName()?' '+pilotName():'')+'. Soy ARIA, tu copiloto de inteligencia operacional.')+'</div>'+
+              '<div style="font-size:12px;color:#cfe6ef;line-height:1.5;margin-bottom:7px">'+(CUR.lang==='en'?'I prepare an audio briefing of your day to listen on the way to the airport — and I answer your flight questions: weather, turbulence, NOTAMs and alternates.':'Te preparo un briefing de audio de tu jornada para escucharlo de camino al aeropuerto — y respondo a tus dudas del vuelo: meteo, turbulencia, NOTAMs y alternativos.')+'</div>'+
+              '<div style="font-size:10.5px;color:#7fb3c4;font-style:italic">'+(CUR.lang==='en'?'Tap ▶ Generate briefing to start, or ask me below.':'Pulsa ▶ Generar briefing para empezar, o pregúntame abajo.')+'</div>'+
+            '</div>'+
+          '</div>'+
           '<div id="ar-status" style="font-size:10.5px;color:#3fd2f0;margin-top:0;min-height:13px;text-align:center"></div>'+
           '<div id="ar-tr" style="margin-top:10px"></div>'+
         '<div id="ar-vdock" style="display:none;margin-top:10px;background:rgba(63,210,240,.07);border:1px solid rgba(63,210,240,.3);border-radius:16px;padding:13px">'+
