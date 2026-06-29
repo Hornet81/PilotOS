@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.215">
+  <meta name="version" content="Beta.216">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.215","builtAt":"2026-06-29T14:31:36Z","commit":"ee2c274","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.216","builtAt":"2026-06-29T14:39:51Z","commit":"acf1c31","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -28263,7 +28263,7 @@ function rstRenderCalendar(){
     MTG:  { bg:'#0891b2', bd:'#0e7490', tx:'#FFFFFF', gl:'rgba(8,145,178,.5)',  emoji:'👥', desc:'Reunión' },
     OFIT: { bg:'#5b8def', bd:'#4571d4', tx:'#FFFFFF', gl:'rgba(91,141,239,.5)', emoji:'🏢', desc:'OFIT · Formación en oficina' },
     ART:  { bg:'#a67c52', bd:'#8c6743', tx:'#FFFFFF', gl:'rgba(166,124,82,.5)', emoji:'🎓', desc:'ART · Annual Recurrent Training' },
-    REUT: { bg:'#14857a', bd:'#0f6b62', tx:'#FFFFFF', gl:'rgba(20,133,122,.5)', emoji:'🎓', desc:'REUT · Formación recurrente' },
+    REUT: { bg:'#0891b2', bd:'#0e7490', tx:'#FFFFFF', gl:'rgba(8,145,178,.5)',  emoji:'👥', desc:'Reunión (training)' },
     FOS:  { bg:'#4d7ea8', bd:'#3d6789', tx:'#FFFFFF', gl:'rgba(77,126,168,.5)', emoji:'🎓', desc:'FOS · Flight Operations (clase teórica)' },
     // Formación en tierra / e-learning (LM*, cursos, CBT…). NO es simulador → color
     // e icono propios (libro), distinto del gris+gamepad de EBT/EVA/SIM.
@@ -28509,8 +28509,8 @@ function rstRenderCalendar(){
         var _emo = _csb ? (_csb.emoji || '') : '';
         // Icono por tipo: OFF/SROF → taza; STANDBY → reloj; SICK → cruz; resto → emoji de código si lo hay.
         var _codeU = String(e.code||'').toUpperCase();
-        var _icon = (_codeU==='REU' || _codeU==='MTG') ? _MEET_ICON(tc2.tx, tc2.bg)   // reunión (antes que training)
-                  : (_codeU==='FOS' || _codeU==='ART' || _codeU==='REUT') ? _GRAD_ICON(tc2.tx)  // gorro (antes que training)
+        var _icon = (_codeU==='REU' || _codeU==='MTG' || _codeU==='REUT') ? _MEET_ICON(tc2.tx, tc2.bg)   // reunión (REUT = reunión training; antes que training)
+                  : (_codeU==='FOS' || _codeU==='ART') ? _GRAD_ICON(tc2.tx)  // gorro (antes que training)
                   : (_codeU==='OFIT') ? _OFFICE_ICON(tc2.tx)                          // oficina (antes que training)
                   : (_codeU==='VAC' || _codeU==='RVAC' || _codeU==='PVAC' || e.type==='vacation') ? _VAC_ICON('#FFFFFF')  // sombrilla BLANCA (antes que off: eCrews da VAC como type off)
                   : (_codeU==='TR' || _codeU==='LMAF' || _codeU.slice(0,2)==='LM') ? _LEARN_ICON(tc2.tx)  // formación en tierra / e-learning → libro (NO gamepad; antes que training)
@@ -29784,6 +29784,9 @@ window.rosterSelectDay = function(dateStr){
     // Las legs de continuación nocturna (_isMidnightCont) pertenecen a la jornada
     // del día anterior → su FDP/DP se muestra allí, no aquí. Esto evita la "caja
     // fantasma" que calculaba un report ficticio (STD 00:00 − 55min) en el día de llegada.
+    // La caja FDTL se construye en _fdpHtml y se inserta DESPUÉS de las actividades
+    // (sim/LM/REU…) para que éstas queden ENCIMA del cuadro de límites.
+    var _fdpHtml = '';
     var _realFlights = flights.filter(function(f){ return !f._isMidnightCont; });
     if(_realFlights.length > 0){
       try {
@@ -29828,7 +29831,7 @@ window.rosterSelectDay = function(dateStr){
             dpEndDisp=rstFormatTime(fdp.dpEnd);
           }
           var marginColor = fdp.fdpMarginMin < 0 ? '#991B1B' : fdp.fdpMarginMin < 20 ? '#92400E' : '#065F46';
-          html += '<div style="background:'+warnBg+';border:1.5px solid '+warnBd+';border-radius:12px;padding:12px 13px;margin-top:2px">'
+          _fdpHtml += '<div style="background:'+warnBg+';border:1.5px solid '+warnBd+';border-radius:12px;padding:12px 13px;margin-top:2px">'
             + '<div style="font-size:12px;font-weight:800;color:'+warnColor+';text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📋 Límites FTL · ORO.FTL.205</div>'
             + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
             + '<div style="background:rgba(255,255,255,.85);border-radius:8px;padding:8px 10px">'
@@ -29869,7 +29872,14 @@ window.rosterSelectDay = function(dateStr){
     }
 
     // ── Non-flight activities as color banners ──
-    nonFlights.forEach(function(e){
+    // Ordenadas por hora de inicio (std/start/checkin) para que aparezcan en orden
+    // cronológico (ej. LM-F1 antes que la reunión REUT que va justo después).
+    nonFlights.slice().sort(function(a,b){
+      var _ta=a.std||a.start||a.checkin, _tb=b.std||b.start||b.checkin;
+      var _ma=(_ta&&String(_ta).indexOf(':')>-1)?t2m(_ta):9999;
+      var _mb=(_tb&&String(_tb).indexOf(':')>-1)?t2m(_tb):9999;
+      return _ma-_mb;
+    }).forEach(function(e){
       // Override por CÓDIGO de color (EBT/EVA/REU/VAC...): la línea del detalle
       // se pinta según el code real, igual que la celda del calendario.
       var _cs2 = window._rstStyle ? window._rstStyle(e.code)
@@ -29902,6 +29912,9 @@ window.rosterSelectDay = function(dateStr){
         + '</div>'
         + '</div>';
     });
+
+    // La caja de límites FTL del día con vuelos va DEBAJO de las actividades.
+    html += _fdpHtml;
 
     // ── Panel FTL por ACTIVIDAD (sin vuelos activados) ──
     // Toda actividad no-vuelo tiene un periodo de duty: standby/OSB usan
@@ -32855,13 +32868,14 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
       // caer del filtro (si no, la leg posicional desaparecería del import).
       var legLines = details.split('\n').filter(function(l){
         var t = l.trim();
-        return /^\d{3,4}[A-Z]?\s+-\s+\*?[A-Z]{3}/.test(t) ||
-               /^[A-Z]{2,3}\d+\s+-\s+\*?[A-Z]{3}/.test(t) ||
-               /^TBD\d+/.test(t) ||
-               // Guardia metida como leg A→A con código SOLO letras (OSBY/ASBY/HSBY…):
-               // no acaba en dígito, así que los regex de arriba la descartaban y el
-               // standby desaparecía (ej. feb día 22: "OSBY - BCN (0300) - BCN (1100)").
-               (_isStandbyCode((t.split(/\s+/)[0]||'')) && /\s+-\s+\*?[A-Z]{3}\s+\(/.test(t));
+        return /^\d{3,4}[A-Z]?\s+-\s+\*?[A-Z]{3}/.test(t) ||      // vuelos: 1234, 303P
+               /^TBD\d+/.test(t) ||                                // TBD3519
+               // Cualquier código de actividad/guardia metido como leg A→A
+               // ("CÓDIGO - AAA (hhmm) - BBB (hhmm)"). Acepta códigos con dígito
+               // (LMF1, OSB3) Y de SOLO letras (REUT, FOS, REU, OSBY, ASBY…), que
+               // antes se descartaban por no acabar en dígito → la actividad
+               // desaparecía del import (ej. REUT/OSBY dentro de un día con vuelos).
+               /^[A-Z][A-Z0-9]{1,5}\s+-\s+\*?[A-Z]{3}\s+\(/.test(t);
       });
 
       // IsDeadhead a nivel de EVENTO sólo significa "la jornada CONTIENE posicionamiento",
