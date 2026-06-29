@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.226">
+  <meta name="version" content="Beta.227">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.226","builtAt":"2026-06-29T21:42:58Z","commit":"1526248","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.227","builtAt":"2026-06-29T21:55:28Z","commit":"0da74ac","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -6487,6 +6487,12 @@ html.day .rst-month-label-current{
   text-shadow:0 1px 4px rgba(255,255,255,.7) !important;
 }
 html.day .rst-month-label-other{color:#334155 !important;-webkit-text-fill-color:#334155 !important}
+/* Botón refresh/sync del mes (eCrews): cian claro invisible en modo día → azul fuerte con contraste */
+html.day #rst-ecsync-btn{
+  background:rgba(3,105,161,.14) !important;
+  border-color:rgba(3,105,161,.6) !important;
+  color:#03598F !important;
+}
 
 /* ── Calendario: sin fondo propio, hereda el degradado ── */
 html.day #rst-calendar{
@@ -32793,8 +32799,91 @@ window.ecBackToMonths = function(){
   _ecShowState('ec-state-months');
 };
 
-// ── Re-sync de UN TOQUE: sincroniza el mes en vista sin preguntar (reutiliza sesión) ──
-// Si la sesión guardada caducó (NEEDS_LOGIN) → abre el flujo de credenciales.
+// ── Re-sync de UN TOQUE + detección de cambios ───────────────────────────────────
+// Construir entrada RST desde una entrada parseada (misma forma que ldECrewsConfirm).
+function _ecBuildRstEntry(e){
+  var entry = {
+    id: e.type === 'flight'
+          ? ldGenDeterministicId('EC', e.date, e.dep||'', e.arr||'', e.std||e.std_actual||'')
+          : ldGenId(),
+    date: e.date, type: e.type, source: 'ECREWS'
+  };
+  if(e.type === 'flight'){
+    entry.flightNum = e.flightNum; entry.dep = e.dep; entry.arr = e.arr;
+    if(e.std) entry.std=e.std; if(e.sta) entry.sta=e.sta;
+    if(e.std_actual) entry.std_actual=e.std_actual; if(e.sta_actual) entry.sta_actual=e.sta_actual;
+    if(e.checkin) entry.checkin=e.checkin; if(e.debrief) entry.debrief=e.debrief;
+    if(e.blockH) entry.blockH=e.blockH; if(e.dutyH) entry.dutyH=e.dutyH;
+    if(e.delay) entry.delay=e.delay; if(e.dutyCode) entry.dutyCode=e.dutyCode;
+    if(e.isPositioning) entry.isPositioning=true;
+  } else {
+    entry.code = e.code;
+    if(e.std) entry.std=e.std; if(e.sta) entry.sta=e.sta;
+    if(e.std_actual) entry.std_actual=e.std_actual; if(e.sta_actual) entry.sta_actual=e.sta_actual;
+    if(e.checkin) entry.checkin=e.checkin; if(e.checkout) entry.checkout=e.checkout;
+    if(e.start) entry.start=e.start; if(e.end) entry.end=e.end;
+    if(e.times) entry.times=e.times; if(e.marker) entry.marker=e.marker;
+  }
+  return entry;
+}
+function _ecDiffKey(e){ return e.type==='flight' ? (e.date+'|'+(e.flightNum||((e.dep||'')+'-'+(e.arr||'')))) : (e.date+'|'+(e.code||e.type)); }
+function _ecDiffTime(e){ return e.type==='flight' ? ((e.std_actual||e.std||'?')+'→'+(e.sta_actual||e.sta||'?')) : ((e.std||e.checkin||e.start||'—')+'→'+(e.sta||e.checkout||e.end||'—')); }
+function _ecDiffLabel(e){ return e.type==='flight' ? ((e.flightNum||'')+' '+(e.dep||'?')+'-'+(e.arr||'?')) : (e.code||e.type||'?'); }
+function _ecDiffDay(e){ return e.date ? e.date.slice(8,10) : '?'; }
+// Diferencias entre lo nuevo (eCrews) y las entradas eCrews actuales del mes.
+function _ecDiffMonth(parsed, month){
+  rstLoad();
+  var old = (RST.entries||[]).filter(function(r){ return r.date && r.date.slice(0,7)===month && r.source==='ECREWS'; });
+  var oldMap={}, newMap={};
+  old.forEach(function(e){ oldMap[_ecDiffKey(e)]=e; });
+  parsed.forEach(function(e){ newMap[_ecDiffKey(e)]=e; });
+  var added=[], removed=[], changed=[];
+  Object.keys(newMap).forEach(function(k){
+    if(!oldMap[k]) added.push(newMap[k]);
+    else if(_ecDiffTime(newMap[k])!==_ecDiffTime(oldMap[k])) changed.push({o:oldMap[k], n:newMap[k]});
+  });
+  Object.keys(oldMap).forEach(function(k){ if(!newMap[k]) removed.push(oldMap[k]); });
+  return { added:added, removed:removed, changed:changed, hadOld: old.length>0 };
+}
+// Reemplaza las entradas eCrews del mes por las nuevas (conserva las manuales).
+function _ecApplyMonthReplace(parsed, month){
+  rstLoad();
+  RST.entries = (RST.entries||[]).filter(function(r){ return !(r.date && r.date.slice(0,7)===month && r.source==='ECREWS'); });
+  parsed.forEach(function(e){ RST.entries.push(_ecBuildRstEntry(e)); });
+  RST.entries.sort(function(a,b){ return a.date.localeCompare(b.date); });
+  rstSave();
+  var p=month.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1;
+  try{ localStorage.setItem('pilotOS_import_ts_'+month, new Date().toISOString()); }catch(e){}
+  try{ localStorage.removeItem('pilotOS_deleted_month_'+month); }catch(e){}
+  if(typeof rstPushAllMonths==='function') rstPushAllMonths(parsed);
+  try{ if(typeof rosterShowCalendar==='function') rosterShowCalendar(); }catch(e){}
+  if(typeof rstRenderCalendar==='function') rstRenderCalendar();
+  if(typeof rstRenderStats==='function') rstRenderStats();
+  if(typeof rstRenderFlights==='function') rstRenderFlights();
+  if(typeof window.fpReapply==='function') window.fpReapply();
+}
+// Resumen visual de cambios (toast si no hay; hoja con detalle si los hay).
+function _ecShowChangeSummary(month, diff){
+  var n = diff.added.length + diff.removed.length + diff.changed.length;
+  var mlabel = (typeof _ecMonthLabel==='function') ? _ecMonthLabel(month) : month;
+  if(n===0){ if(typeof showToast==='function') showToast('✓ '+mlabel+' ya estaba al día','success'); return; }
+  var ov=document.createElement('div');
+  ov.setAttribute('data-ecsum','1');
+  ov.style.cssText='position:fixed;inset:0;z-index:560;background:rgba(3,8,18,.88);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);display:flex;align-items:center;justify-content:center;padding:20px';
+  var card=document.createElement('div');
+  card.style.cssText='width:100%;max-width:440px;max-height:80vh;overflow-y:auto;background:linear-gradient(180deg,#0A1628,#060E1C);border:1.5px solid rgba(8,145,178,.4);border-radius:22px;padding:22px 20px';
+  var h='<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="font-size:22px">🔄</div><div><div style="font-family:\'Space Grotesk\',sans-serif;font-size:16px;font-weight:800;color:#F0FFFE">'+mlabel+' actualizado</div><div style="font-family:\'Space Mono\',monospace;font-size:11px;color:#22d3ee">'+n+' cambio'+(n===1?'':'s')+'</div></div></div>';
+  function row(icon,col,lbl,detail){ return '<div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid rgba(255,255,255,.06)"><span style="font-size:13px">'+icon+'</span><span style="font-family:\'Space Mono\',monospace;font-size:10px;color:'+col+';font-weight:700;min-width:74px">'+lbl+'</span><span style="font-family:\'Space Mono\',monospace;font-size:12px;color:#F0FFFE">'+detail+'</span></div>'; }
+  diff.added.forEach(function(e){ h+=row('✈️','#4ADE80','NUEVO','día '+_ecDiffDay(e)+' · '+_ecDiffLabel(e)); });
+  diff.changed.forEach(function(c){ h+=row('🕐','#FCD34D','CAMBIO','día '+_ecDiffDay(c.n)+' · '+_ecDiffLabel(c.n)+'  '+_ecDiffTime(c.o)+' → '+_ecDiffTime(c.n)); });
+  diff.removed.forEach(function(e){ h+=row('❌','#fca5a5','ELIMINADO','día '+_ecDiffDay(e)+' · '+_ecDiffLabel(e)); });
+  h+='<button onclick="var x=this.closest(\'[data-ecsum]\'); if(x) x.remove();" style="margin-top:16px;width:100%;padding:13px;border:none;border-radius:13px;background:linear-gradient(135deg,#0891B2,#0369A1);color:#fff;font-family:\'Space Grotesk\',sans-serif;font-size:14px;font-weight:800;cursor:pointer">Entendido</button>';
+  card.innerHTML=h; ov.appendChild(card);
+  ov.addEventListener('click',function(ev){ if(ev.target===ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+
+// Sincroniza el mes en vista sin preguntar (reutiliza sesión). NEEDS_LOGIN → credenciales.
 window.ecResyncMonth = function(month){
   if(!month){
     var y = (typeof RST!=='undefined' && RST.viewYear)  ? RST.viewYear  : new Date().getFullYear();
@@ -32819,8 +32908,10 @@ window.ecResyncMonth = function(month){
     }
     if(res.j.status === 'COMPLETE' && res.j.roster){
       var roster = res.j.roster;
-      _ecParsedEntries = _ecParseSchedulerEvents(roster.SchedulerEvents || [], roster.BlockDutyTimes || {});
-      if(typeof window.ldECrewsConfirm==='function') window.ldECrewsConfirm(); // importa directo, sin preview
+      var parsed = _ecParseSchedulerEvents(roster.SchedulerEvents || [], roster.BlockDutyTimes || {});
+      var diff = _ecDiffMonth(parsed, month);      // 1) calcular cambios (antes de aplicar)
+      _ecApplyMonthReplace(parsed, month);          // 2) eCrews = fuente de verdad (conserva lo manual)
+      _ecShowChangeSummary(month, diff);            // 3) avisar al usuario
     }
   })
   .catch(function(e){ if(typeof showToast==='function') showToast('❌ '+e.message,'error'); })
