@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.216">
+  <meta name="version" content="Beta.217">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.216","builtAt":"2026-06-29T14:39:51Z","commit":"acf1c31","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.217","builtAt":"2026-06-29T14:44:56Z","commit":"4dad1f2","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -27699,18 +27699,33 @@ function SkyViewPilotOS() {
   }, [legIdx]);
   // Sin roster real para hoy (ningún leg cuya llegada+3h siga en el futuro): no mostramos
   // el LEGS de ejemplo (BCN-MAD demo). Avisamos de que no hay vuelo activo.
-  if (!_rosterLegs || !_rosterLegs.length) return /*#__PURE__*/React.createElement("div", {
-    style: { height: "100%", background: BG, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "40px 28px", fontFamily: sans, position: "relative" }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: { position: "relative", zIndex: 1, maxWidth: 330 }
-  }, /*#__PURE__*/React.createElement("img", {
-    src: "aria.jpg", alt: "ARIA",
-    style: { width: 64, height: 64, borderRadius: "50%", objectFit: "cover", border: "2px solid ".concat(C.cyan || "#3fd2f0", "66"), marginBottom: 16, opacity: 0.92 }
-  }), /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: 17, fontWeight: 800, color: C.white, fontFamily: mono, letterSpacing: "0.5px", marginBottom: 10 }
-  }, "No se detecta ningún vuelo"), /*#__PURE__*/React.createElement("div", {
-    style: { fontSize: 13, color: C.dim, lineHeight: 1.6 }
-  }, "No hay ningún leg activo ahora mismo. Cuando tengas un vuelo próximo en tu roster aparecerá aquí automáticamente, con su meteo, NOTAMs y briefing.")));
+  if (!_rosterLegs || !_rosterLegs.length) {
+    const _day = (typeof document !== "undefined") && document.documentElement.classList.contains("day");
+    const _tTitle = _day ? "#0b2a4a" : C.white;
+    const _tBody = _day ? "rgba(11,42,74,0.82)" : "rgba(210,230,255,0.95)";
+    const _back = () => { if (window.goTo) window.goTo("home"); };
+    return /*#__PURE__*/React.createElement("div", {
+      style: { height: "100%", background: BG, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "40px 28px", fontFamily: sans, position: "relative" }
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: _back,
+      "aria-label": "Volver",
+      style: { position: "absolute", top: "calc(14px + env(safe-area-inset-top,0px))", left: 14, zIndex: 2, width: 40, height: 40, borderRadius: 11, background: _day ? "rgba(255,255,255,0.6)" : "rgba(0,18,50,0.7)", border: "1px solid ".concat(C.cyan || "#3fd2f0", "55"), color: _day ? "#0b2a4a" : (C.cyan || "#3fd2f0"), fontSize: 20, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }
+    }, "‹"), /*#__PURE__*/React.createElement("div", {
+      style: { position: "relative", zIndex: 1, maxWidth: 330 }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: { width: 64, height: 64, borderRadius: "50%", overflow: "hidden", border: "2px solid ".concat(C.cyan || "#3fd2f0", "66"), margin: "0 auto 16px", boxSizing: "border-box", opacity: 0.95 }
+    }, /*#__PURE__*/React.createElement("img", {
+      src: "aria.jpg", alt: "",
+      style: { width: "150%", height: "150%", objectFit: "cover", objectPosition: "center 14%", display: "block" }
+    })), /*#__PURE__*/React.createElement("div", {
+      style: { fontSize: 17, fontWeight: 800, color: _tTitle, fontFamily: mono, letterSpacing: "0.5px", marginBottom: 10 }
+    }, "No se detecta ningún vuelo"), /*#__PURE__*/React.createElement("div", {
+      style: { fontSize: 13, color: _tBody, lineHeight: 1.6 }
+    }, "No hay ningún leg activo ahora mismo. Cuando tengas un vuelo próximo en tu roster aparecerá aquí automáticamente, con su meteo, NOTAMs y briefing."), /*#__PURE__*/React.createElement("button", {
+      onClick: _back,
+      style: { marginTop: 22, padding: "11px 22px", borderRadius: 13, border: "1px solid ".concat(C.cyan || "#3fd2f0", "66"), background: _day ? "#0b2a4a" : "linear-gradient(135deg,#063a4a,#0aa3c7)", color: "#fff", fontFamily: mono, fontSize: 13, fontWeight: 700, letterSpacing: "0.5px", cursor: "pointer" }
+    }, "‹ Volver al inicio")));
+  }
   const now = new Date();
   const utc = "".concat(String(now.getUTCHours()).padStart(2, "0"), ":").concat(String(now.getUTCMinutes()).padStart(2, "0"), "Z");
   const hasAlert = (NOTAMS_BY_LEG[leg.num] || []).some(n => n.sev === "danger");
