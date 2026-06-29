@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.220">
+  <meta name="version" content="Beta.221">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.220","builtAt":"2026-06-29T19:50:52Z","commit":"968f363","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.221","builtAt":"2026-06-29T19:52:08Z","commit":"ebc7ccd","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -27509,7 +27509,7 @@ function buildLegsFromRoster() {
     // Día activo = el primer día cuyo último vuelo + margen aún no ha pasado.
     // (basta con que un vuelo del día sobreviva al filtro: el de mayor STA es el último).
     var survivors = entries.filter(function (e) {
-      if (e.type !== 'flight' || !e.dep || !e.arr) return false;
+      if (!((e.type === 'flight' || (e.flightNum && /\d/.test(String(e.flightNum)))) && e.dep && e.arr)) return false;
       return _legArrMs(e) + ROLL_BUFFER_H * 3600000 > nowMs;
     }).sort(function (a, b) {
       return (a.date + ' ' + (a.std || '')).localeCompare(b.date + ' ' + (b.std || ''));
@@ -27523,14 +27523,14 @@ function buildLegsFromRoster() {
     if (survivors.length) {
       firstDate = survivors[0].date;
     } else {
-      var _flightDays = entries.filter(function (e) { return e.type === 'flight' && e.dep && e.arr; })
+      var _flightDays = entries.filter(function (e) { return (e.type === 'flight' || (e.flightNum && /\d/.test(String(e.flightNum)))) && e.dep && e.arr; })
                                .map(function (e) { return e.date; }).sort();
       if (!_flightDays.length) return null;
       firstDate = _flightDays[_flightDays.length - 1];
     }
     // Mantener TODAS las legs de ese día, ordenadas por hora de salida.
     var upcoming = entries.filter(function (e) {
-      return e.type === 'flight' && e.dep && e.arr && e.date === firstDate;
+      return (e.type === 'flight' || (e.flightNum && /\d/.test(String(e.flightNum)))) && e.dep && e.arr && e.date === firstDate;
     }).sort(function (a, b) {
       return (a.std || '').localeCompare(b.std || '');
     });
@@ -27699,7 +27699,7 @@ function SkyViewPilotOS() {
   }, [legIdx]);
   // Sin roster real para hoy (ningún leg cuya llegada+3h siga en el futuro): no mostramos
   // el LEGS de ejemplo (BCN-MAD demo). Avisamos de que no hay vuelo activo.
-  if (!_rosterLegs || !_rosterLegs.length) {
+  if (false) {
     const _day = (typeof document !== "undefined") && document.documentElement.classList.contains("day");
     const _tTitle = _day ? "#0b2a4a" : C.white;
     const _tBody = _day ? "rgba(11,42,74,0.82)" : "rgba(210,230,255,0.95)";
@@ -27796,7 +27796,7 @@ function SkyViewPilotOS() {
       color: C.dimmer,
       fontFamily: mono
     }
-  }, utc))), /*#__PURE__*/React.createElement("div", {
+  }, utc))), _rosterLegs && /*#__PURE__*/React.createElement("div", {
     className: "sv-chrome",
     style: { position: "sticky", top: 0, zIndex: 24, display: "flex", alignItems: "center", gap: 11, padding: "2px 13px 9px", background: "rgba(0,9,24,0.96)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: "1px solid rgba(126,251,254,0.08)" }
   }, /*#__PURE__*/React.createElement("div", {
