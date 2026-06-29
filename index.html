@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.222">
+  <meta name="version" content="Beta.223">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.222","builtAt":"2026-06-29T19:55:22Z","commit":"eb21403","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.223","builtAt":"2026-06-29T20:00:56Z","commit":"bb0a0cb","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -29630,6 +29630,48 @@ window.rosterSelectDay = function(dateStr){
       });
     })();
 
+    // ── Banner de actividad reutilizable (mismo formato arriba y abajo) ──
+    var _actFullDesc = {
+      standby:'Imaginaria', osb:'Out of Standby',
+      off:'Día libre', f:'Franco', ef:'Franco ex-ruta',
+      srof:'Libre por subasta', noff:'Libre asignado',
+      lm:'e-Learning', training:'Simulador', ebt:'EBT: Evidence-Based Training', eva:'EVA: Evaluación', sick:'Baja médica', aoff:'Día libre anual', nrof:'Día libre no ganado', meof:'Baja médica (Medical Off)', other:'Otro'
+    };
+    var _actBanner = function(e){
+      var _cs2 = window._rstStyle ? window._rstStyle(e.code)
+               : (e.code && window.RST_CODE_STYLE && window.RST_CODE_STYLE[String(e.code).toUpperCase()]) || null;
+      var cfg = _cs2 || TC2[e.type] || {bg:'#bdc3c7', tx:'#fff'};
+      var lbl = e.code || typeLabels[e.type] || e.type;
+      var _t0 = e.std || e.start || e.checkin;
+      var _t1 = e.sta || e.end  || e.checkout;
+      var hasTime = _t0 && _t0!=='null' && String(_t0).indexOf(':')>-1;
+      var hasEnd  = _t1 && _t1!=='null' && String(_t1).indexOf(':')>-1;
+      var desc = (_cs2 && _cs2.desc) || _actFullDesc[e.type] || lbl;
+      return '<div style="display:flex;align-items:center;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">'
+        + '<div style="background:'+cfg.bg+';padding:12px 14px;display:flex;align-items:center;justify-content:center;min-width:58px">'
+        + '<span style="font-size:13px;font-weight:900;color:'+cfg.tx+';letter-spacing:.5px;white-space:nowrap">'+lbl+'</span>'
+        + '</div>'
+        + '<div style="flex:1;background:#F8FAFF;border:1px solid rgba(30,58,164,.08);border-left:none;padding:10px 13px;display:flex;align-items:center;justify-content:space-between">'
+        + '<span style="font-size:12px;font-weight:600;color:#1E3A5F">'+desc+'</span>'
+        + (hasTime||hasEnd
+            ? '<span style="font-size:11px;font-weight:600;color:#475569;font-family:\'Space Mono\',monospace">'+(hasTime?rstFormatTime(_t0):'--:--')+' – '+(hasEnd?rstFormatTime(_t1):'--:--')+'</span>'
+            : '<span style="font-size:11px;color:#94A3B8">Todo el día</span>')
+        + '</div>'
+        + '</div>';
+    };
+    var _actByTime = function(a,b){
+      var _ta=a.std||a.start||a.checkin, _tb=b.std||b.start||b.checkin;
+      var _ma=(_ta&&String(_ta).indexOf(':')>-1)?t2m(_ta):9999;
+      var _mb=(_tb&&String(_tb).indexOf(':')>-1)?t2m(_tb):9999;
+      return _ma-_mb;
+    };
+    // Office standby / standby SIEMPRE encima de los legs: primero te sacan de la
+    // guardia (OSB) y luego te dan los vuelos. El resto de actividades, debajo.
+    var _isPreAct = function(e){ return e.type==='standby' || e.type==='osb'; };
+    var _preAct  = nonFlights.filter(_isPreAct).sort(_actByTime);
+    var _postAct = nonFlights.filter(function(e){ return !_isPreAct(e); }).sort(_actByTime);
+    _preAct.forEach(function(e){ html += _actBanner(e); });
+
     // ── Render flights with legs + stopover ──
     flights.forEach(function(e, i){
       if(i > 0){
@@ -29897,47 +29939,9 @@ window.rosterSelectDay = function(dateStr){
       } catch(fdpErr){ console.warn('FDP panel error:', fdpErr); }
     }
 
-    // ── Non-flight activities as color banners ──
-    // Ordenadas por hora de inicio (std/start/checkin) para que aparezcan en orden
-    // cronológico (ej. LM-F1 antes que la reunión REUT que va justo después).
-    nonFlights.slice().sort(function(a,b){
-      var _ta=a.std||a.start||a.checkin, _tb=b.std||b.start||b.checkin;
-      var _ma=(_ta&&String(_ta).indexOf(':')>-1)?t2m(_ta):9999;
-      var _mb=(_tb&&String(_tb).indexOf(':')>-1)?t2m(_tb):9999;
-      return _ma-_mb;
-    }).forEach(function(e){
-      // Override por CÓDIGO de color (EBT/EVA/REU/VAC...): la línea del detalle
-      // se pinta según el code real, igual que la celda del calendario.
-      var _cs2 = window._rstStyle ? window._rstStyle(e.code)
-               : (e.code && window.RST_CODE_STYLE && window.RST_CODE_STYLE[String(e.code).toUpperCase()]) || null;
-      var cfg = _cs2 || TC2[e.type] || {bg:'#bdc3c7', tx:'#fff'};
-      var lbl = e.code || typeLabels[e.type] || e.type;
-      // La hora de la actividad puede venir en std/sta (vuelos y actividades),
-      // start/end (LM, EBT, REU...) o checkin/checkout (standby/OSB). Mostrarla
-      // sea cual sea el campo — nunca esconder una hora que el roster trae.
-      var _t0 = e.std || e.start || e.checkin;
-      var _t1 = e.sta || e.end  || e.checkout;
-      var hasTime = _t0 && _t0!=='null' && String(_t0).indexOf(':')>-1;
-      var hasEnd  = _t1 && _t1!=='null' && String(_t1).indexOf(':')>-1;
-      var fullDescriptions = {
-        standby:'Imaginaria', osb:'Out of Standby',
-        off:'Día libre', f:'Franco', ef:'Franco ex-ruta',
-        srof:'Libre por subasta', noff:'Libre asignado',
-        lm:'e-Learning', training:'Simulador', ebt:'EBT: Evidence-Based Training', eva:'EVA: Evaluación', sick:'Baja médica', aoff:'Día libre anual', nrof:'Día libre no ganado', meof:'Baja médica (Medical Off)', other:'Otro'
-      };
-      var desc = (_cs2 && _cs2.desc) || fullDescriptions[e.type] || lbl;
-      html += '<div style="display:flex;align-items:center;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">'
-        + '<div style="background:'+cfg.bg+';padding:12px 14px;display:flex;align-items:center;justify-content:center;min-width:58px">'
-        + '<span style="font-size:13px;font-weight:900;color:'+cfg.tx+';letter-spacing:.5px;white-space:nowrap">'+lbl+'</span>'
-        + '</div>'
-        + '<div style="flex:1;background:#F8FAFF;border:1px solid rgba(30,58,164,.08);border-left:none;padding:10px 13px;display:flex;align-items:center;justify-content:space-between">'
-        + '<span style="font-size:12px;font-weight:600;color:#1E3A5F">'+desc+'</span>'
-        + (hasTime||hasEnd
-            ? '<span style="font-size:11px;font-weight:600;color:#475569;font-family:\'Space Mono\',monospace">'+(hasTime?rstFormatTime(_t0):'--:--')+' – '+(hasEnd?rstFormatTime(_t1):'--:--')+'</span>'
-            : '<span style="font-size:11px;color:#94A3B8">Todo el día</span>')
-        + '</div>'
-        + '</div>';
-    });
+    // ── Resto de actividades (LM, EBT, REU, sim, off…) bajo los legs, por hora ──
+    // El standby/OSB ya se pintó ARRIBA (sobre los legs). Estas van ENCIMA del FTL.
+    _postAct.forEach(function(e){ html += _actBanner(e); });
 
     // La caja de límites FTL del día con vuelos va DEBAJO de las actividades.
     html += _fdpHtml;
