@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.230">
+  <meta name="version" content="Beta.231">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.230","builtAt":"2026-06-30T07:22:55Z","commit":"03788c8","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.231","builtAt":"2026-06-30T11:22:30Z","commit":"00a3083","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -32879,8 +32879,41 @@ function _ecShowChangeSummary(month, diff){
   document.body.appendChild(ov);
 }
 
+// Mes en vista (YYYY-MM) del calendario del roster.
+function _ecSyncMonthOfView(){
+  var y = (typeof RST!=='undefined' && RST.viewYear)  ? RST.viewYear  : new Date().getFullYear();
+  var m = (typeof RST!=='undefined' && RST.viewMonth!=null) ? RST.viewMonth : new Date().getMonth();
+  return y + '-' + String(m+1).padStart(2,'0');
+}
+function _ecRelTime(d){
+  var s = Math.max(0,(Date.now()-d.getTime())/1000);
+  if(s<60) return 'ahora';
+  if(s<3600) return 'hace '+Math.floor(s/60)+' min';
+  if(s<86400) return 'hace '+Math.floor(s/3600)+' h';
+  var days=Math.floor(s/86400); if(days<30) return 'hace '+days+(days===1?' día':' días');
+  return d.toLocaleDateString('es-ES',{day:'2-digit',month:'short'});
+}
+// Etiqueta "✓ hace X" junto al botón = última sync de eCrews del mes en vista.
+function _ecRefreshSyncLabel(){
+  var lbl=document.getElementById('rst-ecsync-when'); if(!lbl) return;
+  try{
+    var raw=localStorage.getItem('pilotOS_import_ts_'+_ecSyncMonthOfView());
+    if(raw){ lbl.textContent='✓ '+_ecRelTime(new Date(raw)); lbl.title='Sincronizado con eCrews'; lbl.style.display=''; }
+    else { lbl.style.display='none'; }
+  }catch(e){ lbl.style.display='none'; }
+}
+// Flash verde + ✓ en el botón al sincronizar OK.
+function _ecFlashSyncOK(){
+  var btn=document.getElementById('rst-ecsync-btn'); if(!btn) return;
+  var _orig=btn.innerHTML;
+  btn.style.background='rgba(74,222,128,.18)'; btn.style.borderColor='rgba(74,222,128,.6)'; btn.style.color='#4ADE80';
+  btn.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+  setTimeout(function(){ btn.style.background='rgba(8,145,178,.15)'; btn.style.borderColor='rgba(8,145,178,.4)'; btn.style.color='#67d7f5'; btn.innerHTML=_orig; }, 2800);
+}
+
 // Sincroniza el mes en vista sin preguntar (reutiliza sesión). NEEDS_LOGIN → credenciales.
 window.ecResyncMonth = function(month){
+  var _syncOk = false;
   if(!month){
     var y = (typeof RST!=='undefined' && RST.viewYear)  ? RST.viewYear  : new Date().getFullYear();
     var m = (typeof RST!=='undefined' && RST.viewMonth!=null) ? RST.viewMonth : new Date().getMonth();
@@ -32911,11 +32944,27 @@ window.ecResyncMonth = function(month){
       var diff = _ecDiffMonth(parsedMonth, month);  // 1) calcular cambios (solo del mes)
       _ecApplyMonthReplace(parsedMonth, month);      // 2) eCrews = fuente de verdad (conserva lo manual)
       _ecShowChangeSummary(month, diff);             // 3) avisar al usuario
+      _syncOk = true;                                 // para el feedback verde
     }
   })
   .catch(function(e){ if(typeof showToast==='function') showToast('❌ '+e.message,'error'); })
-  .then(function(){ if(btn){ btn.classList.remove('ec-spinning'); btn.style.pointerEvents=''; } });
+  .then(function(){
+    if(btn){ btn.classList.remove('ec-spinning'); btn.style.pointerEvents=''; }
+    if(_syncOk) _ecFlashSyncOK();   // botón verde con ✓
+    _ecRefreshSyncLabel();          // "✓ hace X" actualizado
+  });
 };
+// Mantener la etiqueta "✓ hace X" al cambiar de mes en el roster.
+setTimeout(function(){
+  try{
+    if(typeof window.rosterNavMonth==='function' && !window.rosterNavMonth._ecWrapped){
+      var _o=window.rosterNavMonth;
+      window.rosterNavMonth=function(){ var r=_o.apply(this,arguments); try{ _ecRefreshSyncLabel(); }catch(e){} return r; };
+      window.rosterNavMonth._ecWrapped=true;
+    }
+    _ecRefreshSyncLabel();
+  }catch(e){}
+}, 1200);
 
 // ── Open eCrews tab ──────────────────────────────────────────────
 window.ldECrewsOpenTab = function(){
@@ -34806,6 +34855,7 @@ function pagSignOut() {
         <button id="rst-ecsync-btn" onclick="ecResyncMonth()" title="Sincronizar este mes con eCrews" style="background:rgba(8,145,178,.15);border:1.5px solid rgba(8,145,178,.4);border-radius:9px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;color:#67d7f5;cursor:pointer;flex-shrink:0;padding:0">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         </button>
+        <span id="rst-ecsync-when" style="display:none;font-size:9px;font-weight:700;color:#4ADE80;white-space:nowrap"></span>
       </div>
       <button onclick="rosterNavMonth(1)" class="nav-btn-rst">›</button>
     </div>
