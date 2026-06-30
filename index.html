@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.234">
+  <meta name="version" content="Beta.235">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.234","builtAt":"2026-06-30T11:57:15Z","commit":"df932e6","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.235","builtAt":"2026-06-30T12:02:40Z","commit":"799e788","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -31625,7 +31625,7 @@ function rosterShowCalendar(){
       + '<div style="display:flex;align-items:flex-start;gap:16px;flex-shrink:0">'
       + '<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-start">'
       + '<span class="day-mode-sub" style="font-size:10px;color:rgba(240,255,254,.45)">eCrews</span>'
-      + '<span id="rst-ecsync-when" style="'+_ecPill+'">↻ '+_ecRel+'</span>'
+      + '<span id="rst-ecsync-when" style="'+_ecPill+'"><span style="font-size:15px;line-height:1;vertical-align:-2px">↻</span> '+_ecRel+'</span>'
       + '</div>'
       + '<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-start">'
       + '<span class="day-mode-sub" style="font-size:10px;color:rgba(240,255,254,.45)">Nube</span>'
@@ -32921,7 +32921,8 @@ function _ecRefreshSyncLabel(){
   var w=document.getElementById('rst-ecsync-when'); if(!w) return;
   try{
     var raw=localStorage.getItem('pilotOS_import_ts_'+_ecSyncMonthOfView());
-    w.textContent = raw ? ('↻ '+_ecRelTime(new Date(raw))) : '↻ Nunca';
+    var _ic = '<span style="font-size:15px;line-height:1;vertical-align:-2px">↻</span> ';
+    w.innerHTML = _ic + (raw ? _ecRelTime(new Date(raw)) : 'Nunca');
   }catch(e){}
 }
 // Feedback al sincronizar OK: la pastilla eCrews se pone verde con "✓ Sincronizado".
@@ -38127,7 +38128,7 @@ document.addEventListener('DOMContentLoaded', function(){
   }
   function _done(gen){ gen=gen||q('#ar-gen'); if(gen){ gen.disabled=false; gen.style.opacity='1'; gen.textContent=(CUR.lang==='en'?'▶ Regenerate':'▶ Generar de nuevo'); } }
 
-  var vOn=false,vStream=null,vRec=null,vChunks=[],vAC=null,_va=null,_ac=null,vSpeaking=false,_spk=0,vMuted=false;
+  var vOn=false,vStream=null,vRec=null,vChunks=[],vAC=null,_va=null,_ac=null,vSpeaking=false,_spk=0,vMuted=false,_emptyTurns=0,_micHeard=false;
   function ensureMic(){ if(vStream) return Promise.resolve(vStream); if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) return Promise.reject(); return navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}).then(function(s){ vStream=s; return s; }); }
   function unlockAudio(){ try{ if(!_va)_va=new Audio(); _va.muted=true; _va.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACBWAQACABAAZGF0YQAAAAA='; var pp=_va.play(); if(pp&&pp.then){ pp.then(function(){ try{_va.pause();_va.currentTime=0;}catch(e){} _va.muted=false; }).catch(function(){ _va.muted=false; }); } }catch(e){} try{ if(!_ac)_ac=new (window.AudioContext||window.webkitAudioContext)(); if(_ac.state==='suspended')_ac.resume(); }catch(e){} }
   async function ttsFetchUrl(text){ var r=await fetch(BACKEND+'/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify({text:text,voice:(CUR.voice||'nova'),lang:CUR.lang})}); if(r.status===429){ var j=await r.json().catch(function(){return{};}); throw new Error(j.message||'Voz no disponible'); } if(!r.ok) throw new Error('tts '+r.status); var b=await r.blob(); return URL.createObjectURL(b); }
@@ -38171,8 +38172,8 @@ document.addEventListener('DOMContentLoaded', function(){
     mr.onstop=function(){ vFinish(); };
     mr.start();
     var spoke=false,silence=0,hardStop;
-    try{ vAC=new (window.AudioContext||window.webkitAudioContext)(); var src=vAC.createMediaStreamSource(vStream); var an=vAC.createAnalyser(); an.fftSize=512; src.connect(an); var buf=new Uint8Array(an.fftSize);
-      var iv=setInterval(function(){ if(!vOn||!vRec||vRec.state==='inactive'){ clearInterval(iv); return; } an.getByteTimeDomainData(buf); var sum=0; for(var i=0;i<buf.length;i++){ var v=(buf[i]-128)/128; sum+=v*v; } var rms=Math.sqrt(sum/buf.length); if(rms>0.045){ spoke=true; silence=0; } else { silence+=120; } if(spoke&&silence>1300){ clearInterval(iv); try{mr.stop();}catch(e){} } if(!spoke&&silence>7000){ clearInterval(iv); try{mr.stop();}catch(e){} } },120);
+    try{ vAC=new (window.AudioContext||window.webkitAudioContext)(); try{ if(vAC.state==='suspended')vAC.resume(); }catch(e){} var src=vAC.createMediaStreamSource(vStream); var an=vAC.createAnalyser(); an.fftSize=512; src.connect(an); var buf=new Uint8Array(an.fftSize);
+      var iv=setInterval(function(){ if(!vOn||!vRec||vRec.state==='inactive'){ clearInterval(iv); return; } an.getByteTimeDomainData(buf); var sum=0; for(var i=0;i<buf.length;i++){ var v=(buf[i]-128)/128; sum+=v*v; } var rms=Math.sqrt(sum/buf.length); if(rms>0.03){ spoke=true; _micHeard=true; silence=0; } else { silence+=120; } if(spoke&&silence>1300){ clearInterval(iv); try{mr.stop();}catch(e){} } if(!spoke&&silence>5000){ clearInterval(iv); try{mr.stop();}catch(e){} } },120);
       hardStop=setTimeout(function(){ try{mr.stop();}catch(e){} },16000);
     }catch(e){ hardStop=setTimeout(function(){ try{mr.stop();}catch(e){} },6000); }
     mr._cleanup=function(){ if(hardStop)clearTimeout(hardStop); };
