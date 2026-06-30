@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.232">
+  <meta name="version" content="Beta.233">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.232","builtAt":"2026-06-30T11:41:45Z","commit":"e0e46f2","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.233","builtAt":"2026-06-30T11:50:52Z","commit":"c7ae7e9","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -31607,6 +31607,10 @@ function rosterShowCalendar(){
       _ecRel = (typeof _ecRelTime==='function') ? _ecRelTime(_dd) : _dateLeft;
     }
   }catch(e){}
+  // Pastilla eCrews con el MISMO estilo que la de la nube (rstSyncUpdateBadge), day-mode aware.
+  var _dm = document.documentElement.classList.contains('day');
+  var _ecPill = 'display:inline-flex;align-items:center;gap:4px;padding:5px 8px;border-radius:8px;font-size:11px;font-weight:600;white-space:nowrap;font-family:\'Space Grotesk\',sans-serif;'
+    + 'color:'+(_dm?'#0369A1':'#67D7F5')+';background:'+(_dm?'rgba(3,105,161,.08)':'rgba(8,145,178,.12)')+';border:1px solid '+(_dm?'rgba(3,105,161,.3)':'rgba(8,145,178,.35)')+';';
   if(_inner2){
     _inner2.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">'
       // ── IZQUIERDA: último roster importado ──
@@ -31617,14 +31621,14 @@ function rosterShowCalendar(){
       + '<div class="day-mode-title" style="font-size:13px;font-weight:700;color:#22D3EE">'+_dateLeft+'</div>'
       + '</div>'
       + '</div>'
-      // ── DERECHA: eCrews (tappable = sincronizar) + Nube ──
-      + '<div style="display:flex;align-items:center;gap:18px;flex-shrink:0">'
-      + '<button id="rst-ecsync-btn" onclick="ecResyncMonth()" title="Sincronizar con eCrews" style="background:none;border:none;cursor:pointer;text-align:left;padding:2px 4px;border-radius:8px;display:flex;flex-direction:column;line-height:1.3">'
-      + '<span class="day-mode-sub" style="font-size:10px;color:rgba(240,255,254,.45);display:flex;align-items:center;gap:4px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> eCrews</span>'
-      + '<span id="rst-ecsync-when" class="day-mode-title" style="font-size:13px;font-weight:700;color:#22D3EE">'+_ecRel+'</span>'
-      + '</button>'
-      + '<div style="line-height:1.3">'
-      + '<div class="day-mode-sub" style="font-size:10px;color:rgba(240,255,254,.45)">Nube</div>'
+      // ── DERECHA: dos paneles INFORMATIVOS simétricos (eCrews · Nube) ──
+      + '<div style="display:flex;align-items:flex-start;gap:16px;flex-shrink:0">'
+      + '<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-start">'
+      + '<span class="day-mode-sub" style="font-size:10px;color:rgba(240,255,254,.45)">eCrews</span>'
+      + '<span id="rst-ecsync-when" style="'+_ecPill+'">↻ '+_ecRel+'</span>'
+      + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-start">'
+      + '<span class="day-mode-sub" style="font-size:10px;color:rgba(240,255,254,.45)">Nube</span>'
       + '<span id="rst-sync-badge"></span>'
       + '</div>'
       + '</div>'
@@ -32912,20 +32916,21 @@ function _ecRelTime(d){
   return d.toLocaleDateString('es-ES',{day:'2-digit',month:'short'});
 }
 // Etiqueta "✓ hace X" junto al botón = última sync de eCrews del mes en vista.
-// Actualiza el valor "hace X" del bloque eCrews (mismo color cian que el resto).
+// Actualiza la pastilla informativa eCrews ("↻ hace X").
 function _ecRefreshSyncLabel(){
   var w=document.getElementById('rst-ecsync-when'); if(!w) return;
   try{
     var raw=localStorage.getItem('pilotOS_import_ts_'+_ecSyncMonthOfView());
-    w.textContent = raw ? _ecRelTime(new Date(raw)) : 'Nunca';
+    w.textContent = raw ? ('↻ '+_ecRelTime(new Date(raw))) : '↻ Nunca';
   }catch(e){}
 }
-// Feedback al sincronizar OK: fondo verde suave + "✓ Sincronizado" un instante.
+// Feedback al sincronizar OK: la pastilla eCrews se pone verde con "✓ Sincronizado".
 function _ecFlashSyncOK(){
-  var btn=document.getElementById('rst-ecsync-btn'), w=document.getElementById('rst-ecsync-when'); if(!btn) return;
-  btn.style.background='rgba(22,163,74,.16)';
-  if(w) w.textContent='✓ Sincronizado';
-  setTimeout(function(){ btn.style.background='none'; _ecRefreshSyncLabel(); }, 2500);
+  var w=document.getElementById('rst-ecsync-when'); if(!w) return;
+  var _css=w.style.cssText;
+  w.style.background='rgba(22,163,74,.16)'; w.style.borderColor='rgba(22,163,74,.5)'; w.style.color='#16A34A';
+  w.textContent='✓ Sincronizado';
+  setTimeout(function(){ w.style.cssText=_css; _ecRefreshSyncLabel(); }, 2500);
 }
 
 // Sincroniza el mes en vista sin preguntar (reutiliza sesión). NEEDS_LOGIN → credenciales.
@@ -32936,10 +32941,10 @@ window.ecResyncMonth = function(month){
     var m = (typeof RST!=='undefined' && RST.viewMonth!=null) ? RST.viewMonth : new Date().getMonth();
     month = y + '-' + String(m+1).padStart(2,'0');
   }
-  var btn = document.getElementById('rst-ecsync-btn');
-  var _when = document.getElementById('rst-ecsync-when');
-  if(btn){ btn.style.pointerEvents='none'; btn.style.opacity='.7'; }
-  if(_when) _when.textContent = 'Sincronizando…';
+  var btn = document.getElementById('rst-ecsync-btn');   // icono acción (junto al mes)
+  var _when = document.getElementById('rst-ecsync-when'); // pastilla informativa (banner)
+  if(btn){ btn.classList.add('ec-spinning'); btn.style.pointerEvents='none'; }
+  if(_when) _when.textContent = '↻ Sincronizando…';
   if(typeof showToast==='function') showToast('🔄 Sincronizando '+month+'…','info');
   fetch(_ecApiBase()+'/api/ecrews/resync', {
     method:'POST',
@@ -32968,9 +32973,9 @@ window.ecResyncMonth = function(month){
   })
   .catch(function(e){ if(typeof showToast==='function') showToast('❌ '+e.message,'error'); })
   .then(function(){
-    if(btn){ btn.style.pointerEvents=''; btn.style.opacity=''; }
-    if(_syncOk) _ecFlashSyncOK();   // fondo verde + "✓ Sincronizado"
-    else _ecRefreshSyncLabel();     // restaurar "hace X" si no hubo sync
+    if(btn){ btn.classList.remove('ec-spinning'); btn.style.pointerEvents=''; }
+    if(_syncOk) _ecFlashSyncOK();   // pastilla verde "✓ Sincronizado"
+    else _ecRefreshSyncLabel();     // restaurar "↻ hace X" si no hubo sync
   });
 };
 // Mantener la etiqueta "✓ hace X" al cambiar de mes en el roster.
@@ -34871,6 +34876,9 @@ function pagSignOut() {
       <div style="display:flex;align-items:center;gap:8px">
         <div id="rst-month-label"></div>
         <div id="rst-today-ref" style="display:none;font-size:10px;color:#22D3EE;font-weight:700">Hoy: <span id="rst-today-ref-month"></span></div>
+        <button id="rst-ecsync-btn" onclick="ecResyncMonth()" title="Sincronizar este mes con eCrews" style="background:rgba(8,145,178,.15);border:1.5px solid rgba(8,145,178,.4);border-radius:9px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;color:#67d7f5;cursor:pointer;flex-shrink:0;padding:0">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        </button>
       </div>
       <button onclick="rosterNavMonth(1)" class="nav-btn-rst">›</button>
     </div>
