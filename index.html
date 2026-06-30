@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.237">
+  <meta name="version" content="Beta.238">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.237","builtAt":"2026-06-30T12:11:47Z","commit":"8dbe561","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.238","builtAt":"2026-06-30T13:11:43Z","commit":"e317627","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -37985,7 +37985,7 @@ document.addEventListener('DOMContentLoaded', function(){
   function cfg(){ return { lang:lg('db_lang','es'),
     voice:(function(){ var v=lg('db_voice','nova'); return ALLOW.indexOf(v)>=0?v:'nova'; })(),
     rate:parseFloat(lg('db_rate','1'))||1,
-    vol:(lg('db_vol',null)!=null?parseFloat(lg('db_vol','1')):1) }; }
+    vol:(lg('db_vol',null)!=null?parseFloat(lg('db_vol','1')):0.8) }; }
   function saveCfg(kk,v){ try{ localStorage.setItem('db_'+kk,v); }catch(e){} }
   var CUR=cfg(), RATE=CUR.rate, VOL=CUR.vol, SCOPE='hoy';
   var LAST_TEXT='', LAST_SCOPE='';
@@ -38083,6 +38083,7 @@ document.addEventListener('DOMContentLoaded', function(){
     for(var i=0;i<bufs.length;i++){ _segMap.push({from:chunks[i].from,to:chunks[i].to,start:t}); totalSamples+=bufs[i].length; t+=bufs[i].duration; if(chunks[i].gap){ totalSamples+=Math.round(gapS*sr); t+=gapS; } }
     var out=_decAC.createBuffer(1, totalSamples, sr); var od=out.getChannelData(0); var off=0;
     for(var i=0;i<bufs.length;i++){ od.set(bufs[i].getChannelData(0), off); off+=bufs[i].length; if(chunks[i].gap){ off+=Math.round(gapS*sr); } }
+    var _pk=0; for(var i=0;i<od.length;i++){ var _a=od[i]<0?-od[i]:od[i]; if(_a>_pk)_pk=_a; } if(_pk>0.0001 && _pk<0.97){ var _g=0.97/_pk; if(_g>5)_g=5; for(var i=0;i<od.length;i++){ od[i]*=_g; } }
     total=t;
     if(_briefUrl){ try{ URL.revokeObjectURL(_briefUrl); }catch(e){} }
     _briefUrl=URL.createObjectURL(_bufToWav(out));
