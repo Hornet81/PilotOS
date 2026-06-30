@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.235">
+  <meta name="version" content="Beta.236">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.235","builtAt":"2026-06-30T12:02:40Z","commit":"799e788","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.236","builtAt":"2026-06-30T12:03:21Z","commit":"80921c1","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -38157,7 +38157,7 @@ document.addEventListener('DOMContentLoaded', function(){
     unlockAudio();
     try{ await ensureMic(); }
     catch(e){ stat(CUR.lang==='en'?'No microphone access':'Sin acceso al micrófono'); return; }
-    vOn=true;
+    vOn=true; _emptyTurns=0; _micHeard=false;
     stat(CUR.lang==='en'?'● Listening… speak':'● Escuchando… habla'); vBtn('listen'); beep();
     setTimeout(function(){ if(vOn)vTurn(); },380);
   }
@@ -38192,7 +38192,7 @@ document.addEventListener('DOMContentLoaded', function(){
       var tk=token();
       var rs=await fetch(BACKEND+'/api/stt',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({audio_base64:b64,mime:mime})});
       var sj=await rs.json().catch(function(){return{};}); var said=(sj.text||'').trim();
-      if(!said){ if(vOn)vTurn(); return; }
+      if(!said){ _emptyTurns++; if(_emptyTurns>=2){ var _m=_micHeard?(CUR.lang==='en'?'I did not catch that, please repeat.':'No te he entendido, repite la pregunta.'):(CUR.lang==='en'?'I cannot hear you. On a car hands-free the mic may not be available to the app — bring the phone closer or ask with the app open.':'No te oigo. En manos libres del coche el micro puede no estar disponible para la app; acerca el móvil o pregunta con la app abierta.'); chatLog('aria',_m); vSpeak(_m, function(){ vStop(); }); return; } if(vOn)vTurn(); return; } _emptyTurns=0;
       vLog('you',said);
       if(/^(no|nada|ya est|terminar|gracias|eso es todo|nada m)/i.test(said)){ vSpeak(CUR.lang==='en'?'Understood. Have a good flight.':'Entendido. Buen vuelo y buen servicio.',function(){ vStop(); }); return; }
       var sys=await qaContext(said);
