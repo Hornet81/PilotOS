@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.231">
+  <meta name="version" content="Beta.232">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.231","builtAt":"2026-06-30T11:22:30Z","commit":"00a3083","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.232","builtAt":"2026-06-30T11:41:45Z","commit":"e0e46f2","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -31598,19 +31598,37 @@ function rosterShowCalendar(){
   var _inner2 = document.getElementById('rst-upload-inner');
   var _ecLink = document.getElementById('rst-ecrews-link');
   if(_ecLink) _ecLink.style.display = 'none';
+  // Fecha del último import (izq) y "hace X" de eCrews (der), del mismo timestamp.
+  var _dateLeft = '—', _ecRel = 'Nunca';
+  try{
+    if(_raw){
+      var _dd = new Date(_raw);
+      _dateLeft = _dd.toLocaleDateString('es-ES',{day:'2-digit',month:'short'})+' · '+_dd.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+      _ecRel = (typeof _ecRelTime==='function') ? _ecRelTime(_dd) : _dateLeft;
+    }
+  }catch(e){}
   if(_inner2){
-    _inner2.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">'
-      + '<div style="display:flex;align-items:center;gap:8px">'
+    _inner2.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">'
+      // ── IZQUIERDA: último roster importado ──
+      + '<div style="display:flex;align-items:center;gap:9px">'
       + '<span style="font-size:16px">🗓</span>'
-      + '<div>'
-      + '<div class="day-mode-title" style="font-size:12px;font-weight:700;color:#22D3EE">Roster importado</div>'
-      + '<div class="day-mode-sub" style="font-size:11px;color:rgba(240,255,254,.45)">Importado'+_ts+'</div>'
+      + '<div style="line-height:1.3">'
+      + '<div class="day-mode-sub" style="font-size:10px;color:rgba(240,255,254,.45)">Último roster importado</div>'
+      + '<div class="day-mode-title" style="font-size:13px;font-weight:700;color:#22D3EE">'+_dateLeft+'</div>'
       + '</div>'
       + '</div>'
-      + '<div style="display:flex;gap:8px;align-items:center;flex-shrink:0">'
+      // ── DERECHA: eCrews (tappable = sincronizar) + Nube ──
+      + '<div style="display:flex;align-items:center;gap:18px;flex-shrink:0">'
+      + '<button id="rst-ecsync-btn" onclick="ecResyncMonth()" title="Sincronizar con eCrews" style="background:none;border:none;cursor:pointer;text-align:left;padding:2px 4px;border-radius:8px;display:flex;flex-direction:column;line-height:1.3">'
+      + '<span class="day-mode-sub" style="font-size:10px;color:rgba(240,255,254,.45);display:flex;align-items:center;gap:4px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> eCrews</span>'
+      + '<span id="rst-ecsync-when" class="day-mode-title" style="font-size:13px;font-weight:700;color:#22D3EE">'+_ecRel+'</span>'
+      + '</button>'
+      + '<div style="line-height:1.3">'
+      + '<div class="day-mode-sub" style="font-size:10px;color:rgba(240,255,254,.45)">Nube</div>'
       + '<span id="rst-sync-badge"></span>'
-      + '<input type="file" id="rst-file-input" accept=".txt,.html,.htm,image/*,application/pdf,text/html" style="display:none">'
       + '</div>'
+      + '</div>'
+      + '<input type="file" id="rst-file-input" accept=".txt,.html,.htm,image/*,application/pdf,text/html" style="display:none">'
       + '</div>';
     // Re-wire input after innerHTML rebuild
     var _inp2 = document.getElementById('rst-file-input');
@@ -32894,21 +32912,20 @@ function _ecRelTime(d){
   return d.toLocaleDateString('es-ES',{day:'2-digit',month:'short'});
 }
 // Etiqueta "✓ hace X" junto al botón = última sync de eCrews del mes en vista.
+// Actualiza el valor "hace X" del bloque eCrews (mismo color cian que el resto).
 function _ecRefreshSyncLabel(){
-  var lbl=document.getElementById('rst-ecsync-when'); if(!lbl) return;
+  var w=document.getElementById('rst-ecsync-when'); if(!w) return;
   try{
     var raw=localStorage.getItem('pilotOS_import_ts_'+_ecSyncMonthOfView());
-    if(raw){ lbl.textContent='✓ '+_ecRelTime(new Date(raw)); lbl.title='Sincronizado con eCrews'; lbl.style.display=''; }
-    else { lbl.style.display='none'; }
-  }catch(e){ lbl.style.display='none'; }
+    w.textContent = raw ? _ecRelTime(new Date(raw)) : 'Nunca';
+  }catch(e){}
 }
-// Flash verde + ✓ en el botón al sincronizar OK.
+// Feedback al sincronizar OK: fondo verde suave + "✓ Sincronizado" un instante.
 function _ecFlashSyncOK(){
-  var btn=document.getElementById('rst-ecsync-btn'); if(!btn) return;
-  var _orig=btn.innerHTML;
-  btn.style.background='rgba(74,222,128,.18)'; btn.style.borderColor='rgba(74,222,128,.6)'; btn.style.color='#4ADE80';
-  btn.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-  setTimeout(function(){ btn.style.background='rgba(8,145,178,.15)'; btn.style.borderColor='rgba(8,145,178,.4)'; btn.style.color='#67d7f5'; btn.innerHTML=_orig; }, 2800);
+  var btn=document.getElementById('rst-ecsync-btn'), w=document.getElementById('rst-ecsync-when'); if(!btn) return;
+  btn.style.background='rgba(22,163,74,.16)';
+  if(w) w.textContent='✓ Sincronizado';
+  setTimeout(function(){ btn.style.background='none'; _ecRefreshSyncLabel(); }, 2500);
 }
 
 // Sincroniza el mes en vista sin preguntar (reutiliza sesión). NEEDS_LOGIN → credenciales.
@@ -32920,7 +32937,9 @@ window.ecResyncMonth = function(month){
     month = y + '-' + String(m+1).padStart(2,'0');
   }
   var btn = document.getElementById('rst-ecsync-btn');
-  if(btn){ btn.classList.add('ec-spinning'); btn.style.pointerEvents='none'; }
+  var _when = document.getElementById('rst-ecsync-when');
+  if(btn){ btn.style.pointerEvents='none'; btn.style.opacity='.7'; }
+  if(_when) _when.textContent = 'Sincronizando…';
   if(typeof showToast==='function') showToast('🔄 Sincronizando '+month+'…','info');
   fetch(_ecApiBase()+'/api/ecrews/resync', {
     method:'POST',
@@ -32949,9 +32968,9 @@ window.ecResyncMonth = function(month){
   })
   .catch(function(e){ if(typeof showToast==='function') showToast('❌ '+e.message,'error'); })
   .then(function(){
-    if(btn){ btn.classList.remove('ec-spinning'); btn.style.pointerEvents=''; }
-    if(_syncOk) _ecFlashSyncOK();   // botón verde con ✓
-    _ecRefreshSyncLabel();          // "✓ hace X" actualizado
+    if(btn){ btn.style.pointerEvents=''; btn.style.opacity=''; }
+    if(_syncOk) _ecFlashSyncOK();   // fondo verde + "✓ Sincronizado"
+    else _ecRefreshSyncLabel();     // restaurar "hace X" si no hubo sync
   });
 };
 // Mantener la etiqueta "✓ hace X" al cambiar de mes en el roster.
@@ -34852,10 +34871,6 @@ function pagSignOut() {
       <div style="display:flex;align-items:center;gap:8px">
         <div id="rst-month-label"></div>
         <div id="rst-today-ref" style="display:none;font-size:10px;color:#22D3EE;font-weight:700">Hoy: <span id="rst-today-ref-month"></span></div>
-        <button id="rst-ecsync-btn" onclick="ecResyncMonth()" title="Sincronizar este mes con eCrews" style="background:rgba(8,145,178,.15);border:1.5px solid rgba(8,145,178,.4);border-radius:9px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;color:#67d7f5;cursor:pointer;flex-shrink:0;padding:0">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-        </button>
-        <span id="rst-ecsync-when" style="display:none;font-size:9px;font-weight:700;color:#4ADE80;white-space:nowrap"></span>
       </div>
       <button onclick="rosterNavMonth(1)" class="nav-btn-rst">›</button>
     </div>
