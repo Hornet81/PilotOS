@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.243">
+  <meta name="version" content="Beta.244">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.243","builtAt":"2026-06-30T16:56:42Z","commit":"ccd3002","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.244","builtAt":"2026-06-30T17:05:42Z","commit":"39439c4","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -14897,7 +14897,10 @@ async function ppOnFile(ev){
       body: JSON.stringify(body)
     });
     var d = await r.json();
-    if (r.status === 403 && d.error === 'plan_limit') { showPlanToast('payslip'); return; }
+    if (r.status === 403 && d.error === 'plan_limit') {
+      if (d.message) showToast('🔒 ' + d.message, 'warning'); else showPlanToast('payslip');
+      return;
+    }
     if (!r.ok) throw new Error(d.error || d.message || 'Error del servidor');
     ppGoReview(d);
   } catch(err) {
