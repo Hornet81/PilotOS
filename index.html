@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.240">
+  <meta name="version" content="Beta.241">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.240","builtAt":"2026-06-30T13:33:24Z","commit":"9bf8419","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.241","builtAt":"2026-06-30T15:31:53Z","commit":"63fdbfa","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -1094,6 +1094,45 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 #scr-pay .pc-rf-total-bar{display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,rgba(245,158,11,.2),rgba(251,191,36,.12));border:1px solid rgba(245,158,11,.3);border-radius:12px;padding:11px 14px;margin-top:4px}
 #scr-pay .pc-rf-total-label{font-size:11px;color:rgba(253,230,138,.6);font-weight:500}
 #scr-pay .pc-rf-total-val{font-size:16px;font-weight:700;color:#FBBF24;font-family:'Space Mono',monospace}
+
+/* ══ Pay Profile — onboarding desde nómina (scoped a #scr-pay + modal global) ══ */
+#scr-pay .pp-banner{display:flex;flex-direction:column;gap:10px;background:linear-gradient(140deg,rgba(245,158,11,.18),rgba(34,211,238,.05));border:1px solid rgba(245,158,11,.34);border-radius:20px;padding:16px;margin-bottom:14px;position:relative;overflow:hidden}
+#scr-pay .pp-banner::before{content:'';position:absolute;top:0;left:10%;right:10%;height:1px;background:linear-gradient(90deg,transparent,rgba(245,158,11,.55),transparent)}
+#scr-pay .pp-banner-row{display:flex;align-items:center;gap:10px}
+#scr-pay .pp-banner-icon{font-size:22px;flex-shrink:0}
+#scr-pay .pp-banner-title{font-size:14px;font-weight:800;color:#fff;line-height:1.25}
+#scr-pay .pp-banner-sub{font-size:12px;color:rgba(255,255,255,.62);line-height:1.5}
+#scr-pay .pp-banner-btn{padding:11px 14px;background:linear-gradient(135deg,#F59E0B,#FCD34D);border:none;border-radius:12px;color:#451a03;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:800;cursor:pointer;letter-spacing:.2px}
+#scr-pay .pp-banner-btn:active{filter:brightness(.95)}
+#scr-pay .pp-loaded{display:none;align-items:center;gap:10px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.22);border-radius:14px;padding:10px 13px;margin-bottom:14px}
+#scr-pay .pp-loaded-txt{flex:1;font-size:11px;color:rgba(255,255,255,.68);line-height:1.45}
+#scr-pay .pp-loaded-txt b{color:#FBBF24;font-weight:700}
+#scr-pay .pp-loaded-btn{font-size:10px;color:#FBBF24;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);border-radius:9px;padding:6px 9px;cursor:pointer;font-weight:700;white-space:nowrap}
+#scr-pay .pp-lock,#scr-pay .pp-amber{display:inline-flex;align-items:center;gap:2px;font-size:8.5px;font-weight:800;border-radius:6px;padding:1px 5px;margin-left:6px;vertical-align:middle;letter-spacing:.3px;font-family:'Space Grotesk',sans-serif}
+#scr-pay .pp-lock{color:#FBBF24;background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.32)}
+#scr-pay .pp-amber{color:#FCD34D;background:rgba(252,211,77,.12);border:1px solid rgba(252,211,77,.38)}
+#scr-pay .fi.pp-locked{opacity:.9;border-color:rgba(245,158,11,.42)!important;background:rgba(245,158,11,.07)!important;cursor:not-allowed}
+#scr-pay .fi.pp-review{border-color:rgba(252,211,77,.5)!important;box-shadow:0 0 0 2px rgba(252,211,77,.1)!important}
+/* modal de revisión */
+#pp-modal{position:fixed;inset:0;z-index:9000;display:none;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.7);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
+#pp-modal.on{display:flex}
+#pp-modal .pp-sheet{width:100%;max-width:520px;max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#140C00;border:1px solid rgba(245,158,11,.32);border-radius:24px 24px 0 0;padding:20px 18px calc(22px + env(safe-area-inset-bottom,0px));box-shadow:0 -10px 44px rgba(0,0,0,.65)}
+#pp-modal .pp-sheet-title{font-size:16px;font-weight:800;color:#fff;margin-bottom:6px}
+#pp-modal .pp-sheet-sub{font-size:12px;color:rgba(255,255,255,.55);line-height:1.55;margin-bottom:14px}
+#pp-modal textarea{width:100%;min-height:160px;background:rgba(0,0,0,.55);border:1px solid rgba(245,158,11,.22);border-radius:14px;padding:12px;color:#FDE68A;font-family:'Space Mono',monospace;font-size:11px;line-height:1.5;outline:none;resize:vertical}
+#pp-modal textarea:focus{border-color:rgba(245,158,11,.5)}
+#pp-modal .pp-act{display:flex;gap:10px;margin-top:14px}
+#pp-modal .pp-btn{flex:1;padding:13px;border:none;border-radius:13px;font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:800;cursor:pointer;background:linear-gradient(135deg,#F59E0B,#FCD34D);color:#451a03}
+#pp-modal .pp-btn.warn{background:linear-gradient(135deg,#DC2626,#F87171);color:#fff}
+#pp-modal .pp-btn-sec{padding:13px 16px;border:1px solid rgba(245,158,11,.3);border-radius:13px;background:rgba(245,158,11,.08);color:#FBBF24;font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;cursor:pointer}
+#pp-modal .pp-rev-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid rgba(245,158,11,.1)}
+#pp-modal .pp-rev-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px}
+#pp-modal .pp-rev-k{font-size:12px;font-weight:700;color:#fff}
+#pp-modal .pp-rev-v{font-family:'Space Mono',monospace;font-size:12px;color:#FBBF24;font-weight:700}
+#pp-modal .pp-rev-src{font-size:10px;color:rgba(255,255,255,.4);margin-top:1px}
+#pp-modal .pp-chk{display:flex;align-items:center;gap:8px;font-size:11px;padding:6px 0;color:rgba(255,255,255,.72)}
+#pp-modal .pp-chk .ic{font-family:'Space Mono',monospace;font-weight:700;flex-shrink:0;width:16px}
+#pp-modal .pp-sec{font-size:9px;font-weight:800;color:#FBBF24;text-transform:uppercase;letter-spacing:1.3px;margin:16px 0 6px}
 
 .card-box{background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.16);border-radius:22px;padding:16px;margin-bottom:14px;position:relative;overflow:hidden;box-shadow:0 2px 20px rgba(0,0,0,.7)}
 
@@ -9938,6 +9977,24 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       <button class="conv-import-btn" onclick="pcImportConvenio()">↑ Actualizar</button>
     </div>
 
+    <!-- ─ PAY PROFILE: onboarding desde nómina ─ -->
+    <div class="pp-banner" id="pp-banner">
+      <div class="pp-banner-row">
+        <span class="pp-banner-icon">🪪</span>
+        <div>
+          <div class="pp-banner-title">Configura tu perfil con una nómina</div>
+          <div class="pp-banner-sub">Sube una nómina UNA vez. Bloqueo tus datos fijos (especialidad, nivel, guardería…) y a partir de ahí calculo solo con tus horas. Cada cierto tiempo subes otra y recalculo la base.</div>
+        </div>
+      </div>
+      <button class="pp-banner-btn" onclick="ppOpenImport()">📄 Subir nómina y autocompletar</button>
+    </div>
+    <div class="pp-loaded" id="pp-loaded">
+      <span style="font-size:16px">🔒</span>
+      <div class="pp-loaded-txt">Perfil cargado desde nómina de <b id="pp-loaded-month">—</b>. Datos fijos bloqueados · IRPF en revisión.</div>
+      <button class="pp-loaded-btn" onclick="ppOpenImport()">Actualizar</button>
+      <button class="pp-loaded-btn" onclick="ppUnlock()">Editar</button>
+    </div>
+
     <!-- ─ BLOQUE 1: PERFIL ─ -->
     <div class="card-box">
       <div class="pc-sep"><span>Perfil del piloto</span></div>
@@ -10280,6 +10337,36 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
     </div><!-- /pc-tab-nom -->
     <!-- Overlay informe nómina (reemplaza window.open) -->
     <div id="pc-print-area"></div>
+
+    <!-- ═══ Modal Pay Profile (importar nómina) ═══ -->
+    <div id="pp-modal">
+      <div class="pp-sheet">
+        <!-- Paso 1: pegar JSON -->
+        <div id="pp-step1">
+          <div class="pp-sheet-title">📄 Importar nómina</div>
+          <div class="pp-sheet-sub">Sube tu nómina a Claude con el skill <b>vueling-payslip-import</b> y pega aquí el JSON que te devuelva. No se guarda nada hasta que lo confirmes.</div>
+          <textarea id="pp-json-input" placeholder='{"schema":"pilotos-payslip-v1","month":"2026-04","profile":{...},"lines":[...],"totals":{...}}'></textarea>
+          <div class="pp-act">
+            <button class="pp-btn" onclick="ppProcessJson()">Procesar →</button>
+            <button class="pp-btn-sec" onclick="ppCloseModal()">✕</button>
+          </div>
+        </div>
+        <!-- Paso 2: revisión -->
+        <div id="pp-step2" style="display:none">
+          <div class="pp-sheet-title">Revisa lo extraído</div>
+          <div class="pp-sheet-sub">Esto he leído de la nómina. Confírmalo para bloquear los datos fijos.</div>
+          <div class="pp-sec">Datos del perfil</div>
+          <div id="pp-review-body"></div>
+          <div class="pp-sec">Reconciliación (¿leí bien el papel?)</div>
+          <div id="pp-recon-body"></div>
+          <div class="pp-act">
+            <button class="pp-btn" id="pp-confirm-btn" onclick="ppConfirm()">🔒 Confirmar y bloquear</button>
+            <button class="pp-btn-sec" onclick="ppBackToStep1()">‹</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div style="height:32px"></div>
   </div></div>
 </div>
@@ -14674,6 +14761,261 @@ function pcSwitchTab(tab) {
   var btns = document.querySelectorAll('#scr-pay .pc-tab-btn');
   btns.forEach(function(b) { b.classList.toggle('active', b.dataset.tab === tab); });
 }
+
+// ══════════════════════════════════════════════════════════════════
+// PAY PROFILE — onboarding desde nómina (subir 1 vez → bloquear fijos)
+// Modelo: localStorage 'pilotos_payProfile'. La nómina se verifica a sí
+// misma (reconciliación interna) antes de bloquear nada. IRPF = revisión.
+// ══════════════════════════════════════════════════════════════════
+var PP_KEY = 'pilotos_payProfile';
+var PP_PENDING = null;
+
+function ppNum(x){ var n = parseFloat(x); return isNaN(n) ? 0 : n; }
+function ppEsc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+function ppLoad(){
+  try { var v = lsGet(PP_KEY, null); return v ? JSON.parse(v) : null; } catch(e){ return null; }
+}
+function ppSave(p){ try { lsSet(PP_KEY, JSON.stringify(p)); } catch(e){} }
+
+// "Comandante (1P)" / "CMD" / "CPT" → 'cmd'  ·  "Copiloto" / "FO" → 'cop'
+function ppEspToValue(v){
+  v = String(v||'').toLowerCase().trim();
+  if (v==='cop' || v.indexOf('copil')>=0 || v.indexOf('2p')>=0 || v==='fo' || v.indexOf('first off')>=0 || v.indexOf('primer of')>=0) return 'cop';
+  if (v==='cmd' || v.indexOf('coman')>=0 || v.indexOf('1p')>=0 || v.indexOf('cpt')>=0 || v.indexOf('capt')>=0) return 'cmd';
+  return null;
+}
+
+// ── Modal ──
+function ppOpenImport(){
+  PP_PENDING = null;
+  var m = document.getElementById('pp-modal');
+  document.getElementById('pp-step1').style.display = 'block';
+  document.getElementById('pp-step2').style.display = 'none';
+  var ta = document.getElementById('pp-json-input'); if (ta) ta.value = '';
+  if (m) m.classList.add('on');
+}
+function ppCloseModal(){ var m = document.getElementById('pp-modal'); if (m) m.classList.remove('on'); }
+function ppBackToStep1(){
+  document.getElementById('pp-step2').style.display = 'none';
+  document.getElementById('pp-step1').style.display = 'block';
+}
+
+// ── Paso 1 → procesar JSON ──
+function ppProcessJson(){
+  var ta = document.getElementById('pp-json-input');
+  var raw = (ta && ta.value || '').trim();
+  if (!raw) { showToast('Pega el JSON de la nómina'); return; }
+  raw = raw.replace(/^```(?:json)?/i, '').replace(/```$/,'').trim();   // por si llega con code fences
+  var d;
+  try { d = JSON.parse(raw); } catch(e){ showToast('❌ JSON inválido: ' + e.message); return; }
+  if (!d.profile && !d.lines) { showToast('❌ No parece una nómina PilotOS (falta profile/lines)'); return; }
+  PP_PENDING = d;
+  var checks = ppReconcile(d);
+  ppRenderReview(d, checks);
+  document.getElementById('pp-step1').style.display = 'none';
+  document.getElementById('pp-step2').style.display = 'block';
+  var sheet = document.querySelector('#pp-modal .pp-sheet'); if (sheet) sheet.scrollTop = 0;
+}
+
+// ── Reconciliación interna: ¿cuadra la aritmética del propio papel? ──
+function ppReconcile(d){
+  var lines = (d.lines||[]).concat(d.unknownLines||[]);
+  var sumDev = 0, sumDed = 0;
+  lines.forEach(function(l){ sumDev += ppNum(l.devengo); sumDed += ppNum(l.deduccion); });
+  var t = d.totals || {};
+  var totDev = t.totalDevengado ? ppNum(t.totalDevengado.value) : null;
+  var totRet = t.totalRetenido  ? ppNum(t.totalRetenido.value)  : null;
+  var liq    = t.liquido        ? ppNum(t.liquido.value)        : null;
+  var bIRPF  = t.baseIRPF       ? ppNum(t.baseIRPF.value)       : null;
+  var bSS    = t.baseSS         ? ppNum(t.baseSS.value)         : null;
+  var irpfPct = (d.profile && d.profile.irpf) ? ppNum(d.profile.irpf.value) : null;
+  function lineByCode(c){ for (var i=0;i<lines.length;i++){ if (String(lines[i].mappedTo||lines[i].code)===c) return lines[i]; } return null; }
+  var l515 = lineByCode('515'), l530 = lineByCode('530'), l535 = lineByCode('535'), l537 = lineByCode('537');
+
+  function chk(label, expected, actual, tol){
+    if (expected==null || actual==null || isNaN(expected) || isNaN(actual)) return { label:label, status:'na' };
+    var delta = Math.round((actual - expected) * 100) / 100;
+    return { label:label, status: Math.abs(delta) <= tol ? 'ok' : 'fail', delta:delta };
+  }
+  var out = [];
+  out.push(chk('Σ devengos = Total devengado (301)', sumDev, totDev, 0.02));
+  out.push(chk('Σ deducciones = Total retenido (855)', sumDed, totRet, 0.02));
+  out.push(chk('Devengado − Retenido = Líquido', (totDev!=null&&totRet!=null)?(totDev-totRet):null, liq, 0.02));
+  out.push(chk('Base IRPF × tipo% ≈ IRPF (515)', (bIRPF!=null&&irpfPct!=null)?(bIRPF*irpfPct/100):null, l515?ppNum(l515.deduccion):null, 0.50));
+  out.push(chk('Base SS × 4,85% ≈ SS (530)', bSS!=null?(bSS*0.0485):null, l530?ppNum(l530.deduccion):null, 0.05));
+  out.push(chk('Base SS × 1,55% ≈ SS (535)', bSS!=null?(bSS*0.0155):null, l535?ppNum(l535.deduccion):null, 0.05));
+  out.push(chk('Base SS × 0,10% ≈ SS (537)', bSS!=null?(bSS*0.0010):null, l537?ppNum(l537.deduccion):null, 0.05));
+  return out;
+}
+
+// ── ¿Patrón libre? presencia de la línea 751 con importe ──
+function ppDetectPatron(d){
+  var lines = d.lines || [];
+  for (var i=0;i<lines.length;i++){
+    if (String(lines[i].mappedTo||lines[i].code)==='751' && ppNum(lines[i].devengo)>0) return 'libre';
+  }
+  return 'fijo';
+}
+
+// ── Paso 2 → pintar revisión ──
+function ppRenderReview(d, checks){
+  var pr = d.profile || {};
+  function fldRow(label, o, suffix){
+    o = o || {};
+    var has = (o.value!=null && o.value!=='');
+    var v = has ? (o.value + (suffix||'')) : '— (no leído)';
+    var conf = (o.confidence!=null) ? o.confidence : null;
+    var amber = !has || (conf!=null && conf < 0.85);
+    var dot = amber ? '#FCD34D' : '#34D399';
+    var src = o.src ? '<div class="pp-rev-src">leído: "' + ppEsc(String(o.src)) + '"' + (conf!=null?(' · conf ' + Math.round(conf*100) + '%'):'') + '</div>' : '';
+    return '<div class="pp-rev-row"><span class="pp-rev-dot" style="background:' + dot + '"></span>'
+      + '<div style="flex:1"><div class="pp-rev-k">' + label + '</div>' + src + '</div>'
+      + '<div class="pp-rev-v">' + ppEsc(String(v)) + '</div></div>';
+  }
+  var espTxt = pr.especialidad ? (ppEspToValue(pr.especialidad.value)==='cmd' ? 'Comandante' : (ppEspToValue(pr.especialidad.value)==='cop' ? 'Copiloto' : pr.especialidad.value)) : '—';
+  var html = '';
+  html += fldRow('Especialidad', { value: espTxt, src: pr.especialidad&&pr.especialidad.src, confidence: pr.especialidad&&pr.especialidad.confidence });
+  html += fldRow('Nivel económico', pr.nivelEconomico);
+  html += fldRow('Retención IRPF', pr.irpf, ' %');
+  html += fldRow('Guardería (RF)', pr.guarderia, ' €');
+  html += fldRow('Plan de pensiones (RF)', pr.planPensiones, ' €');
+  if (pr.numCuenta) html += fldRow('Nº cuenta', pr.numCuenta);
+  html += fldRow('Patrón de trabajo', { value: ppDetectPatron(d)==='libre' ? 'Patrón libre' : 'Patrón fijo', src: 'línea 751', confidence: 0.9 });
+  document.getElementById('pp-review-body').innerHTML = html;
+
+  var rc = '', reds = 0;
+  checks.forEach(function(c){
+    var ic, col;
+    if (c.status==='ok'){ ic='✓'; col='#34D399'; }
+    else if (c.status==='fail'){ ic='✕'; col='#FF6B6B'; reds++; }
+    else { ic='–'; col='rgba(255,255,255,.35)'; }
+    var dtxt = (c.status==='fail') ? ' <span style="color:#FF6B6B;font-family:Space Mono,monospace">Δ ' + (c.delta>0?'+':'') + c.delta.toFixed(2) + ' €</span>' : (c.status==='na' ? ' <span style="color:rgba(255,255,255,.3)">sin dato</span>' : '');
+    rc += '<div class="pp-chk"><span class="ic" style="color:' + col + '">' + ic + '</span><span>' + c.label + dtxt + '</span></div>';
+  });
+  document.getElementById('pp-recon-body').innerHTML = rc;
+
+  var btn = document.getElementById('pp-confirm-btn');
+  if (btn){
+    if (reds > 0){ btn.classList.add('warn'); btn.textContent = '⚠ Hay ' + reds + ' línea(s) que no cuadran — guardar igualmente'; }
+    else { btn.classList.remove('warn'); btn.textContent = '🔒 Confirmar y bloquear'; }
+  }
+}
+
+// ── Construir el objeto payProfile a partir de la extracción ──
+function ppBuildProfile(d){
+  var pr = d.profile || {};
+  function fld(o, st){ o = o || {}; return { value: (o.value!=null?o.value:null), state: st, src: o.src||null, conf: (o.confidence!=null?o.confidence:null) }; }
+  return {
+    version: 1,
+    source: { type:'payslip', month: d.month||null, extractedAt: new Date().toISOString() },
+    fields: {
+      especialidad:   fld(pr.especialidad,   'locked'),
+      nivelEconomico: fld(pr.nivelEconomico, 'locked'),
+      irpf:           fld(pr.irpf,           'needs_review'),
+      guarderia:      fld(pr.guarderia,      'locked'),
+      planPensiones:  fld(pr.planPensiones,  'locked'),
+      numCuenta:      fld(pr.numCuenta,      'locked'),
+      patron:         { value: ppDetectPatron(d), state:'locked', src:'Plus Patrón Libre', conf:0.9 }
+    }
+  };
+}
+
+// ── Confirmar → guardar + aplicar + bloquear ──
+function ppConfirm(){
+  if (!PP_PENDING) return;
+  var p = ppBuildProfile(PP_PENDING);
+  ppSave(p);
+  ppApplyToForm(p);
+  ppApplyLockUI(p);
+  ppUpdateBanner();
+  ppCloseModal();
+  showToast('✅ Perfil guardado · datos fijos bloqueados, IRPF en revisión');
+}
+
+// ── Aplicar valores del perfil a los campos del formulario ──
+function ppApplyToForm(p){
+  var f = (p && p.fields) || {};
+  if (f.especialidad && f.especialidad.value){
+    var esp = ppEspToValue(f.especialidad.value);
+    if (esp){ var e = document.getElementById('pc_esp'); if (e){ e.value = esp; pcOnEsp(); } }
+  }
+  if (f.nivelEconomico && f.nivelEconomico.value!=null){
+    var nv = String(f.nivelEconomico.value), sel = document.getElementById('pc_nivel');
+    if (sel){ var ok = Array.prototype.some.call(sel.options, function(o){ return o.value===nv; }); if (ok) sel.value = nv; }
+  }
+  if (f.irpf && f.irpf.value!=null){ var ir = document.getElementById('pc_irpf'); if (ir) ir.value = f.irpf.value; }
+  if (f.patron && f.patron.value){ ppSetPat(f.patron.value); }
+  if (f.guarderia && ppNum(f.guarderia.value)>0)    ppSetRfChip('rf_guardian', ppNum(f.guarderia.value));
+  if (f.planPensiones && ppNum(f.planPensiones.value)>0) ppSetRfChip('rf_pension', ppNum(f.planPensiones.value));
+}
+
+function ppSetPat(v){
+  var btns = document.querySelectorAll('.pc-tog-btn[data-val="libre"],.pc-tog-btn[data-val="fijo"]');
+  btns.forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-val')===v); });
+  PC_STATE.pat = v;
+}
+function ppSetRfChip(id, val){
+  var chip = document.querySelector('.pc-rf-chip[data-id="' + id + '"]');
+  if (!chip) return;
+  chip.classList.add('on');
+  var inp = chip.querySelector('.pc-rf-chip-inp');
+  if (inp){ inp.value = val; inp.style.display = 'block'; }
+  var master = document.getElementById('pc_rfon');
+  if (master && !master.checked){ master.checked = true; var w = document.getElementById('pc_rf_wrap'); if (w) w.style.display = 'block'; }
+  pcRfUpdateTotal();
+}
+
+// ── UI de bloqueo (🔒 en fijos, ámbar en IRPF) ──
+function ppApplyLockUI(p){
+  document.querySelectorAll('#scr-pay .pp-badge').forEach(function(n){ n.remove(); });   // reset
+  var f = (p && p.fields) || {};
+  if (f.especialidad && f.especialidad.value)   ppLockField('pc_esp');
+  if (f.nivelEconomico && f.nivelEconomico.value!=null) ppLockField('pc_nivel');
+  var ir = document.getElementById('pc_irpf');
+  if (ir){ ir.classList.add('pp-review'); ppBadge('pc_irpf', '<span class="pp-amber pp-badge">⚠ verifica</span>'); }
+}
+function ppLockField(id){
+  var el = document.getElementById(id); if (!el) return;
+  el.disabled = true; el.classList.add('pp-locked');
+  ppBadge(id, '<span class="pp-lock pp-badge">🔒 fijo</span>');
+}
+function ppBadge(id, html){
+  var el = document.getElementById(id); if (!el) return;
+  var fg = el.closest('.fg'); if (!fg) return;
+  var lab = fg.querySelector('.pc-field-label'); if (!lab || lab.querySelector('.pp-badge')) return;
+  lab.insertAdjacentHTML('beforeend', ' ' + html);
+}
+
+// ── Desbloquear (permitir editar sin borrar el perfil) ──
+function ppUnlock(){
+  ['pc_esp','pc_nivel'].forEach(function(id){ var e = document.getElementById(id); if (e){ e.disabled = false; e.classList.remove('pp-locked'); } });
+  document.querySelectorAll('#scr-pay .pp-badge').forEach(function(n){ n.remove(); });
+  var ir = document.getElementById('pc_irpf'); if (ir) ir.classList.remove('pp-review');
+  showToast('🔓 Campos desbloqueados — puedes editarlos');
+}
+
+function ppUpdateBanner(){
+  var p = ppLoad();
+  var b = document.getElementById('pp-banner');
+  var l = document.getElementById('pp-loaded');
+  if (p){
+    if (b) b.style.display = 'none';
+    if (l){ l.style.display = 'flex'; var mEl = document.getElementById('pp-loaded-month'); if (mEl) mEl.textContent = (p.source && p.source.month) || '—'; }
+  } else {
+    if (b) b.style.display = 'flex';
+    if (l) l.style.display = 'none';
+  }
+}
+
+function ppInit(){
+  var p = ppLoad();
+  if (p){ try { ppApplyToForm(p); ppApplyLockUI(p); } catch(e){} }
+  ppUpdateBanner();
+}
+
+if (document.readyState !== 'loading') { try { ppInit(); } catch(e){} }
+else { document.addEventListener('DOMContentLoaded', function(){ try { ppInit(); } catch(e){} }); }
 
 /* ══ Pay Check: Earnings Tracker renderer ══ */
 var pcTkAnimFrom = 0;
@@ -37704,7 +38046,7 @@ document.addEventListener('DOMContentLoaded', function(){
     if(!_decAC){ try{ _decAC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
     var bufs=[];
     for(var i=0;i<chunks.length;i++){ stat('Generando voz '+(i+1)+'/'+chunks.length+'…'); var arr=await ttsArrayBuffer(chunks[i].text); var buf=await _decode(_decAC, arr); bufs.push(buf); }
-    var sr=bufs[0].sampleRate, gapS=0.4, totalSamples=0, t=0;
+    var sr=bufs[0].sampleRate, gapS=0, totalSamples=0, t=0;
     for(var i=0;i<bufs.length;i++){ _segMap.push({from:chunks[i].from,to:chunks[i].to,start:t}); totalSamples+=bufs[i].length; t+=bufs[i].duration; if(chunks[i].gap){ totalSamples+=Math.round(gapS*sr); t+=gapS; } }
     var out=_decAC.createBuffer(1, totalSamples, sr); var od=out.getChannelData(0); var off=0;
     for(var i=0;i<bufs.length;i++){ od.set(bufs[i].getChannelData(0), off); off+=bufs[i].length; if(chunks[i].gap){ off+=Math.round(gapS*sr); } }
@@ -37713,7 +38055,7 @@ document.addEventListener('DOMContentLoaded', function(){
     if(_briefUrl){ try{ URL.revokeObjectURL(_briefUrl); }catch(e){} }
     _briefUrl=URL.createObjectURL(_bufToWav(out));
     if(!_brief)_brief=new Audio(); _brief.preload='auto'; _brief.src=_briefUrl;
-    await new Promise(function(res){ if(_brief.readyState>=1)return res(); _brief.onloadedmetadata=function(){res();}; setTimeout(res,2500); });
+    try{ _brief.load(); }catch(e){} await new Promise(function(res){ var done=false; function fin(){ if(done)return; done=true; res(); } if(_brief.readyState>=4)return fin(); _brief.oncanplaythrough=fin; _brief.onloadeddata=function(){ if(_brief.readyState>=3)fin(); }; setTimeout(fin,4000); });
     if(isFinite(_brief.duration)&&_brief.duration>0) total=_brief.duration;
     audios=[{a:_brief,from:0,to:Math.max(0,SENT.length-1)}]; curAudio=_brief; acc=0; k=0;
     var tot=q('#ar-tot'); if(tot)tot.textContent=fmt(total); return true;
