@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.228">
+  <meta name="version" content="Beta.229">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.228","builtAt":"2026-06-29T21:59:43Z","commit":"9440898","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.229","builtAt":"2026-06-30T07:14:16Z","commit":"f53b6c7","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -32846,21 +32846,17 @@ function _ecDiffMonth(parsed, month){
   return { added:added, removed:removed, changed:changed, hadOld: old.length>0 };
 }
 // Reemplaza las entradas eCrews del mes por las nuevas (conserva las manuales).
-function _ecApplyMonthReplace(parsed, month){
+function _ecApplyMonthReplace(parsedMonth, month){
   rstLoad();
+  // quitar SOLO las entradas eCrews de ese mes (conserva las manuales = source!=ECREWS)
   RST.entries = (RST.entries||[]).filter(function(r){ return !(r.date && r.date.slice(0,7)===month && r.source==='ECREWS'); });
-  parsed.forEach(function(e){ RST.entries.push(_ecBuildRstEntry(e)); });
-  RST.entries.sort(function(a,b){ return a.date.localeCompare(b.date); });
   rstSave();
-  var p=month.split('-'); RST.viewYear=parseInt(p[0]); RST.viewMonth=parseInt(p[1])-1;
-  try{ localStorage.setItem('pilotOS_import_ts_'+month, new Date().toISOString()); }catch(e){}
-  try{ localStorage.removeItem('pilotOS_deleted_month_'+month); }catch(e){}
-  if(typeof rstPushAllMonths==='function') rstPushAllMonths(parsed);
-  try{ if(typeof rosterShowCalendar==='function') rosterShowCalendar(); }catch(e){}
-  if(typeof rstRenderCalendar==='function') rstRenderCalendar();
-  if(typeof rstRenderStats==='function') rstRenderStats();
-  if(typeof rstRenderFlights==='function') rstRenderFlights();
-  if(typeof window.fpReapply==='function') window.fpReapply();
+  // Importar las nuevas con la MISMA lógica probada del import normal (ldECrewsConfirm):
+  // como ya quitamos las viejas, no hay merge → entradas IDÉNTICAS al import normal
+  // (incluye overnight_continuation con todos sus campos → el día se pinta bien, no en blanco).
+  _ecParsedEntries = parsedMonth;
+  window._ecSuppressImportToast = true; // el resumen de cambios es el aviso, no el toast
+  if(typeof window.ldECrewsConfirm==='function') window.ldECrewsConfirm();
 }
 // Resumen visual de cambios (toast si no hay; hoja con detalle si los hay).
 function _ecShowChangeSummary(month, diff){
@@ -32908,10 +32904,13 @@ window.ecResyncMonth = function(month){
     }
     if(res.j.status === 'COMPLETE' && res.j.roster){
       var roster = res.j.roster;
-      var parsed = _ecParseSchedulerEvents(roster.SchedulerEvents || [], roster.BlockDutyTimes || {});
-      var diff = _ecDiffMonth(parsed, month);      // 1) calcular cambios (antes de aplicar)
-      _ecApplyMonthReplace(parsed, month);          // 2) eCrews = fuente de verdad (conserva lo manual)
-      _ecShowChangeSummary(month, diff);            // 3) avisar al usuario
+      var parsedAll = _ecParseSchedulerEvents(roster.SchedulerEvents || [], roster.BlockDutyTimes || {});
+      // El periodo de eCrews DESBORDA al mes siguiente (p.ej. junio llega al 02/07) →
+      // quedarnos SOLO con los días del mes pedido (si no, vuelos de julio entran en junio).
+      var parsedMonth = parsedAll.filter(function(e){ return e.date && e.date.slice(0,7)===month; });
+      var diff = _ecDiffMonth(parsedMonth, month);  // 1) calcular cambios (solo del mes)
+      _ecApplyMonthReplace(parsedMonth, month);      // 2) eCrews = fuente de verdad (conserva lo manual)
+      _ecShowChangeSummary(month, diff);             // 3) avisar al usuario
     }
   })
   .catch(function(e){ if(typeof showToast==='function') showToast('❌ '+e.message,'error'); })
@@ -33604,7 +33603,9 @@ window.ldECrewsConfirm = function(){
   if(typeof ldUpdateRosterBtn === 'function') ldUpdateRosterBtn();
   ldECrewsSyncClose();
 
-  if(imported > 0){
+  // El re-sync llama a esta función pero muestra su PROPIO resumen de cambios → sin toast.
+  if(window._ecSuppressImportToast){ window._ecSuppressImportToast = false; }
+  else if(imported > 0){
     showToast('✅ '+imported+' entrada'+(imported===1?'':'s')+' importada'+(imported===1?'':'s')+' desde eCrews','success');
   } else {
     showToast('El roster ya estaba actualizado','info');
