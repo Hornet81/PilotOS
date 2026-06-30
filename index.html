@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.242">
+  <meta name="version" content="Beta.243">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.242","builtAt":"2026-06-30T16:51:43Z","commit":"71eb45c","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.243","builtAt":"2026-06-30T16:56:42Z","commit":"ccd3002","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -1111,6 +1111,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 #scr-pay .pp-lock,#scr-pay .pp-amber{display:inline-flex;align-items:center;gap:2px;font-size:8.5px;font-weight:800;border-radius:6px;padding:1px 5px;margin-left:6px;vertical-align:middle;letter-spacing:.3px;font-family:'Space Grotesk',sans-serif}
 #scr-pay .pp-lock{color:#FBBF24;background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.32)}
 #scr-pay .pp-amber{color:#FCD34D;background:rgba(252,211,77,.12);border:1px solid rgba(252,211,77,.38)}
+#scr-pay .pp-ai-badge{display:inline-flex;align-items:center;gap:3px;font-family:'Space Mono',monospace;font-size:8.5px;font-weight:700;letter-spacing:.05em;padding:2px 6px;border-radius:9px;border:1px solid rgba(255,171,64,.4);background:rgba(255,171,64,.14);color:#ffab40;vertical-align:middle;margin-left:6px;white-space:nowrap}
 #scr-pay .fi.pp-locked{opacity:.9;border-color:rgba(245,158,11,.42)!important;background:rgba(245,158,11,.07)!important;cursor:not-allowed}
 #scr-pay .fi.pp-review{border-color:rgba(252,211,77,.5)!important;box-shadow:0 0 0 2px rgba(252,211,77,.1)!important}
 /* modal de revisión */
@@ -1384,6 +1385,7 @@ html.day #scr-pay .pp-loaded-txt b{color:#B45309!important}
 html.day #scr-pay .pp-loaded-btn{color:#B45309!important;background:rgba(255,255,255,.9)!important;border-color:rgba(245,158,11,.45)!important}
 html.day #scr-pay .pp-lock{color:#B45309!important;background:rgba(245,158,11,.16)!important;border-color:rgba(245,158,11,.45)!important}
 html.day #scr-pay .pp-amber{color:#B45309!important;background:rgba(252,211,77,.22)!important;border-color:rgba(245,158,11,.5)!important}
+html.day #scr-pay .pp-ai-badge{color:#B45309!important;background:rgba(255,171,64,.18)!important;border-color:rgba(245,158,11,.5)!important}
 
 /* ── Botón calcular nómina ── */
 html.day #scr-pay .pc-calc-btn{color:#451a03!important;text-shadow:0 1px 0 rgba(255,255,255,.2)!important}
@@ -9994,8 +9996,8 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       <div class="pp-banner-row">
         <span class="pp-banner-icon">🪪</span>
         <div>
-          <div class="pp-banner-title">Configura tu perfil con una nómina</div>
-          <div class="pp-banner-sub">Sube una nómina UNA vez. Bloqueo tus datos fijos (especialidad, nivel, guardería…) y a partir de ahí calculo solo con tus horas. Cada cierto tiempo subes otra y recalculo la base.</div>
+          <div class="pp-banner-title">Configura tu perfil con una nómina <span class="pp-ai-badge">✦ IA</span></div>
+          <div class="pp-banner-sub">Sube una nómina UNA vez. Bloqueo tus datos fijos (especialidad, nivel, guardería…) y a partir de ahí calculo solo con tus horas. Cada cierto tiempo subes otra y recalculo la base.<br><span style="opacity:.75">Lectura con IA · solo planes Pro y Unlimited.</span></div>
         </div>
       </div>
       <button class="pp-banner-btn" onclick="ppOpenImport()">📄 Subir nómina y autocompletar</button>
@@ -10369,8 +10371,8 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       <div class="pp-sheet">
         <!-- Paso 1: subir nómina -->
         <div id="pp-step1">
-          <div class="pp-sheet-title">📄 Importar nómina</div>
-          <div class="pp-sheet-sub">Sube tu nómina (PDF o foto). La analizo y te muestro lo que he extraído para que lo confirmes. No se guarda nada hasta que confirmes.</div>
+          <div class="pp-sheet-title">📄 Importar nómina <span class="pp-ai-badge">✦ IA</span></div>
+          <div class="pp-sheet-sub">Sube tu nómina (PDF o foto). La analizo con IA y te muestro lo que he extraído para que lo confirmes. No se guarda nada hasta que confirmes.</div>
           <input type="file" id="pp-file-input" accept="application/pdf,image/*" style="display:none" onchange="ppOnFile(event)">
           <button class="pp-btn" id="pp-upload-btn" onclick="ppPickFile()" style="width:100%">📂 Subir nómina (PDF o foto)</button>
           <div id="pp-upload-hint" style="text-align:center;font-size:11px;color:rgba(255,255,255,.4);margin-top:8px">PDF de eCrews/AIMS o una foto de la nómina</div>
@@ -14881,6 +14883,7 @@ function ppFileToB64(file){
 async function ppOnFile(ev){
   var file = ev.target.files && ev.target.files[0];
   if (!file) return;
+  if (!isPro()) { showPlanToast('payslip'); ev.target.value=''; return; }   // solo Pro/Unlimited (consume IA)
   var token = ''; try { token = lsGet('cafi_auth_token', ''); } catch(e) {}
   if (!token) { showToast('Inicia sesión en CAFI primero'); ev.target.value=''; return; }
   ppSetProcessing(true);
@@ -14894,7 +14897,8 @@ async function ppOnFile(ev){
       body: JSON.stringify(body)
     });
     var d = await r.json();
-    if (!r.ok) throw new Error(d.error || 'Error del servidor');
+    if (r.status === 403 && d.error === 'plan_limit') { showPlanToast('payslip'); return; }
+    if (!r.ok) throw new Error(d.error || d.message || 'Error del servidor');
     ppGoReview(d);
   } catch(err) {
     showToast('❌ ' + err.message);
@@ -16289,6 +16293,7 @@ function showPlanToast(feature){
     roster: '🔒 Import de Roster disponible en Pro · Actualiza tu plan',
     limit:  '🔒 Límite de ' + PLAN_FREE_LOGBOOK_LIMIT + ' vuelos en Free · Actualiza a Pro',
     adsb:   '🔒 Búsqueda ADS-B disponible en Pro · Actualiza tu plan',
+    payslip:'🔒 Importar nómina con IA disponible en Pro y Unlimited · Actualiza tu plan',
   };
   showToast(msgs[feature] || '🔒 Disponible en plan Pro', 'warning');
 }
