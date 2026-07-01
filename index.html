@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.251">
+  <meta name="version" content="Beta.252">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.251","builtAt":"2026-07-01T20:08:15Z","commit":"b6ebd11","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.252","builtAt":"2026-07-01T20:21:14Z","commit":"38e419a","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -33716,34 +33716,14 @@ function _ecHandleData(payload){
 // ── Confirm import ───────────────────────────────────────────────
 window.ldECrewsConfirm = function(){
   rstLoad();
-  var imported = 0, skipped = 0;
+  var imported = 0, skipped = 0, updated = 0;
 
-  // ── Detección de cambios al reimportar (camino de conexión / re-login) ──
-  // El re-sync directo (ecResyncMonth) ya hace diff + replace + resumen y marca
-  // _ecSuppressImportToast. El camino de conexión (login → picker → confirmar) usaba un
-  // merge que solo rellenaba huecos → NO aplicaba modificaciones y decía "sin cambios".
-  // Ahora este camino también hace REPLACE por mes (quita las eCrews viejas y reimporta
-  // limpio → aplica los cambios) + diff, y muestra el mismo resumen. Así se detectan los
-  // cambios independientemente de por dónde entres.
+  // ── Reimportar: aplicar cambios SIN borrar nada (seguridad ante pérdida de datos) ──
+  // El re-sync directo (ecResyncMonth) hace su propio flujo y marca _ecSuppressImportToast.
+  // El camino de conexión NO elimina entradas (ni masivo ni dirigido) — si el parser se saltara
+  // un día, un borrado lo perdería. En su lugar, el merge de abajo SOBRESCRIBE los campos de
+  // eCrews cuando difieren y cuenta la modificación → aplica los cambios de forma no destructiva.
   var _isResync = !!window._ecSuppressImportToast;
-  var _diffs = {};
-  if(!_isResync){
-    var _months = {};
-    // Solo meses con actividad REAL (no una continuación de cruce de medianoche suelta): un vuelo
-    // del 30 que cruza al día 1 del mes siguiente NO debe hacer que se borre/reemplace ese mes.
-    _ecParsedEntries.forEach(function(e){ if(e.date && e.type!=='overnight_continuation') _months[e.date.slice(0,7)] = 1; });
-    // 1) Calcular TODOS los diffs primero (cada _ecDiffMonth hace su rstLoad; aún no tocamos nada).
-    Object.keys(_months).forEach(function(mo){
-      var _pm = _ecParsedEntries.filter(function(e){ return e.date && e.date.slice(0,7)===mo; });
-      try { _diffs[mo] = _ecDiffMonth(_pm, mo); } catch(_e){ _diffs[mo] = null; }
-    });
-    // 2) Replace: recargar y quitar de golpe las eCrews viejas de esos meses (conserva lo manual).
-    rstLoad();
-    RST.entries = (RST.entries||[]).filter(function(r){
-      return !(r.date && _months[r.date.slice(0,7)] && r.source==='ECREWS');
-    });
-    rstSave();
-  }
 
   _ecParsedEntries.forEach(function(e){
     // Check if already exists in RST by date+type+(flightNum/code)
@@ -33754,27 +33734,36 @@ window.ldECrewsConfirm = function(){
     });
 
     if(existingIdx >= 0){
-      // Entry already exists — merge actual times and eCrews data into existing
+      // Ya existe → SOBRESCRIBE los campos de eCrews cuando difieren (aplica modificaciones) y
+      // cuenta el cambio. NO se elimina la entrada (cero riesgo de vaciar el mes). Para las horas,
+      // si cambia la CATEGORÍA (S/A/E) o el valor, se limpian las tres y se ponen las nuevas (evita
+      // que queden std viejo + std_estimated nuevo a la vez). Los ex.* de logbook (atd/ata) intactos.
       var ex = RST.entries[existingIdx];
-      if(e.std_actual && !ex.std_actual) ex.std_actual = e.std_actual;
-      if(e.sta_actual && !ex.sta_actual) ex.sta_actual = e.sta_actual;
-      if(e.std_estimated && !ex.std_estimated) ex.std_estimated = e.std_estimated;
-      if(e.sta_estimated && !ex.sta_estimated) ex.sta_estimated = e.sta_estimated;
-      if(e.std && !ex.std) ex.std = e.std;
-      if(e.sta && !ex.sta) ex.sta = e.sta;
-      if(e.blockH  && !ex.blockH)  ex.blockH  = e.blockH;
-      if(e.dutyH   && !ex.dutyH)   ex.dutyH   = e.dutyH;
-      if(e.checkin && !ex.checkin) ex.checkin = e.checkin;
-      if(e.checkout&& !ex.checkout)ex.checkout= e.checkout;
-      if(e.start   && !ex.start)   ex.start   = e.start;
-      if(e.end     && !ex.end)     ex.end     = e.end;
-      if(e.times   && !ex.times)   ex.times   = e.times;
-      if(e.debrief && !ex.debrief) ex.debrief = e.debrief;
-      if(e.isPositioning) ex.isPositioning = true;
-      if(e.crossesMidnight) ex.crossesMidnight = true;
-      if(e.arr_time && !ex.arr_time) ex.arr_time = e.arr_time;
-      if(e.invasionEnd && !ex.invasionEnd) ex.invasionEnd = e.invasionEnd;
-      skipped++;
+      var _chg = false;
+      if(e.type === 'flight'){
+        var _cat = function(o){ return o.std_actual||o.sta_actual ? 'A' : (o.std_estimated||o.sta_estimated ? 'E' : 'S'); };
+        var _nD = e.std_actual||e.std_estimated||e.std, _nA = e.sta_actual||e.sta_estimated||e.sta;
+        var _xD = ex.std_actual||ex.std_estimated||ex.std, _xA = ex.sta_actual||ex.sta_estimated||ex.sta;
+        if(_cat(e)!==_cat(ex) || _nD!==_xD || _nA!==_xA){
+          delete ex.std; delete ex.sta; delete ex.std_actual; delete ex.sta_actual; delete ex.std_estimated; delete ex.sta_estimated;
+          if(e.std) ex.std=e.std; if(e.sta) ex.sta=e.sta;
+          if(e.std_actual) ex.std_actual=e.std_actual; if(e.sta_actual) ex.sta_actual=e.sta_actual;
+          if(e.std_estimated) ex.std_estimated=e.std_estimated; if(e.sta_estimated) ex.sta_estimated=e.sta_estimated;
+          _chg = true;
+        }
+      }
+      ['blockH','dutyH','checkin','checkout','start','end','times','debrief','arr_time','invasionEnd','delay','dutyCode'].forEach(function(f){
+        if(e[f]!==undefined && e[f]!=='' && ex[f]!==e[f]){ ex[f]=e[f]; _chg=true; }
+      });
+      // Horas de actividades NO-vuelo (standby/off/training) — las de vuelo ya las gestiona el bloque de categoría.
+      if(e.type!=='flight'){
+        ['std','sta','std_actual','sta_actual'].forEach(function(f){
+          if(e[f]!==undefined && e[f]!=='' && ex[f]!==e[f]){ ex[f]=e[f]; _chg=true; }
+        });
+      }
+      if(!!e.isPositioning !== !!ex.isPositioning){ if(e.isPositioning) ex.isPositioning=true; else delete ex.isPositioning; _chg=true; }
+      if(!!e.crossesMidnight !== !!ex.crossesMidnight){ if(e.crossesMidnight) ex.crossesMidnight=true; else delete ex.crossesMidnight; _chg=true; }
+      if(_chg) updated++; else skipped++;
       return;
     }
 
@@ -33863,25 +33852,14 @@ window.ldECrewsConfirm = function(){
 
   // El re-sync directo (ecResyncMonth) muestra su PROPIO resumen → aquí no tocamos.
   if(_isResync){ window._ecSuppressImportToast = false; }
-  else {
-    var _mk = Object.keys(_diffs);
-    var _anyOld = _mk.some(function(m){ return _diffs[m] && _diffs[m].hadOld; });
-    if(_anyOld){
-      // Reimport sobre datos existentes → resumen de cambios (nuevos/cambios/eliminados),
-      // o "ya estaba al día" si no hubo ninguno. Igual que el re-sync directo.
-      var _moShow = _mk.filter(function(m){ return _diffs[m] && _diffs[m].hadOld; })
-                       .sort(function(a,b){ // el mes con más cambios primero
-                         var _na=_diffs[a]?( _diffs[a].added.length+_diffs[a].removed.length+_diffs[a].changed.length):0;
-                         var _nb=_diffs[b]?( _diffs[b].added.length+_diffs[b].removed.length+_diffs[b].changed.length):0;
-                         return _nb-_na;
-                       })[0];
-      try { _ecShowChangeSummary(_moShow, _diffs[_moShow]); } catch(_e){ showToast('Roster actualizado','success'); }
-    } else if(imported > 0){
-      // Primera importación de ese mes (sin datos previos) → toast normal.
-      showToast('✅ '+imported+' entrada'+(imported===1?'':'s')+' importada'+(imported===1?'':'s')+' desde eCrews','success');
-    } else {
-      showToast('El roster ya estaba actualizado','info');
-    }
+  else if(imported > 0 || updated > 0){
+    // Detecta y reporta tanto altas (imported) como MODIFICACIONES aplicadas (updated).
+    var _parts = [];
+    if(imported) _parts.push(imported + ' nuev' + (imported===1?'a':'as'));
+    if(updated)  _parts.push(updated  + ' actualizad' + (updated===1?'a':'as'));
+    showToast('✅ Roster · ' + _parts.join(' · ') + ' (eCrews)', 'success');
+  } else {
+    showToast('El roster ya estaba actualizado','info');
   }
 };
 
