@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.254">
+  <meta name="version" content="Beta.255">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.254","builtAt":"2026-07-01T20:35:34Z","commit":"5962471","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.255","builtAt":"2026-07-01T20:45:40Z","commit":"41eb9e7","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -32404,10 +32404,14 @@ function rstPushAllMonths(entries){
 window.rstPullFromServer = async function(){
   var token=''; try{ token=lsGet('cafi_auth_token',''); }catch(e){}
   if(!token) return 0;
+  var _t0 = Date.now();
+  var _mCount = function(tag){ var c={}; (RST.entries||[]).forEach(function(e){ if(e.date){ var m=e.date.slice(0,7); c[m]=(c[m]||0)+1; } }); console.log('[rstPull] '+tag+' (+'+(Date.now()-_t0)+'ms) local='+((RST.entries||[]).length)+' porMes='+JSON.stringify(c)); };
+  _mCount('INICIO');
   try{
     var r=await fetch(ldBackendUrl()+'/api/roster',{
-      headers:{'Authorization':'Bearer '+token}
+      headers:{'Authorization':'Bearer '+token}, cache:'no-store'
     });
+    console.log('[rstPull] fetch /api/roster status='+r.status+' (+'+(Date.now()-_t0)+'ms)');
     if(!r.ok) return -1;
     var body=await r.json();
     var serverEntries=body.entries||[];
@@ -32500,6 +32504,7 @@ window.rstPullFromServer = async function(){
       });
     }catch(e){}
 
+    _mCount('FIN added='+added+' changed='+changed);
     if(!changed) return 0;
 
     if(!RST.viewYear && RST.entries.length){
