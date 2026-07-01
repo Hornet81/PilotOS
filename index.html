@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.260">
+  <meta name="version" content="Beta.261">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.260","builtAt":"2026-07-01T21:07:56Z","commit":"1f0fd04","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.261","builtAt":"2026-07-01T21:15:09Z","commit":"50a7bf1","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -32490,8 +32490,10 @@ window.rstPullFromServer = async function(){
         if(_ts > Date.now()-60000) return;
         acceptMonths.push(month);
       } else {
-        // Ausente en local → añadir del servidor SIEMPRE (salvo borrado deliberado).
-        if(localStorage.getItem('pilotOS_deleted_month_'+month)) return;
+        // Ausente en local pero el SERVIDOR lo tiene VIVO (está en serverByMonth y NO en
+        // serverDeleted; la sección 1 ya trató los tombstones). → AÑADIR SIEMPRE. Si había una
+        // marca local de borrado, está OBSOLETA (alguien reimportó el mes en otro dispositivo,
+        // p.ej. importas en el PC → debe aparecer en el móvil). El removeItem de abajo la limpia.
         acceptMonths.push(month);
       }
       try{ localStorage.removeItem('pilotOS_deleted_month_'+month); }catch(e){}
