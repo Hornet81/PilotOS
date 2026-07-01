@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.250">
+  <meta name="version" content="Beta.251">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.250","builtAt":"2026-07-01T19:54:11Z","commit":"5fc6181","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.251","builtAt":"2026-07-01T20:08:15Z","commit":"b6ebd11","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -28447,6 +28447,7 @@ window.__mountSkyView = function () {
 (function(){
 var AIRPORTS={MAD:{lat:40.4936,lon:-3.5668,name:'Madrid-Barajas'},BCN:{lat:41.2971,lon:2.0785,name:'Barcelona-El Prat'},PMI:{lat:39.5517,lon:2.7388,name:'Palma de Mallorca'},AGP:{lat:36.6749,lon:-4.4991,name:'Málaga'},ALC:{lat:38.2822,lon:-0.5582,name:'Alicante'},VLC:{lat:39.4893,lon:-0.4816,name:'Valencia'},SVQ:{lat:37.4180,lon:-5.8931,name:'Sevilla'},BIO:{lat:43.3011,lon:-2.9106,name:'Bilbao'},SCQ:{lat:42.8963,lon:-8.4151,name:'Santiago'},ACE:{lat:28.9455,lon:-13.6052,name:'Lanzarote'},LPA:{lat:27.9319,lon:-15.3866,name:'Gran Canaria'},TFS:{lat:28.0445,lon:-16.5725,name:'Tenerife Sur'},CDG:{lat:49.0097,lon:2.5479,name:'París CDG'},LHR:{lat:51.4775,lon:-0.4614,name:'Londres Heathrow'},AMS:{lat:52.3086,lon:4.7639,name:'Ámsterdam'},FCO:{lat:41.8003,lon:12.2389,name:'Roma Fiumicino'},MXP:{lat:45.6306,lon:8.7281,name:'Milán Malpensa'},FRA:{lat:50.0379,lon:8.5622,name:'Frankfurt'},LIS:{lat:38.7813,lon:-9.1359,name:'Lisboa'},ZRH:{lat:47.4647,lon:8.5492,name:'Zúrich'},VIE:{lat:48.1103,lon:16.5697,name:'Viena'},MUC:{lat:48.3537,lon:11.7861,name:'Múnich'},DUB:{lat:53.4213,lon:-6.2700,name:'Dublín'},ATH:{lat:37.9364,lon:23.9445,name:'Atenas'},IST:{lat:41.2753,lon:28.7519,name:'Estambul'},DXB:{lat:25.2532,lon:55.3657,name:'Dubái'},JFK:{lat:40.6413,lon:-73.7781,name:'Nueva York JFK'},EZE:{lat:-34.8222,lon:-58.5358,name:'Buenos Aires'},MEX:{lat:19.4363,lon:-99.0721,name:'Ciudad de México'},NRT:{lat:35.7653,lon:140.3856,name:'Tokio Narita'},SIN:{lat:1.3644,lon:103.9915,name:'Singapur'},SYD:{lat:-33.9461,lon:151.1772,name:'Sídney'}};
 function getAirport(icao){return AIRPORTS[icao.toUpperCase()]||null;}
+try{ window.getAirport = getAirport; window.LD_AIRPORTS = LD_AIRPORTS; }catch(e){}
 function interpLatLon(lat1,lon1,lat2,lon2,t){return{lat:lat1+(lat2-lat1)*t,lon:lon1+(lon2-lon1)*t};}
 function wxInfoFP(c){var W={0:{e:'☀️',s:'Despejado'},1:{e:'🌤',s:'Mayormente despejado'},2:{e:'⛅',s:'Parcialmente nublado'},3:{e:'☁️',s:'Cubierto'},45:{e:'🌫',s:'Niebla'},51:{e:'🌦',s:'Llovizna'},61:{e:'🌧',s:'Lluvia'},71:{e:'🌨',s:'Nevada'},80:{e:'🌦',s:'Chubascos'},95:{e:'⛈',s:'Tormenta'}};return W[c]||{e:'🌡',s:'Variable'};}
 function fpDegC(d){return['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO'][Math.round(d/22.5)%16];}
@@ -38186,6 +38187,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
   function stripZ(s){ return String(s||'').replace(/[^0-9:]/g,''); }
   function getPos(){ return new Promise(function(res){ if(!navigator.geolocation) return res(null); var done=false; function fin(v){ if(done)return; done=true; res(v); } try{ navigator.geolocation.getCurrentPosition(function(p){ fin({lat:p.coords.latitude,lon:p.coords.longitude}); }, function(){ fin(null); }, {timeout:6000,maximumAge:300000}); }catch(e){ fin(null); } setTimeout(function(){ fin(null); },7000); }); }
+  function _baseInfo(){ try{ var b=''; try{ b=localStorage.getItem('pilotOS_home_base')||''; }catch(e){} if(!b){ var lg=gatherLegs(); if(lg&&lg.length) b=lg[0].dep; } if(!b) return null; var ic=(window.iataToIcao&&window.iataToIcao(b))||b; var ap=(window.LD_AIRPORTS&&window.LD_AIRPORTS[ic])||null; if(!ap||ap.lat==null||ap.lon==null) return null; var nm=(window._WX_NAMES&&window._WX_NAMES[ic])||ap.city||ap.name||b; nm=String(nm).replace(/\s*(airport|aeropuerto|intl|international)/ig,'').trim(); return { icao:ic, lat:+ap.lat, lon:+ap.lon, label:'el aeropuerto de '+nm+' ('+b+')' }; }catch(e){ return null; } }
   function prevDayRoutes(legs){ try{ if(!legs||!legs.length||!legs[0].date) return []; var raw=localStorage.getItem('pilotOS_roster'); if(!raw) return []; var ents=JSON.parse(raw); if(!Array.isArray(ents)) return []; var d=new Date(legs[0].date+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()-1); var prev=d.toISOString().slice(0,10); var out=[]; ents.forEach(function(e){ if(e.type==='flight'&&e.dep&&e.arr&&e.date===prev){ out.push(e.dep+'-'+e.arr); } }); return out; }catch(e){ return []; } }
   function gatherLegs(){ var legs=(window.buildLegsFromRoster&&window.buildLegsFromRoster())||[]; return legs.map(function(l){ var di=(window.iataToIcao&&window.iataToIcao(l.dep))||l.dep; var ai=(window.iataToIcao&&window.iataToIcao(l.arr))||l.arr; return {flight:l.flight,dep:l.dep,arr:l.arr,depIcao:di,arrIcao:ai,std:stripZ(l.std),sta:stripZ(l.sta),acType:l.acType,arrMs:l._arrMs,date:l.date,cruiseFL:l.cruiseFL}; }); }
   async function ctxSys(leg,turbData){
@@ -38306,7 +38308,7 @@ document.addEventListener('DOMContentLoaded', function(){
         var legs=gatherLegs();
         if(!legs.length){ stat(CUR.lang==='en'?'No active flight detected right now.':'No se detecta ningún vuelo activo ahora mismo.'); return _done(gen); }
         stat(CUR.lang==='en'?'Generating briefing with ARIA…':'Generando briefing con ARIA…');
-        var pos=await getPos(); var body={legs:legs,pilot:pilotName()||undefined,lang:CUR.lang,localHour:new Date().getHours(),yesterdayRoutes:prevDayRoutes(legs)}; if(pos){ body.userLat=pos.lat; body.userLon=pos.lon; }
+        var pos=await getPos(); var _bi=_baseInfo(); var body={legs:legs,pilot:pilotName()||undefined,lang:CUR.lang,localHour:new Date().getHours(),yesterdayRoutes:prevDayRoutes(legs)}; if(pos){ body.userLat=pos.lat; body.userLon=pos.lon; } if(_bi){ body.baseIcao=_bi.icao; body.baseLat=_bi.lat; body.baseLon=_bi.lon; body.baseLabel=_bi.label; }
         var r=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify(body)});
         if(!r.ok){ var j=await r.json().catch(function(){return{};}); stat('⚠ '+(j.message||j.error||('Error '+r.status))); return _done(gen); }
         var d=await r.json(); txt=d.text||'';
@@ -38315,7 +38317,7 @@ document.addEventListener('DOMContentLoaded', function(){
         if(!leg){ stat('No hay vuelo activo en SkyView.'); return _done(gen); }
         stat(CUR.lang==='en'?'Generating briefing with ARIA…':'Generando briefing con ARIA…');
         var all=gatherLegs(); var one=all.filter(function(L){ return L.flight===leg.flight && L.dep===leg.dep && L.arr===leg.arr; }); if(!one.length){ var di=(window.iataToIcao&&window.iataToIcao(leg.dep))||leg.dep, ai=(window.iataToIcao&&window.iataToIcao(leg.arr))||leg.arr; one=[{flight:leg.flight,dep:leg.dep,arr:leg.arr,depIcao:di,arrIcao:ai,std:stripZ(leg.std),sta:stripZ(leg.sta),acType:leg.acType,arrMs:leg._arrMs}]; } else { one=[one[0]]; }
-        var r2=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({legs:one,pilot:pilotName()||undefined,lang:CUR.lang,localHour:new Date().getHours(),yesterdayRoutes:prevDayRoutes(one)})});
+        var pos=await getPos(); var _bi=_baseInfo(); var lbody={legs:one,pilot:pilotName()||undefined,lang:CUR.lang,localHour:new Date().getHours(),yesterdayRoutes:prevDayRoutes(one)}; if(pos){ lbody.userLat=pos.lat; lbody.userLon=pos.lon; } if(_bi){ lbody.baseIcao=_bi.icao; lbody.baseLat=_bi.lat; lbody.baseLon=_bi.lon; lbody.baseLabel=_bi.label; } var r2=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify(lbody)});
         if(!r2.ok){ var je=await r2.json().catch(function(){return{};}); stat('⚠ '+(je.message||je.error||('Error '+r2.status))); return _done(gen); } var d2=await r2.json(); txt=d2.text||'';
       }
       if(!txt){ stat('⚠ ARIA no devolvió texto'); return _done(gen); } LAST_TEXT=txt; LAST_SCOPE=SCOPE;
