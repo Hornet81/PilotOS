@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.252">
+  <meta name="version" content="Beta.253">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.252","builtAt":"2026-07-01T20:21:14Z","commit":"38e419a","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.253","builtAt":"2026-07-01T20:34:34Z","commit":"f48b41f","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -38164,7 +38164,7 @@ document.addEventListener('DOMContentLoaded', function(){
   function stat(s){ var e=q('#ar-status'); if(e)e.textContent=s||''; }
 
   function stripZ(s){ return String(s||'').replace(/[^0-9:]/g,''); }
-  function getPos(){ return new Promise(function(res){ if(!navigator.geolocation) return res(null); var done=false; function fin(v){ if(done)return; done=true; res(v); } try{ navigator.geolocation.getCurrentPosition(function(p){ fin({lat:p.coords.latitude,lon:p.coords.longitude}); }, function(){ fin(null); }, {timeout:6000,maximumAge:300000}); }catch(e){ fin(null); } setTimeout(function(){ fin(null); },7000); }); }
+  function getPos(){ return new Promise(function(res){ var CK='pilotOS_lastPos'; function cached(){ try{ var r=localStorage.getItem(CK); if(!r)return null; var o=JSON.parse(r); if(o&&o.lat!=null&&o.lon!=null&&(Date.now()-(o.t||0))<43200000) return {lat:o.lat,lon:o.lon}; }catch(e){} return null; } if(!navigator.geolocation) return res(cached()); var done=false; function fin(v){ if(done)return; done=true; if(v){ try{ localStorage.setItem(CK, JSON.stringify({lat:v.lat,lon:v.lon,t:Date.now()})); }catch(e){} res(v); } else { res(cached()); } } try{ navigator.geolocation.getCurrentPosition(function(p){ fin({lat:p.coords.latitude,lon:p.coords.longitude}); }, function(){ fin(null); }, {timeout:10000,maximumAge:900000,enableHighAccuracy:false}); }catch(e){ fin(null); } setTimeout(function(){ fin(null); },11000); }); }
   function _baseInfo(){ try{ var b=''; try{ b=localStorage.getItem('pilotOS_home_base')||''; }catch(e){} if(!b){ var lg=gatherLegs(); if(lg&&lg.length) b=lg[0].dep; } if(!b) return null; var ic=(window.iataToIcao&&window.iataToIcao(b))||b; var ap=(window.LD_AIRPORTS&&window.LD_AIRPORTS[ic])||null; if(!ap||ap.lat==null||ap.lon==null) return null; var nm=(window._WX_NAMES&&window._WX_NAMES[ic])||ap.city||ap.name||b; nm=String(nm).replace(/\s*(airport|aeropuerto|intl|international)/ig,'').trim(); return { icao:ic, lat:+ap.lat, lon:+ap.lon, label:'el aeropuerto de '+nm+' ('+b+')' }; }catch(e){ return null; } }
   function prevDayRoutes(legs){ try{ if(!legs||!legs.length||!legs[0].date) return []; var raw=localStorage.getItem('pilotOS_roster'); if(!raw) return []; var ents=JSON.parse(raw); if(!Array.isArray(ents)) return []; var d=new Date(legs[0].date+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()-1); var prev=d.toISOString().slice(0,10); var out=[]; ents.forEach(function(e){ if(e.type==='flight'&&e.dep&&e.arr&&e.date===prev){ out.push(e.dep+'-'+e.arr); } }); return out; }catch(e){ return []; } }
   function gatherLegs(){ var legs=(window.buildLegsFromRoster&&window.buildLegsFromRoster())||[]; return legs.map(function(l){ var di=(window.iataToIcao&&window.iataToIcao(l.dep))||l.dep; var ai=(window.iataToIcao&&window.iataToIcao(l.arr))||l.arr; return {flight:l.flight,dep:l.dep,arr:l.arr,depIcao:di,arrIcao:ai,std:stripZ(l.std),sta:stripZ(l.sta),acType:l.acType,arrMs:l._arrMs,date:l.date,cruiseFL:l.cruiseFL}; }); }
@@ -38498,7 +38498,7 @@ document.addEventListener('DOMContentLoaded', function(){
   function _pauseKeep(){ try{ if(curAudio)curAudio.pause(); }catch(e){} try{ if(_va){ _va.pause(); _va.onended=null; } }catch(e){} if(playing)paused=true; try{ vStop(); }catch(e){} }
   function restoreState(){ if(!LAST_TEXT||!audios.length)return; renderText(LAST_TEXT); showDeckTransport(true); var pb=q('#ar-play'); if(pb){ pb.disabled=false; pb.style.opacity='1'; pb.textContent=(playing&&!paused)?'⏸':'▶'; } var bk=q('#ar-back'); if(bk){ bk.disabled=false; bk.style.opacity='1'; } var sb=q('#ar-stop'); if(sb){ sb.disabled=false; sb.style.opacity='1'; } var rg=q('#ar-regen'); if(rg){ rg.disabled=false; rg.style.opacity='1'; } var tot=q('#ar-tot'); if(tot)tot.textContent=fmt(total); var el=curElapsed(); var f=q('#ar-fill'); if(f&&total)f.style.width=Math.min(100,el/total*100)+'%'; var c=q('#ar-cur'); if(c)c.textContent=fmt(el); try{ _hiByTime(curElapsed()); }catch(e){} var gen=q('#ar-gen'); if(gen)gen.textContent=(CUR.lang==='en'?'▶ Regenerate':'▶ Generar de nuevo'); applyChrome(); }
   window.__ariaStop=function(){ _pauseKeep(); };
-  window.__ariaMount=function(container){ try{ buildPanel(container); restoreState(); }catch(e){ try{ buildPanel(container); }catch(e2){} } };
+  window.__ariaMount=function(container){ try{ buildPanel(container); restoreState(); }catch(e){ try{ buildPanel(container); }catch(e2){} } try{ getPos(); }catch(e){} };
 })();
 </script>
 
