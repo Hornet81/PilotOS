@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.259">
+  <meta name="version" content="Beta.260">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.259","builtAt":"2026-07-01T21:05:54Z","commit":"39fac09","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.260","builtAt":"2026-07-01T21:07:56Z","commit":"1f0fd04","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -32474,14 +32474,26 @@ window.rstPullFromServer = async function(){
     });
 
     // ── 2) Aceptar/AÑADIR meses del servidor ──
-    // - Skip si hay cambios locales pendientes de sync (push no completado)
-    // - Skip si se importó en los últimos 60s (protege la carrera import→pull inmediato)
+    // CLAVE: si un mes del servidor NO está en local → AÑADIRLO SIEMPRE (no puede pisar nada;
+    // así un mes que falta se recupera del servidor en vez de quedar invisible). Las protecciones
+    // (pendiente de push / import <60s) solo aplican para NO SOBRESCRIBIR un mes que YA está en
+    // local (evita pisar un re-import recién hecho con la copia del servidor). Un mes borrado
+    // DELIBERADAMENTE (flag deleted_month) no se resucita.
     var acceptMonths=[];
+    var _localHasMonth={};
+    RST.entries.forEach(function(e){ if(e.date) _localHasMonth[e.date.slice(0,7)]=true; });
     Object.keys(serverByMonth).forEach(function(month){
-      if(_pendingMonths[month]) return;
-      var _ts=new Date(lsGet('pilotOS_import_ts_'+month,'')||0).getTime()||0;
-      if(_ts > Date.now()-60000) return;
-      acceptMonths.push(month);
+      if(_localHasMonth[month]){
+        // Presente en local → replazar solo si NO es re-import reciente ni está pendiente.
+        if(_pendingMonths[month]) return;
+        var _ts=new Date(lsGet('pilotOS_import_ts_'+month,'')||0).getTime()||0;
+        if(_ts > Date.now()-60000) return;
+        acceptMonths.push(month);
+      } else {
+        // Ausente en local → añadir del servidor SIEMPRE (salvo borrado deliberado).
+        if(localStorage.getItem('pilotOS_deleted_month_'+month)) return;
+        acceptMonths.push(month);
+      }
       try{ localStorage.removeItem('pilotOS_deleted_month_'+month); }catch(e){}
     });
     if(acceptMonths.length){
