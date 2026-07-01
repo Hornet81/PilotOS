@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.266">
+  <meta name="version" content="Beta.267">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.266","builtAt":"2026-07-01T21:43:05Z","commit":"2158b76","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.267","builtAt":"2026-07-01T21:53:08Z","commit":"5a68442","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -33715,45 +33715,67 @@ function _ecHandleData(payload){
   var standbys = _ecParsedEntries.filter(function(e){ return e.type==='standby'; });
   var training = _ecParsedEntries.filter(function(e){ return e.type==='training'; });
 
-  // Summary
+  // Summary — vuelos + TODAS las demás actividades (Franco, guardias, sim, e-learning, libres…)
   var sumEl = document.getElementById('ec-recv-summary');
   if(sumEl){
+    var _nonFlight = _ecParsedEntries.filter(function(e){ return e.type!=='flight' && e.type!=='overnight_continuation'; });
     var parts = [];
-    if(flights.length)  parts.push(flights.length+' vuelos');
-    if(standbys.length) parts.push(standbys.length+' standby');
-    if(training.length) parts.push(training.length+' training');
-    if(offs.length)     parts.push(offs.length+' libres');
+    if(flights.length)     parts.push(flights.length+' vuelos');
+    if(_nonFlight.length)  parts.push(_nonFlight.length+' actividades');
     sumEl.textContent = (period || '') + ' · ' + parts.join(' · ');
   }
 
-  // Build preview list
+  // Build preview list — TODAS las actividades del mes (vuelos + Franco + guardias + sim +
+  // e-learning + reuniones + libres…), no solo vuelos. Agrupadas por día.
   var listEl = document.getElementById('ec-preview-list');
   if(listEl){
     var html = '';
-    var flightDates = {};
-    flights.forEach(function(f){ flightDates[f.date] = (flightDates[f.date]||[]).concat(f); });
-    var sortedDates = Object.keys(flightDates).sort();
+    var _RCS = window.RST_CODE_STYLE || {};
+    var _RTC = window.RST_TC || {};
+    var _typeLbl = {off:'LIBRE', f:'FRANCO', standby:'GUARDIA', osb:'OSB', training:'TRAINING',
+                    ebt:'SIM', eva:'SIM', lm:'E-LEARNING', sick:'BAJA', vacation:'VACAC.', other:'ACT.'};
+    var byDate = {};
+    _ecParsedEntries.forEach(function(e){
+      if(e.type==='overnight_continuation') return;   // cola de cruce de medianoche → no listar
+      (byDate[e.date] = byDate[e.date]||[]).push(e);
+    });
+    var sortedDates = Object.keys(byDate).sort();
+    var dayNames = ['Do','Lu','Ma','Mi','Ju','Vi','Sa'];
     sortedDates.forEach(function(d){
-      var legs = flightDates[d];
+      var items = byDate[d];
       var dateObj = new Date(d+'T12:00:00Z');
-      var dayNames = ['Do','Lu','Ma','Mi','Ju','Vi','Sa'];
       var dayLbl = dayNames[dateObj.getUTCDay()]+' '+dateObj.getUTCDate();
       html += '<div class="ec-pv-card" style="margin-bottom:10px;padding:11px 13px;background:rgba(8,145,178,.07);border:1px solid rgba(8,145,178,.18);border-radius:13px;animation:ecSlideUp .2s ease both">';
       html += '<div class="ec-pv-date" style="font-family:\'Space Mono\',monospace;font-size:10px;color:rgba(8,145,178,.7);margin-bottom:7px;text-transform:uppercase;letter-spacing:.5px">'+dayLbl+' · '+d+'</div>';
-      legs.forEach(function(f){
+      items.forEach(function(e){
         html += '<div class="ec-pv-leg" style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-top:1px solid rgba(8,145,178,.08)">';
-        html += '<div style="display:flex;align-items:center;gap:8px">';
-        html += '<span class="ec-pv-route" style="font-family:\'Space Mono\',monospace;font-size:12px;font-weight:600;color:#F0FFFE">'+f.dep+' › '+f.arr+'</span>';
-        html += '<span class="ec-pv-fn" style="font-family:\'Space Mono\',monospace;font-size:10px;color:rgba(248,250,252,.35)">'+f.flightNum+'</span>';
-        html += '</div>';
-        var _fStd = f.std_actual ? '(A)'+f.std_actual : (f.std_estimated ? '(E)'+f.std_estimated : (f.std||'?'));
-        var _fSta = f.sta_actual ? '(A)'+f.sta_actual : (f.sta_estimated ? '(E)'+f.sta_estimated : (f.sta||'?'));
-        html += '<span class="ec-pv-times" style="font-family:\'Space Mono\',monospace;font-size:10px;color:rgba(8,145,178,.7)">'+_fStd+' → '+_fSta+'</span>';
+        if(e.type==='flight'){
+          html += '<div style="display:flex;align-items:center;gap:8px">';
+          html += '<span style="font-family:\'Space Mono\',monospace;font-size:12px;font-weight:600;color:#F0FFFE">'+e.dep+' › '+e.arr+'</span>';
+          html += '<span style="font-family:\'Space Mono\',monospace;font-size:10px;color:rgba(248,250,252,.35)">'+(e.flightNum||'')+(e.isPositioning?' ·POS':'')+'</span>';
+          html += '</div>';
+          var _fStd = e.std_actual ? '(A)'+e.std_actual : (e.std_estimated ? '(E)'+e.std_estimated : (e.std||'?'));
+          var _fSta = e.sta_actual ? '(A)'+e.sta_actual : (e.sta_estimated ? '(E)'+e.sta_estimated : (e.sta||'?'));
+          html += '<span style="font-family:\'Space Mono\',monospace;font-size:10px;color:rgba(8,145,178,.7)">'+_fStd+' → '+_fSta+'</span>';
+        } else {
+          // Actividad NO-vuelo: pastilla con color por código/tipo + horas.
+          var _cu = String(e.code||'').toUpperCase();
+          var _cs = _RCS[_cu] || _RTC[e.type] || {bg:'#64748B', tx:'#FFFFFF'};
+          var _lbl = e.code || _typeLbl[e.type] || (e.type||'').toUpperCase();
+          var _t = (e.std && e.sta) ? (e.std+' → '+e.sta)
+                 : (e.checkin && e.checkout) ? (e.checkin+' → '+e.checkout)
+                 : (e.start && e.end) ? (e.start+' → '+e.end) : 'Todo el día';
+          html += '<span style="display:inline-flex;align-items:center;gap:6px">'
+                + '<span style="font-family:\'Space Mono\',monospace;font-size:11px;font-weight:800;color:'+_cs.tx+';background:'+_cs.bg+';border-radius:5px;padding:1px 7px">'+_lbl+'</span>'
+                + '<span style="font-size:10px;color:rgba(248,250,252,.5)">'+(_typeLbl[e.type]||'')+'</span>'
+                + '</span>';
+          html += '<span style="font-family:\'Space Mono\',monospace;font-size:10px;color:rgba(8,145,178,.7)">'+_t+'</span>';
+        }
         html += '</div>';
       });
       html += '</div>';
     });
-    if(!html) html = '<div style="text-align:center;padding:20px;font-family:\'Space Mono\',monospace;font-size:11px;color:rgba(248,250,252,.3)">Sin vuelos en el período</div>';
+    if(!html) html = '<div style="text-align:center;padding:20px;font-family:\'Space Mono\',monospace;font-size:11px;color:rgba(248,250,252,.3)">Sin actividad en el período</div>';
     listEl.innerHTML = html;
   }
 
