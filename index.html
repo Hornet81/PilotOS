@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.264">
+  <meta name="version" content="Beta.265">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.264","builtAt":"2026-07-01T21:29:49Z","commit":"cd20e82","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.265","builtAt":"2026-07-01T21:32:11Z","commit":"521fcfc","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -27905,10 +27905,12 @@ function buildLegsFromRoster() {
     var nowMs = Date.now();
     // Los registros del roster guardan la hora en std/std_actual/std_estimated (según la vía
     // de importación). Resolver con la misma cascada que el resto del código para no perder horas.
-    // Prioridad aviación: A (actual) > E (estimated) > S (scheduled). Igual que el resto del código.
-    function _pickT(a, e, s) { var arr = [a, e, s]; for (var i = 0; i < arr.length; i++) { var v = arr[i]; if (v != null && v !== '' && v !== 'null') { v = String(v).slice(0, 5); if (/^\d{1,2}:\d{2}$/.test(v)) return v; } } return ''; }
-    function _stdOf(e) { return _pickT(e.std_actual, e.std_estimated, e.std); }
-    function _staOf(e) { return _pickT(e.sta_actual, e.sta_estimated, e.sta); }
+    // El briefing es PRE-vuelo → SIEMPRE la hora SCHEDULED (programada, prevista de salida).
+    // La "S"/sin prefijo es solo cómo viene el dato crudo. Solo si faltara la scheduled se
+    // cae a estimada y, en último caso, a la real, para no dejar la hora en blanco.
+    function _pickT(s, e, a) { var arr = [s, e, a]; for (var i = 0; i < arr.length; i++) { var v = arr[i]; if (v != null && v !== '' && v !== 'null') { v = String(v).slice(0, 5); if (/^\d{1,2}:\d{2}$/.test(v)) return v; } } return ''; }
+    function _stdOf(e) { return _pickT(e.std, e.std_estimated, e.std_actual); }
+    function _staOf(e) { return _pickT(e.sta, e.sta_estimated, e.sta_actual); }
     function _legArrMs(e) {
       var std = _stdOf(e) || '00:00';
       var sta = _staOf(e) || std;
