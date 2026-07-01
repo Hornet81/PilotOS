@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.247">
+  <meta name="version" content="Beta.248">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.247","builtAt":"2026-06-30T17:49:26Z","commit":"c9b64ab","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.248","builtAt":"2026-07-01T17:37:22Z","commit":"545d676","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -38099,7 +38099,7 @@ document.addEventListener('DOMContentLoaded', function(){
   function cfg(){ return { lang:lg('db_lang','es'),
     voice:(function(){ var v=lg('db_voice','nova'); return ALLOW.indexOf(v)>=0?v:'nova'; })(),
     rate:parseFloat(lg('db_rate','1'))||1,
-    vol:(lg('db_vol',null)!=null?parseFloat(lg('db_vol','1')):0.8) }; }
+    vol:(lg('db_vol',null)!=null?parseFloat(lg('db_vol','1')):1) }; }
   function saveCfg(kk,v){ try{ localStorage.setItem('db_'+kk,v); }catch(e){} }
   var CUR=cfg(), RATE=CUR.rate, VOL=CUR.vol, SCOPE='hoy';
   var LAST_TEXT='', LAST_SCOPE='';
@@ -38187,22 +38187,18 @@ document.addEventListener('DOMContentLoaded', function(){
   function _decode(ac, arr){ return new Promise(function(res,rej){ try{ var pr=ac.decodeAudioData(arr, function(b){res(b);}, function(e){rej(e||new Error('decode')); }); if(pr&&pr.then)pr.then(res,rej); }catch(e){ rej(e); } }); }
   function _bufToWav(buf){ var sr=buf.sampleRate, len=buf.length; var data=buf.getChannelData(0); var ab=new ArrayBuffer(44+len*2); var dv=new DataView(ab); function ws(o,st){ for(var i=0;i<st.length;i++)dv.setUint8(o+i,st.charCodeAt(i)); } ws(0,'RIFF'); dv.setUint32(4,36+len*2,true); ws(8,'WAVE'); ws(12,'fmt '); dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,1,true); dv.setUint32(24,sr,true); dv.setUint32(28,sr*2,true); dv.setUint16(32,2,true); dv.setUint16(34,16,true); ws(36,'data'); dv.setUint32(40,len*2,true); var off=44; for(var i=0;i<len;i++){ var x=Math.max(-1,Math.min(1,data[i])); dv.setInt16(off, x<0?x*0x8000:x*0x7FFF, true); off+=2; } return new Blob([ab],{type:'audio/wav'}); }
   function _hiByTime(el){ var sm=_segMap; if(!sm||!sm.length)return; var idx=0; for(var i=0;i<sm.length;i++){ if(el>=sm[i].start-0.02) idx=i; else break; } hi(sm[idx].from, sm[idx].to); }
+  async function ttsBlobRaw(text){ var r=await fetch(BACKEND+'/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify({text:text,voice:(CUR.voice||'nova'),lang:CUR.lang})}); if(r.status===429){ var j=await r.json().catch(function(){return{};}); throw new Error(j.message||'Voz no disponible en tu plan'); } if(!r.ok) throw new Error('Error de voz '+r.status); return await r.blob(); }
+  function _blobDur(blob){ return new Promise(function(res){ var u=URL.createObjectURL(blob); var a=new Audio(); a.preload='metadata'; var done=false; function fin(d){ if(done)return; done=true; try{URL.revokeObjectURL(u);}catch(e){} res(isFinite(d)&&d>0?d:6); } a.onloadedmetadata=function(){ fin(a.duration); }; a.onerror=function(){ fin(6); }; a.src=u; setTimeout(function(){ fin(a.duration); },2500); }); }
   async function ttsArrayBuffer(text){ var r=await fetch(BACKEND+'/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify({text:text,voice:(CUR.voice||'nova'),lang:CUR.lang})}); if(r.status===429){ var j=await r.json().catch(function(){return{};}); throw new Error(j.message||'Voz no disponible en tu plan'); } if(!r.ok) throw new Error('Error de voz '+r.status); return await r.arrayBuffer(); }
   async function prepareVoice(){
     var chunks=chunk(760); _segMap=[]; if(!chunks.length){ return false; }
-    if(!_decAC){ try{ _decAC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
-    var bufs=[];
-    for(var i=0;i<chunks.length;i++){ stat('Generando voz '+(i+1)+'/'+chunks.length+'…'); var arr=await ttsArrayBuffer(chunks[i].text); var buf=await _decode(_decAC, arr); bufs.push(buf); }
-    var sr=bufs[0].sampleRate, gapS=0, totalSamples=0, t=0;
-    for(var i=0;i<bufs.length;i++){ _segMap.push({from:chunks[i].from,to:chunks[i].to,start:t}); totalSamples+=bufs[i].length; t+=bufs[i].duration; if(chunks[i].gap){ totalSamples+=Math.round(gapS*sr); t+=gapS; } }
-    var out=_decAC.createBuffer(1, totalSamples, sr); var od=out.getChannelData(0); var off=0;
-    for(var i=0;i<bufs.length;i++){ od.set(bufs[i].getChannelData(0), off); off+=bufs[i].length; if(chunks[i].gap){ off+=Math.round(gapS*sr); } }
-    var _pk=0; for(var i=0;i<od.length;i++){ var _a=od[i]<0?-od[i]:od[i]; if(_a>_pk)_pk=_a; } if(_pk>0.0001 && _pk<0.97){ var _g=0.97/_pk; if(_g>5)_g=5; for(var i=0;i<od.length;i++){ od[i]*=_g; } }
+    var parts=[], t=0;
+    for(var i=0;i<chunks.length;i++){ stat('Generando voz '+(i+1)+'/'+chunks.length+'…'); var blob=await ttsBlobRaw(chunks[i].text); var dur=await _blobDur(blob); _segMap.push({from:chunks[i].from,to:chunks[i].to,start:t}); t+=dur; parts.push(blob); }
     total=t;
     if(_briefUrl){ try{ URL.revokeObjectURL(_briefUrl); }catch(e){} }
-    _briefUrl=URL.createObjectURL(_bufToWav(out));
+    _briefUrl=URL.createObjectURL(new Blob(parts,{type:(parts[0]&&parts[0].type)||'audio/mpeg'}));
     if(!_brief)_brief=new Audio(); _brief.preload='auto'; _brief.src=_briefUrl;
-    try{ _brief.load(); }catch(e){} await new Promise(function(res){ var done=false; function fin(){ if(done)return; done=true; res(); } if(_brief.readyState>=4)return fin(); _brief.oncanplaythrough=fin; _brief.onloadeddata=function(){ if(_brief.readyState>=3)fin(); }; setTimeout(fin,4000); });
+    try{ _brief.load(); }catch(e){} await new Promise(function(res){ var done=false; function fin(){ if(done)return; done=true; res(); } if(_brief.readyState>=3)return fin(); _brief.oncanplaythrough=fin; _brief.onloadeddata=function(){ if(_brief.readyState>=3)fin(); }; setTimeout(fin,4000); });
     if(isFinite(_brief.duration)&&_brief.duration>0) total=_brief.duration;
     audios=[{a:_brief,from:0,to:Math.max(0,SENT.length-1)}]; curAudio=_brief; acc=0; k=0;
     var tot=q('#ar-tot'); if(tot)tot.textContent=fmt(total); return true;
