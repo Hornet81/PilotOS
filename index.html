@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.249">
+  <meta name="version" content="Beta.250">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.249","builtAt":"2026-07-01T17:40:47Z","commit":"c33a8d9","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.250","builtAt":"2026-07-01T19:54:11Z","commit":"5fc6181","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -33176,6 +33176,19 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
     var d = new Date(ds+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+1);
     return d.toISOString().slice(0,10);
   }
+  // Clasifica un código de actividad de tierra sin recurrir al EC_MAP completo (que vive
+  // dentro de la rama groundduty). Se usa cuando un evento de vuelo/Default llega SIN legs
+  // (p.ej. Franco 'F', que eCrews manda como Default → antes se descartaba y el día salía
+  // en blanco). Franco (F/F2/FR/EF) → type 'f' (coral); guardias → standby; LM → training.
+  function _ecFallbackMap(c){
+    c = (c||'').toUpperCase();
+    if(/^LM/.test(c)) return { type:'training', code:'TR' };
+    if(_isStandbyCode(c)) return { type:'standby', code:c };
+    if(/^F\d?$/.test(c) || c==='FR' || c==='EF') return { type:'f', code:c };  // Franco (coral)
+    if(/^(V?RVAC|VAC|PVAC|AL)$/.test(c)) return { type:'off', code:'VAC' };
+    if(/^S?ICK$|SIC/.test(c)) return { type:'off', code:'SICK' };
+    return { type:'off', code:c };
+  }
 
   events.forEach(function(ev){
     var date = (ev.start||'').slice(0,10);
@@ -33215,7 +33228,11 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
       var sbCode = _sbDetCode || _extractCode(text);
       var sbStart = (ev.start||'').slice(11,16);
       var sbEnd   = (ev.end||'').slice(11,16);
-      entries.push({ date:date, type:'standby', code:sbCode, std:sbStart, sta:sbEnd, source:'ECREWS' });
+      // Franco: eCrews lo entrega como type "Standby" (F/F2/FR/EF) pero NO es una guardia →
+      // type 'f' (coral, sin icono de reloj), no 'standby'.
+      var _sbU = String(sbCode||'').toUpperCase();
+      var _sbType = (/^F\d?$/.test(_sbU) || _sbU==='FR' || _sbU==='EF') ? 'f' : 'standby';
+      entries.push({ date:date, type:_sbType, code:sbCode, std:sbStart, sta:sbEnd, source:'ECREWS' });
       return;
     }
 
@@ -33375,6 +33392,19 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
         else { legEntry.std = tDep; legEntry.sta = tArr; }
         entries.push(legEntry);
       });
+      // Evento de vuelo/Default SIN filas de vuelo (Franco 'F', etc.): eCrews a veces manda el
+      // día como type "Default"/"Flight" sin legs → antes se descartaba y el día salía EN BLANCO.
+      // Crear su entrada de actividad a partir del código para que se pinte (F → coral).
+      if(!legLines.length){
+        var _gc0 = _extractCode(text);
+        if(_gc0){
+          var _gm0 = _ecFallbackMap(_gc0);
+          var _ge0 = { date:date, type:_gm0.type, code:_gm0.code, source:'ECREWS' };
+          var _gs0=(ev.start||'').slice(11,16), _gn0=(ev.end||'').slice(11,16);
+          if(_gs0) _ge0.std=_gs0; if(_gn0) _ge0.sta=_gn0;
+          entries.push(_ge0);
+        }
+      }
       return;
     }
 
