@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.262">
+  <meta name="version" content="Beta.263">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.262","builtAt":"2026-07-01T21:22:16Z","commit":"7873ecf","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.263","builtAt":"2026-07-01T21:26:29Z","commit":"2abfb81","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -27903,9 +27903,13 @@ function buildLegsFromRoster() {
     // Durante el día se mantienen visibles todas las legs (aunque alguna ya se haya volado).
     var ROLL_BUFFER_H = 3; // horas tras el último aterrizaje antes de rolar al día siguiente
     var nowMs = Date.now();
+    // Los registros del roster guardan la hora en std/std_actual/std_estimated (según la vía
+    // de importación). Resolver con la misma cascada que el resto del código para no perder horas.
+    function _stdOf(e) { var v = e.std || e.std_actual || e.std_estimated || ''; v = String(v); return (v && v !== 'null') ? v.slice(0, 5) : ''; }
+    function _staOf(e) { var v = e.sta || e.sta_actual || e.sta_estimated || ''; v = String(v); return (v && v !== 'null') ? v.slice(0, 5) : ''; }
     function _legArrMs(e) {
-      var std = (e.std && e.std !== 'null') ? e.std : '00:00';
-      var sta = (e.sta && e.sta !== 'null') ? e.sta : std;
+      var std = _stdOf(e) || '00:00';
+      var sta = _staOf(e) || std;
       var aMs = new Date(e.date + 'T' + sta + ':00Z').getTime();
       if (sta < std) aMs += 86400000; // cruza medianoche → llega al día siguiente
       return aMs;
@@ -27916,7 +27920,7 @@ function buildLegsFromRoster() {
       if (!((e.type === 'flight' || (e.flightNum && /\d/.test(String(e.flightNum)))) && e.dep && e.arr)) return false;
       return _legArrMs(e) + ROLL_BUFFER_H * 3600000 > nowMs;
     }).sort(function (a, b) {
-      return (a.date + ' ' + (a.std || '')).localeCompare(b.date + ' ' + (b.std || ''));
+      return (a.date + ' ' + _stdOf(a)).localeCompare(b.date + ' ' + _stdOf(b));
     });
     // ⚠️ TEMPORAL (PENDIENTE arreglar bien cuando ARIA esté estable): si no hay ningún
     // vuelo "próximo" (todos con llegada+ROLL_BUFFER_H ya pasada), en vez de devolver null
@@ -27936,11 +27940,12 @@ function buildLegsFromRoster() {
     var upcoming = entries.filter(function (e) {
       return (e.type === 'flight' || (e.flightNum && /\d/.test(String(e.flightNum)))) && e.dep && e.arr && e.date === firstDate;
     }).sort(function (a, b) {
-      return (a.std || '').localeCompare(b.std || '');
+      return _stdOf(a).localeCompare(_stdOf(b));
     });
     return upcoming.map(function (e, i) {
-      var stdZ = e.std ? e.std + 'Z' : '—Z';
-      var staZ = e.sta ? e.sta + 'Z' : '—Z';
+      var _s = _stdOf(e), _a = _staOf(e);
+      var stdZ = _s ? _s + 'Z' : '—Z';
+      var staZ = _a ? _a + 'Z' : '—Z';
       var depIcao = iataToIcao(e.dep);
       var arrIcao = iataToIcao(e.arr);
       return {
