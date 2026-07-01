@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.248">
+  <meta name="version" content="Beta.249">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.248","builtAt":"2026-07-01T17:37:22Z","commit":"545d676","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.249","builtAt":"2026-07-01T17:40:47Z","commit":"c33a8d9","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -33002,7 +33002,7 @@ window.ecBackToMonths = function(){
 
 // ── Re-sync de UN TOQUE + detección de cambios ───────────────────────────────────
 function _ecDiffKey(e){ return e.type==='flight' ? (e.date+'|'+(e.flightNum||((e.dep||'')+'-'+(e.arr||'')))) : (e.date+'|'+(e.code||e.type)); }
-function _ecDiffTime(e){ return e.type==='flight' ? ((e.std_actual||e.std||'?')+'→'+(e.sta_actual||e.sta||'?')) : ((e.std||e.checkin||e.start||'—')+'→'+(e.sta||e.checkout||e.end||'—')); }
+function _ecDiffTime(e){ return e.type==='flight' ? ((e.std_actual||e.std_estimated||e.std||'?')+'→'+(e.sta_actual||e.sta_estimated||e.sta||'?')) : ((e.std||e.checkin||e.start||'—')+'→'+(e.sta||e.checkout||e.end||'—')); }
 function _ecDiffLabel(e){ return e.type==='flight' ? ((e.flightNum||'')+' '+(e.dep||'?')+'-'+(e.arr||'?')) : (e.code||e.type||'?'); }
 function _ecDiffDay(e){ return e.date ? e.date.slice(8,10) : '?'; }
 // Diferencias entre lo nuevo (eCrews) y las entradas eCrews actuales del mes.
@@ -33687,6 +33687,33 @@ window.ldECrewsConfirm = function(){
   rstLoad();
   var imported = 0, skipped = 0;
 
+  // ── Detección de cambios al reimportar (camino de conexión / re-login) ──
+  // El re-sync directo (ecResyncMonth) ya hace diff + replace + resumen y marca
+  // _ecSuppressImportToast. El camino de conexión (login → picker → confirmar) usaba un
+  // merge que solo rellenaba huecos → NO aplicaba modificaciones y decía "sin cambios".
+  // Ahora este camino también hace REPLACE por mes (quita las eCrews viejas y reimporta
+  // limpio → aplica los cambios) + diff, y muestra el mismo resumen. Así se detectan los
+  // cambios independientemente de por dónde entres.
+  var _isResync = !!window._ecSuppressImportToast;
+  var _diffs = {};
+  if(!_isResync){
+    var _months = {};
+    // Solo meses con actividad REAL (no una continuación de cruce de medianoche suelta): un vuelo
+    // del 30 que cruza al día 1 del mes siguiente NO debe hacer que se borre/reemplace ese mes.
+    _ecParsedEntries.forEach(function(e){ if(e.date && e.type!=='overnight_continuation') _months[e.date.slice(0,7)] = 1; });
+    // 1) Calcular TODOS los diffs primero (cada _ecDiffMonth hace su rstLoad; aún no tocamos nada).
+    Object.keys(_months).forEach(function(mo){
+      var _pm = _ecParsedEntries.filter(function(e){ return e.date && e.date.slice(0,7)===mo; });
+      try { _diffs[mo] = _ecDiffMonth(_pm, mo); } catch(_e){ _diffs[mo] = null; }
+    });
+    // 2) Replace: recargar y quitar de golpe las eCrews viejas de esos meses (conserva lo manual).
+    rstLoad();
+    RST.entries = (RST.entries||[]).filter(function(r){
+      return !(r.date && _months[r.date.slice(0,7)] && r.source==='ECREWS');
+    });
+    rstSave();
+  }
+
   _ecParsedEntries.forEach(function(e){
     // Check if already exists in RST by date+type+(flightNum/code)
     var existingIdx = RST.entries.findIndex(function(r){
@@ -33722,7 +33749,7 @@ window.ldECrewsConfirm = function(){
 
     var entry = {
       id:     e.type === 'flight'
-                ? ldGenDeterministicId('EC', e.date, e.dep||'', e.arr||'', e.std||e.std_actual||'')
+                ? ldGenDeterministicId('EC', e.date, e.dep||'', e.arr||'', e.std||e.std_actual||e.std_estimated||'')
                 : ldGenId(),
       date:   e.date,
       type:   e.type,
@@ -33803,12 +33830,27 @@ window.ldECrewsConfirm = function(){
   if(typeof ldUpdateRosterBtn === 'function') ldUpdateRosterBtn();
   ldECrewsSyncClose();
 
-  // El re-sync llama a esta función pero muestra su PROPIO resumen de cambios → sin toast.
-  if(window._ecSuppressImportToast){ window._ecSuppressImportToast = false; }
-  else if(imported > 0){
-    showToast('✅ '+imported+' entrada'+(imported===1?'':'s')+' importada'+(imported===1?'':'s')+' desde eCrews','success');
-  } else {
-    showToast('El roster ya estaba actualizado','info');
+  // El re-sync directo (ecResyncMonth) muestra su PROPIO resumen → aquí no tocamos.
+  if(_isResync){ window._ecSuppressImportToast = false; }
+  else {
+    var _mk = Object.keys(_diffs);
+    var _anyOld = _mk.some(function(m){ return _diffs[m] && _diffs[m].hadOld; });
+    if(_anyOld){
+      // Reimport sobre datos existentes → resumen de cambios (nuevos/cambios/eliminados),
+      // o "ya estaba al día" si no hubo ninguno. Igual que el re-sync directo.
+      var _moShow = _mk.filter(function(m){ return _diffs[m] && _diffs[m].hadOld; })
+                       .sort(function(a,b){ // el mes con más cambios primero
+                         var _na=_diffs[a]?( _diffs[a].added.length+_diffs[a].removed.length+_diffs[a].changed.length):0;
+                         var _nb=_diffs[b]?( _diffs[b].added.length+_diffs[b].removed.length+_diffs[b].changed.length):0;
+                         return _nb-_na;
+                       })[0];
+      try { _ecShowChangeSummary(_moShow, _diffs[_moShow]); } catch(_e){ showToast('Roster actualizado','success'); }
+    } else if(imported > 0){
+      // Primera importación de ese mes (sin datos previos) → toast normal.
+      showToast('✅ '+imported+' entrada'+(imported===1?'':'s')+' importada'+(imported===1?'':'s')+' desde eCrews','success');
+    } else {
+      showToast('El roster ya estaba actualizado','info');
+    }
   }
 };
 
