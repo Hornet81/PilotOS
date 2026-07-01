@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.253">
+  <meta name="version" content="Beta.254">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.253","builtAt":"2026-07-01T20:34:34Z","commit":"f48b41f","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.254","builtAt":"2026-07-01T20:35:34Z","commit":"5962471","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -32432,14 +32432,27 @@ window.rstPullFromServer = async function(){
     // Un mes local se borra SOLO si: el servidor lo marcó borrado Y NO está vivo en el
     // servidor (no re-importado) Y no hay cambios locales pendientes Y no es un re-import
     // local reciente (<60s). En la duda NO se borra → nunca se pierde dato propio.
+    console.log('[rstPull] serverDeleted='+JSON.stringify(serverDeleted)+' | mesesEnServidor='+JSON.stringify(Object.keys(serverByMonth)));
     serverDeleted.forEach(function(dm){
       if(!dm) return;
       if(serverByMonth[dm]) return;                          // vivo en servidor → no borrar
       if(_pendingMonths[dm]) return;                         // cambios locales sin pushear → conservar
       var _rt=new Date(lsGet('pilotOS_import_ts_'+dm,'')||0).getTime()||0;
-      if(_rt > Date.now()-60000) return;                     // re-import local muy reciente → conservar
       var hadLocal = RST.entries.some(function(e){ return e.date && e.date.slice(0,7)===dm; });
+      // ★ PROTECCIÓN ANTI-PÉRDIDA DE DATOS: si ESTE dispositivo importó el mes (import_ts existe)
+      // y aún lo tiene en local, NUNCA lo borres por un tombstone del servidor. La carrera
+      // DELETE→POST del push puede dejar el servidor "tombstoned + vacío" un instante y el pull
+      // borraba el mes recién importado. La eliminación entre dispositivos sigue OK para meses
+      // que este dispositivo NO importó (sin import_ts).
+      if(_rt && hadLocal){
+        console.warn('[rstPull] ⛔ tombstone de '+dm+' IGNORADO: mes importado aquí y presente en local (anti-pérdida). Reenvío al servidor.');
+        try{ localStorage.removeItem('pilotOS_deleted_month_'+dm); }catch(e){}   // no bloquear el re-push
+        if(window.rstPushMonth) window.rstPushMonth(dm);                          // devuelve el mes al servidor
+        return;
+      }
+      if(_rt > Date.now()-60000) return;                     // re-import local muy reciente → conservar
       if(hadLocal){
+        console.warn('[rstPull] 🗑 borrando mes local '+dm+' por tombstone (no importado aquí / import viejo)');
         RST.entries = RST.entries.filter(function(e){ return !e.date || e.date.slice(0,7)!==dm; });
         changed=true;
       }
