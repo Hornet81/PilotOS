@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.269">
+  <meta name="version" content="Beta.270">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.269","builtAt":"2026-07-01T21:58:54Z","commit":"80d3856","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.270","builtAt":"2026-07-02T15:44:41Z","commit":"561f085","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -38375,7 +38375,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
   var vOn=false,vStream=null,vRec=null,vChunks=[],vAC=null,_va=null,_ac=null,vSpeaking=false,_spk=0,vMuted=false,_emptyTurns=0,_micHeard=false;
   function ensureMic(){ if(vStream) return Promise.resolve(vStream); if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) return Promise.reject(new Error('NoGUM')); var gum=function(c){ return navigator.mediaDevices.getUserMedia(c); }; var chain=gum({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}).catch(function(e){ if(e&&(e.name==='OverconstrainedError'||e.name==='NotReadableError'||e.name==='TypeError')) return gum({audio:true}); throw e; }).then(function(s){ vStream=s; return s; }); return Promise.race([ chain, new Promise(function(_,rej){ setTimeout(function(){ if(!vStream)rej(new Error('TimeoutMic')); }, 9000); }) ]); }
-  function unlockAudio(){ try{ if(!_va)_va=new Audio(); _va.muted=true; _va.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACBWAQACABAAZGF0YQAAAAA='; var pp=_va.play(); if(pp&&pp.then){ pp.then(function(){ try{_va.pause();_va.currentTime=0;}catch(e){} _va.muted=false; }).catch(function(){ _va.muted=false; }); } }catch(e){} try{ if(!_ac)_ac=new (window.AudioContext||window.webkitAudioContext)(); if(_ac.state==='suspended')_ac.resume(); }catch(e){} }
+  function unlockAudio(){ try{ if(!_va)_va=new Audio(); _va.muted=true; _va.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACBWAQACABAAZGF0YQAAAAA='; var pp=_va.play(); if(pp&&pp.then){ pp.then(function(){ try{_va.pause();_va.currentTime=0;}catch(e){} _va.muted=false; }).catch(function(){ _va.muted=false; }); } }catch(e){} /* NO abrir AudioContext aquí: en iOS mantener _ac vivo degrada el Bluetooth a HFP y entrecorta el briefing. El AudioContext solo se crea cuando hace falta el micro. */ }
   async function ttsFetchUrl(text){ var r=await fetch(BACKEND+'/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify({text:text,voice:(CUR.voice||'nova'),lang:CUR.lang})}); if(r.status===429){ var j=await r.json().catch(function(){return{};}); throw new Error(j.message||'Voz no disponible'); } if(!r.ok) throw new Error('tts '+r.status); var b=await r.blob(); return URL.createObjectURL(b); }
   function beep(){ try{ if(!_ac)_ac=new (window.AudioContext||window.webkitAudioContext)(); if(_ac.state==='suspended')_ac.resume(); var o=_ac.createOscillator(),g=_ac.createGain(); o.type='sine'; o.frequency.value=880; o.connect(g); g.connect(_ac.destination); var t=_ac.currentTime; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.18,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.30); o.start(t); o.stop(t+0.32); }catch(e){} }
   function mediaSetup(){ try{ if(!('mediaSession' in navigator)||_msSet) return; _msSet=true; var ms=navigator.mediaSession; try{ ms.setActionHandler('play',function(){ if(!playing||paused)togglePlay(); }); }catch(e){} try{ ms.setActionHandler('pause',function(){ if(playing&&!paused)togglePlay(); }); }catch(e){} try{ ms.setActionHandler('stop',function(){ stopBriefing(); }); }catch(e){} try{ ms.setActionHandler('seekbackward',function(){ rewind(15); }); }catch(e){} try{ ms.setActionHandler('nexttrack',null); ms.setActionHandler('previoustrack',null); }catch(e){} }catch(e){} }
@@ -38383,7 +38383,7 @@ document.addEventListener('DOMContentLoaded', function(){
   function mediaPos(){ try{ if('mediaSession' in navigator && navigator.mediaSession.setPositionState && isFinite(total) && total>0){ navigator.mediaSession.setPositionState({duration:total, position:Math.max(0,Math.min(curElapsed(),total)), playbackRate:RATE||1}); } }catch(e){} }
   function mediaState(){ try{ if('mediaSession' in navigator) navigator.mediaSession.playbackState=(playing&&!paused)?'playing':(audios.length?'paused':'none'); }catch(e){} }
   function bindVis(){ if(_visBound) return; _visBound=true; try{ document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible'){ try{ for(var i=0;i<audios.length;i++){ if(audios[i].a!==curAudio){ try{ audios[i].a.pause(); }catch(e){} } } }catch(e){} mediaState(); } }); }catch(e){} }
-  function autoAsk(){ var hidden=false; try{ hidden=document.hidden; }catch(e){} if(vMuted||hidden){ var bye=(CUR.lang==='en'?'That is the full briefing. Have a safe flight.':'Eso es todo el briefing. Buen vuelo.'); chatLog('aria',bye); stat(CUR.lang==='en'?'Open the app to ask by voice':'Abre la app para preguntar por voz'); if(!vMuted){ vSpeak(bye, function(){ vBtn('idle'); }); } return; } var msg=(CUR.lang==='en'?'Would you like me to go deeper on anything, or do you have a question?':'¿Quieres que te profundice en algo o tienes alguna pregunta?'); chatLog('aria',msg); stat(CUR.lang==='en'?'Tap the mic to ask':'Pulsa el micro para preguntar'); vSpeak(msg, function(){ vStart(); }); }
+  function autoAsk(){ var hidden=false; try{ hidden=document.hidden; }catch(e){} if(vMuted||hidden){ var bye=(CUR.lang==='en'?'That is the full briefing. Have a safe flight.':'Eso es todo el briefing. Buen vuelo.'); chatLog('aria',bye); stat(CUR.lang==='en'?'Open the app to ask by voice':'Abre la app para preguntar por voz'); if(!vMuted){ vSpeak(bye, function(){ vBtn('idle'); }); } return; } var msg=(CUR.lang==='en'?'Would you like me to go deeper on anything, or do you have a question?':'¿Quieres que te profundice en algo o tienes alguna pregunta?'); chatLog('aria',msg); stat(CUR.lang==='en'?'Tap the mic to ask':'Pulsa el micro para preguntar'); vSpeak(msg, function(){ vBtn('idle'); }); }
   function showVoiceDock(){}
   function hideVoiceDock(){}
   function vLog(role,txt){ chatLog(role,txt); }
@@ -38416,7 +38416,7 @@ document.addEventListener('DOMContentLoaded', function(){
     stat(CUR.lang==='en'?'● Listening… speak':'● Escuchando… habla'); vBtn('listen'); beep();
     setTimeout(function(){ if(vOn)vTurn(); },380);
   }
-  function releaseMic(){ try{ if(vStream)vStream.getTracks().forEach(function(t){t.stop();}); }catch(e){} vStream=null; try{ if(vAC)vAC.close(); }catch(e){} vAC=null; }
+  function releaseMic(){ try{ if(vStream)vStream.getTracks().forEach(function(t){t.stop();}); }catch(e){} vStream=null; try{ if(vAC)vAC.close(); }catch(e){} vAC=null; try{ if(_ac&&_ac.state!=='closed')_ac.close(); }catch(e){} _ac=null; }
   function vStop(){ vOn=false; try{ if(vRec&&vRec.state!=='inactive')vRec.stop(); }catch(e){} releaseMic(); vBtn('idle'); stat(''); }
   async function vTurn(){
     if(!vOn)return;
