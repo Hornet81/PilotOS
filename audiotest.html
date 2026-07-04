@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>PilotOS · Banco de pruebas de audio Bluetooth</title>
+<style>
+  :root{ --bg:#060d14; --card:#0d1a26; --line:rgba(255,255,255,.12); --cyan:#0aa3c7; --dim:#9fb3bd; --ok:#3ddc84; --bad:#ff6b6b; --amber:#ffc542; }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body{ margin:0; background:var(--bg); color:#eaf3f7; font-family:-apple-system,system-ui,sans-serif; padding:14px 12px 90px; }
+  h1{ font-size:17px; margin:0 0 2px; color:var(--cyan); }
+  .sub{ font-size:12px; color:var(--dim); margin-bottom:12px; line-height:1.45; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px; margin-bottom:10px; }
+  .card h2{ font-size:14px; margin:0 0 4px; }
+  .card p{ font-size:12px; color:var(--dim); margin:0 0 10px; line-height:1.4; }
+  .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  button{ appearance:none; border:1px solid var(--line); background:linear-gradient(135deg,#063a4a,#0aa3c7); color:#fff; border-radius:12px; padding:12px 14px; font-size:14px; font-weight:600; min-height:46px; }
+  button:disabled{ opacity:.45; }
+  button.sec{ background:transparent; color:var(--dim); font-weight:500; }
+  button.res{ background:transparent; min-height:40px; padding:8px 12px; font-size:13px; }
+  button.res.on-ok{ background:rgba(61,220,132,.18); color:var(--ok); border-color:var(--ok); }
+  button.res.on-bad{ background:rgba(255,107,107,.18); color:var(--bad); border-color:var(--bad); }
+  .st{ font-size:12px; color:var(--amber); min-height:16px; margin-top:8px; }
+  #stopall{ position:fixed; left:12px; right:12px; bottom:12px; background:linear-gradient(135deg,#7a1d1d,#e24b4a); z-index:5; }
+  #route{ font-size:22px; font-weight:700; }
+  #log{ font-family:ui-monospace,Menlo,monospace; font-size:10.5px; color:#7fd7ea; background:#04121c; border:1px solid var(--line); border-radius:10px; padding:8px; height:130px; overflow:auto; white-space:pre-wrap; word-break:break-word; }
+  .tag{ display:inline-block; font-size:10px; padding:2px 7px; border-radius:8px; border:1px solid var(--line); color:var(--dim); margin-left:6px; vertical-align:middle; }
+  .tag.warn{ color:var(--amber); border-color:var(--amber); }
+</style>
+</head>
+<body>
+<h1>Banco de pruebas · Audio por Bluetooth</h1>
+<div class="sub">
+  Conecta el iPhone al Bluetooth del coche. Ejecuta las pruebas <b>en orden, de una en una</b>.
+  Cada una dura ~30&nbsp;s (puedes cortarla con DETENER). Tras escucharla, marca ✅ o 🤖.
+  Al final pulsa «Copiar resultados» y me lo pegas.
+</div>
+
+<div class="card">
+  <h2>0 · Medidor de ruta de audio</h2>
+  <p>Heurístico: sample rate del sistema. <b>44100/48000 ≈ A2DP (música, bien)</b> · <b>8000/16000 ≈ HFP (llamada, degradado)</b>. Mídelo antes de empezar y DURANTE la prueba 6.</p>
+  <div class="row"><button id="btn-route">Medir ruta</button><span id="route">—</span></div>
+</div>
+
+<div class="card" id="t1">
+  <h2>1 · &lt;audio&gt; con archivo del servidor <span class="tag">la más básica</span></h2>
+  <p>Un elemento de audio normal reproduciendo un WAV estático servido por HTTP. Si ESTA se corta, el problema no es de nuestra app.</p>
+  <div class="row"><button data-t="1">▶ Probar</button><button class="res" data-r="1" data-v="ok">✅ Limpio</button><button class="res" data-r="1" data-v="bad">🤖 Se corta</button></div>
+  <div class="st" id="st1"></div>
+</div>
+
+<div class="card" id="t2">
+  <h2>2 · &lt;audio&gt; con blob <span class="tag">como la app tras fetch</span></h2>
+  <p>El mismo archivo, pero descargado con fetch y reproducido desde un blob URL (igual que hace el briefing).</p>
+  <div class="row"><button data-t="2">▶ Probar</button><button class="res" data-r="2" data-v="ok">✅ Limpio</button><button class="res" data-r="2" data-v="bad">🤖 Se corta</button></div>
+  <div class="st" id="st2"></div>
+</div>
+
+<div class="card" id="t3">
+  <h2>3 · WAV generado en memoria <span class="tag">como FIX2</span></h2>
+  <p>El audio se construye en JavaScript (una sola cabecera WAV) y se reproduce con &lt;audio&gt;.</p>
+  <div class="row"><button data-t="3">▶ Probar</button><button class="res" data-r="3" data-v="ok">✅ Limpio</button><button class="res" data-r="3" data-v="bad">🤖 Se corta</button></div>
+  <div class="st" id="st3"></div>
+</div>
+
+<div class="card" id="t4">
+  <h2>4 · Web Audio API <span class="tag">sin &lt;audio&gt;</span></h2>
+  <p>Reproducción por AudioContext + AudioBufferSourceNode (la vía de tu prueba D anterior).</p>
+  <div class="row"><button data-t="4">▶ Probar</button><button class="res" data-r="4" data-v="ok">✅ Limpio</button><button class="res" data-r="4" data-v="bad">🤖 Se corta</button></div>
+  <div class="st" id="st4"></div>
+</div>
+
+<div class="card" id="t5">
+  <h2>5 · &lt;audio&gt; + AudioContext abierto <span class="tag warn">sospechoso nº1</span></h2>
+  <p>Igual que la prueba 1, pero con un AudioContext abierto y corriendo en paralelo (como hacía la app con el beep/unlock). Si la 1 va limpia y ESTA se corta, ya sabemos qué mata el audio.</p>
+  <div class="row"><button data-t="5">▶ Probar</button><button class="res" data-r="5" data-v="ok">✅ Limpio</button><button class="res" data-r="5" data-v="bad">🤖 Se corta</button></div>
+  <div class="st" id="st5"></div>
+</div>
+
+<div class="card" id="t6">
+  <h2>6 · &lt;audio&gt; + micrófono abierto <span class="tag warn">control: debería sonar MAL</span></h2>
+  <p>Igual que la 1 pero con el micro abierto (getUserMedia). En iOS esto fuerza HFP: sirve de referencia de cómo suena el fallo. Pide permiso de micro. Mide la ruta MIENTRAS suena. Al acabar pulsa DETENER y espera ~10&nbsp;s antes de la siguiente.</p>
+  <div class="row"><button data-t="6">▶ Probar</button><button class="res" data-r="6" data-v="ok">✅ Limpio</button><button class="res" data-r="6" data-v="bad">🤖 Se corta</button></div>
+  <div class="st" id="st6"></div>
+</div>
+
+<div class="card" id="t7">
+  <h2>7 · &lt;audio&gt; a 1.25× <span class="tag">time-stretch</span></h2>
+  <p>Igual que la 1 pero con playbackRate 1.25 (la app permite cambiar la velocidad). El pitch-correction de iOS procesa el audio.</p>
+  <div class="row"><button data-t="7">▶ Probar</button><button class="res" data-r="7" data-v="ok">✅ Limpio</button><button class="res" data-r="7" data-v="bad">🤖 Se corta</button></div>
+  <div class="st" id="st7"></div>
+</div>
+
+<div class="card" id="t8">
+  <h2>8 · TTS real de la app <span class="tag">requiere sesión</span></h2>
+  <p>Genera una locución real con /api/tts (usa tu sesión de pilotos.aero en este navegador) y la reproduce con &lt;audio&gt; + blob, como el briefing. Consume 1 locución de tu cuota.</p>
+  <div class="row"><button data-t="8">▶ Probar</button><button class="res" data-r="8" data-v="ok">✅ Limpio</button><button class="res" data-r="8" data-v="bad">🤖 Se corta</button></div>
+  <div class="st" id="st8"></div>
+</div>
+
+<div class="card">
+  <h2>Resultados</h2>
+  <div class="row"><button id="btn-copy">📋 Copiar resultados</button><button class="sec" id="btn-clearlog">Limpiar log</button></div>
+  <div class="st" id="stcopy"></div>
+  <div id="log" style="margin-top:8px"></div>
+</div>
+
+<button id="stopall">🛑 DETENER TODO</button>
+
+<script>
+(function(){
+  'use strict';
+  var BACKEND='https://api.pilotos.aero';
+  var FILE='audiotest_tone.wav';
+  var player=null, testAC=null, absn=null, micStream=null, curUrl=null, running=0;
+  var results={};
+  var NAMES={1:'<audio> archivo servidor',2:'<audio> blob',3:'WAV en memoria',4:'Web Audio API',5:'<audio> + AudioContext abierto',6:'<audio> + micro abierto',7:'<audio> a 1.25x',8:'TTS real de la app'};
+
+  function $(s){ return document.querySelector(s); }
+  function log(m){ var el=$('#log'); var t=new Date(); var hh=('0'+t.getHours()).slice(-2)+':'+('0'+t.getMinutes()).slice(-2)+':'+('0'+t.getSeconds()).slice(-2); el.textContent+='['+hh+'] '+m+'\n'; el.scrollTop=el.scrollHeight; }
+  function st(n,m){ var el=$('#st'+n); if(el)el.textContent=m||''; }
+  function clearSts(){ for(var i=1;i<=8;i++)st(i,''); }
+
+  function stopAll(){
+    running++;
+    try{ if(player){ player.pause(); player.onended=null; player.onerror=null; player.removeAttribute('src'); player.load(); } }catch(e){}
+    try{ if(absn){ absn.stop(); } }catch(e){} absn=null;
+    try{ if(testAC && testAC.state!=='closed') testAC.close(); }catch(e){} testAC=null;
+    try{ if(micStream){ micStream.getTracks().forEach(function(t){ t.stop(); }); } }catch(e){} micStream=null;
+    try{ if(curUrl){ URL.revokeObjectURL(curUrl); } }catch(e){} curUrl=null;
+    clearSts();
+  }
+  $('#stopall').addEventListener('click', function(){ stopAll(); log('DETENIDO todo (audio, contextos, micro).'); });
+
+  // ── Medidor de ruta ──
+  $('#btn-route').addEventListener('click', function(){
+    var out=$('#route');
+    try{
+      var ac=new (window.AudioContext||window.webkitAudioContext)();
+      var sr=ac.sampleRate;
+      try{ ac.close(); }catch(e){}
+      var verdict = sr>=44100 ? 'A2DP ✓' : (sr<=16000 ? 'HFP ⚠' : '?');
+      out.textContent=sr+' Hz · '+verdict;
+      out.style.color = sr>=44100 ? '#3ddc84' : '#ff6b6b';
+      log('Ruta: sampleRate='+sr+' Hz → '+verdict);
+    }catch(e){ out.textContent='error'; log('Ruta: error '+e.message); }
+  });
+
+  // ── Generador de señal tipo voz (idéntico al del WAV del servidor) ──
+  function genSamples(sr,secs){
+    var N=sr*secs, s=new Float32Array(N);
+    for(var i=0;i<N;i++){
+      var t=i/sr, phrase=t%3.2;
+      if(phrase>2.6){ s[i]=0; continue; }
+      var syll=0.55+0.45*Math.sin(2*Math.PI*4*t);
+      var f0=165+25*Math.sin(2*Math.PI*0.35*t)+6*Math.sin(2*Math.PI*5.5*t);
+      var ph=2*Math.PI*f0*t;
+      var v=Math.sin(ph)*0.55+Math.sin(2*ph)*0.28+Math.sin(3*ph)*0.14+Math.sin(4*ph)*0.07;
+      var edge=Math.min(1,phrase/0.08,(2.6-phrase)/0.08);
+      s[i]=v*syll*edge*0.5;
+    }
+    return s;
+  }
+  function wavBlob(samples,sr){
+    var N=samples.length, ab=new ArrayBuffer(44+N*2), dv=new DataView(ab);
+    function ws(o,x){ for(var i=0;i<x.length;i++)dv.setUint8(o+i,x.charCodeAt(i)); }
+    ws(0,'RIFF'); dv.setUint32(4,36+N*2,true); ws(8,'WAVE'); ws(12,'fmt ');
+    dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,1,true);
+    dv.setUint32(24,sr,true); dv.setUint32(28,sr*2,true); dv.setUint16(32,2,true); dv.setUint16(34,16,true);
+    ws(36,'data'); dv.setUint32(40,N*2,true);
+    for(var i=0,off=44;i<N;i++,off+=2){ var x=Math.max(-1,Math.min(1,samples[i])); dv.setInt16(off,x<0?x*0x8000:x*0x7FFF,true); }
+    return new Blob([ab],{type:'audio/wav'});
+  }
+
+  function playUrl(n,url,rate,tick){
+    var my=running;
+    if(!player)player=new Audio();
+    player.preload='auto';
+    try{ player.preservesPitch=true; player.webkitPreservesPitch=true; }catch(e){}
+    player.playbackRate=rate||1;
+    player.src=url;
+    player.onended=function(){ if(my!==running)return; st(n,'✔ Terminada. Marca ✅ o 🤖.'); log('T'+n+': fin de reproducción.'); if(tick)tick('end'); };
+    player.onerror=function(){ if(my!==running)return; st(n,'✕ Error de reproducción.'); log('T'+n+': ERROR del elemento audio.'); };
+    ['waiting','stalled'].forEach(function(ev){ player['on'+ev]=function(){ if(my===running)log('T'+n+': evento '+ev); }; });
+    var p=player.play();
+    if(p&&p.catch)p.catch(function(e){ if(my===running){ st(n,'✕ play() bloqueado: '+e.name); log('T'+n+': play() rechazado '+e.name); } });
+    st(n,'♪ Reproduciendo… (30 s)');
+    log('T'+n+' ('+NAMES[n]+'): reproduciendo'+(rate&&rate!==1?' a '+rate+'×':'')+'.');
+  }
+
+  async function runTest(n){
+    stopAll();
+    var my=running;
+    try{
+      if(n===1){ playUrl(1,FILE+'?v=1'); }
+      else if(n===2){
+        st(2,'Descargando…');
+        var r=await fetch(FILE+'?v=1',{cache:'no-store'}); if(!r.ok)throw new Error('HTTP '+r.status);
+        var b=await r.blob(); if(my!==running)return;
+        curUrl=URL.createObjectURL(b); playUrl(2,curUrl);
+      }
+      else if(n===3){
+        st(3,'Generando WAV en memoria…');
+        var blob3=wavBlob(genSamples(24000,30),24000); if(my!==running)return;
+        curUrl=URL.createObjectURL(blob3); playUrl(3,curUrl);
+      }
+      else if(n===4){
+        testAC=new (window.AudioContext||window.webkitAudioContext)();
+        if(testAC.state==='suspended')await testAC.resume();
+        var sm=genSamples(24000,30);
+        var buf=testAC.createBuffer(1,sm.length,24000); buf.copyToChannel(sm,0);
+        absn=testAC.createBufferSource(); absn.buffer=buf; absn.connect(testAC.destination);
+        absn.onended=function(){ if(my===running){ st(4,'✔ Terminada. Marca ✅ o 🤖.'); log('T4: fin.'); try{ if(testAC&&testAC.state!=='closed')testAC.close(); }catch(e){} testAC=null; } };
+        absn.start();
+        st(4,'♪ Reproduciendo por Web Audio… (30 s)');
+        log('T4 (Web Audio): reproduciendo. AC sampleRate='+testAC.sampleRate+' Hz.');
+      }
+      else if(n===5){
+        testAC=new (window.AudioContext||window.webkitAudioContext)();
+        if(testAC.state==='suspended')await testAC.resume();
+        // nodo mudo para mantener el contexto "running" de verdad
+        var g=testAC.createGain(); g.gain.value=0;
+        var osc=testAC.createOscillator(); osc.connect(g); g.connect(testAC.destination); osc.start();
+        log('T5: AudioContext abierto y corriendo (sampleRate='+testAC.sampleRate+' Hz). Ahora suena el <audio>…');
+        playUrl(5,FILE+'?v=1');
+      }
+      else if(n===6){
+        st(6,'Pidiendo micrófono…');
+        micStream=await navigator.mediaDevices.getUserMedia({audio:true});
+        if(my!==running){ micStream.getTracks().forEach(function(t){t.stop();}); micStream=null; return; }
+        log('T6: micro ABIERTO. Suena el <audio> con el micro abierto (esto debería sonar mal por BT).');
+        playUrl(6,FILE+'?v=1',1,function(ev){ if(ev==='end'){ try{ micStream&&micStream.getTracks().forEach(function(t){t.stop();}); }catch(e){} micStream=null; log('T6: micro liberado al terminar.'); } });
+      }
+      else if(n===7){ playUrl(7,FILE+'?v=1',1.25); }
+      else if(n===8){
+        var tk=''; try{ tk=localStorage.getItem('cafi_auth_token')||''; }catch(e){}
+        if(!tk){ st(8,'✕ Sin sesión. Abre pilotos.aero en esta misma pestaña, inicia sesión y vuelve.'); log('T8: sin token en localStorage.'); return; }
+        st(8,'Generando locución TTS…');
+        var rr=await fetch(BACKEND+'/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},
+          body:JSON.stringify({text:'Prueba de audio del briefing de PilotOS. Uno, dos, tres, cuatro, cinco, seis, siete, ocho, nueve, diez. Si esta locución se oye limpia y sin cortes por el Bluetooth del coche, la ruta de audio funciona correctamente. Fin de la prueba.',voice:'nova',lang:'es'})});
+        if(rr.status===429){ var j=await rr.json().catch(function(){return{};}); throw new Error(j.message||'límite de plan'); }
+        if(!rr.ok)throw new Error('HTTP '+rr.status);
+        var b8=await rr.blob(); if(my!==running)return;
+        curUrl=URL.createObjectURL(b8); playUrl(8,curUrl);
+      }
+    }catch(e){
+      st(n,'✕ '+(e&&e.message||e)); log('T'+n+': ERROR '+(e&&e.message||e));
+    }
+  }
+
+  document.querySelectorAll('button[data-t]').forEach(function(b){ b.addEventListener('click',function(){ runTest(parseInt(b.getAttribute('data-t'),10)); }); });
+
+  // ── Resultados ──
+  document.querySelectorAll('button.res').forEach(function(b){
+    b.addEventListener('click',function(){
+      var n=b.getAttribute('data-r'), v=b.getAttribute('data-v');
+      results[n]=v;
+      document.querySelectorAll('button.res[data-r="'+n+'"]').forEach(function(x){ x.classList.remove('on-ok','on-bad'); });
+      b.classList.add(v==='ok'?'on-ok':'on-bad');
+    });
+  });
+  $('#btn-copy').addEventListener('click',function(){
+    var lines=['Resultados audiotest ('+new Date().toISOString().slice(0,16)+'):'];
+    for(var i=1;i<=8;i++){ var v=results[i]; lines.push('T'+i+' '+NAMES[i]+': '+(v==='ok'?'LIMPIO ✅':v==='bad'?'SE CORTA 🤖':'(sin marcar)')); }
+    var routeTxt=$('#route').textContent; if(routeTxt&&routeTxt!=='—')lines.push('Ruta medida: '+routeTxt);
+    var txt=lines.join('\n');
+    function done(){ $('#stcopy').textContent='✓ Copiado. Pégamelo en el chat.'; }
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done,function(){ fallback(); }); } else fallback();
+    function fallback(){ var ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); done(); }catch(e){ $('#stcopy').textContent='Cópialo del log ↓'; log('\n'+txt); } ta.remove(); }
+  });
+  $('#btn-clearlog').addEventListener('click',function(){ $('#log').textContent=''; });
+
+  log('Banco listo. Conecta el Bluetooth del coche y ejecuta las pruebas en orden.');
+})();
+</script>
+</body>
+</html>
