@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.270">
+  <meta name="version" content="Beta.271">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.270","builtAt":"2026-07-02T15:44:41Z","commit":"561f085","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.271","builtAt":"2026-07-04T10:47:35Z","commit":"07bcaea","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -34154,15 +34154,21 @@ window.rosterExportICS = function(opts){
     var icsContent = lines.join('\r\n');
     var blob = new Blob([icsContent], {type:'text/calendar;charset=utf-8'});
     var colLbl = { yellow:'amarillo (Vueling)', purple:'morado', blue:'azul', teal:'turquesa', green:'verde', orange:'naranja', red:'rojo' }[calColorName] || calColorName;
-    // En iOS/iPadOS standalone (PWA) un blob por <a download> NO descarga nada →
-    // usamos el share sheet del sistema (permite "Añadir a Calendario" o guardar).
-    // En escritorio/Android se cae a la descarga por ancla de toda la vida.
-    var icsFile = null;
-    try { icsFile = new File([blob], 'PilotOS_Roster.ics', {type:'text/calendar'}); } catch(_){}
-    if(icsFile && navigator.canShare && navigator.canShare({files:[icsFile]})){
-      navigator.share({files:[icsFile], title:'PilotOS Roster'})
-        .then(function(){ if(typeof showToast==='function') showToast('📅 Roster exportado · ábrelo en Calendario para añadirlo. El color "'+colLbl+'" solo se aplica en Apple Calendar.', 'info', 6000); })
-        .catch(function(){ /* el usuario canceló el share — sin ruido */ });
+    var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent||'') || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+    if(isIOS){
+      // iOS/iPadOS: ABRIR el .ics (no compartir el fichero) → así iOS muestra la pantalla
+      // nativa "Añadir a Calendario", donde SÍ eliges el calendario destino: Apple, o
+      // cualquier cuenta de Google añadida en Ajustes › Calendario. Compartir el fichero
+      // (share sheet) NO ofrece Calendario, por eso se veía el .ics pero no dónde
+      // seleccionarlo. target=_blank abre el preview con "Añadir todo" sin cerrar la PWA.
+      var iurl = URL.createObjectURL(blob);
+      var ia = document.createElement('a');
+      ia.href = iurl; ia.target = '_blank'; ia.rel = 'noopener';
+      ia.style.display = 'none';
+      document.body.appendChild(ia);
+      ia.click();
+      setTimeout(function(){ try{document.body.removeChild(ia);}catch(_){} URL.revokeObjectURL(iurl); }, 15000);
+      if(typeof showToast==='function') showToast('📅 Pulsa "Añadir todo" y elige el calendario. Para que aparezca Google, añade tu cuenta de Google en Ajustes › Calendario. El color "'+colLbl+'" solo se aplica en Apple Calendar.', 'info', 8000);
     } else {
       var url = URL.createObjectURL(blob);
       var a = document.createElement('a');
@@ -34172,7 +34178,7 @@ window.rosterExportICS = function(opts){
       document.body.appendChild(a);
       a.click();
       setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 5000);
-      if(typeof showToast==='function') showToast('📅 PilotOS_Roster.ics descargado · En Apple Calendar el calendario "PilotOS" usará el color '+colLbl+'. En Google Calendar el color no se puede forzar por archivo: añádelo desde "Otros calendarios" y elige el color a mano.', 'info', 6500);
+      if(typeof showToast==='function') showToast('📅 PilotOS_Roster.ics descargado · En Apple Calendar el calendario "PilotOS" usará el color '+colLbl+'. En Google Calendar añádelo desde "Otros calendarios › Importar" y elige el color a mano.', 'info', 6500);
     }
   } catch(ex){
     if(typeof showToast==='function') showToast('Error al exportar: '+ex.message);
@@ -38304,12 +38310,33 @@ document.addEventListener('DOMContentLoaded', function(){
   async function ttsBlob(text){ var r=await fetch(BACKEND+'/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify({text:text,voice:(CUR.voice||'nova'),lang:CUR.lang})}); if(r.status===429){ var j=await r.json().catch(function(){return{};}); throw new Error(j.message||'Voz no disponible en tu plan'); } if(!r.ok) throw new Error('Error de voz '+r.status); var b=await r.blob(); return new Audio(URL.createObjectURL(b)); }
   function _decode(ac, arr){ return new Promise(function(res,rej){ try{ var pr=ac.decodeAudioData(arr, function(b){res(b);}, function(e){rej(e||new Error('decode')); }); if(pr&&pr.then)pr.then(res,rej); }catch(e){ rej(e); } }); }
   function _bufToWav(buf){ var sr=buf.sampleRate, len=buf.length; var data=buf.getChannelData(0); var ab=new ArrayBuffer(44+len*2); var dv=new DataView(ab); function ws(o,st){ for(var i=0;i<st.length;i++)dv.setUint8(o+i,st.charCodeAt(i)); } ws(0,'RIFF'); dv.setUint32(4,36+len*2,true); ws(8,'WAVE'); ws(12,'fmt '); dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,1,true); dv.setUint32(24,sr,true); dv.setUint32(28,sr*2,true); dv.setUint16(32,2,true); dv.setUint16(34,16,true); ws(36,'data'); dv.setUint32(40,len*2,true); var off=44; for(var i=0;i<len;i++){ var x=Math.max(-1,Math.min(1,data[i])); dv.setInt16(off, x<0?x*0x8000:x*0x7FFF, true); off+=2; } return new Blob([ab],{type:'audio/wav'}); }
+  function _wavFromBuffers(bufs){ var sr=bufs[0].sampleRate; var total=0; for(var i=0;i<bufs.length;i++)total+=bufs[i].length; var ab=new ArrayBuffer(44+total*2); var dv=new DataView(ab); function ws(o,st){ for(var i=0;i<st.length;i++)dv.setUint8(o+i,st.charCodeAt(i)); } ws(0,'RIFF'); dv.setUint32(4,36+total*2,true); ws(8,'WAVE'); ws(12,'fmt '); dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,1,true); dv.setUint32(24,sr,true); dv.setUint32(28,sr*2,true); dv.setUint16(32,2,true); dv.setUint16(34,16,true); ws(36,'data'); dv.setUint32(40,total*2,true); var off=44; for(var b=0;b<bufs.length;b++){ var d=bufs[b].getChannelData(0); for(var i=0;i<d.length;i++){ var x=Math.max(-1,Math.min(1,d[i])); dv.setInt16(off, x<0?x*0x8000:x*0x7FFF, true); off+=2; } } return new Blob([ab],{type:'audio/wav'}); }
   function _hiByTime(el){ var sm=_segMap; if(!sm||!sm.length)return; var idx=0; for(var i=0;i<sm.length;i++){ if(el>=sm[i].start-0.02) idx=i; else break; } hi(sm[idx].from, sm[idx].to); }
   async function ttsBlobRaw(text){ var r=await fetch(BACKEND+'/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify({text:text,voice:(CUR.voice||'nova'),lang:CUR.lang})}); if(r.status===429){ var j=await r.json().catch(function(){return{};}); throw new Error(j.message||'Voz no disponible en tu plan'); } if(!r.ok) throw new Error('Error de voz '+r.status); return await r.blob(); }
   function _blobDur(blob){ return new Promise(function(res){ var u=URL.createObjectURL(blob); var a=new Audio(); a.preload='metadata'; var done=false; function fin(d){ if(done)return; done=true; try{URL.revokeObjectURL(u);}catch(e){} res(isFinite(d)&&d>0?d:6); } a.onloadedmetadata=function(){ fin(a.duration); }; a.onerror=function(){ fin(6); }; a.src=u; setTimeout(function(){ fin(a.duration); },2500); }); }
   async function ttsArrayBuffer(text){ var r=await fetch(BACKEND+'/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify({text:text,voice:(CUR.voice||'nova'),lang:CUR.lang})}); if(r.status===429){ var j=await r.json().catch(function(){return{};}); throw new Error(j.message||'Voz no disponible en tu plan'); } if(!r.ok) throw new Error('Error de voz '+r.status); return await r.arrayBuffer(); }
   async function prepareVoice(){
     var chunks=chunk(760); _segMap=[]; if(!chunks.length){ return false; }
+    // Vía robusta: decodificar cada trozo a PCM y unir en UN solo WAV (una sola cabecera).
+    // Concatenar MP3/WAV crudos deja cabeceras internas que el Bluetooth reajusta en cada
+    // juntura -> corte "a robot" cada pocos ms. Unir el PCM elimina esas junturas.
+    // (window._ac es el helper global; dentro de este bloque _ac es una var local del micro.)
+    var ac=null; try{ ac=window._ac(); }catch(e){}
+    if(ac){
+      try{
+        var bufs=[], t=0;
+        for(var i=0;i<chunks.length;i++){ stat('Generando voz '+(i+1)+'/'+chunks.length+'…'); var arr=await ttsArrayBuffer(chunks[i].text); var ab=await _decode(ac, arr.slice(0)); _segMap.push({from:chunks[i].from,to:chunks[i].to,start:t}); t+=ab.duration; bufs.push(ab); }
+        total=t;
+        if(_briefUrl){ try{ URL.revokeObjectURL(_briefUrl); }catch(e){} }
+        _briefUrl=URL.createObjectURL(_wavFromBuffers(bufs));
+        if(!_brief)_brief=new Audio(); _brief.preload='auto'; try{ _brief.preservesPitch=true; _brief.mozPreservesPitch=true; _brief.webkitPreservesPitch=true; }catch(e){} _brief.src=_briefUrl;
+        try{ _brief.load(); }catch(e){} await new Promise(function(res){ var done=false; function fin(){ if(done)return; done=true; res(); } if(_brief.readyState>=3)return fin(); _brief.oncanplaythrough=fin; _brief.onloadeddata=function(){ if(_brief.readyState>=3)fin(); }; setTimeout(fin,4000); });
+        if(isFinite(_brief.duration)&&_brief.duration>0) total=_brief.duration;
+        audios=[{a:_brief,from:0,to:Math.max(0,SENT.length-1)}]; curAudio=_brief; acc=0; k=0;
+        var tot2=q('#ar-tot'); if(tot2)tot2.textContent=fmt(total); try{ if(_aCtx&&_aCtx.state==='running'&&_aCtx.suspend)_aCtx.suspend(); }catch(e){} return true;
+      }catch(e){ /* si la decodificación falla, caer al método antiguo */ }
+    }
+    // Fallback: método antiguo (blob concatenado). Menos fiable por Bluetooth pero funcional.
     var parts=[], t=0;
     for(var i=0;i<chunks.length;i++){ stat('Generando voz '+(i+1)+'/'+chunks.length+'…'); var blob=await ttsBlobRaw(chunks[i].text); var dur=await _blobDur(blob); _segMap.push({from:chunks[i].from,to:chunks[i].to,start:t}); t+=dur; parts.push(blob); }
     total=t;
@@ -38480,6 +38507,7 @@ document.addEventListener('DOMContentLoaded', function(){
         '<div style="font-size:9px;color:#6c818d;margin-bottom:4px">VOLUMEN <span id="ar-vl"></span></div>'+
         '<input id="ar-vol" type="range" min="0" max="1" step="0.05" style="width:100%;accent-color:#0aa3c7">'+
         '<button id="ar-reset" style="width:100%;margin-top:12px;padding:9px;border:1px solid rgba(255,90,90,.35);border-radius:9px;background:rgba(255,90,90,.08);color:#ff9a9a;font-size:11px;font-weight:700;font-family:inherit">↺ Reiniciar conversación</button>'+
+        '<button id="ar-audiotest" style="width:100%;margin-top:8px;padding:9px;border:1px solid rgba(63,210,240,.35);border-radius:9px;background:rgba(10,163,199,.10);color:#7fd7ea;font-size:11px;font-weight:700;font-family:inherit">🔧 Test de audio Bluetooth (coche)</button>'+
       '</div>'+
       '<div style="flex:1;min-height:0;overflow-y:auto;padding:10px 13px 14px">'+
         '<div id="ar-deck" style="position:sticky;top:0;z-index:6;border-radius:16px;padding:9px 10px;margin:0 0 11px;background:rgba(8,18,26,.86);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(63,210,240,.2);box-shadow:0 8px 26px rgba(0,0,0,.4)">'+
@@ -38550,6 +38578,7 @@ document.addEventListener('DOMContentLoaded', function(){
     var vpl=q('#ar-vpill'); if(vpl)vpl.onclick=toggleSettings;
     var stc=q('#ar-setclose'); if(stc)stc.onclick=function(){ var st=q('#ar-set'); if(st)st.style.display='none'; };
     var rst=q('#ar-reset'); if(rst)rst.onclick=resetAria;
+    var atb=q('#ar-audiotest'); if(atb)atb.onclick=function(){ _pauseKeep(); var aov=document.createElement('div'); aov.style.cssText='position:fixed;inset:0;z-index:99999;background:#060d14;display:flex;flex-direction:column'; aov.innerHTML='<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;padding-top:calc(10px + env(safe-area-inset-top));border-bottom:1px solid rgba(255,255,255,.12);flex-shrink:0"><span style="font-size:11px;font-weight:800;letter-spacing:.5px;color:#7fd7ea">TEST DE AUDIO · DENTRO DE LA APP</span><button id="ar-atest-x" style="margin-left:auto;width:30px;height:30px;border-radius:9px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:#eaf3f7;font-size:14px">✕</button></div><iframe src="audiotest.html?in=app" allow="microphone; autoplay" style="flex:1;border:0;width:100%;background:#060d14"></iframe>'; document.body.appendChild(aov); aov.querySelector('#ar-atest-x').onclick=function(){ aov.remove(); }; };
     var bar=q('#ar-bar'); if(bar)bar.onclick=function(ev){ if(!audios.length||!total)return; var r=bar.getBoundingClientRect(); seekToPlay(Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width))*total); };
     var vsel=q('#ar-voice'); if(vsel)vsel.onchange=function(){ CUR.voice=vsel.value; saveCfg('voice',vsel.value); var vp=q('#ar-vpill'); if(vp)vp.textContent='🎙 '+vsel.value.toUpperCase(); if(audios.length)stat(CUR.lang==='en'?'Voice changed — tap Regenerate to apply':'Voz cambiada — pulsa Generar de nuevo para aplicarla'); };
     var rl=q('#ar-rl'); var rs=q('#ar-rate'); if(rs){ rs.value=RATE; if(rl)rl.textContent=RATE.toFixed(2)+'×'; rs.oninput=function(){ RATE=parseFloat(rs.value)||1; saveCfg('rate',RATE); if(rl)rl.textContent=RATE.toFixed(2)+'×'; if(curAudio)curAudio.playbackRate=RATE; }; }

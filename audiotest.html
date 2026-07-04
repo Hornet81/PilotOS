@@ -29,7 +29,7 @@
 </style>
 </head>
 <body>
-<h1>Banco de pruebas · Audio por Bluetooth</h1>
+<h1>Banco de pruebas · Audio por Bluetooth <span id="envtag" class="tag" style="display:none"></span></h1>
 <div class="sub">
   Conecta el iPhone al Bluetooth del coche. Ejecuta las pruebas <b>en orden, de una en una</b>.
   Cada una dura ~30&nbsp;s (puedes cortarla con DETENER). Tras escucharla, marca ✅ o 🤖.
@@ -259,8 +259,14 @@
       b.classList.add(v==='ok'?'on-ok':'on-bad');
     });
   });
+  // ── Entorno: ¿dentro de la app o página suelta? ──
+  var IN_APP=/\bin=app\b/.test(location.search);
+  var STANDALONE=false; try{ STANDALONE=(navigator.standalone===true)||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches); }catch(e){}
+  var ENV=IN_APP?'DENTRO DE LA APP':(STANDALONE?'PWA suelta':'Safari suelto');
+  (function(){ var t=$('#envtag'); if(t){ t.textContent=ENV; t.style.display='inline-block'; if(IN_APP)t.classList.add('warn'); } })();
+
   $('#btn-copy').addEventListener('click',function(){
-    var lines=['Resultados audiotest ('+new Date().toISOString().slice(0,16)+'):'];
+    var lines=['Resultados audiotest · '+ENV+' ('+new Date().toISOString().slice(0,16)+'):'];
     for(var i=1;i<=8;i++){ var v=results[i]; lines.push('T'+i+' '+NAMES[i]+': '+(v==='ok'?'LIMPIO ✅':v==='bad'?'SE CORTA 🤖':'(sin marcar)')); }
     var routeTxt=$('#route').textContent; if(routeTxt&&routeTxt!=='—')lines.push('Ruta medida: '+routeTxt);
     var txt=lines.join('\n');
