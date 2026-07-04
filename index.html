@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.274">
+  <meta name="version" content="Beta.275">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.274","builtAt":"2026-07-04T13:07:30Z","commit":"5dcf6cc","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.275","builtAt":"2026-07-04T13:27:15Z","commit":"5925580","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -14654,13 +14654,12 @@ function pcCalc() {
     + dPernSuj + dPernExe + dPernNatSuj + dPernNatExe;
 
   // ── Deducciones ──
-  // Col. T/C (importe sujeta): exento de IRPF — no entra en base IRPF
-  // Col. Exento (importe exenta): sujeto a IRPF — SÍ entra en base IRPF
-  // Fuente: RR.HH. Vueling — ej. dieta int 119,03€ → 66,11€ con IRPF / 52,92€ sin IRPF
-  var dietasNoIRPF = dNacSuj + dIntSuj + dPernSuj + dPernNatSuj + invDietaSuj;  // col. T/C → fuera de base IRPF
-  var dietasExe    = dNacExe + dIntExe + dPernExe + dPernNatExe + invDietaExe;  // col. Exento → exentas de SS
+  // Dietas EXENTAS (código "S/RET" = sin retención): NO tributan IRPF ni SS → fuera de AMBAS bases.
+  // Dietas SUJETAS: sí tributan → se quedan en las bases.
+  // (Verificado contra nómina real con el banco de calibración: baseIRPF = devengado − exentas − RF.)
+  var dietasExe    = dNacExe + dIntExe + dPernExe + dPernNatExe + invDietaExe;  // exentas (S/RET) → fuera de base IRPF y SS
   // RF reduce bruto → reduce base IRPF y SS → el empleado no tributa por ese tramo
-  var baseIRPF  = totalDev - dietasNoIRPF - rfImp;
+  var baseIRPF  = totalDev - dietasExe - rfImp;
   var retIRPF   = baseIRPF * irpf;
   // Beneficios de vuelo (especie): tributan IRPF como ingreso a cuenta (cód.525); no son efectivo
   var benefOn    = !!(document.getElementById('pc_benef_on') && document.getElementById('pc_benef_on').checked);
