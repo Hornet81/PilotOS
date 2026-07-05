@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.276">
+  <meta name="version" content="Beta.277">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.276","builtAt":"2026-07-04T14:27:07Z","commit":"07d34fa","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.277","builtAt":"2026-07-05T16:24:48Z","commit":"a2aa5f5","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -38383,8 +38383,8 @@ document.addEventListener('DOMContentLoaded', function(){
         try{ _brief.load(); }catch(e){} await new Promise(function(res){ var done=false; function fin(){ if(done)return; done=true; res(); } if(_brief.readyState>=3)return fin(); _brief.oncanplaythrough=fin; _brief.onloadeddata=function(){ if(_brief.readyState>=3)fin(); }; setTimeout(fin,4000); });
         if(isFinite(_brief.duration)&&_brief.duration>0) total=_brief.duration;
         audios=[{a:_brief,from:0,to:Math.max(0,SENT.length-1)}]; curAudio=_brief; acc=0; k=0;
-        var tot2=q('#ar-tot'); if(tot2)tot2.textContent=fmt(total); try{ if(_aCtx&&_aCtx.state==='running'&&_aCtx.suspend)_aCtx.suspend(); }catch(e){} return true;
-      }catch(e){ /* si la decodificación falla, caer al método antiguo */ }
+        var tot2=q('#ar-tot'); if(tot2)tot2.textContent=fmt(total); try{ killAudioCtx(); }catch(e){} return true;
+      }catch(e){ /* si la decodificación falla, caer al método antiguo */ try{ killAudioCtx(); }catch(_e){} }
     }
     // Fallback: método antiguo (blob concatenado). Menos fiable por Bluetooth pero funcional.
     var parts=[], t=0;
@@ -38415,7 +38415,7 @@ document.addEventListener('DOMContentLoaded', function(){
   function resetAria(){ _gen++; try{ if(curAudio)curAudio.pause(); }catch(e){} try{ for(var i=0;i<audios.length;i++){ try{audios[i].a.pause();}catch(e){} } }catch(e){} try{ if(_va){ _va.pause(); _va.onended=null; } }catch(e){} try{ vStop(); }catch(e){} audios=[]; curAudio=null; playing=false; paused=false; k=0; acc=0; total=0; durs=[]; SENT=[]; PEL=[]; SEG=[]; LAST_TEXT=''; LAST_SCOPE=''; var tr=q('#ar-tr'); if(tr)tr.innerHTML=''; var ch=q('#ar-chat'); if(ch)ch.innerHTML=''; var vl=q('#ar-vlog'); if(vl)vl.innerHTML=''; var f=q('#ar-fill'); if(f)f.style.width='0'; var c=q('#ar-cur'); if(c)c.textContent='0:00'; var tt=q('#ar-tot'); if(tt)tt.textContent='0:00'; showDeckTransport(false); var gen=q('#ar-gen'); if(gen){ gen.disabled=false; gen.style.opacity='1'; gen.textContent=(CUR.lang==='en'?'▶ Generate briefing':'▶ Generar briefing'); } hideVoiceDock(); stat(''); applyChrome(); mediaState(); var st=q('#ar-set'); if(st)st.style.display='none'; try{ updateWelcome(); }catch(e){} }
   function applyChrome(){ var col=playing&&!paused; ['#ar-dhead'].forEach(function(sel){ var el=q(sel); if(el){ if(col)el.classList.add('ar-collapsed'); else el.classList.remove('ar-collapsed'); } }); mediaState(); }
   function stopBriefing(){ _gen++; try{ if(curAudio)curAudio.pause(); }catch(e){} try{ if(_va){ _va.pause(); _va.onended=null; } }catch(e){} playing=false; paused=true; var pb=q('#ar-play'); if(pb)pb.textContent='▶'; hi(-1,-1); stat(CUR.lang==='en'?'■ Briefing stopped — ask me anything':'■ Briefing detenido — pregúntame lo que quieras'); showVoiceDock(true); applyChrome(); }
-  function togglePlay(){ if(!audios.length)return; var pb=q('#ar-play'); if(!playing){ _gen++; mediaSetup(); mediaMeta(); playing=true; paused=false; acc=0; k=0; if(pb)pb.textContent='⏸'; unlockAudio(); try{ if(curAudio)curAudio.currentTime=0; }catch(e){} playK(); } else if(paused){ paused=false; if(pb)pb.textContent='⏸'; if(curAudio){ if(curAudio.ended)playK(); else curAudio.play(); } } else { paused=true; if(pb)pb.textContent='▶'; if(curAudio)curAudio.pause(); } applyChrome(); }
+  function togglePlay(){ if(!audios.length)return; var pb=q('#ar-play'); if(!playing){ killAudioCtx(); _gen++; mediaSetup(); mediaMeta(); playing=true; paused=false; acc=0; k=0; if(pb)pb.textContent='⏸'; unlockAudio(); try{ if(curAudio)curAudio.currentTime=0; }catch(e){} playK(); } else if(paused){ killAudioCtx(); paused=false; if(pb)pb.textContent='⏸'; if(curAudio){ if(curAudio.ended)playK(); else curAudio.play(); } } else { paused=true; if(pb)pb.textContent='▶'; if(curAudio)curAudio.pause(); } applyChrome(); }
 
   async function generate(){
     var gen=q('#ar-gen'); if(gen){ gen.disabled=true; gen.style.opacity='.6'; gen.textContent=(CUR.lang==='en'?'Generating…':'Generando…'); }
@@ -38452,6 +38452,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
   var vOn=false,vStream=null,vRec=null,vChunks=[],vAC=null,_va=null,_ac=null,vSpeaking=false,_spk=0,vMuted=false,_emptyTurns=0,_micHeard=false;
   function ensureMic(){ if(vStream) return Promise.resolve(vStream); if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) return Promise.reject(new Error('NoGUM')); var gum=function(c){ return navigator.mediaDevices.getUserMedia(c); }; var chain=gum({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}).catch(function(e){ if(e&&(e.name==='OverconstrainedError'||e.name==='NotReadableError'||e.name==='TypeError')) return gum({audio:true}); throw e; }).then(function(s){ vStream=s; return s; }); return Promise.race([ chain, new Promise(function(_,rej){ setTimeout(function(){ if(!vStream)rej(new Error('TimeoutMic')); }, 9000); }) ]); }
+  function killAudioCtx(){ /* Banco audiotest T4/T5: un AudioContext abierto (aunque no suene) entrecorta el Bluetooth del coche. Cerrar TODOS antes de reproducir; se recrean solos al volver a necesitarse. */ try{ if(window._aCtx&&window._aCtx.state!=='closed')window._aCtx.close(); }catch(e){} try{ window._aCtx=null; }catch(e){} try{ if(_ac&&_ac.state!=='closed')_ac.close(); }catch(e){} _ac=null; try{ if(vAC&&vAC.state!=='closed')vAC.close(); }catch(e){} vAC=null; }
   function unlockAudio(){ try{ if(!_va)_va=new Audio(); _va.muted=true; _va.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACBWAQACABAAZGF0YQAAAAA='; var pp=_va.play(); if(pp&&pp.then){ pp.then(function(){ try{_va.pause();_va.currentTime=0;}catch(e){} _va.muted=false; }).catch(function(){ _va.muted=false; }); } }catch(e){} /* NO abrir AudioContext aquí: en iOS mantener _ac vivo degrada el Bluetooth a HFP y entrecorta el briefing. El AudioContext solo se crea cuando hace falta el micro. */ }
   async function ttsFetchUrl(text){ var r=await fetch(BACKEND+'/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify({text:text,voice:(CUR.voice||'nova'),lang:CUR.lang})}); if(r.status===429){ var j=await r.json().catch(function(){return{};}); throw new Error(j.message||'Voz no disponible'); } if(!r.ok) throw new Error('tts '+r.status); var b=await r.blob(); return URL.createObjectURL(b); }
   function beep(){ try{ if(!_ac)_ac=new (window.AudioContext||window.webkitAudioContext)(); if(_ac.state==='suspended')_ac.resume(); var o=_ac.createOscillator(),g=_ac.createGain(); o.type='sine'; o.frequency.value=880; o.connect(g); g.connect(_ac.destination); var t=_ac.currentTime; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.18,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.30); o.start(t); o.stop(t+0.32); }catch(e){} }
