@@ -108,7 +108,8 @@
   <div style="height:22px;background:#04121c;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:4px"><div id="mic-bar" style="height:100%;width:0;background:linear-gradient(90deg,#0aa3c7,#3ddc84);transition:width .05s"></div></div>
   <div style="font-family:ui-monospace,monospace;font-size:12px;color:#7fd7ea;margin-bottom:10px">nivel actual: <span id="mic-now">—</span> · pico: <span id="mic-peak" style="color:#ffc542;font-weight:700">—</span></div>
   <p style="margin-bottom:6px">Prueba definitiva: graba tu voz y <b>escúchala</b> (por el altavoz del coche). Si te oyes = el micro del coche llega a la web; si es silencio = iOS no da el micro BT a la web.</p>
-  <div class="row"><button id="mic-rec">⏺ Grabar 4 s y oír</button></div>
+  <div class="row" style="margin-bottom:6px"><button id="mic-rec">⏺ Grabar 4 s y oír</button><button id="mic-stt">⏺ Grabar 4 s → transcribir (STT)</button></div>
+  <p style="margin:0">La de STT graba igual que ARIA y manda tu voz a <b>/api/stt</b>; te enseña EXACTO lo que devuelve Whisper. Si sale tu frase = el STT funciona; si sale vacío = el problema es la transcripción. (Necesita tu sesión de pilotos.aero.)</p>
   <div class="st" id="st9"></div>
 </div>
 
@@ -367,9 +368,49 @@
       setTimeout(function(){ try{ if(mr.state!=='inactive')mr.stop(); }catch(e){} }, 4000);
     }catch(e){ st(9,'✕ '+(e&&e.name||e&&e.message||e)); log('T9 rec: ERROR '+(e&&e.name||e&&e.message||e)); mtStop(); }
   }
+  async function micRecStt(){
+    stopAll(); mtStop();
+    var tk=''; try{ tk=localStorage.getItem('cafi_auth_token')||''; }catch(e){}
+    if(!tk){ st(9,'✕ Sin sesión. Abre pilotos.aero en esta pestaña, inicia sesión y vuelve.'); log('T9 STT: sin token.'); return; }
+    var my=++mtRunId;
+    st(9,'Pidiendo micrófono…');
+    try{
+      mtStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+      if(my!==mtRunId){ mtStop(); return; }
+      var chunks=[]; var mr=new MediaRecorder(mtStream); mtRec=mr;   // sin opciones = igual que ARIA
+      mr.ondataavailable=function(e){ if(e.data&&e.data.size)chunks.push(e.data); };
+      mr.onstop=async function(){
+        try{ if(mtStream)mtStream.getTracks().forEach(function(t){t.stop();}); }catch(e){} mtStream=null;
+        if(!chunks.length){ st(9,'🤖 Grabación VACÍA (0 bytes). El micro no llegó.'); log('T9 STT: 0 bytes.'); return; }
+        var blob=new Blob(chunks,{type:mr.mimeType||'audio/webm'});
+        st(9,'Enviando a /api/stt… ('+Math.round(blob.size/1024)+' KB, '+blob.type+')');
+        log('T9 STT: enviando '+Math.round(blob.size/1024)+' KB, mime='+blob.type);
+        var rd=new FileReader();
+        rd.onloadend=async function(){
+          var b64=String(rd.result).split(',')[1]||'';
+          try{
+            var t0=Date.now();
+            var rs=await fetch(BACKEND+'/api/stt',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({audio_base64:b64,mime:blob.type})});
+            var dt=Date.now()-t0;
+            var sj=await rs.json().catch(function(){return{};});
+            if(!rs.ok){ st(9,'✕ STT HTTP '+rs.status+': '+(sj.message||sj.error||'')); log('T9 STT: HTTP '+rs.status+' '+(sj.error||'')); return; }
+            var said=(sj.text||'').trim();
+            if(said){ st(9,'✅ STT OK ('+dt+'ms): «'+said+'»'); log('T9 STT: OK → «'+said+'»'); }
+            else{ st(9,'🤖 STT devolvió VACÍO ('+dt+'ms). Audio llega pero Whisper no transcribe → problema de formato/STT.'); log('T9 STT: text vacío. Audio '+Math.round(blob.size/1024)+'KB '+blob.type); }
+          }catch(e){ st(9,'✕ Error red STT: '+(e&&e.message||e)); log('T9 STT: error '+(e&&e.message||e)); }
+        };
+        rd.readAsDataURL(blob);
+      };
+      mr.start();
+      st(9,'⏺ Grabando 4 s… habla ahora (di una frase clara).');
+      log('T9 STT: grabando 4 s. mimeType='+(mr.mimeType||'?'));
+      setTimeout(function(){ try{ if(mr.state!=='inactive')mr.stop(); }catch(e){} }, 4000);
+    }catch(e){ st(9,'✕ '+(e&&e.name||e&&e.message||e)); log('T9 STT: ERROR '+(e&&e.name||e&&e.message||e)); mtStop(); }
+  }
   $('#mic-proc').addEventListener('click',function(){ micMeasure(true); });
   $('#mic-raw').addEventListener('click',function(){ micMeasure(false); });
   $('#mic-rec').addEventListener('click', micRecPlay);
+  $('#mic-stt').addEventListener('click', micRecStt);
   document.querySelector('#stopall').addEventListener('click', mtStop);
 
   log('Banco listo. Conecta el Bluetooth del coche y ejecuta las pruebas en orden.');
