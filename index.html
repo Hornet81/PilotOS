@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.281">
+  <meta name="version" content="Beta.282">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.281","builtAt":"2026-07-05T18:04:03Z","commit":"6c454cf","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.282","builtAt":"2026-07-05T18:10:09Z","commit":"2657616","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -38652,9 +38652,9 @@ document.addEventListener('DOMContentLoaded', function(){
     mr.ondataavailable=function(e){ if(e.data&&e.data.size)vChunks.push(e.data); };
     mr.onstop=function(){ vFinish(); };
     mr.start();
-    var spoke=false,silence=0,hardStop;
+    var spoke=false,silence=0,hardStop,_nfSum=0,_nfN=0,_thr=0.02;
     try{ vAC=new (window.AudioContext||window.webkitAudioContext)(); try{ if(vAC.state==='suspended')vAC.resume(); }catch(e){} var src=vAC.createMediaStreamSource(vStream); var an=vAC.createAnalyser(); an.fftSize=512; src.connect(an); var buf=new Uint8Array(an.fftSize);
-      var iv=setInterval(function(){ if(!vOn||!vRec||vRec.state==='inactive'){ clearInterval(iv); return; } an.getByteTimeDomainData(buf); var sum=0; for(var i=0;i<buf.length;i++){ var v=(buf[i]-128)/128; sum+=v*v; } var rms=Math.sqrt(sum/buf.length); if(rms>0.03){ spoke=true; _micHeard=true; silence=0; } else { silence+=120; } if(spoke&&silence>1300){ clearInterval(iv); try{mr.stop();}catch(e){} } if(!spoke&&silence>5000){ clearInterval(iv); try{mr.stop();}catch(e){} } },120);
+      var iv=setInterval(function(){ if(!vOn||!vRec||vRec.state==='inactive'){ clearInterval(iv); return; } an.getByteTimeDomainData(buf); var sum=0; for(var i=0;i<buf.length;i++){ var v=(buf[i]-128)/128; sum+=v*v; } var rms=Math.sqrt(sum/buf.length); if(_nfN<5){ _nfSum+=rms; _nfN++; if(_nfN===5){ _thr=Math.max(0.012, Math.min(0.03, (_nfSum/5)*2.5)); } } /* umbral auto-calibrado al ruido de fondo: nunca > 0.03 (como antes) y baja hasta 0.012 en micros flojos / manos libres del coche */ if(rms>_thr){ spoke=true; _micHeard=true; silence=0; } else { silence+=120; } if(spoke&&silence>1300){ clearInterval(iv); try{mr.stop();}catch(e){} } if(!spoke&&silence>5000){ clearInterval(iv); try{mr.stop();}catch(e){} } },120);
       hardStop=setTimeout(function(){ try{mr.stop();}catch(e){} },16000);
     }catch(e){ hardStop=setTimeout(function(){ try{mr.stop();}catch(e){} },6000); }
     mr._cleanup=function(){ if(hardStop)clearTimeout(hardStop); };
