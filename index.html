@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.280">
+  <meta name="version" content="Beta.281">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.280","builtAt":"2026-07-05T17:49:25Z","commit":"96b9c1e","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.281","builtAt":"2026-07-05T18:04:03Z","commit":"a83907a","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -11437,36 +11437,32 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
               <select class="ldm-inp ldm-sel" id="ld_rules"><option value="IFR">IFR</option><option value="VFR">VFR</option></select>
             </div>
             <div class="ldm-fg">
-              <label class="ldm-lbl">OPERACIÓN</label>
-              <select class="ldm-inp ldm-sel" id="ld_optype">
-                <option value="COM">Comercial (AOC)</option><option value="TRNG">Training / OPC</option>
-                <option value="FERRY">Ferry</option><option value="OTH">Otro</option>
-              </select>
-            </div>
-          </div>
-          <!-- ── ACTIVIDAD (vuelo / sim / instrucción): alimenta Pay Check ── -->
-          <div class="ldm-row2">
-            <div class="ldm-fg">
-              <label class="ldm-lbl">ACTIVIDAD</label>
-              <select class="ldm-inp ldm-sel" id="ld_instr" onchange="ldInstrChanged()">
-                <option value="">— Vuelo normal</option>
+              <label class="ldm-lbl">TIPO DE VUELO</label>
+              <select class="ldm-inp ldm-sel" id="ld_optype" onchange="ldFlightTypeChanged()">
+                <option value="COM">Comercial (AOC)</option>
+                <option value="FERRY">Ferry</option>
+                <option value="LIFUS">LIFUS · línea bajo supervisión</option>
                 <option value="SIM">Simulador (alumno)</option>
                 <option value="TRI">TRI · sim (instructor)</option>
                 <option value="TRE">TRE · sim (instructor)</option>
-                <option value="LSC">LSC · instrucción en línea (horas)</option>
-                <option value="GTI">GTI · instrucción en tierra (día)</option>
+                <option value="LSC">LSC · instrucción en línea</option>
+                <option value="GTI">GTI · instrucción en tierra</option>
+                <option value="OTH">Otro</option>
               </select>
             </div>
-            <div class="ldm-fg" id="ld_simtype_fg" style="display:none">
+          </div>
+          <!-- Metadatos de simulador (se muestran solo para SIM/TRI/TRE) -->
+          <div class="ldm-row2" id="ld_simrow1" style="display:none">
+            <div class="ldm-fg">
               <label class="ldm-lbl">TIPO DE SIM / DISPOSITIVO</label>
               <input class="ldm-inp" type="text" id="ld_simtype" placeholder="A320 FFS…" maxlength="24">
             </div>
-          </div>
-          <div class="ldm-row2" id="ld_simmeta_row" style="display:none">
             <div class="ldm-fg">
               <label class="ldm-lbl">CENTRO DE ENTRENAMIENTO</label>
               <input class="ldm-inp" type="text" id="ld_traincenter" placeholder="p. ej. Vueling TC / CAE…" maxlength="40">
             </div>
+          </div>
+          <div class="ldm-row2" id="ld_simrow2" style="display:none">
             <div class="ldm-fg">
               <label class="ldm-lbl">TIPO DE SESIÓN</label>
               <select class="ldm-inp ldm-sel" id="ld_simsession">
@@ -11481,6 +11477,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
                 <option value="Other">Other</option>
               </select>
             </div>
+            <div class="ldm-fg"></div>
           </div>
           <div id="ld_instr_hint" style="display:none;font-size:10px;color:#0891B2;font-family:'Space Mono',monospace;margin:-2px 2px 6px;line-height:1.5"></div>
         </div>
@@ -16850,20 +16847,24 @@ function ldRoleChanged(){
 }
 // Instrucción / Simulador: al elegir un cargo (TRI/TRE/LSC/GTI) se muestra el tipo de
 // sim/dispositivo y se avisa de que la ruta es opcional (una sesión de sim no vuela ruta).
-function ldInstrChanged(){
-  var el=document.getElementById('ld_instr'); var v=el?el.value:'';
-  var isSim=(v==='SIM'||v==='TRI'||v==='TRE');   // sesión de simulador (alumno o instructor)
+// TIPO DE VUELO unificado (id ld_optype). Muestra los metadatos de sim (device/centro/
+// tipo de sesión) solo para SIM/TRI/TRE, y el Examinador/Instructor para las sesiones
+// supervisadas/check. La ruta será opcional (validación) para SIM/TRI/TRE/GTI.
+function ldFlightTypeChanged(){
+  var el=document.getElementById('ld_optype'); var v=el?el.value:'';
+  var isSim=/^(SIM|TRI|TRE)$/.test(v);              // sesión de simulador
+  var showExaminer=/^(SIM|TRI|TRE|LIFUS)$/.test(v); // hay un instructor/supervisor implicado
   var _sh=function(id,on){ var e=document.getElementById(id); if(e) e.style.display=on?'':'none'; };
-  _sh('ld_simtype_fg', isSim);       // tipo de sim / dispositivo
-  _sh('ld_simmeta_row', isSim);      // centro de entrenamiento + tipo de sesión
-  _sh('ld_examiner_fg', isSim);      // examinador/instructor (pestaña Tripulantes)
+  _sh('ld_simrow1', isSim); _sh('ld_simrow2', isSim);
+  _sh('ld_examiner_fg', showExaminer);
   var hint=document.getElementById('ld_instr_hint');
   if(hint){
     var msg='';
-    if(v==='SIM') msg='Simulador como alumno. La ruta es opcional; el block time = duración. Suma el plus de formación (119,03 €/sesión) en la nómina.';
-    else if(v==='TRI'||v==='TRE') msg='Sesión de simulador ('+v+', instructor). La ruta es opcional; el block time = duración de la sesión.';
-    else if(v==='LSC') msg='Instrucción en línea (LSC). Cuenta las HORAS (block time) de la sesión.';
-    else if(v==='GTI') msg='Instrucción en tierra (GTI). Cuenta como 1 día. La ruta y los tiempos son opcionales.';
+    if(v==='SIM') msg='Simulador como alumno. Ruta opcional; block = duración. Suma el plus de formación (119,03 €/sesión) en la nómina.';
+    else if(v==='TRI'||v==='TRE') msg='Sesión de simulador ('+v+', instructor). Ruta opcional; block = duración.';
+    else if(v==='LSC') msg='Instrucción en línea (LSC): vuelo real con ruta. Cuenta las HORAS (block) para el plus.';
+    else if(v==='GTI') msg='Instrucción en tierra (GTI). Cuenta como 1 día; ruta y tiempos opcionales.';
+    else if(v==='LIFUS') msg='LIFUS: vuelo comercial real bajo supervisión. Anota el supervisor en Tripulantes.';
     hint.textContent=msg; hint.style.display=msg?'':'none';
   }
 }
@@ -16896,6 +16897,10 @@ function ldResetForm(){
   ['ld_actype','ld_engine','ld_func','ld_rules','ld_optype','ld_cond'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.selectedIndex=0;
   });
+  // Limpiar metadatos de sim/instrucción y ocultar sus filas (nueva entrada = vuelo normal)
+  ['ld_simtype','ld_traincenter','ld_examiner'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  var _ssel=document.getElementById('ld_simsession'); if(_ssel) _ssel.selectedIndex=0;
+  try{ ldFlightTypeChanged(); }catch(_e){}
   var _chk=document.getElementById('ld_confirm'); if(_chk) _chk.checked=false;
   var ocr=document.getElementById('ld_ocr'); ocr.style.display='none'; ocr.className='ld-ocr';
   // Reset +1 badges
@@ -17615,7 +17620,7 @@ function ldSave(){
   // still validate required fields
   var g=function(id){var _e=document.getElementById(id);return(_e?_e.value:'').trim();};
   var n=function(id){var _e=document.getElementById(id);return parseInt(_e?_e.value:'0');};
-  if(g('ld_instr')){ // sesión de sim/instrucción: la ruta no es obligatoria
+  if(/^(SIM|TRI|TRE|GTI)$/.test(g('ld_optype'))){ // sim / instrucción en tierra: la ruta no es obligatoria
     if(!g('ld_date')||!g('ld_block')){showToast('Fecha y duración (block time) son obligatorios','error');return;}
   } else if(!g('ld_date')||!g('ld_dep')||!g('ld_arr')||!g('ld_block')){showToast('Fecha, ruta y block time son obligatorios','error');return;}
   if(!g('ld_atd')||!g('ld_ata')){showToast('OUT (Blocks Off) e IN (Blocks ON) son obligatorios','error');return;}
@@ -17649,8 +17654,8 @@ function ldSave(){
     sched_out:g('ld_sched_out'),sched_in:g('ld_sched_in'),
     delayCodes:ldDelayCodes.filter(function(dc){return (dc.code||dc.desc||dc.mins);}).map(function(dc){ return {code:(dc.code||'').trim(),mins:parseInt(dc.mins)||0,desc:(dc.desc||'').trim()}; }),
     block:g('ld_block'),flightTime:g('ld_flight_time'),role:g('ld_role'),func:g('ld_func'),
-    rules:g('ld_rules'),opType:g('ld_optype'),conditions:g('ld_cond'),
-    instr:g('ld_instr'),simType:g('ld_simtype'),trainCenter:g('ld_traincenter'),simSession:g('ld_simsession'),examiner:g('ld_examiner'),
+    rules:g('ld_rules'),opType:(function(){var t=g('ld_optype');return /^(SIM|TRI|TRE|LSC|GTI)$/.test(t)?'TRNG':t;})(),conditions:g('ld_cond'),
+    flightType:g('ld_optype'),instr:(function(){var t=g('ld_optype');return /^(SIM|TRI|TRE|LSC|GTI)$/.test(t)?t:'';})(),simType:g('ld_simtype'),trainCenter:g('ld_traincenter'),simSession:g('ld_simsession'),examiner:g('ld_examiner'),
     ldgDay:n('ld_ldgd'),ldgNight:n('ld_ldgn'),night:g('ld_night_inp'),
     cm1:g('ld_cm1'),cm2:g('ld_cm2'),
     notes:g('ld_notes'),source:(ldImgB64?'MCDU-OCR':(window._ldAdsbImported?'ADSB':'MANUAL')),
@@ -18257,7 +18262,7 @@ function ldShowCard(id){
         +pill(e.role,roleClass)
         +pill(e.func,funcClass)
         +pill(e.rules,'')
-        +pill(e.opType,'')
+        +pill(e.flightType||e.opType,'')
         +(nightOk?pill(e.night+' noc','ld-fpill-noc'):'')
         +(e.pernoc?pill('Pernoc','','background:rgba(251,191,36,.1);color:rgba(251,191,36,.9);border:1px solid rgba(251,191,36,.25)'):'')
       +'</div>'
@@ -18375,13 +18380,17 @@ function ldEditFlight(id){
       }
     });
   }
-  var selMap={ld_actype:'acType',ld_engine:'engine',ld_role:'role',ld_func:'func',ld_rules:'rules',ld_optype:'opType',ld_cond:'conditions',ld_instr:'instr',ld_simsession:'simSession'};
+  var selMap={ld_actype:'acType',ld_engine:'engine',ld_role:'role',ld_func:'func',ld_rules:'rules',ld_cond:'conditions',ld_simsession:'simSession'};
   Object.keys(selMap).forEach(function(sid){
     var sel=document.getElementById(sid);
     if(sel&&e[selMap[sid]]) sel.value=e[selMap[sid]];
   });
+  // TIPO DE VUELO unificado: usa flightType (fuente de verdad); entradas antiguas → deriva
+  // de instr (cargo) o de opType (COM/FERRY/OTH; el 'TRNG' antiguo genérico → Comercial).
+  var _ft = e.flightType || e.instr || (e.opType && e.opType!=='TRNG' ? e.opType : 'COM') || 'COM';
+  var _ots=document.getElementById('ld_optype'); if(_ots) _ots.value=_ft;
   g2('ld_simtype', e.simType); g2('ld_traincenter', e.trainCenter); g2('ld_examiner', e.examiner);
-  try{ ldInstrChanged(); }catch(_e){}
+  try{ ldFlightTypeChanged(); }catch(_e){}
   // ── Herencia entre legs del mismo día ───────────────────────────────────
   // Al COMPLETAR un leg importado del roster (ROSTER-DRAFT), copiar del primer
   // leg ya completado del día los datos que casi nunca cambian. Si el vuelo se
