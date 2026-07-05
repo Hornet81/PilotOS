@@ -30,7 +30,7 @@
 </script>
   <meta name="version" content="Beta.277">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.277","builtAt":"2026-07-05T16:24:48Z","commit":"a2aa5f5","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.277","builtAt":"2026-07-05T16:51:20Z","commit":"f7f6e13","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -2502,7 +2502,8 @@ html.day .dsc-row{ background:rgba(124,58,237,.04); }
 
 /* Inputs */
 .ldm-inp {
-  width:100%; height:48px;
+  width:100%; height:48px; min-height:48px; max-height:48px;
+  -webkit-appearance:none; appearance:none;
   background:rgba(11,16,32,.75) !important;
   border:1px solid rgba(34,211,238,.15) !important;
   border-radius:12px !important;
@@ -2512,6 +2513,9 @@ html.day .dsc-row{ background:rgba(124,58,237,.04); }
   outline:none; transition:border-color .2s, box-shadow .2s;
   box-sizing:border-box; letter-spacing:.2px;
 }
+/* iPad/iOS: el control nativo de time no debe desbordar la caja */
+.ldm-inp[type="time"], .ldm-inp[type="date"]{ -webkit-appearance:none; appearance:none; }
+.ldm-inp[type="time"]::-webkit-date-and-time-value{ text-align:left; margin:0; }
 .ldm-inp::placeholder { color:rgba(248,250,252,.2) !important; font-size:12px; }
 .ldm-inp:focus {
   border-color:rgba(124,58,237,.55) !important;
@@ -2527,7 +2531,7 @@ html.day .dsc-row{ background:rgba(124,58,237,.04); }
 .ldm-inp.seq-error  { color:#EF4444 !important; border-color:rgba(239,68,68,.5)  !important; font-weight:600; box-shadow:0 0 0 2px rgba(239,68,68,.1) !important; }
 /* ─────────────────── DELAY PANEL ─────────────────── */
 @keyframes ldDelayIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
-.ldm-delay-wrap { border-radius:16px;overflow:hidden;animation:ldDelayIn .22s cubic-bezier(.4,0,.2,1); }
+.ldm-delay-wrap { border-radius:16px;animation:ldDelayIn .22s cubic-bezier(.4,0,.2,1); }
 .ldm-delay-hdr {
   display:flex;align-items:center;gap:10px;padding:11px 14px;
   background:rgba(249,115,22,.07);border:1px solid rgba(249,115,22,.22);
@@ -11357,10 +11361,10 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
         <!-- Block Time + Flight Time row -->
         <div class="ldm-row2" style="margin-bottom:4px">
           <div class="ldm-fg">
-            <label class="ldm-lbl">BLOCK TIME <span style="font-size:9px;color:rgba(34,211,238,.4);font-weight:400;text-transform:none;letter-spacing:0">(auto OUT→IN)</span></label>
+            <label class="ldm-lbl">BLOCK TIME <span style="font-size:9px;color:#0891B2;font-weight:600;text-transform:none;letter-spacing:0">(auto OUT→IN)</span></label>
             <input class="ldm-inp ldm-inp-highlight" type="text" id="ld_block" placeholder="00:00"
               oninput="ldAutoFlightFromManual()"
-              style="font-family:'Space Mono',monospace;font-size:15px;text-align:center;letter-spacing:1px">
+              style="font-family:'Space Mono',monospace;font-size:15px;font-weight:700;text-align:center;letter-spacing:1px">
           </div>
           <div class="ldm-fg">
             <label class="ldm-lbl">
@@ -32837,7 +32841,7 @@ function _ldRstImportRender(){
           +'<div style="width:3px;height:40px;border-radius:2px;background:#22D3EE;flex-shrink:0"></div>'
           +'<div style="flex:1;min-width:0">'
             +'<div style="font-family:\'DM Mono\',\'Space Mono\',monospace;font-size:16px;font-weight:500;color:#F8FAFC">'+(f.dep||'?')+'<span style="color:#22D3EE;margin:0 7px;font-size:13px">›</span>'+(f.arr||'?')+'</div>'
-            +'<div style="font-size:11px;color:rgba(248,250,252,.38);font-family:\'Space Mono\',monospace;margin-top:3px">'+(f.flightNum||'—')+' · '+(f.std||'—')+'–'+(f.sta||'—')+'</div>'
+            +'<div style="font-size:11px;color:rgba(248,250,252,.38);font-family:\'Space Mono\',monospace;margin-top:3px">'+(f.flightNum||'—')+' · '+((f.std||f.std_estimated||f.std_actual)||'—')+'–'+((f.sta||f.sta_estimated||f.sta_actual)||'—')+'</div>'
           +'</div>'
           +'<div style="font-size:10px;font-family:\'Space Mono\',monospace;color:#22D3EE;font-weight:700;white-space:nowrap">'+statusTxt+'</div>'
         +'</div>';
@@ -32858,7 +32862,7 @@ function _ldRstImportRender(){
           +'<div style="width:3px;height:40px;border-radius:2px;background:'+barBg+';flex-shrink:0"></div>'
           +'<div style="flex:1;min-width:0">'
             +'<div style="font-family:\'DM Mono\',\'Space Mono\',monospace;font-size:16px;font-weight:500;color:'+routeCol+'">'+(f.dep||'?')+'<span style="color:'+arrowCol+';margin:0 7px;font-size:13px">›</span>'+(f.arr||'?')+'</div>'
-            +'<div style="font-size:11px;color:'+metaCol+';font-family:\'Space Mono\',monospace;margin-top:3px">'+(f.flightNum||'—')+' · '+(f.std||'—')+'–'+(f.sta||'—')+'</div>'
+            +'<div style="font-size:11px;color:'+metaCol+';font-family:\'Space Mono\',monospace;margin-top:3px">'+(f.flightNum||'—')+' · '+((f.std||f.std_estimated||f.std_actual)||'—')+'–'+((f.sta||f.sta_estimated||f.sta_actual)||'—')+'</div>'
           +'</div>'
           +badgeHtml
         +'</div>';
@@ -32918,22 +32922,27 @@ window.ldRosterImportConfirm = function(){
     if(!isPro()&&(realCount+imported)>=PLAN_FREE_LOGBOOK_LIMIT){showPlanToast('limit');return;}
     var fDepIcao = (RST_IATA_ICAO[(f.dep||'').toUpperCase()]||(f.dep||'').toUpperCase());
     var fArrIcao = (RST_IATA_ICAO[(f.arr||'').toUpperCase()]||(f.arr||'').toUpperCase());
+    // Hora programada del roster: si no viene la "S" (std), usa la estimada (E, std_estimated)
+    // y en último caso la real (A, std_actual). Sin esto, legs con solo E entraban sin hora
+    // → no se podían ordenar por hora (quedaban en orden arbitrario).
+    var rStd = f.std || f.std_estimated || f.std_actual || '';
+    var rSta = f.sta || f.sta_estimated || f.sta_actual || '';
     var blockStr='';
-    if(f.std&&f.sta){
-      var sm=parseInt(f.std.split(':')[0])*60+parseInt(f.std.split(':')[1]);
-      var em=parseInt(f.sta.split(':')[0])*60+parseInt(f.sta.split(':')[1]);
+    if(rStd&&rSta){
+      var sm=parseInt(rStd.split(':')[0])*60+parseInt(rStd.split(':')[1]);
+      var em=parseInt(rSta.split(':')[0])*60+parseInt(rSta.split(':')[1]);
       var bm=em-sm; if(bm<0)bm+=1440;
       blockStr=Math.floor(bm/60)+':'+String(bm%60).padStart(2,'0');
     }
     ldEntries.unshift({
-      id:ldGenDeterministicId('RST', f.date, fDepIcao, fArrIcao, f.std||''),
+      id:ldGenDeterministicId('RST', f.date, fDepIcao, fArrIcao, rStd||''),
       savedAt:new Date().toISOString(),
       source:'ROSTER-DRAFT',
       date:f.date, flight:f.flightNum||'',
       dep:fDepIcao, arr:fArrIcao,
       // Los tiempos del roster son PROGRAMADOS → van a sched_out/sched_in.
       // OFF/ON (std/sta) quedan vacíos: son horas reales que pone el piloto.
-      sched_out:f.std||'', sched_in:f.sta||'', std:'', sta:'',
+      sched_out:rStd||'', sched_in:rSta||'', std:'', sta:'',
       block:blockStr, acType:f.acType||'', reg:f.reg||'',
       role:lsGet('ld_pref_role')||'FO',
       rosterEntryId:f.id||null,
@@ -36494,15 +36503,29 @@ function laRenderAnalytics() {
   var topTypes = Object.entries(typMins).sort(function(a,b){ return b[1]-a[1]; }).slice(0,5);
 
   // ─── Tripulación ────────────────────────────────────────────
-  var _myName='';
-  for(var _ni=0;_ni<entries.length&&!_myName;_ni++){
-    var _ne=entries[_ni];
-    if(_ne.role==='CPT'&&_ne.cm1) _myName=_ne.cm1.trim();
-    else if(_ne.role==='FO'&&_ne.cm2) _myName=_ne.cm2.trim();
-  }
+  // Nombre(s) del PROPIO usuario a excluir del ranking "top compañeros". Robusto:
+  // el usuario siempre ocupa CM1 cuando vuela de comandante y CM2 cuando vuela de copiloto,
+  // así que recogemos TODAS las grafías que aparecen en SU propio slot (no solo la 1ª) +
+  // el nombre del perfil. Comparación normalizada (mayúsculas/espacios) y por conjunto de
+  // tokens (tolera orden y espacios). Antes se cogía solo el 1er entry con match exacto →
+  // si tu apellido variaba de grafía entre vuelos, tu nombre se colaba como "top compañero".
+  var _myKeys={};
+  function _laNorm(s){ return (s||'').trim().toUpperCase().replace(/\s+/g,' '); }
+  function _laTok(s){ var n=_laNorm(s); return n?n.split(' ').filter(Boolean).sort().join(' '):''; }
+  function _laAddMy(s){ var n=_laNorm(s); if(!n||n==='COMANDANTE')return; _myKeys[n]=1; var t=_laTok(s); if(t)_myKeys[t]=1; }
+  var _CMD_RE=/^(CPT|CDR|CMD|CAP|CAPT|COMANDANTE)$/i, _FO_RE=/^(FO|F\/O|COP|SO|FIRST|COPILOTO)$/i;
+  try{ _laAddMy(localStorage.getItem('pilot_name')||''); }catch(e){}
+  entries.forEach(function(e){
+    if(e.role&&_CMD_RE.test(e.role)&&e.cm1) _laAddMy(e.cm1);
+    if(e.role&&_FO_RE.test(e.role)&&e.cm2) _laAddMy(e.cm2);
+  });
   var crewCnt={};
   entries.forEach(function(e){
-    [e.cm1,e.cm2].forEach(function(n){ if(n&&n.trim()&&n.trim()!==_myName) crewCnt[n.trim()]=(crewCnt[n.trim()]||0)+1; });
+    [e.cm1,e.cm2].forEach(function(n){
+      if(!n||!n.trim())return;
+      if(_myKeys[_laNorm(n)]||_myKeys[_laTok(n)])return; // es el usuario → excluir
+      crewCnt[n.trim()]=(crewCnt[n.trim()]||0)+1;
+    });
   });
   var topCrew = Object.entries(crewCnt).sort(function(a,b){ return b[1]-a[1]; }).slice(0,5);
 
@@ -38456,7 +38479,14 @@ document.addEventListener('DOMContentLoaded', function(){
   function unlockAudio(){ try{ if(!_va)_va=new Audio(); _va.muted=true; _va.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACBWAQACABAAZGF0YQAAAAA='; var pp=_va.play(); if(pp&&pp.then){ pp.then(function(){ try{_va.pause();_va.currentTime=0;}catch(e){} _va.muted=false; }).catch(function(){ _va.muted=false; }); } }catch(e){} /* NO abrir AudioContext aquí: en iOS mantener _ac vivo degrada el Bluetooth a HFP y entrecorta el briefing. El AudioContext solo se crea cuando hace falta el micro. */ }
   async function ttsFetchUrl(text){ var r=await fetch(BACKEND+'/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify({text:text,voice:(CUR.voice||'nova'),lang:CUR.lang})}); if(r.status===429){ var j=await r.json().catch(function(){return{};}); throw new Error(j.message||'Voz no disponible'); } if(!r.ok) throw new Error('tts '+r.status); var b=await r.blob(); return URL.createObjectURL(b); }
   function beep(){ try{ if(!_ac)_ac=new (window.AudioContext||window.webkitAudioContext)(); if(_ac.state==='suspended')_ac.resume(); var o=_ac.createOscillator(),g=_ac.createGain(); o.type='sine'; o.frequency.value=880; o.connect(g); g.connect(_ac.destination); var t=_ac.currentTime; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.18,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.30); o.start(t); o.stop(t+0.32); }catch(e){} }
-  function mediaSetup(){ try{ if(!('mediaSession' in navigator)||_msSet) return; _msSet=true; var ms=navigator.mediaSession; try{ ms.setActionHandler('play',function(){ if(!playing||paused)togglePlay(); }); }catch(e){} try{ ms.setActionHandler('pause',function(){ if(playing&&!paused)togglePlay(); }); }catch(e){} try{ ms.setActionHandler('stop',function(){ stopBriefing(); }); }catch(e){} try{ ms.setActionHandler('seekbackward',function(){ rewind(15); }); }catch(e){} try{ ms.setActionHandler('nexttrack',null); ms.setActionHandler('previoustrack',null); }catch(e){} }catch(e){} }
+  function mediaSetup(){ try{ if(!('mediaSession' in navigator)||_msSet) return; _msSet=true; var ms=navigator.mediaSession;
+    // PLAY (lock screen): reanuda/arranca la reproducción.
+    try{ ms.setActionHandler('play',function(){ try{ if(!playing){ togglePlay(); } else { paused=false; if(curAudio){ var _p=curAudio.play(); if(_p&&_p.catch)_p.catch(function(){}); } var pb=q('#ar-play'); if(pb)pb.textContent='⏸'; try{ navigator.mediaSession.playbackState='playing'; }catch(_e){} try{ applyChrome(); }catch(_e){} } }catch(e){} }); }catch(e){}
+    // PAUSE (lock screen): PARA el audio INCONDICIONALMENTE. Antes iba por togglePlay()
+    // con guard 'if(playing&&!paused)'; si el estado interno se desincronizaba, no pausaba
+    // y el audio seguía sonando aunque el control marcase pausa. Ahora pausa el <audio> directo.
+    try{ ms.setActionHandler('pause',function(){ try{ if(curAudio)curAudio.pause(); }catch(_e){} try{ if(_va)_va.pause(); }catch(_e){} paused=true; playing=true; var pb=q('#ar-play'); if(pb)pb.textContent='▶'; try{ navigator.mediaSession.playbackState='paused'; }catch(_e){} try{ applyChrome(); }catch(_e){} }); }catch(e){}
+    try{ ms.setActionHandler('stop',function(){ stopBriefing(); }); }catch(e){} try{ ms.setActionHandler('seekbackward',function(){ rewind(15); }); }catch(e){} try{ ms.setActionHandler('nexttrack',null); ms.setActionHandler('previoustrack',null); }catch(e){} }catch(e){} }
   function mediaMeta(){ try{ if(!('mediaSession' in navigator)) return; navigator.mediaSession.metadata=new MediaMetadata({title:(CUR.lang==='en'?'ARIA Briefing':'Briefing de ARIA'),artist:'ARIA · PilotOS',album:'PilotOS',artwork:[{src:location.origin+'/aria_art.jpg',sizes:'256x256',type:'image/jpeg'},{src:location.origin+'/aria_art.jpg',sizes:'512x512',type:'image/jpeg'}]}); }catch(e){} }
   function mediaPos(){ try{ if('mediaSession' in navigator && navigator.mediaSession.setPositionState && isFinite(total) && total>0){ navigator.mediaSession.setPositionState({duration:total, position:Math.max(0,Math.min(curElapsed(),total)), playbackRate:RATE||1}); } }catch(e){} }
   function mediaState(){ try{ if('mediaSession' in navigator) navigator.mediaSession.playbackState=(playing&&!paused)?'playing':(audios.length?'paused':'none'); }catch(e){} }
