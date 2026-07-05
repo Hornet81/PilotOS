@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.279">
+  <meta name="version" content="Beta.280">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.279","builtAt":"2026-07-05T17:18:05Z","commit":"d27bdf9","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.280","builtAt":"2026-07-05T17:49:25Z","commit":"b828847","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -10096,6 +10096,15 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
             <div class="pc-hint">CPT 210,05 € · FO 161,04 € / día</div>
           </div>
         </div>
+        <div class="pc-sep" style="margin:10px 0 8px"><span>Formación (como alumno)</span></div>
+        <div class="frow" style="margin-bottom:8px">
+          <div class="fg">
+            <label class="pc-field-label">Sesiones de sim (alumno)</label>
+            <input class="fi" type="number" id="pc_formacion" value="0" step="1" min="0">
+            <div class="pc-hint">119,03 € / sesión · plus formación y actividad en oficinas · se auto-rellena desde el logbook</div>
+          </div>
+          <div class="fg"></div>
+        </div>
         <div class="pc-sep" style="margin:10px 0 8px"><span>Jefe de día</span></div>
         <div class="frow">
           <div class="fg">
@@ -11435,14 +11444,15 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
               </select>
             </div>
           </div>
-          <!-- ── Instrucción / Simulador (cargo): alimenta Pay Check (TRI/TRE/LSC/GTI) ── -->
+          <!-- ── ACTIVIDAD (vuelo / sim / instrucción): alimenta Pay Check ── -->
           <div class="ldm-row2">
             <div class="ldm-fg">
-              <label class="ldm-lbl">INSTRUCCIÓN / SIM</label>
+              <label class="ldm-lbl">ACTIVIDAD</label>
               <select class="ldm-inp ldm-sel" id="ld_instr" onchange="ldInstrChanged()">
-                <option value="">— Ninguno (vuelo normal)</option>
-                <option value="TRI">TRI · sesión simulador</option>
-                <option value="TRE">TRE · sesión simulador</option>
+                <option value="">— Vuelo normal</option>
+                <option value="SIM">Simulador (alumno)</option>
+                <option value="TRI">TRI · sim (instructor)</option>
+                <option value="TRE">TRE · sim (instructor)</option>
                 <option value="LSC">LSC · instrucción en línea (horas)</option>
                 <option value="GTI">GTI · instrucción en tierra (día)</option>
               </select>
@@ -11452,11 +11462,38 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
               <input class="ldm-inp" type="text" id="ld_simtype" placeholder="A320 FFS…" maxlength="24">
             </div>
           </div>
+          <div class="ldm-row2" id="ld_simmeta_row" style="display:none">
+            <div class="ldm-fg">
+              <label class="ldm-lbl">CENTRO DE ENTRENAMIENTO</label>
+              <input class="ldm-inp" type="text" id="ld_traincenter" placeholder="p. ej. Vueling TC / CAE…" maxlength="40">
+            </div>
+            <div class="ldm-fg">
+              <label class="ldm-lbl">TIPO DE SESIÓN</label>
+              <select class="ldm-inp ldm-sel" id="ld_simsession">
+                <option value="">—</option>
+                <option value="Recurrent">Recurrent</option>
+                <option value="OPC">OPC</option>
+                <option value="LPC">LPC</option>
+                <option value="LOFT">LOFT</option>
+                <option value="LOE">LOE</option>
+                <option value="Skill Test">Skill Test</option>
+                <option value="Training">Training</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
           <div id="ld_instr_hint" style="display:none;font-size:10px;color:#0891B2;font-family:'Space Mono',monospace;margin:-2px 2px 6px;line-height:1.5"></div>
         </div>
 
         <!-- ── TAB: Tripulantes ── -->
         <div id="ldst-panel-trip" style="display:none">
+          <!-- Examinador / Instructor (solo sesiones de sim/instrucción) -->
+          <div class="ldm-fg" id="ld_examiner_fg" style="margin-bottom:10px;position:relative;display:none">
+            <label class="ldm-lbl">EXAMINADOR / INSTRUCTOR <span style="font-size:9px;color:rgba(34,211,238,.6);text-transform:none;letter-spacing:0;font-weight:400">(TRE/TRI)</span></label>
+            <input class="ldm-inp" type="text" id="ld_examiner" placeholder="Apellido del examinador/instructor..."
+              oninput="ldNameSuggest(this,'ld_examiner_list')" onfocus="ldNameSuggest(this,'ld_examiner_list')" onblur="setTimeout(function(){ldNameHide('ld_examiner_list')},150)">
+            <div class="ld-name-list" id="ld_examiner_list"></div>
+          </div>
           <!-- CM1 -->
           <div class="ldm-fg" style="margin-bottom:10px;position:relative">
             <label class="ldm-lbl">CM1 <span style="font-size:9px;color:rgba(245,158,11,.6);text-transform:none;letter-spacing:0;font-weight:400">(Comandante)</span></label>
@@ -14646,6 +14683,10 @@ function pcCalc() {
   var plusTre  = nTre  * 924.22;
   var plusLsc  = hLsc  * 51.46;
   var plusGti  = dGti  * (esp==='cmd' ? 210.05 : 161.04);
+  // Plus de formación y actividad en oficinas: sesiones de sim como ALUMNO (OPC/LPC/recurrent).
+  // 119,03 €/sesión. Se auto-rellena desde el logbook (actividad 'SIM'), editable.
+  var nForm    = parseInt((document.getElementById('pc_formacion')||{}).value)||0;
+  var plusForm = nForm * 119.03;
   var plusJdia = dJdia * 618.76;
   var plusJdiaF= dJdiaF* 928.14;
 
@@ -14670,7 +14711,7 @@ function pcCalc() {
   var totalDev = salBase + pagaExt + primaCom + plusPat
     + plusHV + plusPos + plusImag + plusFlex + plusVac
     + plusFonline + plusOficina + plusSparring
-    + plusTri + plusTre + plusLsc + plusGti + plusJdia + plusJdiaF
+    + plusTri + plusTre + plusLsc + plusGti + plusForm + plusJdia + plusJdiaF
     + pagaTrim + plusBolsa + bonoProd + plusInv + invDietaSuj + invDietaExe
     + dNacSuj + dNacExe + dIntSuj + dIntExe
     + dPernSuj + dPernExe + dPernNatSuj + dPernNatExe;
@@ -14716,7 +14757,7 @@ function pcCalc() {
     hFonline:hFonline, plusFonline:plusFonline, dOficina:dOficina, plusOficina:plusOficina,
     hSparring:hSparring, plusSparring:plusSparring,
     nTri:nTri, plusTri:plusTri, nTre:nTre, plusTre:plusTre,
-    hLsc:hLsc, plusLsc:plusLsc, dGti:dGti, plusGti:plusGti,
+    hLsc:hLsc, plusLsc:plusLsc, dGti:dGti, plusGti:plusGti, nForm:nForm, plusForm:plusForm,
     dJdia:dJdia, plusJdia:plusJdia, dJdiaF:dJdiaF, plusJdiaF:plusJdiaF,
     invOn:invOn, invN:invN, invFranja:invFranja, invRate:invRate, plusInv:plusInv, invDietaSuj:invDietaSuj, invDietaExe:invDietaExe,
     dNacSuj:dNacSuj, dNacExe:dNacExe, dIntSuj:dIntSuj, dIntExe:dIntExe,
@@ -14760,6 +14801,7 @@ function pcCalc() {
   if (plusTre>0)   rows += pcRow('412','TRE',nTre+' sim.',924.22,plusTre,'var');
   if (plusLsc>0)   rows += pcRow('413','LSC / LCC',pcFmt(hLsc)+' h',51.46,plusLsc,'var');
   if (plusGti>0)   rows += pcRow('414','GTI / Instrucción tierra',dGti+' días',(esp==='cmd'?210.05:161.04),plusGti,'var');
+  if (plusForm>0)  rows += pcRow('415','Plus formación / oficinas',nForm+' ses.',119.03,plusForm,'var');
   if (plusJdia>0)  rows += pcRow('420','Plus Jefe de día',dJdia+' días',618.76,plusJdia,'var');
   if (plusJdiaF>0) rows += pcRow('421','Plus Jefe de día festivo',dJdiaF+' días',928.14,plusJdiaF,'var');
   if (rfImp>0) rows += pcRow('510','Retribución Flexible (descuento)','',-rfImp,-rfImp,'','tr-ded');
@@ -14840,7 +14882,7 @@ async function pcImportFromLogbook() {
     // alguno, auto-activa la sección "¿Tienes algún cargo activo?".
     try {
       var _pcMin = function(t){ var m=String(t||'').match(/^(\d{1,2}):(\d{2})$/); return m?parseInt(m[1])*60+parseInt(m[2]):0; };
-      var _tri=0,_tre=0,_lscMin=0,_gtiDays={};
+      var _tri=0,_tre=0,_lscMin=0,_gtiDays={},_sim=0;
       (window.ldEntries||[]).forEach(function(en){
         if(!en||!en.date||String(en.date).slice(0,7)!==month) return;
         var it=(en.instr||'').toUpperCase();
@@ -14848,10 +14890,11 @@ async function pcImportFromLogbook() {
         else if(it==='TRE') _tre++;
         else if(it==='LSC') _lscMin+=_pcMin(en.block||en.flightTime);
         else if(it==='GTI') _gtiDays[en.date]=1;
+        else if(it==='SIM') _sim++;   // simulador como alumno → plus formación (119,03/sesión)
       });
       var _lscH=Math.round(_lscMin/60*100)/100, _gti=Object.keys(_gtiDays).length;
-      setVal('pc_tri',_tri); setVal('pc_tre',_tre); setVal('pc_lsc',_lscH); setVal('pc_gti',_gti);
-      if(_tri||_tre||_lscH||_gti){
+      setVal('pc_tri',_tri); setVal('pc_tre',_tre); setVal('pc_lsc',_lscH); setVal('pc_gti',_gti); setVal('pc_formacion',_sim);
+      if(_tri||_tre||_lscH||_gti||_sim){
         try{ if(typeof PC_STATE!=='undefined') PC_STATE.cargo='si'; }catch(_e){}
         var _cw=document.getElementById('pc_cargos_wrap'); if(_cw) _cw.style.display='block';
         document.querySelectorAll('.pc-tog-btn').forEach(function(b){ if((b.getAttribute('onclick')||'').indexOf("'cargo'")>=0){ b.classList.toggle('on', b.getAttribute('data-val')==='si'); } });
@@ -16809,12 +16852,16 @@ function ldRoleChanged(){
 // sim/dispositivo y se avisa de que la ruta es opcional (una sesión de sim no vuela ruta).
 function ldInstrChanged(){
   var el=document.getElementById('ld_instr'); var v=el?el.value:'';
-  var fg=document.getElementById('ld_simtype_fg'); var hint=document.getElementById('ld_instr_hint');
-  var isSim=(v==='TRI'||v==='TRE');
-  if(fg) fg.style.display=isSim?'':'none';
+  var isSim=(v==='SIM'||v==='TRI'||v==='TRE');   // sesión de simulador (alumno o instructor)
+  var _sh=function(id,on){ var e=document.getElementById(id); if(e) e.style.display=on?'':'none'; };
+  _sh('ld_simtype_fg', isSim);       // tipo de sim / dispositivo
+  _sh('ld_simmeta_row', isSim);      // centro de entrenamiento + tipo de sesión
+  _sh('ld_examiner_fg', isSim);      // examinador/instructor (pestaña Tripulantes)
+  var hint=document.getElementById('ld_instr_hint');
   if(hint){
     var msg='';
-    if(v==='TRI'||v==='TRE') msg='Sesión de simulador ('+v+'). La ruta es opcional; el block time = duración de la sesión.';
+    if(v==='SIM') msg='Simulador como alumno. La ruta es opcional; el block time = duración. Suma el plus de formación (119,03 €/sesión) en la nómina.';
+    else if(v==='TRI'||v==='TRE') msg='Sesión de simulador ('+v+', instructor). La ruta es opcional; el block time = duración de la sesión.';
     else if(v==='LSC') msg='Instrucción en línea (LSC). Cuenta las HORAS (block time) de la sesión.';
     else if(v==='GTI') msg='Instrucción en tierra (GTI). Cuenta como 1 día. La ruta y los tiempos son opcionales.';
     hint.textContent=msg; hint.style.display=msg?'':'none';
@@ -17603,7 +17650,7 @@ function ldSave(){
     delayCodes:ldDelayCodes.filter(function(dc){return (dc.code||dc.desc||dc.mins);}).map(function(dc){ return {code:(dc.code||'').trim(),mins:parseInt(dc.mins)||0,desc:(dc.desc||'').trim()}; }),
     block:g('ld_block'),flightTime:g('ld_flight_time'),role:g('ld_role'),func:g('ld_func'),
     rules:g('ld_rules'),opType:g('ld_optype'),conditions:g('ld_cond'),
-    instr:g('ld_instr'),simType:g('ld_simtype'),
+    instr:g('ld_instr'),simType:g('ld_simtype'),trainCenter:g('ld_traincenter'),simSession:g('ld_simsession'),examiner:g('ld_examiner'),
     ldgDay:n('ld_ldgd'),ldgNight:n('ld_ldgn'),night:g('ld_night_inp'),
     cm1:g('ld_cm1'),cm2:g('ld_cm2'),
     notes:g('ld_notes'),source:(ldImgB64?'MCDU-OCR':(window._ldAdsbImported?'ADSB':'MANUAL')),
@@ -18328,12 +18375,12 @@ function ldEditFlight(id){
       }
     });
   }
-  var selMap={ld_actype:'acType',ld_engine:'engine',ld_role:'role',ld_func:'func',ld_rules:'rules',ld_optype:'opType',ld_cond:'conditions',ld_instr:'instr'};
+  var selMap={ld_actype:'acType',ld_engine:'engine',ld_role:'role',ld_func:'func',ld_rules:'rules',ld_optype:'opType',ld_cond:'conditions',ld_instr:'instr',ld_simsession:'simSession'};
   Object.keys(selMap).forEach(function(sid){
     var sel=document.getElementById(sid);
     if(sel&&e[selMap[sid]]) sel.value=e[selMap[sid]];
   });
-  g2('ld_simtype', e.simType);
+  g2('ld_simtype', e.simType); g2('ld_traincenter', e.trainCenter); g2('ld_examiner', e.examiner);
   try{ ldInstrChanged(); }catch(_e){}
   // ── Herencia entre legs del mismo día ───────────────────────────────────
   // Al COMPLETAR un leg importado del roster (ROSTER-DRAFT), copiar del primer
