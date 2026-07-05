@@ -98,6 +98,20 @@
   <div class="st" id="st8"></div>
 </div>
 
+<div class="card" id="t9" style="border-color:rgba(255,197,66,.4)">
+  <h2>9 · MICRO por Bluetooth <span class="tag warn">el problema de ahora</span></h2>
+  <p>Abre el micro (como cuando ARIA te pregunta) y mide el <b>nivel de tu voz</b> que llega a la web desde el <b>micro del coche</b>. Habla normal mirando al frente. La barra debe moverse y el pico subir. Umbral que usa la app para "te oigo" = <b>0.030</b>.</p>
+  <div class="row" style="margin-bottom:8px">
+    <button id="mic-proc">🎤 Medir 8 s (con procesado)</button>
+    <button id="mic-raw" class="sec" style="border:1px solid var(--line)">🎤 Medir 8 s (sin procesado)</button>
+  </div>
+  <div style="height:22px;background:#04121c;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:4px"><div id="mic-bar" style="height:100%;width:0;background:linear-gradient(90deg,#0aa3c7,#3ddc84);transition:width .05s"></div></div>
+  <div style="font-family:ui-monospace,monospace;font-size:12px;color:#7fd7ea;margin-bottom:10px">nivel actual: <span id="mic-now">—</span> · pico: <span id="mic-peak" style="color:#ffc542;font-weight:700">—</span></div>
+  <p style="margin-bottom:6px">Prueba definitiva: graba tu voz y <b>escúchala</b> (por el altavoz del coche). Si te oyes = el micro del coche llega a la web; si es silencio = iOS no da el micro BT a la web.</p>
+  <div class="row"><button id="mic-rec">⏺ Grabar 4 s y oír</button></div>
+  <div class="st" id="st9"></div>
+</div>
+
 <div class="card">
   <h2>Resultados</h2>
   <div class="row"><button id="btn-copy">📋 Copiar resultados</button><button class="sec" id="btn-clearlog">Limpiar log</button></div>
@@ -268,6 +282,8 @@
   $('#btn-copy').addEventListener('click',function(){
     var lines=['Resultados audiotest · '+ENV+' ('+new Date().toISOString().slice(0,16)+'):'];
     for(var i=1;i<=8;i++){ var v=results[i]; lines.push('T'+i+' '+NAMES[i]+': '+(v==='ok'?'LIMPIO ✅':v==='bad'?'SE CORTA 🤖':'(sin marcar)')); }
+    if(micPeakProc!=null)lines.push('T9 micro (con procesado): pico RMS='+micPeakProc.toFixed(3)+(micPeakProc>0.03?' (app te oiría)':micPeakProc>0.012?' (bajo)':' (casi nada)'));
+    if(micPeakRaw!=null)lines.push('T9 micro (sin procesado): pico RMS='+micPeakRaw.toFixed(3));
     var routeTxt=$('#route').textContent; if(routeTxt&&routeTxt!=='—')lines.push('Ruta medida: '+routeTxt);
     var txt=lines.join('\n');
     function done(){ $('#stcopy').textContent='✓ Copiado. Pégamelo en el chat.'; }
@@ -275,6 +291,86 @@
     function fallback(){ var ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); done(); }catch(e){ $('#stcopy').textContent='Cópialo del log ↓'; log('\n'+txt); } ta.remove(); }
   });
   $('#btn-clearlog').addEventListener('click',function(){ $('#log').textContent=''; });
+
+  // ── Test 9: nivel de micro por Bluetooth ──
+  var mtStream=null, mtAC=null, mtRAF=0, mtRec=null, mtRunId=0, micPeakProc=null, micPeakRaw=null;
+  function mtStop(){
+    mtRunId++;
+    try{ if(mtRAF)cancelAnimationFrame(mtRAF); }catch(e){} mtRAF=0;
+    try{ if(mtRec&&mtRec.state!=='inactive')mtRec.stop(); }catch(e){} mtRec=null;
+    try{ if(mtAC&&mtAC.state!=='closed')mtAC.close(); }catch(e){} mtAC=null;
+    try{ if(mtStream)mtStream.getTracks().forEach(function(t){t.stop();}); }catch(e){} mtStream=null;
+    var bar=$('#mic-bar'); if(bar)bar.style.width='0';
+  }
+  async function micMeasure(proc){
+    stopAll(); mtStop();
+    var my=++mtRunId;
+    var label=proc?'con procesado':'SIN procesado';
+    st(9,'Pidiendo micrófono…');
+    try{
+      var cons=proc?{audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}:{audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}};
+      mtStream=await navigator.mediaDevices.getUserMedia(cons);
+      if(my!==mtRunId){ mtStop(); return; }
+      var tr=mtStream.getAudioTracks()[0];
+      var sr='?'; try{ sr=(tr.getSettings&&tr.getSettings().sampleRate)||'?'; }catch(e){}
+      log('T9 ('+label+'): micro abierto. track="'+(tr&&tr.label||'?')+'" sampleRate='+sr);
+      mtAC=new (window.AudioContext||window.webkitAudioContext)();
+      if(mtAC.state==='suspended')await mtAC.resume();
+      var src=mtAC.createMediaStreamSource(mtStream);
+      var an=mtAC.createAnalyser(); an.fftSize=512; src.connect(an);
+      var buf=new Uint8Array(an.fftSize);
+      var peak=0, t0=Date.now();
+      st(9,'● Habla ahora… ('+label+', 8 s)');
+      (function loop(){
+        if(my!==mtRunId)return;
+        an.getByteTimeDomainData(buf);
+        var sum=0; for(var i=0;i<buf.length;i++){ var v=(buf[i]-128)/128; sum+=v*v; }
+        var rms=Math.sqrt(sum/buf.length);
+        if(rms>peak)peak=rms;
+        var bar=$('#mic-bar'); if(bar)bar.style.width=Math.min(100,rms/0.10*100)+'%';
+        var now=$('#mic-now'); if(now)now.textContent=rms.toFixed(3);
+        var pk=$('#mic-peak'); if(pk)pk.textContent=peak.toFixed(3)+(peak>0.03?' ✅ supera 0.030':(peak>0.012?' ⚠ bajo':' 🤖 casi nada'));
+        if(Date.now()-t0<8000){ mtRAF=requestAnimationFrame(loop); }
+        else{
+          if(proc)micPeakProc=peak; else micPeakRaw=peak;
+          var verdict=peak>0.03?'La app TE OIRÍA (pico supera 0.030).':peak>0.012?'Pico BAJO: la app no te oye pero SÍ llega señal → bajar umbral lo arreglaría.':'Casi NADA de señal: iOS probablemente no pasa el micro del coche a la web.';
+          st(9,'Pico '+label+' = '+peak.toFixed(3)+'. '+verdict);
+          log('T9 ('+label+'): PICO='+peak.toFixed(3)+' → '+verdict);
+          mtStop();
+        }
+      })();
+    }catch(e){ st(9,'✕ '+(e&&e.name||e&&e.message||e)); log('T9: ERROR '+(e&&e.name||e&&e.message||e)); mtStop(); }
+  }
+  async function micRecPlay(){
+    stopAll(); mtStop();
+    var my=++mtRunId;
+    st(9,'Pidiendo micrófono…');
+    try{
+      mtStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+      if(my!==mtRunId){ mtStop(); return; }
+      var chunks=[]; var mr=new MediaRecorder(mtStream); mtRec=mr;
+      mr.ondataavailable=function(e){ if(e.data&&e.data.size)chunks.push(e.data); };
+      mr.onstop=function(){
+        try{ if(mtStream)mtStream.getTracks().forEach(function(t){t.stop();}); }catch(e){} mtStream=null;
+        if(!chunks.length){ st(9,'🤖 Grabación VACÍA → el micro del coche no llegó a la web.'); log('T9 rec: 0 bytes.'); return; }
+        var blob=new Blob(chunks,{type:mr.mimeType||'audio/webm'});
+        log('T9 rec: '+Math.round(blob.size/1024)+' KB grabados. Reproduciendo…');
+        if(curUrl){ try{URL.revokeObjectURL(curUrl);}catch(e){} } curUrl=URL.createObjectURL(blob);
+        if(!player)player=new Audio(); player.src=curUrl; player.playbackRate=1;
+        player.onended=function(){ st(9,'¿Te has oído? SÍ = micro del coche OK · NO/silencio = iOS no da el micro BT a la web.'); };
+        player.play();
+        st(9,'▶ Reproduciendo tu grabación…');
+      };
+      mr.start();
+      st(9,'⏺ Grabando 4 s… habla ahora.');
+      log('T9 rec: grabando 4 s.');
+      setTimeout(function(){ try{ if(mr.state!=='inactive')mr.stop(); }catch(e){} }, 4000);
+    }catch(e){ st(9,'✕ '+(e&&e.name||e&&e.message||e)); log('T9 rec: ERROR '+(e&&e.name||e&&e.message||e)); mtStop(); }
+  }
+  $('#mic-proc').addEventListener('click',function(){ micMeasure(true); });
+  $('#mic-raw').addEventListener('click',function(){ micMeasure(false); });
+  $('#mic-rec').addEventListener('click', micRecPlay);
+  document.querySelector('#stopall').addEventListener('click', mtStop);
 
   log('Banco listo. Conecta el Bluetooth del coche y ejecuta las pruebas en orden.');
 })();

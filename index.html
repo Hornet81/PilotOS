@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.277">
+  <meta name="version" content="Beta.278">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.277","builtAt":"2026-07-05T16:51:20Z","commit":"2b0de82","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.278","builtAt":"2026-07-05T17:15:32Z","commit":"576eb13","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -11435,6 +11435,24 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
               </select>
             </div>
           </div>
+          <!-- ── Instrucción / Simulador (cargo): alimenta Pay Check (TRI/TRE/LSC/GTI) ── -->
+          <div class="ldm-row2">
+            <div class="ldm-fg">
+              <label class="ldm-lbl">INSTRUCCIÓN / SIM</label>
+              <select class="ldm-inp ldm-sel" id="ld_instr" onchange="ldInstrChanged()">
+                <option value="">— Ninguno (vuelo normal)</option>
+                <option value="TRI">TRI · sesión simulador</option>
+                <option value="TRE">TRE · sesión simulador</option>
+                <option value="LSC">LSC · instrucción en línea (horas)</option>
+                <option value="GTI">GTI · instrucción en tierra (día)</option>
+              </select>
+            </div>
+            <div class="ldm-fg" id="ld_simtype_fg" style="display:none">
+              <label class="ldm-lbl">TIPO DE SIM / DISPOSITIVO</label>
+              <input class="ldm-inp" type="text" id="ld_simtype" placeholder="A320 FFS…" maxlength="24">
+            </div>
+          </div>
+          <div id="ld_instr_hint" style="display:none;font-size:10px;color:#0891B2;font-family:'Space Mono',monospace;margin:-2px 2px 6px;line-height:1.5"></div>
         </div>
 
         <!-- ── TAB: Tripulantes ── -->
@@ -16763,6 +16781,21 @@ function ldRoleChanged(){
   if(role==='FO'){ if(cm2&&myFo) cm2.value=myFo; }
   else { if(cm1&&myCpt) cm1.value=myCpt; }
 }
+// Instrucción / Simulador: al elegir un cargo (TRI/TRE/LSC/GTI) se muestra el tipo de
+// sim/dispositivo y se avisa de que la ruta es opcional (una sesión de sim no vuela ruta).
+function ldInstrChanged(){
+  var el=document.getElementById('ld_instr'); var v=el?el.value:'';
+  var fg=document.getElementById('ld_simtype_fg'); var hint=document.getElementById('ld_instr_hint');
+  var isSim=(v==='TRI'||v==='TRE');
+  if(fg) fg.style.display=isSim?'':'none';
+  if(hint){
+    var msg='';
+    if(v==='TRI'||v==='TRE') msg='Sesión de simulador ('+v+'). La ruta es opcional; el block time = duración de la sesión.';
+    else if(v==='LSC') msg='Instrucción en línea (LSC). Cuenta las HORAS (block time) de la sesión.';
+    else if(v==='GTI') msg='Instrucción en tierra (GTI). Cuenta como 1 día. La ruta y los tiempos son opcionales.';
+    hint.textContent=msg; hint.style.display=msg?'':'none';
+  }
+}
 function ldCloseModal(){
   document.getElementById('ld_modal').classList.remove('open');
   document.getElementById('scr-logbook').classList.remove('modal-active');
@@ -17511,7 +17544,9 @@ function ldSave(){
   // still validate required fields
   var g=function(id){var _e=document.getElementById(id);return(_e?_e.value:'').trim();};
   var n=function(id){var _e=document.getElementById(id);return parseInt(_e?_e.value:'0');};
-  if(!g('ld_date')||!g('ld_dep')||!g('ld_arr')||!g('ld_block')){showToast('Fecha, ruta y block time son obligatorios','error');return;}
+  if(g('ld_instr')){ // sesión de sim/instrucción: la ruta no es obligatoria
+    if(!g('ld_date')||!g('ld_block')){showToast('Fecha y duración (block time) son obligatorios','error');return;}
+  } else if(!g('ld_date')||!g('ld_dep')||!g('ld_arr')||!g('ld_block')){showToast('Fecha, ruta y block time son obligatorios','error');return;}
   if(!g('ld_atd')||!g('ld_ata')){showToast('OUT (Blocks Off) e IN (Blocks ON) son obligatorios','error');return;}
   // Sequence validation (midnight-crossover aware)
   var seqErrors = ldValidateSequence();
@@ -17544,6 +17579,7 @@ function ldSave(){
     delayCodes:ldDelayCodes.filter(function(dc){return (dc.code||dc.desc||dc.mins);}).map(function(dc){ return {code:(dc.code||'').trim(),mins:parseInt(dc.mins)||0,desc:(dc.desc||'').trim()}; }),
     block:g('ld_block'),flightTime:g('ld_flight_time'),role:g('ld_role'),func:g('ld_func'),
     rules:g('ld_rules'),opType:g('ld_optype'),conditions:g('ld_cond'),
+    instr:g('ld_instr'),simType:g('ld_simtype'),
     ldgDay:n('ld_ldgd'),ldgNight:n('ld_ldgn'),night:g('ld_night_inp'),
     cm1:g('ld_cm1'),cm2:g('ld_cm2'),
     notes:g('ld_notes'),source:(ldImgB64?'MCDU-OCR':(window._ldAdsbImported?'ADSB':'MANUAL')),
@@ -18268,11 +18304,13 @@ function ldEditFlight(id){
       }
     });
   }
-  var selMap={ld_actype:'acType',ld_engine:'engine',ld_role:'role',ld_func:'func',ld_rules:'rules',ld_optype:'opType',ld_cond:'conditions'};
+  var selMap={ld_actype:'acType',ld_engine:'engine',ld_role:'role',ld_func:'func',ld_rules:'rules',ld_optype:'opType',ld_cond:'conditions',ld_instr:'instr'};
   Object.keys(selMap).forEach(function(sid){
     var sel=document.getElementById(sid);
     if(sel&&e[selMap[sid]]) sel.value=e[selMap[sid]];
   });
+  g2('ld_simtype', e.simType);
+  try{ ldInstrChanged(); }catch(_e){}
   // ── Herencia entre legs del mismo día ───────────────────────────────────
   // Al COMPLETAR un leg importado del roster (ROSTER-DRAFT), copiar del primer
   // leg ya completado del día los datos que casi nunca cambian. Si el vuelo se
