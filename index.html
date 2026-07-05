@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.278">
+  <meta name="version" content="Beta.279">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.278","builtAt":"2026-07-05T17:15:32Z","commit":"576eb13","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.279","builtAt":"2026-07-05T17:18:05Z","commit":"103a3b8","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -14833,6 +14833,30 @@ async function pcImportFromLogbook() {
     setVal('pc_dint',    data.int_diets   || 0);
     setVal('pc_dpern_nat', data.nac_pernoc || 0);
     setVal('pc_dpern',   data.int_pernoc  || 0);
+
+    // ── Cargos de instrucción/simulador (TRI/TRE/LSC/GTI) desde el logbook LOCAL ──
+    // El backend aún no los cuenta; se derivan del campo 'instr' de cada entrada del mes.
+    // TRI/TRE = nº de sesiones de sim · LSC = horas (block) · GTI = nº de días. Si hay
+    // alguno, auto-activa la sección "¿Tienes algún cargo activo?".
+    try {
+      var _pcMin = function(t){ var m=String(t||'').match(/^(\d{1,2}):(\d{2})$/); return m?parseInt(m[1])*60+parseInt(m[2]):0; };
+      var _tri=0,_tre=0,_lscMin=0,_gtiDays={};
+      (window.ldEntries||[]).forEach(function(en){
+        if(!en||!en.date||String(en.date).slice(0,7)!==month) return;
+        var it=(en.instr||'').toUpperCase();
+        if(it==='TRI') _tri++;
+        else if(it==='TRE') _tre++;
+        else if(it==='LSC') _lscMin+=_pcMin(en.block||en.flightTime);
+        else if(it==='GTI') _gtiDays[en.date]=1;
+      });
+      var _lscH=Math.round(_lscMin/60*100)/100, _gti=Object.keys(_gtiDays).length;
+      setVal('pc_tri',_tri); setVal('pc_tre',_tre); setVal('pc_lsc',_lscH); setVal('pc_gti',_gti);
+      if(_tri||_tre||_lscH||_gti){
+        try{ if(typeof PC_STATE!=='undefined') PC_STATE.cargo='si'; }catch(_e){}
+        var _cw=document.getElementById('pc_cargos_wrap'); if(_cw) _cw.style.display='block';
+        document.querySelectorAll('.pc-tog-btn').forEach(function(b){ if((b.getAttribute('onclick')||'').indexOf("'cargo'")>=0){ b.classList.toggle('on', b.getAttribute('data-val')==='si'); } });
+      }
+    } catch(_e){}
 
     // ── Mostrar banner de estado ──
     var banner = document.getElementById('pc-import-banner');
