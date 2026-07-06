@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.287">
+  <meta name="version" content="Beta.288">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.287","builtAt":"2026-07-06T12:10:36Z","commit":"27da4cd","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.288","builtAt":"2026-07-06T12:16:16Z","commit":"009477e","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -38207,7 +38207,7 @@ document.addEventListener('DOMContentLoaded', function(){
   function pilotName(){ try{ return localStorage.getItem('pilot_name')||'Comandante'; }catch(e){ return 'Comandante'; } }
   function stripZ(s){ return String(s||'').replace(/[^0-9:]/g,''); }
   function getPos(){ return new Promise(function(res){ if(!navigator.geolocation) return res(null); var done=false; function fin(v){ if(done)return; done=true; res(v); } try{ navigator.geolocation.getCurrentPosition(function(p){ fin({lat:p.coords.latitude, lon:p.coords.longitude}); }, function(){ fin(null); }, { timeout:6000, maximumAge:300000 }); }catch(e){ fin(null); } setTimeout(function(){ fin(null); }, 7000); }); }
-  function cfg(){ return { lang: localStorage.getItem('db_lang')||'es', voice: (function(){ var _v=localStorage.getItem('db_voice')||'nova'; return ['nova','shimmer','coral','sage','alloy'].indexOf(_v)>=0?_v:'nova'; })(), rate: parseFloat(localStorage.getItem('db_rate'))||1, vol: localStorage.getItem('db_vol')!=null?parseFloat(localStorage.getItem('db_vol')):1 }; }
+  function cfg(){ return { lang: localStorage.getItem('db_lang')||'es', voice: (function(){ var _v=localStorage.getItem('db_voice')||'nova'; return ['nova','shimmer','coral','sage','alloy'].indexOf(_v)>=0?_v:'nova'; })(), rate: parseFloat(localStorage.getItem('db_rate'))||1, vol: localStorage.getItem('db_vol')!=null?parseFloat(localStorage.getItem('db_vol')):1, autoMic: localStorage.getItem('db_autoMic')!=='0' }; }
   function saveCfg(k,v){ try{ localStorage.setItem('db_'+k, v); }catch(e){} }
   function seg(a){ return 'flex:1;padding:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;'+(a?'background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff':'background:transparent;color:#9fb3bd'); }
   var VOICES=[['nova','Nova — cercana (por defecto)'],['shimmer','Shimmer — suave'],['coral','Coral — expresiva'],['sage','Sage — serena'],['alloy','Alloy — neutra']];
@@ -38561,7 +38561,12 @@ document.addEventListener('DOMContentLoaded', function(){
   function stopBriefing(){ _gen++; try{ if(curAudio)curAudio.pause(); }catch(e){} try{ if(_va){ _va.pause(); _va.onended=null; } }catch(e){} playing=false; paused=true; var pb=q('#ar-play'); if(pb)pb.textContent='▶'; hi(-1,-1); stat(CUR.lang==='en'?'■ Briefing stopped — ask me anything':'■ Briefing detenido — pregúntame lo que quieras'); showVoiceDock(true); applyChrome(); }
   function togglePlay(){ if(!audios.length)return; var pb=q('#ar-play'); if(!playing){ killAudioCtx(); _gen++; mediaSetup(); mediaMeta(); playing=true; paused=false; acc=0; k=0; if(pb)pb.textContent='⏸'; unlockAudio(); try{ if(curAudio)curAudio.currentTime=0; }catch(e){} playK(); } else if(paused){ killAudioCtx(); paused=false; if(pb)pb.textContent='⏸'; if(curAudio){ if(curAudio.ended)playK(); else curAudio.play(); } } else { paused=true; if(pb)pb.textContent='▶'; if(curAudio)curAudio.pause(); } applyChrome(); }
 
+  // Pide el permiso de micro DENTRO del gesto de "Generar" (iOS lo exige) y lo suelta al
+  // instante. Aquí no suena audio todavía → no degrada el Bluetooth del briefing. Solo la
+  // 1ª vez; una vez concedido queda persistido y al terminar el briefing el micro abre solo.
+  function primeMic(){ try{ if(!CUR.autoMic) return; if(lg('db_micok','')==='1') return; if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) return; navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){ try{ s.getTracks().forEach(function(t){t.stop();}); }catch(e){} try{ localStorage.setItem('db_micok','1'); }catch(e){} }).catch(function(){}); }catch(e){} }
   async function generate(){
+    primeMic();
     var gen=q('#ar-gen'); if(gen){ gen.disabled=true; gen.style.opacity='.6'; gen.textContent=(CUR.lang==='en'?'Generating…':'Generando…'); }
     try{ if(curAudio)curAudio.pause(); }catch(e){} playing=false; paused=false; k=0; acc=0; audios=[];
     var f=q('#ar-fill'); if(f)f.style.width='0'; var c0=q('#ar-cur'); if(c0)c0.textContent='0:00'; var tr=q('#ar-tr'); if(tr)tr.innerHTML='';
@@ -38612,7 +38617,7 @@ document.addEventListener('DOMContentLoaded', function(){
   function mediaPos(){ try{ if('mediaSession' in navigator && navigator.mediaSession.setPositionState && isFinite(total) && total>0){ navigator.mediaSession.setPositionState({duration:total, position:Math.max(0,Math.min(curElapsed(),total)), playbackRate:RATE||1}); } }catch(e){} }
   function mediaState(){ try{ if('mediaSession' in navigator) navigator.mediaSession.playbackState=(playing&&!paused)?'playing':(audios.length?'paused':'none'); }catch(e){} }
   function bindVis(){ if(_visBound) return; _visBound=true; try{ document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible'){ try{ for(var i=0;i<audios.length;i++){ if(audios[i].a!==curAudio){ try{ audios[i].a.pause(); }catch(e){} } } }catch(e){} mediaState(); } }); }catch(e){} }
-  function autoAsk(){ var hidden=false; try{ hidden=document.hidden; }catch(e){} if(vMuted||hidden){ var bye=(CUR.lang==='en'?'That is the full briefing. Have a safe flight.':'Eso es todo el briefing. Buen vuelo.'); chatLog('aria',bye); stat(CUR.lang==='en'?'Open the app to ask by voice':'Abre la app para preguntar por voz'); if(!vMuted){ vSpeak(bye, function(){ vBtn('idle'); }); } return; } var msg=(CUR.lang==='en'?'Would you like me to go deeper on anything, or do you have a question?':'¿Quieres que te profundice en algo o tienes alguna pregunta?'); chatLog('aria',msg); stat(CUR.lang==='en'?'Tap the mic to ask':'Pulsa el micro para preguntar'); vSpeak(msg, function(){ vBtn('idle'); }); }
+  function autoAsk(){ var hidden=false; try{ hidden=document.hidden; }catch(e){} if(vMuted||hidden){ var bye=(CUR.lang==='en'?'That is the full briefing. Have a safe flight.':'Eso es todo el briefing. Buen vuelo.'); chatLog('aria',bye); stat(CUR.lang==='en'?'Open the app to ask by voice':'Abre la app para preguntar por voz'); if(!vMuted){ vSpeak(bye, function(){ vBtn('idle'); }); } return; } var msg=(CUR.lang==='en'?'Would you like me to go deeper on anything, or do you have a question?':'¿Quieres que te profundice en algo o tienes alguna pregunta?'); chatLog('aria',msg); stat(CUR.lang==='en'?'Tap the mic to ask':'Pulsa el micro para preguntar'); vSpeak(msg, function(){ if(CUR.autoMic){ vStart(true); } else { vBtn('idle'); } }); }
   function showVoiceDock(){}
   function hideVoiceDock(){}
   function vLog(role,txt){ chatLog(role,txt); }
@@ -38625,14 +38630,18 @@ document.addEventListener('DOMContentLoaded', function(){
     next();
   }
   function vBtn(state){ var b=q('#ar-act'); if(!b)return; if(state==='listen'){ b.innerHTML='●'; b.style.background='linear-gradient(135deg,#7a1d1d,#e24b4a)'; } else if(state==='think'){ b.innerHTML='…'; b.style.background='rgba(10,163,199,.35)'; } else if(state==='speak'){ b.innerHTML='■'; b.style.fontSize='13px'; b.style.background='linear-gradient(135deg,#7a1d1d,#e24b4a)'; } else { b.innerHTML=MIC_SVG; b.style.fontSize='16px'; b.style.background='linear-gradient(135deg,#063a4a,#0aa3c7)'; } }
-  async function vStart(){
+  async function vStart(auto){
     if(vOn){ vStop(); return; }
     var tk=token(); if(!tk){ stat(CUR.lang==='en'?'Sign in to use voice':'Inicia sesión para usar la voz'); return; }
     unlockAudio();
     stat(CUR.lang==='en'?'Requesting microphone…':'Pidiendo acceso al micrófono…');
     var _s; try{ _s=await ensureMic(); }
     catch(e){
-      var nm=(e&&e.name)||(e&&e.message)||'error'; var m;
+      var nm=(e&&e.name)||(e&&e.message)||'error';
+      // Apertura AUTOMÁTICA al terminar el briefing: si iOS la bloquea (necesita un gesto o
+      // el permiso aún no está), no alarmamos — solo invitamos a tocar el micro una vez.
+      if(auto){ stat(CUR.lang==='en'?'Tap the mic to ask':'Pulsa el micro para preguntar'); vBtn('idle'); return; }
+      var m;
       if(nm==='NotAllowedError'||nm==='SecurityError'){ m=(CUR.lang==='en'?'Microphone permission denied. Allow it in Settings → PilotOS → Microphone (or open the site in Safari).':'Permiso de micrófono denegado. Actívalo en Ajustes → PilotOS → Micrófono (o abre la web en Safari).'); }
       else if(nm==='NotFoundError'){ m=(CUR.lang==='en'?'No microphone found.':'No se encuentra ningún micrófono.'); }
       else if(nm==='NotReadableError'){ m=(CUR.lang==='en'?'The mic is busy (a call or the car?).':'El micrófono lo está usando otra cosa (¿una llamada o el coche?).'); }
@@ -38641,6 +38650,7 @@ document.addEventListener('DOMContentLoaded', function(){
       stat(m); try{ chatLog('aria',m); }catch(_e){} try{ console.error('[ARIA mic]', e); }catch(_e){} vBtn('idle'); return;
     }
     if(!_s){ stat(CUR.lang==='en'?'No microphone.':'Sin micrófono.'); vBtn('idle'); return; }
+    try{ localStorage.setItem('db_micok','1'); }catch(e){}
     vOn=true; _emptyTurns=0; _micHeard=false;
     stat(CUR.lang==='en'?'● Listening… speak':'● Escuchando… habla'); vBtn('listen'); beep();
     setTimeout(function(){ if(vOn)vTurn(); },380);
@@ -38710,6 +38720,7 @@ document.addEventListener('DOMContentLoaded', function(){
         '<input id="ar-vol" type="range" min="0" max="1" step="0.05" style="width:100%;accent-color:#0aa3c7">'+
         '<button id="ar-reset" style="width:100%;margin-top:12px;padding:9px;border:1px solid rgba(255,90,90,.35);border-radius:9px;background:rgba(255,90,90,.08);color:#ff9a9a;font-size:11px;font-weight:700;font-family:inherit">↺ Reiniciar conversación</button>'+
         '<button id="ar-audiotest" style="width:100%;margin-top:8px;padding:9px;border:1px solid rgba(63,210,240,.35);border-radius:9px;background:rgba(10,163,199,.10);color:#7fd7ea;font-size:11px;font-weight:700;font-family:inherit">🔧 Test de audio Bluetooth (coche)</button>'+
+        '<label style="display:flex;align-items:center;gap:9px;margin-top:12px;font-size:11px;color:#cdeefb;cursor:pointer"><input type="checkbox" id="ar-automic" style="width:17px;height:17px;accent-color:#0aa3c7;flex-shrink:0"><span>Abrir el micro solo al terminar el briefing <span style="color:#6c818d">(manos libres en el coche)</span></span></label>'+
       '</div>'+
       '<div style="flex:1;min-height:0;overflow-y:auto;padding:10px 13px 14px">'+
         '<div id="ar-deck" style="position:sticky;top:0;z-index:6;border-radius:16px;padding:9px 10px;margin:0 0 11px;background:rgba(8,18,26,.86);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(63,210,240,.2);box-shadow:0 8px 26px rgba(0,0,0,.4)">'+
@@ -38781,6 +38792,7 @@ document.addEventListener('DOMContentLoaded', function(){
     var stc=q('#ar-setclose'); if(stc)stc.onclick=function(){ var st=q('#ar-set'); if(st)st.style.display='none'; };
     var rst=q('#ar-reset'); if(rst)rst.onclick=resetAria;
     var atb=q('#ar-audiotest'); if(atb)atb.onclick=function(){ _pauseKeep(); var aov=document.createElement('div'); aov.style.cssText='position:fixed;inset:0;z-index:99999;background:#060d14;display:flex;flex-direction:column'; aov.innerHTML='<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;padding-top:calc(10px + env(safe-area-inset-top));border-bottom:1px solid rgba(255,255,255,.12);flex-shrink:0"><span style="font-size:11px;font-weight:800;letter-spacing:.5px;color:#7fd7ea">TEST DE AUDIO · DENTRO DE LA APP</span><button id="ar-atest-x" style="margin-left:auto;width:30px;height:30px;border-radius:9px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:#eaf3f7;font-size:14px">✕</button></div><iframe src="audiotest.html?in=app" allow="microphone; autoplay" style="flex:1;border:0;width:100%;background:#060d14"></iframe>'; document.body.appendChild(aov); aov.querySelector('#ar-atest-x').onclick=function(){ aov.remove(); }; };
+    var amic=q('#ar-automic'); if(amic){ amic.checked=!!CUR.autoMic; amic.onchange=function(){ CUR.autoMic=amic.checked; saveCfg('autoMic', amic.checked?'1':'0'); }; }
     var bar=q('#ar-bar'); if(bar)bar.onclick=function(ev){ if(!audios.length||!total)return; var r=bar.getBoundingClientRect(); seekToPlay(Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width))*total); };
     var vsel=q('#ar-voice'); if(vsel)vsel.onchange=function(){ CUR.voice=vsel.value; saveCfg('voice',vsel.value); var vp=q('#ar-vpill'); if(vp)vp.textContent='🎙 '+vsel.value.toUpperCase(); if(audios.length)stat(CUR.lang==='en'?'Voice changed — tap Regenerate to apply':'Voz cambiada — pulsa Generar de nuevo para aplicarla'); };
     var rl=q('#ar-rl'); var rs=q('#ar-rate'); if(rs){ rs.value=RATE; if(rl)rl.textContent=RATE.toFixed(2)+'×'; rs.oninput=function(){ RATE=parseFloat(rs.value)||1; saveCfg('rate',RATE); if(rl)rl.textContent=RATE.toFixed(2)+'×'; if(curAudio)curAudio.playbackRate=RATE; }; }
