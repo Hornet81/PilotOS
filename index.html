@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.301">
+  <meta name="version" content="Beta.302">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.301","builtAt":"2026-07-06T18:45:01Z","commit":"5646fb2","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.302","builtAt":"2026-07-06T18:47:46Z","commit":"d3511b2","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -38381,7 +38381,7 @@ document.addEventListener('DOMContentLoaded', function(){
     releaseMic();
     // Si el VAD NO oyó voz (silencio real), NO mandar a Whisper: transcribiría ALUCINACIONES
     // (se inventa preguntas de la nada, sesgado por el prompt aeronáutico). Turno vacío.
-    if(!blob || !_micHeard){ _emptyTurns++; if(_emptyTurns>=2){ var _ms=(CUR.lang==='en'?'I could not hear you. Tap the mic to ask.':'No te he oído. Pulsa el micro para preguntar.'); chatLog('aria',_ms); vSpeak(_ms, function(){ vStop(); }); } else if(vOn){ vTurn(); } return; }
+    if(!blob || !_micHeard){ _emptyTurns++; if(_emptyTurns>=8){ var _ms=(CUR.lang==='en'?'I will close the mic to save battery. Tap it when you want to continue.':'Cierro el micro para ahorrar batería. Pulsa cuando quieras seguir.'); chatLog('aria',_ms); vSpeak(_ms, function(){ vStop(); }); } else if(vOn){ stat(CUR.lang==='en'?'● Listening…':'● Escuchando…'); vBtn('listen'); vTurn(); } return; }
     vBtn('think'); stat(CUR.lang==='en'?'… ARIA':'… ARIA piensa');
     var rd=new FileReader(); rd.onloadend=function(){ var b64=String(rd.result).split(',')[1]||''; vSend(b64,blob.type); }; rd.readAsDataURL(blob);
   }
@@ -38390,7 +38390,7 @@ document.addEventListener('DOMContentLoaded', function(){
       var tk=token();
       var rs=await fetch(BACKEND+'/api/stt',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({audio_base64:b64,mime:mime})});
       var sj=await rs.json().catch(function(){return{};}); var said=(sj.text||'').trim();
-      if(!said){ _emptyTurns++; if(_emptyTurns>=2){ var _m=_micHeard?(CUR.lang==='en'?'I did not catch that, please repeat.':'No te he entendido, repite la pregunta.'):(CUR.lang==='en'?'I cannot hear you. On a car hands-free the mic may not be available to the app — bring the phone closer or ask with the app open.':'No te oigo. En manos libres del coche el micro puede no estar disponible para la app; acerca el móvil o pregunta con la app abierta.'); chatLog('aria',_m); vSpeak(_m, function(){ vStop(); }); return; } if(vOn)vTurn(); return; } _emptyTurns=0;
+      if(!said){ _emptyTurns++; if(_emptyTurns>=8){ var _m=(CUR.lang==='en'?'I will close the mic to save battery. Tap it when you want to continue.':'Cierro el micro para ahorrar batería. Pulsa cuando quieras seguir.'); chatLog('aria',_m); vSpeak(_m, function(){ vStop(); }); return; } if(vOn){ stat(CUR.lang==='en'?'● Listening…':'● Escuchando…'); vBtn('listen'); vTurn(); } return; } _emptyTurns=0;
       vLog('you',said);
       var _sc=' '+said.toLowerCase().replace(/[¿?¡!.,;:]/g,' ')+' '; var _wantsMore=/\b(qu[eé]|c[oó]mo|cu[aá]nto|cu[aá]l|d[oó]nde|cu[aá]ndo|por qu[eé]|profundiza\w*|explica\w*|dime|cu[eé]nta\w*|h[aá]bla\w*|repite|otra vez|what|how|why|where|when|which|explain|tell me|more)\b/.test(_sc); var _closes=/\b(gracias|nada|no|eso es todo|todo bien|todo correcto|ya est[aá]|nada m[aá]s|es todo|adi[oó]s|buen vuelo|nos vemos|listo|perfecto|correcto|thanks|thank you|nothing|nope|all good|goodbye|bye)\b/.test(_sc); if(_closes && !_wantsMore){ vSpeak(CUR.lang==='en'?'Understood. Have a good flight.':'Entendido. Buen vuelo y buen servicio.',function(){ vStop(); }); return; }
       var sys=await qaContext(said);
@@ -38398,7 +38398,7 @@ document.addEventListener('DOMContentLoaded', function(){
       var cj=await rc.json(); var ans=(cj.content&&cj.content.map(function(b){return b.text||'';}).join(''))||(cj.message?cj.message:'No tengo respuesta.');
       ans=ans.replace(/[*#_`]/g,'');
       vLog('aria',ans);
-      vSpeak(ans,function(){ if(vOn) afterAriaQuiet(function(){ if(vOn)vTurn(); }); });
+      vSpeak(ans,function(){ if(vOn) afterAriaQuiet(function(){ if(vOn){ beep(); setTimeout(function(){ if(vOn)vTurn(); },380); } }); });
     }catch(e){ if(vOn)vTurn(); }
   }
 
