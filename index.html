@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.298">
+  <meta name="version" content="Beta.299">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.298","builtAt":"2026-07-06T17:43:40Z","commit":"33ae1d1","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.299","builtAt":"2026-07-06T18:04:27Z","commit":"1ff0809","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -38330,7 +38330,7 @@ document.addEventListener('DOMContentLoaded', function(){
   function killAudioCtx(){ /* Banco audiotest T4/T5: un AudioContext abierto (aunque no suene) entrecorta el Bluetooth del coche. Cerrar TODOS antes de reproducir; se recrean solos al volver a necesitarse. */ try{ if(window._aCtx&&window._aCtx.state!=='closed')window._aCtx.close(); }catch(e){} try{ window._aCtx=null; }catch(e){} try{ if(_ac&&_ac.state!=='closed')_ac.close(); }catch(e){} _ac=null; try{ if(vAC&&vAC.state!=='closed')vAC.close(); }catch(e){} vAC=null; }
   function unlockAudio(){ try{ if(!_va)_va=new Audio(); _va.muted=true; _va.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACBWAQACABAAZGF0YQAAAAA='; var pp=_va.play(); if(pp&&pp.then){ pp.then(function(){ try{_va.pause();_va.currentTime=0;}catch(e){} _va.muted=false; }).catch(function(){ _va.muted=false; }); } }catch(e){} /* NO abrir AudioContext aquí: en iOS mantener _ac vivo degrada el Bluetooth a HFP y entrecorta el briefing. El AudioContext solo se crea cuando hace falta el micro. */ }
   async function ttsFetchUrl(text){ var r=await fetch(BACKEND+'/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify({text:text,voice:(CUR.voice||'nova'),lang:CUR.lang})}); if(r.status===429){ var j=await r.json().catch(function(){return{};}); throw new Error(j.message||'Voz no disponible'); } if(!r.ok) throw new Error('tts '+r.status); var b=await r.blob(); return URL.createObjectURL(b); }
-  function beep(){ _dbg('beep'); try{ if(!_ac)_ac=new (window.AudioContext||window.webkitAudioContext)(); if(_ac.state==='suspended')_ac.resume(); var o=_ac.createOscillator(),g=_ac.createGain(); o.type='sine'; o.frequency.value=880; o.connect(g); g.connect(_ac.destination); var t=_ac.currentTime; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.18,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.30); o.start(t); o.stop(t+0.32); }catch(e){} }
+  function beep(){ _dbg('beep'); try{ if(!_ac||_ac.state==='closed')_ac=new (window.AudioContext||window.webkitAudioContext)(); var _play=function(){ try{ var o=_ac.createOscillator(),g=_ac.createGain(); o.type='sine'; o.frequency.value=880; o.connect(g); g.connect(_ac.destination); var t=_ac.currentTime; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.28,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.34); o.start(t); o.stop(t+0.36); }catch(e){} }; /* resume ASÍNCRONO: en iOS el oscilador no suena si se lanza antes de que el contexto reanude → esperar a resume() */ if(_ac.state==='suspended'){ _ac.resume().then(_play).catch(_play); } else { _play(); } }catch(e){} }
   function mediaSetup(){ try{ if(!('mediaSession' in navigator)||_msSet) return; _msSet=true; var ms=navigator.mediaSession;
     // PLAY (lock screen): reanuda/arranca la reproducción.
     try{ ms.setActionHandler('play',function(){ try{ if(!playing){ togglePlay(); } else { paused=false; if(curAudio){ var _p=curAudio.play(); if(_p&&_p.catch)_p.catch(function(){}); } var pb=q('#ar-play'); if(pb)pb.textContent='⏸'; try{ navigator.mediaSession.playbackState='playing'; }catch(_e){} try{ applyChrome(); }catch(_e){} } }catch(e){} }); }catch(e){}
@@ -38411,7 +38411,9 @@ document.addEventListener('DOMContentLoaded', function(){
     var chunks=vChunks; vChunks=[];
     var blob=chunks.length?new Blob(chunks,{type:(vRec&&vRec.mimeType)||'audio/webm'}):null;
     releaseMic();
-    if(!blob){ if(vOn)vTurn(); return; }
+    // Si el VAD NO oyó voz (silencio real), NO mandar a Whisper: transcribiría ALUCINACIONES
+    // (se inventa preguntas de la nada, sesgado por el prompt aeronáutico). Turno vacío.
+    if(!blob || !_micHeard){ _emptyTurns++; if(_emptyTurns>=2){ var _ms=(CUR.lang==='en'?'I could not hear you. Tap the mic to ask.':'No te he oído. Pulsa el micro para preguntar.'); chatLog('aria',_ms); vSpeak(_ms, function(){ vStop(); }); } else if(vOn){ vTurn(); } return; }
     vBtn('think'); stat(CUR.lang==='en'?'… ARIA':'… ARIA piensa');
     var rd=new FileReader(); rd.onloadend=function(){ var b64=String(rd.result).split(',')[1]||''; vSend(b64,blob.type); }; rd.readAsDataURL(blob);
   }
