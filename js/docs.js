@@ -1,51 +1,80 @@
 // ============================================================
 //  PilotOS — Módulo: Documentos (Pilot Wallet)
-//  Rediseño Fase 1: hero de cumplimiento + "¿Legal para volar?"
-//  + tarjetas dinámicas, modo día/noche. MISMO almacenamiento
-//  (localStorage 'pilotos_docs', mismos ids) → cero pérdida de datos.
+//  Rediseño: hero de cumplimiento + "¿Legal para volar?" +
+//  grid 2 columnas con iconos SVG + ficha de detalle (bottom sheet).
+//  MISMO almacenamiento (localStorage 'pilotos_docs', mismos ids)
+//  → cero pérdida de datos.
 //  Depende de globales de index.html: lsGet, showToast.
-//  Debe cargarse DESPUÉS del <script> inline que define lsGet.
 // ============================================================
 
 // ── Catálogo de documentos ──────────────────────────────────
 // required:true → cuenta para "¿Legal para volar?"
-// renewLead → días de antelación recomendada para renovar (aviso proactivo)
+// renewLead → días de antelación recomendada para renovar
+// col → color del icono/acento · icon → clave SVG (DOC_SVG)
 const DOCS_META = {
-  medical:    { name: 'Certificado Médico',       icon: '🏥', authority: 'AeMC / AME',  required: true,  renewLead: 45 },
-  license:    { name: 'Licencia (ATPL/CPL)',      icon: '🪪', authority: 'AESA',         required: true,  renewLead: 60 },
-  typerating: { name: 'Habilitación de Tipo',     icon: '✈️', authority: 'AESA / TRE',   required: true,  renewLead: 60 },
-  lang:       { name: 'Competencia Lingüística',  icon: '🌐', authority: 'AESA',         required: true,  renewLead: 90 },
-  passport:   { name: 'Pasaporte',                icon: '🛂', authority: 'Min. Interior',                 renewLead: 120 },
-  company:    { name: 'Tarjeta de Compañía',      icon: '🪪', authority: 'Vueling',                       renewLead: 30 },
+  medical:    { name: 'Médico',        sub: 'Class 1',   icon: 'cross',  col: '#14B8A6', authority: 'AeMC / AME',   required: true, renewLead: 45 },
+  license:    { name: 'Licencia',      sub: 'ATPL/CPL',  icon: 'idcard', col: '#3B82F6', authority: 'AESA',          required: true, renewLead: 60 },
+  typerating: { name: 'Habilitación',  sub: 'Type A320', icon: 'plane',  col: '#8B5CF6', authority: 'AESA / TRE',    required: true, renewLead: 60 },
+  lang:       { name: 'Inglés',        sub: 'Nivel OACI',icon: 'globe',  col: '#0EA5E9', authority: 'AESA',          required: true, renewLead: 90 },
+  passport:   { name: 'Pasaporte',     sub: '',          icon: 'book',   col: '#6366F1', authority: 'Min. Interior',                renewLead: 120 },
+  company:    { name: 'T. Compañía',   sub: 'Vueling',   icon: 'badge',  col: '#059669', authority: 'Vueling',                      renewLead: 30 },
 };
 const MAX_FILE_MB = 5;
 let docsData = {};
 try { docsData = JSON.parse(lsGet('pilotos_docs','{}')); } catch(e) {}
 
+// ── Iconos SVG (line icons profesionales) ───────────────────
+const DOC_SVG = {
+  cross:  '<rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8M8 12h8"/>',
+  idcard: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M14 10h4M14 13.5h4M6.2 16c.5-1.4 5.1-1.4 5.6 0"/>',
+  plane:  '<path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>',
+  globe:  '<circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19"/><path d="M12 2.5c2.6 2.7 3.9 5.9 3.9 9.5S14.6 18.8 12 21.5C9.4 18.8 8.1 15.6 8.1 12S9.4 5.2 12 2.5z"/>',
+  book:   '<path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H19v20H7.5A2.5 2.5 0 0 1 5 19.5z"/><path d="M5 17.5h14"/><circle cx="12" cy="8.5" r="2.3"/>',
+  badge:  '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 3v1.6h6V3"/><circle cx="12" cy="10" r="2.2"/><path d="M8.4 16.2c.7-1.7 6.5-1.7 7.2 0"/>',
+};
+function docIcon(id, size) {
+  const m = DOCS_META[id]; const s = size || 20; const isFill = (m.icon === 'plane');
+  return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="' + (isFill ? 'currentColor' : 'none') + '" stroke="' + (isFill ? 'none' : 'currentColor') + '" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + DOC_SVG[m.icon] + '</svg>';
+}
+function docIconBox(id, sz, iconSz) {
+  const m = DOCS_META[id];
+  return '<div class="doc-ic" style="width:' + sz + 'px;height:' + sz + 'px;border-radius:' + Math.round(sz * .28) + 'px;color:' + m.col + ';background:' + m.col + '22;border-color:' + m.col + '40">' + docIcon(id, iconSz) + '</div>';
+}
+function docRing(state) {
+  const col = state === 'exp' ? '#EF4444' : (state === 'warn' ? '#F59E0B' : (state === 'empty' ? '#94A3B8' : '#22C55E'));
+  const ic  = state === 'exp' ? '✕' : (state === 'warn' ? '!' : (state === 'empty' ? '+' : '✓'));
+  return '<span class="doc-ring" style="border-color:' + col + ';color:' + col + '">' + ic + '</span>';
+}
+const PILL_LABEL = { ok:'Vigente', warn:'Caduca pronto', exp:'Caducado', empty:'Sin documento' };
+
 // ── Estado de un documento ──────────────────────────────────
 function docStatus(id) {
   const d = docsData[id];
   const meta = DOCS_META[id] || {};
-  if (!d || (!d.fileName && !d.expiry && !d.issued)) return { state:'empty', label:'Sin documento', days:null };
-  if (!d.expiry) return { state:'ok', label:'Subido · sin caducidad', days:null };
+  if (!d || (!d.fileName && !d.expiry && !d.issued)) return { state:'empty', days:null, expStr:null };
+  if (!d.expiry) return { state:'ok', days:null, expStr:null, noExpiry:true };
   const today = new Date(); today.setHours(0,0,0,0);
   const exp = new Date(d.expiry);
   const days = Math.floor((exp - today) / 86400000);
   const expStr = exp.toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'});
-  if (days < 0)  return { state:'exp',  label:'CADUCADO · ' + expStr, days };
-  if (days <= 90) {
-    let lbl = 'Caduca en ' + days + 'd · ' + expStr;
-    if (meta.renewLead && days <= meta.renewLead) lbl = 'Caduca en ' + days + 'd · toca renovar';
-    return { state:'warn', label:lbl, days };
-  }
-  return { state:'ok', label:'Válido · ' + expStr, days };
+  if (days < 0)  return { state:'exp',  days, expStr };
+  if (days <= 90) return { state:'warn', days, expStr, renew: !!(meta.renewLead && days <= meta.renewLead) };
+  return { state:'ok', days, expStr };
+}
+// Texto largo de estado (ficha)
+function docStatusLabel(id) {
+  const s = docStatus(id);
+  if (s.state === 'empty') return 'Sin documento';
+  if (s.noExpiry) return 'Subido · sin caducidad';
+  if (s.state === 'exp') return 'CADUCADO · ' + s.expStr;
+  if (s.state === 'warn') return 'Caduca en ' + s.days + 'd' + (s.renew ? ' · toca renovar' : '') + ' · ' + s.expStr;
+  return 'Válido · ' + s.expStr;
 }
 
 // ── ¿Legal para volar? (según documentos) ───────────────────
 function docLegalToFly() {
   const req = Object.keys(DOCS_META).filter(id => DOCS_META[id].required);
-  let state = 'ok';
-  const probs = [];
+  let state = 'ok'; const probs = [];
   req.forEach(id => {
     const s = docStatus(id);
     if (s.state === 'empty') { probs.push(DOCS_META[id].name + ' (sin datos)'); if (state === 'ok') state = 'warn'; }
@@ -74,7 +103,7 @@ function renderHero() {
   let nextHtml = '';
   if (next) {
     const nc = next.days <= 30 ? '#EF4444' : (next.days <= 90 ? '#F97316' : '#22C55E');
-    nextHtml = '<div class="dw-hero-next" onclick="openDoc(\'' + next.id + '\')">'
+    nextHtml = '<div class="dw-hero-next" onclick="openDocSheet(\'' + next.id + '\')">'
       + '<div class="dw-hero-next-lbl">PRÓXIMA</div>'
       + '<div class="dw-hero-next-days" style="color:' + nc + '">' + next.days + ' d</div>'
       + '<div class="dw-hero-next-name">' + DOCS_META[next.id].name + '</div></div>';
@@ -101,9 +130,9 @@ function renderLegal() {
   if (!host) return;
   const { state, probs } = docLegalToFly();
   const map = {
-    ok:   { ico:'🛫', title:'Legal para volar hoy',    sub:'Médico, licencia, habilitación e inglés vigentes' },
-    warn: { ico:'⚠️', title:'Atención antes de volar',  sub: probs.join(' · ') },
-    bad:  { ico:'⛔', title:'Revisa antes de volar',    sub: probs.join(' · ') },
+    ok:   { ico:'🛫', title:'Legal para volar hoy',   sub:'Médico, licencia, habilitación e inglés vigentes' },
+    warn: { ico:'⚠️', title:'Atención antes de volar', sub: probs.join(' · ') },
+    bad:  { ico:'⛔', title:'Revisa antes de volar',   sub: probs.join(' · ') },
   };
   const m = map[state];
   host.innerHTML =
@@ -115,50 +144,28 @@ function renderLegal() {
     + '</div>';
 }
 
-// ── Render: tarjetas de documentos ──────────────────────────
+// ── Render: tiles (grid 2 columnas) ─────────────────────────
 function renderGrid() {
   const grid = document.getElementById('doc-grid');
   if (!grid) return;
   let html = '';
   Object.keys(DOCS_META).forEach(id => {
-    const meta = DOCS_META[id];
-    const d = docsData[id] || {};
+    const m = DOCS_META[id];
     const s = docStatus(id);
-    const cardState = (s.state === 'exp') ? 'expired' : (s.state === 'warn') ? 'expiring' : ((d.fileName || d.expiry) ? 'uploaded' : '');
-    const chip = (s.days != null)
-      ? '<span class="doc-days-chip" style="color:' + (s.days < 0 ? '#F87171' : (s.days <= 90 ? '#F59E0B' : '#4ADE80')) + '">' + (s.days < 0 ? '!' : s.days + 'd') + '</span>'
-      : '';
-    const badge = d.fileName
-      ? '<div class="doc-file-badge">' + (d.fileType === 'application/pdf' ? 'PDF' : 'JPEG') + ' · ' + (d.fileSize || '') + '</div>'
-      : '';
-    const dl = d.fileData
-      ? '<a class="doc-download-btn" href="' + d.fileData + '" download="' + meta.name + '_offline' + (d.fileType === 'application/pdf' ? '.pdf' : '.jpg') + '" title="Descargar offline" onclick="event.stopPropagation()">💾</a>'
-      : '';
-    const showImg = d.fileData && d.fileType && d.fileType.indexOf('image/') === 0;
-    const imgWrap = '<div id="doc-' + id + '-img-wrap"' + (showImg ? '' : ' style="display:none"') + '><img id="doc-' + id + '-img" src="' + (showImg ? d.fileData : '') + '" alt="" class="doc-preview-img"></div>';
+    let foot;
+    if (s.state === 'empty') foot = '<span>Toca para añadir</span>';
+    else if (s.noExpiry) foot = '<span>Subido</span><b>Permanente</b>';
+    else {
+      const fc = s.days < 0 ? '#F87171' : (s.days <= 90 ? '#F59E0B' : '#4ADE80');
+      foot = '<span>' + s.expStr + '</span><b style="color:' + fc + '">' + (s.days < 0 ? '!' : s.days + 'd') + '</b>';
+    }
     html +=
-      '<div class="doc-card ' + cardState + '" id="doc-' + id + '">'
-      + '<div class="doc-card-header" onclick="toggleDocPreview(\'' + id + '\')">'
-        + '<div class="doc-card-icon">' + meta.icon + '</div>'
-        + '<div class="doc-card-info">'
-          + '<div class="doc-card-name">' + meta.name + '</div>'
-          + '<div class="doc-card-status ' + s.state + '" id="doc-' + id + '-status"><span class="doc-expiry-dot"></span>' + s.label + '</div>'
-          + badge
-        + '</div>'
-        + '<div class="doc-actions">' + chip + dl + '<div class="doc-action-btn" onclick="event.stopPropagation();toggleDocPreview(\'' + id + '\')">✎</div></div>'
-      + '</div>'
-      + '<div class="doc-preview" id="doc-' + id + '-preview">'
-        + '<div class="doc-upload-area"><div class="doc-upload-row">'
-          + '<label class="doc-upload-single"><input type="file" accept="image/jpeg,image/jpg,application/pdf" onchange="handleDocUpload(\'' + id + '\',this)">📎 Archivo</label>'
-          + '<label class="doc-upload-single camera"><input type="file" accept="image/jpeg,image/jpg" capture="environment" onchange="handleDocUpload(\'' + id + '\',this)">📷 Cámara</label>'
-        + '</div><div style="font-size:10px;opacity:.6;text-align:center;padding-top:2px">JPEG o PDF · máx 5 MB · en este dispositivo</div></div>'
-        + imgWrap
-        + '<div class="doc-date-form">'
-          + '<div class="doc-date-input"><label>Fecha emisión</label><input type="date" id="doc-' + id + '-issued" value="' + (d.issued || '') + '"></div>'
-          + '<div class="doc-date-input"><label>Fecha caducidad</label><input type="date" id="doc-' + id + '-expiry" value="' + (d.expiry || '') + '"></div>'
-        + '</div>'
-        + '<button class="doc-save-btn" onclick="saveDoc(\'' + id + '\')">Guardar →</button>'
-      + '</div>'
+      '<div class="doc-tile" onclick="openDocSheet(\'' + id + '\')">'
+      + '<div class="doc-tile-top">' + docIconBox(id, 40, 20) + docRing(s.state) + '</div>'
+      + '<div class="doc-tile-name">' + m.name + '</div>'
+      + '<div class="doc-tile-sub">' + (m.sub || '&nbsp;') + '</div>'
+      + '<div class="doc-tile-pill ' + s.state + '">' + PILL_LABEL[s.state] + '</div>'
+      + '<div class="doc-tile-foot">' + foot + '</div>'
       + '</div>';
   });
   grid.innerHTML = html;
@@ -189,23 +196,65 @@ function renderWallet() {
   renderGrid();
   renderDocsStrip();
 }
-// Compat: antiguo renderDocStatus → re-render completo
 function renderDocStatus() { renderWallet(); }
+function toggleDocPreview(id) { openDocSheet(id); }
 
-// ── Abrir/expandir una tarjeta concreta ─────────────────────
-function openDoc(id) {
-  const el = document.getElementById('doc-' + id);
-  if (el) el.scrollIntoView({ behavior:'smooth', block:'center' });
-  const pv = document.getElementById('doc-' + id + '-preview');
-  if (pv && !pv.classList.contains('open')) pv.classList.add('open');
+// ── Ficha de detalle (bottom sheet) ─────────────────────────
+function openDocSheet(id) {
+  const ov = document.getElementById('doc-sheet');
+  if (!ov) return;
+  const m = DOCS_META[id];
+  const d = docsData[id] || {};
+  const s = docStatus(id);
+  const pillCol = { ok:'#22C55E', warn:'#F59E0B', exp:'#EF4444', empty:'#94A3B8' }[s.state];
+  const badge = '<span class="doc-tile-pill ' + s.state + '">' + PILL_LABEL[s.state] + '</span>'
+    + (s.days != null && s.days >= 0 ? '<span style="font-size:12px;font-weight:600;color:' + pillCol + '">' + s.days + ' días restantes</span>' : '');
+  // Filas de datos
+  let rows = '<div class="doc-sheet-row"><span class="k">Autoridad emisora</span><span class="v">' + m.authority + '</span></div>';
+  rows += '<div class="doc-sheet-row"><span class="k">Caducidad</span><span class="v">' + (d.expiry ? s.expStr : (s.state === 'empty' ? '—' : 'Permanente')) + '</span></div>';
+  if (s.days != null && s.days >= 0) rows += '<div class="doc-sheet-row"><span class="k">Días restantes</span><span class="v">' + s.days + ' días</span></div>';
+  if (d.fileName) rows += '<div class="doc-sheet-row"><span class="k">Archivo</span><span class="v">' + (d.fileType === 'application/pdf' ? 'PDF' : 'JPEG') + ' · ' + (d.fileSize || '') + '</span></div>';
+  // Preview imagen
+  const showImg = d.fileData && d.fileType && d.fileType.indexOf('image/') === 0;
+  const imgWrap = '<div id="doc-' + id + '-img-wrap"' + (showImg ? '' : ' style="display:none"') + '><img id="doc-' + id + '-img" src="' + (showImg ? d.fileData : '') + '" alt="" class="doc-preview-img"></div>';
+  // Descarga offline
+  const dl = d.fileData
+    ? '<a class="doc-download-btn" style="width:48px;height:46px" href="' + d.fileData + '" download="' + m.name + '_offline' + (d.fileType === 'application/pdf' ? '.pdf' : '.jpg') + '" title="Descargar offline">💾</a>'
+    : '';
+  ov.innerHTML =
+    '<div class="doc-sheet" onclick="event.stopPropagation()">'
+    + '<div class="doc-sheet-grab"></div>'
+    + '<div class="doc-sheet-head">'
+      + docIconBox(id, 52, 26)
+      + '<div style="flex:1;min-width:0"><div class="doc-sheet-title">' + m.name + (m.sub ? ' <span style="font-weight:600;font-size:14px;opacity:.6">' + m.sub + '</span>' : '') + '</div>'
+        + '<div class="doc-sheet-sub">' + badge + '</div></div>'
+      + '<div class="doc-sheet-x" onclick="closeDocSheet()">✕</div>'
+    + '</div>'
+    + '<div class="doc-sheet-rows">' + rows + '</div>'
+    + '<div class="doc-sheet-sectlbl">ARCHIVO Y FECHAS</div>'
+    + '<div class="doc-upload-area"><div class="doc-upload-row">'
+      + '<label class="doc-upload-single"><input type="file" accept="image/jpeg,image/jpg,application/pdf" onchange="handleDocUpload(\'' + id + '\',this)">📎 Archivo</label>'
+      + '<label class="doc-upload-single camera"><input type="file" accept="image/jpeg,image/jpg" capture="environment" onchange="handleDocUpload(\'' + id + '\',this)">📷 Cámara</label>'
+    + '</div><div style="font-size:10px;opacity:.55;text-align:center;margin-top:6px">JPEG o PDF · máx 5 MB · se guarda en este dispositivo</div></div>'
+    + imgWrap
+    + '<div class="doc-date-form">'
+      + '<div class="doc-date-input"><label>Fecha emisión</label><input type="date" id="doc-' + id + '-issued" value="' + (d.issued || '') + '"></div>'
+      + '<div class="doc-date-input"><label>Fecha caducidad</label><input type="date" id="doc-' + id + '-expiry" value="' + (d.expiry || '') + '"></div>'
+    + '</div>'
+    + '<div style="display:flex;gap:10px;margin-top:16px">'
+      + '<button class="doc-save-btn" style="margin:0;width:auto;flex:1" onclick="saveDoc(\'' + id + '\')">Guardar</button>'
+      + dl
+    + '</div>'
+    + '</div>';
+  ov.classList.add('open');
+  ov.onclick = closeDocSheet;
+}
+function closeDocSheet() {
+  const ov = document.getElementById('doc-sheet');
+  if (ov) { ov.classList.remove('open'); ov.innerHTML = ''; ov.onclick = null; }
 }
 
-function toggleDocPreview(id) {
-  const el = document.getElementById('doc-' + id + '-preview');
-  if (el) el.classList.toggle('open');
-}
-
-// ── Subir archivo (sin re-render: mantiene el editor abierto) ─
+// ── Subir archivo (sin cerrar la ficha) ─────────────────────
 function handleDocUpload(id, input) {
   const file = input.files[0];
   if (!file) return;
@@ -230,7 +279,7 @@ function handleDocUpload(id, input) {
 
 function updateDocDates() {}
 
-// ── Guardar: persiste y re-renderiza ────────────────────────
+// ── Guardar: persiste, cierra ficha, re-renderiza ───────────
 function saveDoc(id) {
   const iss = document.getElementById('doc-' + id + '-issued');
   const exp = document.getElementById('doc-' + id + '-expiry');
@@ -239,6 +288,7 @@ function saveDoc(id) {
   docsData[id].expiry = exp ? exp.value : '';
   try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); }
   catch(e) { showToast('⚠ Almacenamiento lleno. Imagen demasiado grande.'); return; }
+  closeDocSheet();
   renderWallet();
   showToast('✓ ' + DOCS_META[id].name + ' guardado');
 }
