@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.289">
+  <meta name="version" content="Beta.290">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.289","builtAt":"2026-07-06T12:37:03Z","commit":"d563eaa","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.290","builtAt":"2026-07-06T12:40:24Z","commit":"d53139b","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -38617,7 +38617,7 @@ document.addEventListener('DOMContentLoaded', function(){
   function mediaPos(){ try{ if('mediaSession' in navigator && navigator.mediaSession.setPositionState && isFinite(total) && total>0){ navigator.mediaSession.setPositionState({duration:total, position:Math.max(0,Math.min(curElapsed(),total)), playbackRate:RATE||1}); } }catch(e){} }
   function mediaState(){ try{ if('mediaSession' in navigator) navigator.mediaSession.playbackState=(playing&&!paused)?'playing':(audios.length?'paused':'none'); }catch(e){} }
   function bindVis(){ if(_visBound) return; _visBound=true; try{ document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible'){ try{ for(var i=0;i<audios.length;i++){ if(audios[i].a!==curAudio){ try{ audios[i].a.pause(); }catch(e){} } } }catch(e){} mediaState(); } }); }catch(e){} }
-  function autoAsk(){ var hidden=false; try{ hidden=document.hidden; }catch(e){} if(vMuted||hidden){ var bye=(CUR.lang==='en'?'That is the full briefing. Have a safe flight.':'Eso es todo el briefing. Buen vuelo.'); chatLog('aria',bye); stat(CUR.lang==='en'?'Open the app to ask by voice':'Abre la app para preguntar por voz'); if(!vMuted){ vSpeak(bye, function(){ vBtn('idle'); }); } return; } var msg=(CUR.lang==='en'?'Would you like me to go deeper on anything, or do you have a question?':'¿Quieres que te profundice en algo o tienes alguna pregunta?'); chatLog('aria',msg); stat(CUR.lang==='en'?'Tap the mic to ask':'Pulsa el micro para preguntar'); vSpeak(msg, function(){ if(CUR.autoMic){ vStart(true); } else { vBtn('idle'); } }); }
+  function autoAsk(){ var hidden=false; try{ hidden=document.hidden; }catch(e){} if(vMuted||hidden){ var bye=(CUR.lang==='en'?'That is the full briefing. Have a safe flight.':'Eso es todo el briefing. Buen vuelo.'); chatLog('aria',bye); stat(CUR.lang==='en'?'Open the app to ask by voice':'Abre la app para preguntar por voz'); if(!vMuted){ vSpeak(bye, function(){ vBtn('idle'); }); } return; } var msg=(CUR.lang==='en'?'Would you like me to go deeper on anything, or do you have a question?':'¿Quieres que te profundice en algo o tienes alguna pregunta?'); chatLog('aria',msg); stat(CUR.lang==='en'?'Tap the mic to ask':'Pulsa el micro para preguntar'); vSpeak(msg, function(){ if(CUR.autoMic){ /* espera a que la pregunta (y su latencia por Bluetooth) drene del todo antes de abrir el micro; si no, el micro capta la cola de la voz de ARIA y se corta solo */ stat(CUR.lang==='en'?'One moment…':'Un momento…'); setTimeout(function(){ if(!vOn&&!vSpeaking) vStart(true); }, 850); } else { vBtn('idle'); } }); }
   function showVoiceDock(){}
   function hideVoiceDock(){}
   function vLog(role,txt){ chatLog(role,txt); }
@@ -38694,7 +38694,7 @@ document.addEventListener('DOMContentLoaded', function(){
       var cj=await rc.json(); var ans=(cj.content&&cj.content.map(function(b){return b.text||'';}).join(''))||(cj.message?cj.message:'No tengo respuesta.');
       ans=ans.replace(/[*#_`]/g,'');
       vLog('aria',ans);
-      vSpeak(ans,function(){ if(vOn)vTurn(); });
+      vSpeak(ans,function(){ if(vOn) setTimeout(function(){ if(vOn)vTurn(); }, 650); });
     }catch(e){ if(vOn)vTurn(); }
   }
 
