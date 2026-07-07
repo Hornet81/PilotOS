@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.306">
+  <meta name="version" content="Beta.307">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.306","builtAt":"2026-07-07T11:59:53Z","commit":"bbbd1b7","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.307","builtAt":"2026-07-07T12:12:53Z","commit":"ae01feb","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -16675,7 +16675,9 @@ function ldResetForm(){
   var tw=document.getElementById('ldm-times-wrap'); if(tw) tw.classList.remove('mcdu-ok');
   document.getElementById('ld_ldgd').value=1;
   document.getElementById('ld_ldgn').value=0;
-  var _prefRole=lsGet('ld_pref_role','FO');
+  // Rol por defecto del nuevo vuelo = rol DOMINANTE del historial (auto): si
+  // llevas muchas horas de comandante, se auto-selecciona comandante (no FO).
+  var _prefRole=_ldDominantRole()||lsGet('ld_pref_role','FO');
   var _roleSel=document.getElementById('ld_role');
   if(_roleSel) _roleSel.value=_prefRole;
   ['ld_actype','ld_engine','ld_func','ld_rules','ld_optype','ld_cond'].forEach(function(id){
@@ -18657,6 +18659,29 @@ function _ldScript(srcs,onload,onerror){
     document.head.appendChild(s);
   })();
 }
+// Rol DOMINANTE del piloto según su historial (por minutos de block).
+// Para entradas SIN rol explícito (importadas del roster / sin rellenar):
+// si llevas mucho más tiempo como comandante, se asume comandante — no copiloto.
+function _ldDominantRole(){
+  try{
+    var list=(typeof ldEntries!=='undefined'&&ldEntries)?ldEntries:[];
+    var cptM=0,foM=0;
+    list.forEach(function(e){
+      var r=(e.role||e.func||'').toUpperCase();
+      var m=ldT2m(e.block);
+      if(r==='CPT'||r==='CMD'||r==='PIC'||r==='CP'||r==='COMANDANTE'||r==='CAPTAIN') cptM+=m;
+      else if(r==='FO'||r==='COP'||r==='COPILOTO'||r==='SIC') foM+=m;
+    });
+    if(cptM===0&&foM===0){
+      // Historial sin ningún rol → preferencia guardada o especialidad del Pay Profile
+      var pr=(lsGet('ld_pref_role','')||'').toUpperCase();
+      if(pr==='CPT'||pr==='FO') return pr;
+      try{ var pp=JSON.parse(localStorage.getItem('pilotos_payProfile')||'{}'); var esp=ppEspToValue(pp&&pp.especialidad?(pp.especialidad.value||pp.especialidad):''); if(esp==='cmd')return 'CPT'; if(esp==='cop')return 'FO'; }catch(e){}
+      return 'FO';
+    }
+    return cptM>=foM?'CPT':'FO';
+  }catch(e){ return 'FO'; }
+}
 function _ldRunExportCSV(entries){
   var H=['ID','Fecha','Vuelo','Origen','Destino','Tipo AC','Motor','Matr\u00edcula','FL','ATD (OUT)','STD (OFF)','ATA (IN)','STA (ON)','Block','Nocturno','Ldg D\u00eda','Ldg Noche','Rol','Funci\u00f3n','CM1','CM2','Reglas','Tipo Op.','Condiciones','Notas','Fuente','Guardado UTC'];
   var R=entries.map(function(e){return[e.id,e.date,e.flight,e.dep,e.arr,e.acType,e.engine,e.reg,e.fl,e.atd,e.std,e.ata,e.sta,e.block,e.night,e.ldgDay,e.ldgNight,e.role,e.func,e.cm1||'',e.cm2||'',e.rules,e.opType,e.conditions,e.notes,e.source,e.savedAt];});
@@ -18963,8 +18988,9 @@ function _ldRunExportPDF_Jeppesen(entries){
       var totalNight=entries.reduce(function(s,e){return s+ldT2m(e.night);},0);
       var totalLdgD =entries.reduce(function(s,e){return s+(+(e.ldgDay||0));},0);
       var totalLdgN =entries.reduce(function(s,e){return s+(+(e.ldgNight||0));},0);
+      var _selfRole=_ldDominantRole(); // rol por defecto para entradas sin rol explícito
       var totalPIC  =entries.reduce(function(s,e){
-        var r=(e.role||e.func||'').toUpperCase();
+        var r=(e.role||e.func||_selfRole||'').toUpperCase();
         return s+((r==='PIC'||r==='CP'||r==='CPT'||r==='CMD'||r==='COMANDANTE'||r==='CAPTAIN')?ldT2m(e.block):0);
       },0);
       var totalCoPlt=totalBlock-totalPIC;
@@ -19004,7 +19030,7 @@ function _ldRunExportPDF_Jeppesen(entries){
 
       // ── Mapeado de entrada → fila (23 columnas) ──
       function mapEntry(e){
-        var role=(e.role||e.func||'').toUpperCase();
+        var role=(e.role||e.func||_selfRole||'').toUpperCase();
         var isPIC=(role==='PIC'||role==='CP'||role==='CPT'||role==='CMD'||role==='COMANDANTE'||role==='CAPTAIN');
         var blk=e.block||'';
         var dateFmt='';
@@ -32806,7 +32832,7 @@ window.ldRosterImportConfirm = function(){
       // OFF/ON (std/sta) quedan vacíos: son horas reales que pone el piloto.
       sched_out:rStd||'', sched_in:rSta||'', std:'', sta:'',
       block:blockStr, acType:f.acType||'', reg:f.reg||'',
-      role:lsGet('ld_pref_role')||'FO',
+      role:_ldDominantRole()||lsGet('ld_pref_role')||'FO',
       rosterEntryId:f.id||null,
       atd:null, ata:null, aobt:null, aibt:null
     });
