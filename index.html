@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.307">
+  <meta name="version" content="Beta.308">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.307","builtAt":"2026-07-07T12:12:53Z","commit":"db6b95f","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.308","builtAt":"2026-07-07T14:25:35Z","commit":"3a29ddc","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -18682,6 +18682,28 @@ function _ldDominantRole(){
     return cptM>=foM?'CPT':'FO';
   }catch(e){ return 'FO'; }
 }
+// Corrige el ROL GUARDADO de los vuelos importados del roster (ROSTER-DRAFT) que
+// se importaron con un rol equivocado (FO por un default viejo). Los drafts llevan
+// un rol auto-asignado NO fiable → se ajustan al rol dominante del piloto. Solo toca
+// esos drafts (nunca vuelos rellenados a mano) y sincroniza (recuperable). Devuelve nº ajustados.
+function _ldFixDraftRoles(){
+  try{
+    if(!Array.isArray(ldEntries)||!ldEntries.length) return 0;
+    var dom=_ldDominantRole();
+    if(dom!=='CPT'&&dom!=='FO') return 0;
+    var now=new Date().toISOString(), n=0;
+    ldEntries.forEach(function(e){
+      if(e&&e.source==='ROSTER-DRAFT'&&(e.role||'').toUpperCase()!==dom){ e.role=dom; e.savedAt=now; n++; }
+    });
+    if(n>0){
+      ldSaveData();
+      try{ if(typeof ldRender==='function') ldRender(); }catch(_e){}
+      try{ ldBgSync({delay:1500,force:true}); }catch(_e){}
+      showToast('✓ '+n+' vuelo'+(n>1?'s':'')+' importado'+(n>1?'s':'')+' ajustado'+(n>1?'s':'')+' a '+(dom==='CPT'?'Comandante':'Copiloto'),'success');
+    }
+    return n;
+  }catch(e){ return 0; }
+}
 function _ldRunExportCSV(entries){
   var H=['ID','Fecha','Vuelo','Origen','Destino','Tipo AC','Motor','Matr\u00edcula','FL','ATD (OUT)','STD (OFF)','ATA (IN)','STA (ON)','Block','Nocturno','Ldg D\u00eda','Ldg Noche','Rol','Funci\u00f3n','CM1','CM2','Reglas','Tipo Op.','Condiciones','Notas','Fuente','Guardado UTC'];
   var R=entries.map(function(e){return[e.id,e.date,e.flight,e.dep,e.arr,e.acType,e.engine,e.reg,e.fl,e.atd,e.std,e.ata,e.sta,e.block,e.night,e.ldgDay,e.ldgNight,e.role,e.func,e.cm1||'',e.cm2||'',e.rules,e.opType,e.conditions,e.notes,e.source,e.savedAt];});
@@ -20486,6 +20508,10 @@ window._initLD=function(){
   try { ldStats(); } catch(err) { console.error('[LD] ldStats error:', err); }
   setTimeout(ldInitFabObserver, 200);
   ldSwitchTab('vuelos');
+  // Corregir una vez el rol de los vuelos importados del roster con rol equivocado (FO viejo)
+  // → rol dominante del piloto. Diferido para dejar que el sync inicial traiga todos los drafts.
+  // Idempotente: si no hay nada que corregir, no hace nada. Guarda anti-stacking de timers.
+  if(!window._ldRoleMigTimer){ window._ldRoleMigTimer=setTimeout(function(){ window._ldRoleMigTimer=null; try{ _ldFixDraftRoles(); }catch(e){} }, 2000); }
   // Pull desde servidor — merge idempotente: si no hay cambios no hace nada
   (async function(){
     var token=ldAuthHeaders();
