@@ -14,7 +14,7 @@
 const DOCS_META = {
   medical:    { name: 'Médico',        sub: 'Class 1',   icon: 'heartpulse', col: '#F43F5E', authority: 'AeMC / AME', required: true, renewLead: 45 },
   license:    { name: 'Licencia',      sub: 'ATPL/CPL',  icon: 'idcard', col: '#3B82F6', authority: 'AESA',          required: true, renewLead: 60 },
-  typerating: { name: 'Habilitación',  sub: 'Type A320', icon: 'plane',  col: '#8B5CF6', authority: 'AESA / TRE',    required: true, renewLead: 60 },
+  typerating: { name: 'Habilitación',  sub: 'Type A320', icon: 'planejet', col: '#8B5CF6', authority: 'AESA / TRE',  required: true, renewLead: 60 },
   lang:       { name: 'Inglés',        sub: 'Nivel OACI',icon: 'globe',  col: '#0EA5E9', authority: 'AESA',          required: true, renewLead: 90 },
   passport:   { name: 'Pasaporte',     sub: '',          icon: 'passport', col: '#818CF8', authority: 'Min. Interior',              renewLead: 120 },
   company:    { name: 'T. Compañía',   sub: 'Vueling',   icon: 'companyid', col: '#10B981', authority: 'Vueling',                    renewLead: 30 },
@@ -28,6 +28,8 @@ const DOC_SVG = {
   cross:  '<rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8M8 12h8"/>',
   idcard: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M14 10h4M14 13.5h4M6.2 16c.5-1.4 5.1-1.4 5.6 0"/>',
   plane:  '<path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>',
+  // Jet diagonal Type Rating (SVG del usuario, viewBox 2050x2050) — degradado en docIcon
+  planejet: 'M1526.04,523.96c-20.64-20.64-89.8,3.51-113.02,12.63-26.77,10.5-52.56,26.75-82.32,57.04l-159.91,162.8-100.79-28.06,13.43-13.43c14.15-14.16,11.38-40.08-6.17-57.62h0c-17.55-17.56-43.48-20.32-57.62-6.18l-49.44,49.44-354.11-98.61c-25.03-6.89-28.86-5.08-46.12,11.75l-41.04,41.05,473.46,273.12-142.78,145.38c-11.85,12.07-52.26,64.41-91.68,121.75-1.13,1.65-2.21,3.36-3.5,4.88-4.66,5.61-8.83,6.31-18.21,4.21l-148.09-41.16c-33.01-7.47-33.11-10.95-56.25,11.62l-26.04,26.04,183.16,105.67c-15.19,29.5-22.63,52.04-15.55,59.57.11.12.26.21.38.33.11.11.2.26.32.38,7.53,7.08,30.08-.36,59.57-15.56l105.67,183.18,26.04-26.05c22.55-23.13,19.08-23.22,11.61-56.24l-41.16-148.09c-2.12-9.51-1.39-13.66,4.42-18.4,1.45-1.19,4.66-3.31,4.66-3.31,57.35-39.41,109.71-79.84,121.76-91.68l145.38-142.78,273.14,473.46,41.03-41.03c16.83-17.27,18.64-21.09,11.75-46.12l-98.59-354.11,49.44-49.44c14.14-14.14,11.38-40.07-6.17-57.62h0c-17.55-17.55-43.49-20.32-57.63-6.17l-13.43,13.42-28.07-100.79,162.8-159.9c30.29-29.77,46.53-55.57,57.04-82.32,9.11-23.24,33.26-92.39,12.62-113.04h0Z',
   globe:  '<circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19"/><path d="M12 2.5c2.6 2.7 3.9 5.9 3.9 9.5S14.6 18.8 12 21.5C9.4 18.8 8.1 15.6 8.1 12S9.4 5.2 12 2.5z"/>',
   book:   '<path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H19v20H7.5A2.5 2.5 0 0 1 5 19.5z"/><path d="M5 17.5h14"/><circle cx="12" cy="8.5" r="2.3"/>',
   badge:  '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 3v1.6h6V3"/><circle cx="12" cy="10" r="2.2"/><path d="M8.4 16.2c.7-1.7 6.5-1.7 7.2 0"/>',
@@ -63,6 +65,14 @@ function docIcon(id, size) {
       + '<stop offset="0" stop-color="#34D399"/><stop offset="0.5" stop-color="#10B981"/><stop offset="1" stop-color="#047857"/>'
       + '</linearGradient></defs>'
       + '<g fill="url(#' + gid + ')">' + DOC_SVG.companyid + '</g></svg>';
+  }
+  if (m.icon === 'planejet') {
+    const gid = 'jetg' + s;
+    return '<svg class="doc-plane" width="' + s + '" height="' + s + '" viewBox="476 476 1098 1098" style="overflow:visible;filter:drop-shadow(0 0 6px rgba(139,92,246,.6))">'
+      + '<defs><linearGradient id="' + gid + '" x1="0" y1="1" x2="1" y2="0">'
+      + '<stop offset="0" stop-color="#8B5CF6"/><stop offset="0.5" stop-color="#7C7CF2"/><stop offset="1" stop-color="#22D3EE"/>'
+      + '</linearGradient></defs>'
+      + '<path fill-rule="evenodd" fill="url(#' + gid + ')" d="' + DOC_SVG.planejet + '"/></svg>';
   }
   const isFill = (m.icon === 'plane');
   return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="' + (isFill ? 'currentColor' : 'none') + '" stroke="' + (isFill ? 'none' : 'currentColor') + '" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + DOC_SVG[m.icon] + '</svg>';
