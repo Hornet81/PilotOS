@@ -404,7 +404,7 @@ function inspCard(id) {
   } else {
     back = '<div class="vip-back-empty">Sin documento escaneado.<br>Súbelo desde la ficha del documento.</div>';
   }
-  return '<div class="vip-card" onpointermove="inspTilt(event,this)" onpointerleave="inspTiltReset(this)" onclick="inspTap(this)">'
+  return '<div class="vip-slot"><div class="vip-card" onpointermove="inspTilt(event,this)" onpointerleave="inspTiltReset(this)" onclick="inspTap(this)">'
     + '<div class="vip-flip">'
       + '<div class="vip-face vip-front" style="background:' + (INSP_GRAD[id] || m.col) + '">'
         + '<div class="vip-sheen"></div>'
@@ -422,7 +422,7 @@ function inspCard(id) {
       + '</div>'
       + '<div class="vip-face vip-back">' + back + '<div class="vip-hint"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12a8 8 0 1 1 2.3 5.6M4 12v4M4 16H8"/></svg>Toca para volver</div></div>'
     + '</div>'
-  + '</div>';
+  + '</div></div>';
 }
 
 function openInspect() {
@@ -440,7 +440,7 @@ function openInspect() {
   ov.classList.add('open');
   document.documentElement.classList.add('insp-lock');
   const stack = ov.querySelector('.insp-stack');
-  const first = stack && stack.querySelector('.vip-card');
+  const first = stack && stack.querySelector('.vip-slot');
   if (first) first.classList.add('exp');
   setTimeout(function () { _inspLayout(stack); }, 30);
   if (!window._inspResizeBound) { window._inspResizeBound = true; window.addEventListener('resize', function () { const o = document.getElementById('doc-inspect'); if (o && o.classList.contains('open')) _inspLayout(o.querySelector('.insp-stack')); }); }
@@ -450,40 +450,46 @@ function closeInspect() {
   if (ov) { ov.classList.remove('open'); ov.innerHTML = ''; }
   document.documentElement.classList.remove('insp-lock');
 }
-// Baraja apilada: reparte los márgenes para que las tarjetas asomen y la abierta se vea entera
+// Baraja apilada: coloca cada slot con translateY (acelerado por GPU = fluido)
 function _inspLayout(stack) {
   if (!stack) return;
-  const cards = stack.querySelectorAll('.vip-card');
-  if (!cards.length) return;
-  const flip = cards[0].querySelector('.vip-flip');
-  const ch = (flip && flip.offsetHeight) ? flip.offsetHeight : 210;
-  const peek = 62;
-  cards.forEach(function (c, i) {
-    const last = (i === cards.length - 1);
-    if (c.classList.contains('exp')) c.style.marginBottom = '18px';
-    else if (last) c.style.marginBottom = '0px';
-    else c.style.marginBottom = (-(ch - peek)) + 'px';
+  const slots = stack.querySelectorAll('.vip-slot');
+  if (!slots.length) return;
+  const flip = slots[0].querySelector('.vip-flip');
+  const fullH = (flip && flip.offsetHeight) ? flip.offsetHeight : 210;
+  const peek = 62, gap = 16;
+  let y = 0, lastTop = 0;
+  slots.forEach(function (sl, i) {
+    sl.style.transform = 'translate3d(0,' + y + 'px,0)';
+    sl.style.zIndex = i + 1;
+    lastTop = y;
+    y += sl.classList.contains('exp') ? (fullH + gap) : peek;
   });
+  stack.style.height = (lastTop + fullH + 16) + 'px';
 }
 // Tocar una tarjeta: si está apilada la abre (cierra las demás); si ya está abierta, la voltea
 function inspTap(card) {
-  if (card.classList.contains('exp')) {
+  const slot = card.closest('.vip-slot');
+  if (!slot) return;
+  if (slot.classList.contains('exp')) {
     const f = card.querySelector('.vip-flip');
     if (f) f.classList.toggle('flipped');
     return;
   }
-  const stack = card.parentNode;
-  stack.querySelectorAll('.vip-card.exp').forEach(function (c) {
-    c.classList.remove('exp');
-    const ff = c.querySelector('.vip-flip'); if (ff) ff.classList.remove('flipped');
-    c.style.transform = '';
+  const stack = slot.parentNode;
+  stack.querySelectorAll('.vip-slot.exp').forEach(function (s) {
+    s.classList.remove('exp');
+    const ff = s.querySelector('.vip-flip'); if (ff) ff.classList.remove('flipped');
+    const cc = s.querySelector('.vip-card'); if (cc) cc.style.transform = '';
   });
-  card.classList.add('exp');
+  slot.classList.add('exp');
   _inspLayout(stack);
-  setTimeout(function () { card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 80);
+  const sc = stack.closest('.insp-scroll');
+  if (sc) { const ty = parseFloat((slot.style.transform.match(/,\s*(-?[\d.]+)px/) || [])[1]) || 0; sc.scrollTo({ top: Math.max(0, ty - 12), behavior: 'smooth' }); }
 }
 function inspTilt(e, card) {
-  if (!card.classList.contains('exp')) return;
+  const slot = card.closest('.vip-slot');
+  if (!slot || !slot.classList.contains('exp')) return;
   const r = card.getBoundingClientRect();
   const px = (e.clientX - r.left) / r.width - 0.5;
   const py = (e.clientY - r.top) / r.height - 0.5;
