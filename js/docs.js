@@ -16,7 +16,7 @@ const DOCS_META = {
   license:    { name: 'Licencia',      sub: 'ATPL/CPL',  icon: 'idcard', col: '#3B82F6', authority: 'AESA',          required: true, renewLead: 60 },
   typerating: { name: 'Habilitación',  sub: 'Type A320', icon: 'plane',  col: '#8B5CF6', authority: 'AESA / TRE',    required: true, renewLead: 60 },
   lang:       { name: 'Inglés',        sub: 'Nivel OACI',icon: 'globe',  col: '#0EA5E9', authority: 'AESA',          required: true, renewLead: 90 },
-  passport:   { name: 'Pasaporte',     sub: '',          icon: 'passport', col: '#6366F1', authority: 'Min. Interior',              renewLead: 120 },
+  passport:   { name: 'Pasaporte',     sub: '',          icon: 'passport', col: '#818CF8', authority: 'Min. Interior',              renewLead: 120 },
   company:    { name: 'T. Compañía',   sub: 'Vueling',   icon: 'companyid', col: '#10B981', authority: 'Vueling',                    renewLead: 30 },
 };
 const MAX_FILE_MB = 5;
@@ -50,9 +50,9 @@ function docIcon(id, size) {
   }
   if (m.icon === 'passport') {
     const gid = 'passg' + s;
-    return '<svg class="doc-pass" width="' + s + '" height="' + s + '" viewBox="120 64 260 372" style="overflow:visible;filter:drop-shadow(0 0 4px rgba(99,102,241,.55))">'
+    return '<svg class="doc-pass" width="' + s + '" height="' + s + '" viewBox="120 64 260 372" style="overflow:visible;filter:drop-shadow(0 0 6px rgba(129,140,248,.75))">'
       + '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="1" y2="1">'
-      + '<stop offset="0" stop-color="#A5B4FC"/><stop offset="0.5" stop-color="#6366F1"/><stop offset="1" stop-color="#4338CA"/>'
+      + '<stop offset="0" stop-color="#C7D2FE"/><stop offset="0.5" stop-color="#818CF8"/><stop offset="1" stop-color="#3730A3"/>'
       + '</linearGradient></defs>'
       + '<g fill="url(#' + gid + ')">' + DOC_SVG.passport + '</g></svg>';
   }
@@ -195,7 +195,7 @@ function renderGrid() {
     }
     html +=
       '<div class="doc-tile" onclick="openDocSheet(\'' + id + '\')">'
-      + '<div class="doc-tile-top">' + docIconBox(id, 40, 20) + docRing(s.state) + '</div>'
+      + '<div class="doc-tile-top">' + docIconBox(id, 48, 24) + docRing(s.state) + '</div>'
       + '<div class="doc-tile-name">' + m.name + '</div>'
       + '<div class="doc-tile-sub">' + (m.sub || '&nbsp;') + '</div>'
       + '<div class="doc-tile-pill ' + s.state + '">' + PILL_LABEL[s.state] + '</div>'
@@ -259,7 +259,7 @@ function openDocSheet(id) {
     '<div class="doc-sheet" onclick="event.stopPropagation()">'
     + '<div class="doc-sheet-grab"></div>'
     + '<div class="doc-sheet-head">'
-      + docIconBox(id, 52, 26)
+      + docIconBox(id, 62, 31)
       + '<div style="flex:1;min-width:0"><div class="doc-sheet-title">' + m.name + (m.sub ? ' <span style="font-weight:600;font-size:14px;opacity:.6">' + m.sub + '</span>' : '') + '</div>'
         + '<div class="doc-sheet-sub">' + badge + '</div></div>'
       + '<div class="doc-sheet-x" onclick="closeDocSheet()">✕</div>'
