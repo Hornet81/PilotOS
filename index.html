@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.308">
+  <meta name="version" content="Beta.309">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.308","builtAt":"2026-07-07T14:25:35Z","commit":"a8e2484","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.309","builtAt":"2026-07-08T11:28:49Z","commit":"53d009d","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -33036,8 +33036,20 @@ function _ecDiffMonth(parsed, month){
 // Reemplaza las entradas eCrews del mes por las nuevas (conserva las manuales).
 function _ecApplyMonthReplace(parsedMonth, month){
   rstLoad();
-  // quitar SOLO las entradas eCrews de ese mes (conserva las manuales = source!=ECREWS)
-  RST.entries = (RST.entries||[]).filter(function(r){ return !(r.date && r.date.slice(0,7)===month && r.source==='ECREWS'); });
+  // Días que eCrews reporta en este resync → eCrews es la FUENTE DE VERDAD de ESE día.
+  var _ecDays = {}; (parsedMonth||[]).forEach(function(e){ if(e.date) _ecDays[e.date]=true; });
+  RST.entries = (RST.entries||[]).filter(function(r){
+    if(!r.date) return true;
+    // 1) quitar las entradas eCrews de ESTE mes (se reimportan abajo desde parsedMonth).
+    if(r.date.slice(0,7)===month && r.source==='ECREWS') return false;
+    // 2) FUENTE DE VERDAD por día: en un día que eCrews vuelve a reportar, quitar cualquier
+    //    "estado de día" residual (Franco/OFF/Standby/Sim/Sick/Vacaciones…) AUNQUE su source
+    //    NO sea ECREWS (import antiguo, PDF, otra vía). Sin esto, un cambio de eCrews como
+    //    F→SBY deja las DOS actividades pintadas el mismo día. Se conservan los VUELOS
+    //    manuales (type 'flight') y las colas de cruce de medianoche (overnight_continuation).
+    if(_ecDays[r.date] && r.type!=='flight' && r.type!=='overnight_continuation') return false;
+    return true;
+  });
   rstSave();
   // Importar las nuevas con la MISMA lógica probada del import normal (ldECrewsConfirm):
   // como ya quitamos las viejas, no hay merge → entradas IDÉNTICAS al import normal
