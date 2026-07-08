@@ -72,7 +72,7 @@ function docIconBox(id, sz, iconSz) {
   const custom = (m.icon === 'heartpulse' || m.icon === 'passport' || m.icon === 'companyid');
   const beat = (m.icon === 'heartpulse') ? ' doc-ic-beat' : '';
   const extra = custom ? ';box-shadow:0 0 14px ' + m.col + '3a,inset 0 0 0 1px ' + m.col + '30' : '';
-  return '<div class="doc-ic' + beat + '" style="width:' + sz + 'px;height:' + sz + 'px;border-radius:' + Math.round(sz * .28) + 'px;color:' + m.col + ';background:' + m.col + '22;border-color:' + m.col + '40' + extra + '">' + docIcon(id, iconSz) + '</div>';
+  return '<div class="doc-ic' + beat + '" style="width:' + sz + 'px;height:' + sz + 'px;border-radius:' + Math.round(sz * .28) + 'px;color:' + m.col + ';background:linear-gradient(140deg,' + m.col + '55,' + m.col + '16);border-color:' + m.col + '4d' + extra + '">' + docIcon(id, iconSz) + '</div>';
 }
 function docRing(state) {
   const col = state === 'exp' ? '#EF4444' : (state === 'warn' ? '#F59E0B' : (state === 'empty' ? '#94A3B8' : '#22C55E'));
@@ -195,7 +195,7 @@ function renderGrid() {
     }
     html +=
       '<div class="doc-tile" onclick="openDocSheet(\'' + id + '\')">'
-      + '<div class="doc-tile-top">' + docIconBox(id, 48, 24) + docRing(s.state) + '</div>'
+      + '<div class="doc-tile-top">' + docIconBox(id, 48, 34) + docRing(s.state) + '</div>'
       + '<div class="doc-tile-name">' + m.name + '</div>'
       + '<div class="doc-tile-sub">' + (m.sub || '&nbsp;') + '</div>'
       + '<div class="doc-tile-pill ' + s.state + '">' + PILL_LABEL[s.state] + '</div>'
@@ -259,7 +259,7 @@ function openDocSheet(id) {
     '<div class="doc-sheet" onclick="event.stopPropagation()">'
     + '<div class="doc-sheet-grab"></div>'
     + '<div class="doc-sheet-head">'
-      + docIconBox(id, 62, 31)
+      + docIconBox(id, 62, 46)
       + '<div style="flex:1;min-width:0"><div class="doc-sheet-title">' + m.name + (m.sub ? ' <span style="font-weight:600;font-size:14px;opacity:.6">' + m.sub + '</span>' : '') + '</div>'
         + '<div class="doc-sheet-sub">' + badge + '</div></div>'
       + '<div class="doc-sheet-x" onclick="closeDocSheet()">✕</div>'
