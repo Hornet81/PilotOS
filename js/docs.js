@@ -281,6 +281,7 @@ function openDocSheet(id) {
       + '<label class="doc-upload-single camera"><input type="file" accept="image/jpeg,image/jpg" capture="environment" onchange="handleDocUpload(\'' + id + '\',this)">📷 Cámara</label>'
     + '</div><div style="font-size:10px;opacity:.55;text-align:center;margin-top:6px">JPEG o PDF · máx 5 MB · se guarda en este dispositivo</div></div>'
     + imgWrap
+    + '<div class="doc-date-input" style="margin-bottom:10px"><label>Número de documento</label><input type="text" id="doc-' + id + '-number" value="' + (d.number || '') + '" placeholder="Ej. AMC-ES-8841"></div>'
     + '<div class="doc-date-form">'
       + '<div class="doc-date-input"><label>Fecha emisión</label><input type="date" id="doc-' + id + '-issued" value="' + (d.issued || '') + '"></div>'
       + '<div class="doc-date-input"><label>Fecha caducidad</label><input type="date" id="doc-' + id + '-expiry" value="' + (d.expiry || '') + '"></div>'
@@ -327,9 +328,11 @@ function updateDocDates() {}
 function saveDoc(id) {
   const iss = document.getElementById('doc-' + id + '-issued');
   const exp = document.getElementById('doc-' + id + '-expiry');
+  const numEl = document.getElementById('doc-' + id + '-number');
   if (!docsData[id]) docsData[id] = {};
   docsData[id].issued = iss ? iss.value : '';
   docsData[id].expiry = exp ? exp.value : '';
+  if (numEl) docsData[id].number = numEl.value.trim();
   try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); }
   catch(e) { showToast('⚠ Almacenamiento lleno. Imagen demasiado grande.'); return; }
   closeDocSheet();
@@ -360,6 +363,128 @@ function offerEmailAlert(alerts) {
   if (confirm('Documentos próximos a caducar. ¿Enviar aviso por email?')) {
     window.location.href = 'mailto:?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
   }
+}
+
+// ════════════════════════════════════
+//  MODO INSPECCIÓN — baraja de tarjetas VIP
+// ════════════════════════════════════
+const INSP_GRAD = {
+  medical:    'linear-gradient(135deg,#FB7185,#F43F5E 45%,#9F1239)',
+  license:    'linear-gradient(135deg,#60A5FA,#3B82F6 48%,#1E3A8A)',
+  typerating: 'linear-gradient(120deg,#A78BFA,#8B5CF6 42%,#22D3EE)',
+  lang:       'linear-gradient(135deg,#38BDF8,#0EA5E9 48%,#075985)',
+  passport:   'linear-gradient(135deg,#A5B4FC,#6366F1 48%,#312E81)',
+  company:    'linear-gradient(135deg,#34D399,#10B981 48%,#065F46)',
+};
+const VIP_WAVE = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M7 9.2a5.5 5.5 0 0 1 0 5.6"/><path d="M10.6 6.6a10 10 0 0 1 0 10.8"/><path d="M14.2 4a14.5 14.5 0 0 1 0 16"/></svg>';
+
+function _pilotName() {
+  try { const au = JSON.parse(localStorage.getItem('cafi_auth_user') || '{}'); if (au.name) return au.name; } catch(e) {}
+  try { const p = localStorage.getItem('pilot_name'); if (p) return p; } catch(e) {}
+  try { const au2 = JSON.parse(localStorage.getItem('cafi_auth_user') || '{}'); if (au2.email) return au2.email.split('@')[0]; } catch(e) {}
+  return 'Piloto';
+}
+function _mmYyyy(iso) { const d = new Date(iso); return ('0' + (d.getMonth() + 1)).slice(-2) + ' / ' + d.getFullYear(); }
+
+function inspCard(id) {
+  const m = DOCS_META[id]; const d = docsData[id] || {}; const s = docStatus(id);
+  const pc = { ok:'#15803D', warn:'#B45309', exp:'#B91C1C', empty:'#475569' }[s.state];
+  const exp = d.expiry ? _mmYyyy(d.expiry) : (s.state === 'empty' ? '—' : 'PERM.');
+  const name = (_pilotName() || '').toUpperCase();
+  const typ = (m.name + (m.sub ? ' · ' + m.sub : '')).toUpperCase();
+  const numHtml = d.number
+    ? '<div class="vip-num">' + d.number + '</div>'
+    : '<div class="vip-num" style="opacity:.4;font-size:12px">•••• ••••</div>';
+  const isImg = d.fileData && d.fileType && d.fileType.indexOf('image/') === 0;
+  let back;
+  if (isImg) {
+    back = '<img src="' + d.fileData + '" alt=""><button class="vip-back-btn" onclick="event.stopPropagation();inspZoom(\'' + id + '\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>Ampliar</button>';
+  } else if (d.fileData) {
+    back = '<div class="vip-back-empty">📄 Documento PDF adjunto</div><button class="vip-back-btn" onclick="event.stopPropagation();inspZoom(\'' + id + '\')">Abrir</button>';
+  } else {
+    back = '<div class="vip-back-empty">Sin documento escaneado.<br>Súbelo desde la ficha del documento.</div>';
+  }
+  return '<div class="vip-card" onpointermove="inspTilt(event,this)" onpointerleave="inspTiltReset(this)" onclick="inspFlip(this)">'
+    + '<div class="vip-flip">'
+      + '<div class="vip-face vip-front" style="background:' + (INSP_GRAD[id] || m.col) + '">'
+        + '<div class="vip-sheen"></div><div class="vip-holo"></div>'
+        + '<div class="vip-wave">' + VIP_WAVE + '</div>'
+        + '<div class="vip-type">' + typ + '</div>'
+        + '<div class="vip-chip"></div>'
+        + '<div class="vip-bottom">'
+          + numHtml
+          + '<div class="vip-name">' + name + '</div>'
+          + '<div class="vip-foot">'
+            + '<div><div class="k">CADUCA</div><div class="v">' + exp + '</div></div>'
+            + '<div><div class="k">EMISOR</div><div class="v" style="font-size:10px">' + m.authority + '</div></div>'
+            + '<span class="vip-status" style="color:' + pc + '">' + PILL_LABEL[s.state] + '</span>'
+          + '</div>'
+        + '</div>'
+      + '</div>'
+      + '<div class="vip-face vip-back">' + back + '<div class="vip-hint"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12a8 8 0 1 1 2.3 5.6M4 12v4M4 16H8"/></svg>Toca para volver</div></div>'
+    + '</div>'
+  + '</div>';
+}
+
+function openInspect() {
+  let ov = document.getElementById('doc-inspect');
+  if (!ov) { ov = document.createElement('div'); ov.id = 'doc-inspect'; ov.className = 'insp-ov'; document.body.appendChild(ov); }
+  const cards = Object.keys(DOCS_META).map(inspCard).join('');
+  const now = new Date(); const hh = ('0' + now.getHours()).slice(-2) + ':' + ('0' + now.getMinutes()).slice(-2);
+  ov.innerHTML =
+    '<div class="insp-head">'
+    + '<button class="insp-hbtn" onclick="closeInspect()">✕</button>'
+    + '<div><div class="insp-title">Modo inspección</div><div class="insp-sub">Consultado hoy · ' + hh + ' · sin conexión</div></div>'
+    + '<span class="insp-hbtn" style="visibility:hidden"></span>'
+    + '</div>'
+    + '<div class="insp-scroll"><div class="insp-stack">' + cards + '</div></div>';
+  ov.classList.add('open');
+  document.documentElement.classList.add('insp-lock');
+}
+function closeInspect() {
+  const ov = document.getElementById('doc-inspect');
+  if (ov) { ov.classList.remove('open'); ov.innerHTML = ''; }
+  document.documentElement.classList.remove('insp-lock');
+}
+function inspFlip(card) {
+  const f = card.querySelector('.vip-flip');
+  if (f) f.classList.toggle('flipped');
+}
+function inspTilt(e, card) {
+  const r = card.getBoundingClientRect();
+  const px = (e.clientX - r.left) / r.width - 0.5;
+  const py = (e.clientY - r.top) / r.height - 0.5;
+  card.style.transform = 'rotateX(' + (-py * 9).toFixed(2) + 'deg) rotateY(' + (px * 11).toFixed(2) + 'deg)';
+  const sheen = card.querySelector('.vip-sheen');
+  if (sheen) { sheen.style.animation = 'none'; sheen.style.backgroundPosition = (50 - px * 130).toFixed(0) + '% 0'; }
+}
+function inspTiltReset(card) {
+  card.style.transform = '';
+  const sheen = card.querySelector('.vip-sheen');
+  if (sheen) { sheen.style.animation = ''; sheen.style.backgroundPosition = ''; }
+}
+
+// ── Visor a pantalla completa ───────────────────────────────
+let _zoomRot = 0, _zoomBig = false;
+function _zoomApply() { const img = document.getElementById('zoom-img'); if (img) img.style.transform = 'rotate(' + _zoomRot + 'deg) scale(' + (_zoomBig ? 2.3 : 1) + ')'; }
+function inspZoomRot() { _zoomRot = (_zoomRot + 90) % 360; _zoomApply(); }
+function inspZoomToggle() { _zoomBig = !_zoomBig; const img = document.getElementById('zoom-img'); if (img) img.style.cursor = _zoomBig ? 'zoom-out' : 'zoom-in'; _zoomApply(); }
+function inspZoomClose() { const ov = document.getElementById('doc-zoom'); if (ov) { ov.classList.remove('open'); ov.innerHTML = ''; } }
+function inspZoom(id) {
+  const d = docsData[id] || {}; if (!d.fileData) return;
+  let ov = document.getElementById('doc-zoom');
+  if (!ov) { ov = document.createElement('div'); ov.id = 'doc-zoom'; ov.className = 'zoom-ov'; document.body.appendChild(ov); }
+  const isImg = d.fileType && d.fileType.indexOf('image/') === 0;
+  _zoomRot = 0; _zoomBig = false;
+  const media = isImg
+    ? '<img id="zoom-img" src="' + d.fileData + '" alt="" style="cursor:zoom-in" onclick="inspZoomToggle()">'
+    : '<iframe src="' + d.fileData + '" style="width:100%;height:100%;border:0;background:#fff;border-radius:8px"></iframe>';
+  ov.innerHTML =
+    '<div class="zoom-bar">'
+    + '<button class="insp-hbtn" onclick="inspZoomClose()">✕</button>'
+    + (isImg ? '<button class="insp-hbtn" onclick="inspZoomRot()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg></button>' : '<span style="width:34px"></span>')
+    + '</div><div class="zoom-body">' + media + '</div>';
+  ov.classList.add('open');
 }
 
 document.addEventListener('DOMContentLoaded', () => { renderWallet(); });
