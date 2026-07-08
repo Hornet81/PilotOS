@@ -404,20 +404,19 @@ function inspCard(id) {
   } else {
     back = '<div class="vip-back-empty">Sin documento escaneado.<br>Súbelo desde la ficha del documento.</div>';
   }
-  return '<div class="vip-card" onpointermove="inspTilt(event,this)" onpointerleave="inspTiltReset(this)" onclick="inspFlip(this)">'
+  return '<div class="vip-card" onpointermove="inspTilt(event,this)" onpointerleave="inspTiltReset(this)" onclick="inspTap(this)">'
     + '<div class="vip-flip">'
       + '<div class="vip-face vip-front" style="background:' + (INSP_GRAD[id] || m.col) + '">'
-        + '<div class="vip-sheen"></div><div class="vip-holo"></div>'
-        + '<div class="vip-wave">' + VIP_WAVE + '</div>'
-        + '<div class="vip-type">' + typ + '</div>'
-        + '<div class="vip-chip"></div>'
+        + '<div class="vip-sheen"></div>'
+        + '<div class="vip-mark">' + docIcon(id, 120) + '</div>'
+        + '<div class="vip-head"><span class="vip-type">' + typ + '</span><span class="vip-status" style="color:' + pc + '">' + PILL_LABEL[s.state] + '</span></div>'
         + '<div class="vip-bottom">'
           + numHtml
           + '<div class="vip-name">' + name + '</div>'
           + '<div class="vip-foot">'
             + '<div><div class="k">CADUCA</div><div class="v">' + exp + '</div></div>'
             + '<div><div class="k">EMISOR</div><div class="v" style="font-size:10px">' + m.authority + '</div></div>'
-            + '<span class="vip-status" style="color:' + pc + '">' + PILL_LABEL[s.state] + '</span>'
+            + '<span class="vip-brand">PILOT<b>OS</b></span>'
           + '</div>'
         + '</div>'
       + '</div>'
@@ -440,17 +439,51 @@ function openInspect() {
     + '<div class="insp-scroll"><div class="insp-stack">' + cards + '</div></div>';
   ov.classList.add('open');
   document.documentElement.classList.add('insp-lock');
+  const stack = ov.querySelector('.insp-stack');
+  const first = stack && stack.querySelector('.vip-card');
+  if (first) first.classList.add('exp');
+  setTimeout(function () { _inspLayout(stack); }, 30);
+  if (!window._inspResizeBound) { window._inspResizeBound = true; window.addEventListener('resize', function () { const o = document.getElementById('doc-inspect'); if (o && o.classList.contains('open')) _inspLayout(o.querySelector('.insp-stack')); }); }
 }
 function closeInspect() {
   const ov = document.getElementById('doc-inspect');
   if (ov) { ov.classList.remove('open'); ov.innerHTML = ''; }
   document.documentElement.classList.remove('insp-lock');
 }
-function inspFlip(card) {
-  const f = card.querySelector('.vip-flip');
-  if (f) f.classList.toggle('flipped');
+// Baraja apilada: reparte los márgenes para que las tarjetas asomen y la abierta se vea entera
+function _inspLayout(stack) {
+  if (!stack) return;
+  const cards = stack.querySelectorAll('.vip-card');
+  if (!cards.length) return;
+  const flip = cards[0].querySelector('.vip-flip');
+  const ch = (flip && flip.offsetHeight) ? flip.offsetHeight : 210;
+  const peek = 62;
+  cards.forEach(function (c, i) {
+    const last = (i === cards.length - 1);
+    if (c.classList.contains('exp')) c.style.marginBottom = '18px';
+    else if (last) c.style.marginBottom = '0px';
+    else c.style.marginBottom = (-(ch - peek)) + 'px';
+  });
+}
+// Tocar una tarjeta: si está apilada la abre (cierra las demás); si ya está abierta, la voltea
+function inspTap(card) {
+  if (card.classList.contains('exp')) {
+    const f = card.querySelector('.vip-flip');
+    if (f) f.classList.toggle('flipped');
+    return;
+  }
+  const stack = card.parentNode;
+  stack.querySelectorAll('.vip-card.exp').forEach(function (c) {
+    c.classList.remove('exp');
+    const ff = c.querySelector('.vip-flip'); if (ff) ff.classList.remove('flipped');
+    c.style.transform = '';
+  });
+  card.classList.add('exp');
+  _inspLayout(stack);
+  setTimeout(function () { card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 80);
 }
 function inspTilt(e, card) {
+  if (!card.classList.contains('exp')) return;
   const r = card.getBoundingClientRect();
   const px = (e.clientX - r.left) / r.width - 0.5;
   const py = (e.clientY - r.top) / r.height - 0.5;
