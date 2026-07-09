@@ -294,8 +294,7 @@ function renderHero() {
       + '<div class="dw-hero-next-name">' + DOCS_META[next.id].name + '</div></div>';
   }
   host.innerHTML =
-    '<div class="dw-hero" style="position:relative">'
-    + '<button onclick="event.stopPropagation();docSyncNow()" title="Sincronizar con la nube" aria-label="Sincronizar" style="position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.09);color:#22D3EE;font-size:15px;line-height:1;cursor:pointer;z-index:3;display:flex;align-items:center;justify-content:center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5M3 12a9 9 0 0 0 3 6.7L3 16M3 21v-5h5"/></svg></button>'
+    '<div class="dw-hero">'
     + '<div class="dw-hero-ring">'
       + '<svg width="66" height="66"><circle cx="33" cy="33" r="25" fill="none" stroke="rgba(120,140,170,.18)" stroke-width="5"/>'
       + '<circle cx="33" cy="33" r="25" fill="none" stroke="' + ringCol + '" stroke-width="5" stroke-linecap="round" stroke-dasharray="' + circ.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '" style="transition:stroke-dashoffset 1.1s ease .1s"/></svg>'
@@ -389,6 +388,7 @@ function renderWallet() {
   renderLegal();
   renderGrid();
   renderDocsStrip();
+  _bindDocsScrollSync();
 }
 function renderDocStatus() { renderWallet(); }
 function toggleDocPreview(id) { openDocSheet(id); }
@@ -683,13 +683,16 @@ function inspCard(id) {
       ? '<div class="vip-num">' + d.number + '</div>'
       : '<div class="vip-num" style="opacity:.4;font-size:12px">•••• ••••</div>');
   const isImg = d.fileData && d.fileType && d.fileType.indexOf('image/') === 0;
+  const isRatDoc = (id === 'typerating' || id === 'license') && d.ratings && d.ratings.length;
   let back;
-  if ((id === 'typerating' || id === 'license') && d.ratings && d.ratings.length) {
+  if (isImg) {
+    // La imagen del documento manda (es lo que enseñas al inspector). Chip de estado si es doc de habilitaciones.
+    const chip = isRatDoc ? '<div class="vip-rate-chip">' + docPillLabel(id) + '</div>' : '';
+    back = '<img src="' + d.fileData + '" alt="">' + chip + '<button class="vip-back-btn" onclick="event.stopPropagation();inspZoom(\'' + id + '\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>Ampliar</button>';
+  } else if (isRatDoc) {
     back = '<div class="vip-rates"><div class="vip-rates-h">Habilitaciones</div>' + _ratingsHtml(_effectiveRatings(id))
       + (d.fileData ? '<button class="vip-back-btn" onclick="event.stopPropagation();inspZoom(\'' + id + '\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>Ver original</button>' : '')
       + '</div>';
-  } else if (isImg) {
-    back = '<img src="' + d.fileData + '" alt=""><button class="vip-back-btn" onclick="event.stopPropagation();inspZoom(\'' + id + '\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>Ampliar</button>';
   } else if (d.fileData) {
     back = '<div class="vip-back-empty">📄 Documento PDF adjunto</div><button class="vip-back-btn" onclick="event.stopPropagation();inspZoom(\'' + id + '\')">Abrir</button>';
   } else {
@@ -708,7 +711,7 @@ function inspCard(id) {
             + '<div><div class="k">CADUCA</div><div class="v">' + exp + '</div></div>'
             + (id === 'company'
               ? '<div><div class="k">ROL</div><div class="v" style="font-size:10px">' + (d.role || _docRole()) + '</div></div>'
-              : '<div><div class="k">EMISOR</div><div class="v" style="font-size:10px">' + (d.authority || m.authority) + '</div></div>')
+              : '<div><div class="k">EMISOR</div><div class="v" style="font-size:10px">' + (d.authority || m.authority || (m.custom ? 'PERSONAL' : '—')) + '</div></div>')
             + '<span class="vip-brand">PILOT<b>OS</b></span>'
           + '</div>'
         + '</div>'
@@ -1349,10 +1352,13 @@ function docCloudPull(force, cb) {
     .catch(function () { if (cb) cb({ ok: false, reason: 'neterr' }); });
 }
 // Sincronización manual (botón) con feedback claro
+function _docSyncSpin(on) { const b = document.getElementById('docs-sync-btn'); if (b) b.classList.toggle('spin', !!on); }
 function docSyncNow() {
   if (!_docAuthToken()) { showToast('Inicia sesión para sincronizar tus documentos'); return; }
   showToast('↻ Sincronizando con la nube…');
+  _docSyncSpin(true);
   docCloudPull(true, function (res) {
+    _docSyncSpin(false);
     if (!res || !res.ok) {
       if (res && res.reason === 'empty') { showToast('Sin documentos en la nube (plan Free o nada subido)'); return; }
       showToast('⚠ No se pudo sincronizar. Revisa la conexión.'); return;
@@ -1360,6 +1366,15 @@ function docSyncNow() {
     if (res.files > 0) showToast('✓ Sincronizado · ' + res.files + ' imagen' + (res.files > 1 ? 'es' : '') + ' descargada' + (res.files > 1 ? 's' : ''));
     else showToast('✓ Al día · ' + (res.docs || 0) + ' documento' + ((res.docs || 0) === 1 ? '' : 's') + ' en la nube');
   });
+}
+// Scroll en la sección Documentos → fuerza sync (silenciosa, con throttle de 4 s dentro de docCloudPull)
+let _docsScrollBound = false;
+function _bindDocsScrollSync() {
+  if (_docsScrollBound) return;
+  const sb = document.querySelector('#scr-docs .scroll-body');
+  if (!sb) return;
+  _docsScrollBound = true;
+  sb.addEventListener('scroll', function () { if (typeof docCloudPull === 'function') docCloudPull(true); }, { passive: true });
 }
 
 document.addEventListener('DOMContentLoaded', () => { renderWallet(); });
