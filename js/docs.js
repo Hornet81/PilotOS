@@ -114,7 +114,8 @@ const PILL_LABEL = { ok:'Vigente', warn:'Caduca pronto', exp:'Caducado', empty:'
 function docStatus(id) {
   const d = docsData[id];
   const meta = DOCS_META[id] || {};
-  if (!d || (!d.fileName && !d.expiry && !d.issued)) return { state:'empty', days:null, expStr:null };
+  const hasData = d && (d.fileName || d.expiry || d.issued || d.number || d.level || (d.ratings && d.ratings.length) || (d.types && d.types.length) || (d.classes && d.classes.length) || (d.pages && d.pages.length));
+  if (!hasData) return { state:'empty', days:null, expStr:null };
   if (!d.expiry) return { state:'ok', days:null, expStr:null, noExpiry:true };
   const today = new Date(); today.setHours(0,0,0,0);
   const exp = new Date(d.expiry);
@@ -354,6 +355,10 @@ function _sheetFieldsHtml(id, d) {
       + '<div class="doc-date-input" style="margin-bottom:10px"><label>Tipos de licencia</label><input type="text" id="doc-' + id + '-types" value="' + _esc((d.types || []).join(' · ')) + '" placeholder="ATPL(A) · CPL(A) · PPL(A)"></div>'
       + '<div class="doc-date-input" style="margin-bottom:8px"><label>Habilitaciones · edita las fechas (vacío = sin caducidad)</label></div>' + _ratingsEditHtml(d.ratings, 'doc-' + id);
   }
+  if (id === 'lang') {
+    return '<div class="doc-date-input" style="margin-bottom:10px"><label>Nivel OACI</label><input type="text" id="doc-' + id + '-level" value="' + _esc(d.level) + '" placeholder="4 / 5 / 6"></div>'
+      + '<div class="doc-date-input"><label>Válido hasta (vacío = nivel 6, permanente)</label><input type="date" id="doc-' + id + '-expiry" value="' + _esc(d.expiry) + '"></div>';
+  }
   if (id === 'medical') {
     return num('Nº de certificado', 'E-10019009')
       + '<div class="doc-date-form"><div class="doc-date-input"><label>Caducidad (Clase 1)</label><input type="date" id="doc-' + id + '-expiry" value="' + _esc(d.expiry) + '"></div><div class="doc-date-input"><label>Reconocimiento</label><input type="date" id="doc-' + id + '-exam" value="' + _esc(d.examDate) + '"></div></div>'
@@ -543,6 +548,7 @@ function saveDoc(id) {
     const rr = _readRatings('doc-' + id);
     if (rr) { docsData[id].ratings = rr; docsData[id].expiry = _earliestRating(rr) || (id === 'license' ? '' : (docsData[id].expiry || '')); }
   }
+  const lvlEl = document.getElementById('doc-' + id + '-level'); if (lvlEl) docsData[id].level = lvlEl.value.trim();
   const examEl = document.getElementById('doc-' + id + '-exam'); if (examEl) docsData[id].examDate = examEl.value;
   const ecgEl = document.getElementById('doc-' + id + '-ecg'); if (ecgEl) docsData[id].lastEcg = ecgEl.value;
   const audEl = document.getElementById('doc-' + id + '-audio'); if (audEl) docsData[id].lastAudio = audEl.value;
@@ -612,9 +618,11 @@ function inspCard(id) {
   if (docIsRatings(id)) { const sm = _ratingsSummary(d.ratings); const t = sm.exp > 0 ? sm.latestExp : sm.nextValid; exp = t ? _mmYyyy(t) : '—'; }
   const name = (_pilotName() || '').toUpperCase();
   const typ = (m.name + (m.sub ? ' · ' + m.sub : '')).toUpperCase();
-  const numHtml = d.number
-    ? '<div class="vip-num">' + d.number + '</div>'
-    : '<div class="vip-num" style="opacity:.4;font-size:12px">•••• ••••</div>';
+  const numHtml = (id === 'lang' && d.level)
+    ? '<div class="vip-num">OACI ' + _esc(d.level) + '</div>'
+    : (d.number
+      ? '<div class="vip-num">' + d.number + '</div>'
+      : '<div class="vip-num" style="opacity:.4;font-size:12px">•••• ••••</div>');
   const isImg = d.fileData && d.fileType && d.fileType.indexOf('image/') === 0;
   let back;
   if ((id === 'typerating' || id === 'license') && d.ratings && d.ratings.length) {
@@ -1084,9 +1092,26 @@ function _scanFieldsHtml(data) {
   }
   if (id === 'license') {
     const typesStr = (data.license_types || []).filter(Boolean).join(' · ');
+    const lp = data.language_proficiency || null;
+    const lpBlock = lp
+      ? '<div class="scan-fld"><label>✦ Inglés detectado en observaciones → se añade a la tarjeta Inglés</label>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+        + '<input type="text" id="scan-lang-level" value="' + _esc(lp.level) + '" placeholder="Nivel OACI (4/5/6)">'
+        + '<input type="date" id="scan-lang-until" value="' + _esc(lp.valid_until) + '">'
+        + '</div></div>'
+      : '';
     return textFld('Nº de licencia', 'scan-number', data.number, 'ESP.FCL.00023776')
       + textFld('Tipos de licencia', 'scan-types', typesStr, 'ATPL(A) · CPL(A) · PPL(A)')
-      + '<div class="scan-fld"><label>Habilitaciones detectadas · revisa las fechas (vacío = sin caducidad)</label>' + _ratingsEditHtml(data.ratings, 'scan') + '</div>';
+      + '<div class="scan-fld"><label>Habilitaciones detectadas · revisa las fechas (vacío = sin caducidad)</label>' + _ratingsEditHtml(data.ratings, 'scan') + '</div>'
+      + lpBlock;
+  }
+  if (id === 'lang') {
+    const lp = data.language_proficiency || {};
+    return textFld('Idioma', 'scan-langname', lp.language || 'Inglés')
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+      + textFld('Nivel OACI', 'scan-level', lp.level || '', '4 / 5 / 6')
+      + dateFld('Válido hasta', 'scan-expiry', lp.valid_until || data.expiry_date)
+      + '</div>';
   }
   if (id === 'medical') {
     let classesHtml = '';
@@ -1141,10 +1166,25 @@ function scanSaveReview() {
   const auth = g('scan-authority'); if (auth) docsData[id].authority = auth;
   const role = g('scan-role'); if (role) docsData[id].role = role;
   const types = g('scan-types');
+  let _langNote = '';
   if (id === 'license') {
     docsData[id].types = types ? types.split(/[·,\n\/]+/).map(function (s) { return s.trim(); }).filter(Boolean) : ((_scanData && _scanData.license_types) || []).filter(Boolean);
     const rr = _readRatings('scan');
     if (rr) { docsData[id].ratings = rr; docsData[id].expiry = _earliestRating(rr) || ''; }
+    // Competencia lingüística detectada en la licencia → también a la tarjeta Inglés
+    const lpLvl = g('scan-lang-level'), lpUn = g('scan-lang-until');
+    if (lpLvl || lpUn) {
+      if (!docsData.lang) docsData.lang = {};
+      if (lpLvl) docsData.lang.level = lpLvl;
+      docsData.lang.expiry = lpUn || '';
+      if (!docsData.lang.authority) docsData.lang.authority = 'AESA';
+      docsData.lang._ts = Date.now();
+      docCloudPush('lang');
+      _langNote = ' · Inglés OACI actualizado';
+    }
+  }
+  if (id === 'lang') {
+    const lv = g('scan-level'); if (lv) docsData[id].level = lv;
   }
   if (id === 'typerating') {
     const rr = _readRatings('scan');
@@ -1174,7 +1214,7 @@ function scanSaveReview() {
   const sheet = document.getElementById('doc-sheet');
   if (sheet && sheet.classList.contains('open')) openDocSheet(id);
   docCloudPush(id);
-  showToast('✓ ' + (DOCS_META[id] ? DOCS_META[id].name : id) + ' escaneado y guardado');
+  showToast('✓ ' + (DOCS_META[id] ? DOCS_META[id].name : id) + ' escaneado y guardado' + _langNote);
 }
 
 // ════════════════════════════════════
