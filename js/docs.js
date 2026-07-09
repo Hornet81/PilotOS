@@ -23,6 +23,24 @@ const MAX_FILE_MB = 5;
 let docsData = {};
 try { docsData = JSON.parse(lsGet('pilotos_docs','{}')); } catch(e) {}
 
+// Acabados metálicos para tarjetas personalizadas
+const FINISHES = {
+  gold:   { label: 'Oro',   col: '#C9A227', grad: 'linear-gradient(135deg,#FBE7A8 0%,#E7C766 26%,#B8912F 52%,#F3DE9B 70%,#8C6E1F 100%)', light: true },
+  silver: { label: 'Plata', col: '#9AA0AB', grad: 'linear-gradient(135deg,#F4F6F9 0%,#CBD0D8 26%,#9BA1AC 52%,#EEF1F5 70%,#868C96 100%)', light: true },
+  chrome: { label: 'Cromo', col: '#8894A2', grad: 'linear-gradient(135deg,#EAF1F8 0%,#B4BEC9 26%,#7B8794 50%,#DEE7F0 70%,#68727E 100%)', light: true },
+  carbon: { label: 'Negro', col: '#4A4E57', grad: 'linear-gradient(135deg,#3B3F47 0%,#23262C 46%,#141619 76%,#2E313A 100%)', light: false },
+};
+// Re-registra en DOCS_META los documentos personalizados guardados en docsData
+function _loadCustomDocs() {
+  Object.keys(docsData).forEach(function (id) {
+    const d = docsData[id];
+    if (d && d.custom && !DOCS_META[id]) {
+      const fin = FINISHES[d.finish] || FINISHES.gold;
+      DOCS_META[id] = { name: d.name || 'Documento', sub: d.sub || '', icon: d.icon || 'custom', col: fin.col, finish: d.finish || 'gold', custom: true, renewLead: 60 };
+    }
+  });
+}
+
 // ── Iconos SVG (line icons profesionales) ───────────────────
 const DOC_SVG = {
   cross:  '<rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8M8 12h8"/>',
@@ -33,6 +51,7 @@ const DOC_SVG = {
   globe:  '<circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19"/><path d="M12 2.5c2.6 2.7 3.9 5.9 3.9 9.5S14.6 18.8 12 21.5C9.4 18.8 8.1 15.6 8.1 12S9.4 5.2 12 2.5z"/>',
   book:   '<path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H19v20H7.5A2.5 2.5 0 0 1 5 19.5z"/><path d="M5 17.5h14"/><circle cx="12" cy="8.5" r="2.3"/>',
   badge:  '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 3v1.6h6V3"/><circle cx="12" cy="10" r="2.2"/><path d="M8.4 16.2c.7-1.7 6.5-1.7 7.2 0"/>',
+  custom: '<circle cx="12" cy="9" r="6"/><path d="M8.6 13.6 7 22l5-2.8 5 2.8-1.6-8.4"/><path d="M12 6.3l.9 1.9 2.1.2-1.6 1.4.5 2-1.9-1.1-1.9 1.1.5-2-1.6-1.4 2.1-.2z"/>',
   // Pasaporte (SVG del usuario, viewBox 500x500) — se pinta con degradado en docIcon
   passport: '<path d="M335.1,83.76c-4.05-3.48-9.4-5-14.68-4.19l-165.92,17.38h186.94c-.19-5.09-2.46-9.87-6.34-13.19Z"/><path d="M349.01,105.95h-198.02c-1.2,0-2.37.12-3.5.34-.11.02-.22.04-.32.07-.52.11-1.03.24-1.54.4-.03,0-.07.02-.1.03-6.24,1.96-11.05,7.18-12.41,13.66,0,.05-.02.09-.03.14-.1.51-.18,1.03-.24,1.56,0,.09-.03.17-.03.26-.06.6-.09,1.21-.09,1.82v278.15c0,10.08,8.2,18.27,18.27,18.27h198.02c10.08,0,18.27-8.2,18.27-18.27V124.22c0-10.08-8.2-18.27-18.27-18.27ZM305.06,176.25c-6.58,3.56-13.72,6.45-21.23,8.62-5.56-15.02-13.33-26.08-19.69-33.36,16.37,3.32,30.71,12.27,40.92,24.74ZM303.2,268.35c-10.05,11.33-23.66,19.45-39.06,22.57,5.96-6.82,13.16-16.95,18.62-30.55,7.17,2,14.02,4.67,20.44,7.98ZM255.17,157.05c5.66,6.27,13.09,16.33,18.48,30.28-6.03,1.18-12.22,1.9-18.48,2.16v-32.45ZM255.17,199.85c7.36-.28,14.65-1.17,21.73-2.63,1.57,5.75,2.74,12.02,3.34,18.83h-25.06v-16.2ZM255.17,226.38h25.06c-.7,7.97-2.21,15.22-4.21,21.76-6.77-1.33-13.74-2.14-20.85-2.4v-19.36ZM255.17,256.09c5.88.24,11.65.87,17.27,1.9-5.25,12.4-12.02,21.49-17.27,27.34v-29.24ZM227.56,257.99c5.62-1.03,11.39-1.66,17.27-1.9v29.23c-5.25-5.84-12.02-14.94-17.27-27.33ZM235.86,290.92c-15.4-3.12-29-11.24-39.06-22.57,6.42-3.31,13.27-5.98,20.44-7.98,5.46,13.6,12.66,23.73,18.62,30.55ZM223.98,248.14c-2-6.54-3.51-13.78-4.21-21.76h25.06v19.36c-7.11.26-14.08,1.07-20.85,2.4ZM219.77,216.05c.6-6.8,1.78-13.07,3.35-18.82,7.07,1.45,14.35,2.34,21.71,2.62v16.2h-25.06ZM226.38,187.34c5.38-13.89,12.79-23.95,18.45-30.24v32.39c-6.25-.26-12.43-.98-18.45-2.16ZM235.86,151.51c-6.36,7.28-14.14,18.34-19.69,33.36-7.51-2.17-14.65-5.06-21.23-8.62,10.2-12.47,24.55-21.43,40.92-24.74ZM188.96,184.76c7.44,4.13,15.55,7.47,24.08,9.95-1.74,6.5-3.04,13.6-3.66,21.33h-30.29c.82-11.37,4.31-22.01,9.87-31.28ZM209.38,226.38c.71,8.88,2.31,16.93,4.47,24.2-8.23,2.34-16.08,5.49-23.41,9.43-6.41-9.81-10.46-21.29-11.35-33.63h30.29ZM316.42,377.14h-132.83c-2.49,0-4.5-2.01-4.5-4.5s2.01-4.5,4.5-4.5h132.83c2.49,0,4.5,2.01,4.5,4.5s-2.01,4.5-4.5,4.5ZM316.42,344.63h-132.83c-2.49,0-4.5-2.01-4.5-4.5s2.01-4.5,4.5-4.5h132.83c2.49,0,4.5,2.01,4.5,4.5s-2.01,4.5-4.5,4.5ZM309.56,260.01c-7.33-3.94-15.18-7.09-23.41-9.43,2.16-7.27,3.77-15.32,4.47-24.2h30.29c-.89,12.34-4.94,23.82-11.35,33.63ZM290.62,216.05c-.61-7.73-1.91-14.83-3.66-21.33,8.53-2.49,16.63-5.82,24.08-9.95,5.56,9.27,9.05,19.91,9.87,31.28h-30.29Z"/>',
   // Tarjeta de compañía / credencial con lanyard (SVG del usuario, viewBox 612x792)
@@ -255,6 +274,7 @@ function renderGrid() {
       + '<div class="doc-tile-foot">' + foot + '</div>'
       + '</div>';
   });
+  html += '<div class="doc-tile doc-add" onclick="docAddOpen()"><div class="doc-add-inner"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>Añadir documento</span></div></div>';
   grid.innerHTML = html;
 }
 
@@ -278,6 +298,7 @@ function renderDocsStrip() {
 function renderWallet() {
   const grid = document.getElementById('doc-grid');
   if (!grid) return;
+  _loadCustomDocs();
   renderHero();
   renderLegal();
   renderGrid();
@@ -310,6 +331,37 @@ function _sheetFieldsHtml(id, d) {
   return num('Número de documento', 'Ej. AMC-ES-8841')
     + '<div class="doc-date-form"><div class="doc-date-input"><label>Fecha emisión</label><input type="date" id="doc-' + id + '-issued" value="' + _esc(d.issued) + '"></div>' + exp + '</div>';
 }
+function docAddOpen() {
+  const id = 'cst_' + Date.now().toString(36);
+  docsData[id] = { custom: true, name: 'Nuevo documento', finish: 'gold', icon: 'custom' };
+  _loadCustomDocs();
+  try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); } catch (e) {}
+  renderWallet();
+  openDocSheet(id);
+}
+function _customEditHtml(id, m) {
+  const cur = m.finish || 'gold';
+  const chips = Object.keys(FINISHES).map(function (k) {
+    const f = FINISHES[k];
+    return '<div class="fin-chip' + (k === cur ? ' on' : '') + '" data-fin="' + k + '" onclick="docSetFinish(\'' + id + '\',\'' + k + '\')"><span class="fin-swatch" style="background:' + f.grad + '"></span>' + f.label + '</div>';
+  }).join('');
+  return '<div class="doc-date-input" style="margin-bottom:10px"><label>Nombre del documento</label><input type="text" id="doc-' + id + '-name" value="' + _esc(m.name) + '"></div>'
+    + '<div class="doc-date-input" style="margin-bottom:14px"><label>Acabado de la tarjeta</label><div class="fin-picker" id="doc-' + id + '-finish" data-fin="' + cur + '">' + chips + '</div></div>';
+}
+function docSetFinish(id, key) {
+  const p = document.getElementById('doc-' + id + '-finish');
+  if (!p) return;
+  p.setAttribute('data-fin', key);
+  p.querySelectorAll('.fin-chip').forEach(function (c) { c.classList.toggle('on', c.getAttribute('data-fin') === key); });
+}
+function docDelete(id) {
+  if (typeof confirm === 'function' && !confirm('¿Eliminar este documento?')) return;
+  delete docsData[id]; delete DOCS_META[id];
+  try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); } catch (e) {}
+  closeDocSheet();
+  renderWallet();
+  showToast('Documento eliminado');
+}
 function openDocSheet(id) {
   const ov = document.getElementById('doc-sheet');
   if (!ov) return;
@@ -341,11 +393,12 @@ function openDocSheet(id) {
       + '<div class="doc-sheet-x" onclick="closeDocSheet()">✕</div>'
     + '</div>'
     + '<div class="doc-sheet-rows">' + rows + '</div>'
+    + (m.custom ? _customEditHtml(id, m) : '')
     + '<div class="doc-sheet-sectlbl">ARCHIVO Y FECHAS</div>'
     + '<button class="doc-scan-btn" onclick="docScan(\'' + id + '\')"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M4 12h16"/></svg>✦ Escanear con IA</button>'
     + '<div class="doc-upload-area"><div class="doc-upload-row">'
-      + '<label class="doc-upload-single"><input type="file" accept="image/jpeg,image/jpg,application/pdf" onchange="handleDocUpload(\'' + id + '\',this)">📎 Archivo</label>'
-      + '<label class="doc-upload-single camera"><input type="file" accept="image/jpeg,image/jpg" capture="environment" onchange="handleDocUpload(\'' + id + '\',this)">📷 Cámara</label>'
+      + '<label class="doc-upload-single"><input type="file" accept="image/*,application/pdf" onchange="handleDocUpload(\'' + id + '\',this)">📎 Archivo</label>'
+      + '<label class="doc-upload-single camera"><input type="file" accept="image/*" capture="environment" onchange="handleDocUpload(\'' + id + '\',this)">📷 Cámara</label>'
     + '</div><div style="font-size:10px;opacity:.55;text-align:center;margin-top:6px">JPEG o PDF · máx 5 MB · se guarda en este dispositivo</div></div>'
     + imgWrap
     + _sheetFieldsHtml(id, d)
@@ -353,6 +406,7 @@ function openDocSheet(id) {
       + '<button class="doc-save-btn" style="margin:0;width:auto;flex:1" onclick="saveDoc(\'' + id + '\')">Guardar</button>'
       + dl
     + '</div>'
+    + (m.custom ? '<button class="doc-del-btn" onclick="docDelete(\'' + id + '\')">Eliminar documento</button>' : '')
     + '</div>';
   ov.classList.add('open');
   ov.onclick = closeDocSheet;
@@ -411,6 +465,10 @@ function saveDoc(id) {
   const examEl = document.getElementById('doc-' + id + '-exam'); if (examEl) docsData[id].examDate = examEl.value;
   const ecgEl = document.getElementById('doc-' + id + '-ecg'); if (ecgEl) docsData[id].lastEcg = ecgEl.value;
   const audEl = document.getElementById('doc-' + id + '-audio'); if (audEl) docsData[id].lastAudio = audEl.value;
+  const nameEl = document.getElementById('doc-' + id + '-name');
+  if (nameEl && DOCS_META[id] && DOCS_META[id].custom) { const nm = nameEl.value.trim() || 'Documento'; DOCS_META[id].name = nm; docsData[id].name = nm; docsData[id].custom = true; }
+  const finP = document.getElementById('doc-' + id + '-finish');
+  if (finP && DOCS_META[id] && DOCS_META[id].custom) { const fk = finP.getAttribute('data-fin') || 'gold'; const fc = (FINISHES[fk] || FINISHES.gold).col; DOCS_META[id].finish = fk; docsData[id].finish = fk; DOCS_META[id].col = fc; docsData[id].col = fc; }
   try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); }
   catch(e) { showToast('⚠ Almacenamiento lleno. Imagen demasiado grande.'); return; }
   closeDocSheet();
@@ -488,7 +546,7 @@ function inspCard(id) {
   }
   return '<div class="vip-slot"><div class="vip-card" onpointermove="inspTilt(event,this)" onpointerleave="inspTiltReset(this)" onclick="inspTap(this)">'
     + '<div class="vip-flip">'
-      + '<div class="vip-face vip-front" style="background:' + (INSP_GRAD[id] || m.col) + '">'
+      + '<div class="vip-face vip-front' + (m.finish ? ((FINISHES[m.finish] && FINISHES[m.finish].light) ? ' metal metal-light' : ' metal metal-dark') : '') + '" style="background:' + (m.finish ? (FINISHES[m.finish] || FINISHES.gold).grad : (INSP_GRAD[id] || m.col)) + '">'
         + '<div class="vip-sheen"></div>'
         + '<div class="vip-mark">' + docIcon(id, 120) + '</div>'
         + '<div class="vip-head"><span class="vip-type">' + typ + '</span><span class="vip-status" style="color:' + pc + '">' + PILL_LABEL[s.state] + '</span></div>'
@@ -614,7 +672,7 @@ function inspZoom(id) {
 //  ESCÁNER DE DOCUMENTOS (cámara + IA)
 // ════════════════════════════════════
 let _scanId = null, _scanStream = null, _scanTrack = null, _scanShot = null, _scanStepTimer = null, _scanFlashOn = false;
-let _scanAuto = true, _scanRAF = null, _scanPrev = null, _scanSteady = 0, _scanFiring = false, _scanLast = 0, _scanAlignedState = null, _scanData = null, _scanDiffEMA = null;
+let _scanAuto = true, _scanRAF = null, _scanPrev = null, _scanSteady = 0, _scanFiring = false, _scanLast = 0, _scanAlignedState = null, _scanData = null, _scanDiffEMA = null, _scanFmt = 'doc';
 const _XSVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 function _esc(s) { return (s == null ? '' : String(s)).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 
@@ -729,6 +787,7 @@ function _scanLoop() {
 }
 function openScanner(id) {
   _scanId = id; _scanShot = null;
+  _scanFmt = ((DOCS_META[id] || {}).format === 'card') ? 'card' : 'doc';
   const ov = _scanOv(); ov.classList.add('open');
   document.documentElement.classList.add('insp-lock');
   _scanPhaseCamera();
@@ -738,10 +797,13 @@ function _scanPhaseCamera() {
   ov.innerHTML =
     '<div class="scan-top"><span class="scan-ic" onclick="closeScanner()">' + _XSVG + '</span>'
     + '<span class="t">Escanear · ' + (m.name || 'documento') + '</span>'
-    + '<span class="scan-ic" id="scan-flash" onclick="scanToggleFlash()" style="visibility:hidden"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg></span></div>'
+    + '<span style="display:flex;gap:8px">'
+      + '<span class="scan-ic" onclick="scanToggleFmt()" title="Girar formato"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="8" rx="1.5"/><path d="M8 4.5v3M16 4.5v3M8 16.5v3M16 16.5v3"/></svg></span>'
+      + '<span class="scan-ic" id="scan-flash" onclick="scanToggleFlash()" style="visibility:hidden"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg></span>'
+    + '</span></div>'
     + '<div class="scan-cam"><video id="scan-video" autoplay playsinline muted></video><div class="scan-grid"></div>'
-      + '<div class="scan-frame' + (((DOCS_META[_scanId] || {}).format === 'card') ? ' card' : '') + '"><div class="scan-cnr tl"></div><div class="scan-cnr tr"></div><div class="scan-cnr bl"></div><div class="scan-cnr br"></div><div class="scan-laser"></div></div>'
-      + '<div class="scan-guide"><span style="width:7px;height:7px;border-radius:50%;background:#22D3EE;box-shadow:0 0 8px #22D3EE"></span>' + (((DOCS_META[_scanId] || {}).format === 'card') ? 'Encuadra la tarjeta en horizontal' : 'Encuadra el documento en el marco') + '</div>'
+      + '<div class="scan-frame' + (_scanFmt === 'card' ? ' card' : '') + '"><div class="scan-cnr tl"></div><div class="scan-cnr tr"></div><div class="scan-cnr bl"></div><div class="scan-cnr br"></div><div class="scan-laser"></div></div>'
+      + '<div class="scan-guide"><span style="width:7px;height:7px;border-radius:50%;background:#22D3EE;box-shadow:0 0 8px #22D3EE"></span>' + (_scanFmt === 'card' ? 'Encuadra la tarjeta en horizontal' : 'Encuadra el documento en el marco') + '</div>'
     + '</div>'
     + '<div class="scan-ctrls">'
       + '<label class="scan-ic"><input type="file" accept="image/*" onchange="scanFromFile(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></label>'
@@ -769,6 +831,14 @@ function _scanFallback() {
     + '<div class="scan-mid"><div style="font-size:38px;margin-bottom:12px">📷</div><div style="color:#fff;font-size:14px;margin-bottom:6px">Cámara no disponible</div>'
     + '<div style="color:rgba(255,255,255,.5);font-size:12px;margin-bottom:22px;max-width:260px">Haz una foto del documento o elige una de tu galería.</div>'
     + '<label class="scan-save" style="max-width:240px;position:relative;overflow:hidden;display:inline-block;text-align:center">Hacer foto o subir<input type="file" accept="image/*" capture="environment" onchange="scanFromFile(this)" style="position:absolute;inset:0;opacity:0"></label></div>';
+}
+function scanToggleFmt() {
+  _scanFmt = (_scanFmt === 'card') ? 'doc' : 'card';
+  const fr = document.querySelector('#doc-scan .scan-frame');
+  if (fr) fr.classList.toggle('card', _scanFmt === 'card');
+  _scanAlignedState = null; _scanSteady = 0;
+  const g = document.querySelector('#doc-scan .scan-guide');
+  if (g) g.innerHTML = '<span style="width:7px;height:7px;border-radius:50%;background:#22D3EE;box-shadow:0 0 8px #22D3EE"></span>' + (_scanFmt === 'card' ? 'Encuadra la tarjeta en horizontal' : 'Encuadra el documento en el marco');
 }
 function scanToggleFlash() {
   if (!_scanTrack) return;
