@@ -16,8 +16,8 @@ const DOCS_META = {
   license:    { name: 'Licencia',      sub: 'ATPL/CPL',  icon: 'idcard', col: '#3B82F6', authority: 'AESA',          required: true, renewLead: 60 },
   typerating: { name: 'Habilitación',  sub: 'Type A320', icon: 'planejet', col: '#8B5CF6', authority: 'AESA / TRE',  required: true, renewLead: 60 },
   lang:       { name: 'Inglés',        sub: 'Nivel OACI',icon: 'globe',  col: '#0EA5E9', authority: 'AESA',          required: true, renewLead: 90 },
-  passport:   { name: 'Pasaporte',     sub: '',          icon: 'passport', col: '#818CF8', authority: 'Min. Interior',              renewLead: 120 },
-  company:    { name: 'T. Compañía',   sub: 'Vueling',   icon: 'companyid', col: '#10B981', authority: 'Vueling',                    renewLead: 30 },
+  passport:   { name: 'Pasaporte',     sub: '',          icon: 'passport', col: '#818CF8', authority: 'Min. Interior',  format: 'card', renewLead: 120 },
+  company:    { name: 'T. Compañía',   sub: 'Vueling',   icon: 'companyid', col: '#10B981', authority: 'Vueling',       format: 'card', role: true, renewLead: 30 },
 };
 const MAX_FILE_MB = 5;
 let docsData = {};
@@ -282,11 +282,17 @@ function openDocSheet(id) {
       + '<label class="doc-upload-single camera"><input type="file" accept="image/jpeg,image/jpg" capture="environment" onchange="handleDocUpload(\'' + id + '\',this)">📷 Cámara</label>'
     + '</div><div style="font-size:10px;opacity:.55;text-align:center;margin-top:6px">JPEG o PDF · máx 5 MB · se guarda en este dispositivo</div></div>'
     + imgWrap
-    + '<div class="doc-date-input" style="margin-bottom:10px"><label>Número de documento</label><input type="text" id="doc-' + id + '-number" value="' + (d.number || '') + '" placeholder="Ej. AMC-ES-8841"></div>'
-    + '<div class="doc-date-form">'
-      + '<div class="doc-date-input"><label>Fecha emisión</label><input type="date" id="doc-' + id + '-issued" value="' + (d.issued || '') + '"></div>'
-      + '<div class="doc-date-input"><label>Fecha caducidad</label><input type="date" id="doc-' + id + '-expiry" value="' + (d.expiry || '') + '"></div>'
-    + '</div>'
+    + (id === 'company'
+      ? ('<div class="doc-date-input" style="margin-bottom:10px"><label>Rol</label><input type="text" id="doc-' + id + '-role" value="' + (d.role || _docRole()) + '" placeholder="Comandante"></div>'
+        + '<div class="doc-date-form">'
+        + '<div class="doc-date-input"><label>Nº de empleado</label><input type="text" id="doc-' + id + '-number" value="' + (d.number || '') + '" placeholder="Ej. 6578"></div>'
+        + '<div class="doc-date-input"><label>Fecha caducidad</label><input type="date" id="doc-' + id + '-expiry" value="' + (d.expiry || '') + '"></div>'
+        + '</div>')
+      : ('<div class="doc-date-input" style="margin-bottom:10px"><label>Número de documento</label><input type="text" id="doc-' + id + '-number" value="' + (d.number || '') + '" placeholder="Ej. AMC-ES-8841"></div>'
+        + '<div class="doc-date-form">'
+        + '<div class="doc-date-input"><label>Fecha emisión</label><input type="date" id="doc-' + id + '-issued" value="' + (d.issued || '') + '"></div>'
+        + '<div class="doc-date-input"><label>Fecha caducidad</label><input type="date" id="doc-' + id + '-expiry" value="' + (d.expiry || '') + '"></div>'
+        + '</div>'))
     + '<div style="display:flex;gap:10px;margin-top:16px">'
       + '<button class="doc-save-btn" style="margin:0;width:auto;flex:1" onclick="saveDoc(\'' + id + '\')">Guardar</button>'
       + dl
@@ -334,6 +340,8 @@ function saveDoc(id) {
   docsData[id].issued = iss ? iss.value : '';
   docsData[id].expiry = exp ? exp.value : '';
   if (numEl) docsData[id].number = numEl.value.trim();
+  const roleEl = document.getElementById('doc-' + id + '-role');
+  if (roleEl) docsData[id].role = roleEl.value.trim();
   try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); }
   catch(e) { showToast('⚠ Almacenamiento lleno. Imagen demasiado grande.'); return; }
   closeDocSheet();
@@ -416,7 +424,9 @@ function inspCard(id) {
           + '<div class="vip-name">' + name + '</div>'
           + '<div class="vip-foot">'
             + '<div><div class="k">CADUCA</div><div class="v">' + exp + '</div></div>'
-            + '<div><div class="k">EMISOR</div><div class="v" style="font-size:10px">' + (d.authority || m.authority) + '</div></div>'
+            + (id === 'company'
+              ? '<div><div class="k">ROL</div><div class="v" style="font-size:10px">' + (d.role || _docRole()) + '</div></div>'
+              : '<div><div class="k">EMISOR</div><div class="v" style="font-size:10px">' + (d.authority || m.authority) + '</div></div>')
             + '<span class="vip-brand">PILOT<b>OS</b></span>'
           + '</div>'
         + '</div>'
@@ -570,8 +580,8 @@ function _scanPhaseCamera() {
     + '<span class="t">Escanear · ' + (m.name || 'documento') + '</span>'
     + '<span class="scan-ic" id="scan-flash" onclick="scanToggleFlash()" style="visibility:hidden"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg></span></div>'
     + '<div class="scan-cam"><video id="scan-video" autoplay playsinline muted></video><div class="scan-grid"></div>'
-      + '<div class="scan-frame"><div class="scan-cnr tl"></div><div class="scan-cnr tr"></div><div class="scan-cnr bl"></div><div class="scan-cnr br"></div><div class="scan-laser"></div></div>'
-      + '<div class="scan-guide"><span style="width:7px;height:7px;border-radius:50%;background:#22D3EE;box-shadow:0 0 8px #22D3EE"></span>Encuadra el documento en el marco</div>'
+      + '<div class="scan-frame' + (((DOCS_META[_scanId] || {}).format === 'card') ? ' card' : '') + '"><div class="scan-cnr tl"></div><div class="scan-cnr tr"></div><div class="scan-cnr bl"></div><div class="scan-cnr br"></div><div class="scan-laser"></div></div>'
+      + '<div class="scan-guide"><span style="width:7px;height:7px;border-radius:50%;background:#22D3EE;box-shadow:0 0 8px #22D3EE"></span>' + (((DOCS_META[_scanId] || {}).format === 'card') ? 'Encuadra la tarjeta en horizontal' : 'Encuadra el documento en el marco') + '</div>'
     + '</div>'
     + '<div class="scan-ctrls">'
       + '<label class="scan-ic"><input type="file" accept="image/*" onchange="scanFromFile(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></label>'
@@ -604,11 +614,25 @@ function scanToggleFlash() {
   _scanFlashOn = !_scanFlashOn;
   try { _scanTrack.applyConstraints({ advanced: [{ torch: _scanFlashOn }] }); } catch (e) {}
 }
+function _docRole() {
+  try { const r = (typeof _ldDominantRole === 'function') ? _ldDominantRole() : 'FO'; return r === 'CPT' ? 'Comandante' : 'Copiloto'; } catch (e) { return ''; }
+}
+function _cropAspect(v, aspect) {
+  const vw = v.videoWidth, vh = v.videoHeight;
+  let tw, th;
+  if (vw / vh > aspect) { th = vh; tw = Math.round(vh * aspect); }
+  else { tw = vw; th = Math.round(vw / aspect); }
+  const sx = Math.round((vw - tw) / 2), sy = Math.round((vh - th) / 2);
+  const cv = document.createElement('canvas'); cv.width = tw; cv.height = th;
+  cv.getContext('2d').drawImage(v, sx, sy, tw, th, 0, 0, tw, th);
+  return cv;
+}
 function scanCapture() {
   const v = document.getElementById('scan-video');
   if (!v || !v.videoWidth) { showToast('Espera a que la cámara enfoque'); return; }
-  const cv = document.createElement('canvas'); cv.width = v.videoWidth; cv.height = v.videoHeight;
-  cv.getContext('2d').drawImage(v, 0, 0);
+  let cv;
+  if ((DOCS_META[_scanId] || {}).format === 'card') { cv = _cropAspect(v, 1.586); }
+  else { cv = document.createElement('canvas'); cv.width = v.videoWidth; cv.height = v.videoHeight; cv.getContext('2d').drawImage(v, 0, 0); }
   const data = cv.toDataURL('image/jpeg', 0.85);
   _scanStopStream();
   _scanProcess(data);
@@ -674,16 +698,22 @@ function _scanReview(data) {
     '<div class="scan-top"><span class="scan-ic" onclick="closeScanner()">' + _XSVG + '</span><span class="t">Datos detectados</span><span class="scan-ic" style="visibility:hidden"></span></div>'
     + '<div class="scan-review">'
       + '<div style="display:flex;gap:13px;align-items:center;margin-bottom:16px">'
-        + (_scanShot ? '<div style="width:60px;height:76px;border-radius:9px;overflow:hidden;flex-shrink:0;border:1px solid rgba(255,255,255,.15)"><img src="' + _scanShot + '" style="width:100%;height:100%;object-fit:cover"></div>' : '')
+        + (_scanShot ? '<div style="' + (m.format === 'card' ? 'width:104px;height:66px' : 'width:60px;height:76px') + ';border-radius:9px;overflow:hidden;flex-shrink:0;border:1px solid rgba(255,255,255,.15)"><img src="' + _scanShot + '" style="width:100%;height:100%;object-fit:cover"></div>' : '')
         + '<div style="min-width:0"><div style="font-size:15px;font-weight:700;color:#fff">' + _esc(data.title || m.name) + '</div>'
           + '<div class="scan-rev-badge" style="color:' + cc[0] + ';background:' + cc[1] + ';border:1px solid ' + cc[2] + ';margin-top:8px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>' + cc[3] + '</div></div>'
       + '</div>'
-      + '<div class="scan-fld"><label>Número de documento</label><input type="text" id="scan-number" value="' + _esc(data.number) + '"></div>'
-      + '<div class="scan-fld"><label>Autoridad emisora</label><input type="text" id="scan-authority" value="' + _esc(data.authority) + '"></div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
-        + '<div class="scan-fld"><label>Emisión</label><input type="date" id="scan-issue" value="' + _esc(data.issue_date) + '"></div>'
-        + '<div class="scan-fld"><label>Caducidad</label><input type="date" id="scan-expiry" value="' + _esc(data.expiry_date) + '"></div>'
-      + '</div>'
+      + (_scanId === 'company'
+        ? ('<div class="scan-fld"><label>Rol</label><input type="text" id="scan-role" value="' + (_esc(data.role) || _docRole()) + '"></div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+          + '<div class="scan-fld"><label>Nº de empleado</label><input type="text" id="scan-number" value="' + _esc(data.employee_number || data.number) + '"></div>'
+          + '<div class="scan-fld"><label>Caducidad</label><input type="date" id="scan-expiry" value="' + _esc(data.expiry_date) + '"></div>'
+          + '</div>')
+        : ('<div class="scan-fld"><label>Número de documento</label><input type="text" id="scan-number" value="' + _esc(data.number) + '"></div>'
+          + '<div class="scan-fld"><label>Autoridad emisora</label><input type="text" id="scan-authority" value="' + _esc(data.authority) + '"></div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+          + '<div class="scan-fld"><label>Emisión</label><input type="date" id="scan-issue" value="' + _esc(data.issue_date) + '"></div>'
+          + '<div class="scan-fld"><label>Caducidad</label><input type="date" id="scan-expiry" value="' + _esc(data.expiry_date) + '"></div>'
+          + '</div>'))
       + (data.notes ? '<div style="font-size:11.5px;color:#FBBF24;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:10px;padding:9px 12px;margin-bottom:12px">' + _esc(data.notes) + '</div>' : '')
       + '<button class="scan-save" onclick="scanSaveReview()">Guardar en la tarjeta</button>'
       + '<button class="scan-retry" onclick="openScanner(_scanId)">Repetir escaneo</button>'
@@ -697,6 +727,7 @@ function scanSaveReview() {
   docsData[id].issued = g('scan-issue');
   docsData[id].expiry = g('scan-expiry');
   const auth = g('scan-authority'); if (auth) docsData[id].authority = auth;
+  const role = g('scan-role'); if (role) docsData[id].role = role;
   if (_scanShot) {
     docsData[id].fileData = _scanShot;
     docsData[id].fileName = 'escaneo.jpg';
