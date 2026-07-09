@@ -155,6 +155,30 @@ function _earliestRating(ratings) {
   (ratings || []).forEach(function (r) { const u = r.until || r.valid_until; if (u) { if (!min || u < min) min = u; } });
   return min;
 }
+// Resumen de un certificado con varias habilitaciones (cuántas caducadas / por renovar / vigentes)
+function _ratingsSummary(ratings) {
+  const sum = { total: 0, exp: 0, warn: 0, ok: 0, expNames: [], nextValid: null, latestExp: null };
+  (ratings || []).forEach(function (r) {
+    const u = r.until || r.valid_until; if (!u) return;
+    sum.total++;
+    const days = Math.floor((new Date(u) - new Date().setHours(0, 0, 0, 0)) / 86400000);
+    if (days < 0) { sum.exp++; sum.expNames.push(r.name); if (!sum.latestExp || u > sum.latestExp) sum.latestExp = u; }
+    else { if (days <= 90) sum.warn++; else sum.ok++; if (!sum.nextValid || u < sum.nextValid) sum.nextValid = u; }
+  });
+  return sum;
+}
+function _fmtShort(iso) { if (!iso) return '—'; return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }); }
+function docIsRatings(id) { const m = DOCS_META[id] || {}; const d = docsData[id] || {}; return !!(m.ratings && d.ratings && d.ratings.length); }
+// Etiqueta de estado consciente de habilitaciones: "1 caducada" en vez de "Caducado" para todo el bloque
+function docPillLabel(id) {
+  if (docIsRatings(id)) {
+    const sm = _ratingsSummary(docsData[id].ratings);
+    if (sm.exp > 0) return sm.exp + (sm.exp > 1 ? ' caducadas' : ' caducada');
+    if (sm.warn > 0) return sm.warn + ' por renovar';
+    if (sm.total > 0) return 'Vigentes';
+  }
+  return PILL_LABEL[docStatus(id).state];
+}
 // Habilitaciones EDITABLES (nombre + fecha), para poder corregir lo que detecta la IA
 function _ratingsEditHtml(ratings, prefix) {
   const rts = (ratings || []).map(function (r) { return { name: r.name || '', until: r.until || r.valid_until || '' }; });
@@ -260,6 +284,12 @@ function renderGrid() {
     const s = docStatus(id);
     let foot;
     if (s.state === 'empty') foot = '<span>Toca para añadir</span>';
+    else if (docIsRatings(id)) {
+      const sm = _ratingsSummary(docsData[id].ratings);
+      const okN = sm.ok + sm.warn;
+      foot = '<span>' + (sm.exp > 0 ? _fmtShort(sm.latestExp) : _fmtShort(sm.nextValid)) + '</span>'
+        + '<b style="color:' + (sm.exp > 0 ? '#F87171' : (sm.warn > 0 ? '#F59E0B' : '#4ADE80')) + '">' + okN + '/' + sm.total + '</b>';
+    }
     else if (s.noExpiry) foot = '<span>Subido</span><b>Permanente</b>';
     else {
       const fc = s.days < 0 ? '#F87171' : (s.days <= 90 ? '#F59E0B' : '#4ADE80');
@@ -270,7 +300,7 @@ function renderGrid() {
       + '<div class="doc-tile-top">' + docIconBox(id, 48, 34) + docRing(s.state) + '</div>'
       + '<div class="doc-tile-name">' + m.name + '</div>'
       + '<div class="doc-tile-sub">' + (m.sub || '&nbsp;') + '</div>'
-      + '<div class="doc-tile-pill ' + s.state + '">' + PILL_LABEL[s.state] + '</div>'
+      + '<div class="doc-tile-pill ' + s.state + '">' + docPillLabel(id) + '</div>'
       + '<div class="doc-tile-foot">' + foot + '</div>'
       + '</div>';
   });
@@ -413,12 +443,25 @@ function openDocSheet(id) {
   const d = docsData[id] || {};
   const s = docStatus(id);
   const pillCol = { ok:'#22C55E', warn:'#F59E0B', exp:'#EF4444', empty:'#94A3B8' }[s.state];
-  const badge = '<span class="doc-tile-pill ' + s.state + '">' + PILL_LABEL[s.state] + '</span>'
-    + (s.days != null && s.days >= 0 ? '<span style="font-size:12px;font-weight:600;color:' + pillCol + '">' + s.days + ' días restantes</span>' : '');
+  const isRat = docIsRatings(id);
+  const ratSum = isRat ? _ratingsSummary(d.ratings) : null;
+  const badge = '<span class="doc-tile-pill ' + s.state + '">' + docPillLabel(id) + '</span>'
+    + (isRat
+        ? '<span style="font-size:12px;font-weight:600;color:' + pillCol + '">' + (ratSum.ok + ratSum.warn) + ' de ' + ratSum.total + ' vigentes</span>'
+        : (s.days != null && s.days >= 0 ? '<span style="font-size:12px;font-weight:600;color:' + pillCol + '">' + s.days + ' días restantes</span>' : ''));
   // Filas de datos
   let rows = '<div class="doc-sheet-row"><span class="k">Autoridad emisora</span><span class="v">' + m.authority + '</span></div>';
-  rows += '<div class="doc-sheet-row"><span class="k">Caducidad</span><span class="v">' + (d.expiry ? s.expStr : (s.state === 'empty' ? '—' : 'Permanente')) + '</span></div>';
-  if (s.days != null && s.days >= 0) rows += '<div class="doc-sheet-row"><span class="k">Días restantes</span><span class="v">' + s.days + ' días</span></div>';
+  if (isRat) {
+    const partsRat = [];
+    if (ratSum.exp > 0) partsRat.push('<b style="color:#F87171">' + ratSum.exp + ' caducada' + (ratSum.exp > 1 ? 's' : '') + '</b>');
+    if (ratSum.warn > 0) partsRat.push('<b style="color:#F59E0B">' + ratSum.warn + ' por renovar</b>');
+    if (ratSum.ok > 0) partsRat.push('<b style="color:#4ADE80">' + ratSum.ok + ' vigente' + (ratSum.ok > 1 ? 's' : '') + '</b>');
+    rows += '<div class="doc-sheet-row"><span class="k">Habilitaciones</span><span class="v" style="font-weight:600">' + (partsRat.join(' · ') || '—') + '</span></div>';
+    rows += '<div class="doc-sheet-row"><span class="k">' + (ratSum.exp > 0 ? 'Caducada más reciente' : 'Próxima caducidad') + '</span><span class="v">' + _fmtShort(ratSum.exp > 0 ? ratSum.latestExp : ratSum.nextValid) + '</span></div>';
+  } else {
+    rows += '<div class="doc-sheet-row"><span class="k">Caducidad</span><span class="v">' + (d.expiry ? s.expStr : (s.state === 'empty' ? '—' : 'Permanente')) + '</span></div>';
+    if (s.days != null && s.days >= 0) rows += '<div class="doc-sheet-row"><span class="k">Días restantes</span><span class="v">' + s.days + ' días</span></div>';
+  }
   if (d.fileName) rows += '<div class="doc-sheet-row"><span class="k">Archivo</span><span class="v">' + (d.fileType === 'application/pdf' ? 'PDF' : 'JPEG') + ' · ' + (d.fileSize || '') + '</span></div>';
   // Descarga offline
   const dl = d.fileData
@@ -564,7 +607,8 @@ function _mmYyyy(iso) { const d = new Date(iso); return ('0' + (d.getMonth() + 1
 function inspCard(id) {
   const m = DOCS_META[id]; const d = docsData[id] || {}; const s = docStatus(id);
   const pc = { ok:'#15803D', warn:'#B45309', exp:'#B91C1C', empty:'#475569' }[s.state];
-  const exp = d.expiry ? _mmYyyy(d.expiry) : (s.state === 'empty' ? '—' : 'PERM.');
+  let exp = d.expiry ? _mmYyyy(d.expiry) : (s.state === 'empty' ? '—' : 'PERM.');
+  if (docIsRatings(id)) { const sm = _ratingsSummary(d.ratings); const t = sm.exp > 0 ? sm.latestExp : sm.nextValid; exp = t ? _mmYyyy(t) : '—'; }
   const name = (_pilotName() || '').toUpperCase();
   const typ = (m.name + (m.sub ? ' · ' + m.sub : '')).toUpperCase();
   const numHtml = d.number
@@ -588,7 +632,7 @@ function inspCard(id) {
       + '<div class="vip-face vip-front' + (m.finish ? ((FINISHES[m.finish] && FINISHES[m.finish].light) ? ' metal metal-light' : ' metal metal-dark') : '') + '" style="background:' + (m.finish ? (FINISHES[m.finish] || FINISHES.gold).grad : (INSP_GRAD[id] || m.col)) + '">'
         + '<div class="vip-sheen"></div>'
         + '<div class="vip-mark">' + docIcon(id, 120) + '</div>'
-        + '<div class="vip-head"><span class="vip-type">' + typ + '</span><span class="vip-status" style="color:' + pc + '">' + PILL_LABEL[s.state] + '</span></div>'
+        + '<div class="vip-head"><span class="vip-type">' + typ + '</span><span class="vip-status" style="color:' + pc + '">' + docPillLabel(id) + '</span></div>'
         + '<div class="vip-bottom">'
           + numHtml
           + '<div class="vip-name">' + name + '</div>'
