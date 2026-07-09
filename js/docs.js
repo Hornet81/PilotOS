@@ -116,6 +116,17 @@ function docStatus(id) {
   const meta = DOCS_META[id] || {};
   const hasData = d && (d.fileName || d.expiry || d.issued || d.number || d.level || (d.ratings && d.ratings.length) || (d.types && d.types.length) || (d.classes && d.classes.length) || (d.pages && d.pages.length));
   if (!hasData) return { state:'empty', days:null, expStr:null };
+  // Habilitaciones: estado dinámico cruzando Licencia ↔ Revalidaciones (manda la fecha más reciente)
+  if (docIsRatings(id)) {
+    const sm = _ratingsSummary(_effectiveRatings(id));
+    if (sm.total === 0) return { state:'ok', days:null, expStr:null, noExpiry:true, ratings:true, sum:sm };
+    const t0 = new Date(); t0.setHours(0,0,0,0);
+    const pick = sm.exp > 0 ? sm.latestExp : sm.nextValid;
+    const days = pick ? Math.floor((new Date(pick) - t0) / 86400000) : null;
+    const expStr = pick ? _fmtShort(pick) : null;
+    const state = sm.exp > 0 ? 'exp' : (sm.warn > 0 ? 'warn' : 'ok');
+    return { state, days, expStr, ratings:true, sum:sm, renew: !!(state === 'warn' && meta.renewLead && days != null && days <= meta.renewLead) };
+  }
   if (!d.expiry) return { state:'ok', days:null, expStr:null, noExpiry:true };
   const today = new Date(); today.setHours(0,0,0,0);
   const exp = new Date(d.expiry);
@@ -147,8 +158,10 @@ function _ratingUntilStatus(until) {
 function _ratingsHtml(ratings) {
   if (!ratings || !ratings.length) return '<div class="rate-empty">Sin habilitaciones escaneadas</div>';
   return ratings.map(function (r) {
-    const s = _ratingUntilStatus(r.until || r.valid_until);
-    return '<div class="rate-row"><span class="rate-name">' + _esc(r.name) + '</span><span class="rate-until" style="color:' + s.col + '">' + (s.str || '—') + '</span></div>';
+    const u = r.until || r.valid_until;
+    const s = _ratingUntilStatus(u);
+    const upd = (r._own !== undefined && u && r._own !== u) ? ' <span style="font-size:8.5px;font-weight:700;opacity:.85;color:#4ADE80">↑REV</span>' : '';
+    return '<div class="rate-row"><span class="rate-name">' + _esc(r.name) + '</span><span class="rate-until" style="color:' + s.col + '">' + (s.str || '—') + upd + '</span></div>';
   }).join('');
 }
 function _earliestRating(ratings) {
@@ -170,10 +183,39 @@ function _ratingsSummary(ratings) {
 }
 function _fmtShort(iso) { if (!iso) return '—'; return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }); }
 function docIsRatings(id) { const m = DOCS_META[id] || {}; const d = docsData[id] || {}; return !!(m.ratings && d.ratings && d.ratings.length); }
+// ── Cruce Licencia ↔ Revalidaciones ────────────────────────
+// Una habilitación revalidada actualiza a la que figura (vieja) en la licencia: manda la fecha más reciente.
+function _ratingNorm(name) { return (name || '').toString().toLowerCase().replace(/[^a-z0-9]/g, ''); }
+function _ratingMatch(a, b) {
+  const x = _ratingNorm(a), y = _ratingNorm(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const s = x.length < y.length ? x : y, l = x.length < y.length ? y : x;
+  return s.length >= 4 && l.indexOf(s) === 0; // 'crasep' ⊂ 'crasepterrestre'
+}
+function _ratingEffectiveUntil(name, ownUntil) {
+  let best = ownUntil || '';
+  ['license', 'typerating'].forEach(function (did) {
+    const dd = docsData[did]; if (!dd || !dd.ratings) return;
+    dd.ratings.forEach(function (r) {
+      const u = r.until || r.valid_until; if (!u) return;
+      if (_ratingMatch(name, r.name) && u > best) best = u;
+    });
+  });
+  return best;
+}
+// Habilitaciones con la fecha EFECTIVA (cruzada). Conserva _own = la fecha propia del documento.
+function _effectiveRatings(id) {
+  const d = docsData[id] || {};
+  return (d.ratings || []).map(function (r) {
+    const own = r.until || r.valid_until || '';
+    return { name: r.name, until: _ratingEffectiveUntil(r.name, own), _own: own };
+  });
+}
 // Etiqueta de estado consciente de habilitaciones: "1 caducada" en vez de "Caducado" para todo el bloque
 function docPillLabel(id) {
   if (docIsRatings(id)) {
-    const sm = _ratingsSummary(docsData[id].ratings);
+    const sm = docStatus(id).sum || _ratingsSummary(_effectiveRatings(id));
     if (sm.exp > 0) return sm.exp + (sm.exp > 1 ? ' caducadas' : ' caducada');
     if (sm.warn > 0) return sm.warn + ' por renovar';
     if (sm.total > 0) return 'Vigentes';
@@ -286,7 +328,7 @@ function renderGrid() {
     let foot;
     if (s.state === 'empty') foot = '<span>Toca para añadir</span>';
     else if (docIsRatings(id)) {
-      const sm = _ratingsSummary(docsData[id].ratings);
+      const sm = s.sum || _ratingsSummary(_effectiveRatings(id));
       const okN = sm.ok + sm.warn;
       foot = '<span>' + (sm.exp > 0 ? _fmtShort(sm.latestExp) : _fmtShort(sm.nextValid)) + '</span>'
         + '<b style="color:' + (sm.exp > 0 ? '#F87171' : (sm.warn > 0 ? '#F59E0B' : '#4ADE80')) + '">' + okN + '/' + sm.total + '</b>';
@@ -450,7 +492,7 @@ function openDocSheet(id) {
   const s = docStatus(id);
   const pillCol = { ok:'#22C55E', warn:'#F59E0B', exp:'#EF4444', empty:'#94A3B8' }[s.state];
   const isRat = docIsRatings(id);
-  const ratSum = isRat ? _ratingsSummary(d.ratings) : null;
+  const ratSum = isRat ? (s.sum || _ratingsSummary(_effectiveRatings(id))) : null;
   const badge = '<span class="doc-tile-pill ' + s.state + '">' + docPillLabel(id) + '</span>'
     + (isRat
         ? '<span style="font-size:12px;font-weight:600;color:' + pillCol + '">' + (ratSum.ok + ratSum.warn) + ' de ' + ratSum.total + ' vigentes</span>'
@@ -464,6 +506,9 @@ function openDocSheet(id) {
     if (ratSum.ok > 0) partsRat.push('<b style="color:#4ADE80">' + ratSum.ok + ' vigente' + (ratSum.ok > 1 ? 's' : '') + '</b>');
     rows += '<div class="doc-sheet-row"><span class="k">Habilitaciones</span><span class="v" style="font-weight:600">' + (partsRat.join(' · ') || '—') + '</span></div>';
     rows += '<div class="doc-sheet-row"><span class="k">' + (ratSum.exp > 0 ? 'Caducada más reciente' : 'Próxima caducidad') + '</span><span class="v">' + _fmtShort(ratSum.exp > 0 ? ratSum.latestExp : ratSum.nextValid) + '</span></div>';
+    const _effR = _effectiveRatings(id);
+    if (_effR.some(function (r) { return r._own && r.until && r._own !== r.until; }))
+      rows += '<div class="doc-sheet-row"><span class="k" style="color:#4ADE80">↑REV</span><span class="v" style="font-size:11px;color:#4ADE80">Actualizada según Revalidaciones</span></div>';
   } else {
     rows += '<div class="doc-sheet-row"><span class="k">Caducidad</span><span class="v">' + (d.expiry ? s.expStr : (s.state === 'empty' ? '—' : 'Permanente')) + '</span></div>';
     if (s.days != null && s.days >= 0) rows += '<div class="doc-sheet-row"><span class="k">Días restantes</span><span class="v">' + s.days + ' días</span></div>';
@@ -615,7 +660,7 @@ function inspCard(id) {
   const m = DOCS_META[id]; const d = docsData[id] || {}; const s = docStatus(id);
   const pc = { ok:'#15803D', warn:'#B45309', exp:'#B91C1C', empty:'#475569' }[s.state];
   let exp = d.expiry ? _mmYyyy(d.expiry) : (s.state === 'empty' ? '—' : 'PERM.');
-  if (docIsRatings(id)) { const sm = _ratingsSummary(d.ratings); const t = sm.exp > 0 ? sm.latestExp : sm.nextValid; exp = t ? _mmYyyy(t) : '—'; }
+  if (docIsRatings(id)) { const sm = _ratingsSummary(_effectiveRatings(id)); const t = sm.exp > 0 ? sm.latestExp : sm.nextValid; exp = t ? _mmYyyy(t) : '—'; }
   const name = (_pilotName() || '').toUpperCase();
   const typ = (m.name + (m.sub ? ' · ' + m.sub : '')).toUpperCase();
   const numHtml = (id === 'lang' && d.level)
@@ -626,7 +671,7 @@ function inspCard(id) {
   const isImg = d.fileData && d.fileType && d.fileType.indexOf('image/') === 0;
   let back;
   if ((id === 'typerating' || id === 'license') && d.ratings && d.ratings.length) {
-    back = '<div class="vip-rates"><div class="vip-rates-h">Habilitaciones</div>' + _ratingsHtml(d.ratings)
+    back = '<div class="vip-rates"><div class="vip-rates-h">Habilitaciones</div>' + _ratingsHtml(_effectiveRatings(id))
       + (d.fileData ? '<button class="vip-back-btn" onclick="event.stopPropagation();inspZoom(\'' + id + '\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>Ver original</button>' : '')
       + '</div>';
   } else if (isImg) {
