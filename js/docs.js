@@ -1221,7 +1221,7 @@ function scanSaveReview() {
 //  NUBE de documentos (Pro/Unlimited)
 //  Sube al guardar, descarga al abrir; mantiene TODO en local para offline.
 // ════════════════════════════════════
-let _docCloudPulled = false;
+let _docCloudPulled = false, _docCloudPullTs = 0;
 function _docAuthToken() { try { return lsGet('cafi_auth_token', ''); } catch (e) { return ''; } }
 function _docCloudOn() { try { return (typeof isPro === 'function' && isPro()) && !!_docAuthToken(); } catch (e) { return false; } }
 
@@ -1248,15 +1248,17 @@ function docCloudDelete(id) {
 }
 function docCloudPull(force) {
   if (!_docCloudOn()) return;
-  if (_docCloudPulled && !force) return;
-  _docCloudPulled = true;
+  const now = Date.now();
+  if (!force && _docCloudPulled) return;
+  if (force && (now - _docCloudPullTs < 4000)) return; // throttle: no saturar al entrar/salir rápido
+  _docCloudPulled = true; _docCloudPullTs = now;
   const token = _docAuthToken(); if (!token) return;
   fetch(ldBackendUrl() + '/api/documents', { headers: { 'Authorization': 'Bearer ' + token } })
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (j) {
       if (!j || !j.documents) return;
       let pending = 0, changed = false;
-      const done = function () { if (changed) { _loadCustomDocs(); try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); } catch (e) {} renderWallet(); } };
+      const done = function () { if (changed) { _loadCustomDocs(); try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); } catch (e) {} renderWallet(); const io = document.getElementById('doc-inspect'); if (io && io.classList.contains('open') && typeof openInspect === 'function') openInspect(); } };
       j.documents.forEach(function (rd) {
         const id = rd.doc_id, remoteTs = Date.parse(rd.updated_at) || 0;
         const local = docsData[id], localTs = (local && local._ts) || 0;
