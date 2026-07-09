@@ -136,6 +136,27 @@ function _earliestRating(ratings) {
   (ratings || []).forEach(function (r) { const u = r.until || r.valid_until; if (u) { if (!min || u < min) min = u; } });
   return min;
 }
+// Habilitaciones EDITABLES (nombre + fecha), para poder corregir lo que detecta la IA
+function _ratingsEditHtml(ratings, prefix) {
+  const rts = (ratings || []).map(function (r) { return { name: r.name || '', until: r.until || r.valid_until || '' }; });
+  let rows = rts.map(function (r, i) {
+    return '<div class="scan-rate"><input type="text" class="scan-rate-name" id="' + prefix + '-name-' + i + '" value="' + _esc(r.name) + '"><input type="date" class="scan-rate-until" id="' + prefix + '-until-' + i + '" value="' + _esc(r.until) + '"></div>';
+  }).join('');
+  if (!rts.length) rows = '<div class="rate-empty">Sin habilitaciones — escanea el certificado de revalidación</div>';
+  return '<div class="scan-rates" id="' + prefix + '-rates" data-n="' + rts.length + '">' + rows + '</div>';
+}
+function _readRatings(prefix) {
+  const rc = document.getElementById(prefix + '-rates');
+  if (!rc) return null;
+  const n = parseInt(rc.getAttribute('data-n'), 10) || 0;
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const nm = (document.getElementById(prefix + '-name-' + i) || {}).value || '';
+    const un = (document.getElementById(prefix + '-until-' + i) || {}).value || '';
+    if (nm.trim() || un) out.push({ name: nm.trim(), until: un });
+  }
+  return out;
+}
 
 // ── ¿Legal para volar? (según documentos) ───────────────────
 function docLegalToFly() {
@@ -274,8 +295,8 @@ function _sheetFieldsHtml(id, d) {
       + '<div class="doc-date-form"><div class="doc-date-input"><label>Nº de empleado</label><input type="text" id="doc-' + id + '-number" value="' + _esc(d.number) + '" placeholder="Ej. 6578"></div>' + exp + '</div>';
   }
   if (id === 'typerating') {
-    return '<div style="margin-bottom:12px"><div class="doc-date-input"><label>Habilitaciones</label></div><div style="background:rgba(255,255,255,.04);border-radius:11px;padding:2px 13px">' + _ratingsHtml(d.ratings) + '</div></div>'
-      + '<div class="doc-date-form"><div class="doc-date-input"><label>Nº / CID</label><input type="text" id="doc-' + id + '-number" value="' + _esc(d.number) + '"></div>' + exp + '</div>';
+    return '<div class="doc-date-input" style="margin-bottom:8px"><label>Habilitaciones · edita las fechas</label></div>' + _ratingsEditHtml(d.ratings, 'doc-' + id)
+      + '<div class="doc-date-input" style="margin-top:10px"><label>Nº / CID</label><input type="text" id="doc-' + id + '-number" value="' + _esc(d.number) + '"></div>';
   }
   if (id === 'license') {
     return num('Nº de licencia', 'ESP.FCL.00023776')
@@ -374,6 +395,10 @@ function saveDoc(id) {
   if (roleEl) docsData[id].role = roleEl.value.trim();
   const typesEl = document.getElementById('doc-' + id + '-types');
   if (typesEl) docsData[id].types = typesEl.value ? typesEl.value.split(/[·,\n\/]+/).map(function (s) { return s.trim(); }).filter(Boolean) : [];
+  if (id === 'typerating') {
+    const rr = _readRatings('doc-' + id);
+    if (rr) { docsData[id].ratings = rr; docsData[id].expiry = _earliestRating(rr) || docsData[id].expiry || ''; }
+  }
   try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); }
   catch(e) { showToast('⚠ Almacenamiento lleno. Imagen demasiado grande.'); return; }
   closeDocSheet();
@@ -860,12 +885,8 @@ function _scanFieldsHtml(data) {
       + '</div>';
   }
   if (id === 'typerating') {
-    const rts = (data.ratings || []).map(function (r) { return { name: r.name, until: r.valid_until || r.until }; });
-    return '<div class="scan-fld"><label>Habilitaciones detectadas</label><div style="background:rgba(255,255,255,.05);border-radius:11px;padding:2px 13px">' + _ratingsHtml(rts) + '</div></div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
-      + textFld('Nº / CID', 'scan-number', data.number)
-      + dateFld('Próxima caducidad', 'scan-expiry', data.expiry_date || _earliestRating(rts))
-      + '</div>';
+    return '<div class="scan-fld"><label>Habilitaciones detectadas · revisa las fechas</label>' + _ratingsEditHtml(data.ratings, 'scan') + '</div>'
+      + textFld('Nº / CID', 'scan-number', data.number);
   }
   if (id === 'license') {
     const typesStr = (data.license_types || []).filter(Boolean).join(' · ');
@@ -921,9 +942,9 @@ function scanSaveReview() {
   const role = g('scan-role'); if (role) docsData[id].role = role;
   const types = g('scan-types');
   if (id === 'license') docsData[id].types = types ? types.split(/[·,\n\/]+/).map(function (s) { return s.trim(); }).filter(Boolean) : ((_scanData && _scanData.license_types) || []).filter(Boolean);
-  if (id === 'typerating' && _scanData) {
-    docsData[id].ratings = (_scanData.ratings || []).map(function (r) { return { name: r.name, until: r.valid_until || r.until }; });
-    if (!docsData[id].expiry) docsData[id].expiry = _earliestRating(docsData[id].ratings) || '';
+  if (id === 'typerating') {
+    const rr = _readRatings('scan');
+    if (rr) { docsData[id].ratings = rr; docsData[id].expiry = _earliestRating(rr) || ''; }
   }
   if (id === 'medical' && _scanData && _scanData.classes) docsData[id].classes = _scanData.classes;
   if (_scanShot) {
@@ -936,6 +957,8 @@ function scanSaveReview() {
   catch (e) { showToast('⚠ Almacenamiento lleno. Imagen demasiado grande.'); return; }
   closeScanner();
   renderWallet();
+  const sheet = document.getElementById('doc-sheet');
+  if (sheet && sheet.classList.contains('open')) openDocSheet(id);
   showToast('✓ ' + (DOCS_META[id] ? DOCS_META[id].name : id) + ' escaneado y guardado');
 }
 
