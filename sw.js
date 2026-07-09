@@ -1,7 +1,7 @@
 // PilotOS Service Worker
 // APP_VERSION lo reescribe scripts/stamp-version.js en cada deploy → cambia el
 // nombre del caché → los cachés de versiones viejas se borran al activar.
-const APP_VERSION   = 'Beta.340';
+const APP_VERSION   = 'Beta.341';
 
 const STATIC_CACHE  = 'pilotos-static-' + APP_VERSION;
 const FONT_CACHE    = 'pilotos-fonts-'  + APP_VERSION;
@@ -49,6 +49,13 @@ self.addEventListener('fetch', function(e) {
   // (cachear esto rompería CAFI, logbook, paycheck, /api/version, etc.)
   if (url.indexOf('api.pilotos.aero') !== -1 || /\/api\//.test(url) || url.indexOf('/health') !== -1) {
     return; // sin respondWith → el navegador hace el fetch normal
+  }
+
+  // Supabase Storage (URLs firmadas de documentos) — NUNCA cachear: son únicas por
+  // petición (token nuevo cada vez) y caducan; cachearlas llena el Cache Storage y
+  // presiona la cuota de almacenamiento (rompe el guardado de imágenes en localStorage).
+  if (url.indexOf('supabase.co/storage/') !== -1 || url.indexOf('.supabase.co') !== -1) {
+    return;
   }
 
   // version.json — nunca cachear (es la fuente de la versión "running" real)

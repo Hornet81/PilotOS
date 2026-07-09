@@ -457,6 +457,8 @@ function docDelete(id) {
   renderWallet();
   showToast('Documento eliminado');
 }
+// ¿Es un data-URL de imagen/PDF válido? (para detectar copias locales rotas/vacías/URL caducada)
+function _isValidFileData(x) { return typeof x === 'string' && x.indexOf('data:') === 0 && x.length > 200; }
 // ── Páginas de un documento (múltiples archivos) ────────────
 function _docPages(id) {
   const d = docsData[id] || {};
@@ -1334,8 +1336,10 @@ function docCloudPull(force, cb) {
         if (applyMeta) { docsData[id] = Object.assign({}, local || {}, rd.data || {}, { _cloudFile: true, _ts: remoteTs || localTs }); changed = true; }
         const cur = docsData[id];
         const remoteUrls = (Array.isArray(rd.file_urls) && rd.file_urls.length) ? rd.file_urls : (rd.file_url ? [{ url: rd.file_url, t: rd.file_type || 'image/jpeg' }] : null);
-        const hasLocalFile = cur && ((Array.isArray(cur.pages) && cur.pages.length) || cur.fileData);
-        // Descarga si no hay archivo local, o si la nube es más nueva. (force manual = re-descarga siempre que haya url)
+        // "Tiene archivo local" SOLO si los datos son un data-URL válido (no roto/vacío/URL caducada).
+        // Si están rotos, hasLocalFile=false → re-descargamos la copia buena del cloud.
+        const hasLocalFile = cur && ((Array.isArray(cur.pages) && cur.pages.length && cur.pages.every(function (p) { return _isValidFileData(p.d); })) || _isValidFileData(cur.fileData));
+        // Descarga si no hay archivo local (o está roto), o si la nube es más nueva. (force manual = re-descarga siempre)
         const needFile = remoteUrls && (!hasLocalFile || (applyMeta && remoteTs > localTs) || (force && !!cb));
         if (needFile) {
           pending++;
