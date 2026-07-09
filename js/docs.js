@@ -356,6 +356,7 @@ function docSetFinish(id, key) {
 }
 function docDelete(id) {
   if (typeof confirm === 'function' && !confirm('¿Eliminar este documento?')) return;
+  docCloudDelete(id);
   delete docsData[id]; delete DOCS_META[id];
   try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); } catch (e) {}
   closeDocSheet();
@@ -429,6 +430,7 @@ function handleDocUpload(id, input) {
     const finish = function (dataURL, ftype) {
       if (!docsData[id]) docsData[id] = {};
       docsData[id].fileData = dataURL;
+      docsData[id]._cloudFile = false;
       docsData[id].fileName = file.name;
       docsData[id].fileType = ftype;
       docsData[id].fileSize = Math.round((dataURL.length * 0.73) / 1024) + ' KB';
@@ -469,10 +471,12 @@ function saveDoc(id) {
   if (nameEl && DOCS_META[id] && DOCS_META[id].custom) { const nm = nameEl.value.trim() || 'Documento'; DOCS_META[id].name = nm; docsData[id].name = nm; docsData[id].custom = true; }
   const finP = document.getElementById('doc-' + id + '-finish');
   if (finP && DOCS_META[id] && DOCS_META[id].custom) { const fk = finP.getAttribute('data-fin') || 'gold'; const fc = (FINISHES[fk] || FINISHES.gold).col; DOCS_META[id].finish = fk; docsData[id].finish = fk; DOCS_META[id].col = fc; docsData[id].col = fc; }
+  docsData[id]._ts = Date.now();
   try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); }
   catch(e) { showToast('⚠ Almacenamiento lleno. Imagen demasiado grande.'); return; }
   closeDocSheet();
   renderWallet();
+  docCloudPush(id);
   showToast('✓ ' + DOCS_META[id].name + ' guardado');
 }
 
@@ -1070,13 +1074,76 @@ function scanSaveReview() {
     docsData[id].fileType = 'image/jpeg';
     docsData[id].fileSize = Math.round((_scanShot.length * 0.73) / 1024) + ' KB';
   }
+  docsData[id]._ts = Date.now();
+  docsData[id]._cloudFile = false;
   try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); }
   catch (e) { showToast('⚠ Almacenamiento lleno. Imagen demasiado grande.'); return; }
   closeScanner();
   renderWallet();
   const sheet = document.getElementById('doc-sheet');
   if (sheet && sheet.classList.contains('open')) openDocSheet(id);
+  docCloudPush(id);
   showToast('✓ ' + (DOCS_META[id] ? DOCS_META[id].name : id) + ' escaneado y guardado');
+}
+
+// ════════════════════════════════════
+//  NUBE de documentos (Pro/Unlimited)
+//  Sube al guardar, descarga al abrir; mantiene TODO en local para offline.
+// ════════════════════════════════════
+let _docCloudPulled = false;
+function _docAuthToken() { try { return lsGet('cafi_auth_token', ''); } catch (e) { return ''; } }
+function _docCloudOn() { try { return (typeof isPro === 'function' && isPro()) && !!_docAuthToken(); } catch (e) { return false; } }
+
+function docCloudPush(id) {
+  if (!_docCloudOn()) return;
+  const d = docsData[id]; if (!d) return;
+  const token = _docAuthToken(); if (!token) return;
+  const data = {};
+  Object.keys(d).forEach(function (k) { if (k !== 'fileData' && k !== '_cloudFile') data[k] = d[k]; });
+  const body = { doc_id: id, data: data };
+  const sendFile = !!(d.fileData && d.fileData.indexOf('data:') === 0 && !d._cloudFile);
+  if (sendFile) { body.file_base64 = d.fileData.split(',')[1]; body.file_type = d.fileType || 'image/jpeg'; }
+  fetch(ldBackendUrl() + '/api/documents', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, body: JSON.stringify(body) })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (j) { if (j && j.ok && sendFile && docsData[id]) { docsData[id]._cloudFile = true; try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); } catch (e) {} } })
+    .catch(function () {});
+}
+function docCloudDelete(id) {
+  if (!_docCloudOn()) return;
+  const token = _docAuthToken(); if (!token) return;
+  fetch(ldBackendUrl() + '/api/documents/' + encodeURIComponent(id), { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } }).catch(function () {});
+}
+function docCloudPull(force) {
+  if (!_docCloudOn()) return;
+  if (_docCloudPulled && !force) return;
+  _docCloudPulled = true;
+  const token = _docAuthToken(); if (!token) return;
+  fetch(ldBackendUrl() + '/api/documents', { headers: { 'Authorization': 'Bearer ' + token } })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (j) {
+      if (!j || !j.documents) return;
+      let pending = 0, changed = false;
+      const done = function () { if (changed) { _loadCustomDocs(); try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); } catch (e) {} renderWallet(); } };
+      j.documents.forEach(function (rd) {
+        const id = rd.doc_id, remoteTs = Date.parse(rd.updated_at) || 0;
+        const local = docsData[id], localTs = (local && local._ts) || 0;
+        const applyMeta = (!local || remoteTs >= localTs);
+        if (applyMeta) { docsData[id] = Object.assign({}, local || {}, rd.data || {}, { _cloudFile: true, _ts: remoteTs || localTs }); changed = true; }
+        const cur = docsData[id];
+        const needFile = rd.file_url && (!(cur && cur.fileData) || (applyMeta && remoteTs > localTs));
+        if (needFile) {
+          pending++;
+          fetch(rd.file_url).then(function (resp) { return resp.blob(); }).then(function (blob) {
+            const fr = new FileReader();
+            fr.onload = function () { if (!docsData[id]) docsData[id] = {}; docsData[id].fileData = fr.result; docsData[id].fileType = rd.file_type || 'image/jpeg'; docsData[id]._cloudFile = true; changed = true; pending--; if (pending === 0) done(); };
+            fr.onerror = function () { pending--; if (pending === 0) done(); };
+            fr.readAsDataURL(blob);
+          }).catch(function () { pending--; if (pending === 0) done(); });
+        }
+      });
+      if (pending === 0) done();
+    })
+    .catch(function () {});
 }
 
 document.addEventListener('DOMContentLoaded', () => { renderWallet(); });
