@@ -541,6 +541,7 @@ function inspZoom(id) {
 //  ESCÁNER DE DOCUMENTOS (cámara + IA)
 // ════════════════════════════════════
 let _scanId = null, _scanStream = null, _scanTrack = null, _scanShot = null, _scanStepTimer = null, _scanFlashOn = false;
+let _scanAuto = true, _scanRAF = null, _scanPrev = null, _scanSteady = 0, _scanFiring = false, _scanLast = 0, _scanAlignedState = null;
 const _XSVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 function _esc(s) { return (s == null ? '' : String(s)).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 
@@ -562,10 +563,89 @@ function _scanStopStream() {
   _scanStream = null; _scanTrack = null; _scanFlashOn = false;
 }
 function closeScanner() {
-  _scanStopStream(); clearInterval(_scanStepTimer);
+  _scanStopStream(); _scanStopLoop(); clearInterval(_scanStepTimer);
   const ov = document.getElementById('doc-scan');
   if (ov) { ov.classList.remove('open'); ov.innerHTML = ''; }
   document.documentElement.classList.remove('insp-lock');
+}
+// ── Auto-detección: encuadre + estabilidad → verde → autodisparo ──
+function scanToggleAuto() {
+  _scanAuto = !_scanAuto;
+  const b = document.getElementById('scan-auto-btn');
+  if (b) b.classList.toggle('on', _scanAuto);
+  _scanSteady = 0;
+  if (!_scanAuto) { _scanSetAligned(false); }
+}
+function _scanStartLoop() {
+  _scanStopLoop();
+  _scanPrev = null; _scanSteady = 0; _scanFiring = false; _scanLast = 0; _scanAlignedState = null;
+  _scanRAF = requestAnimationFrame(_scanLoop);
+}
+function _scanStopLoop() {
+  if (_scanRAF) cancelAnimationFrame(_scanRAF);
+  _scanRAF = null; _scanPrev = null; _scanSteady = 0; _scanFiring = false;
+}
+// Mapea el rectángulo del marco (en pantalla) a coordenadas del vídeo (object-fit:cover)
+function _scanGuideVideoRect(v, frame) {
+  const cam = frame.parentElement;
+  const cr = cam.getBoundingClientRect(), fr = frame.getBoundingClientRect();
+  const vw = v.videoWidth, vh = v.videoHeight;
+  if (!vw || !vh || !cr.width) return null;
+  const scale = Math.max(cr.width / vw, cr.height / vh);
+  const offX = (cr.width - vw * scale) / 2, offY = (cr.height - vh * scale) / 2;
+  const sx = (fr.left - cr.left - offX) / scale;
+  const sy = (fr.top - cr.top - offY) / scale;
+  const sw = fr.width / scale, sh = fr.height / scale;
+  return {
+    sx: Math.max(0, Math.min(vw - 1, sx)), sy: Math.max(0, Math.min(vh - 1, sy)),
+    sw: Math.max(1, Math.min(vw, sw)), sh: Math.max(1, Math.min(vh, sh))
+  };
+}
+function _scanSetAligned(on) {
+  if (on === _scanAlignedState) return;
+  _scanAlignedState = on;
+  const fr = document.querySelector('#doc-scan .scan-frame');
+  if (fr) fr.classList.toggle('ok', !!on);
+  if (_scanFiring) return;
+  const g = document.querySelector('#doc-scan .scan-guide');
+  if (!g) return;
+  const dot = on ? '#34D399' : '#22D3EE';
+  const txt = on ? 'Encuadrado — mantén firme' : 'Ajusta la tarjeta dentro del marco';
+  g.innerHTML = '<span style="width:7px;height:7px;border-radius:50%;background:' + dot + ';box-shadow:0 0 8px ' + dot + '"></span>' + txt;
+}
+function _scanAutoFire() {
+  const g = document.querySelector('#doc-scan .scan-guide');
+  if (g) g.innerHTML = '<span style="width:7px;height:7px;border-radius:50%;background:#34D399;box-shadow:0 0 8px #34D399"></span>✓ Capturando…';
+  setTimeout(function () { if (_scanFiring) scanCapture(); }, 430);
+}
+function _scanLoop() {
+  _scanRAF = requestAnimationFrame(_scanLoop);
+  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  if (now - _scanLast < 140) return;
+  _scanLast = now;
+  const v = document.getElementById('scan-video');
+  const frame = document.querySelector('#doc-scan .scan-frame');
+  if (!v || !v.videoWidth || !frame || _scanFiring) return;
+  const r = _scanGuideVideoRect(v, frame);
+  if (!r || r.sw < 10 || r.sh < 10) return;
+  const W = 48, H = Math.max(8, Math.round(48 * (r.sh / r.sw)));
+  let cv = _scanLoop._cv; if (!cv) { cv = _scanLoop._cv = document.createElement('canvas'); }
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  try { ctx.drawImage(v, r.sx, r.sy, r.sw, r.sh, 0, 0, W, H); } catch (e) { return; }
+  let data;
+  try { data = ctx.getImageData(0, 0, W, H).data; } catch (e) { return; }
+  const n = W * H, gray = new Float32Array(n);
+  let sum = 0, sum2 = 0;
+  for (let i = 0, j = 0; i < data.length; i += 4, j++) { const gg = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114; gray[j] = gg; sum += gg; sum2 += gg * gg; }
+  const mean = sum / n, variance = Math.max(0, sum2 / n - mean * mean);
+  let diff = 999;
+  if (_scanPrev && _scanPrev.length === n) { diff = 0; for (let j = 0; j < n; j++) diff += Math.abs(gray[j] - _scanPrev[j]); diff /= n; }
+  _scanPrev = gray;
+  const aligned = (diff < 5.5) && (variance > 70);
+  _scanSetAligned(aligned);
+  _scanSteady = aligned ? _scanSteady + 1 : 0;
+  if (_scanAuto && _scanSteady >= 5 && !_scanFiring) { _scanFiring = true; _scanAutoFire(); }
 }
 function openScanner(id) {
   _scanId = id; _scanShot = null;
@@ -586,7 +666,7 @@ function _scanPhaseCamera() {
     + '<div class="scan-ctrls">'
       + '<label class="scan-ic"><input type="file" accept="image/*" onchange="scanFromFile(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></label>'
       + '<button class="scan-shutter" onclick="scanCapture()"><i></i></button>'
-      + '<span class="scan-ic" style="visibility:hidden"></span>'
+      + '<button class="scan-auto' + (_scanAuto ? ' on' : '') + '" id="scan-auto-btn" onclick="scanToggleAuto()"><span class="d"></span>Auto</button>'
     + '</div>';
   if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
@@ -597,6 +677,7 @@ function _scanPhaseCamera() {
         v.srcObject = stream; v.setAttribute('playsinline', ''); v.muted = true; v.play().catch(function () {});
         _scanTrack = stream.getVideoTracks()[0];
         try { const caps = _scanTrack.getCapabilities && _scanTrack.getCapabilities(); if (caps && caps.torch) { const fb = document.getElementById('scan-flash'); if (fb) fb.style.visibility = 'visible'; } } catch (e) {}
+        _scanStartLoop();
       })
       .catch(function () { _scanFallback(); });
   } else { _scanFallback(); }
@@ -630,11 +711,16 @@ function _cropAspect(v, aspect) {
 function scanCapture() {
   const v = document.getElementById('scan-video');
   if (!v || !v.videoWidth) { showToast('Espera a que la cámara enfoque'); return; }
+  const frame = document.querySelector('#doc-scan .scan-frame');
+  const r = frame ? _scanGuideVideoRect(v, frame) : null;
   let cv;
-  if ((DOCS_META[_scanId] || {}).format === 'card') { cv = _cropAspect(v, 1.586); }
+  if (r && r.sw > 10 && r.sh > 10) {
+    cv = document.createElement('canvas'); cv.width = Math.round(r.sw); cv.height = Math.round(r.sh);
+    cv.getContext('2d').drawImage(v, r.sx, r.sy, r.sw, r.sh, 0, 0, cv.width, cv.height);
+  } else if ((DOCS_META[_scanId] || {}).format === 'card') { cv = _cropAspect(v, 1.586); }
   else { cv = document.createElement('canvas'); cv.width = v.videoWidth; cv.height = v.videoHeight; cv.getContext('2d').drawImage(v, 0, 0); }
   const data = cv.toDataURL('image/jpeg', 0.85);
-  _scanStopStream();
+  _scanStopStream(); _scanStopLoop();
   _scanProcess(data);
 }
 function scanFromFile(input) {
