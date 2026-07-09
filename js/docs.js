@@ -577,7 +577,7 @@ function inspZoom(id) {
 //  ESCÁNER DE DOCUMENTOS (cámara + IA)
 // ════════════════════════════════════
 let _scanId = null, _scanStream = null, _scanTrack = null, _scanShot = null, _scanStepTimer = null, _scanFlashOn = false;
-let _scanAuto = true, _scanRAF = null, _scanPrev = null, _scanSteady = 0, _scanFiring = false, _scanLast = 0, _scanAlignedState = null, _scanData = null;
+let _scanAuto = true, _scanRAF = null, _scanPrev = null, _scanSteady = 0, _scanFiring = false, _scanLast = 0, _scanAlignedState = null, _scanData = null, _scanDiffEMA = null;
 const _XSVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 function _esc(s) { return (s == null ? '' : String(s)).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 
@@ -614,7 +614,7 @@ function scanToggleAuto() {
 }
 function _scanStartLoop() {
   _scanStopLoop();
-  _scanPrev = null; _scanSteady = 0; _scanFiring = false; _scanLast = 0; _scanAlignedState = null;
+  _scanPrev = null; _scanSteady = 0; _scanFiring = false; _scanLast = 0; _scanAlignedState = null; _scanDiffEMA = null;
   _scanRAF = requestAnimationFrame(_scanLoop);
 }
 function _scanStopLoop() {
@@ -678,10 +678,17 @@ function _scanLoop() {
   let diff = 999;
   if (_scanPrev && _scanPrev.length === n) { diff = 0; for (let j = 0; j < n; j++) diff += Math.abs(gray[j] - _scanPrev[j]); diff /= n; }
   _scanPrev = gray;
-  const aligned = (diff < 5.5) && (variance > 70);
+  // Suavizado del movimiento (media móvil) para no parpadear con micro-temblores
+  if (_scanDiffEMA == null) _scanDiffEMA = diff; else _scanDiffEMA = _scanDiffEMA * 0.55 + diff * 0.45;
+  const motion = _scanDiffEMA;
+  const content = variance > 45;
+  // Histéresis: entra en verde fácil (<15) y sólo lo pierde si se mueve claramente (>30)
+  let aligned = (_scanAlignedState === true);
+  if (!aligned) { if (motion < 15 && content) aligned = true; }
+  else { if (motion > 30 || !content) aligned = false; }
   _scanSetAligned(aligned);
   _scanSteady = aligned ? _scanSteady + 1 : 0;
-  if (_scanAuto && _scanSteady >= 5 && !_scanFiring) { _scanFiring = true; _scanAutoFire(); }
+  if (_scanAuto && _scanSteady >= 6 && !_scanFiring) { _scanFiring = true; _scanAutoFire(); }
 }
 function openScanner(id) {
   _scanId = id; _scanShot = null;
@@ -744,6 +751,35 @@ function _cropAspect(v, aspect) {
   cv.getContext('2d').drawImage(v, sx, sy, tw, th, 0, 0, tw, th);
   return cv;
 }
+// Recorta el fondo alrededor del documento: detecta el rectángulo del documento
+// (lo que se distingue del color de las esquinas = fondo) y recorta a él con un margen.
+function _autoTrim(srcCanvas) {
+  try {
+    const cw = srcCanvas.width, ch = srcCanvas.height;
+    const scale = Math.min(1, 240 / cw);
+    const w = Math.max(1, Math.round(cw * scale)), h = Math.max(1, Math.round(ch * scale));
+    const a = document.createElement('canvas'); a.width = w; a.height = h;
+    const actx = a.getContext('2d'); actx.drawImage(srcCanvas, 0, 0, w, h);
+    const d = actx.getImageData(0, 0, w, h).data;
+    const gray = function (i) { return d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114; };
+    const cs = Math.max(2, Math.round(Math.min(w, h) * 0.06));
+    const corner = function (x0, y0) { let s = 0, n = 0; for (let y = y0; y < y0 + cs; y++) for (let x = x0; x < x0 + cs; x++) { s += gray((y * w + x) * 4); n++; } return s / n; };
+    const bg = (corner(0, 0) + corner(w - cs, 0) + corner(0, h - cs) + corner(w - cs, h - cs)) / 4;
+    const thr = 24;
+    let minx = w, miny = h, maxx = 0, maxy = 0, found = 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (Math.abs(gray((y * w + x) * 4) - bg) > thr) { found++; if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y; }
+    }
+    const bw = maxx - minx, bh = maxy - miny;
+    if (found < w * h * 0.05 || bw < w * 0.45 || bh < h * 0.45) return srcCanvas;
+    const pad = Math.round(Math.min(w, h) * 0.015);
+    minx = Math.max(0, minx - pad); miny = Math.max(0, miny - pad); maxx = Math.min(w - 1, maxx + pad); maxy = Math.min(h - 1, maxy + pad);
+    const rx = minx / scale, ry = miny / scale, rw = (maxx - minx) / scale, rh = (maxy - miny) / scale;
+    const out = document.createElement('canvas'); out.width = Math.max(1, Math.round(rw)); out.height = Math.max(1, Math.round(rh));
+    out.getContext('2d').drawImage(srcCanvas, rx, ry, rw, rh, 0, 0, out.width, out.height);
+    return out;
+  } catch (e) { return srcCanvas; }
+}
 function scanCapture() {
   const v = document.getElementById('scan-video');
   if (!v || !v.videoWidth) { showToast('Espera a que la cámara enfoque'); return; }
@@ -755,7 +791,8 @@ function scanCapture() {
     cv.getContext('2d').drawImage(v, r.sx, r.sy, r.sw, r.sh, 0, 0, cv.width, cv.height);
   } else if ((DOCS_META[_scanId] || {}).format === 'card') { cv = _cropAspect(v, 1.586); }
   else { cv = document.createElement('canvas'); cv.width = v.videoWidth; cv.height = v.videoHeight; cv.getContext('2d').drawImage(v, 0, 0); }
-  const data = cv.toDataURL('image/jpeg', 0.85);
+  cv = _autoTrim(cv);
+  const data = cv.toDataURL('image/jpeg', 0.88);
   _scanStopStream(); _scanStopLoop();
   _scanProcess(data);
 }
