@@ -164,6 +164,18 @@ function _ratingsHtml(ratings) {
     return '<div class="rate-row"><span class="rate-name">' + _esc(r.name) + '</span><span class="rate-until" style="color:' + s.col + '">' + (s.str || '—') + upd + '</span></div>';
   }).join('');
 }
+// Panel de alerta rápido: caducadas (rojo) / por renovar (ámbar) / todo vigente (verde) — usa fechas cruzadas
+function _ratingsAlertHtml(id) {
+  const eff = _effectiveRatings(id);
+  const exp = [], warn = [];
+  eff.forEach(function (r) { const st = _ratingUntilStatus(r.until); if (st.days == null) return; if (st.days < 0) exp.push(r); else if (st.days <= 90) warn.push(r); });
+  const rowsOf = function (arr) { return arr.map(function (r) { return '<div class="rate-alert-row"><span>' + _esc(r.name) + '</span><b>' + _fmtShort(r.until) + '</b></div>'; }).join(''); };
+  if (!exp.length && !warn.length) return '<div class="rate-alert ok"><span class="rate-alert-ic">✓</span> Todas las habilitaciones vigentes</div>';
+  let h = '';
+  if (exp.length) h += '<div class="rate-alert bad"><div class="rate-alert-h"><span class="rate-alert-ic">⚠</span>' + exp.length + ' habilitación' + (exp.length > 1 ? 'es' : '') + ' caducada' + (exp.length > 1 ? 's' : '') + '</div>' + rowsOf(exp) + '</div>';
+  if (warn.length) h += '<div class="rate-alert warn"><div class="rate-alert-h"><span class="rate-alert-ic">⏳</span>' + warn.length + ' por renovar (≤90 días)</div>' + rowsOf(warn) + '</div>';
+  return h;
+}
 function _earliestRating(ratings) {
   let min = null;
   (ratings || []).forEach(function (r) { const u = r.until || r.valid_until; if (u) { if (!min || u < min) min = u; } });
@@ -282,7 +294,8 @@ function renderHero() {
       + '<div class="dw-hero-next-name">' + DOCS_META[next.id].name + '</div></div>';
   }
   host.innerHTML =
-    '<div class="dw-hero">'
+    '<div class="dw-hero" style="position:relative">'
+    + '<button onclick="event.stopPropagation();docSyncNow()" title="Sincronizar con la nube" aria-label="Sincronizar" style="position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.09);color:#22D3EE;font-size:15px;line-height:1;cursor:pointer;z-index:3;display:flex;align-items:center;justify-content:center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5M3 12a9 9 0 0 0 3 6.7L3 16M3 21v-5h5"/></svg></button>'
     + '<div class="dw-hero-ring">'
       + '<svg width="66" height="66"><circle cx="33" cy="33" r="25" fill="none" stroke="rgba(120,140,170,.18)" stroke-width="5"/>'
       + '<circle cx="33" cy="33" r="25" fill="none" stroke="' + ringCol + '" stroke-width="5" stroke-linecap="round" stroke-dasharray="' + circ.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '" style="transition:stroke-dashoffset 1.1s ease .1s"/></svg>'
@@ -528,6 +541,7 @@ function openDocSheet(id) {
       + '<div class="doc-sheet-x" onclick="closeDocSheet()">✕</div>'
     + '</div>'
     + '<div class="doc-sheet-rows">' + rows + '</div>'
+    + (isRat ? _ratingsAlertHtml(id) : '')
     + (m.custom ? _customEditHtml(id, m) : '')
     + '<div class="doc-sheet-sectlbl">ARCHIVO Y FECHAS</div>'
     + '<button class="doc-scan-btn" onclick="docScan(\'' + id + '\')"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M4 12h16"/></svg>✦ Escanear con IA</button>'
@@ -1268,7 +1282,9 @@ function scanSaveReview() {
 // ════════════════════════════════════
 let _docCloudPulled = false, _docCloudPullTs = 0;
 function _docAuthToken() { try { return lsGet('cafi_auth_token', ''); } catch (e) { return ''; } }
-function _docCloudOn() { try { return (typeof isPro === 'function' && isPro()) && !!_docAuthToken(); } catch (e) { return false; } }
+// Gate = solo tener sesión (token). El PLAN real lo aplica el backend (_cloudAllowed):
+// así evitamos que un 'pilotOS_plan' local caducado/free en el PC bloquee la sync de un usuario Pro.
+function _docCloudOn() { return !!_docAuthToken(); }
 
 function docCloudPush(id) {
   if (!_docCloudOn()) return;
@@ -1291,19 +1307,20 @@ function docCloudDelete(id) {
   const token = _docAuthToken(); if (!token) return;
   fetch(ldBackendUrl() + '/api/documents/' + encodeURIComponent(id), { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } }).catch(function () {});
 }
-function docCloudPull(force) {
-  if (!_docCloudOn()) return;
+function docCloudPull(force, cb) {
+  if (!_docCloudOn()) { if (cb) cb({ ok: false, reason: 'noauth' }); return; }
   const now = Date.now();
-  if (!force && _docCloudPulled) return;
-  if (force && (now - _docCloudPullTs < 4000)) return; // throttle: no saturar al entrar/salir rápido
+  if (!force && _docCloudPulled) { if (cb) cb({ ok: true, skipped: true }); return; }
+  if (force && !cb && (now - _docCloudPullTs < 4000)) return; // throttle solo el auto (el manual con cb siempre corre)
   _docCloudPulled = true; _docCloudPullTs = now;
-  const token = _docAuthToken(); if (!token) return;
+  const token = _docAuthToken(); if (!token) { if (cb) cb({ ok: false, reason: 'noauth' }); return; }
   fetch(ldBackendUrl() + '/api/documents', { headers: { 'Authorization': 'Bearer ' + token } })
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (j) {
-      if (!j || !j.documents) return;
-      let pending = 0, changed = false;
-      const done = function () { if (changed) { _loadCustomDocs(); try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); } catch (e) {} renderWallet(); const io = document.getElementById('doc-inspect'); if (io && io.classList.contains('open') && typeof openInspect === 'function') openInspect(); } };
+      if (!j || !j.documents) { if (cb) cb({ ok: false, reason: 'empty' }); return; }
+      let pending = 0, changed = false, filesDl = 0;
+      const docsN = j.documents.length;
+      const done = function () { if (changed) { _loadCustomDocs(); try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); } catch (e) {} renderWallet(); const io = document.getElementById('doc-inspect'); if (io && io.classList.contains('open') && typeof openInspect === 'function') openInspect(); } if (cb) cb({ ok: true, docs: docsN, files: filesDl }); };
       j.documents.forEach(function (rd) {
         const id = rd.doc_id, remoteTs = Date.parse(rd.updated_at) || 0;
         const local = docsData[id], localTs = (local && local._ts) || 0;
@@ -1312,7 +1329,8 @@ function docCloudPull(force) {
         const cur = docsData[id];
         const remoteUrls = (Array.isArray(rd.file_urls) && rd.file_urls.length) ? rd.file_urls : (rd.file_url ? [{ url: rd.file_url, t: rd.file_type || 'image/jpeg' }] : null);
         const hasLocalFile = cur && ((Array.isArray(cur.pages) && cur.pages.length) || cur.fileData);
-        const needFile = remoteUrls && (!hasLocalFile || (applyMeta && remoteTs > localTs));
+        // Descarga si no hay archivo local, o si la nube es más nueva. (force manual = re-descarga siempre que haya url)
+        const needFile = remoteUrls && (!hasLocalFile || (applyMeta && remoteTs > localTs) || (force && !!cb));
         if (needFile) {
           pending++;
           Promise.all(remoteUrls.map(function (u) {
@@ -1321,14 +1339,27 @@ function docCloudPull(force) {
             }).catch(function () { return null; });
           })).then(function (pgs) {
             pgs = pgs.filter(Boolean);
-            if (pgs.length && docsData[id]) { docsData[id].pages = pgs; docsData[id].fileData = pgs[0].d; docsData[id].fileType = pgs[0].t; docsData[id]._cloudFile = true; changed = true; }
+            if (pgs.length && docsData[id]) { docsData[id].pages = pgs; docsData[id].fileData = pgs[0].d; docsData[id].fileType = pgs[0].t; docsData[id]._cloudFile = true; changed = true; filesDl++; }
             pending--; if (pending === 0) done();
           });
         }
       });
       if (pending === 0) done();
     })
-    .catch(function () {});
+    .catch(function () { if (cb) cb({ ok: false, reason: 'neterr' }); });
+}
+// Sincronización manual (botón) con feedback claro
+function docSyncNow() {
+  if (!_docAuthToken()) { showToast('Inicia sesión para sincronizar tus documentos'); return; }
+  showToast('↻ Sincronizando con la nube…');
+  docCloudPull(true, function (res) {
+    if (!res || !res.ok) {
+      if (res && res.reason === 'empty') { showToast('Sin documentos en la nube (plan Free o nada subido)'); return; }
+      showToast('⚠ No se pudo sincronizar. Revisa la conexión.'); return;
+    }
+    if (res.files > 0) showToast('✓ Sincronizado · ' + res.files + ' imagen' + (res.files > 1 ? 'es' : '') + ' descargada' + (res.files > 1 ? 's' : ''));
+    else showToast('✓ Al día · ' + (res.docs || 0) + ' documento' + ((res.docs || 0) === 1 ? '' : 's') + ' en la nube');
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => { renderWallet(); });
