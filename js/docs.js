@@ -13,7 +13,7 @@
 // col → color del icono/acento · icon → clave SVG (DOC_SVG)
 const DOCS_META = {
   medical:    { name: 'Médico',        sub: 'Class 1',   icon: 'heartpulse', col: '#F43F5E', authority: 'AeMC / AME', required: true, renewLead: 45 },
-  license:    { name: 'Licencia',      sub: 'ATPL/CPL',  icon: 'idcard', col: '#3B82F6', authority: 'AESA',          required: true, renewLead: 60 },
+  license:    { name: 'Licencia',      sub: 'ATPL/CPL',  icon: 'idcard', col: '#3B82F6', authority: 'AESA',          required: true, ratings: true, renewLead: 60 },
   typerating: { name: 'Revalidaciones', sub: 'Habilitaciones', icon: 'planejet', col: '#8B5CF6', authority: 'AESA / TRE', required: true, ratings: true, renewLead: 60 },
   lang:       { name: 'Inglés',        sub: 'Nivel OACI',icon: 'globe',  col: '#0EA5E9', authority: 'AESA',          required: true, renewLead: 90 },
   passport:   { name: 'Pasaporte',     sub: '',          icon: 'passport', col: '#818CF8', authority: 'Min. Interior',  format: 'card', renewLead: 120 },
@@ -351,7 +351,8 @@ function _sheetFieldsHtml(id, d) {
   }
   if (id === 'license') {
     return num('Nº de licencia', 'ESP.FCL.00023776')
-      + '<div class="doc-date-input"><label>Tipos de licencia</label><input type="text" id="doc-' + id + '-types" value="' + _esc((d.types || []).join(' · ')) + '" placeholder="ATPL(A) · CPL(A) · PPL(A)"></div>';
+      + '<div class="doc-date-input" style="margin-bottom:10px"><label>Tipos de licencia</label><input type="text" id="doc-' + id + '-types" value="' + _esc((d.types || []).join(' · ')) + '" placeholder="ATPL(A) · CPL(A) · PPL(A)"></div>'
+      + '<div class="doc-date-input" style="margin-bottom:8px"><label>Habilitaciones · edita las fechas (vacío = sin caducidad)</label></div>' + _ratingsEditHtml(d.ratings, 'doc-' + id);
   }
   if (id === 'medical') {
     return num('Nº de certificado', 'E-10019009')
@@ -538,9 +539,9 @@ function saveDoc(id) {
   if (roleEl) docsData[id].role = roleEl.value.trim();
   const typesEl = document.getElementById('doc-' + id + '-types');
   if (typesEl) docsData[id].types = typesEl.value ? typesEl.value.split(/[·,\n\/]+/).map(function (s) { return s.trim(); }).filter(Boolean) : [];
-  if (id === 'typerating') {
+  if (id === 'typerating' || id === 'license') {
     const rr = _readRatings('doc-' + id);
-    if (rr) { docsData[id].ratings = rr; docsData[id].expiry = _earliestRating(rr) || docsData[id].expiry || ''; }
+    if (rr) { docsData[id].ratings = rr; docsData[id].expiry = _earliestRating(rr) || (id === 'license' ? '' : (docsData[id].expiry || '')); }
   }
   const examEl = document.getElementById('doc-' + id + '-exam'); if (examEl) docsData[id].examDate = examEl.value;
   const ecgEl = document.getElementById('doc-' + id + '-ecg'); if (ecgEl) docsData[id].lastEcg = ecgEl.value;
@@ -616,7 +617,7 @@ function inspCard(id) {
     : '<div class="vip-num" style="opacity:.4;font-size:12px">•••• ••••</div>';
   const isImg = d.fileData && d.fileType && d.fileType.indexOf('image/') === 0;
   let back;
-  if (id === 'typerating' && d.ratings && d.ratings.length) {
+  if ((id === 'typerating' || id === 'license') && d.ratings && d.ratings.length) {
     back = '<div class="vip-rates"><div class="vip-rates-h">Habilitaciones</div>' + _ratingsHtml(d.ratings)
       + (d.fileData ? '<button class="vip-back-btn" onclick="event.stopPropagation();inspZoom(\'' + id + '\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>Ver original</button>' : '')
       + '</div>';
@@ -1084,7 +1085,8 @@ function _scanFieldsHtml(data) {
   if (id === 'license') {
     const typesStr = (data.license_types || []).filter(Boolean).join(' · ');
     return textFld('Nº de licencia', 'scan-number', data.number, 'ESP.FCL.00023776')
-      + textFld('Tipos de licencia', 'scan-types', typesStr, 'ATPL(A) · CPL(A) · PPL(A)');
+      + textFld('Tipos de licencia', 'scan-types', typesStr, 'ATPL(A) · CPL(A) · PPL(A)')
+      + '<div class="scan-fld"><label>Habilitaciones detectadas · revisa las fechas (vacío = sin caducidad)</label>' + _ratingsEditHtml(data.ratings, 'scan') + '</div>';
   }
   if (id === 'medical') {
     let classesHtml = '';
@@ -1139,7 +1141,11 @@ function scanSaveReview() {
   const auth = g('scan-authority'); if (auth) docsData[id].authority = auth;
   const role = g('scan-role'); if (role) docsData[id].role = role;
   const types = g('scan-types');
-  if (id === 'license') docsData[id].types = types ? types.split(/[·,\n\/]+/).map(function (s) { return s.trim(); }).filter(Boolean) : ((_scanData && _scanData.license_types) || []).filter(Boolean);
+  if (id === 'license') {
+    docsData[id].types = types ? types.split(/[·,\n\/]+/).map(function (s) { return s.trim(); }).filter(Boolean) : ((_scanData && _scanData.license_types) || []).filter(Boolean);
+    const rr = _readRatings('scan');
+    if (rr) { docsData[id].ratings = rr; docsData[id].expiry = _earliestRating(rr) || ''; }
+  }
   if (id === 'typerating') {
     const rr = _readRatings('scan');
     if (rr) { docsData[id].ratings = rr; docsData[id].expiry = _earliestRating(rr) || ''; }
