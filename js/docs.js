@@ -302,6 +302,11 @@ function _sheetFieldsHtml(id, d) {
     return num('Nº de licencia', 'ESP.FCL.00023776')
       + '<div class="doc-date-input"><label>Tipos de licencia</label><input type="text" id="doc-' + id + '-types" value="' + _esc((d.types || []).join(' · ')) + '" placeholder="ATPL(A) · CPL(A) · PPL(A)"></div>';
   }
+  if (id === 'medical') {
+    return num('Nº de certificado', 'E-10019009')
+      + '<div class="doc-date-form"><div class="doc-date-input"><label>Caducidad (Clase 1)</label><input type="date" id="doc-' + id + '-expiry" value="' + _esc(d.expiry) + '"></div><div class="doc-date-input"><label>Reconocimiento</label><input type="date" id="doc-' + id + '-exam" value="' + _esc(d.examDate) + '"></div></div>'
+      + '<div class="doc-date-form" style="margin-top:10px"><div class="doc-date-input"><label>Último ECG</label><input type="date" id="doc-' + id + '-ecg" value="' + _esc(d.lastEcg) + '"></div><div class="doc-date-input"><label>Último audiograma</label><input type="date" id="doc-' + id + '-audio" value="' + _esc(d.lastAudio) + '"></div></div>';
+  }
   return num('Número de documento', 'Ej. AMC-ES-8841')
     + '<div class="doc-date-form"><div class="doc-date-input"><label>Fecha emisión</label><input type="date" id="doc-' + id + '-issued" value="' + _esc(d.issued) + '"></div>' + exp + '</div>';
 }
@@ -361,21 +366,25 @@ function closeDocSheet() {
 function handleDocUpload(id, input) {
   const file = input.files[0];
   if (!file) return;
-  const allowed = ['image/jpeg','image/jpg','application/pdf'];
-  if (!allowed.includes(file.type)) { showToast('❌ Solo se aceptan JPEG o PDF'); input.value = ''; return; }
+  const isImg = (file.type || '').indexOf('image/') === 0;
+  const isPdf = file.type === 'application/pdf';
+  if (!isImg && !isPdf) { showToast('❌ Solo se aceptan imágenes o PDF'); input.value = ''; return; }
   if (file.size > MAX_FILE_MB * 1024 * 1024) { showToast('❌ Archivo demasiado grande (máx ' + MAX_FILE_MB + ' MB)'); input.value = ''; return; }
   const reader = new FileReader();
   reader.onload = (e) => {
-    if (!docsData[id]) docsData[id] = {};
-    docsData[id].fileData = e.target.result;
-    docsData[id].fileName = file.name;
-    docsData[id].fileType = file.type;
-    docsData[id].fileSize = (file.size / 1024).toFixed(0) + ' KB';
-    const isImg = file.type.indexOf('image/') === 0;
-    const img = document.getElementById('doc-' + id + '-img');
-    const wrap = document.getElementById('doc-' + id + '-img-wrap');
-    if (isImg && img && wrap) { img.src = e.target.result; wrap.style.display = 'block'; }
-    showToast('✓ Archivo cargado. Guarda para confirmar.');
+    const finish = function (dataURL, ftype) {
+      if (!docsData[id]) docsData[id] = {};
+      docsData[id].fileData = dataURL;
+      docsData[id].fileName = file.name;
+      docsData[id].fileType = ftype;
+      docsData[id].fileSize = Math.round((dataURL.length * 0.73) / 1024) + ' KB';
+      const im = document.getElementById('doc-' + id + '-img');
+      const wr = document.getElementById('doc-' + id + '-img-wrap');
+      if (ftype.indexOf('image/') === 0 && im && wr) { im.src = dataURL; wr.style.display = 'block'; }
+      showToast('✓ Archivo cargado. Guarda para confirmar.');
+    };
+    if (isImg) _compressImageDataURL(e.target.result, function (c) { finish(c, 'image/jpeg'); });
+    else finish(e.target.result, file.type);
   };
   reader.readAsDataURL(file);
 }
@@ -399,6 +408,9 @@ function saveDoc(id) {
     const rr = _readRatings('doc-' + id);
     if (rr) { docsData[id].ratings = rr; docsData[id].expiry = _earliestRating(rr) || docsData[id].expiry || ''; }
   }
+  const examEl = document.getElementById('doc-' + id + '-exam'); if (examEl) docsData[id].examDate = examEl.value;
+  const ecgEl = document.getElementById('doc-' + id + '-ecg'); if (ecgEl) docsData[id].lastEcg = ecgEl.value;
+  const audEl = document.getElementById('doc-' + id + '-audio'); if (audEl) docsData[id].lastAudio = audEl.value;
   try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); }
   catch(e) { showToast('⚠ Almacenamiento lleno. Imagen demasiado grande.'); return; }
   closeDocSheet();
@@ -805,6 +817,27 @@ function _autoTrim(srcCanvas) {
     return out;
   } catch (e) { return srcCanvas; }
 }
+// Reduce una imagen (dataURL) a JPEG de máx 1600px lado y calidad 0.72 → mucho menos peso
+function _compressImageDataURL(dataURL, cb) {
+  try {
+    const img = new Image();
+    img.onload = function () {
+      const maxDim = 1600, w = img.width, h = img.height;
+      const sc = Math.min(1, maxDim / Math.max(w, h));
+      const cw = Math.max(1, Math.round(w * sc)), ch = Math.max(1, Math.round(h * sc));
+      const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+      cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
+      cb(cv.toDataURL('image/jpeg', 0.72));
+    };
+    img.onerror = function () { cb(dataURL); };
+    img.src = dataURL;
+  } catch (e) { cb(dataURL); }
+}
+function _canvasToJpeg(cv, maxDim, q) {
+  const w = cv.width, h = cv.height, sc = Math.min(1, maxDim / Math.max(w, h));
+  if (sc < 1) { const o = document.createElement('canvas'); o.width = Math.round(w * sc); o.height = Math.round(h * sc); o.getContext('2d').drawImage(cv, 0, 0, o.width, o.height); cv = o; }
+  return cv.toDataURL('image/jpeg', q);
+}
 function scanCapture() {
   const v = document.getElementById('scan-video');
   if (!v || !v.videoWidth) { showToast('Espera a que la cámara enfoque'); return; }
@@ -817,14 +850,18 @@ function scanCapture() {
   } else if ((DOCS_META[_scanId] || {}).format === 'card') { cv = _cropAspect(v, 1.586); }
   else { cv = document.createElement('canvas'); cv.width = v.videoWidth; cv.height = v.videoHeight; cv.getContext('2d').drawImage(v, 0, 0); }
   cv = _autoTrim(cv);
-  const data = cv.toDataURL('image/jpeg', 0.88);
+  const data = _canvasToJpeg(cv, 1600, 0.78);
   _scanStopStream(); _scanStopLoop();
   _scanProcess(data);
 }
 function scanFromFile(input) {
   const f = input.files[0]; if (!f) return;
   const r = new FileReader();
-  r.onload = function (e) { _scanStopStream(); _scanProcess(e.target.result); };
+  r.onload = function (e) {
+    _scanStopStream();
+    if ((f.type || '').indexOf('image/') === 0) _compressImageDataURL(e.target.result, function (c) { _scanProcess(c); });
+    else _scanProcess(e.target.result);
+  };
   r.readAsDataURL(f);
 }
 function _scanProcess(dataURL) {
@@ -902,7 +939,12 @@ function _scanFieldsHtml(data) {
     }
     return textFld('Nº de certificado', 'scan-number', data.number)
       + classesHtml
-      + dateFld('Caducidad (Clase 1)', 'scan-expiry', data.expiry_date);
+      + dateFld('Caducidad (Clase 1)', 'scan-expiry', data.expiry_date)
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+      + dateFld('Reconocimiento', 'scan-exam', data.exam_date)
+      + dateFld('Último ECG', 'scan-ecg', data.last_ecg)
+      + '</div>'
+      + dateFld('Último audiograma', 'scan-audio', data.last_audiogram);
   }
   return textFld('Número de documento', 'scan-number', data.number, 'Ej. AMC-ES-8841')
     + textFld('Autoridad emisora', 'scan-authority', data.authority)
@@ -946,7 +988,12 @@ function scanSaveReview() {
     const rr = _readRatings('scan');
     if (rr) { docsData[id].ratings = rr; docsData[id].expiry = _earliestRating(rr) || ''; }
   }
-  if (id === 'medical' && _scanData && _scanData.classes) docsData[id].classes = _scanData.classes;
+  if (id === 'medical') {
+    if (_scanData && _scanData.classes) docsData[id].classes = _scanData.classes;
+    const ex = g('scan-exam'); if (ex) docsData[id].examDate = ex;
+    const ec = g('scan-ecg'); if (ec) docsData[id].lastEcg = ec;
+    const au = g('scan-audio'); if (au) docsData[id].lastAudio = au;
+  }
   if (_scanShot) {
     docsData[id].fileData = _scanShot;
     docsData[id].fileName = 'escaneo.jpg';
