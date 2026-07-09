@@ -363,6 +363,49 @@ function docDelete(id) {
   renderWallet();
   showToast('Documento eliminado');
 }
+// ── Páginas de un documento (múltiples archivos) ────────────
+function _docPages(id) {
+  const d = docsData[id] || {};
+  if (Array.isArray(d.pages) && d.pages.length) return d.pages;
+  if (d.fileData) return [{ d: d.fileData, t: d.fileType || 'image/jpeg' }];
+  return [];
+}
+function _docSetPages(id, pages) {
+  if (!docsData[id]) docsData[id] = {};
+  docsData[id].pages = pages;
+  docsData[id].fileData = pages[0] ? pages[0].d : '';
+  docsData[id].fileType = pages[0] ? pages[0].t : '';
+  docsData[id].fileName = pages.length > 1 ? (pages.length + ' páginas') : 'documento';
+  docsData[id].fileSize = pages[0] ? Math.round((pages[0].d.length * 0.73) / 1024) + ' KB' : '';
+  docsData[id]._cloudFile = false;
+  docsData[id]._ts = Date.now();
+  try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); } catch (e) { showToast('⚠ Almacenamiento lleno. Imagen demasiado grande.'); }
+}
+function _docAddPage(id, dataURL, type) {
+  const pages = _docPages(id).slice();
+  pages.push({ d: dataURL, t: type || 'image/jpeg' });
+  _docSetPages(id, pages);
+  docCloudPush(id);
+}
+function _docRemovePage(id, idx) {
+  const pages = _docPages(id).slice();
+  pages.splice(idx, 1);
+  _docSetPages(id, pages);
+  docCloudPush(id);
+  const sh = document.getElementById('doc-sheet');
+  if (sh && sh.classList.contains('open')) openDocSheet(id);
+  renderWallet();
+}
+function _docPagesStripHtml(id) {
+  const pages = _docPages(id);
+  if (!pages.length) return '';
+  const thumbs = pages.map(function (p, i) {
+    const isImg = (p.t || '').indexOf('image/') === 0;
+    const inner = isImg ? '<img src="' + p.d + '">' : '<div class="pg-pdf">PDF</div>';
+    return '<div class="doc-page"><div class="doc-page-thumb" onclick="inspZoom(\'' + id + '\',' + i + ')">' + inner + '<span class="doc-page-num">' + (i + 1) + '</span></div><button class="doc-page-del" onclick="event.stopPropagation();_docRemovePage(\'' + id + '\',' + i + ')">✕</button></div>';
+  }).join('');
+  return '<div class="doc-pages">' + thumbs + '</div>';
+}
 function openDocSheet(id) {
   const ov = document.getElementById('doc-sheet');
   if (!ov) return;
@@ -377,9 +420,6 @@ function openDocSheet(id) {
   rows += '<div class="doc-sheet-row"><span class="k">Caducidad</span><span class="v">' + (d.expiry ? s.expStr : (s.state === 'empty' ? '—' : 'Permanente')) + '</span></div>';
   if (s.days != null && s.days >= 0) rows += '<div class="doc-sheet-row"><span class="k">Días restantes</span><span class="v">' + s.days + ' días</span></div>';
   if (d.fileName) rows += '<div class="doc-sheet-row"><span class="k">Archivo</span><span class="v">' + (d.fileType === 'application/pdf' ? 'PDF' : 'JPEG') + ' · ' + (d.fileSize || '') + '</span></div>';
-  // Preview imagen
-  const showImg = d.fileData && d.fileType && d.fileType.indexOf('image/') === 0;
-  const imgWrap = '<div id="doc-' + id + '-img-wrap"' + (showImg ? '' : ' style="display:none"') + '><img id="doc-' + id + '-img" src="' + (showImg ? d.fileData : '') + '" alt="" class="doc-preview-img"></div>';
   // Descarga offline
   const dl = d.fileData
     ? '<a class="doc-download-btn" style="width:48px;height:46px" href="' + d.fileData + '" download="' + m.name + '_offline' + (d.fileType === 'application/pdf' ? '.pdf' : '.jpg') + '" title="Descargar offline">💾</a>'
@@ -398,10 +438,10 @@ function openDocSheet(id) {
     + '<div class="doc-sheet-sectlbl">ARCHIVO Y FECHAS</div>'
     + '<button class="doc-scan-btn" onclick="docScan(\'' + id + '\')"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M4 12h16"/></svg>✦ Escanear con IA</button>'
     + '<div class="doc-upload-area"><div class="doc-upload-row">'
-      + '<label class="doc-upload-single"><input type="file" accept="image/*,application/pdf" onchange="handleDocUpload(\'' + id + '\',this)">📎 Archivo</label>'
+      + '<label class="doc-upload-single"><input type="file" accept="image/*,application/pdf" onchange="handleDocUpload(\'' + id + '\',this)">📎 Añadir página</label>'
       + '<label class="doc-upload-single camera"><input type="file" accept="image/*" capture="environment" onchange="handleDocUpload(\'' + id + '\',this)">📷 Cámara</label>'
-    + '</div><div style="font-size:10px;opacity:.55;text-align:center;margin-top:6px">JPEG o PDF · máx 5 MB · se guarda en este dispositivo</div></div>'
-    + imgWrap
+    + '</div><div style="font-size:10px;opacity:.55;text-align:center;margin-top:6px">Una o varias páginas · imagen o PDF · máx 5 MB c/u</div></div>'
+    + _docPagesStripHtml(id)
     + _sheetFieldsHtml(id, d)
     + '<div style="display:flex;gap:10px;margin-top:16px">'
       + '<button class="doc-save-btn" style="margin:0;width:auto;flex:1" onclick="saveDoc(\'' + id + '\')">Guardar</button>'
@@ -427,20 +467,15 @@ function handleDocUpload(id, input) {
   if (file.size > MAX_FILE_MB * 1024 * 1024) { showToast('❌ Archivo demasiado grande (máx ' + MAX_FILE_MB + ' MB)'); input.value = ''; return; }
   const reader = new FileReader();
   reader.onload = (e) => {
-    const finish = function (dataURL, ftype) {
-      if (!docsData[id]) docsData[id] = {};
-      docsData[id].fileData = dataURL;
-      docsData[id]._cloudFile = false;
-      docsData[id].fileName = file.name;
-      docsData[id].fileType = ftype;
-      docsData[id].fileSize = Math.round((dataURL.length * 0.73) / 1024) + ' KB';
-      const im = document.getElementById('doc-' + id + '-img');
-      const wr = document.getElementById('doc-' + id + '-img-wrap');
-      if (ftype.indexOf('image/') === 0 && im && wr) { im.src = dataURL; wr.style.display = 'block'; }
-      showToast('✓ Archivo cargado. Guarda para confirmar.');
+    const add = function (dataURL, ftype) {
+      _docAddPage(id, dataURL, ftype);
+      const sh = document.getElementById('doc-sheet');
+      if (sh && sh.classList.contains('open')) openDocSheet(id);
+      renderWallet();
+      showToast('✓ Página añadida');
     };
-    if (isImg) _compressImageDataURL(e.target.result, function (c) { finish(c, 'image/jpeg'); });
-    else finish(e.target.result, file.type);
+    if (isImg) _compressImageDataURL(e.target.result, function (c) { add(c, 'image/jpeg'); });
+    else add(e.target.result, file.type);
   };
   reader.readAsDataURL(file);
 }
@@ -650,26 +685,29 @@ function inspTiltReset(card) {
 }
 
 // ── Visor a pantalla completa ───────────────────────────────
-let _zoomRot = 0, _zoomBig = false;
-function _zoomApply() { const img = document.getElementById('zoom-img'); if (img) img.style.transform = 'rotate(' + _zoomRot + 'deg) scale(' + (_zoomBig ? 2.3 : 1) + ')'; }
-function inspZoomRot() { _zoomRot = (_zoomRot + 90) % 360; _zoomApply(); }
-function inspZoomToggle() { _zoomBig = !_zoomBig; const img = document.getElementById('zoom-img'); if (img) img.style.cursor = _zoomBig ? 'zoom-out' : 'zoom-in'; _zoomApply(); }
+let _zoomRot = 0;
+function inspZoomRot() { _zoomRot = (_zoomRot + 90) % 360; document.querySelectorAll('#doc-zoom .zoom-pg').forEach(function (im) { im.style.transform = 'rotate(' + _zoomRot + 'deg)' + (im.classList.contains('big') ? ' scale(2.2)' : ''); }); }
+function inspZoomToggle(el) { el.classList.toggle('big'); el.style.transform = 'rotate(' + _zoomRot + 'deg)' + (el.classList.contains('big') ? ' scale(2.2)' : ''); el.style.cursor = el.classList.contains('big') ? 'zoom-out' : 'zoom-in'; }
 function inspZoomClose() { const ov = document.getElementById('doc-zoom'); if (ov) { ov.classList.remove('open'); ov.innerHTML = ''; } }
-function inspZoom(id) {
-  const d = docsData[id] || {}; if (!d.fileData) return;
+function inspZoom(id, startIdx) {
+  const pages = _docPages(id); if (!pages.length) return;
   let ov = document.getElementById('doc-zoom');
   if (!ov) { ov = document.createElement('div'); ov.id = 'doc-zoom'; ov.className = 'zoom-ov'; document.body.appendChild(ov); }
-  const isImg = d.fileType && d.fileType.indexOf('image/') === 0;
-  _zoomRot = 0; _zoomBig = false;
-  const media = isImg
-    ? '<img id="zoom-img" src="' + d.fileData + '" alt="" style="cursor:zoom-in" onclick="inspZoomToggle()">'
-    : '<iframe src="' + d.fileData + '" style="width:100%;height:100%;border:0;background:#fff;border-radius:8px"></iframe>';
+  _zoomRot = 0;
+  const body = pages.map(function (p) {
+    const isImg = (p.t || '').indexOf('image/') === 0;
+    return isImg
+      ? '<img class="zoom-pg" src="' + p.d + '" alt="" style="cursor:zoom-in" onclick="inspZoomToggle(this)">'
+      : '<iframe class="zoom-pg" src="' + p.d + '" style="width:100%;height:82vh;border:0;background:#fff;border-radius:8px"></iframe>';
+  }).join('');
   ov.innerHTML =
     '<div class="zoom-bar">'
     + '<button class="insp-hbtn" onclick="inspZoomClose()">✕</button>'
-    + (isImg ? '<button class="insp-hbtn" onclick="inspZoomRot()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg></button>' : '<span style="width:34px"></span>')
-    + '</div><div class="zoom-body">' + media + '</div>';
+    + '<span style="font-size:12px;color:rgba(255,255,255,.6)">' + pages.length + (pages.length > 1 ? ' páginas' : ' página') + '</span>'
+    + '<button class="insp-hbtn" onclick="inspZoomRot()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg></button>'
+    + '</div><div class="zoom-body zoom-scroll">' + body + '</div>';
   ov.classList.add('open');
+  if (startIdx) { setTimeout(function () { const els = ov.querySelectorAll('.zoom-pg'); if (els[startIdx]) els[startIdx].scrollIntoView({ block: 'center' }); }, 40); }
 }
 
 // ════════════════════════════════════
@@ -1069,10 +1107,13 @@ function scanSaveReview() {
     const au = g('scan-audio'); if (au) docsData[id].lastAudio = au;
   }
   if (_scanShot) {
-    docsData[id].fileData = _scanShot;
-    docsData[id].fileName = 'escaneo.jpg';
-    docsData[id].fileType = 'image/jpeg';
-    docsData[id].fileSize = Math.round((_scanShot.length * 0.73) / 1024) + ' KB';
+    const pgs = _docPages(id).slice();
+    pgs.push({ d: _scanShot, t: 'image/jpeg' });
+    docsData[id].pages = pgs;
+    docsData[id].fileData = pgs[0].d;
+    docsData[id].fileType = pgs[0].t;
+    docsData[id].fileName = pgs.length > 1 ? (pgs.length + ' páginas') : 'escaneo.jpg';
+    docsData[id].fileSize = Math.round((pgs[0].d.length * 0.73) / 1024) + ' KB';
   }
   docsData[id]._ts = Date.now();
   docsData[id]._cloudFile = false;
@@ -1099,10 +1140,12 @@ function docCloudPush(id) {
   const d = docsData[id]; if (!d) return;
   const token = _docAuthToken(); if (!token) return;
   const data = {};
-  Object.keys(d).forEach(function (k) { if (k !== 'fileData' && k !== '_cloudFile') data[k] = d[k]; });
+  Object.keys(d).forEach(function (k) { if (k !== 'fileData' && k !== 'pages' && k !== '_cloudFile') data[k] = d[k]; });
   const body = { doc_id: id, data: data };
-  const sendFile = !!(d.fileData && d.fileData.indexOf('data:') === 0 && !d._cloudFile);
-  if (sendFile) { body.file_base64 = d.fileData.split(',')[1]; body.file_type = d.fileType || 'image/jpeg'; }
+  const pages = _docPages(id);
+  const localPages = pages.filter(function (p) { return p.d && p.d.indexOf('data:') === 0; });
+  const sendFile = !!(localPages.length && !d._cloudFile);
+  if (sendFile) { body.pages = pages.map(function (p) { return { b: p.d.split(',')[1], t: p.t || 'image/jpeg' }; }); }
   fetch(ldBackendUrl() + '/api/documents', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, body: JSON.stringify(body) })
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (j) { if (j && j.ok && sendFile && docsData[id]) { docsData[id]._cloudFile = true; try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); } catch (e) {} } })
@@ -1130,15 +1173,20 @@ function docCloudPull(force) {
         const applyMeta = (!local || remoteTs >= localTs);
         if (applyMeta) { docsData[id] = Object.assign({}, local || {}, rd.data || {}, { _cloudFile: true, _ts: remoteTs || localTs }); changed = true; }
         const cur = docsData[id];
-        const needFile = rd.file_url && (!(cur && cur.fileData) || (applyMeta && remoteTs > localTs));
+        const remoteUrls = (Array.isArray(rd.file_urls) && rd.file_urls.length) ? rd.file_urls : (rd.file_url ? [{ url: rd.file_url, t: rd.file_type || 'image/jpeg' }] : null);
+        const hasLocalFile = cur && ((Array.isArray(cur.pages) && cur.pages.length) || cur.fileData);
+        const needFile = remoteUrls && (!hasLocalFile || (applyMeta && remoteTs > localTs));
         if (needFile) {
           pending++;
-          fetch(rd.file_url).then(function (resp) { return resp.blob(); }).then(function (blob) {
-            const fr = new FileReader();
-            fr.onload = function () { if (!docsData[id]) docsData[id] = {}; docsData[id].fileData = fr.result; docsData[id].fileType = rd.file_type || 'image/jpeg'; docsData[id]._cloudFile = true; changed = true; pending--; if (pending === 0) done(); };
-            fr.onerror = function () { pending--; if (pending === 0) done(); };
-            fr.readAsDataURL(blob);
-          }).catch(function () { pending--; if (pending === 0) done(); });
+          Promise.all(remoteUrls.map(function (u) {
+            return fetch(u.url).then(function (resp) { return resp.blob(); }).then(function (blob) {
+              return new Promise(function (resolve) { const fr = new FileReader(); fr.onload = function () { resolve({ d: fr.result, t: u.t || 'image/jpeg' }); }; fr.onerror = function () { resolve(null); }; fr.readAsDataURL(blob); });
+            }).catch(function () { return null; });
+          })).then(function (pgs) {
+            pgs = pgs.filter(Boolean);
+            if (pgs.length && docsData[id]) { docsData[id].pages = pgs; docsData[id].fileData = pgs[0].d; docsData[id].fileType = pgs[0].t; docsData[id]._cloudFile = true; changed = true; }
+            pending--; if (pending === 0) done();
+          });
         }
       });
       if (pending === 0) done();
