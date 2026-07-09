@@ -758,7 +758,7 @@ function inspZoom(id, startIdx) {
 //  ESCÁNER DE DOCUMENTOS (cámara + IA)
 // ════════════════════════════════════
 let _scanId = null, _scanStream = null, _scanTrack = null, _scanShot = null, _scanStepTimer = null, _scanFlashOn = false;
-let _scanAuto = true, _scanRAF = null, _scanPrev = null, _scanSteady = 0, _scanFiring = false, _scanLast = 0, _scanAlignedState = null, _scanData = null, _scanDiffEMA = null, _scanFmt = 'doc';
+let _scanAuto = false, _scanRAF = null, _scanPrev = null, _scanSteady = 0, _scanFiring = false, _scanLast = 0, _scanAlignedState = null, _scanData = null, _scanDiffEMA = null, _scanFmt = 'doc';
 const _XSVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 function _esc(s) { return (s == null ? '' : String(s)).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 
@@ -827,7 +827,7 @@ function _scanSetAligned(on) {
   const g = document.querySelector('#doc-scan .scan-guide');
   if (!g) return;
   const dot = on ? '#34D399' : '#22D3EE';
-  const txt = on ? 'Encuadrado — mantén firme' : 'Ajusta la tarjeta dentro del marco';
+  const txt = on ? (_scanAuto ? 'Encuadrado — mantén firme' : 'Encuadrado ✓ — pulsa para capturar') : 'Ajusta el documento dentro del marco';
   g.innerHTML = '<span style="width:7px;height:7px;border-radius:50%;background:' + dot + ';box-shadow:0 0 8px ' + dot + '"></span>' + txt;
 }
 function _scanAutoFire() {
