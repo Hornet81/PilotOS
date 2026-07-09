@@ -276,6 +276,7 @@ function openDocSheet(id) {
     + '</div>'
     + '<div class="doc-sheet-rows">' + rows + '</div>'
     + '<div class="doc-sheet-sectlbl">ARCHIVO Y FECHAS</div>'
+    + '<button class="doc-scan-btn" onclick="docScan(\'' + id + '\')"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M4 12h16"/></svg>✦ Escanear con IA</button>'
     + '<div class="doc-upload-area"><div class="doc-upload-row">'
       + '<label class="doc-upload-single"><input type="file" accept="image/jpeg,image/jpg,application/pdf" onchange="handleDocUpload(\'' + id + '\',this)">📎 Archivo</label>'
       + '<label class="doc-upload-single camera"><input type="file" accept="image/jpeg,image/jpg" capture="environment" onchange="handleDocUpload(\'' + id + '\',this)">📷 Cámara</label>'
@@ -415,7 +416,7 @@ function inspCard(id) {
           + '<div class="vip-name">' + name + '</div>'
           + '<div class="vip-foot">'
             + '<div><div class="k">CADUCA</div><div class="v">' + exp + '</div></div>'
-            + '<div><div class="k">EMISOR</div><div class="v" style="font-size:10px">' + m.authority + '</div></div>'
+            + '<div><div class="k">EMISOR</div><div class="v" style="font-size:10px">' + (d.authority || m.authority) + '</div></div>'
             + '<span class="vip-brand">PILOT<b>OS</b></span>'
           + '</div>'
         + '</div>'
@@ -524,6 +525,189 @@ function inspZoom(id) {
     + (isImg ? '<button class="insp-hbtn" onclick="inspZoomRot()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg></button>' : '<span style="width:34px"></span>')
     + '</div><div class="zoom-body">' + media + '</div>';
   ov.classList.add('open');
+}
+
+// ════════════════════════════════════
+//  ESCÁNER DE DOCUMENTOS (cámara + IA)
+// ════════════════════════════════════
+let _scanId = null, _scanStream = null, _scanTrack = null, _scanShot = null, _scanStepTimer = null, _scanFlashOn = false;
+const _XSVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+function _esc(s) { return (s == null ? '' : String(s)).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+function docScan(id) {
+  if (typeof isPro === 'function' && !isPro()) {
+    try { if (typeof showPlanToast === 'function') { showPlanToast('ocr'); return; } } catch (e) {}
+    showToast('El escaneo con IA está disponible en Pro y Unlimited');
+    return;
+  }
+  openScanner(id);
+}
+function _scanOv() {
+  let ov = document.getElementById('doc-scan');
+  if (!ov) { ov = document.createElement('div'); ov.id = 'doc-scan'; ov.className = 'scan-ov'; document.body.appendChild(ov); }
+  return ov;
+}
+function _scanStopStream() {
+  try { if (_scanStream) _scanStream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
+  _scanStream = null; _scanTrack = null; _scanFlashOn = false;
+}
+function closeScanner() {
+  _scanStopStream(); clearInterval(_scanStepTimer);
+  const ov = document.getElementById('doc-scan');
+  if (ov) { ov.classList.remove('open'); ov.innerHTML = ''; }
+  document.documentElement.classList.remove('insp-lock');
+}
+function openScanner(id) {
+  _scanId = id; _scanShot = null;
+  const ov = _scanOv(); ov.classList.add('open');
+  document.documentElement.classList.add('insp-lock');
+  _scanPhaseCamera();
+}
+function _scanPhaseCamera() {
+  const ov = _scanOv(); const m = DOCS_META[_scanId] || {};
+  ov.innerHTML =
+    '<div class="scan-top"><span class="scan-ic" onclick="closeScanner()">' + _XSVG + '</span>'
+    + '<span class="t">Escanear · ' + (m.name || 'documento') + '</span>'
+    + '<span class="scan-ic" id="scan-flash" onclick="scanToggleFlash()" style="visibility:hidden"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg></span></div>'
+    + '<div class="scan-cam"><video id="scan-video" autoplay playsinline muted></video><div class="scan-grid"></div>'
+      + '<div class="scan-frame"><div class="scan-cnr tl"></div><div class="scan-cnr tr"></div><div class="scan-cnr bl"></div><div class="scan-cnr br"></div><div class="scan-laser"></div></div>'
+      + '<div class="scan-guide"><span style="width:7px;height:7px;border-radius:50%;background:#22D3EE;box-shadow:0 0 8px #22D3EE"></span>Encuadra el documento en el marco</div>'
+    + '</div>'
+    + '<div class="scan-ctrls">'
+      + '<label class="scan-ic"><input type="file" accept="image/*" onchange="scanFromFile(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></label>'
+      + '<button class="scan-shutter" onclick="scanCapture()"><i></i></button>'
+      + '<span class="scan-ic" style="visibility:hidden"></span>'
+    + '</div>';
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
+      .then(function (stream) {
+        _scanStream = stream;
+        const v = document.getElementById('scan-video');
+        if (!v) { _scanStopStream(); return; }
+        v.srcObject = stream; v.setAttribute('playsinline', ''); v.muted = true; v.play().catch(function () {});
+        _scanTrack = stream.getVideoTracks()[0];
+        try { const caps = _scanTrack.getCapabilities && _scanTrack.getCapabilities(); if (caps && caps.torch) { const fb = document.getElementById('scan-flash'); if (fb) fb.style.visibility = 'visible'; } } catch (e) {}
+      })
+      .catch(function () { _scanFallback(); });
+  } else { _scanFallback(); }
+}
+function _scanFallback() {
+  const ov = _scanOv(); const m = DOCS_META[_scanId] || {};
+  ov.innerHTML =
+    '<div class="scan-top"><span class="scan-ic" onclick="closeScanner()">' + _XSVG + '</span><span class="t">Escanear · ' + (m.name || '') + '</span><span class="scan-ic" style="visibility:hidden"></span></div>'
+    + '<div class="scan-mid"><div style="font-size:38px;margin-bottom:12px">📷</div><div style="color:#fff;font-size:14px;margin-bottom:6px">Cámara no disponible</div>'
+    + '<div style="color:rgba(255,255,255,.5);font-size:12px;margin-bottom:22px;max-width:260px">Haz una foto del documento o elige una de tu galería.</div>'
+    + '<label class="scan-save" style="max-width:240px;position:relative;overflow:hidden;display:inline-block;text-align:center">Hacer foto o subir<input type="file" accept="image/*" capture="environment" onchange="scanFromFile(this)" style="position:absolute;inset:0;opacity:0"></label></div>';
+}
+function scanToggleFlash() {
+  if (!_scanTrack) return;
+  _scanFlashOn = !_scanFlashOn;
+  try { _scanTrack.applyConstraints({ advanced: [{ torch: _scanFlashOn }] }); } catch (e) {}
+}
+function scanCapture() {
+  const v = document.getElementById('scan-video');
+  if (!v || !v.videoWidth) { showToast('Espera a que la cámara enfoque'); return; }
+  const cv = document.createElement('canvas'); cv.width = v.videoWidth; cv.height = v.videoHeight;
+  cv.getContext('2d').drawImage(v, 0, 0);
+  const data = cv.toDataURL('image/jpeg', 0.85);
+  _scanStopStream();
+  _scanProcess(data);
+}
+function scanFromFile(input) {
+  const f = input.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = function (e) { _scanStopStream(); _scanProcess(e.target.result); };
+  r.readAsDataURL(f);
+}
+function _scanProcess(dataURL) {
+  _scanShot = dataURL;
+  const ov = _scanOv();
+  const STEPS = ['Preparando imagen', 'Detectando el documento', 'Leyendo el texto', 'Extrayendo datos con IA', 'Verificando'];
+  ov.innerHTML =
+    '<div class="scan-top"><span class="scan-ic" onclick="closeScanner()">' + _XSVG + '</span><span class="t">Analizando…</span><span class="scan-ic" style="visibility:hidden"></span></div>'
+    + '<div class="scan-mid"><div class="scan-shot"><img src="' + dataURL + '" alt=""></div><div class="scan-steps">'
+    + STEPS.map(function (s) { return '<div class="scan-step"><span class="dot"></span>' + s + '</div>'; }).join('')
+    + '</div></div>';
+  const els = ov.querySelectorAll('.scan-step');
+  if (els[0]) els[0].classList.add('on');
+  let i = 0;
+  clearInterval(_scanStepTimer);
+  _scanStepTimer = setInterval(function () {
+    if (i < els.length) {
+      els[i].classList.remove('on'); els[i].classList.add('done');
+      els[i].querySelector('.dot').innerHTML = '<svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="#4ADE80" stroke-width="1.7" stroke-linecap="round"><path d="M1.5 4.5l2 2L7.5 2"/></svg>';
+      i++; if (i < els.length) els[i].classList.add('on');
+    } else { clearInterval(_scanStepTimer); }
+  }, 650);
+  let token = ''; try { token = lsGet('cafi_auth_token', ''); } catch (e) {}
+  const b64 = dataURL.split(',')[1];
+  fetch(ldBackendUrl() + '/documents/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({ image_base64: b64, media_type: 'image/jpeg', doc_type: (DOCS_META[_scanId] || {}).name || '' })
+  })
+    .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, j: j }; }); })
+    .then(function (res) {
+      clearInterval(_scanStepTimer);
+      if (!res.ok) {
+        if (res.status === 403) { closeScanner(); try { if (typeof showPlanToast === 'function') showPlanToast('ocr'); } catch (e) {} showToast((res.j && res.j.message) || 'Función Pro/Unlimited'); return; }
+        _scanError((res.j && res.j.error) || 'No se pudo leer el documento'); return;
+      }
+      _scanReview(res.j || {});
+    })
+    .catch(function () { clearInterval(_scanStepTimer); _scanError('Sin conexión con el servidor. Inténtalo de nuevo.'); });
+}
+function _scanError(msg) {
+  const ov = _scanOv();
+  ov.innerHTML =
+    '<div class="scan-top"><span class="scan-ic" onclick="closeScanner()">' + _XSVG + '</span><span class="t">Error</span><span class="scan-ic" style="visibility:hidden"></span></div>'
+    + '<div class="scan-mid"><div style="font-size:32px;margin-bottom:12px">⚠️</div><div style="color:#fff;font-size:14px;margin-bottom:6px">No se pudo leer el documento</div>'
+    + '<div style="color:rgba(255,255,255,.5);font-size:12px;max-width:260px;margin-bottom:22px">' + _esc(msg) + '</div>'
+    + '<button class="scan-save" style="max-width:220px" onclick="openScanner(_scanId)">Reintentar</button></div>';
+}
+function _scanReview(data) {
+  const ov = _scanOv(); const m = DOCS_META[_scanId] || {};
+  const conf = data.confidence || 'medium';
+  const cc = conf === 'high' ? ['#4ADE80', 'rgba(34,197,94,.14)', 'rgba(34,197,94,.3)', 'Alta confianza']
+    : (conf === 'low' ? ['#F87171', 'rgba(239,68,68,.14)', 'rgba(239,68,68,.3)', 'Confianza baja · revisa'] : ['#FBBF24', 'rgba(245,158,11,.14)', 'rgba(245,158,11,.3)', 'Confianza media · revisa']);
+  ov.innerHTML =
+    '<div class="scan-top"><span class="scan-ic" onclick="closeScanner()">' + _XSVG + '</span><span class="t">Datos detectados</span><span class="scan-ic" style="visibility:hidden"></span></div>'
+    + '<div class="scan-review">'
+      + '<div style="display:flex;gap:13px;align-items:center;margin-bottom:16px">'
+        + (_scanShot ? '<div style="width:60px;height:76px;border-radius:9px;overflow:hidden;flex-shrink:0;border:1px solid rgba(255,255,255,.15)"><img src="' + _scanShot + '" style="width:100%;height:100%;object-fit:cover"></div>' : '')
+        + '<div style="min-width:0"><div style="font-size:15px;font-weight:700;color:#fff">' + _esc(data.title || m.name) + '</div>'
+          + '<div class="scan-rev-badge" style="color:' + cc[0] + ';background:' + cc[1] + ';border:1px solid ' + cc[2] + ';margin-top:8px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>' + cc[3] + '</div></div>'
+      + '</div>'
+      + '<div class="scan-fld"><label>Número de documento</label><input type="text" id="scan-number" value="' + _esc(data.number) + '"></div>'
+      + '<div class="scan-fld"><label>Autoridad emisora</label><input type="text" id="scan-authority" value="' + _esc(data.authority) + '"></div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+        + '<div class="scan-fld"><label>Emisión</label><input type="date" id="scan-issue" value="' + _esc(data.issue_date) + '"></div>'
+        + '<div class="scan-fld"><label>Caducidad</label><input type="date" id="scan-expiry" value="' + _esc(data.expiry_date) + '"></div>'
+      + '</div>'
+      + (data.notes ? '<div style="font-size:11.5px;color:#FBBF24;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:10px;padding:9px 12px;margin-bottom:12px">' + _esc(data.notes) + '</div>' : '')
+      + '<button class="scan-save" onclick="scanSaveReview()">Guardar en la tarjeta</button>'
+      + '<button class="scan-retry" onclick="openScanner(_scanId)">Repetir escaneo</button>'
+    + '</div>';
+}
+function scanSaveReview() {
+  const id = _scanId; if (!id) return;
+  const g = function (x) { const el = document.getElementById(x); return el ? el.value.trim() : ''; };
+  if (!docsData[id]) docsData[id] = {};
+  docsData[id].number = g('scan-number');
+  docsData[id].issued = g('scan-issue');
+  docsData[id].expiry = g('scan-expiry');
+  const auth = g('scan-authority'); if (auth) docsData[id].authority = auth;
+  if (_scanShot) {
+    docsData[id].fileData = _scanShot;
+    docsData[id].fileName = 'escaneo.jpg';
+    docsData[id].fileType = 'image/jpeg';
+    docsData[id].fileSize = Math.round((_scanShot.length * 0.73) / 1024) + ' KB';
+  }
+  try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); }
+  catch (e) { showToast('⚠ Almacenamiento lleno. Imagen demasiado grande.'); return; }
+  closeScanner();
+  renderWallet();
+  showToast('✓ ' + (DOCS_META[id] ? DOCS_META[id].name : id) + ' escaneado y guardado');
 }
 
 document.addEventListener('DOMContentLoaded', () => { renderWallet(); });

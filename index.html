@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.320">
+  <meta name="version" content="Beta.321">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.320","builtAt":"2026-07-08T21:44:56Z","commit":"bf51235","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.321","builtAt":"2026-07-09T08:22:58Z","commit":"b7ea323","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -798,6 +798,51 @@ html.insp-lock,html.insp-lock body{overflow:hidden}
 .zoom-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:calc(12px + env(safe-area-inset-top,0px)) 16px 8px}
 .zoom-body{flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;padding:12px}
 .zoom-body img{max-width:100%;max-height:100%;object-fit:contain;transition:transform .3s ease;transform-origin:center}
+/* ════ ESCÁNER DE DOCUMENTOS (cámara + IA) ════ */
+.doc-scan-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;margin-bottom:10px;border:none;border-radius:13px;cursor:pointer;font-family:'Space Grotesk',-apple-system,sans-serif;font-size:13px;font-weight:700;color:#fff;background:linear-gradient(135deg,#6D28D9,#0891B2);box-shadow:0 5px 16px rgba(109,40,217,.3)}
+.doc-scan-btn:active{transform:scale(.98)}
+.scan-ov{position:fixed;inset:0;z-index:440;display:none;background:#05070C;flex-direction:column}
+.scan-ov.open{display:flex}
+.scan-top{display:flex;align-items:center;justify-content:space-between;padding:calc(12px + env(safe-area-inset-top,0px)) 16px 8px;color:rgba(255,255,255,.85);z-index:4;flex-shrink:0}
+.scan-top .t{font-size:13px;letter-spacing:.01em}
+.scan-cam{position:relative;flex:1;overflow:hidden;background:radial-gradient(120% 90% at 50% 20%,#161b26,#0a0d14 75%)}
+.scan-cam video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.scan-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);background-size:28px 28px;pointer-events:none}
+.scan-frame{position:absolute;left:7%;right:7%;top:15%;bottom:20%;pointer-events:none}
+.scan-cnr{position:absolute;width:30px;height:30px;border:3px solid #22D3EE}
+.scan-cnr.tl{left:-2px;top:-2px;border-right:0;border-bottom:0;border-radius:7px 0 0 0}
+.scan-cnr.tr{right:-2px;top:-2px;border-left:0;border-bottom:0;border-radius:0 7px 0 0}
+.scan-cnr.bl{left:-2px;bottom:-2px;border-right:0;border-top:0;border-radius:0 0 0 7px}
+.scan-cnr.br{right:-2px;bottom:-2px;border-left:0;border-top:0;border-radius:0 0 7px 0}
+.scan-laser{position:absolute;left:2px;right:2px;height:2px;top:1%;background:linear-gradient(90deg,transparent,#22D3EE,#67E8F9,#22D3EE,transparent);box-shadow:0 0 12px #22D3EE;animation:scanLaser 2.6s ease-in-out infinite}
+@keyframes scanLaser{0%{top:1%}50%{top:99%}100%{top:1%}}
+.scan-guide{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:7px;background:rgba(6,10,18,.82);border:1px solid rgba(255,255,255,.16);border-radius:99px;padding:8px 14px;color:rgba(255,255,255,.88);font-size:11px;white-space:nowrap}
+.scan-ctrls{display:flex;align-items:center;justify-content:space-between;padding:18px 30px calc(22px + env(safe-area-inset-bottom,0px));background:#05070C;flex-shrink:0}
+.scan-ic{width:40px;height:40px;border-radius:11px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);cursor:pointer;position:relative;overflow:hidden;flex-shrink:0}
+.scan-ic input{position:absolute;inset:0;opacity:0;font-size:0;cursor:pointer}
+.scan-shutter{width:66px;height:66px;border-radius:50%;border:4px solid rgba(255,255,255,.92);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0}
+.scan-shutter i{width:50px;height:50px;border-radius:50%;background:#fff;transition:transform .1s;display:block}
+.scan-shutter:active i{transform:scale(.88)}
+.scan-mid{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:26px;text-align:center;overflow-y:auto}
+.scan-shot{width:210px;max-width:66%;border-radius:14px;overflow:hidden;position:relative;box-shadow:0 12px 30px rgba(0,0,0,.5)}
+.scan-shot img{width:100%;display:block}
+.scan-shot::after{content:'';position:absolute;left:0;right:0;height:36%;top:-36%;background:linear-gradient(180deg,transparent,rgba(34,211,238,.4),transparent);animation:scanShimmer 1.5s linear infinite}
+@keyframes scanShimmer{0%{top:-36%}100%{top:100%}}
+.scan-steps{margin-top:22px;display:flex;flex-direction:column;gap:11px;align-items:flex-start}
+.scan-step{display:flex;align-items:center;gap:9px;font-size:12.5px;color:rgba(255,255,255,.5);transition:color .3s}
+.scan-step.on{color:#fff}
+.scan-step.done{color:#4ADE80}
+.scan-step .dot{width:16px;height:16px;border-radius:50%;border:1.5px solid rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.scan-step.on .dot{border-color:#22D3EE}
+.scan-step.done .dot{border-color:#4ADE80;background:rgba(74,222,128,.16)}
+.scan-review{flex:1;overflow-y:auto;padding:calc(6px + env(safe-area-inset-top,0px)) 22px calc(24px + env(safe-area-inset-bottom,0px))}
+.scan-rev-badge{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:700;border-radius:99px;padding:4px 10px}
+.scan-fld{margin-bottom:12px}
+.scan-fld label{font-size:10px;font-weight:600;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;display:block}
+.scan-fld input{width:100%;font-size:14px;padding:11px 13px;border:1px solid rgba(255,255,255,.15);border-radius:11px;background:rgba(255,255,255,.05);color:#fff;font-family:'Space Mono','SF Mono',monospace}
+.scan-fld input:focus{outline:none;border-color:rgba(34,211,238,.5)}
+.scan-save{width:100%;margin-top:8px;padding:14px;border:none;border-radius:14px;background:linear-gradient(135deg,#6D28D9,#0891B2);color:#fff;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 6px 20px rgba(109,40,217,.35)}
+.scan-retry{width:100%;margin-top:10px;padding:12px;background:transparent;border:1px solid rgba(255,255,255,.16);border-radius:12px;color:rgba(255,255,255,.7);font-size:13px;cursor:pointer}
 .doc-ring{width:18px;height:18px;border-radius:50%;border:1.5px solid;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;line-height:1}
 .doc-tile{background:#fff;border:1px solid rgba(30,58,164,.1);border-radius:16px;padding:12px 12px 13px;cursor:pointer;box-shadow:0 1px 6px rgba(30,58,164,.06);transition:transform .14s,box-shadow .18s,border-color .18s;display:flex;flex-direction:column;min-width:0}
 .doc-tile:active{transform:scale(.97)}
