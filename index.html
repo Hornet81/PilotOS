@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.342">
+  <meta name="version" content="Beta.343">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.342","builtAt":"2026-07-09T20:07:34Z","commit":"663be46","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.343","builtAt":"2026-07-10T18:45:29Z","commit":"08d070c","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -20747,6 +20747,14 @@ window._initLD=function(){
   })();
 };
 document.getElementById('ld_modal').addEventListener('click',function(e){if(e.target===e.currentTarget)ldCloseModal();});
+// iOS: al enfocar un campo del modal del logbook, subirlo a la vista — el teclado lo tapaba
+// y no se podía escribir. scrollIntoView centrado tras un pequeño delay (deja abrir el teclado).
+document.addEventListener('focusin',function(e){
+  var m=document.getElementById('ld_modal');
+  if(!m||!m.classList.contains('open')) return;
+  if(!e.target||!m.contains(e.target)||!/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  setTimeout(function(){ try{ e.target.scrollIntoView({block:'center',behavior:'smooth'}); }catch(_e){} },260);
+});
 // Convertir a mayúsculas — dep, arr, flight (reg ya lo hace ldRegInput)
 ['ld_dep','ld_arr','ld_flight'].forEach(function(id){
   var _uei=document.getElementById(id);if(_uei)_uei.addEventListener('input',function(){this.value=this.value.toUpperCase();});
@@ -28309,7 +28317,10 @@ function SkyViewPilotOS() {
         }));
       }
     })();
-  }, [legIdx]);
+    // deps incluyen _depIcao/_arrIcao: cuando el roster carga tras el montaje y el leg real
+    // reemplaza al placeholder (-- → LEBL), legIdx no cambia pero los ICAO sí → re-fetch.
+    // Sin esto, BRIEF no cargaba la meteo hasta pasar por WX.
+  }, [legIdx, _depIcao, _arrIcao]);
   // Cargar fichas CCI del DEP/ARR desde backend -> cache CCI_BY_ICAO (nombre, pistas, alternativos)
   useEffect(() => {
     const ics = [_depIcao, _arrIcao].filter(Boolean);
@@ -28320,7 +28331,7 @@ function SkyViewPilotOS() {
       const keys = Object.keys(map || {});
       if (keys.length) { keys.forEach(k => { CCI_BY_ICAO[k] = map[k]; }); setTick(x => x + 1); }
     });
-  }, [legIdx]);
+  }, [legIdx, _depIcao, _arrIcao]);
   // Sin roster real para hoy (ningún leg cuya llegada+3h siga en el futuro): no mostramos
   // el LEGS de ejemplo (BCN-MAD demo). Avisamos de que no hay vuelo activo.
   if (false) {
