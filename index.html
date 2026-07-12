@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.348">
+  <meta name="version" content="Beta.349">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.348","builtAt":"2026-07-11T17:52:10Z","commit":"c78d013","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.349","builtAt":"2026-07-12T09:06:30Z","commit":"119596b","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -39038,7 +39038,7 @@ document.addEventListener('DOMContentLoaded', function(){
     var langLine=(CUR.lang==='en'?'\n\nReply in English.':'\n\nResponde en castellano de España.');
     var dayLegs=gatherLegs();
     var dayList=dayLegs.length?dayLegs.map(function(l){ return l.flight+' '+l.dep+'→'+l.arr+' ('+l.std+'-'+l.sta+'Z)'; }).join(' | '):'';
-    var dayHdr=dayList?('JORNADA COMPLETA DE HOY (TODOS los sectores que vuela el piloto): '+dayList+'. El piloto VUELA todos estos sectores hoy: NUNCA digas que no hace un sector que esté en esta lista. Si te preguntan por un sector que no está en el briefing de abajo, reconócelo como parte de su jornada y responde lo que puedas; si no tienes su detalle, dilo y ofrece briefarlo. '):''; var askedBlock=''; try{ var _ask=_matchAskedLeg(question,dayLegs,(window.__ariaCtx||{}).leg); if(_ask)askedBlock=await _liveSectorBlock(_ask); }catch(e){}
+    var dayHdr=dayList?('JORNADA COMPLETA DE HOY (TODOS los sectores que vuela el piloto): '+dayList+'. El piloto VUELA todos estos sectores hoy: NUNCA digas que no hace un sector que esté en esta lista. Si te preguntan por un sector que no está en el briefing de abajo, reconócelo como parte de su jornada y responde lo que puedas; si no tienes su detalle, dilo y ofrece briefarlo. '):''; var askedBlock=''; try{ var _ask=_matchAskedLeg(question,dayLegs,(window.__ariaCtx||{}).leg); var _needLive=/turbulenc|\bedr\b|baches|zarande|viento|\bwind\b|\bjet\b|cizalla|shear|engelam|icing|meteo/i.test(String(question)); var _target=_ask||(_needLive?((window.__ariaCtx||{}).leg):null); if(_target)askedBlock=await _liveSectorBlock(_target); }catch(e){}
     if(LAST_SCOPE==='hoy' && LAST_TEXT){
       return 'Eres ARIA, copiloto del piloto para TODA su jornada. '+dayHdr+askedBlock+'\n\nBRIEFING ENTREGADO:\n'+LAST_TEXT+langLine;
     }
@@ -39391,7 +39391,7 @@ document.addEventListener('DOMContentLoaded', function(){
     q('#ar-gen').onclick=generate;
     q('#ar-play').onclick=togglePlay;
     q('#ar-back').onclick=function(){ rewind(15); };
-    var stp=q('#ar-stop'); if(stp)stp.onclick=stopBriefing;
+    var stp=q('#ar-stop'); if(stp){ var _lastStopTap=0; stp.onclick=function(){ var now=Date.now(); if(now-_lastStopTap<450){ _lastStopTap=0; try{ resetAria(); }catch(e){} } else { _lastStopTap=now; try{ stopBriefing(); }catch(e){} } }; stp.title=(CUR&&CUR.lang==='en')?'Stop · double-tap = reset':'Parar · doble toque = reiniciar'; }
     var rgn=q('#ar-regen'); if(rgn)rgn.onclick=generate;
     var vpl=q('#ar-vpill'); if(vpl)vpl.onclick=toggleSettings;
     var stc=q('#ar-setclose'); if(stc)stc.onclick=function(){ var st=q('#ar-set'); if(st)st.style.display='none'; };
