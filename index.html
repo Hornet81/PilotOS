@@ -10585,7 +10585,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       </div>
       <div style="margin-bottom:8px">
         <label class="pc-field-label" for="pc_mes_sel">Mes de actividad a importar</label>
-        <input type="month" class="fi" id="pc_mes_sel" style="width:100%">
+        <select class="fi" id="pc_mes_sel" style="width:100%"></select>
         <div style="font-size:11px;color:rgba(255,255,255,.42);line-height:1.45;margin-top:5px">
           📅 La nómina paga las variables (vuelo, dietas, nocturnas) del <b style="color:#7DD3FC">mes anterior</b>. Para la nómina de julio, importa <b style="color:#7DD3FC">junio</b>. Por defecto: el mes pasado.
         </div>
@@ -15144,8 +15144,20 @@ function pcCalc() {
 // ── Paso 5: Importar datos del mes desde Supabase ──────────────────
 function pcNowMonth(){ var n=new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); }
 function pcPrevMonthYM(){ var n=new Date(); n.setDate(1); n.setMonth(n.getMonth()-1); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); }
-// Deja el selector de mes en el mes anterior por defecto (la nómina paga las variables de M−1)
-function pcSetDefaultImportMonth(){ var s=document.getElementById('pc_mes_sel'); if(s && !s.value) s.value = pcPrevMonthYM(); }
+// Rellena el <select> de meses (mes actual + 14 anteriores) con el MES ANTERIOR
+// preseleccionado (la nómina paga las variables de M−1). Idempotente.
+function pcSetDefaultImportMonth(){
+  var s=document.getElementById('pc_mes_sel'); if(!s || s.options.length) return;
+  var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var base=new Date(); base.setDate(1);
+  var html='';
+  for (var i=0;i<=14;i++){
+    var d=new Date(base.getFullYear(), base.getMonth()-i, 1);
+    var ym=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    html+='<option value="'+ym+'"'+(i===1?' selected':'')+'>'+meses[d.getMonth()]+' '+d.getFullYear()+(i===0?' (mes actual)':'')+'</option>';
+  }
+  s.innerHTML=html;
+}
 
 async function pcImportFromLogbook(month) {
   var token = ''; try { token = lsGet('cafi_auth_token',''); } catch(e) {}
