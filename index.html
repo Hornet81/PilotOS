@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.349">
+  <meta name="version" content="Beta.350">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.349","builtAt":"2026-07-12T09:06:30Z","commit":"f3cb9e6","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.350","builtAt":"2026-07-12T14:12:27Z","commit":"1cf03f7","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -21325,6 +21325,7 @@ document.addEventListener('focusin',function(e){
 
 </script>
 <script src="js/docs.js"></script>
+<script src="js/runways.js"></script>
 <script>
 // Backend URL declared early so login works even if later code throws
 var cafiBackendUrl = 'https://api.pilotos.aero';
@@ -21587,7 +21588,12 @@ function _runwaysForIcao(icao){
       return {id:r.id, hdg:(((isNaN(n)?0:n)*10)%360), do_not_use:!!r.do_not_use};
     });
   }
-  return RUNWAY_DB[icao]||null;
+  if(RUNWAY_DB[icao]) return RUNWAY_DB[icao];
+  // Base MUNDIAL de pistas reales (OurAirports, js/runways.js): rumbos verdaderos. Evita que
+  // calcRwyFromMetar fabrique una pista inexistente desde el viento (p.ej. LIEO "11" en vez de 05/23).
+  var w=(typeof window!=='undefined'&&window.PILOTOS_RUNWAYS)?window.PILOTOS_RUNWAYS[icao]:null;
+  if(w&&w.length) return w.map(function(r){return {id:r[0], hdg:r[1], do_not_use:false};});
+  return null;
 }
 function _bestRwyFromList(runways,dir,spd){
   if(!runways||!runways.length)return null;
@@ -29763,7 +29769,12 @@ function rstRenderCalendar(){
     }
 
     var barTopHTML = '';
-    if(crossoverArrMin >= 0){
+    // El 1/3 (invasión de madrugada del día anterior) SOLO se pinta cuando el día invadido queda
+    // LIBRE (sin jornada propia). Si ese día tiene sus PROPIOS vuelos (empieza una jornada nueva,
+    // p.ej. día 12: llega de madrugada + vuela BCN-LCG por la tarde) → se pinta su jornada normal
+    // (report + vuelo), no el 1/3. La cola de madrugada sigue en el detalle del día.
+    var _dayHasOwnFlight = dayEntries.some(function(e){ return e.type==='flight'; });
+    if(crossoverArrMin >= 0 && !_dayHasOwnFlight){
       // ── Crossover bar: same height as a normal single-activity bar (20px) ──
       // Tercios según la HORA DE FIN de la invasión (cortes de 8h):
       //   00:00–07:59 → 1 tercio   08:00–15:59 → 2 tercios   16:00–23:59 → 3 tercios
