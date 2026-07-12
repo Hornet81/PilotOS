@@ -1,2 +1,0 @@
-const http=require("http"),fs=require("fs"),path=require("path");
-http.createServer((req,res)=>{let f=decodeURIComponent(req.url.split("?")[0]);if(f==="/")f="/index.html";const p=path.join(process.cwd(),f);fs.readFile(p,(e,d)=>{if(e){res.writeHead(404);res.end("nf");return;}const ct={".html":"text/html",".js":"text/javascript",".css":"text/css",".json":"application/json"}[path.extname(p)]||"application/octet-stream";res.writeHead(200,{"Content-Type":ct});res.end(d);});}).listen(4601,()=>console.log("serving 4601"));
