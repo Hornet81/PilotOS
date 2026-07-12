@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.351">
+  <meta name="version" content="Beta.352">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.351","builtAt":"2026-07-12T14:14:19Z","commit":"ca3ab3b","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.352","builtAt":"2026-07-12T14:55:04Z","commit":"3e3c001","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -33851,7 +33851,7 @@ function _ecShowChangeSummary(month, diff){
   var h='<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="font-size:22px">🔄</div><div><div style="font-family:\'Space Grotesk\',sans-serif;font-size:16px;font-weight:800;color:#F0FFFE">'+mlabel+' actualizado</div><div style="font-family:\'Space Mono\',monospace;font-size:11px;color:#22d3ee">'+n+' cambio'+(n===1?'':'s')+'</div></div></div>';
   function row(icon,col,lbl,detail){ return '<div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid rgba(255,255,255,.06)"><span style="font-size:13px">'+icon+'</span><span style="font-family:\'Space Mono\',monospace;font-size:10px;color:'+col+';font-weight:700;min-width:74px">'+lbl+'</span><span style="font-family:\'Space Mono\',monospace;font-size:12px;color:#F0FFFE">'+detail+'</span></div>'; }
   diff.added.forEach(function(e){ h+=row('✈️','#4ADE80','NUEVO','día '+_ecDiffDay(e)+' · '+_ecDiffLabel(e)); });
-  diff.changed.forEach(function(c){ h+=row('🕐','#FCD34D','CAMBIO','día '+_ecDiffDay(c.n)+' · '+_ecDiffLabel(c.n)+'  '+_ecDiffTime(c.o)+' → '+_ecDiffTime(c.n)); });
+  diff.changed.forEach(function(c){ h+='<div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid rgba(255,255,255,.06)"><span style="font-size:13px">🕐</span><span style="font-family:\'Space Mono\',monospace;font-size:10px;color:#FCD34D;font-weight:700;min-width:74px">CAMBIO</span><span style="font-family:\'Space Mono\',monospace;font-size:12px;display:flex;align-items:center;gap:7px;flex-wrap:wrap"><span style="color:#F0FFFE">día '+_ecDiffDay(c.n)+' · '+_ecDiffLabel(c.n)+'</span><span style="color:#94a3b8;text-decoration:line-through;opacity:.75">'+_ecDiffTime(c.o)+'</span><span style="color:#4ADE80;font-weight:800;font-size:14px">→</span><span style="color:#4ADE80;font-weight:700">'+_ecDiffTime(c.n)+'</span></span></div>'; });
   diff.removed.forEach(function(e){ h+=row('❌','#fca5a5','ELIMINADO','día '+_ecDiffDay(e)+' · '+_ecDiffLabel(e)); });
   h+='<button onclick="var x=this.closest(\'[data-ecsum]\'); if(x) x.remove();" style="margin-top:16px;width:100%;padding:13px;border:none;border-radius:13px;background:linear-gradient(135deg,#0891B2,#0369A1);color:#fff;font-family:\'Space Grotesk\',sans-serif;font-size:14px;font-weight:800;cursor:pointer">Entendido</button>';
   card.innerHTML=h; ov.appendChild(card);
@@ -34553,6 +34553,29 @@ window.ldECrewsConfirm = function(){
   // eCrews cuando difieren y cuenta la modificación → aplica los cambios de forma no destructiva.
   var _isResync = !!window._ecSuppressImportToast;
 
+  // ── IMPORT DIRECTO: eCrews es la FUENTE DE VERDAD del mes que trae ──────────────
+  // Antes el import solo FUSIONABA (nunca borraba) → los vuelos BORRADOS o CAMBIADOS en
+  // eCrews persistían hasta pulsar "actualizar" (que hace el resync). Ahora, en el import
+  // directo: (1) capturamos el diff para el pop-up de cambios, (2) quitamos las entradas
+  // eCrews viejas del/los mes(es) importado(s) ANTES del merge. Conserva vuelos MANUALES
+  // (source!=ECREWS) y colas de medianoche; solo toca meses con ≥1 entrada (nunca vacía).
+  // El resync ya limpió y muestra su propio resumen → aquí no se repite.
+  var _ecImpMonth=null, _ecImpDiff=null;
+  if(!_isResync){
+    _ecImpMonth = (_ecParsedEntries && _ecParsedEntries.length && _ecParsedEntries[0].date) ? _ecParsedEntries[0].date.slice(0,7) : null;
+    if(_ecImpMonth && typeof _ecDiffMonth==='function'){ try{ _ecImpDiff=_ecDiffMonth(_ecParsedEntries, _ecImpMonth); }catch(e){} }
+    var _impMonths={}, _impDays={};
+    (_ecParsedEntries||[]).forEach(function(e){ if(e && e.date){ _impMonths[e.date.slice(0,7)]=true; _impDays[e.date]=true; } });
+    if(Object.keys(_impMonths).length){
+      RST.entries = (RST.entries||[]).filter(function(r){
+        if(!r.date) return true;
+        if(_impMonths[r.date.slice(0,7)] && r.source==='ECREWS') return false;
+        if(_impDays[r.date] && r.type!=='flight' && r.type!=='overnight_continuation') return false;
+        return true;
+      });
+    }
+  }
+
   _ecParsedEntries.forEach(function(e){
     // Check if already exists in RST by date+type+(flightNum/code)
     var existingIdx = RST.entries.findIndex(function(r){
@@ -34680,8 +34703,13 @@ window.ldECrewsConfirm = function(){
 
   // El re-sync directo (ecResyncMonth) muestra su PROPIO resumen → aquí no tocamos.
   if(_isResync){ window._ecSuppressImportToast = false; }
+  else if(_ecImpDiff && _ecImpDiff.hadOld && (_ecImpDiff.added.length + _ecImpDiff.removed.length + _ecImpDiff.changed.length) > 0){
+    // Re-import con cambios respecto a lo que había → pop-up de diferencias (nuevos/cambios/eliminados).
+    try{ if(typeof _ecShowChangeSummary==='function') _ecShowChangeSummary(_ecImpMonth, _ecImpDiff); else showToast('✅ Roster actualizado (eCrews)','success'); }
+    catch(e){ showToast('✅ Roster actualizado (eCrews)','success'); }
+  }
   else if(imported > 0 || updated > 0){
-    // Detecta y reporta tanto altas (imported) como MODIFICACIONES aplicadas (updated).
+    // Primer import (sin datos previos) o altas sin diff → toast normal.
     var _parts = [];
     if(imported) _parts.push(imported + ' nuev' + (imported===1?'a':'as'));
     if(updated)  _parts.push(updated  + ' actualizad' + (updated===1?'a':'as'));
