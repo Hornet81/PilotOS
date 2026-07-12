@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.352">
+  <meta name="version" content="Beta.353">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.352","builtAt":"2026-07-12T14:55:04Z","commit":"fe18600","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.353","builtAt":"2026-07-12T15:23:21Z","commit":"09f8f8b","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -39180,7 +39180,8 @@ document.addEventListener('DOMContentLoaded', function(){
   // 1ª vez; una vez concedido queda persistido y al terminar el briefing el micro abre solo.
   function primeMic(){ try{ if(!CUR.autoMic) return; if(lg('db_micok','')==='1') return; if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) return; _dbg('primeMic gUM'); navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){ _dbg('primeMic release'); try{ s.getTracks().forEach(function(t){t.stop();}); }catch(e){} try{ localStorage.setItem('db_micok','1'); }catch(e){} }).catch(function(){}); }catch(e){} }
   async function generate(){
-    primeMic();
+    // El micro se pide JUSTO DESPUÉS de la posición (ver getPos abajo) para que el conductor
+    // conceda ambos permisos de una vez, con el móvil en la mano, y no tenga que tocarlo al volante.
     var gen=q('#ar-gen'); if(gen){ gen.disabled=true; gen.style.opacity='.6'; gen.textContent=(CUR.lang==='en'?'Generating…':'Generando…'); }
     try{ if(curAudio)curAudio.pause(); }catch(e){} playing=false; paused=false; k=0; acc=0; audios=[];
     var f=q('#ar-fill'); if(f)f.style.width='0'; var c0=q('#ar-cur'); if(c0)c0.textContent='0:00'; var tr=q('#ar-tr'); if(tr)tr.innerHTML='';
@@ -39192,7 +39193,7 @@ document.addEventListener('DOMContentLoaded', function(){
         var legs=gatherLegs();
         if(!legs.length){ stat(CUR.lang==='en'?'No active flight detected right now.':'No se detecta ningún vuelo activo ahora mismo.'); return _done(gen); }
         stat(CUR.lang==='en'?'Generating briefing with ARIA…':'Generando briefing con ARIA…');
-        var pos=await getPos(); try{ _locNote(pos); }catch(e){} var _bi=_baseInfo(); var body={legs:legs,pilot:pilotName()||undefined,lang:CUR.lang,localHour:new Date().getHours(),yesterdayRoutes:prevDayRoutes(legs)}; if(pos){ body.userLat=pos.lat; body.userLon=pos.lon; } if(_bi){ body.baseIcao=_bi.icao; body.baseLat=_bi.lat; body.baseLon=_bi.lon; body.baseLabel=_bi.label; }
+        var _posP=getPos(); try{ primeMic(); }catch(e){} /* posición primero y micro JUSTO detrás, en el MISMO gesto del tap (getUserMedia necesita el gesto → NO se espera a la posición); así el conductor concede ambos de una vez */ var pos=await _posP; try{ _locNote(pos); }catch(e){} var _bi=_baseInfo(); var body={legs:legs,pilot:pilotName()||undefined,lang:CUR.lang,localHour:new Date().getHours(),yesterdayRoutes:prevDayRoutes(legs)}; if(pos){ body.userLat=pos.lat; body.userLon=pos.lon; } if(_bi){ body.baseIcao=_bi.icao; body.baseLat=_bi.lat; body.baseLon=_bi.lon; body.baseLabel=_bi.label; }
         var r=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify(body)});
         if(!r.ok){ var j=await r.json().catch(function(){return{};}); stat('⚠ '+(j.message||j.error||('Error '+r.status))); return _done(gen); }
         var d=await r.json(); txt=d.text||'';
@@ -39201,7 +39202,7 @@ document.addEventListener('DOMContentLoaded', function(){
         if(!leg){ stat('No hay vuelo activo en SkyView.'); return _done(gen); }
         stat(CUR.lang==='en'?'Generating briefing with ARIA…':'Generando briefing con ARIA…');
         var all=gatherLegs(); var one=all.filter(function(L){ return L.flight===leg.flight && L.dep===leg.dep && L.arr===leg.arr; }); if(!one.length){ var di=(window.iataToIcao&&window.iataToIcao(leg.dep))||leg.dep, ai=(window.iataToIcao&&window.iataToIcao(leg.arr))||leg.arr; one=[{flight:leg.flight,dep:leg.dep,arr:leg.arr,depIcao:di,arrIcao:ai,std:stripZ(leg.std),sta:stripZ(leg.sta),acType:leg.acType,arrMs:leg._arrMs}]; } else { one=[one[0]]; }
-        var pos=await getPos(); try{ _locNote(pos); }catch(e){} var _bi=_baseInfo(); var lbody={legs:one,pilot:pilotName()||undefined,lang:CUR.lang,localHour:new Date().getHours(),yesterdayRoutes:prevDayRoutes(one)}; if(pos){ lbody.userLat=pos.lat; lbody.userLon=pos.lon; } if(_bi){ lbody.baseIcao=_bi.icao; lbody.baseLat=_bi.lat; lbody.baseLon=_bi.lon; lbody.baseLabel=_bi.label; } var r2=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify(lbody)});
+        var _posP=getPos(); try{ primeMic(); }catch(e){} /* posición primero y micro JUSTO detrás, en el MISMO gesto del tap (getUserMedia necesita el gesto → NO se espera a la posición); así el conductor concede ambos de una vez */ var pos=await _posP; try{ _locNote(pos); }catch(e){} var _bi=_baseInfo(); var lbody={legs:one,pilot:pilotName()||undefined,lang:CUR.lang,localHour:new Date().getHours(),yesterdayRoutes:prevDayRoutes(one)}; if(pos){ lbody.userLat=pos.lat; lbody.userLon=pos.lon; } if(_bi){ lbody.baseIcao=_bi.icao; lbody.baseLat=_bi.lat; lbody.baseLon=_bi.lon; lbody.baseLabel=_bi.label; } var r2=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify(lbody)});
         if(!r2.ok){ var je=await r2.json().catch(function(){return{};}); stat('⚠ '+(je.message||je.error||('Error '+r2.status))); return _done(gen); } var d2=await r2.json(); txt=d2.text||'';
       }
       if(!txt){ stat('⚠ ARIA no devolvió texto'); return _done(gen); } LAST_TEXT=txt; LAST_SCOPE=SCOPE; try{ localStorage.setItem('db_lastText',txt); localStorage.setItem('db_lastScope',SCOPE); }catch(e){}
