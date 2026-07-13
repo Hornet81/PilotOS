@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.357">
+  <meta name="version" content="Beta.358">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.357","builtAt":"2026-07-13T08:52:05Z","commit":"ca7d149","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.358","builtAt":"2026-07-13T10:52:52Z","commit":"968aec1","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -39226,14 +39226,16 @@ document.addEventListener('DOMContentLoaded', function(){
     var ts='no disponible', ws='no disponible';
     try{ var co=window.getRouteCoords(leg.dep,leg.arr); if(co&&co.length){ var tb=await window.fetchTurbulenceProfile(co, leg.cruiseFL||300); if(tb&&tb.length) ts=tb.map(function(p,i){return 'WP'+(i+1)+':EDR'+p.edr.toFixed(2);}).join(' '); } }catch(e){}
     try{ var wd=await window.fetchRouteWinds(leg.dep,leg.arr); if(wd&&wd.length) ws=wd.map(function(w){return 'FL'+w.fl+' '+w.dir+'\u00b0/'+w.speed+'kt';}).join(', '); }catch(e){}
-    return '\n\nDATOS EN VIVO DEL SECTOR PREGUNTADO ('+leg.dep+'\u2192'+leg.arr+'): Turbulencia NOAA GTG: '+ts+' (EDR <0.15 poca, 0.15-0.30 moderada, >0.30 fuerte). Vientos en ruta (TOC\u2192crucero\u2192descenso, Open-Meteo): '+ws+'. Responde sobre ESE sector con estos datos en vivo.';
+    var altw='';
+    try{ var _al=(leg.alts||[]).slice(0,3); if(_al.length && window.fetchLiveMetar){ var ar=await Promise.all(_al.map(function(a){ var ic=(window.iataToIcao&&window.iataToIcao(a.icao))||a.icao; return window.fetchLiveMetar(ic).then(function(m){ return (a.city||a.icao)+' ('+(a.icao||ic)+'): '+((m&&m.raw)||(m&&m.cat)||'sin datos'); }).catch(function(){ return (a.city||a.icao)+': sin datos'; }); })); altw=ar.filter(Boolean).join(' | '); } }catch(e){}
+    return '\n\nDATOS EN VIVO DEL SECTOR PREGUNTADO ('+leg.dep+'\u2192'+leg.arr+'): Turbulencia NOAA GTG: '+ts+' (EDR <0.15 poca, 0.15-0.30 moderada, >0.30 fuerte). Vientos en ruta (TOC\u2192crucero\u2192descenso, Open-Meteo): '+ws+'.'+(altw?(' Meteo EN VIVO de los ALTERNATIVOS: '+altw+'.'):'')+' Responde sobre ESE sector con estos datos en vivo.';
   }
   async function qaContext(question){
     var ctx=window.__ariaCtx||{};
     var langLine=(CUR.lang==='en'?'\n\nReply in English.':'\n\nResponde en castellano de España.');
     var dayLegs=gatherLegs();
     var dayList=dayLegs.length?dayLegs.map(function(l){ return l.flight+' '+l.dep+'→'+l.arr+' ('+l.std+'-'+l.sta+'Z)'; }).join(' | '):'';
-    var dayHdr=dayList?('JORNADA COMPLETA DE HOY (TODOS los sectores que vuela el piloto): '+dayList+'. El piloto VUELA todos estos sectores hoy: NUNCA digas que no hace un sector que esté en esta lista. Si te preguntan por un sector que no está en el briefing de abajo, reconócelo como parte de su jornada y responde lo que puedas; si no tienes su detalle, dilo y ofrece briefarlo. '):''; var askedBlock=''; try{ var _ask=_matchAskedLeg(question,dayLegs,(window.__ariaCtx||{}).leg); var _needLive=/turbulenc|\bedr\b|baches|zarande|viento|\bwind\b|\bjet\b|cizalla|shear|engelam|icing|meteo/i.test(String(question)); var _target=_ask||(_needLive?((window.__ariaCtx||{}).leg):null); if(_target)askedBlock=await _liveSectorBlock(_target); }catch(e){}
+    var dayHdr=dayList?('JORNADA COMPLETA DE HOY (TODOS los sectores que vuela el piloto): '+dayList+'. El piloto VUELA todos estos sectores hoy: NUNCA digas que no hace un sector que esté en esta lista. Si te preguntan por un sector que no está en el briefing de abajo, reconócelo como parte de su jornada y responde lo que puedas; si no tienes su detalle, dilo y ofrece briefarlo. '):''; var askedBlock=''; try{ var _ask=_matchAskedLeg(question,dayLegs,(window.__ariaCtx||{}).leg); var _needLive=/turbulenc|\bedr\b|baches|zarande|viento|\bwind\b|\bjet\b|cizalla|shear|engelam|icing|meteo|alternativ|desv[ií]|divert|\balt\b/i.test(String(question)); var _target=_ask||(_needLive?((window.__ariaCtx||{}).leg):null); if(_target)askedBlock=await _liveSectorBlock(_target); }catch(e){}
     if(LAST_SCOPE==='hoy' && LAST_TEXT){
       return 'Eres ARIA, copiloto del piloto para TODA su jornada. '+dayHdr+askedBlock+'\n\nBRIEFING ENTREGADO:\n'+LAST_TEXT+langLine;
     }
@@ -39242,7 +39244,7 @@ document.addEventListener('DOMContentLoaded', function(){
     if(LAST_TEXT && LAST_SCOPE==='leg'){ base = base+'\n\nBRIEFING YA ENTREGADO DEL SECTOR ACTIVO:\n'+LAST_TEXT; }
     return base+langLine;
   }
-  async function chatSend(text){ text=(text||'').trim(); if(!text)return; var tk=token(); if(!tk){ chatLog('aria','Inicia sesión para usar ARIA.'); return; } chatLog('you',text); var th=chatLog('aria','…'); try{ var sys=await qaContext(text); var r=await fetch(BACKEND+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({messages:[{role:'user',content:text+(CUR.lang==='en'?'\n\n(Reply in English.)':'\n\n(Responde en español de España.)')}],logbook_context:sys,scope:'briefing'})}); var j=await r.json(); var ans=(j.content&&j.content.map(function(b){return b.text||'';}).join(''))||(j.message?j.message:'No tengo respuesta.'); ans=ans.replace(/[*#`]/g,''); if(th)th.textContent=ans; }catch(e){ if(th)th.textContent='⚠ Error de conexión.'; } }
+  async function chatSend(text){ text=(text||'').trim(); if(!text)return; var tk=token(); if(!tk){ chatLog('aria','Inicia sesión para usar ARIA.'); return; } chatLog('you',text); var th=chatLog('aria','…'); try{ var sys=await qaContext(text); var r=await fetch(BACKEND+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({messages:[{role:'user',content:text+(CUR.lang==='en'?'\n\n(Reply in English.)':'\n\n(Responde en español de España.)')}],logbook_context:sys,scope:'briefing'})}); var j=await r.json(); var ans=(j.content&&j.content.map(function(b){return b.text||'';}).join(''))||(j.message?j.message:'No tengo respuesta.'); ans=ans.replace(/[*#`]/g,''); if(th)th.textContent=ans; try{ if(!vMuted) vSpeak(ans); }catch(e){} }catch(e){ if(th)th.textContent='⚠ Error de conexión.'; } }
 
   var audios=[],curAudio=null,playing=false,paused=false,total=0,acc=0,k=0,durs=[],SENT=[],PEL=[],SEG=[],GAP=850;
   var _segMap=[],_brief=null,_briefUrl=null,_decAC=null;
@@ -39336,20 +39338,26 @@ document.addEventListener('DOMContentLoaded', function(){
   // 1ª vez; una vez concedido queda persistido y al terminar el briefing el micro abre solo.
   function primeMic(){ try{ if(!CUR.autoMic) return; if(lg('db_micok','')==='1') return; if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) return; _dbg('primeMic gUM'); navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){ _dbg('primeMic release'); try{ s.getTracks().forEach(function(t){t.stop();}); }catch(e){} try{ localStorage.setItem('db_micok','1'); }catch(e){} }).catch(function(){}); }catch(e){} }
   async function generate(){
-    // El micro se pide JUSTO DESPUÉS de la posición (ver getPos abajo) para que el conductor
-    // conceda ambos permisos de una vez, con el móvil en la mano, y no tenga que tocarlo al volante.
+    // Pide el micro AQUÍ, en el gesto DIRECTO del tap. En iOS getUserMedia solo funciona dentro
+    // del gesto y no permite dos prompts de permiso a la vez (por eso no se puede encadenar tras
+    // la posición: se rechazaba y el micro acababa pidiéndose al final). Así ambos permisos
+    // (micro y luego posición) se conceden por delante, antes de conducir.
+    try{ primeMic(); }catch(e){}
     var gen=q('#ar-gen'); if(gen){ gen.disabled=true; gen.style.opacity='.6'; gen.textContent=(CUR.lang==='en'?'Generating…':'Generando…'); }
     try{ if(curAudio)curAudio.pause(); }catch(e){} playing=false; paused=false; k=0; acc=0; audios=[];
     var f=q('#ar-fill'); if(f)f.style.width='0'; var c0=q('#ar-cur'); if(c0)c0.textContent='0:00'; var tr=q('#ar-tr'); if(tr)tr.innerHTML='';
     var pl=q('#ar-player'); if(pl)pl.style.display='none'; hideVoiceDock();
     var tk=token(); if(!tk){ stat('Inicia sesión para generar el briefing.'); return _done(gen); }
+    // Al generar: refresca en 2º plano la turbulencia del leg activo (para que ARIA tenga la
+    // última versión sin tener que visitar antes el Perfil de ruta). No bloquea el briefing.
+    try{ var _plLeg=(SCOPE==='hoy'?(gatherLegs()[0]):(window.__ariaCtx||{}).leg); if(_plLeg && window.getRouteCoords && window.fetchTurbulenceProfile){ var _plco=window.getRouteCoords(_plLeg.dep,_plLeg.arr); if(_plco&&_plco.length>1){ window.fetchTurbulenceProfile(_plco,_plLeg.cruiseFL||300).then(function(tb){ if(tb&&tb.length){ window.__ariaCtx=window.__ariaCtx||{}; window.__ariaCtx.turbData=tb; if(!window.__ariaCtx.leg)window.__ariaCtx.leg=_plLeg; } }).catch(function(){}); } } }catch(e){}
     try{
       var txt='';
       if(SCOPE==='hoy'){
         var legs=gatherLegs();
         if(!legs.length){ stat(CUR.lang==='en'?'No active flight detected right now.':'No se detecta ningún vuelo activo ahora mismo.'); return _done(gen); }
         stat(CUR.lang==='en'?'Generating briefing with ARIA…':'Generando briefing con ARIA…');
-        var _posP=getPos(); try{ primeMic(); }catch(e){} /* posición primero y micro JUSTO detrás, en el MISMO gesto del tap (getUserMedia necesita el gesto → NO se espera a la posición); así el conductor concede ambos de una vez */ var pos=await _posP; try{ _locNote(pos); }catch(e){} var _bi=_baseInfo(); var body={legs:legs,pilot:pilotName()||undefined,lang:CUR.lang,localHour:new Date().getHours(),yesterdayRoutes:prevDayRoutes(legs)}; if(pos){ body.userLat=pos.lat; body.userLon=pos.lon; } if(_bi){ body.baseIcao=_bi.icao; body.baseLat=_bi.lat; body.baseLon=_bi.lon; body.baseLabel=_bi.label; }
+        var pos=await getPos(); try{ _locNote(pos); }catch(e){} var _bi=_baseInfo(); var body={legs:legs,pilot:pilotName()||undefined,lang:CUR.lang,localHour:new Date().getHours(),yesterdayRoutes:prevDayRoutes(legs)}; if(pos){ body.userLat=pos.lat; body.userLon=pos.lon; } if(_bi){ body.baseIcao=_bi.icao; body.baseLat=_bi.lat; body.baseLon=_bi.lon; body.baseLabel=_bi.label; }
         var r=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify(body)});
         if(!r.ok){ var j=await r.json().catch(function(){return{};}); stat('⚠ '+(j.message||j.error||('Error '+r.status))); return _done(gen); }
         var d=await r.json(); txt=d.text||'';
@@ -39358,7 +39366,7 @@ document.addEventListener('DOMContentLoaded', function(){
         if(!leg){ stat('No hay vuelo activo en SkyView.'); return _done(gen); }
         stat(CUR.lang==='en'?'Generating briefing with ARIA…':'Generando briefing con ARIA…');
         var all=gatherLegs(); var one=all.filter(function(L){ return L.flight===leg.flight && L.dep===leg.dep && L.arr===leg.arr; }); if(!one.length){ var di=(window.iataToIcao&&window.iataToIcao(leg.dep))||leg.dep, ai=(window.iataToIcao&&window.iataToIcao(leg.arr))||leg.arr; one=[{flight:leg.flight,dep:leg.dep,arr:leg.arr,depIcao:di,arrIcao:ai,std:stripZ(leg.std),sta:stripZ(leg.sta),acType:leg.acType,arrMs:leg._arrMs}]; } else { one=[one[0]]; }
-        var _posP=getPos(); try{ primeMic(); }catch(e){} /* posición primero y micro JUSTO detrás, en el MISMO gesto del tap (getUserMedia necesita el gesto → NO se espera a la posición); así el conductor concede ambos de una vez */ var pos=await _posP; try{ _locNote(pos); }catch(e){} var _bi=_baseInfo(); var lbody={legs:one,pilot:pilotName()||undefined,lang:CUR.lang,localHour:new Date().getHours(),yesterdayRoutes:prevDayRoutes(one)}; if(pos){ lbody.userLat=pos.lat; lbody.userLon=pos.lon; } if(_bi){ lbody.baseIcao=_bi.icao; lbody.baseLat=_bi.lat; lbody.baseLon=_bi.lon; lbody.baseLabel=_bi.label; } var r2=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify(lbody)});
+        var pos=await getPos(); try{ _locNote(pos); }catch(e){} var _bi=_baseInfo(); var lbody={legs:one,pilot:pilotName()||undefined,lang:CUR.lang,localHour:new Date().getHours(),yesterdayRoutes:prevDayRoutes(one)}; if(pos){ lbody.userLat=pos.lat; lbody.userLon=pos.lon; } if(_bi){ lbody.baseIcao=_bi.icao; lbody.baseLat=_bi.lat; lbody.baseLon=_bi.lon; lbody.baseLabel=_bi.label; } var r2=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify(lbody)});
         if(!r2.ok){ var je=await r2.json().catch(function(){return{};}); stat('⚠ '+(je.message||je.error||('Error '+r2.status))); return _done(gen); } var d2=await r2.json(); txt=d2.text||'';
       }
       if(!txt){ stat('⚠ ARIA no devolvió texto'); return _done(gen); } LAST_TEXT=txt; LAST_SCOPE=SCOPE; try{ localStorage.setItem('db_lastText',txt); localStorage.setItem('db_lastScope',SCOPE); }catch(e){}
