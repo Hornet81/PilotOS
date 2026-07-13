@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.362">
+  <meta name="version" content="Beta.363">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.362","builtAt":"2026-07-13T12:06:55Z","commit":"6479854","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.363","builtAt":"2026-07-13T12:52:00Z","commit":"3644bce","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -30044,6 +30044,14 @@ function rstRenderStats(){
 
   // Group flights by date for per-day duty calc
   var dayFlights = {};
+  // Pre-pass: días (del mes) con vuelo PROPIO → la cola de medianoche NO debe sumar su
+  // bloque/duty (ya lo cuenta dayFlights con el Item1/Item2 oficial); solo debe sumar en
+  // días PURAMENTE invadidos (sin leg propio). Sin esto, un día con cola + vuelos propios
+  // cuenta su bloque DOS veces (día 12: cola 03:53 + vuelos 03:53 = 57:38 en vez de 53:45).
+  var _daysWithFlight = {};
+  RST.entries.forEach(function(e){
+    if(e.type==='flight'){ var _q=e.date.split('-'); if(parseInt(_q[0])===y && parseInt(_q[1])-1===mo) _daysWithFlight[e.date]=true; }
+  });
   RST.entries.forEach(function(e){
     var _dp = e.date.split('-');
     if(parseInt(_dp[0])!==y || parseInt(_dp[1])-1!==mo) return;
@@ -30055,11 +30063,15 @@ function rstRenderStats(){
       if(!dayFlights[e.date]) dayFlights[e.date]=[];
       dayFlights[e.date].push(e); // positioning still contributes to duty span
     } else if(e.type==='overnight_continuation'){
-      // Cola de cruce de medianoche (eCrews): el día invadido no tiene leg de vuelo, pero
-      // SÍ tiene bloque y duty oficiales (Item1/Item2 = tramo 00:00→llegada/debrief). Se suman
-      // al total para cuadrar con la compañía. NO incrementa dutyDays (es la misma jornada).
-      if(e.blockH) blockMin += t2m(e.blockH);
-      if(e.dutyH)  dutyMin  += t2m(e.dutyH);
+      // Cola de cruce de medianoche (eCrews): SOLO suma bloque/duty si el día está PURAMENTE
+      // invadido (sin leg de vuelo propio) — ese día no tiene otra fuente de su Item1/Item2.
+      // Si el día TIENE vuelos propios, el loop de dayFlights ya cuenta su bloque/duty oficial
+      // → sumar aquí lo DUPLICARÍA (día 12: cola 03:53 + vuelos 03:53 = 57:38 vs 53:45 real).
+      // NO incrementa dutyDays (es la misma jornada del día anterior).
+      if(!_daysWithFlight[e.date]){
+        if(e.blockH) blockMin += t2m(e.blockH);
+        if(e.dutyH)  dutyMin  += t2m(e.dutyH);
+      }
     } else if(e.type==='standby'||e.type==='osb'){
       standby++;
       // ── Vueling CBA standby duty rules ──────────────────────────────────
