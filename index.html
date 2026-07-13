@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.361">
+  <meta name="version" content="Beta.362">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.361","builtAt":"2026-07-13T11:42:00Z","commit":"cbd787a","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.362","builtAt":"2026-07-13T12:06:55Z","commit":"4669b5d","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -33986,12 +33986,14 @@ function _ecApplyMonthReplace(parsedMonth, month){
     if(!r.date) return true;
     // 1) quitar las entradas eCrews de ESTE mes (se reimportan abajo desde parsedMonth).
     if(r.date.slice(0,7)===month && r.source==='ECREWS') return false;
-    // 2) FUENTE DE VERDAD por día: en un día que eCrews vuelve a reportar, quitar cualquier
-    //    "estado de día" residual (Franco/OFF/Standby/Sim/Sick/Vacaciones…) AUNQUE su source
-    //    NO sea ECREWS (import antiguo, PDF, otra vía). Sin esto, un cambio de eCrews como
-    //    F→SBY deja las DOS actividades pintadas el mismo día. Se conservan los VUELOS
-    //    manuales (type 'flight') y las colas de cruce de medianoche (overnight_continuation).
-    if(_ecDays[r.date] && r.type!=='flight' && r.type!=='overnight_continuation') return false;
+    // 2) FUENTE DE VERDAD por día: en un día que eCrews vuelve a reportar, eCrews es el DUEÑO
+    //    TOTAL del día → quitar CUALQUIER entrada previa (vuelos, estados, colas) sea cual sea
+    //    su source (import antiguo, PDF, manual). La reimportación de abajo repone lo que eCrews
+    //    tiene de verdad ese día (incl. overnight_continuation, que el parser regenera). Sin esto
+    //    quedaban DUPLICADOS: F+SBY el mismo día, o vuelos viejos que inflaban el bloque (la app
+    //    marcaba 57:36 vs 53:43 en eCrews). Los días que eCrews NO reporta (vuelo en GA / otra
+    //    compañía durante una libranza, etc.) quedan INTACTOS (no están en _ecDays).
+    if(_ecDays[r.date]) return false;
     return true;
   });
   rstSave();
