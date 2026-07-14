@@ -6722,11 +6722,32 @@ html.day .ldm-ocr-strip{
 html.day .ldm-ocr-dot{background:#0891B2 !important;box-shadow:0 0 7px #0891B2 !important}
 html.day .ldm-ocr-text{color:#0369A1 !important}
 html.day .ldm-ocr-btn{color:#6D28D9 !important}
-/* Botón ADS-B — verde oscuro legible en modo día */
-html.day #ld_adsb_btn{
+/* Botón ADS-B en modo día — por ESTADO, no un verde fijo.
+   (Antes: html.day #ld_adsb_btn{color:#065F46!important} pintaba de verde el botón
+   incluso sin haber pedido nada. Verde = dato ya importado, no "acción disponible".) */
+html.day #ld_adsb_btn{                 /* apagado: no se puede usar todavía */
+  color:#94A3B8 !important;
+  background:rgba(148,163,184,.1) !important;
+  border-color:rgba(148,163,184,.26) !important;
+  font-weight:700 !important;
+}
+html.day #ld_adsb_btn.ready,
+html.day #ld_adsb_btn.loading{         /* listo / buscando: acción (cian) */
+  color:#0E7490 !important;
+  background:rgba(34,211,238,.14) !important;
+  border-color:rgba(8,145,178,.4) !important;
+  font-weight:800 !important;
+}
+html.day #ld_adsb_btn.ok{              /* éxito: AHORA sí verde */
   color:#065F46 !important;
   background:rgba(5,150,105,.14) !important;
   border-color:rgba(5,150,105,.45) !important;
+  font-weight:800 !important;
+}
+html.day #ld_adsb_btn.nodata{          /* ADS-B no encontró el vuelo */
+  color:#B45309 !important;
+  background:rgba(245,158,11,.14) !important;
+  border-color:rgba(217,119,6,.45) !important;
   font-weight:800 !important;
 }
 /* Separadores de sección */
@@ -11043,6 +11064,9 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       <div class="ld-tab" id="ld-tab-btn-stats" onclick="ldSwitchTab('stats',this)">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:-2px;margin-right:3px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Stats
       </div>
+      <div class="ld-tab" id="ld-tab-btn-carrera" onclick="ldSwitchTab('carrera',this)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><circle cx="12" cy="8" r="6"/><path d="M15.5 13.5 17 22l-5-3-5 3 1.5-8.5"/></svg>Carrera
+      </div>
     </div>
   </div>
   <!-- ══ PANEL VUELOS ══ -->
@@ -11692,6 +11716,316 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
   </div>
 
 
+  <!-- ══ PANEL CARRERA (lente EASA · solo lectura) ══ -->
+  <style>
+  #ld-panel-carrera.ld-panel{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  #ld-panel-carrera{color:#EAF6FF}
+  html.day #ld-panel-carrera{color:#15233F}
+  #ld-panel-carrera .crr-muted{color:rgba(214,234,242,.5)}
+  html.day #ld-panel-carrera .crr-muted{color:#64748B}
+  #ld-panel-carrera .ld-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:2px 0 4px}
+  #ld-panel-carrera .ld-stat{background:rgba(17,24,39,.85);border:1px solid rgba(34,211,238,.12);border-radius:14px;padding:11px 12px;position:relative;overflow:hidden}
+  #ld-panel-carrera .ld-stat::before{content:'';position:absolute;top:0;left:0;right:0;height:1.5px;background:linear-gradient(90deg,rgba(16,185,129,.6),transparent);border-radius:2px 2px 0 0}
+  #ld-panel-carrera .ld-stat-label{font-family:'Space Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:rgba(248,250,252,.35);margin-bottom:4px}
+  #ld-panel-carrera .ld-stat-value{font-family:'DM Mono','Space Mono',monospace;font-size:16px;font-weight:500;color:#22D3EE;line-height:1.1}
+  #ld-panel-carrera .crr-total{background:rgba(17,24,39,.85);border:1px solid rgba(16,185,129,.35);border-radius:16px;padding:15px 16px;margin-bottom:14px}
+  #ld-panel-carrera .crr-sec{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1.3px;text-transform:uppercase;color:rgba(16,185,129,.65);margin:16px 2px 9px}
+  #ld-panel-carrera .crr-chip{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:999px;padding:6px 12px;font-size:12px;color:#D6EAF2}
+  #ld-panel-carrera .crr-ev{display:flex;align-items:center;gap:11px;background:rgba(17,24,39,.85);border:1px solid rgba(34,211,238,.12);border-radius:13px;padding:12px 14px;margin-bottom:8px}
+  #ld-panel-carrera .crr-gbtn{margin-left:auto;font-size:11.5px;font-weight:700;color:#3AA57A;background:rgba(16,185,129,.14);border:1px solid rgba(16,185,129,.4);border-radius:9px;padding:7px 13px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  html.day #ld-panel-carrera .ld-stat{background:#fff;border-color:rgba(15,23,42,.07)}
+  html.day #ld-panel-carrera .ld-stat-label{color:#7E8CA0}
+  html.day #ld-panel-carrera .ld-stat-value{color:#15233F}
+  html.day #ld-panel-carrera .crr-total{background:#fff;border-color:rgba(16,185,129,.4)}
+  html.day #ld-panel-carrera .crr-chip{background:#fff;border-color:rgba(15,23,42,.08);color:#26405E}
+  html.day #ld-panel-carrera .crr-ev{background:#fff;border-color:rgba(15,23,42,.07)}
+  html.day #ld-panel-carrera .crr-sec{color:#0F6B49}
+  /* Fondo verde menta sutil para vuelos de carrera (no-Vueling) en la lista */
+  .ld-fcard.ld-career{background:rgba(16,185,129,.10)!important}
+  html.day .ld-fcard.ld-career{background:#E3F5EA!important}
+  </style>
+  <div id="ld-panel-carrera" class="ld-panel" style="display:none">
+    <div class="scroll-body" style="height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch">
+      <div class="page-content" style="padding:12px 14px calc(80px + env(safe-area-inset-bottom,0px))" id="ld-carrera-body"></div>
+    </div>
+  </div>
+
+  <!-- ══ MODAL AÑADIR VUELO · OTRO (universal adaptativo) ══ -->
+  <style>
+  .ldo-ov{display:none;position:fixed;inset:0;z-index:600;background:rgba(3,8,20,.6);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);align-items:flex-end;justify-content:center}
+  .ldo-ov.open{display:flex}
+  .ldo-sheet{width:100%;max-width:520px;max-height:92vh;display:flex;flex-direction:column;background:linear-gradient(180deg,#0B1224,#070C18);border:1px solid rgba(34,211,238,.16);border-top-left-radius:22px;border-top-right-radius:22px;overflow:hidden}
+  html.day .ldo-sheet{background:linear-gradient(180deg,#fff,#eef5fb);border-color:rgba(15,23,42,.1);color:#15233F}
+  .ldo-hdr{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.08)}
+  html.day .ldo-hdr{border-bottom-color:rgba(15,23,42,.08)}
+  .ldo-tabs{flex:1;display:flex;gap:4px;background:rgba(255,255,255,.05);border-radius:12px;padding:4px}
+  html.day .ldo-tabs{background:rgba(15,23,42,.05)}
+  .ldo-tab{flex:1;text-align:center;padding:9px;border-radius:9px;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;color:rgba(248,250,252,.5);cursor:pointer}
+  html.day .ldo-tab{color:#46607C}
+  .ldo-tab.on{background:rgba(16,185,129,.9);color:#08331F;font-weight:700}
+  .ldo-close{width:34px;height:34px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#cbd5e1;font-size:16px;cursor:pointer}
+  .ldo-body{flex:1;overflow-y:auto;padding:14px;-webkit-overflow-scrolling:touch}
+  .ldo-ftr{display:flex;gap:9px;padding:12px 14px;border-top:1px solid rgba(255,255,255,.08)}
+  html.day .ldo-ftr{border-top-color:rgba(15,23,42,.08)}
+  .ldo-btn{flex:1;padding:13px;border-radius:13px;font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#F8FAFC}
+  html.day .ldo-btn{background:rgba(15,23,42,.05);color:#15233F;border-color:rgba(15,23,42,.12)}
+  .ldo-btn.primary{flex:3;background:linear-gradient(135deg,#10B981,#c98a00);color:#08331F;border-color:transparent}
+  .ldo-act{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin-bottom:14px}
+  .ldo-chip{padding:11px 8px;border-radius:13px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);cursor:pointer;text-align:center;transition:all .15s}
+  html.day .ldo-chip{background:rgba(15,23,42,.03);border-color:rgba(15,23,42,.08)}
+  .ldo-chip.on{border-color:#10B981;background:rgba(16,185,129,.14)}
+  .ldo-chip{min-height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .ldo-chip .i{font-size:44px;line-height:1;height:56px;display:flex;align-items:center;justify-content:center}
+  .ldo-chip .n{font-size:12px;font-weight:600;margin-top:8px}
+  .ldo-fld{margin-bottom:11px}
+  .ldo-fld label{display:block;font-family:'Space Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:rgba(248,250,252,.4);margin-bottom:5px}
+  html.day .ldo-fld label{color:#7E8CA0}
+  .ldo-fld input,.ldo-fld select{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:11px;color:#F8FAFC;padding:11px;font-size:14px;font-family:'Space Grotesk',sans-serif;outline:none}
+  html.day .ldo-fld input,html.day .ldo-fld select{background:#fff;border-color:rgba(15,23,42,.14);color:#15233F}
+  .ldo-g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .ldo-box{border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:12px;margin-bottom:13px;background:rgba(255,255,255,.03)}
+  html.day .ldo-box{background:rgba(15,23,42,.02);border-color:rgba(15,23,42,.08)}
+  .ldo-sec{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:rgba(16,185,129,.7);margin:4px 2px 9px}
+  .ldo-ai{border:1px solid rgba(139,92,246,.4);background:linear-gradient(135deg,rgba(139,92,246,.12),rgba(34,211,238,.05));border-radius:14px;padding:12px;margin-bottom:13px}
+  .ldo-ai textarea{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:11px;color:#F8FAFC;padding:10px;font-size:13px;min-height:58px;font-family:'Space Grotesk',sans-serif;resize:vertical;outline:none}
+  html.day .ldo-ai textarea{background:#fff;color:#15233F;border-color:rgba(15,23,42,.14)}
+  .ldo-mini{font-size:12px;font-weight:700;padding:9px;border-radius:10px;cursor:pointer;text-align:center;margin-top:8px}
+  .ldo-kv{display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+  html.day .ldo-kv{border-bottom-color:rgba(15,23,42,.06)}
+  .ldo-kv span:first-child{color:rgba(248,250,252,.5)} html.day .ldo-kv span:first-child{color:#7E8CA0}
+
+  /* ════════ SELECTOR DE TIPO DE VUELO — selección animada ════════
+     Solo transform/opacity/filter (GPU) para no penalizar el iPad. */
+  .ldo-chip{position:relative;overflow:hidden;-webkit-tap-highlight-color:transparent;
+    transition:transform .28s cubic-bezier(.34,1.56,.64,1),opacity .26s ease,filter .26s ease,
+               box-shadow .28s ease,border-color .2s ease,background .28s ease;
+    will-change:transform}
+  .ldo-chip .i,.ldo-chip .n{position:relative;z-index:2}
+  .ldo-chip .i{transition:transform .3s cubic-bezier(.34,1.56,.64,1)}
+  /* 1 · feedback táctil */
+  .ldo-chip:active{transform:scale(.95)}
+  .ldo-chip.on:active{transform:translateY(-3px) scale(.97)}
+
+  /* 5 · foco — los no elegidos se apagan para que el elegido destaque */
+  .ldo-act.has-sel .ldo-chip:not(.on){opacity:.42;filter:saturate(.3)}
+  .ldo-act.has-sel .ldo-chip:not(.on):hover{opacity:.75;filter:saturate(.7)}
+
+  /* 4 · estado seleccionado permanente */
+  .ldo-chip.on{border-color:#10B981;transform:translateY(-3px);
+    background:linear-gradient(160deg,rgba(16,185,129,.30),rgba(16,185,129,.09));
+    box-shadow:0 14px 30px rgba(16,185,129,.30),inset 0 0 0 1px rgba(16,185,129,.45),inset 0 1px 0 rgba(255,255,255,.22)}
+  .ldo-chip.on .i{transform:scale(1.09)}
+  .ldo-chip.on .n{color:#10B981;font-weight:800}
+  html.day .ldo-chip.on{background:linear-gradient(160deg,rgba(16,185,129,.22),rgba(16,185,129,.06));
+    box-shadow:0 14px 28px rgba(16,185,129,.24),inset 0 0 0 1px rgba(16,185,129,.4)}
+  html.day .ldo-chip.on .n{color:#0F6B49}
+
+  /* 4b · check en la esquina, entra con rebote */
+  .ldo-chip::before{content:'';position:absolute;top:7px;right:7px;width:19px;height:19px;border-radius:50%;z-index:3;
+    background:#10B981 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E") center/11px no-repeat;
+    box-shadow:0 3px 9px rgba(16,185,129,.55);
+    transform:scale(0) rotate(-60deg);opacity:0;
+    transition:transform .36s cubic-bezier(.34,1.56,.64,1) .06s,opacity .18s ease .06s}
+  .ldo-chip.on::before{transform:scale(1) rotate(0);opacity:1}
+
+  /* 2 · onda de energía al seleccionar */
+  .ldo-chip::after{content:'';position:absolute;left:50%;top:50%;width:130%;padding-bottom:130%;z-index:1;
+    transform:translate(-50%,-50%) scale(0);border-radius:50%;opacity:0;pointer-events:none;
+    background:radial-gradient(circle,rgba(16,185,129,.6),rgba(16,185,129,0) 70%)}
+  .ldo-chip.just::after{animation:ldoBurst .6s ease-out}
+  @keyframes ldoBurst{0%{transform:translate(-50%,-50%) scale(0);opacity:.9}100%{transform:translate(-50%,-50%) scale(2.4);opacity:0}}
+
+  /* 2b · pop con rebote */
+  .ldo-chip.just{animation:ldoPop .44s cubic-bezier(.34,1.56,.64,1)}
+  @keyframes ldoPop{0%{transform:translateY(-3px) scale(1)}42%{transform:translateY(-6px) scale(1.09)}100%{transform:translateY(-3px) scale(1)}}
+
+  /* 2c · barrido de luz */
+  .ldo-sh{position:absolute;top:0;bottom:0;left:-70%;width:60%;z-index:2;opacity:0;pointer-events:none;
+    background:linear-gradient(100deg,transparent,rgba(255,255,255,.5),transparent)}
+  .ldo-chip.just .ldo-sh{animation:ldoSheen .75s ease-out .05s}
+  @keyframes ldoSheen{0%{left:-70%;opacity:0}18%{opacity:1}100%{left:120%;opacity:0}}
+
+  /* 3 · cada tipo se anima EN CARÁCTER */
+  .ldo-chip.just[data-k="aero"]   .i{animation:ldoRoll .8s cubic-bezier(.45,.05,.3,1)}
+  .ldo-chip.just[data-k="glider"] .i{animation:ldoThermal .85s ease-in-out}
+  .ldo-chip.just[data-k="ga"]     .i{animation:ldoTakeoff .6s cubic-bezier(.34,1.4,.64,1)}
+  .ldo-chip.just[data-k="me"]     .i{animation:ldoRumble .55s linear}
+  .ldo-chip.just[data-k="sim"]    .i{animation:ldoBoot .7s steps(1,end)}
+  .ldo-chip.just[data-k="instr"]  .i{animation:ldoNod .6s cubic-bezier(.34,1.5,.64,1)}
+  .ldo-chip.just[data-k="other"]  .i{animation:ldoFlyby .68s ease-in-out}
+  .ldo-chip.just[data-k="ferry"]  .i{animation:ldoCompass .85s cubic-bezier(.3,1.2,.5,1)}
+  .ldo-chip.just[data-k="custom"] .i{animation:ldoSparkle .75s ease-in-out}
+  @keyframes ldoRoll{0%{transform:rotate(0) scale(1.09)}100%{transform:rotate(360deg) scale(1.09)}}
+  @keyframes ldoThermal{0%{transform:translateY(0) rotate(0) scale(1.09)}35%{transform:translateY(-11px) rotate(-9deg) scale(1.13)}70%{transform:translateY(-4px) rotate(5deg) scale(1.11)}100%{transform:translateY(0) rotate(0) scale(1.09)}}
+  @keyframes ldoTakeoff{0%{transform:translate(0,0) rotate(0) scale(1.09)}45%{transform:translate(8px,-12px) rotate(-15deg) scale(1.13)}100%{transform:translate(0,0) rotate(0) scale(1.09)}}
+  @keyframes ldoRumble{0%,100%{transform:translate(0,0) scale(1.09)}12%{transform:translate(-2px,1px) scale(1.09)}24%{transform:translate(2px,-1px) scale(1.1)}36%{transform:translate(-2px,0) scale(1.09)}48%{transform:translate(2px,1px) scale(1.1)}60%{transform:translate(-1px,-1px) scale(1.09)}72%{transform:translate(1px,0) scale(1.09)}}
+  @keyframes ldoBoot{0%{opacity:.2;transform:scale(1.02)}18%{opacity:1;transform:scale(1.13)}30%{opacity:.35}42%{opacity:1;transform:scale(1.09)}58%{opacity:.6}70%{opacity:1}100%{opacity:1;transform:scale(1.09)}}
+  @keyframes ldoNod{0%,100%{transform:rotate(0) scale(1.09)}30%{transform:rotate(-14deg) scale(1.11)}62%{transform:rotate(7deg) scale(1.1)}}
+  @keyframes ldoFlyby{0%{transform:translateX(0) scale(1.09);opacity:1}38%{transform:translateX(18px) scale(1.06);opacity:0}39%{transform:translateX(-18px) scale(1.06);opacity:0}62%{opacity:1}100%{transform:translateX(0) scale(1.09);opacity:1}}
+  @keyframes ldoCompass{0%{transform:rotate(0) scale(1.09)}20%{transform:rotate(-34deg) scale(1.11)}40%{transform:rotate(23deg)}60%{transform:rotate(-12deg)}80%{transform:rotate(5deg)}100%{transform:rotate(0) scale(1.09)}}
+  @keyframes ldoSparkle{0%{transform:rotate(0) scale(1.09);filter:brightness(1)}40%{transform:rotate(180deg) scale(1.26);filter:brightness(1.9)}100%{transform:rotate(360deg) scale(1.09);filter:brightness(1)}}
+
+  /* 6 · continuidad — el formulario entra escalonado tras elegir */
+  #ldo-detail.in>*{animation:ldoRise .42s ease-out backwards}
+  #ldo-detail.in>*:nth-child(1){animation-delay:.05s}
+  #ldo-detail.in>*:nth-child(2){animation-delay:.12s}
+  #ldo-detail.in>*:nth-child(3){animation-delay:.19s}
+  #ldo-detail.in>*:nth-child(n+4){animation-delay:.25s}
+  @keyframes ldoRise{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:none}}
+
+  /* Accesibilidad — sin teatro si el sistema lo pide, pero el estado se mantiene */
+  @media (prefers-reduced-motion:reduce){
+    .ldo-chip,.ldo-chip .i,.ldo-chip::before,.ldo-chip::after,.ldo-sh,#ldo-detail>*{
+      transition:none!important;animation:none!important}
+    .ldo-chip.on{transform:none}
+    .ldo-chip.on::before{transform:scale(1) rotate(0);opacity:1}
+  }
+  </style>
+  <div class="ldo-ov" id="ld-otro-modal">
+    <div class="ldo-sheet">
+      <div class="ldo-hdr">
+        <div class="ldo-tabs">
+          <div class="ldo-tab" onclick="ldOtroToVueling()">Vueling</div>
+          <div class="ldo-tab on">Otro</div>
+        </div>
+        <button class="ldo-close" onclick="ldOtroClose()">&#10005;</button>
+      </div>
+      <div class="ldo-body" id="ldo-body"></div>
+      <div class="ldo-ftr">
+        <button class="ldo-btn primary" onclick="ldOtroSave(false)">Guardar vuelo</button>
+        <button class="ldo-btn" onclick="ldOtroSave(true)" title="Sector de vuelta">&#8596;</button>
+      </div>
+    </div>
+  </div>
+  <script>
+  var LDO_ACTS=[
+    {k:'ga',i:'🛩️',n:'Aviación general'},
+    {k:'glider',i:'🪁',n:'Velero',img:'otro-glider.svg'},
+    {k:'aero',i:'🌀',n:'Acrobacia',img:'otro-acro.svg'},
+    {k:'me',i:'⚙️',n:'Bimotor'},
+    {k:'instr',i:'🎓',n:'Instrucción'},
+    {k:'sim',i:'🖥️',n:'Simulador'},
+    {k:'other',i:'✈️',n:'Otra compañía'},
+    {k:'ferry',i:'🧭',n:'Ferry / Posic.'},
+    {k:'custom',i:'✨',n:'Custom'}
+  ];
+  var _ldoType=null;
+  window._ldOtroMode=false;
+  // Conmuta el MISMO modal Nueva entrada entre el formulario Vueling y el de Otro (en el sitio, a lo ancho)
+  function ldModalMode(m){
+    var otro=(m==='otro'); window._ldOtroMode=otro;
+    var vf=document.getElementById('ld-vueling-form'), of=document.getElementById('ld-otro-form');
+    var sheet=document.querySelector('#ld_modal .ldm-sheet');
+    var ocr=document.getElementById('ld-ocr-avail-strip'), adsb=document.getElementById('ld-adsb-strip');
+    var tv=document.getElementById('ldm-tab-vueling'), to=document.getElementById('ldm-tab-otro');
+    if(otro){
+      if(vf)vf.style.display='none';
+      if(of){ of.style.display='block'; _ldoType=null; ldOtroRender(); }
+      if(ocr)ocr.style.display='none'; if(adsb)adsb.style.display='none';
+      if(sheet)sheet.classList.add('otro-cream');
+      if(tv){tv.classList.remove('on-v');} if(to){to.classList.add('on-o');}
+    } else {
+      if(vf)vf.style.display=''; if(of)of.style.display='none';
+      if(sheet)sheet.classList.remove('otro-cream');
+      if(ocr&&window.ldManual!==false)ocr.style.display='';
+      if(tv){tv.classList.add('on-v');} if(to){to.classList.remove('on-o');}
+    }
+    var subEl=document.getElementById('ld_modal_sub'); if(subEl) subEl.textContent=otro?'OTRO VUELO · GA · velero · acro · sim':(window.ldManual===false?'MCDU OCR · UTC':'MANUAL · UTC');
+  }
+  window.ldModalMode=ldModalMode;
+  function ldOtroOpen(){ if(typeof ldOpenModal==='function') ldOpenModal(true); setTimeout(function(){ ldModalMode('otro'); },40); }
+  function ldOtroClose(){ if(typeof ldCloseModal==='function') ldCloseModal(); }
+  function ldOtroToVueling(){ ldModalMode('vueling'); }
+  function ldOtroPick(k){
+    _ldoType=k;
+    ldOtroRender();
+    // Re-lanzable: quitar la clase + forzar reflow permite re-animar al re-seleccionar
+    var chip=document.querySelector('.ldo-chip[data-k="'+k+'"]');
+    if(chip){
+      chip.classList.remove('just'); void chip.offsetWidth; chip.classList.add('just');
+      setTimeout(function(){ chip.classList.remove('just'); }, 900);
+    }
+  }
+  function _f(id,l,ph){ return '<div class="ldo-fld"><label>'+l+'</label><input id="ldo_'+id+'" placeholder="'+(ph||'')+'"></div>'; }
+  function _s(id,l,opts){ return '<div class="ldo-fld"><label>'+l+'</label><select id="ldo_'+id+'">'+opts.map(function(o){return '<option>'+o+'</option>';}).join('')+'</select></div>'; }
+  function _box(t,html){ return '<div class="ldo-box"><div class="ldo-sec">'+t+'</div>'+html+'</div>'; }
+  function ldOtroSpecific(k){
+    if(k==='ga') return _box('Aviación general','<div class="ldo-g2">'+_s('ga_op','Operación',['Privado','Escuela','Ferry','Carga','Otro'])+_f('ga_pax','Pax','0')+_f('ga_instr','Instructor','')+_f('ga_app','Aproximaciones','0')+'</div>');
+    if(k==='glider') return _box('Velero','<div class="ldo-g2">'+_s('gl_launch','Lanzamiento',['Torno','Remolque','Autolanzado','Coche'])+_f('gl_launches','Nº lanzamientos','1')+_s('gl_soar','Vuelo',['Térmica','Ladera','Onda','Mixto'])+_f('gl_olc','OLC (km)','')+'</div>');
+    if(k==='aero') return _box('Acrobacia','<div class="ldo-g2">'+_s('ab_seq','Secuencia',['Entrenamiento','Competición','Exhibición','Práctica'])+_f('ab_gp','G+','+5')+_f('ab_gn','G-','-2')+_f('ab_saf','Safety pilot','')+'</div>'+_f('ab_man','Maniobras','Looping, Tonneau, Stall turn'));
+    if(k==='me') return _box('Bimotor','<div class="ldo-g2">'+_f('me_time','ME time','1:00')+_s('me_eo','Motor parado',['No','Sí'])+_s('me_asym','Aprox. asimétrica',['No','Sí'])+_f('me_class','Clase','MEP')+'</div>');
+    if(k==='instr') return _box('Instrucción','<div class="ldo-g2">'+_f('in_stu','Alumno','')+_s('in_type','Lección',['PPL','CPL','IR','Type','Refresher'])+_s('in_sign','Certificado',['No','Sí'])+_f('in_ex','Ejercicio','')+'</div>');
+    if(k==='sim') return _box('Simulador','<div class="ldo-g2">'+_s('sm_type','Tipo',['FNPT II','FTD','FFS','A320 FFS','Otro'])+_s('sm_sess','Sesión',['OPC','LPC','Skill Test','Training','Refresher'])+_f('sm_center','Centro','')+_s('sm_res','Resultado',['Completado','Aprobado','Suspendido','Solo training'])+'</div>');
+    if(k==='other') return _box('Otra compañía','<div class="ldo-g2">'+_f('ot_op','Operador','')+_f('ot_fl','Nº vuelo','')+_s('ot_role','Rol',['Comandante','Copiloto','Crucero'])+_s('ot_picus','PICUS',['No','Eligible','Firmado'])+'</div>');
+    if(k==='ferry') return _box('Ferry / Posicionamiento','<div class="ldo-g2">'+_s('fe_kind','Tipo',['Ferry','Posicionamiento','Test','Mantenimiento'])+_f('fe_auth','Autorización','')+'</div>');
+    return '';
+  }
+  // El picker se construye UNA vez y persiste: si se re-creara en cada pick, los
+  // cuadros nacerían ya seleccionados y ninguna animación llegaría a dispararse.
+  function _ldoPickerHtml(){
+    return '<div class="ldo-sec">Tipo de vuelo</div><div class="ldo-act" id="ldo-act">'+LDO_ACTS.map(function(a){
+      return '<div class="ldo-chip" data-k="'+a.k+'" onclick="ldOtroPick(\''+a.k+'\')">'
+        +'<span class="ldo-sh"></span>'
+        +'<div class="i">'+(a.img?'<img src="'+a.img+'" alt="" style="width:56px;height:56px;object-fit:contain;display:inline-block;vertical-align:middle">':a.i)+'</div>'
+        +'<div class="n">'+a.n+'</div></div>';
+    }).join('')+'</div>';
+  }
+  function _ldoSyncPicker(){
+    var act=document.getElementById('ldo-act'); if(!act) return;
+    act.classList.toggle('has-sel', !!_ldoType);
+    [].forEach.call(act.querySelectorAll('.ldo-chip'), function(c){
+      c.classList.toggle('on', c.getAttribute('data-k')===_ldoType);
+    });
+  }
+  function ldOtroRender(){
+    var body=document.getElementById('ld-otro-form')||document.getElementById('ldo-body'); if(!body) return;
+    var ai='<div class="ldo-ai"><div style="font-weight:700;margin-bottom:7px">🤖 Añadir con IA</div><textarea id="ldo_ai" placeholder="Ayer volé un Extra 300 en Sabadell, 45 min, acrobacia, looping y tonneau, G +5 -2."></textarea><div class="ldo-mini" style="background:linear-gradient(135deg,#8B5CF6,#6d28d9);color:#fff" onclick="ldOtroAI()">✨ Analizar y rellenar</div><div id="ldo_ai_out"></div></div>';
+    var photo='<div class="ldo-mini" style="border:1px dashed rgba(16,185,129,.5);color:#10B981;margin-bottom:13px" onclick="ldOtroPhoto()">📷 Importar por foto / logbook de papel</div>';
+    // Esqueleto estable: intro (IA+foto) · picker · detalle
+    if(!document.getElementById('ldo-picker')){
+      body.innerHTML='<div id="ldo-intro">'+ai+photo+'</div>'
+                    +'<div id="ldo-picker">'+_ldoPickerHtml()+'</div>'
+                    +'<div id="ldo-detail"></div>';
+    }
+    _ldoSyncPicker();
+    var intro=document.getElementById('ldo-intro'); if(intro) intro.style.display=_ldoType?'none':'';
+    var detail=document.getElementById('ldo-detail'); if(!detail) return;
+    if(!_ldoType){ detail.innerHTML=''; detail.classList.remove('in'); return; }
+    var common=_box('Datos del vuelo','<div class="ldo-fld"><label>Fecha</label><input id="ldo_date" type="date"></div><div class="ldo-g2">'+_f('dep','Salida','LELL')+_f('arr','Llegada','LELL')+_f('type','Avión','Extra 300')+_f('reg','Matrícula','EC-XTR')+'</div><div class="ldo-g2">'+_s('func','Función',['PIC','Copiloto','Dual','Instructor','PICUS','SPIC'])+_f('block','Block','0:55')+_f('ft','Flight time','0:45')+_f('night','Noche','0:00')+'</div><div class="ldo-g2">'+_s('ifr','IFR/VFR',['VFR','IFR'])+_s('smp','Mono/Multi piloto',['SP','MP'])+_s('sme','Mono/Multi motor',['SE','ME'])+_f('ld','Aterrizajes','1')+'</div>');
+    detail.innerHTML=common+ldOtroSpecific(_ldoType)+'<div class="ldo-fld"><label>Notas</label><input id="ldo_rem" placeholder="Debrief, observaciones…"></div>';
+    detail.classList.remove('in'); void detail.offsetWidth; detail.classList.add('in');
+    var dt=document.getElementById('ldo_date'); if(dt&&!dt.value) dt.value=new Date().toISOString().slice(0,10);
+  }
+  function ldOtroAI(){
+    var t=(document.getElementById('ldo_ai').value||'').toLowerCase(); if(!t){ if(window.showToast)showToast('Escribe algo primero'); return; }
+    var m=t.match(/extra\s?300|dg-?1000|a320|c172|seneca|cessna|caravan/); var av=m?m[0].toUpperCase().replace(/\s?300/,' 300'):'';
+    var act=/acrob|looping|tonneau|stall|barrena/.test(t)?'aero':/velero|glider|térmica/.test(t)?'glider':/simulador/.test(t)?'sim':'ga';
+    var tm=t.match(/(\d+)\s?(min|minuto)/); var ft=tm?('0:'+(tm[1].length<2?'0'+tm[1]:tm[1])):'';
+    var dep=/sabadell|lell/.test(t)?'LELL':'';
+    var rows=[['Fecha',/ayer/.test(t)?'ayer':'hoy'],['Avión',av||'—'],['Salida',dep||'—'],['Flight time',ft||'—'],['Tipo',{aero:'Acrobacia',glider:'Velero',sim:'Simulador',ga:'Aviación general'}[act]]];
+    document.getElementById('ldo_ai_out').innerHTML='<div class="ldo-box" style="margin-top:10px;margin-bottom:0">'+rows.map(function(r){return '<div class="ldo-kv"><span>'+r[0]+'</span><b>'+r[1]+'</b></div>';}).join('')+'<div class="ldo-mini" style="background:rgba(16,185,129,.9);color:#08331F;margin-top:9px" onclick="ldOtroPick(\''+act+'\');setTimeout(function(){var d=document.getElementById(\'ldo_type\');if(d)d.value=\''+(av||'')+'\';var f=document.getElementById(\'ldo_ft\');if(f)f.value=\''+ft+'\';var dp=document.getElementById(\'ldo_dep\');if(dp)dp.value=\''+dep+'\';},60)">Usar y completar →</div></div>';
+  }
+  function ldOtroPhoto(){ if(window.showToast)showToast('📷 OCR de foto — preparado (scaffold)'); }
+  function _gv(id){ var e=document.getElementById('ldo_'+id); return e?e.value.trim():''; }
+  function ldOtroSave(ret){
+    if(!_ldoType){ if(window.showToast)showToast('Elige el tipo de vuelo'); return; }
+    var func=_gv('func')||'PIC';
+    var role=(func==='PIC'||func==='Instructor'||func==='PICUS'||func==='SPIC')?'CPT':'FO';
+    var e={ id:(typeof ldStableId==='function'?ldStableId({date:_gv('date'),dep:_gv('dep'),arr:_gv('arr'),flight:_ldoType}):('lo_'+Math.random().toString(36).slice(2,9))),
+      date:_gv('date')||new Date().toISOString().slice(0,10), dep:_gv('dep').toUpperCase(), arr:_gv('arr').toUpperCase(),
+      acType:_gv('type'), reg:_gv('reg').toUpperCase(), block:_gv('block')||_gv('ft')||'0:00', night:_gv('night')||'0:00',
+      role:role, func:(func==='Copiloto'?'PM':'PF'), rules:_gv('ifr')||'VFR', ldgDay:parseInt(_gv('ld')||1)||1, ldgNight:0,
+      night_lg:0, source:'Manual', activityType:_ldoType, pilotFunction:func, savedAt:new Date().toISOString(), flight:'' };
+    if(!window.ldEntries) window.ldEntries=[];
+    window.ldEntries.unshift(e);
+    if(ret){ var r=Object.assign({},e,{id:'lo_'+Math.random().toString(36).slice(2,9),dep:e.arr,arr:e.dep}); window.ldEntries.unshift(r); }
+    try{ if(typeof ldSaveData==='function')ldSaveData(); if(typeof ldRender==='function')ldRender(); if(typeof ldStats==='function')ldStats(); if(typeof ldRenderCarrera==='function')ldRenderCarrera(); if(typeof ldBgSync==='function')ldBgSync({delay:800,force:true}); }catch(_){}
+    ldOtroClose();
+    if(window.showToast)showToast(ret?'Vuelo + return guardados ✓':'Vuelo guardado ✓','success');
+  }
+  window.ldOtroOpen=ldOtroOpen;
+  </script>
+
   <div class="ld-modal-ov" id="ld_modal">
     <div class="ldm-sheet">
       <!-- Drag handle -->
@@ -11724,6 +12058,27 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
 
       <!-- Scrollable body -->
       <div class="ldm-body">
+
+        <!-- Conmutador Vueling / Otro tipo de vuelo -->
+        <style>
+          .ldm-sheet.otro-cream, .otro-cream .ldm-hdr, .otro-cream .ldm-ftr{background:#E9F7EF !important}
+          html.day .ldm-sheet.otro-cream, html.day .otro-cream .ldm-hdr, html.day .otro-cream .ldm-ftr{background:#E9F7EF !important}
+          .ldm-sheet.otro-cream{min-height:88vh}
+          .ldm-vo{flex:1;text-align:center;padding:9px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;color:#7E8CA0;transition:all .15s}
+          .ldm-vo.on-v{background:#22D3EE;color:#04121a;font-weight:700}
+          .ldm-vo.on-o{background:#8FE0C0;color:#08331F;font-weight:700}
+          #ld-otro-form{padding-top:2px}
+        </style>
+        <div style="display:flex;gap:4px;background:rgba(128,128,128,.16);border-radius:12px;padding:4px;margin-bottom:14px">
+          <div id="ldm-tab-vueling" class="ldm-vo on-v" onclick="ldModalMode('vueling')">Vueling</div>
+          <div id="ldm-tab-otro" class="ldm-vo" onclick="ldModalMode('otro')">🎓 Otro tipo</div>
+        </div>
+
+        <!-- Formulario OTRO (se rellena por ldOtroRender; oculto por defecto) -->
+        <div id="ld-otro-form" style="display:none"></div>
+
+        <!-- Formulario VUELING (el de siempre) -->
+        <div id="ld-vueling-form">
 
         <!-- MCDU upload zone (solo OCR mode) -->
         <div class="ldm-zone" id="ld_zone" ondragover="ldDragOver(event)" ondragleave="ldDragLeave(event)" ondrop="ldDrop(event)">
@@ -11767,31 +12122,146 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           <button onclick="this.closest('#ld-roster-prefill-banner').style.display='none'" style="width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.08);border:none;color:rgba(255,255,255,.4);cursor:pointer;font-size:12px">✕</button>
         </div>
 
+        <!-- Atajo de ENTRADA: empezar desde una foto de la MCDU.
+             ADS-B no va aquí: no es una forma de empezar, es una acción que necesita
+             nº de vuelo + fecha → vive junto al Nº VUELO, que es su entrada. -->
+        <div style="margin:0 0 14px">
+          <button type="button" onclick="ldSwitchToPhotoMode()" class="ld-qa2">
+            <svg class="ld-qa2-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+            <span>Rellenar con foto de la MCDU</span>
+          </button>
+        </div>
+        <style>
+          .ld-qa2{width:100%;display:flex;align-items:center;justify-content:center;gap:9px;padding:10px;
+            border-radius:12px;border:1px solid rgba(34,211,238,.32);background:rgba(34,211,238,.07);
+            color:#0EA5C4;font-family:'Space Grotesk',sans-serif;font-size:12.5px;font-weight:700;cursor:pointer;transition:background .15s}
+          .ld-qa2:active{background:rgba(34,211,238,.16)}
+          .ld-qa2-ic{width:20px;height:20px;flex-shrink:0}
+          html.day .ld-qa2{color:#0E7490;background:rgba(34,211,238,.10);border-color:rgba(8,145,178,.3)}
+
+          /* ── Botón ADS-B (junto al Nº VUELO): acción con estados honestos ──
+             apagado → no se puede usar · cian → listo · verde → SOLO cuando ya hay datos */
+          .ld-adsb-b{flex-shrink:0;display:inline-flex;align-items:center;gap:5px;height:38px;padding:0 11px;
+            border-radius:10px;font-size:11px;font-family:'Space Grotesk',sans-serif;font-weight:700;
+            white-space:nowrap;letter-spacing:.3px;
+            border:1px solid rgba(148,163,184,.2);background:rgba(148,163,184,.08);color:rgba(148,163,184,.5);
+            cursor:not-allowed;transition:background .18s,color .18s,border-color .18s}
+          .ld-adsb-ic{width:14px;height:14px;flex-shrink:0}
+          .ld-adsb-b.ready{border-color:rgba(34,211,238,.5);background:rgba(8,145,178,.16);color:#22D3EE;cursor:pointer}
+          .ld-adsb-b.ready:active{background:rgba(8,145,178,.3)}
+          .ld-adsb-b.loading{border-color:rgba(34,211,238,.35);background:rgba(8,145,178,.1);color:#22D3EE;cursor:progress}
+          .ld-adsb-b.loading .ld-adsb-ic{animation:ldAdsbTx .9s ease-in-out infinite}
+          @keyframes ldAdsbTx{0%,100%{opacity:.3}50%{opacity:1}}
+          .ld-adsb-b.ok{border-color:rgba(16,185,129,.55);background:rgba(16,185,129,.16);color:#10B981;cursor:pointer}
+          .ld-adsb-b.nodata{border-color:rgba(245,158,11,.5);background:rgba(245,158,11,.14);color:#F59E0B;cursor:pointer}
+          html.day .ld-adsb-b{color:#94A3B8;background:rgba(148,163,184,.1);border-color:rgba(148,163,184,.26)}
+          html.day .ld-adsb-b.ready{color:#0E7490;background:rgba(34,211,238,.14);border-color:rgba(8,145,178,.4)}
+          html.day .ld-adsb-b.ok{color:#0F6B49;background:rgba(16,185,129,.14);border-color:rgba(16,185,129,.45)}
+          html.day .ld-adsb-b.nodata{color:#B45309;background:rgba(245,158,11,.14);border-color:rgba(217,119,6,.45)}
+          @media (prefers-reduced-motion:reduce){.ld-adsb-b.loading .ld-adsb-ic{animation:none}}
+        </style>
+
         <!-- ── RUTA ── -->
         <div class="ldm-sec ldm-acc-ruta">Ruta</div>
-        <div class="ldm-route-hero">
-          <input type="text" id="ld_dep" placeholder="LEBL" maxlength="4" class="ldm-rh-inp ldm-rh-dep" oninput="this.value=this.value.toUpperCase()" onchange="if(typeof ldAutoNight==='function')ldAutoNight()">
-          <span class="ldm-rh-arr">›</span>
-          <input type="text" id="ld_arr" placeholder="EGLL" maxlength="4" class="ldm-rh-inp ldm-rh-dest" oninput="this.value=this.value.toUpperCase()" onchange="if(typeof ldAutoNight==='function')ldAutoNight()">
+        <div class="ldm-route-hero ldm-bp">
+          <div class="ldm-bp-cell">
+            <span class="ldm-bp-lab">DEP</span>
+            <input type="text" id="ld_dep" placeholder="LEBL" maxlength="4" class="ldm-rh-inp ldm-rh-dep" oninput="this.value=this.value.toUpperCase()" onchange="if(typeof ldAutoNight==='function')ldAutoNight()">
+          </div>
+          <span class="ldm-rh-arr">✈</span>
+          <div class="ldm-bp-cell">
+            <span class="ldm-bp-lab">ARR</span>
+            <input type="text" id="ld_arr" placeholder="EGLL" maxlength="4" class="ldm-rh-inp ldm-rh-dest" oninput="this.value=this.value.toUpperCase()" onchange="if(typeof ldAutoNight==='function')ldAutoNight()">
+          </div>
         </div>
+        <style>
+          .ldm-bp{height:auto!important;min-height:76px;padding:12px 12px!important;
+            background:linear-gradient(135deg,#0EA5E9 0%,#22D3EE 58%,#38BDF8 120%)!important;border:none!important;
+            box-shadow:0 12px 30px rgba(34,211,238,.4)!important;position:relative;overflow:visible!important}
+          .ldm-bp:focus-within{box-shadow:0 14px 34px rgba(34,211,238,.5)!important}
+          .ldm-bp-cell{display:flex;flex-direction:column;align-items:center;min-width:0}
+          .ldm-bp-lab{font-size:9px;letter-spacing:2px;font-family:'Space Mono',monospace;color:rgba(255,255,255,.85);font-weight:700}
+          .ldm-bp .ldm-rh-inp{height:auto!important;color:#fff!important;font-size:26px!important;font-weight:700!important;padding:0 4px!important;text-shadow:0 1px 6px rgba(0,0,0,.18)}
+          /* Neutraliza el fondo blanco del autocompletado nativo (autofill) del navegador */
+          .ldm-bp .ldm-rh-inp:-webkit-autofill,
+          .ldm-bp .ldm-rh-inp:-webkit-autofill:hover,
+          .ldm-bp .ldm-rh-inp:-webkit-autofill:focus,
+          .ldm-bp .ldm-rh-inp:-webkit-autofill:active{
+            -webkit-text-fill-color:#fff!important;
+            -webkit-box-shadow:0 0 0 1000px transparent inset!important;
+            box-shadow:0 0 0 1000px transparent inset!important;
+            caret-color:#fff!important;
+            transition:background-color 99999s ease-in-out 0s!important;
+            -webkit-transition:background-color 99999s ease-in-out 0s!important}
+          .ldm-bp .ldm-rh-dep::placeholder,.ldm-bp .ldm-rh-dest::placeholder{color:rgba(255,255,255,.55)!important}
+          .ldm-bp .ldm-rh-arr{color:#fff!important;font-size:18px!important;align-self:flex-end;padding-bottom:4px;filter:drop-shadow(0 1px 4px rgba(0,0,0,.25))}
+          .ldm-bp::before,.ldm-bp::after{content:'';position:absolute;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:#0B1020;z-index:2}
+          html.day .ldm-bp::before,html.day .ldm-bp::after{background:#EAF1F8}
+          .ldm-bp::before{left:-7px}.ldm-bp::after{right:-7px}
+          .ldm-card{position:relative;background:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.028));border:1px solid rgba(255,255,255,.10);border-radius:18px;padding:15px 16px 16px;margin-bottom:13px;box-shadow:0 16px 38px rgba(0,0,0,.34),0 2px 6px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.09);overflow:hidden}
+          .ldm-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.22),transparent);pointer-events:none}
+          html.day .ldm-card{background:linear-gradient(180deg,#FFFFFF 0%,#F4FAFF 100%);border:1px solid rgba(255,255,255,.85);box-shadow:0 16px 36px rgba(23,52,120,.16),0 3px 8px rgba(23,52,120,.09),inset 0 1px 0 #FFFFFF}
+          html.day .ldm-card::before{background:linear-gradient(90deg,transparent,rgba(23,52,120,.10),transparent)}
+          .ldm-card .ldm-sec{margin-top:2px}
+          /* Boarding-pass AZUL también en día (pisa html.day .ldm-route-hero) */
+          html.day .ldm-route-hero.ldm-bp{background:linear-gradient(135deg,#0EA5E9 0%,#22D3EE 58%,#38BDF8 120%)!important;border:none!important;box-shadow:0 12px 30px rgba(34,211,238,.4)!important}
+          html.day .ldm-bp .ldm-rh-dep,html.day .ldm-bp .ldm-rh-dest,html.day .ldm-bp .ldm-rh-inp{color:#fff!important}
+          html.day .ldm-bp .ldm-rh-dep::placeholder,html.day .ldm-bp .ldm-rh-dest::placeholder{color:rgba(255,255,255,.6)!important}
+          html.day .ldm-bp .ldm-rh-arr{color:#fff!important}
+          html.day .ldm-bp-lab{color:rgba(255,255,255,.88)!important}
+          /* Modal Vueling con el MISMO degradado claro del logbook en día (cohesivo, sin línea marcada) */
+          html.day .ldm-sheet:not(.otro-cream){background:linear-gradient(180deg,#BFE0F2 0%,#D6EEF8 55%,#E7F5FC 100%)!important}
+          html.day .ldm-sheet:not(.otro-cream) .ldm-body,
+          html.day .ldm-sheet:not(.otro-cream) .ldm-hdr,
+          html.day .ldm-sheet:not(.otro-cream) .ldm-ftr{background:transparent!important}
+          html.day .ldm-sheet:not(.otro-cream) .ldm-hdr{border-bottom:1px solid rgba(15,23,42,.07)!important}
+          html.day .ldm-sheet:not(.otro-cream) .ldm-ftr{border-top:1px solid rgba(15,23,42,.07)!important}
+          html.day .ldm-bp::before,html.day .ldm-bp::after{background:#BFE1F2!important}
+          .ldm-bp::before,.ldm-bp::after{background:#0B1020!important}
+          /* Cabeceras de sección: icono en cuadro degradado + label (sin barra plana ni línea) */
+          .ldm-acc-ruta,.ldm-acc-ac,.ldm-acc-times,.ldm-acc-rol,.ldm-acc-ldg,.ldm-acc-notes,
+          html.day .ldm-acc-ruta,html.day .ldm-acc-ac,html.day .ldm-acc-times,html.day .ldm-acc-rol,html.day .ldm-acc-ldg,html.day .ldm-acc-notes{
+            background:transparent!important;border-left:none!important;padding:0!important}
+          .ldm-sec{display:flex!important;align-items:center;flex-wrap:wrap;gap:10px;margin:2px 0 13px!important}
+          .ldm-sec::after{display:none!important}
+          /* Icono SVG blanco de línea centrado sobre el cuadro de degradado (nítido, coherente, no emoji del sistema) */
+          .ldm-sec::before{content:'';width:32px;height:32px;border-radius:11px;display:inline-block;flex-shrink:0;box-shadow:0 7px 18px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.4),inset 0 -3px 6px rgba(0,0,0,.16);background-repeat:no-repeat,no-repeat;background-position:center,center;background-size:17px 17px,cover}
+          .ldm-acc-ruta::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 2 11 13'/%3E%3Cpath d='M22 2 15 22 11 13 2 9z'/%3E%3C/svg%3E"),linear-gradient(135deg,#22D3EE,#0EA5E9)}
+          .ldm-acc-ac::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 10h4a2 2 0 0 1 0 4h-4l-4 7h-3l2 -7h-4l-2 2h-3l2 -4l-2 -4h3l2 2h4l-2 -7h3z'/%3E%3C/svg%3E"),linear-gradient(135deg,#8B5CF6,#7C3AED)}
+          .ldm-acc-times::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 3'/%3E%3C/svg%3E"),linear-gradient(135deg,#2DD4BF,#0D9488)}
+          .ldm-acc-rol::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='8' r='6'/%3E%3Cpath d='M15.5 12.5 17 22l-5-3-5 3 1.5-9.5'/%3E%3C/svg%3E"),linear-gradient(135deg,#F59E0B,#D97706)}
+          .ldm-acc-ldg::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v10'/%3E%3Cpath d='M8 9l4 4 4-4'/%3E%3Cpath d='M4 21h16'/%3E%3C/svg%3E"),linear-gradient(135deg,#38BDF8,#0EA5E9)}
+          .ldm-acc-notes::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z'/%3E%3C/svg%3E"),linear-gradient(135deg,#94A3B8,#64748B)}
+        </style>
+        <div class="ldm-card">
         <div class="ldm-row2">
           <div class="ldm-fg">
             <label class="ldm-lbl">FECHA <span class="ldm-tag ldm-tag-src" id="ldsrc_date"></span></label>
-            <input class="ldm-inp" type="date" id="ld_date" onchange="if(typeof ldAutoNight==='function')ldAutoNight()">
+            <input class="ldm-inp" type="date" id="ld_date" onchange="if(typeof ldAutoNight==='function')ldAutoNight();if(typeof ldAdsbSync==='function')ldAdsbSync()">
           </div>
           <div class="ldm-fg" style="position:relative">
             <label class="ldm-lbl">Nº VUELO <span class="ldm-tag ldm-tag-src" id="ldsrc_flight"></span></label>
             <div style="display:flex;gap:6px;align-items:center">
-              <input class="ldm-inp" type="text" id="ld_flight" placeholder="VY1234" style="flex:1;min-width:0">
-              <button type="button" id="ld_adsb_btn" onclick="ldFetchAdsb()"
-                title="Rellenar desde ADS-B"
-                style="flex-shrink:0;height:38px;padding:0 10px;border-radius:10px;border:1px solid rgba(34,211,238,.25);background:rgba(8,145,178,.13);color:#22D3EE;font-size:11px;font-family:'Space Grotesk',sans-serif;font-weight:700;cursor:pointer;white-space:nowrap;letter-spacing:.3px;transition:background .15s">
-                ✈ ADS-B
+              <input class="ldm-inp" type="text" id="ld_flight" placeholder="VY1234" style="flex:1;min-width:0"
+                oninput="if(typeof ldAdsbSync==='function')ldAdsbSync()">
+              <button type="button" id="ld_adsb_btn" class="ld-adsb-b" onclick="ldFetchAdsb()" disabled
+                title="Escribe el nº de vuelo y la fecha para poder buscar en ADS-B">
+                <svg class="ld-adsb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M4.9 19.1a10 10 0 0 1 0-14.2"/><path d="M7.8 16.2a6 6 0 0 1 0-8.4"/>
+                  <circle cx="12" cy="12" r="1.8"/>
+                  <path d="M16.2 7.8a6 6 0 0 1 0 8.4"/><path d="M19.1 4.9a10 10 0 0 1 0 14.2"/>
+                </svg>
+                <span id="ld_adsb_lbl">ADS-B</span>
               </button>
             </div>
           </div>
         </div>
 
+        </div><!-- /card fecha -->
+        <div class="ldm-card">
         <!-- ── AERONAVE ── -->
         <div class="ldm-sec ldm-acc-ac">Aeronave</div>
         <div class="ldm-fg" style="margin-bottom:8px;position:relative">
@@ -11829,6 +12299,8 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           </div>
         </div>
 
+        </div><!-- /card aeronave -->
+        <div class="ldm-card">
         <!-- ── TIEMPOS UTC ── -->
         <div class="ldm-sec ldm-acc-times">
           Tiempos UTC
@@ -11846,35 +12318,52 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           </div>
         </div>
         <div class="ldm-times-wrap" id="ldm-times-wrap">
-        <!-- Fila 2: OUT (Blocks Off) + OFF (Takeoff) -->
-        <div class="ldm-row2">
-          <div class="ldm-fg">
-            <label class="ldm-lbl">OUT <span class="ldm-tag ldm-tag-act">Blocks Off</span><span class="ldm-tag ldm-tag-src" id="ldsrc_atd"></span></label>
-            <input class="ldm-inp" type="time" id="ld_atd" onfocus="ldSeedTime('ld_atd','ld_sched_out')" oninput="ldSeedTime('ld_std','ld_atd');ldAutoBlock();ldUpdateDayBadges();ldCheckDelay();ldValidateSequence()" onchange="ldSeedTime('ld_std','ld_atd');ldAutoBlock();ldUpdateDayBadges();ldCheckDelay();ldValidateSequence()">
+        <!-- Línea de tiempo del vuelo: OUT → OFF → ON → IN -->
+        <div class="ldm-tl">
+          <div class="ldm-tl-item" style="--c:#22D3EE">
+            <span class="ldm-tl-dot"></span>
+            <div class="ldm-tl-body">
+              <label class="ldm-lbl">OUT <span class="ldm-tag ldm-tag-act">Blocks Off</span><span class="ldm-tag ldm-tag-src" id="ldsrc_atd"></span></label>
+              <input class="ldm-inp" type="time" id="ld_atd" onfocus="ldSeedTime('ld_atd','ld_sched_out')" oninput="ldSeedTime('ld_std','ld_atd');ldAutoBlock();ldUpdateDayBadges();ldCheckDelay();ldValidateSequence()" onchange="ldSeedTime('ld_std','ld_atd');ldAutoBlock();ldUpdateDayBadges();ldCheckDelay();ldValidateSequence()">
+            </div>
           </div>
-          <div class="ldm-fg">
-            <label class="ldm-lbl">OFF <span class="ldm-tag ldm-tag-off">Takeoff</span><span class="ldm-tag ldm-tag-src" id="ldsrc_std"></span><span id="ld_std_p1" class="ldm-p1" style="display:none">+1</span></label>
-            <input class="ldm-inp" type="time" id="ld_std" onfocus="ldSeedTime('ld_std','ld_atd')" oninput="ldAutoFlightTime();ldUpdateDayBadges();ldValidateSequence()" onchange="ldAutoFlightTime();ldUpdateDayBadges();ldValidateSequence()">
+          <div class="ldm-tl-item" style="--c:#38BDF8">
+            <span class="ldm-tl-dot"></span>
+            <div class="ldm-tl-body">
+              <label class="ldm-lbl">OFF <span class="ldm-tag ldm-tag-off">Takeoff</span><span class="ldm-tag ldm-tag-src" id="ldsrc_std"></span><span id="ld_std_p1" class="ldm-p1" style="display:none">+1</span></label>
+              <input class="ldm-inp" type="time" id="ld_std" onfocus="ldSeedTime('ld_std','ld_atd')" oninput="ldAutoFlightTime();ldUpdateDayBadges();ldValidateSequence()" onchange="ldAutoFlightTime();ldUpdateDayBadges();ldValidateSequence()">
+            </div>
+          </div>
+          <div class="ldm-tl-item" style="--c:#818CF8">
+            <span class="ldm-tl-dot"></span>
+            <div class="ldm-tl-body">
+              <label class="ldm-lbl">ON <span class="ldm-tag ldm-tag-off">Landing</span><span class="ldm-tag ldm-tag-src" id="ldsrc_sta"></span><span id="ld_sta_p1" class="ldm-p1" style="display:none">+1</span></label>
+              <input class="ldm-inp" type="time" id="ld_sta" onfocus="ldSeedTime('ld_sta','ld_sched_in')" oninput="ldSeedTime('ld_ata','ld_sta');ldAutoFlightTime();ldUpdateDayBadges();ldValidateSequence()" onchange="ldSeedTime('ld_ata','ld_sta');ldAutoFlightTime();ldUpdateDayBadges();ldValidateSequence()">
+            </div>
+          </div>
+          <div class="ldm-tl-item" style="--c:#7C3AED">
+            <span class="ldm-tl-dot"></span>
+            <div class="ldm-tl-body">
+              <label class="ldm-lbl">IN <span class="ldm-tag ldm-tag-act">Blocks ON</span><span class="ldm-tag ldm-tag-src" id="ldsrc_ata"></span><span id="ld_ata_p1" class="ldm-p1" style="display:none">+1</span></label>
+              <input class="ldm-inp" type="time" id="ld_ata" onfocus="ldSeedTime('ld_ata','ld_sta')" oninput="ldAutoBlock();ldUpdateDayBadges();ldValidateSequence()" onchange="ldAutoBlock();ldUpdateDayBadges();ldValidateSequence()">
+            </div>
           </div>
         </div>
-        <!-- Fila 3: IN (Blocks ON) + ON (Landing) -->
-        <div class="ldm-row2">
-          <div class="ldm-fg">
-            <label class="ldm-lbl">IN <span class="ldm-tag ldm-tag-act">Blocks ON</span><span class="ldm-tag ldm-tag-src" id="ldsrc_ata"></span><span id="ld_ata_p1" class="ldm-p1" style="display:none">+1</span></label>
-            <input class="ldm-inp" type="time" id="ld_ata" onfocus="ldSeedTime('ld_ata','ld_sta')" oninput="ldAutoBlock();ldUpdateDayBadges();ldValidateSequence()" onchange="ldAutoBlock();ldUpdateDayBadges();ldValidateSequence()">
-          </div>
-          <div class="ldm-fg">
-            <label class="ldm-lbl">ON <span class="ldm-tag ldm-tag-off">Landing</span><span class="ldm-tag ldm-tag-src" id="ldsrc_sta"></span><span id="ld_sta_p1" class="ldm-p1" style="display:none">+1</span></label>
-            <input class="ldm-inp" type="time" id="ld_sta" onfocus="ldSeedTime('ld_sta','ld_sched_in')" oninput="ldSeedTime('ld_ata','ld_sta');ldAutoFlightTime();ldUpdateDayBadges();ldValidateSequence()" onchange="ldSeedTime('ld_ata','ld_sta');ldAutoFlightTime();ldUpdateDayBadges();ldValidateSequence()">
-          </div>
-        </div>
+        <style>
+          .ldm-tl{position:relative;padding-left:26px;margin:4px 0 12px}
+          .ldm-tl::before{content:'';position:absolute;left:9px;top:34px;bottom:34px;width:2px;border-radius:2px;background:linear-gradient(180deg,#22D3EE,#38BDF8,#818CF8,#7C3AED)}
+          .ldm-tl-item{position:relative;margin-bottom:9px}
+          .ldm-tl-dot{position:absolute;left:-24px;top:31px;width:13px;height:13px;border-radius:50%;background:var(--c);box-shadow:0 0 0 4px rgba(3,8,20,.55),0 0 10px var(--c);z-index:1}
+          html.day .ldm-tl-dot{box-shadow:0 0 0 4px #FFFFFF,0 0 0 5px rgba(15,23,42,.08),0 0 8px var(--c)}
+          .ldm-tl-body{min-width:0}
+        </style>
         <!-- Block Time + Flight Time row -->
         <div class="ldm-row2" style="margin-bottom:4px">
           <div class="ldm-fg">
-            <label class="ldm-lbl">BLOCK TIME <span style="font-size:9px;color:#0891B2;font-weight:600;text-transform:none;letter-spacing:0">(auto OUT→IN)</span></label>
+            <label class="ldm-lbl">BLOCK TIME <span style="font-size:9px;color:rgba(34,211,238,.4);font-weight:400;text-transform:none;letter-spacing:0">(auto OUT→IN)</span></label>
             <input class="ldm-inp ldm-inp-highlight" type="text" id="ld_block" placeholder="00:00"
               oninput="ldAutoFlightFromManual()"
-              style="font-family:'Space Mono',monospace;font-size:15px;font-weight:700;text-align:center;letter-spacing:1px">
+              style="font-family:'Space Mono',monospace;font-size:15px;text-align:center;letter-spacing:1px">
           </div>
           <div class="ldm-fg">
             <label class="ldm-lbl">
@@ -11907,6 +12396,8 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           </div>
         </div>
 
+        </div><!-- /card tiempos -->
+        <div class="ldm-card">
         <!-- ── ROL & FUNCIÓN ── -->
         <div class="ldm-sec ldm-acc-rol">
           Rol &amp; Función
@@ -12017,6 +12508,8 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
         </div>
 
         <!-- ── ATERRIZAJES ── -->
+        </div><!-- /card rol -->
+        <div class="ldm-card">
         <div class="ldm-sec ldm-acc-ldg">Aterrizajes y nocturno</div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:4px">
           <div class="ldm-fg"><label class="ldm-lbl">LDG DÍA</label><input class="ldm-inp ldm-inp-center" type="number" id="ld_ldgd" value="1" min="0"></div>
@@ -12039,15 +12532,19 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
         <input type="hidden" id="ld_cond" value="NORM">
 
         <!-- ── NOTAS ── -->
+        </div><!-- /card aterrizajes -->
+        <div class="ldm-card">
         <div class="ldm-sec ldm-acc-notes">Notas</div>
         <input class="ldm-inp" type="text" id="ld_notes" placeholder="Incidencias, desvíos, particularidades..." style="width:100%;margin-bottom:8px">
 
+        </div><!-- /card notas -->
+        </div><!-- /ld-vueling-form -->
       </div><!-- /ldm-body -->
 
       <!-- Footer -->
       <div class="ldm-ftr">
         <button class="ldm-btn-cancel" onclick="ldCloseModal()">Cancelar</button>
-        <button class="ldm-btn-save" onclick="ldSave()">
+        <button class="ldm-btn-save" onclick="if(window._ldOtroMode){ldOtroSave(false)}else{ldSave()}">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
           Guardar vuelo
         </button>
@@ -17129,6 +17626,23 @@ function showPlanToast(feature){
   showToast(msgs[feature] || '🔒 Disponible en plan Pro', 'warning');
 }
 // ─────────────────────────────────────────────────────────────────
+// ADS-B sólo puede funcionar con nº de vuelo + fecha. Este sync mantiene el botón
+// honesto: apagado cuando no puede funcionar, cian cuando sí. Verde = ya hay datos.
+function ldAdsbSync(){
+  var btn=document.getElementById('ld_adsb_btn'); if(!btn) return;
+  if(btn.classList.contains('loading')) return;         // no tocar mientras busca
+  btn.classList.remove('ok','nodata');                  // editar el vuelo re-arma el botón
+  var n=((document.getElementById('ld_flight')||{}).value||'').trim();
+  var d=((document.getElementById('ld_date')||{}).value||'').trim();
+  var ready=!!(n&&d);
+  btn.classList.toggle('ready',ready);
+  btn.disabled=!ready;
+  var lbl=document.getElementById('ld_adsb_lbl'); if(lbl) lbl.textContent=ready?'Buscar ADS-B':'ADS-B';
+  btn.title=ready?'Traer horas y datos reales de este vuelo desde ADS-B'
+                 :'Escribe el nº de vuelo y la fecha para poder buscar en ADS-B';
+}
+window.ldAdsbSync=ldAdsbSync;
+
 async function ldFetchAdsb(){
   var flightEl = document.getElementById('ld_flight');
   var dateEl   = document.getElementById('ld_date');
@@ -17137,7 +17651,13 @@ async function ldFetchAdsb(){
   if(!number){ showToast('Introduce primero el número de vuelo','warning'); return; }
   if(!date)  { showToast('Introduce primero la fecha','warning'); return; }
   var btn = document.getElementById('ld_adsb_btn');
-  if(btn){ btn.disabled=true; btn.textContent='…'; }
+  var _adsbState = 'retry';   // retry → vuelve a 'listo' · ok → verde · nodata → ámbar
+  var _adsbLbl = document.getElementById('ld_adsb_lbl');
+  if(btn){
+    btn.disabled=true;
+    btn.classList.remove('ready','ok','nodata'); btn.classList.add('loading');
+    if(_adsbLbl) _adsbLbl.textContent='Buscando…';
+  }
   try{
     var token = localStorage.getItem('cafi_auth_token') || '';
     var baseUrl = lsGet('cafi_backend_url','https://api.pilotos.aero');
@@ -17149,6 +17669,7 @@ async function ldFetchAdsb(){
     var body = await r.json().catch(function(){ return {}; });
     if(!r.ok){
       if(body.error === 'plan_limit'){ showPlanToast('adsb'); return; }
+      if(r.status === 404){ _adsbState='nodata'; }   // ADS-B no encontró el vuelo
       showToast(body.error || 'Error ADS-B (' + r.status + ')','error'); return;
     }
     // ── Normalizar ADS-B y comparar contra el valor existente (eCrews o manual) ──
@@ -17204,6 +17725,7 @@ async function ldFetchAdsb(){
       stripTxt.textContent = info;
       stripEl.style.display = 'flex';
     }
+    _adsbState = 'ok';   // datos dentro → el botón puede ponerse verde
     // Si hay discrepancia roster vs ADS-B → popup; si no, aplicado en silencio
     if(discrepant.length){
       ldOpenDiscrepancy(rows);
@@ -17214,7 +17736,13 @@ async function ldFetchAdsb(){
     console.error('[ADS-B]',e);
     showToast('Error consultando ADS-B','error');
   } finally{
-    if(btn){ btn.disabled=false; btn.textContent='✈ ADS-B'; }
+    if(btn){
+      btn.classList.remove('loading');
+      btn.disabled=false;
+      if(_adsbState==='ok'){ btn.classList.add('ok'); if(_adsbLbl) _adsbLbl.textContent='✓ ADS-B'; }
+      else if(_adsbState==='nodata'){ btn.classList.add('nodata'); if(_adsbLbl) _adsbLbl.textContent='Sin datos'; }
+      else { ldAdsbSync(); }   // error recuperable → vuelve a 'Buscar ADS-B'
+    }
   }
 }
 // ═══════════════════════════════════════════════════════════════════
@@ -17594,6 +18122,7 @@ function ldResetForm(){
   ['ld_simtype','ld_traincenter','ld_examiner'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
   var _ssel=document.getElementById('ld_simsession'); if(_ssel) _ssel.selectedIndex=0;
   try{ ldFlightTypeChanged(); }catch(_e){}
+  try{ ldAdsbSync(); }catch(_e){}   // nueva entrada → botón ADS-B apagado hasta que haya nº+fecha
   var _chk=document.getElementById('ld_confirm'); if(_chk) _chk.checked=false;
   var ocr=document.getElementById('ld_ocr'); ocr.style.display='none'; ocr.className='ld-ocr';
   // Reset +1 badges
@@ -18650,7 +19179,7 @@ function ldRender(){
             +'</div>'
           +'</div>';
         } else {
-          html+='<div class="ld-fcard'+((_ldSelMode&&_ldSelected.has(e.id))?' sel-active':'')+(_ldSelMode?' sel-mode':'')+'" '
+          html+='<div class="ld-fcard'+((e&&e.activityType&&e.activityType!=='airline'&&e.activityType!=='mc')?' ld-career':'')+((_ldSelMode&&_ldSelected.has(e.id))?' sel-active':'')+(_ldSelMode?' sel-mode':'')+'" '
             +(_ldSelMode?'onclick="ldToggleSelect(\''+e.id+'\',event)"':'onclick="ldBounceCard(this,\''+e.id+'\')"')
             +' data-sel-id="'+e.id+'">'
             +'<div class="ld-fcard-top">'
@@ -18674,6 +19203,7 @@ function ldRender(){
               +(hasFt?'<span class="ld-fpill" style="background:rgba(0,255,80,.07);color:rgba(0,220,80,.85);border:1px solid rgba(0,255,80,.2);font-family:\'Space Mono\',monospace">✈ '+e.flightTime+'</span>':'')
               +(hasNoc?'<span class="ld-fpill ld-fpill-noc">'+e.night+' noc</span>':'')
               +(e.std?'<span class="ld-fdate">'+e.std+'Z</span>':'')
+              +((e&&e.activityType&&e.activityType!=='airline'&&e.activityType!=='mc')?'<span class="ld-fpill" style="margin-left:auto;background:rgba(16,185,129,.14);color:#10B981;border:1px solid rgba(16,185,129,.34)">🎓 OTRO · '+({ga:'GA',glider:'Velero',aero:'Acro',me:'Bimotor',instr:'Instrucción',sim:'Sim',other:'Otra cía',ferry:'Ferry',custom:'Custom'}[e.activityType]||'Otro')+'</span>':'')
               +'<button class="ld-fdel" onclick="event.stopPropagation();ldDelete(\''+e.id+'\')" title="Eliminar">🗑</button>'
             +'</div>'
           +'</div>';
@@ -19084,6 +19614,7 @@ function ldEditFlight(id){
   var _ots=document.getElementById('ld_optype'); if(_ots) _ots.value=_ft;
   g2('ld_simtype', e.simType); g2('ld_traincenter', e.trainCenter); g2('ld_examiner', e.examiner);
   try{ ldFlightTypeChanged(); }catch(_e){}
+  try{ ldAdsbSync(); }catch(_e){}   // al editar ya hay nº+fecha → el botón se enciende
   // ── Herencia entre legs del mismo día ───────────────────────────────────
   // Al COMPLETAR un leg importado del roster (ROSTER-DRAFT), copiar del primer
   // leg ya completado del día los datos que casi nunca cambian. Si el vuelo se
@@ -36500,7 +37031,7 @@ function pagSignOut() {
 // LOGBOOK TAB SWITCHER
 // ══════════════════════════════════════════════════════
 function ldSwitchTab(name, el) {
-  ['vuelos','mapa','stats'].forEach(function(t){
+  ['vuelos','mapa','stats','carrera'].forEach(function(t){
     var panel = document.getElementById('ld-panel-'+t);
     if(panel) panel.style.display = t===name ? (t==='stats'?'flex':'block') : 'none';
     var btn = document.getElementById('ld-tab-btn-'+t);
@@ -36513,6 +37044,54 @@ function ldSwitchTab(name, el) {
     else { setTimeout(function(){ ldMapInit(); }, 30); }
   }
   if(name==='stats') { setTimeout(laRenderAnalytics, 80); }
+  if(name==='carrera') { try{ ldRenderCarrera(); }catch(_e){} }
+}
+
+// ══════════════════════════════════════════════════════
+// PESTAÑA CARRERA — lente EASA / FCL.050 (solo lectura, misma base de datos)
+// ══════════════════════════════════════════════════════
+function ldRenderCarrera(){
+  var body=document.getElementById('ld-carrera-body'); if(!body) return;
+  var T=function(t){ return (typeof ldT2m==='function')?(ldT2m(t)||0):0; };
+  var M=function(m){ return (typeof ldM2s==='function')?ldM2s(m):(Math.floor(m/60)+':'+('0'+(m%60)).slice(-2)); };
+  var ents=(window.ldEntries||[]).filter(function(e){ return e && e.type!=='__ac_db__' && e.date; });
+  var tot=0,pic=0,cop=0,night=0,ifr=0,mp=0,ldgD=0,ldgN=0,airMin=0,othMin=0;
+  var byType={};
+  ents.forEach(function(e){
+    var b=T(e.block); tot+=b;
+    if(e.role==='CPT') pic+=b; else if(e.role==='FO') cop+=b;
+    night+=T(e.night);
+    if((e.rules||'IFR')==='IFR') ifr+=b;
+    ldgD+=parseInt(e.ldgDay||0)||0; ldgN+=parseInt(e.ldgNight||0)||0;
+    var ty=(e.acType||'?'); byType[ty]=(byType[ty]||0)+b;
+    if(/^(A3[123]|B7|B3|E1|E2|CRJ|AT[R7])/i.test(ty)){ airMin+=b; mp+=b; } else { othMin+=b; }
+  });
+  var stat=function(l,v){ return '<div class="ld-stat"><div class="ld-stat-label">'+l+'</div><div class="ld-stat-value">'+v+'</div></div>'; };
+  var funcGrid='<div class="ld-stats">'+stat('PIC',M(pic))+stat('Copiloto',M(cop))+stat('Noche',M(night))+stat('IFR',M(ifr))+stat('Multipiloto',M(mp))+stat('Aterrizajes',ldgD+' / '+ldgN)+'</div>';
+  var dnaTot=(airMin+othMin)||1;
+  var dna='<div class="crr-total" style="padding:13px 15px;margin-bottom:0">'
+    +'<div style="height:22px;border-radius:8px;overflow:hidden;display:flex;border:1px solid rgba(128,128,128,.2)">'
+    +'<span style="width:'+(airMin/dnaTot*100)+'%;background:#2563EB"></span><span style="width:'+(othMin/dnaTot*100)+'%;background:#10B981"></span></div>'
+    +'<div class="crr-muted" style="display:flex;gap:16px;margin-top:11px;font-size:12px">'
+    +'<span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#2563EB;margin-right:6px"></i>Línea '+Math.round(airMin/dnaTot*100)+'%</span>'
+    +'<span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#10B981;margin-right:6px"></i>Otros '+Math.round(othMin/dnaTot*100)+'%</span></div></div>';
+  var chips=Object.keys(byType).sort(function(a,b){return byType[b]-byType[a];}).slice(0,6).map(function(k){
+    return '<div class="crr-chip"><span style="width:8px;height:8px;border-radius:50%;background:#2563EB"></span>'+k+' <b style="font-family:\'Space Mono\',monospace">'+M(byType[k])+'</b></div>';
+  }).join('');
+  var ev=[['PDF EASA · FCL.050','Logbook formal firmable','ldExportPickRange(\'pdf\')'],['Revalidación SEP / MEP','Soporte de experiencia','typeof showToast===\'function\'&&showToast(\'Próximamente\',\'info\')'],['Resumen para CV / entrevista','Horas por categoría','typeof showToast===\'function\'&&showToast(\'Próximamente\',\'info\')']];
+  var evH=ev.map(function(x){ return '<div class="crr-ev"><div style="flex:1"><div style="font-size:13.5px;font-weight:600">'+x[0]+'</div><div class="crr-muted" style="font-size:11px">'+x[1]+'</div></div><div class="crr-gbtn" onclick="'+x[2]+'">Generar</div></div>'; }).join('');
+  body.innerHTML=''
+    +'<div class="crr-total"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">'
+      +'<div><div class="ld-stat-label" style="color:rgba(16,185,129,.75)">Total de carrera · EASA</div>'
+      +'<div class="ld-stat-value" style="font-size:32px;margin-top:4px">'+M(tot)+'</div>'
+      +'<div class="crr-muted" style="font-size:11px;margin-top:3px">'+ents.length+' vuelos · mismos que la pestaña Vuelos</div></div>'
+      +'<div class="crr-gbtn" onclick="ldExportPickRange(\'pdf\')">↓ PDF EASA</div>'
+    +'</div></div>'
+    +'<div class="crr-sec">Función · FCL.050</div>'+funcGrid
+    +'<div class="crr-sec">Aviation DNA</div>'+dna
+    +(chips?('<div class="crr-sec">Por clase de avión</div><div style="display:flex;flex-wrap:wrap;gap:8px">'+chips+'</div>'):'')
+    +'<div class="crr-sec">Evidencia</div>'+evH
+    +'<div class="crr-muted" style="text-align:center;font-size:10.5px;margin:16px 0 8px">Misma base de datos que Vuelos · solo lectura · no duplica vuelos</div>';
 }
 
 // ══════════════════════════════════════════════════════
