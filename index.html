@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.364">
+  <meta name="version" content="Beta.365">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.364","builtAt":"2026-07-14T08:22:44Z","commit":"31e305e","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.365","builtAt":"2026-07-14T08:42:11Z","commit":"1566125","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -29515,6 +29515,7 @@ window.RST = RST;    // exponer globalmente para módulos externos (patrón fijo
 
 // ── Persist ──
 function rstSave(){
+  try{ _rstReconcileSched(); }catch(e){}   // bloquea la scheduled antes de persistir
   try { localStorage.setItem('pilotOS_roster', JSON.stringify(RST.entries)); localStorage.removeItem('pilotOS_roster_cleared'); } catch(e){}
   if(typeof dhUpdateRosterCard === 'function') dhUpdateRosterCard();
 }
@@ -29523,12 +29524,40 @@ window.rstSave           = rstSave;
 window.rstRenderCalendar = rstRenderCalendar;
 window.rstRenderStats    = rstRenderStats;
 window.rstRenderFlights  = rstRenderFlights;
+// ── Hora SCHEDULED bloqueada + actualizaciones ESTIMADAS ──────────────────
+// La 1ª hora que se ve de un vuelo (S de la 1ª importación del mes, o backend std_scheduled)
+// se guarda como SCHEDULED y NUNCA la reescribe una actualización posterior (E). Persistente
+// (sobrevive al "reemplazar mes" y a eCrews). La hora vigente que difiera queda como ESTIMADA.
+function _rstReconcileSched(){
+  try{
+    var K='pilotOS_roster_sched', map={};
+    try{ map=JSON.parse(localStorage.getItem(K)||'{}')||{}; }catch(e){}
+    var changed=false;
+    (RST.entries||[]).forEach(function(e){
+      if(!e || e.type!=='flight') return;
+      var key=(e.date||'')+'|'+(e.flightNum||e.flight||'')+'|'+(e.dep||'')+'|'+(e.arr||'');
+      var cur =e.std_estimated||e.std||null, curA=e.sta_estimated||e.sta||null;
+      var sched =e.std_scheduled||(map[key]&&map[key].std)||cur||null;
+      var schedA=e.sta_scheduled||(map[key]&&map[key].sta)||curA||null;
+      // Persistir la scheduled la PRIMERA vez (no la reescribe una E posterior)
+      if(sched && (!map[key]||!map[key].std)){ map[key]=map[key]||{}; map[key].std=sched; if(schedA)map[key].sta=schedA; changed=true; }
+      if(sched)  e.std_scheduled=sched;
+      if(schedA) e.sta_scheduled=schedA;
+      // Estimada = hora vigente si difiere de la scheduled bloqueada
+      if(cur  && sched  && cur!==sched)   e.std_estimated=cur;
+      if(curA && schedA && curA!==schedA) e.sta_estimated=curA;
+    });
+    if(changed){ try{ localStorage.setItem(K, JSON.stringify(map)); }catch(e){} }
+  }catch(e){}
+}
+try{ window._rstReconcileSched=_rstReconcileSched; }catch(e){}
 function rstLoad(){
   try {
     if(localStorage.getItem('pilotOS_roster_cleared') === '1'){ RST.entries = []; return; }
     var r = localStorage.getItem('pilotOS_roster');
     if(r){ var parsed = JSON.parse(r); if(Array.isArray(parsed)) RST.entries = parsed; }
   } catch(e){}
+  try{ _rstReconcileSched(); }catch(e){}
 }
 
 // ── Time helpers ──
