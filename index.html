@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.374">
+  <meta name="version" content="Beta.375">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.374","builtAt":"2026-07-14T12:05:14Z","commit":"8647215","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.375","builtAt":"2026-07-14T21:28:45Z","commit":"682f40b","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -12107,22 +12107,59 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
   }
   function ldOtroPhoto(){ if(window.showToast)showToast('📷 OCR de foto — preparado (scaffold)'); }
   function _gv(id){ var e=document.getElementById('ldo_'+id); return e?e.value.trim():''; }
+  // Recoge los campos ESPECÍFICOS del tipo (G+/G-, maniobras, lanzamientos, centro…).
+  // Antes se pedían en el formulario y se tiraban al guardar: no llegaban a la entrada.
+  function _ldoMeta(){
+    var m={}, d=document.getElementById('ldo-detail'); if(!d) return m;
+    var comunes={ldo_date:1,ldo_dep:1,ldo_arr:1,ldo_type:1,ldo_reg:1,ldo_func:1,ldo_block:1,
+                 ldo_ft:1,ldo_night:1,ldo_ifr:1,ldo_smp:1,ldo_sme:1,ldo_ld:1,ldo_rem:1};
+    [].forEach.call(d.querySelectorAll('input[id^="ldo_"],select[id^="ldo_"]'),function(el){
+      if(comunes[el.id]) return;
+      var v=(el.value||'').trim(); if(v) m[el.id.replace(/^ldo_/,'')]=v;
+    });
+    return m;
+  }
   function ldOtroSave(ret){
     if(!_ldoType){ if(window.showToast)showToast('Elige el tipo de vuelo'); return; }
     var func=_gv('func')||'PIC';
     var role=(func==='PIC'||func==='Instructor'||func==='PICUS'||func==='SPIC')?'CPT':'FO';
-    var e={ id:(typeof ldStableId==='function'?ldStableId({date:_gv('date'),dep:_gv('dep'),arr:_gv('arr'),flight:_ldoType}):('lo_'+Math.random().toString(36).slice(2,9))),
+    // Al EDITAR hay que conservar el id original: si no, se creaba una entrada nueva
+    // en cada guardado y el vuelo salía duplicado.
+    var _editId = (typeof ldEditingId!=='undefined' && ldEditingId) ? ldEditingId : null;
+    var e={ id: _editId || (typeof ldStableId==='function'?ldStableId({date:_gv('date'),dep:_gv('dep'),arr:_gv('arr'),flight:_ldoType}):('lo_'+Math.random().toString(36).slice(2,9))),
       date:_gv('date')||new Date().toISOString().slice(0,10), dep:_gv('dep').toUpperCase(), arr:_gv('arr').toUpperCase(),
-      acType:_gv('type'), reg:_gv('reg').toUpperCase(), block:_gv('block')||_gv('ft')||'0:00', night:_gv('night')||'0:00',
+      acType:_gv('type'), reg:_gv('reg').toUpperCase(), block:_gv('block')||_gv('ft')||'0:00',
+      flightTime:_gv('ft'), night:_gv('night')||'0:00',
       role:role, func:(func==='Copiloto'?'PM':'PF'), rules:_gv('ifr')||'VFR', ldgDay:parseInt(_gv('ld')||1)||1, ldgNight:0,
+      spMp:_gv('smp')||'', seMe:_gv('sme')||'', notes:_gv('rem')||'', meta:_ldoMeta(),
       night_lg:0, source:'Manual', activityType:_ldoType, pilotFunction:func, savedAt:new Date().toISOString(), flight:'' };
     if(!window.ldEntries) window.ldEntries=[];
-    window.ldEntries.unshift(e);
-    if(ret){ var r=Object.assign({},e,{id:'lo_'+Math.random().toString(36).slice(2,9),dep:e.arr,arr:e.dep}); window.ldEntries.unshift(r); }
+    if(_editId){
+      var _i=window.ldEntries.findIndex(function(x){ return x.id===_editId; });
+      if(_i>=0) window.ldEntries[_i]=Object.assign({},window.ldEntries[_i],e);
+      else window.ldEntries.unshift(e);
+      ldEditingId=null;
+    } else {
+      window.ldEntries.unshift(e);
+      // el sector de vuelta solo tiene sentido al CREAR, nunca al editar
+      if(ret){ var r=Object.assign({},e,{id:'lo_'+Math.random().toString(36).slice(2,9),dep:e.arr,arr:e.dep}); window.ldEntries.unshift(r); }
+    }
     try{ if(typeof ldSaveData==='function')ldSaveData(); if(typeof ldRender==='function')ldRender(); if(typeof ldStats==='function')ldStats(); if(typeof ldRenderCarrera==='function')ldRenderCarrera(); if(typeof ldBgSync==='function')ldBgSync({delay:800,force:true}); }catch(_){}
     ldOtroClose();
-    if(window.showToast)showToast(ret?'Vuelo + return guardados ✓':'Vuelo guardado ✓','success');
+    if(window.showToast)showToast(_editId?'Vuelo actualizado ✓':(ret?'Vuelo + return guardados ✓':'Vuelo guardado ✓'),'success');
   }
+  // Rellena el formulario Otro con un vuelo existente (para editarlo en SU formulario)
+  function ldOtroLoad(e){
+    ldModalMode('otro');
+    _ldoType = e.activityType || null;
+    ldOtroRender();
+    var set=function(id,v){ var el=document.getElementById('ldo_'+id); if(el && v!=null && v!=='') el.value=v; };
+    set('date',e.date); set('dep',e.dep); set('arr',e.arr); set('type',e.acType); set('reg',e.reg);
+    set('func',e.pilotFunction||'PIC'); set('block',e.block); set('ft',e.flightTime); set('night',e.night);
+    set('ifr',e.rules); set('smp',e.spMp); set('sme',e.seMe); set('ld',e.ldgDay); set('rem',e.notes);
+    if(e.meta) Object.keys(e.meta).forEach(function(k){ set(k, e.meta[k]); });
+  }
+  window.ldOtroLoad=ldOtroLoad;
   window.ldOtroOpen=ldOtroOpen;
   </script>
 
@@ -12301,8 +12338,11 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           .ldm-bp::before,.ldm-bp::after{content:'';position:absolute;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:#0B1020;z-index:2}
           html.day .ldm-bp::before,html.day .ldm-bp::after{background:#EAF1F8}
           .ldm-bp::before{left:-7px}.ldm-bp::after{right:-7px}
-          .ldm-card{position:relative;background:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.028));border:1px solid rgba(255,255,255,.10);border-radius:18px;padding:15px 16px 16px;margin-bottom:13px;box-shadow:0 16px 38px rgba(0,0,0,.34),0 2px 6px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.09);overflow:hidden}
-          .ldm-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.22),transparent);pointer-events:none}
+          /* SIN overflow:hidden — recortaba los desplegables absolutos que cuelgan del
+             campo (sugerencias de CM1/CM2/examinador y de matrícula quedaban ocultas).
+             La línea de brillo se mete hacia dentro para no salirse por las esquinas. */
+          .ldm-card{position:relative;background:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.028));border:1px solid rgba(255,255,255,.10);border-radius:18px;padding:15px 16px 16px;margin-bottom:13px;box-shadow:0 16px 38px rgba(0,0,0,.34),0 2px 6px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.09)}
+          .ldm-card::before{content:'';position:absolute;top:0;left:18px;right:18px;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.22),transparent);pointer-events:none}
           html.day .ldm-card{background:linear-gradient(180deg,#FFFFFF 0%,#F4FAFF 100%);border:1px solid rgba(255,255,255,.85);box-shadow:0 16px 36px rgba(23,52,120,.16),0 3px 8px rgba(23,52,120,.09),inset 0 1px 0 #FFFFFF}
           html.day .ldm-card::before{background:linear-gradient(90deg,transparent,rgba(23,52,120,.10),transparent)}
           .ldm-card .ldm-sec{margin-top:2px}
@@ -19526,6 +19566,19 @@ function ldShowCard(id){
   var roleClass=e.role==='CPT'?'ld-fpill-cpt':'ld-fpill-fo';
   var funcClass=e.func==='PM'?'ld-fpill-pm':'ld-fpill-pf';
   var nightOk=e.night&&e.night!=='00:00'&&e.night!=='0:00';
+  // ── Vuelo de carrera: la rejilla STD/STA/OUT/OFF/IN/ON no aplica (salía toda a "—").
+  //    Excepción: "otra compañía" es un vuelo de línea real → ahí sí tiene horarios.
+  var _isCareer=!!(e.activityType && e.activityType!=='airline' && e.activityType!=='mc');
+  var _showTimes=!_isCareer || e.activityType==='other';
+  var _actName={ga:'Aviación general',glider:'Velero',aero:'Acrobacia',me:'Bimotor',instr:'Instrucción',sim:'Simulador',other:'Otra compañía',ferry:'Ferry / Posicionamiento',custom:'Custom'}[e.activityType]||'Otro';
+  var _metaLbl={ga_op:'Operación',ga_pax:'Pax',ga_instr:'Instructor',ga_app:'Aproximaciones',
+    gl_launch:'Lanzamiento',gl_launches:'Nº lanzamientos',gl_soar:'Tipo de vuelo',gl_olc:'OLC (km)',
+    ab_seq:'Secuencia',ab_gp:'G+',ab_gn:'G−',ab_saf:'Safety pilot',ab_man:'Maniobras',
+    me_time:'ME time',me_eo:'Motor parado',me_asym:'Aprox. asimétrica',me_class:'Clase',
+    in_stu:'Alumno',in_type:'Lección',in_sign:'Certificado',in_ex:'Ejercicio',
+    sm_type:'Dispositivo',sm_sess:'Sesión',sm_center:'Centro',sm_res:'Resultado',
+    ot_op:'Operador',ot_fl:'Nº vuelo',ot_role:'Rol',ot_picus:'PICUS',
+    fe_kind:'Tipo',fe_auth:'Autorización'};
   function pill(label,cls,extra){
     if(!label) return '';
     return '<span class="ld-fpill'+(cls?' '+cls:'')+(extra?'" style="'+extra:'')+'">'+label+'</span>';
@@ -19557,14 +19610,24 @@ function ldShowCard(id){
     +'</div>'
     // Times grid
     +'<div style="padding:14px 18px;border-bottom:1px solid rgba(34,211,238,.08)">'
-      +'<div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(34,211,238,.5);margin-bottom:12px">Tiempos</div>'
+      +'<div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(34,211,238,.5);margin-bottom:12px">'+(_showTimes?'Tiempos':'Vuelo · EASA')+'</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px">'
-        +row('STD (sched out)',e.sched_out||e.std||'—','#FBBF24')
-        +row('STA (sched in)',e.sched_in||e.sta||'—','#FBBF24')
-        +row('OUT · Blocks Off',e.atd||e.aobt||'—','#22D3EE')
-        +row('OFF · Takeoff',e.std||'—','#22D3EE')
-        +row('IN · Blocks On',e.ata||e.aibt||'—','#22D3EE')
-        +row('ON · Landing',e.sta||'—','#22D3EE')
+        +(_showTimes
+          ? (row('STD (sched out)',e.sched_out||e.std||'—','#FBBF24')
+            +row('STA (sched in)',e.sched_in||e.sta||'—','#FBBF24')
+            +row('OUT · Blocks Off',e.atd||e.aobt||'—','#22D3EE')
+            +row('OFF · Takeoff',e.std||'—','#22D3EE')
+            +row('IN · Blocks On',e.ata||e.aibt||'—','#22D3EE')
+            +row('ON · Landing',e.sta||'—','#22D3EE'))
+          // Sin horarios de línea: se muestra lo que SÍ tiene este vuelo
+          : (row('Tipo',_actName,'#10B981')
+            +row('Función',e.pilotFunction||(e.role==='CPT'?'PIC':'Copiloto'),'#10B981')
+            +row('Reglas',e.rules||'—','#22D3EE')
+            +row('Nocturno',e.night||'—','#22D3EE')
+            +row('Aterrizajes',(e.ldgDay||0)+' día · '+(e.ldgNight||0)+' noc','#22D3EE')
+            +(e.seMe?row('Motor',e.seMe==='ME'?'Multimotor (ME)':'Monomotor (SE)','#22D3EE'):'')
+            +(e.spMp?row('Tripulación',e.spMp==='MP'?'Multipiloto (MP)':'Monopiloto (SP)','#22D3EE'):''))
+        )
       +'</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">'
         +'<div style="background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.22);border-radius:12px;padding:10px 14px">'
@@ -19577,6 +19640,17 @@ function ldShowCard(id){
         +'</div>'
       +'</div>'
     +'</div>'
+    // Datos propios del tipo de vuelo de carrera (G+/G−, maniobras, lanzamientos, centro…)
+    +(function(){
+      if(!_isCareer || !e.meta) return '';
+      var ks=Object.keys(e.meta).filter(function(k){ return e.meta[k]; });
+      if(!ks.length) return '';
+      return '<div style="padding:14px 18px;border-bottom:1px solid rgba(34,211,238,.08)">'
+        +'<div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(16,185,129,.7);margin-bottom:12px">'+_actName+'</div>'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px">'
+        + ks.map(function(k){ return row(_metaLbl[k]||k, e.meta[k], '#10B981'); }).join('')
+        +'</div></div>';
+    })()
     // Flight info
     +'<div style="padding:12px 18px;border-bottom:1px solid rgba(34,211,238,.08)">'
       +'<div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(34,211,238,.5);margin-bottom:10px">Vuelo</div>'
@@ -19672,6 +19746,12 @@ function ldEditFlight(id){
   if(!e) return;
   ldEditingId=id;
   ldOpenModal(e.source!=='MCDU-OCR');
+  // Un vuelo de carrera se edita en SU formulario (Otro), no en el de Vueling: aquí no
+  // hay nº de vuelo, MCDU ni tripulantes, y sí G+/G-, lanzamientos, etc.
+  if(e.activityType && e.activityType!=='airline' && e.activityType!=='mc' && typeof ldOtroLoad==='function'){
+    setTimeout(function(){ ldOtroLoad(e); }, 40);
+    return;
+  }
   // Pre-fill all fields
   var g2=function(fid,val){ var el=document.getElementById(fid); if(el) el.value=val||''; };
   g2('ld_date',e.date); g2('ld_flight',e.flight);
