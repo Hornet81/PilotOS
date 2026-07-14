@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.363">
+  <meta name="version" content="Beta.364">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.363","builtAt":"2026-07-13T12:52:00Z","commit":"67c2bc1","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.364","builtAt":"2026-07-14T08:22:44Z","commit":"4f578dc","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -21463,18 +21463,24 @@ document.addEventListener('focusin',function(e){
   var m=document.getElementById('ld_modal');
   if(!m||!m.classList.contains('open')) return;
   if(!e.target||!m.contains(e.target)||!/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
-  setTimeout(function(){ try{ e.target.scrollIntoView({block:'center',behavior:'smooth'}); }catch(_e){} },260);
+  setTimeout(function(){ try{ e.target.scrollIntoView({block:'nearest',behavior:'smooth'}); }catch(_e){} },280);
 });
-// iOS: al abrir el teclado el visualViewport encoge. Ajustamos el overlay del modal del
-// logbook a la zona visible (sobre el teclado) para que el sheet y el campo enfocado no
-// queden tapados. En iPhone el bottom-sheet fixed no se reajustaba solo y el campo se ocultaba.
+// iOS: al abrir el teclado el visualViewport encoge. Ajustamos el overlay Y EL SHEET del modal
+// del logbook a la zona visible (sobre el teclado). CLAVE: hay que capar también la altura del
+// sheet (su max-height:92vh es de la pantalla COMPLETA → sobresalía por arriba y se cortaba el
+// top, "se escondía el cuadro arriba"). Con el sheet capado cabe entero y hace scroll interno.
 (function(){
   var vv=window.visualViewport; if(!vv) return;
   function adjust(){
     var m=document.getElementById('ld_modal'); if(!m) return;
+    var sheet=m.querySelector('.ld-modal');
     if(m.classList.contains('open') && vv.height < window.innerHeight - 80){
       m.style.top=vv.offsetTop+'px'; m.style.height=vv.height+'px'; m.style.bottom='auto';
-    } else { m.style.top=''; m.style.height=''; m.style.bottom=''; }
+      if(sheet) sheet.style.maxHeight=vv.height+'px';
+    } else {
+      m.style.top=''; m.style.height=''; m.style.bottom='';
+      if(sheet) sheet.style.maxHeight='';
+    }
   }
   vv.addEventListener('resize', adjust);
   vv.addEventListener('scroll', adjust);
