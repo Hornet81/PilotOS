@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.366">
+  <meta name="version" content="Beta.367">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.366","builtAt":"2026-07-14T08:48:46Z","commit":"e93d2b6","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.367","builtAt":"2026-07-14T08:57:38Z","commit":"97e0341","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -31153,8 +31153,9 @@ window.rosterSelectDay = function(dateStr){
       var _plus1=' <span style="background:#0369A1;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:6px">+1</span>';
       var flightCfg = TC2['flight'] || {bg:'#c0392b', tx:'#fff'};
       var legNum = flights.length > 1 ? (i+1) : '';
-      var dispStd = stdOk ? rstFormatTime(e.std) : '--:--';
-      var dispSta = staOk ? rstFormatTime(e.sta) : '--:--';
+      // Fila S = hora SCHEDULED BLOQUEADA (std_scheduled) si la tenemos; si no, la std vigente.
+      var dispStd = e.std_scheduled ? rstFormatTime(e.std_scheduled) : (stdOk ? rstFormatTime(e.std) : '--:--');
+      var dispSta = e.sta_scheduled ? rstFormatTime(e.sta_scheduled) : (staOk ? rstFormatTime(e.sta) : '--:--');
       var timeLabel = RST.useLT ? ' LT' : ' UTC';
       // Cuatro filas independientes — S, A, E, L nunca se solapan
       var hasA = stdActOk || staActOk;   // A = tiempos reales del datalink (automático)
@@ -31213,7 +31214,7 @@ window.rosterSelectDay = function(dateStr){
         + '<div style="font-size:11px;color:#475569;font-family:\'Space Mono\',monospace;display:flex;align-items:center;gap:4px">'
         + (e._isMidnightCont
             ? '<span style="font-size:9px;font-weight:700;color:#0C4A6E;background:rgba(12,74,110,.1);border:1px solid rgba(12,74,110,.2);border-radius:4px;padding:0 4px;line-height:1.6">↓</span>'
-            : '<span style="font-size:9px;font-weight:700;color:#64748B;background:rgba(100,116,139,.1);border:1px solid rgba(100,116,139,.2);border-radius:4px;padding:0 4px;line-height:1.6">S</span>')
+            : '<span style="font-size:9px;font-weight:700;color:#64748B;background:rgba(100,116,139,.1);border:1px solid rgba(100,116,139,.2);border-radius:4px;padding:0 4px;line-height:1.6">S'+(e.std_scheduled?' 🔒':'')+'</span>')
         + dispStd+' – '+dispSta+timeLabel
         + (nextDay?' <span style="background:#0369A1;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:6px">+1</span>':'')
         + '</div>'
