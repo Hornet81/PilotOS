@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.367">
+  <meta name="version" content="Beta.368">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.367","builtAt":"2026-07-14T08:57:38Z","commit":"82679cb","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.368","builtAt":"2026-07-14T10:00:07Z","commit":"4b374be","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -29530,22 +29530,28 @@ window.rstRenderFlights  = rstRenderFlights;
 // (sobrevive al "reemplazar mes" y a eCrews). La hora vigente que difiera queda como ESTIMADA.
 function _rstReconcileSched(){
   try{
-    var K='pilotOS_roster_sched', map={};
+    // v2: la v1 bloqueaba como "scheduled" la 1ª hora vista, aunque fuera una E → mapa
+    // contaminado (eCrews marca la leg ENTERA como estimada si CUALQUIER hora lleva E, así
+    // que std_estimated NO es una scheduled). Se descarta la v1 y se reconstruye bien.
+    var K='pilotOS_roster_sched_v2', map={};
     try{ map=JSON.parse(localStorage.getItem(K)||'{}')||{}; }catch(e){}
+    try{ localStorage.removeItem('pilotOS_roster_sched'); }catch(e){}
     var changed=false;
     (RST.entries||[]).forEach(function(e){
       if(!e || e.type!=='flight') return;
       var key=(e.date||'')+'|'+(e.flightNum||e.flight||'')+'|'+(e.dep||'')+'|'+(e.arr||'');
-      var cur =e.std_estimated||e.std||null, curA=e.sta_estimated||e.sta||null;
-      var sched =e.std_scheduled||(map[key]&&map[key].std)||cur||null;
-      var schedA=e.sta_scheduled||(map[key]&&map[key].sta)||curA||null;
-      // Persistir la scheduled la PRIMERA vez (no la reescribe una E posterior)
-      if(sched && (!map[key]||!map[key].std)){ map[key]=map[key]||{}; map[key].std=sched; if(schedA)map[key].sta=schedA; changed=true; }
-      if(sched)  e.std_scheduled=sched;
-      if(schedA) e.sta_scheduled=schedA;
-      // Estimada = hora vigente si difiere de la scheduled bloqueada
-      if(cur  && sched  && cur!==sched)   e.std_estimated=cur;
-      if(curA && schedA && curA!==schedA) e.sta_estimated=curA;
+      // SCHEDULED GENUINA = solo sin prefijo / S (e.std, o std_scheduled del parser backend).
+      // NUNCA std_estimated (eso es una E) — bloquear una E era el bug.
+      var schedNow  = e.std_scheduled || e.std || null;
+      var schedNowA = e.sta_scheduled || e.sta || null;
+      // Persistir la 1ª vez que aparece una scheduled DE VERDAD; una E posterior no la toca.
+      if(schedNow && (!map[key] || !map[key].std)){ map[key]=map[key]||{}; map[key].std=schedNow; if(schedNowA)map[key].sta=schedNowA; changed=true; }
+      // Adjuntar la bloqueada (si la hay) para el render. Si nunca hubo scheduled genuina,
+      // NO se inventa: el vuelo solo mostrará su fila E (como en eCrews).
+      var locked=(map[key]&&map[key].std)||null, lockedA=(map[key]&&map[key].sta)||null;
+      if(locked)  e.std_scheduled=locked;
+      if(lockedA) e.sta_scheduled=lockedA;
+      // std_estimated/sta_estimated las pone el parser (E real de eCrews) — no se inventan aquí.
     });
     if(changed){ try{ localStorage.setItem(K, JSON.stringify(map)); }catch(e){} }
   }catch(e){}
