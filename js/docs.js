@@ -408,24 +408,47 @@ function _homeDocIcon(state) {
     : (state === 'empty' ? '<path d="M8 12h8"/>' : '<polyline points="9 12 11 14 15 10"/>');
   return '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="' + col + '" stroke-width="2.5"><circle cx="12" cy="12" r="10"/>' + inner + '</svg>';
 }
+// Habilitación principal para el Home: la de TIPO (TR) si existe; la fecha buena sale del
+// cruce Licencia↔Revalidaciones (la licencia lleva fechas viejas, Revalidaciones manda).
+function _homePrimaryRating() {
+  const all = [];
+  ['typerating', 'license'].forEach(function (did) { // typerating primero (fuente de verdad)
+    _effectiveRatings(did).forEach(function (r) {
+      if (!r.name) return;
+      const ex = all.find(function (x) { return _ratingMatch(x.name, r.name); });
+      if (ex) { if (r.until && (!ex.until || r.until > ex.until)) ex.until = r.until; }
+      else all.push({ name: r.name, until: r.until || '' });
+    });
+  });
+  if (!all.length) return null;
+  const tr = all.find(function (r) { return /(^|\s)TR\b|TR\(/i.test(r.name); });
+  if (tr) return tr;
+  const dated = all.filter(function (r) { return r.until; }).sort(function (a, b) { return a.until < b.until ? -1 : 1; });
+  return dated[0] || all[0];
+}
 function renderHomeDocsCard() {
   const host = document.getElementById('home-docs-rows');
   if (!host) return;
-  const lic = docsData.license || {};
-  const licLabel = (lic.types && lic.types.length) ? ('EASA ' + lic.types[0]) : 'EASA ATPL';
-  const items = [
-    { id: 'license', label: licLabel },
-    { id: 'medical', label: 'Med. Class 1' }
-  ];
-  host.innerHTML = items.map(function (it, i) {
-    const s = docStatus(it.id);
-    const iso = _homeDocIso(it.id);
-    const dateStr = _mmYy(iso) || (s.state === 'empty' ? 'Sin subir' : 'Permanente');
-    const dateCol = s.state === 'exp' ? '#F87171' : (s.state === 'warn' ? '#FCD34D' : (s.state === 'empty' ? 'rgba(241,245,249,.3)' : 'rgba(241,245,249,.35)'));
+  const rows = [];
+  // 1) Habilitación de tipo (TR) con la fecha vigente de Revalidaciones
+  const pr = _homePrimaryRating();
+  if (pr) {
+    const st = _ratingUntilStatus(pr.until);
+    const state = (st.days == null) ? 'ok' : (st.days < 0 ? 'exp' : (st.days <= 90 ? 'warn' : 'ok'));
+    rows.push({ label: pr.name, iso: pr.until, state: state });
+  } else {
+    const lic = docsData.license || {};
+    rows.push({ label: (lic.types && lic.types.length) ? ('EASA ' + lic.types[0]) : 'EASA ATPL', iso: _homeDocIso('license'), state: docStatus('license').state });
+  }
+  // 2) Médico
+  rows.push({ label: 'Med. Class 1', iso: _homeDocIso('medical'), state: docStatus('medical').state });
+  host.innerHTML = rows.map(function (r, i) {
+    const dateStr = _mmYy(r.iso) || (r.state === 'empty' ? 'Sin subir' : 'Permanente');
+    const dateCol = r.state === 'exp' ? '#F87171' : (r.state === 'warn' ? '#FCD34D' : (r.state === 'empty' ? 'rgba(241,245,249,.3)' : 'rgba(241,245,249,.35)'));
     return '<div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.10);border-radius:8px;padding:5px 7px' + (i === 0 ? ';margin-bottom:5px' : '') + '">'
-      + '<div style="min-width:0"><div style="font-size:9px;font-weight:700;color:#FFFFFF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + _esc(it.label) + '</div>'
+      + '<div style="min-width:0"><div style="font-size:9px;font-weight:700;color:#FFFFFF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + _esc(r.label) + '</div>'
       + '<div style="font-size:7px;color:' + dateCol + '">' + dateStr + '</div></div>'
-      + _homeDocIcon(s.state)
+      + _homeDocIcon(r.state)
       + '</div>';
   }).join('');
 }
