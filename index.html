@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.373">
+  <meta name="version" content="Beta.374">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.373","builtAt":"2026-07-14T11:18:19Z","commit":"0d75393","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.374","builtAt":"2026-07-14T12:05:14Z","commit":"e7a5c77","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -11888,8 +11888,10 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
      Solo transform/opacity/filter (GPU) para no penalizar el iPad. */
   .ldo-chip{position:relative;overflow:hidden;-webkit-tap-highlight-color:transparent;
     transition:transform .28s cubic-bezier(.34,1.56,.64,1),opacity .26s ease,filter .26s ease,
-               box-shadow .28s ease,border-color .2s ease,background .28s ease;
-    will-change:transform}
+               box-shadow .28s ease,border-color .2s ease,background .28s ease}
+  /* will-change SOLO mientras dura la animación: dejarlo fijo retenía 9 capas de
+     compositor permanentes (una por cuadro) y lastraba el scroll de toda la sección. */
+  .ldo-chip.just{will-change:transform}
   .ldo-chip .i,.ldo-chip .n{position:relative;z-index:2}
   .ldo-chip .i{transition:transform .3s cubic-bezier(.34,1.56,.64,1)}
   /* 1 · feedback táctil */
@@ -11992,7 +11994,10 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
   var LDO_ACTS=[
     {k:'ga',i:'🛩️',n:'Aviación general',                     c:'#0891B2', s:'rgba(8,145,178,.15)',  g:'rgba(8,145,178,.38)'},
     {k:'glider',i:'🪁',n:'Velero',img:'otro-glider.svg',      c:'#0284C7', s:'rgba(2,132,199,.15)',  g:'rgba(2,132,199,.38)'},
-    {k:'aero',i:'🌀',n:'Acrobacia',img:'otro-acro.svg',       c:'#7C3AED', s:'rgba(124,58,237,.15)', g:'rgba(124,58,237,.38)'},
+    // acro va en PNG: el SVG original era un export de Illustrator de 121 KB con 13
+    // bitmaps base64 incrustados y 22 gradientes… para pintarse a 56 px. Rasterizado
+    // a 3x pesa 16 KB y decodifica de una (era lo que atascaba al abrir "Otro").
+    {k:'aero',i:'🌀',n:'Acrobacia',img:'otro-acro.png',       c:'#7C3AED', s:'rgba(124,58,237,.15)', g:'rgba(124,58,237,.38)'},
     {k:'me',i:'⚙️',n:'Bimotor',                               c:'#D97706', s:'rgba(217,119,6,.15)',  g:'rgba(217,119,6,.38)'},
     {k:'instr',i:'🎓',n:'Instrucción',                        c:'#059669', s:'rgba(5,150,105,.15)',  g:'rgba(5,150,105,.38)'},
     {k:'sim',i:'🖥️',n:'Simulador',                            c:'#4F46E5', s:'rgba(79,70,229,.15)',  g:'rgba(79,70,229,.38)'},
@@ -12058,7 +12063,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
     return '<div class="ldo-sec">Tipo de vuelo</div><div class="ldo-act" id="ldo-act">'+LDO_ACTS.map(function(a){
       return '<div class="ldo-chip" data-k="'+a.k+'" style="--ldo-accent:'+a.c+';--ldo-soft:'+a.s+';--ldo-glow:'+a.g+'" onclick="ldOtroPick(\''+a.k+'\')">'
         +'<span class="ldo-sh"></span>'
-        +'<div class="i">'+(a.img?'<img src="'+a.img+'" alt="" style="width:56px;height:56px;object-fit:contain;display:inline-block;vertical-align:middle">':a.i)+'</div>'
+        +'<div class="i">'+(a.img?'<img src="'+a.img+'" alt="" decoding="async" width="56" height="56" style="width:56px;height:56px;object-fit:contain;display:inline-block;vertical-align:middle">':a.i)+'</div>'
         +'<div class="n">'+a.n+'</div></div>';
     }).join('')+'</div>';
   }
