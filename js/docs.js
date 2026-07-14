@@ -384,9 +384,10 @@ function renderDocsStrip() {
 
 // ── Render completo del wallet ──────────────────────────────
 function renderWallet() {
+  _loadCustomDocs();
+  renderHomeDocsCard(); // tarjeta del Home (independiente de la pantalla de Documentos)
   const grid = document.getElementById('doc-grid');
   if (!grid) return;
-  _loadCustomDocs();
   renderHero();
   renderLegal();
   renderGrid();
