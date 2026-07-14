@@ -393,6 +393,41 @@ function renderWallet() {
   renderDocsStrip();
   _bindDocsScrollSync();
 }
+// ── Tarjeta "Documents" del Home: datos reales de la sección Documentos ──
+function _homeDocIso(id) {
+  const s = docStatus(id);
+  if (s.state === 'empty') return null;
+  if (s.ratings && s.sum) return s.sum.exp > 0 ? s.sum.latestExp : s.sum.nextValid;
+  return (docsData[id] && docsData[id].expiry) || null;
+}
+function _mmYy(iso) { if (!iso) return null; const d = new Date(iso); return ('0' + (d.getMonth() + 1)).slice(-2) + '/' + d.getFullYear(); }
+function _homeDocIcon(state) {
+  const col = { ok: '#4ADE80', warn: '#FBBF24', exp: '#F87171', empty: '#94A3B8' }[state] || '#94A3B8';
+  const inner = state === 'exp' ? '<path d="M15 9l-6 6M9 9l6 6"/>'
+    : (state === 'empty' ? '<path d="M8 12h8"/>' : '<polyline points="9 12 11 14 15 10"/>');
+  return '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="' + col + '" stroke-width="2.5"><circle cx="12" cy="12" r="10"/>' + inner + '</svg>';
+}
+function renderHomeDocsCard() {
+  const host = document.getElementById('home-docs-rows');
+  if (!host) return;
+  const lic = docsData.license || {};
+  const licLabel = (lic.types && lic.types.length) ? ('EASA ' + lic.types[0]) : 'EASA ATPL';
+  const items = [
+    { id: 'license', label: licLabel },
+    { id: 'medical', label: 'Med. Class 1' }
+  ];
+  host.innerHTML = items.map(function (it, i) {
+    const s = docStatus(it.id);
+    const iso = _homeDocIso(it.id);
+    const dateStr = _mmYy(iso) || (s.state === 'empty' ? 'Sin subir' : 'Permanente');
+    const dateCol = s.state === 'exp' ? '#F87171' : (s.state === 'warn' ? '#FCD34D' : (s.state === 'empty' ? 'rgba(241,245,249,.3)' : 'rgba(241,245,249,.35)'));
+    return '<div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.10);border-radius:8px;padding:5px 7px' + (i === 0 ? ';margin-bottom:5px' : '') + '">'
+      + '<div style="min-width:0"><div style="font-size:9px;font-weight:700;color:#FFFFFF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + _esc(it.label) + '</div>'
+      + '<div style="font-size:7px;color:' + dateCol + '">' + dateStr + '</div></div>'
+      + _homeDocIcon(s.state)
+      + '</div>';
+  }).join('');
+}
 function renderDocStatus() { renderWallet(); }
 function toggleDocPreview(id) { openDocSheet(id); }
 
