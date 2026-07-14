@@ -28,9 +28,20 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.371">
+<style>
+/* Mientras el piloto hace pinch-zoom se apaga el cristal. iOS re-rasteriza CADA
+   backdrop-filter (~196 en esta página, 21 a pantalla completa) a la nueva escala;
+   el pico de memoria tumba la WebView y la PWA recarga → rebota al Home.
+   Los fondos semitransparentes se conservan, así que todo se sigue leyendo.
+   La clase la pone/quita el listener de visualViewport según vv.scale. */
+html.zooming *, html.zooming *::before, html.zooming *::after{
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
+}
+</style>
+  <meta name="version" content="Beta.372">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.371","builtAt":"2026-07-14T10:58:40Z","commit":"ab09b67","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.372","builtAt":"2026-07-14T11:13:44Z","commit":"e866dde","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -19582,6 +19593,10 @@ function ldShowCard(id){
     // ── Nómina: calcular con datos del convenio ──
     +(function(){
       if(!window.CONVENIO) return '';
+      // El convenio de Vueling NO aplica a los vuelos de carrera (GA, velero, acro,
+      // otra compañía, sim propio…): nadie te paga plus de hora de vuelo ni dietas
+      // por volar tu Cessna. Sin esto la ficha les inventaba una "nómina estimada".
+      if(e && e.activityType && e.activityType!=='airline' && e.activityType!=='mc') return '';
       var SPAIN = {'BCN':1,'MAD':1,'PMI':1,'IBZ':1,'AGP':1,'VLC':1,'ALC':1,'LPA':1,'TFN':1,'TFS':1,'SDR':1,'BIO':1,'ZAZ':1,'GRX':1,'REU':1,'GRO':1,'SVQ':1,'XRY':1,'ACE':1,'FUE':1,'SPC':1,'GMZ':1,'MLN':1,'OVD':1,'SCQ':1,'VGO':1,'LCG':1,'PNA':1,'EAS':1,'VIT':1,'RJL':1,'ODB':1,'LEI':1,'MJV':1,'MCU':1,'RGS':1};
       var sp = (e.role==='CPT') ? CONVENIO.cmd : CONVENIO.cop;
       var D  = CONVENIO.dietas;
@@ -22086,10 +22101,27 @@ document.addEventListener('focusin',function(e){
 // top, "se escondía el cuadro arriba"). Con el sheet capado cabe entero y hace scroll interno.
 (function(){
   var vv=window.visualViewport; if(!vv) return;
+
+  // ¿Está el piloto haciendo pinch-zoom? El teclado NO cambia la escala; el pinch sí.
+  function zoomed(){ return vv.scale > 1.02; }
+
+  // Con zoom, iOS re-rasteriza TODOS los backdrop-filter de la página (son ~196, y 21
+  // son overlays a pantalla completa) a la nueva escala. Sobre este DOM el pico de
+  // memoria tumba la WebView y la PWA se recarga → rebota al Home ("se cuelga y vuelve
+  // al home"). Mientras hay zoom apagamos el cristal; al soltar se restaura solo.
+  // Los overlays conservan su background semitransparente, así que se siguen leyendo.
+  function paintZoomClass(){
+    document.documentElement.classList.toggle('zooming', zoomed());
+  }
+
   function adjust(){
     var m=document.getElementById('ld_modal'); if(!m) return;
-    var sheet=m.querySelector('.ld-modal');
-    if(m.classList.contains('open') && vv.height < window.innerHeight - 80){
+    var sheet=m.querySelector('.ldm-sheet');   // antes '.ld-modal' → NO existe: el cap del
+                                               // sheet (el "fix clave") nunca llegó a aplicarse
+    // Sin comprobar la escala, hacer pinch se confundía con "teclado abierto" (al ampliar,
+    // vv.height encoge) y el modal se movía/redimensionaba en CADA evento de scroll.
+    var keyboardOpen = !zoomed() && m.classList.contains('open') && vv.height < window.innerHeight - 80;
+    if(keyboardOpen){
       m.style.top=vv.offsetTop+'px'; m.style.height=vv.height+'px'; m.style.bottom='auto';
       if(sheet) sheet.style.maxHeight=vv.height+'px';
     } else {
@@ -22097,8 +22129,16 @@ document.addEventListener('focusin',function(e){
       if(sheet) sheet.style.maxHeight='';
     }
   }
-  vv.addEventListener('resize', adjust);
-  vv.addEventListener('scroll', adjust);
+
+  // scroll/resize del visualViewport se disparan en ráfaga al pinchar y desplazar:
+  // agrupamos en un frame para no encadenar recálculos de layout.
+  var raf=null;
+  function onVV(){
+    if(raf) return;
+    raf=requestAnimationFrame(function(){ raf=null; paintZoomClass(); adjust(); });
+  }
+  vv.addEventListener('resize', onVV);
+  vv.addEventListener('scroll', onVV);
 })();
 // Convertir a mayúsculas — dep, arr, flight (reg ya lo hace ldRegInput)
 ['ld_dep','ld_arr','ld_flight'].forEach(function(id){
