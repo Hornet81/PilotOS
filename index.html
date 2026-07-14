@@ -28,9 +28,9 @@
   window.addEventListener('pageshow', resetZoom);
 })();
 </script>
-  <meta name="version" content="Beta.365">
+  <meta name="version" content="Beta.366">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.365","builtAt":"2026-07-14T08:42:11Z","commit":"93ca295","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.366","builtAt":"2026-07-14T08:48:46Z","commit":"9dc0e78","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -29551,6 +29551,22 @@ function _rstReconcileSched(){
   }catch(e){}
 }
 try{ window._rstReconcileSched=_rstReconcileSched; }catch(e){}
+// Línea de horas de un vuelo del roster: SCHEDULED bloqueada 🔒 + (si difiere) la ESTIMADA E
+// debajo, en ámbar. Devuelve el HTML interno del meta (nº de vuelo + horas).
+function _rstTimesLine(f){
+  var sched=f.std_scheduled, schedA=f.sta_scheduled;
+  var cur=(f.std||f.std_estimated||f.std_actual), curA=(f.sta||f.sta_estimated||f.sta_actual);
+  var est=f.std_estimated, estA=f.sta_estimated;
+  var base, lock='';
+  if(sched){ base=(sched||'—')+'–'+(schedA||'—'); lock=' <span title="Hora scheduled bloqueada" style="font-size:9px;opacity:.9">🔒</span>'; }
+  else { base=(cur||'—')+'–'+(curA||'—'); }
+  var html=(f.flightNum||'—')+' · '+base+lock;
+  if(est && sched && est!==sched){
+    html+='<div style="font-size:10px;color:#F59E0B;font-family:\'Space Mono\',monospace;margin-top:2px">↻ Est. '+(est||'—')+'–'+(estA||schedA||'—')+'</div>';
+  }
+  return html;
+}
+try{ window._rstTimesLine=_rstTimesLine; }catch(e){}
 function rstLoad(){
   try {
     if(localStorage.getItem('pilotOS_roster_cleared') === '1'){ RST.entries = []; return; }
@@ -33746,7 +33762,7 @@ function _ldRstImportRender(){
           +'<div style="width:3px;height:40px;border-radius:2px;background:#22D3EE;flex-shrink:0"></div>'
           +'<div style="flex:1;min-width:0">'
             +'<div style="font-family:\'DM Mono\',\'Space Mono\',monospace;font-size:16px;font-weight:500;color:#F8FAFC">'+(f.dep||'?')+'<span style="color:#22D3EE;margin:0 7px;font-size:13px">›</span>'+(f.arr||'?')+'</div>'
-            +'<div style="font-size:11px;color:rgba(248,250,252,.38);font-family:\'Space Mono\',monospace;margin-top:3px">'+(f.flightNum||'—')+' · '+((f.std||f.std_estimated||f.std_actual)||'—')+'–'+((f.sta||f.sta_estimated||f.sta_actual)||'—')+'</div>'
+            +'<div style="font-size:11px;color:rgba(248,250,252,.38);font-family:\'Space Mono\',monospace;margin-top:3px">'+_rstTimesLine(f)+'</div>'
           +'</div>'
           +'<div style="font-size:10px;font-family:\'Space Mono\',monospace;color:#22D3EE;font-weight:700;white-space:nowrap">'+statusTxt+'</div>'
         +'</div>';
@@ -33767,7 +33783,7 @@ function _ldRstImportRender(){
           +'<div style="width:3px;height:40px;border-radius:2px;background:'+barBg+';flex-shrink:0"></div>'
           +'<div style="flex:1;min-width:0">'
             +'<div style="font-family:\'DM Mono\',\'Space Mono\',monospace;font-size:16px;font-weight:500;color:'+routeCol+'">'+(f.dep||'?')+'<span style="color:'+arrowCol+';margin:0 7px;font-size:13px">›</span>'+(f.arr||'?')+'</div>'
-            +'<div style="font-size:11px;color:'+metaCol+';font-family:\'Space Mono\',monospace;margin-top:3px">'+(f.flightNum||'—')+' · '+((f.std||f.std_estimated||f.std_actual)||'—')+'–'+((f.sta||f.sta_estimated||f.sta_actual)||'—')+'</div>'
+            +'<div style="font-size:11px;color:'+metaCol+';font-family:\'Space Mono\',monospace;margin-top:3px">'+_rstTimesLine(f)+'</div>'
           +'</div>'
           +badgeHtml
         +'</div>';
