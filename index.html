@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.393">
+  <meta name="version" content="Beta.394">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.393","builtAt":"2026-07-15T20:07:01Z","commit":"810556e","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.394","builtAt":"2026-07-15T20:41:35Z","commit":"32412be","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -22874,6 +22874,10 @@ function ldImportConfirm(){
   ldAcDbSyncToServer();
   ldBgSync({delay:1200,force:true}); // sync unificado: push (vuelos+borrados) + pull + estado
   ldCloseImport(); ldRender(); ldStats(); ldUpdatePlanBanners();
+  // Stats y Carrera sólo se repintaban al cambiar de pestaña: tras importar se quedaban
+  // con los números de antes.
+  try{ laRenderAnalytics(); }catch(_e){}
+  try{ ldRenderCarrera(); }catch(_e){}
 
   var syncMsg=ldAuthHeaders()?'':' (sin cuenta: datos solo locales)';
   var parts=['✓ '+added+' vuelo'+(added!==1?'s':'')+' añadido'+(added!==1?'s':'')];
@@ -39043,21 +39047,34 @@ function laAnimateFills() {
 }
 
 function laRenderAnalytics() {
-  var entries = (window.ldEntries||[]).filter(function(e){ return e && e.type!=='__ac_db__'; });
+  var _all = (window.ldEntries||[]).filter(function(e){ return e && e.type!=='__ac_db__' && e.id!==LD_AC_DB_ENTRY_ID; });
+  // Mismas reglas que la cabecera y Carrera, o Stats canta otro número: el simulador no
+  // es tiempo de vuelo, y los vuelos anteriores al corte ya están dentro del saldo.
+  var entries = _all.filter(function(e){ return !ldIsSim(e); });
+  var _post   = entries.filter(ldNotInBalance);
+  var _bal    = (typeof ldBalanceActive==='function')?ldBalanceActive():null;
+  var _b      = function(k){ return (_bal&&_bal[k])?_bal[k]:0; };
   var _e = function(id){ return document.getElementById(id); };
+  laSnapshotMarkup();
+  // Si el estado vacío se comió el markup y ahora SÍ hay vuelos, devolverlo antes de
+  // rendirse: si no, Stats se queda en blanco para siempre.
+  if(!_e('la-total-h') && _all.length) laRestoreMarkup();
   if(!_e('la-total-h')) return;
 
-  // ─── Totales ────────────────────────────────────────────────
-  var totalMins = entries.reduce(function(s,e){ return s+ldT2m(e.block||''); },0);
-  var nightMins = entries.reduce(function(s,e){ return s+ldT2m(e.night||''); },0);
-  var picMins   = entries.filter(function(e){ return e.role==='CPT'; }).reduce(function(s,e){ return s+ldT2m(e.block||''); },0);
-  var foMins    = entries.filter(function(e){ return e.role==='FO';  }).reduce(function(s,e){ return s+ldT2m(e.block||''); },0);
-  var totalLdg  = entries.reduce(function(s,e){ return s+(e.ldgDay||0)+(e.ldgNight||0); },0);
-  var ldgDay    = entries.reduce(function(s,e){ return s+(e.ldgDay||0);   },0);
-  var ldgNight  = entries.reduce(function(s,e){ return s+(e.ldgNight||0); },0);
+  // ─── Totales de carrera (detallado post-corte + saldo) ──────
+  var totalMins = _post.reduce(function(s,e){ return s+ldT2m(e.block||''); },0) + _b('flightTime');
+  var nightMins = _post.reduce(function(s,e){ return s+ldT2m(e.night||''); },0) + _b('night');
+  var picMins   = _post.filter(function(e){ return e.role==='CPT'; }).reduce(function(s,e){ return s+ldT2m(e.block||''); },0) + _b('pic');
+  var foMins    = _post.filter(function(e){ return e.role==='FO';  }).reduce(function(s,e){ return s+ldT2m(e.block||''); },0) + _b('cop');
+  var ldgDay    = _post.reduce(function(s,e){ return s+(e.ldgDay||0);   },0) + _b('ldgDay');
+  var ldgNight  = _post.reduce(function(s,e){ return s+(e.ldgNight||0); },0) + _b('ldgNight');
+  var totalLdg  = ldgDay + ldgNight;
   var totalH    = Math.floor(totalMins/60);
 
   // ─── Periodos recientes ─────────────────────────────────────
+  // Ventanas de tiempo de vuelo RECIENTE (FTL 100h/28d, currency 3 aterrizajes/90d):
+  // sobre `entries`, o sea sin simulador y sin saldo. Meter ahí las horas previas
+  // pintaría un exceso de FTL falso.
   var now = Date.now();
   var mins28  = entries.filter(function(e){ return now-new Date(e.date||0).getTime()<=28*864e5; }).reduce(function(s,e){ return s+ldT2m(e.block||''); },0);
   var mins30d = entries.filter(function(e){ return now-new Date(e.date||0).getTime()<=30*864e5; }).reduce(function(s,e){ return s+ldT2m(e.block||''); },0);
@@ -39578,7 +39595,32 @@ function laRenderWrapped() {
 
 // ─── Empty state ─────────────────────────────────────────────────
 
+// El estado vacío SOBRESCRIBE el markup de los paneles (.la-content), y ahí viven los
+// ids que laRenderAnalytics rellena (la-total-h y compañía). Como esa función empieza
+// con `if(!_e('la-total-h')) return;`, una vez pintado el vacío Stats no volvía a pintar
+// NUNCA: abrías Stats sin vuelos, importabas 80, y seguía vacío hasta recargar.
+// Solución: copia del markup original antes de machacarlo, y restaurarlo al haber vuelos.
+var _laOrigHtml=null;
+function laSnapshotMarkup(){
+  if(_laOrigHtml) return;
+  var root=document.getElementById('ld-panel-stats'); if(!root) return;
+  _laOrigHtml={};
+  root.querySelectorAll('.la-panel').forEach(function(p){
+    var inner=p.querySelector('.la-content');
+    if(inner && p.id) _laOrigHtml[p.id]=inner.innerHTML;
+  });
+}
+function laRestoreMarkup(){
+  if(!_laOrigHtml) return;
+  Object.keys(_laOrigHtml).forEach(function(pid){
+    var p=document.getElementById(pid); if(!p) return;
+    var inner=p.querySelector('.la-content');
+    if(inner) inner.innerHTML=_laOrigHtml[pid];
+  });
+}
+
 function laRenderEmpty() {
+  laSnapshotMarkup();
   var emptyMsgs={
     resumen:'📋 Aún no hay vuelos registrados.<br>Añade tu primer vuelo para ver tus estadísticas.',
     ops:'✈ Registra vuelos para ver el análisis<br>de rutas y operaciones.',
