@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.385">
+  <meta name="version" content="Beta.386">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.385","builtAt":"2026-07-15T18:04:48Z","commit":"65800c4","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.386","builtAt":"2026-07-15T18:39:14Z","commit":"0dd3212","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -17707,8 +17707,23 @@ function ldSimRole(e){ return /^(TRI|TRE)$/.test(e.flightType||e.instr||'') ? 'I
 function ldStableId(e){
   var base=[(e.date||''), (e.flight||e.flightNum||'').toUpperCase(),
             (e.dep||'').toUpperCase(), (e.arr||'').toUpperCase(), (e.std||'').slice(0,5)].join('|');
+  // Desempate para entradas SIN ruta (sesiones de simulador): las 5 piezas de arriba
+  // están todas vacías en un sim, así que dos sesiones el mismo día daban el mismo id
+  // y el upsert (id,user_id) se quedaba con una → la otra desaparecía en silencio.
+  // Se añade sólo si existe: sin idSeq la `base` es idéntica ⇒ ningún id anterior cambia.
+  if(e.idSeq) base += '|' + e.idSeq;
   var h=0; for(var i=0;i<base.length;i++){ h=(h*31+base.charCodeAt(i))|0; }
   return 'lf_'+(h>>>0).toString(36);
+}
+// Devuelve un idSeq libre para una entrada sin ruta, mirando qué ids ya existen.
+// Determinista y estable: se guarda en la entrada, así que no se recalcula al editar.
+function ldFreeIdSeq(e){
+  var taken={}; (window.ldEntries||[]).forEach(function(x){ if(x&&x.id) taken[x.id]=1; });
+  for(var n=1;n<50;n++){
+    var probe=Object.assign({},e,{idSeq:String(n)});
+    if(!taken[ldStableId(probe)]) return String(n);
+  }
+  return String(Date.now());   // salida de emergencia: único, aunque no bonito
 }
 
 function ldGenDeterministicId(source, date, dep, arr, std) {
@@ -19009,9 +19024,20 @@ function ldSave(){
   // Nocturno automático: si el campo está vacío, calcularlo desde ruta/OFF/ON
   // (cubre entradas OCR/importadas/editadas donde no se disparó el oninput)
   try{ ldAutoNight({onlyIfEmpty:true}); }catch(_e){}
-  var _eid=ldStableId({date:g('ld_date'),flight:g('ld_flight'),dep:g('ld_dep'),arr:g('ld_arr'),std:g('ld_std')});
+  var _idbase={date:g('ld_date'),flight:g('ld_flight'),dep:g('ld_dep'),arr:g('ld_arr'),std:g('ld_std')};
+  // Sin ruta ni nº de vuelo (una sesión de sim) el id sería sólo la fecha: dos sesiones
+  // el mismo día colisionarían y el upsert (id,user_id) se quedaría con una. Al EDITAR se
+  // conserva el idSeq que ya tenía, para no cambiarle el id a una entrada existente.
+  var _idSeq='';
+  if(!_idbase.flight && !_idbase.dep && !_idbase.arr && !_idbase.std){
+    var _prev=ldEditingId ? (ldEntries.filter(function(x){return x.id===ldEditingId;})[0]||{}) : {};
+    _idSeq = _prev.idSeq || ldFreeIdSeq(_idbase);
+  }
+  if(_idSeq) _idbase.idSeq=_idSeq;
+  var _eid=ldStableId(_idbase);
   var e={
     id:_eid,
+    idSeq:_idSeq||'',
     savedAt:new Date().toISOString(),
     date:g('ld_date'),flight:g('ld_flight'),
     dep:g('ld_dep').toUpperCase(),arr:g('ld_arr').toUpperCase(),
@@ -22250,9 +22276,15 @@ async function ldImportPdfViaBackend(file){
     // Sesiones de simulador (columna 11 del Jeppesen): NO son vuelos — sin ruta y sin
     // aterrizajes. Van como actividad SIM, que es lo que Pay Check lee (instr==='SIM')
     // para el plus de formación.
+    var _simNth={};
     rows=rows.concat((d.simSessions||[]).map(function(s){
+      // Un sim no tiene ruta ni nº de vuelo: sin desempate, dos sesiones el mismo día
+      // comparten id y el sync se queda con una. El índice dentro del día es
+      // determinista (reimportar el mismo PDF da el mismo id ⇒ el dedup funciona).
+      _simNth[s.date]=(_simNth[s.date]||0)+1;
       return {
         fecha:s.date, vuelo:'', origen:'', destino:'',
+        idseq:'sim'+_simNth[s.date],
         optype:'SIM', simtype:s.type||'',
         // activityType 'sim' → la tarjeta hereda el verde de `ld-career` y su pastilla,
         // y entra en la lente Carrera. Es el catálogo que ya usa "Otros vuelos".
@@ -22378,7 +22410,8 @@ var LD_COL_MAP={
   // Función EASA (PIC/Copiloto/Dual/Instructor/PICUS/SPIC) — mismo campo que "Otros vuelos".
   // OJO: 'func' (PF/PM) es otra cosa; no mezclar los alias.
   pilotFunction:['funcion','pilot_function','pilotfunction','funcion_easa'],
-  activityType:['activitytype','activity_type','tipo_actividad']
+  activityType:['activitytype','activity_type','tipo_actividad'],
+  idSeq:['idseq','id_seq']
 };
 function ldMapRow(row){
   // Build a lowercase-trimmed key map regardless of how the caller prepared the row
@@ -22572,7 +22605,9 @@ function ldImportConfirm(){
   // Build index of existing entries by dedup key
   var existingMap={};
   ldEntries.forEach(function(e,idx){
-    var key=(e.date||'')+(e.dep||'')+(e.arr||'')+(e.flight||'');
+    // idSeq entra en la clave: sin él, dos sesiones de sim del mismo día son "la misma"
+    // y la segunda se perdía al fusionarse con la primera.
+    var key=(e.date||'')+(e.dep||'')+(e.arr||'')+(e.flight||'')+(e.idSeq||'');
     existingMap[key]={entry:e,idx:idx};
   });
 
@@ -22603,7 +22638,7 @@ function ldImportConfirm(){
   var importedIds=[]; // IDs (re)añadidos → cancelar cualquier borrado pendiente con ese id
 
   _ldImportData.forEach(function(r){
-    var key=(r.date||'')+(r.dep||'')+(r.arr||'')+(r.flight||'');
+    var key=(r.date||'')+(r.dep||'')+(r.arr||'')+(r.flight||'')+(r.idSeq||'');
     var existing=existingMap[key];
 
     if(!existing){
@@ -22630,6 +22665,7 @@ function ldImportConfirm(){
         ldgNight:(parseInt(r.ldgNight)||0),
         night:r.night||'',cm1:r.cm1||'',cm2:r.cm2||'',
         pilotFunction:r.pilotFunction||'',activityType:r.activityType||'',
+        idSeq:r.idSeq||'',
         notes:r.notes||'',source:'IMPORT'
       };
       ldEntries.push(e);
