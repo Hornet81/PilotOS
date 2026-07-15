@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.388">
+  <meta name="version" content="Beta.389">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.388","builtAt":"2026-07-15T18:52:23Z","commit":"66168f0","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.389","builtAt":"2026-07-15T19:02:09Z","commit":"1325dd1","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -22360,6 +22360,13 @@ async function ldImportPdfViaBackend(file){
           +'&nbsp;&nbsp;'+ldMinToHHMM(ob.flightTime)+' de vuelo + '+ldMinToHHMM(ob.sim)+' de simulador = '+ldMinToHHMM(ob.totalColPrinted)+'<br>'
           +'Aquí van separados, como pide EASA: el simulador no es tiempo de vuelo.</div>'
         : '')
+      // El saldo existe porque el export vino recortado. Si el piloto puede darnos su
+      // logbook entero, tendrá vuelos de verdad (mapa, rutas, stats) en vez de un número.
+      // Callarnos le deja con el resumen sin saber que había una opción mejor.
+      +'<div class="ldbal-note" style="margin-top:6px">'
+        +'<b>¿Puedes exportar tu logbook completo?</b><br>'
+        +'Este PDF sólo trae las últimas páginas, por eso el resto viene resumido. Si exportas todas, te importo esos vuelos uno a uno — con su mapa, sus rutas y sus estadísticas — en vez de un total. Puedes hacerlo ahora o más adelante: al subirlos, este saldo se ajusta solo y tus horas no cambian.'
+      +'</div>'
       +'<div class="ld-stats" style="grid-template-columns:repeat(3,1fr);gap:7px;margin:8px 0 0">'+_ldBalCells(ob,true,'ldimpbal_')+'</div>'
       +'</div>');
     if((d.simSessions||[]).length) bits.push('<div class="ldbal-hint">De las filas de arriba, '+d.simSessions.length+' son sesiones de simulador (sin ruta, no cuentan como horas de vuelo).</div>');
@@ -22616,6 +22623,38 @@ function ldBalanceCardHtml(){
       +'<div class="crr-muted" style="font-size:10.5px;margin-top:10px">Resumen de tus horas previas. Suman a los totales de carrera, pero no son vuelos: no aparecen en la lista ni en el mapa.</div>'
     +'</div>';
 }
+// ── El saldo es un ANDAMIO, no una cifra muerta ──
+// Cubre el periodo [principio ... hasta] de forma resumida. Si un vuelo de ESE periodo
+// entra al logbook con su detalle, sus horas quedarían contadas dos veces (una en el
+// resumen y otra en la fila). Así que se restan del saldo: el total de carrera no se
+// mueve y el saldo se encoge solo, hasta desaparecer cuando ya está toda la historia.
+// Se llama con las entradas RECIÉN añadidas (nunca con las que ya estaban contadas).
+function ldBalanceSubtract(entries){
+  var b=ldBalanceGet(); if(!b||!b.hasta) return null;
+  var within=(entries||[]).filter(function(e){ return e&&e.date&&e.date<=b.hasta; });
+  if(!within.length) return null;
+  var T=function(t){ return ldT2m(t)||0; };
+  var sub={flightTime:0,sim:0,night:0,ifr:0,pic:0,cop:0,dual:0,ldgDay:0,ldgNight:0};
+  within.forEach(function(e){
+    var m=T(e.block);
+    if(ldIsSim(e)){ sub.sim+=m; return; }        // el sim tiene su propia casilla
+    sub.flightTime+=m;
+    sub.night+=T(e.night);
+    if((e.rules||'IFR')==='IFR') sub.ifr+=m;
+    var pf=e.pilotFunction||'';                   // misma regla que la lente Carrera
+    if(pf){ if(/^(PIC|PICUS|SPIC|Instructor)$/.test(pf)) sub.pic+=m; else if(pf==='Dual') sub.dual+=m; else if(pf==='Copiloto') sub.cop+=m; }
+    else if(e.role==='CPT') sub.pic+=m; else sub.cop+=m;
+    sub.ldgDay+=parseInt(e.ldgDay||0)||0; sub.ldgNight+=parseInt(e.ldgNight||0)||0;
+  });
+  Object.keys(sub).forEach(function(k){ b[k]=Math.max(0,(b[k]||0)-sub[k]); });
+  b.ajustadoEl=new Date().toISOString();
+  // Si ya no queda nada resumido, el andamio sobra: toda su historia está detallada.
+  var vacio=!b.flightTime&&!b.sim&&!b.night&&!b.ifr&&!b.pic&&!b.cop&&!b.dual&&!b.ldgDay&&!b.ldgNight;
+  if(vacio){ try{ localStorage.removeItem(LD_BALANCE_KEY); }catch(e){} }
+  else ldBalanceSet(b);
+  return {n:within.length, mins:sub.flightTime+sub.sim, vacio:vacio};
+}
+
 function ldBalanceEdit(on){ window._ldBalEditing=!!on; ldRenderCarrera(); }
 function ldBalanceSaveEdit(){
   var b=_ldBalRead(ldBalanceGet()||{}, 'ldbal_');
@@ -22644,6 +22683,9 @@ function ldImportConfirm(){
     _ldPendingBalance.importadoEl=new Date().toISOString();
     ldBalanceSet(_ldPendingBalance);
     _ldPendingBalance=null;
+    // El saldo resume TODO lo anterior a su fecha de corte. Si el piloto ya tenía
+    // vuelos de ese periodo en PilotOS, el resumen los está contando otra vez.
+    ldBalanceSubtract(ldEntries);
   }
 
   // Build index of existing entries by dedup key
@@ -22679,6 +22721,7 @@ function ldImportConfirm(){
   }
 
   var added=0, skipped=0, updated=0;
+  var addedEntries=[];   // sólo las NUEVAS: son las que hay que descontar del saldo
   var importedIds=[]; // IDs (re)añadidos → cancelar cualquier borrado pendiente con ese id
 
   _ldImportData.forEach(function(r){
@@ -22713,6 +22756,7 @@ function ldImportConfirm(){
         notes:r.notes||'',source:'IMPORT'
       };
       ldEntries.push(e);
+      addedEntries.push(e);
       importedIds.push(e.id);
       existingMap[key]={entry:e,idx:ldEntries.length-1};
       if(e.reg&&e.acType){
@@ -22738,6 +22782,10 @@ function ldImportConfirm(){
   // un vuelo con el mismo id estable debe ANULAR su eliminación previa, no borrarse.
   if(importedIds.length) ldDelClear(importedIds);
 
+  // Vuelos que caen dentro del periodo del saldo: ya estaban ahí resumidos, así que se
+  // descuentan. El total de carrera no se mueve; el andamio se encoge.
+  var _ajuste=ldBalanceSubtract(addedEntries);
+
   ldEntries.sort(function(a,b){ return b.date.localeCompare(a.date); });
   ldSaveData();
   ldAcDbSyncToServer();
@@ -22749,6 +22797,13 @@ function ldImportConfirm(){
   if(updated) parts.push(updated+' actualizado'+(updated!==1?'s':''));
   if(skipped) parts.push(skipped+' sin cambios');
   showToast(parts.join(' · ')+syncMsg,'success');
+  // El ajuste del saldo hay que contarlo: si no, el piloto ve bajar sus horas previas
+  // y no entiende por qué (aunque su total no se haya movido).
+  if(_ajuste) setTimeout(function(){
+    showToast(_ajuste.vacio
+      ? '🎉 Saldo de partida absorbido: ya tienes toda tu carrera vuelo a vuelo'
+      : '↺ Saldo de partida ajustado −'+ldM2s(_ajuste.mins)+' ('+_ajuste.n+' vuelos ya detallados; tu total no cambia)','info');
+  }, 2600);
 }
 
 window._initLD=function(){
