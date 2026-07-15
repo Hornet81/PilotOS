@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.382">
+  <meta name="version" content="Beta.383">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.382","builtAt":"2026-07-15T16:55:51Z","commit":"7c476ce","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.383","builtAt":"2026-07-15T17:08:49Z","commit":"5b56f3a","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -17698,6 +17698,12 @@ function ldGenId(){
   });
 }
 // Stable cross-device ID derived from flight identity (no source dependency)
+// ¿Es una sesión de simulador? Misma definición que usa el editor (l.18214).
+// Global porque la necesitan el render de la tarjeta y los totales de Carrera.
+function ldIsSim(e){ return !!e && /^(SIM|TRI|TRE)$/.test(e.flightType||e.instr||''); }
+// Etiqueta EASA del sim: SIM = alumno; TRI/TRE = instructor.
+function ldSimRole(e){ return /^(TRI|TRE)$/.test(e.flightType||e.instr||'') ? 'Instructor' : 'Alumno'; }
+
 function ldStableId(e){
   var base=[(e.date||''), (e.flight||e.flightNum||'').toUpperCase(),
             (e.dep||'').toUpperCase(), (e.arr||'').toUpperCase(), (e.std||'').slice(0,5)].join('|');
@@ -19325,10 +19331,15 @@ function ldRender(){
             +'<div class="ld-fcard-top">'
               +'<div class="ld-sel-chk">'+(_ldSelected.has(e.id)?'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
               +'<div style="flex:1">'
-                +'<div class="ld-fcard-ap">'+(e.dep||'???')+'<span class="ld-far">›</span>'+(e.arr||'???')+'</div>'
-                +'<div class="ld-fcard-fi">'+src+(e.flight||'—')+'</div>'
+                // Una sesión de simulador no vuela ruta: enseñar "??? › ???" era un
+                // artefacto de dar por hecho que toda entrada tiene dep/arr.
+                +(ldIsSim(e)
+                  ? '<div class="ld-fcard-ap">SIMULADOR</div>'
+                    +'<div class="ld-fcard-fi">'+src+(e.simType||e.flightType||'—')+'</div>'
+                  : '<div class="ld-fcard-ap">'+(e.dep||'???')+'<span class="ld-far">›</span>'+(e.arr||'???')+'</div>'
+                    +'<div class="ld-fcard-fi">'+src+(e.flight||'—')+'</div>')
               +'</div>'
-              +'<div class="ld-fcard-bk"><div class="ld-fcard-bv">'+(e.block||'—')+'</div><div class="ld-fcard-bl">block</div></div>'
+              +'<div class="ld-fcard-bk"><div class="ld-fcard-bv">'+(e.block||'—')+'</div><div class="ld-fcard-bl">'+(ldIsSim(e)?'sesión':'block')+'</div></div>'
             +'</div>'
             +'<div class="ld-fcard-bot">'
               +(function(){
@@ -19338,12 +19349,16 @@ function ldRender(){
                 return '<div class="ld-fsdot" title="Sin datos"></div>';
               })()
               +(acLabel?'<span class="ld-fpill ld-fpill-ac">'+acLabel+'</span>':'')
-              +'<span class="ld-fpill '+roleClass+'">'+(e.role||'FO')+'</span>'
-              +(e.func?'<span class="ld-fpill '+funcClass+'">'+(e.func)+'</span>':'')
+              // En un simulador, FO/PF no significan nada: lo que importa es si ibas de
+              // alumno o de instructor, y eso ya lo dice la pastilla de la derecha.
+              +(ldIsSim(e)
+                ? ''
+                : '<span class="ld-fpill '+roleClass+'">'+(e.role||'FO')+'</span>'
+                  +(e.func?'<span class="ld-fpill '+funcClass+'">'+(e.func)+'</span>':''))
               +(hasFt?'<span class="ld-fpill" style="background:rgba(0,255,80,.07);color:rgba(0,220,80,.85);border:1px solid rgba(0,255,80,.2);font-family:\'Space Mono\',monospace">✈ '+e.flightTime+'</span>':'')
               +(hasNoc?'<span class="ld-fpill ld-fpill-noc">'+e.night+' noc</span>':'')
               +(e.std?'<span class="ld-fdate">'+e.std+'Z</span>':'')
-              +((e&&e.activityType&&e.activityType!=='airline'&&e.activityType!=='mc')?'<span class="ld-fpill" style="margin-left:auto;background:rgba(16,185,129,.14);color:#10B981;border:1px solid rgba(16,185,129,.34)">🎓 OTRO · '+({ga:'GA',glider:'Velero',aero:'Acro',me:'Bimotor',instr:'Instrucción',sim:'Sim',other:'Otra cía',ferry:'Ferry',custom:'Custom'}[e.activityType]||'Otro')+'</span>':'')
+              +((e&&e.activityType&&e.activityType!=='airline'&&e.activityType!=='mc')?'<span class="ld-fpill" style="margin-left:auto;background:rgba(16,185,129,.14);color:#10B981;border:1px solid rgba(16,185,129,.34)">🎓 '+(e.activityType==='sim'?('SIMULADOR · '+ldSimRole(e)):('OTRO · '+({ga:'GA',glider:'Velero',aero:'Acro',me:'Bimotor',instr:'Instrucción',other:'Otra cía',ferry:'Ferry',custom:'Custom'}[e.activityType]||'Otro')))+'</span>':'')
               +'<button class="ld-fdel" onclick="event.stopPropagation();ldDelete(\''+e.id+'\')" title="Eliminar">🗑</button>'
             +'</div>'
           +'</div>';
@@ -22239,9 +22254,12 @@ async function ldImportPdfViaBackend(file){
       return {
         fecha:s.date, vuelo:'', origen:'', destino:'',
         optype:'SIM', simtype:s.type||'',
+        // activityType 'sim' → la tarjeta hereda el verde de `ld-career` y su pastilla,
+        // y entra en la lente Carrera. Es el catálogo que ya usa "Otros vuelos".
+        activitytype:'sim',
         block:ldMinToHHMM(s.minutes),
         ldg_dia:0, ldg_noche:0,
-        notas:['Sesión de simulador', s.type||'', s.remarks||''].filter(Boolean).join(' · ')
+        notas:[s.remarks||''].filter(Boolean).join(' · ')
       };
     }));
 
@@ -22251,11 +22269,14 @@ async function ldImportPdfViaBackend(file){
 
     var ob=d.openingBalance||{};
     var bits=[];
-    if(ob.flightTime) bits.push('<div style="margin-top:9px;padding:9px 11px;background:rgba(245,158,11,.09);border:1px solid rgba(245,158,11,.25);border-radius:9px">'
-      +'<div style="font-size:10px;font-weight:700;color:#FBBF24;letter-spacing:.5px">SALDO DE PARTIDA · hasta '+(ob.hasta||'—')+'</div>'
-      +'<div style="font-size:11px;color:#E2E8F0;margin-top:3px;font-family:Space Mono,monospace">'
-      +ldMinToHHMM(ob.flightTime)+' de vuelo · '+ldMinToHHMM(ob.sim||0)+' de simulador</div>'
-      +'<div style="font-size:9.5px;color:rgba(226,232,240,.6);margin-top:2px">Horas anteriores resumidas en el PDF. Suman a tu carrera, no son vuelos.</div></div>');
+    // El saldo se enseña EDITABLE aquí, antes de confirmar: si el PDF trae una cifra
+    // rara o el parser se equivoca, el sitio de arreglarlo es este, no después.
+    if(ob.flightTime) bits.push('<div style="margin-top:9px;padding:11px 12px;background:rgba(245,158,11,.09);border:1px solid rgba(245,158,11,.28);border-radius:10px">'
+      +'<div style="font-size:11px;font-weight:700;color:#FBBF24;letter-spacing:.3px">He detectado '+ldMinToHHMM(ob.flightTime)+' de páginas anteriores</div>'
+      +'<div style="font-size:9.5px;color:rgba(226,232,240,.65);margin-top:3px;line-height:1.5">Tu PDF sólo detalla los últimos vuelos; el resto viene resumido. Estas horas suman a tu carrera pero no son vuelos: no salen en la lista ni en el mapa.<br><b style="color:rgba(251,191,36,.9)">Compruébalas y corrige lo que haga falta antes de confirmar.</b></div>'
+      +'<div style="font-size:9.5px;color:rgba(226,232,240,.5);margin-top:7px">Hasta el <b style="color:#FBBF24">'+(ob.hasta||'—')+'</b> · lo anterior a esa fecha</div>'
+      +'<div class="ld-stats" style="grid-template-columns:repeat(3,1fr);gap:7px;margin:8px 0 0">'+_ldBalCells(ob,true,'ldimpbal_')+'</div>'
+      +'</div>');
     if((d.simSessions||[]).length) bits.push('<div style="margin-top:7px;font-size:10px;color:rgba(226,232,240,.6)">De las filas de arriba, '+d.simSessions.length+' son sesiones de simulador (sin ruta, no cuentan como horas de vuelo).</div>');
     if(d.reconcile&&!d.reconcile.ok) bits.push('<div style="margin-top:7px;font-size:10px;color:#FCA5A5">⚠ El PDF no cuadra con sus propios totales impresos ('+d.reconcile.checks.filter(function(c){return !c.ok;}).length+' descuadres). Revisa antes de confirmar.</div>');
     else bits.push('<div style="margin-top:7px;font-size:10px;color:#6EE7B7">✓ Cuadra con los totales impresos del PDF</div>');
@@ -22347,7 +22368,8 @@ var LD_COL_MAP={
   simType:['simtype','sim_type','tipo_sim'],
   // Función EASA (PIC/Copiloto/Dual/Instructor/PICUS/SPIC) — mismo campo que "Otros vuelos".
   // OJO: 'func' (PF/PM) es otra cosa; no mezclar los alias.
-  pilotFunction:['funcion','pilot_function','pilotfunction','funcion_easa']
+  pilotFunction:['funcion','pilot_function','pilotfunction','funcion_easa'],
+  activityType:['activitytype','activity_type','tipo_actividad']
 };
 function ldMapRow(row){
   // Build a lowercase-trimmed key map regardless of how the caller prepared the row
@@ -22468,17 +22490,31 @@ var LD_BAL_FIELDS=[
 function _ldBalFmt(m){ m=m||0; return Math.floor(m/60)+':'+String(m%60).padStart(2,'0'); }
 function _ldBalParse(s){ var p=String(s||'').split(':'); return (+p[0]||0)*60+(+p[1]||0); }
 
-function ldBalanceCardHtml(){
-  var b=ldBalanceGet(); if(!b) return '';
-  var ed=!!window._ldBalEditing;
-  var cells=LD_BAL_FIELDS.map(function(f){
+// Celdas del saldo, compartidas por la tarjeta de Carrera y por el pop-up de importación
+// (el sitio donde de verdad hace falta poder corregir una detección errónea: ANTES de entrar).
+function _ldBalCells(b, ed, prefix){
+  return LD_BAL_FIELDS.map(function(f){
     var v=f.hm?_ldBalFmt(b[f.k]):String(b[f.k]||0);
     return '<div class="ld-stat"><div class="ld-stat-label">'+f.l+'</div>'
       +(ed
-        ? '<input id="ldbal_'+f.k+'" value="'+v+'" style="width:100%;background:rgba(8,12,26,.6);border:1px solid rgba(245,158,11,.35);border-radius:7px;color:#FBBF24;font-family:\'Space Mono\',monospace;font-size:13px;padding:4px 6px;margin-top:3px">'
+        ? '<input id="'+prefix+f.k+'" value="'+v+'" style="width:100%;background:rgba(8,12,26,.6);border:1px solid rgba(245,158,11,.35);border-radius:7px;color:#FBBF24;font-family:\'Space Mono\',monospace;font-size:13px;padding:4px 6px;margin-top:3px">'
         : '<div class="ld-stat-value" style="font-size:15px;color:#FBBF24">'+v+'</div>')
       +'</div>';
   }).join('');
+}
+// Lee las celdas editables de vuelta al objeto del saldo
+function _ldBalRead(b, prefix){
+  LD_BAL_FIELDS.forEach(function(f){
+    var el=document.getElementById(prefix+f.k); if(!el) return;
+    b[f.k]=f.hm?_ldBalParse(el.value):(parseInt(el.value)||0);
+  });
+  return b;
+}
+
+function ldBalanceCardHtml(){
+  var b=ldBalanceGet(); if(!b) return '';
+  var ed=!!window._ldBalEditing;
+  var cells=_ldBalCells(b, ed, 'ldbal_');
   return '<div class="crr-sec">Saldo de partida</div>'
     +'<div class="crr-total" style="border-color:rgba(245,158,11,.4)">'
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">'
@@ -22496,11 +22532,7 @@ function ldBalanceCardHtml(){
 }
 function ldBalanceEdit(on){ window._ldBalEditing=!!on; ldRenderCarrera(); }
 function ldBalanceSaveEdit(){
-  var b=ldBalanceGet()||{};
-  LD_BAL_FIELDS.forEach(function(f){
-    var el=document.getElementById('ldbal_'+f.k); if(!el) return;
-    b[f.k]=f.hm?_ldBalParse(el.value):(parseInt(el.value)||0);
-  });
+  var b=_ldBalRead(ldBalanceGet()||{}, 'ldbal_');
   b.fuente='manual'; b.editadoEl=new Date().toISOString();
   ldBalanceSet(b); window._ldBalEditing=false;
   if(typeof showToast==='function') showToast('✓ Saldo de partida actualizado');
@@ -22517,8 +22549,12 @@ function ldBalanceRemove(){
 function ldImportConfirm(){
   if(!_ldImportData||_ldImportData.length===0){ ldCloseImport(); return; }
 
-  // Guardar el saldo de partida si venía en el PDF
+  // Guardar el saldo de partida si venía en el PDF, con lo que el piloto haya
+  // corregido en la vista previa (los campos mandan sobre lo detectado).
   if(_ldPendingBalance){
+    var _corregido=JSON.stringify(_ldPendingBalance);
+    _ldBalRead(_ldPendingBalance, 'ldimpbal_');
+    if(JSON.stringify(_ldPendingBalance)!==_corregido) _ldPendingBalance.fuente='manual';
     _ldPendingBalance.importadoEl=new Date().toISOString();
     ldBalanceSet(_ldPendingBalance);
     _ldPendingBalance=null;
@@ -22584,7 +22620,7 @@ function ldImportConfirm(){
         ldgDay:(r.ldgDay!==undefined&&r.ldgDay!=='')?(parseInt(r.ldgDay)||0):1,
         ldgNight:(parseInt(r.ldgNight)||0),
         night:r.night||'',cm1:r.cm1||'',cm2:r.cm2||'',
-        pilotFunction:r.pilotFunction||'',
+        pilotFunction:r.pilotFunction||'',activityType:r.activityType||'',
         notes:r.notes||'',source:'IMPORT'
       };
       ldEntries.push(e);
