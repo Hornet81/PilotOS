@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.376">
+  <meta name="version" content="Beta.377">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.376","builtAt":"2026-07-15T10:55:07Z","commit":"1147411","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.377","builtAt":"2026-07-15T11:28:05Z","commit":"72f0176","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -19957,6 +19957,7 @@ function ldToggleMenu(){
     +mi('☁️',icoB,'Sincronizar nube','Descargar desde Supabase','ldManualPull()',lbl,'ld-menu-sync-btn')
     +mi('🔄',icoB,'Full sync desde cero','Resetea caché y descarga todo','ldResetSync()',lbl,'')
     +mi('⬇️',icoB,'Exportar','PDF · EASA · CSV','ldToggleExport()',lbl,'')
+    +mi('♻️',icoB,'Papelera','Restaurar vuelos borrados','ldOpenTrash()',lbl,'')
     +'<div style="height:1px;background:'+redD+';margin:8px 0 2px"></div>'
     +mi('🗑',icoB,'Eliminar vuelos','Selección masiva','ldEnterSelectMode()',lbl,'',true)
     +'</div>';
@@ -19970,6 +19971,140 @@ function ldCloseMenu(){
   var back=document.getElementById('ld-menu-backdrop');
   if(menu) menu.style.display='none';
   if(back) back.style.display='none';
+}
+
+// ── PAPELERA ─────────────────────────────────────────────────────
+// Los vuelos borrados viven 90 días en el servidor (logbook_deleted.data) y se pueden
+// devolver al logbook. Sin gate de plan: el logbook es un documento legal EASA y recuperar
+// las horas propias no es una función premium.
+// Los tombstones anteriores al 15-jul-2026 no tienen cuerpo → no salen aquí.
+var _ldTrash = [];       // lo que devolvió el servidor
+var _ldTrashSel = null;  // Set de ids marcados
+
+function ldOpenTrash(){
+  if(document.getElementById('ld-trash-ov')) return;
+  var day=document.documentElement.classList.contains('day');
+  var ov=document.createElement('div');
+  ov.id='ld-trash-ov';
+  ov.style.cssText='position:fixed;inset:0;z-index:9999;background:'+(day?'rgba(10,22,48,.50)':'rgba(2,8,20,.65)')+';-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s ease';
+  ov.innerHTML='<div id="ld-trash-sheet" style="width:100%;max-width:480px;'+(day?'background:linear-gradient(180deg,rgba(240,252,255,.98) 0%,rgba(220,244,255,.99) 100%);border-top:1.5px solid rgba(13,148,136,.22)':'background:linear-gradient(180deg,rgba(8,22,40,.97) 0%,rgba(4,14,28,.99) 100%);border-top:1.5px solid rgba(34,211,238,.2)')+';border-radius:24px 24px 0 0;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 14px);max-height:86vh;display:flex;flex-direction:column;animation:slideUp .28s cubic-bezier(.2,.8,.3,1)">'
+    +'<div style="width:44px;height:5px;border-radius:3px;background:'+(day?'linear-gradient(90deg,rgba(109,40,217,.4),rgba(13,148,136,.4))':'linear-gradient(90deg,rgba(124,58,237,.65),rgba(34,211,238,.55))')+';margin:13px auto 4px;flex-shrink:0"></div>'
+    +'<div style="display:flex;align-items:center;gap:10px;padding:10px 20px 6px;flex-shrink:0">'
+    +'<div style="flex:1;min-width:0"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:16px;font-weight:800;color:'+(day?'#0A1628':'rgba(248,250,252,.92)')+'">♻️ Papelera</div>'
+    +'<div id="ld-trash-sub" style="font-size:10px;color:'+(day?'#64748B':'rgba(248,250,252,.38)')+';font-family:\'Space Mono\',monospace;margin-top:2px">Cargando…</div></div>'
+    +'<button onclick="ldCloseTrash()" style="width:34px;height:34px;border-radius:11px;background:'+(day?'rgba(15,23,42,.06)':'rgba(255,255,255,.06)')+';border:none;color:'+(day?'#64748B':'rgba(248,250,252,.5)')+';font-size:17px;cursor:pointer;flex-shrink:0">✕</button></div>'
+    +'<div id="ld-trash-body" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px 16px 10px"></div>'
+    +'<div id="ld-trash-foot" style="flex-shrink:0;padding:10px 16px 4px"></div></div>';
+  ov.addEventListener('click',function(e){ if(e.target===ov) ldCloseTrash(); });
+  document.body.appendChild(ov);
+  document.body.style.overflow='hidden';
+  ldTrashLoad();
+}
+function ldCloseTrash(){
+  var ov=document.getElementById('ld-trash-ov');
+  if(ov) ov.remove();
+  document.body.style.overflow='';
+  _ldTrash=[]; _ldTrashSel=null;
+}
+function _ldTrashMsg(html){
+  var b=document.getElementById('ld-trash-body');
+  if(b) b.innerHTML='<div style="text-align:center;padding:40px 20px;font-size:12px;color:'+(document.documentElement.classList.contains('day')?'#64748B':'rgba(248,250,252,.45)')+';font-family:\'Space Mono\',monospace;line-height:1.7">'+html+'</div>';
+}
+async function ldTrashLoad(){
+  var token=lsGet('cafi_auth_token','');
+  if(!token){ _ldTrashMsg('Inicia sesión para ver la papelera'); return; }
+  _ldTrashMsg('Cargando…');
+  try{
+    var r=await fetch(ldBackendUrl()+'/api/logbook/trash',{headers:{'Authorization':'Bearer '+token}});
+    var d=await r.json();
+    if(!r.ok) throw new Error(d.message||d.error||'Error del servidor');
+    _ldTrash=(d.entries||[]).sort(function(a,b){ return (b.deletedAt||'')<(a.deletedAt||'')?-1:1; });
+    _ldTrashSel=new Set();
+    ldTrashRender(d.retentionDays||90);
+  }catch(e){
+    _ldTrashMsg('No se pudo cargar la papelera<br><span style="opacity:.6">'+(e.message||'')+'</span>');
+  }
+}
+function ldTrashRender(retDays){
+  var day=document.documentElement.classList.contains('day');
+  var body=document.getElementById('ld-trash-body');
+  var foot=document.getElementById('ld-trash-foot');
+  var sub=document.getElementById('ld-trash-sub');
+  if(!body||!foot) return;
+  if(sub) sub.textContent=_ldTrash.length? (_ldTrash.length+' recuperable'+(_ldTrash.length===1?'':'s')+' · se guardan '+retDays+' días')
+                                         : 'Vacía';
+  if(!_ldTrash.length){
+    _ldTrashMsg('No hay vuelos borrados que recuperar.<br><span style="opacity:.6">Lo que borres se guarda aquí '+retDays+' días.</span>');
+    foot.innerHTML=''; return;
+  }
+  var txt=day?'#0A1628':'rgba(248,250,252,.92)';
+  var dim=day?'#64748B':'rgba(248,250,252,.42)';
+  body.innerHTML=_ldTrash.map(function(e){
+    var on=_ldTrashSel.has(e.id);
+    var when='';
+    try{ var dd=new Date(e.deletedAt); when='Borrado '+String(dd.getDate()).padStart(2,'0')+'/'+String(dd.getMonth()+1).padStart(2,'0')+' '+String(dd.getHours()).padStart(2,'0')+':'+String(dd.getMinutes()).padStart(2,'0'); }catch(_e){}
+    return '<button onclick="ldTrashToggle(\''+e.id+'\')" style="width:100%;display:flex;align-items:center;gap:12px;padding:11px 12px;margin-bottom:6px;border-radius:13px;cursor:pointer;text-align:left;-webkit-appearance:none;'
+      +'background:'+(on?(day?'rgba(5,150,105,.1)':'rgba(52,211,153,.12)'):(day?'rgba(15,23,42,.03)':'rgba(255,255,255,.03)'))+';'
+      +'border:1.5px solid '+(on?(day?'rgba(5,150,105,.4)':'rgba(52,211,153,.45)'):(day?'rgba(15,23,42,.08)':'rgba(255,255,255,.07)'))+'">'
+      +'<div style="width:21px;height:21px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;color:#03222b;'
+      +'background:'+(on?'linear-gradient(135deg,#0891b2,#22D3EE)':'transparent')+';border:1.5px solid '+(on?'transparent':(day?'rgba(15,23,42,.2)':'rgba(255,255,255,.2)'))+'">'+(on?'✓':'')+'</div>'
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="font-family:\'Space Mono\',monospace;font-size:12px;font-weight:700;color:'+txt+'">'+(e.date||'—')+' · '+(e.flight||e.flightNum||'—')+' · '+(e.dep||'?')+'→'+(e.arr||'?')+'</div>'
+      +'<div style="font-size:9.5px;color:'+dim+';font-family:\'Space Mono\',monospace;margin-top:2px">'+(e.block?e.block+' block · ':'')+(e.reg||'')+(e.reg?' · ':'')+when+'</div>'
+      +'</div></button>';
+  }).join('');
+  var n=_ldTrashSel.size;
+  foot.innerHTML='<div style="display:flex;gap:8px">'
+    +'<button onclick="ldTrashAll()" style="flex:1;padding:12px;border-radius:12px;background:'+(day?'rgba(15,23,42,.05)':'rgba(255,255,255,.05)')+';border:1px solid '+(day?'rgba(15,23,42,.14)':'rgba(255,255,255,.12)')+';color:'+(day?'#334155':'#cbd5e1')+';font-size:12px;font-weight:700;cursor:pointer">'+(n===_ldTrash.length?'Ninguno':'Todos')+'</button>'
+    +'<button id="ld-trash-go" onclick="ldTrashRestore()" '+(n?'':'disabled')+' style="flex:2;padding:12px;border-radius:12px;border:none;font-size:12px;font-weight:800;cursor:'+(n?'pointer':'default')+';'
+    +'background:'+(n?'linear-gradient(135deg,#059669,#34D399)':(day?'rgba(15,23,42,.06)':'rgba(255,255,255,.05)'))+';color:'+(n?'#03291b':(day?'#94A3B8':'rgba(248,250,252,.25)'))+'">Restaurar'+(n?' ('+n+')':'')+'</button></div>';
+}
+function ldTrashToggle(id){
+  if(!_ldTrashSel) return;
+  if(_ldTrashSel.has(id)) _ldTrashSel.delete(id); else _ldTrashSel.add(id);
+  ldTrashRender(90);
+}
+function ldTrashAll(){
+  if(!_ldTrashSel) return;
+  if(_ldTrashSel.size===_ldTrash.length) _ldTrashSel.clear();
+  else _ldTrash.forEach(function(e){ _ldTrashSel.add(e.id); });
+  ldTrashRender(90);
+}
+async function ldTrashRestore(){
+  if(!_ldTrashSel||!_ldTrashSel.size) return;
+  var ids=Array.from(_ldTrashSel);
+  var btn=document.getElementById('ld-trash-go');
+  if(btn){ btn.disabled=true; btn.textContent='Restaurando…'; }
+  var token=lsGet('cafi_auth_token','');
+  try{
+    var r=await fetch(ldBackendUrl()+'/api/logbook/restore',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({ids:ids})
+    });
+    var d=await r.json();
+    if(!r.ok) throw new Error(d.message||d.error||'Error del servidor');
+
+    // Sacarlos de la cola local de borrados: si no, el siguiente push los volvería a
+    // borrar en el servidor y el vuelo se iría otra vez.
+    try{ ldDelClear(ids); }catch(_e){}
+
+    // Meterlos en el logbook local sin duplicar (el pull posterior los traería igual,
+    // pero así aparecen ya).
+    var have={}; ldEntries.forEach(function(e){ if(e&&e.id) have[e.id]=1; });
+    (d.entries||[]).forEach(function(e){ if(e&&e.id&&!have[e.id]) ldEntries.unshift(e); });
+    ldEntries.sort(function(a,b){ return (b.date||'')<(a.date||'')?-1:1; });
+    ldSaveData(); ldRender(); if(typeof ldStats==='function') ldStats();
+
+    _ldTrash=_ldTrash.filter(function(e){ return ids.indexOf(e.id)===-1; });
+    _ldTrashSel.clear();
+    ldTrashRender(90);
+    showToast('✓ '+(d.restored||0)+' vuelo'+((d.restored||0)===1?'':'s')+' restaurado'+((d.restored||0)===1?'':'s'),'success');
+    if(!_ldTrash.length) setTimeout(ldCloseTrash,700);
+  }catch(e){
+    showToast('No se pudo restaurar: '+(e.message||''),'error');
+    ldTrashRender(90);
+  }
 }
 
 // ── STRIPE UPGRADE ───────────────────────────────────────────────
