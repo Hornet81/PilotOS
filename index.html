@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.394">
+  <meta name="version" content="Beta.395">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.394","builtAt":"2026-07-15T20:41:35Z","commit":"511e2b4","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.395","builtAt":"2026-07-15T20:47:56Z","commit":"65a34d4","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -38732,10 +38732,11 @@ function ldMapInit(){
   LDM.cam={x:W/2,y:H/2,s:1,tx:W/2,ty:H/2,ts:1};
   LDM.bgProg=0; LDM.selIdx=-1; LDM.phase=0;
 
-  // ── Build routes from logbook or use demo ──
-  var liveRoutes=ldMapBuildRoutes();
-  var isDemo=!liveRoutes;
-  LDM.ROUTES=liveRoutes||LDM._DEMO_ROUTES;
+  // ── Build routes from logbook ──
+  // Sin vuelos NO se pintan rutas de ejemplo. El rótulo decía "Rutas de ejemplo", pero
+  // el canvas dibujaba igual: un piloto con el logbook vacío veía rutas que no ha volado.
+  // Un mapa vacío es la verdad; el mundo se sigue viendo.
+  LDM.ROUTES=ldMapBuildRoutes()||[];
   LDM.prog=LDM.ROUTES.map(function(){return 0;});
 
   // BG ambient: secondary routes from all route pairs
@@ -38746,7 +38747,7 @@ function ldMapInit(){
 
   // Update drawer title
   var title=document.getElementById('ld-drawer-title');
-  if(title) title.textContent=isDemo?'Rutas de ejemplo':'Tus rutas ('+LDM.ROUTES.length+')';
+  if(title) title.textContent=LDM.ROUTES.length?('Tus rutas ('+LDM.ROUTES.length+')'):'Sin rutas';
 
   // Build route cards
   var container=document.getElementById('ld-route-cards');
@@ -38757,17 +38758,16 @@ function ldMapInit(){
   if(container){
     container.style.display='';
     container.innerHTML='';
-    if(isDemo&&(window.ldEntries||[]).length===0&&noRoutes){
-      noRoutes.style.display='block';
-    } else if(noRoutes){
-      noRoutes.style.display='none';
-    }
+    // El aviso sale siempre que no haya rutas que pintar — no sólo con el logbook vacío:
+    // si hay vuelos pero ninguno con aeropuertos que sepamos situar, el cajón se quedaba
+    // en blanco sin explicar nada.
+    if(noRoutes) noRoutes.style.display=LDM.ROUTES.length?'none':'block';
     LDM.ROUTES.forEach(function(r,i){
       var d=document.createElement('div');
       d.className='ld-rc'; d.setAttribute('role','button');
       d.innerHTML='<div class="ld-rc-dot" style="background:'+r.dot+';box-shadow:0 0 7px '+r.dot+'"></div>'
         +'<div style="flex:1"><div class="ld-rc-route">'+r.f+'<span class="ar">›</span>'+r.t+'</div>'
-        +'<div class="ld-rc-meta">'+r.cnt+' sector'+(r.cnt!==1?'es':'')+(isDemo?' (demo)':'')+'</div></div>'
+        +'<div class="ld-rc-meta">'+r.cnt+' sector'+(r.cnt!==1?'es':'')+'</div></div>'
         +'<div class="ld-rc-right"><div class="ld-rc-hrs">'+r.hrs+'h</div></div>';
       d.onclick=function(){ldMapSelect(i);};
       container.appendChild(d);
