@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.387">
+  <meta name="version" content="Beta.388">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.387","builtAt":"2026-07-15T18:45:10Z","commit":"d9ba54e","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.388","builtAt":"2026-07-15T18:52:23Z","commit":"b61c491","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -19925,27 +19925,38 @@ ldCloseModal=function(){
 
 // Stats
 function ldStats(){
-  var tm=ldEntries.reduce(function(s,e){return s+ldT2m(e.block);},0);
-  var nm=ldEntries.reduce(function(s,e){return s+ldT2m(e.night);},0);
-  var tl=ldEntries.reduce(function(s,e){return s+(e.ldgDay||0)+(e.ldgNight||0);},0);
+  // El simulador NO es tiempo de vuelo (EASA le da columna propia), así que no entra en
+  // el total, ni en el nº de vuelos, ni —importante— en el contador de 100h/28 días.
+  // Fuera también la pseudo-entrada de la base de aviones, que no es un vuelo.
+  var _real=ldEntries.filter(function(e){ return e && e.type!=='__ac_db__' && e.id!==LD_AC_DB_ENTRY_ID; });
+  var _fl=_real.filter(function(e){ return !ldIsSim(e); });
+  var tm=_fl.reduce(function(s,e){return s+ldT2m(e.block);},0);
+  var nm=_fl.reduce(function(s,e){return s+ldT2m(e.night);},0);
+  var tl=_fl.reduce(function(s,e){return s+(e.ldgDay||0)+(e.ldgNight||0);},0);
   var now=Date.now(),d28=28*24*60*60*1000;
-  var m28=ldEntries.filter(function(e){return now-new Date(e.date).getTime()<=d28;}).reduce(function(s,e){return s+ldT2m(e.block);},0);
+  // OJO: el contador de 100h/28 días es tiempo de vuelo RECIENTE. Ni simulador ni saldo
+  // de partida entran aquí — meterle las horas previas pintaría un exceso de FTL falso.
+  var m28=_fl.filter(function(e){return now-new Date(e.date).getTime()<=d28;}).reduce(function(s,e){return s+ldT2m(e.block);},0);
+  // Total de carrera = lo detallado + las horas previas resumidas del PDF importado.
+  // El piloto quiere ver TODAS sus horas, no sólo las que hay como fila.
+  var bal=(typeof ldBalanceGet==='function')?ldBalanceGet():null;
+  var tmCareer=tm+((bal&&bal.flightTime)?bal.flightTime:0);
   var el=function(id){return document.getElementById(id);};
-  if(el('ld_total'))  el('ld_total').textContent=ldM2s(tm);
+  if(el('ld_total'))  el('ld_total').textContent=ldM2s(tmCareer);
   if(el('ld_night'))  el('ld_night').textContent=ldM2s(nm);
   if(el('ld_ldg'))    el('ld_ldg').textContent=tl;
-  if(el('ld_flights')) el('ld_flights').textContent=ldEntries.length+' registrados';
+  if(el('ld_flights')) el('ld_flights').textContent=_fl.length+' registrados';
   var h28=Math.floor(m28/60), warn=h28>=85;
   if(el('ld_28'))     el('ld_28').textContent=ldM2s(m28);
   if(el('ld_28'))     el('ld_28').className='ld-stat-value'+(warn?' warn':'');
   if(el('ld_stat28card')) el('ld_stat28card').className='ld-stat'+(warn?' warn':'');
   if(el('ld_28sub'))  el('ld_28sub').textContent=warn?'⚠ Próximo al límite EASA':'límite EASA: 100h / 28 días';
-  // Mini stats bar
-  var th=Math.floor(tm/60);
+  // Mini stats bar — el TOTAL es de carrera (incluye las horas previas del PDF)
+  var th=Math.floor(tmCareer/60);
   if(el('ld_mini_total')) el('ld_mini_total').textContent=th+'h';
-  if(el('ld_mini_count')) el('ld_mini_count').textContent=ldEntries.length;
+  if(el('ld_mini_count')) el('ld_mini_count').textContent=_fl.length;
   // ── Home card: total hours + 6-month bar chart ──────────────────
-  var totalH=Math.floor(tm/60);
+  var totalH=Math.floor(tmCareer/60);
   var totalHStr=totalH.toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.');
   if(el('dh-lb-hours'))  el('dh-lb-hours').textContent=totalHStr+' h';
   if(el('dh-hours-val')) el('dh-hours-val').textContent=totalHStr+' h';
@@ -19953,7 +19964,7 @@ function ldStats(){
   var months6=[],d=new Date();
   var MLBLS='EFMAMJJASOND';
   for(var i=5;i>=0;i--){var t=new Date(d.getFullYear(),d.getMonth()-i,1);months6.push({key:t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0'),label:MLBLS[t.getMonth()],mins:0});}
-  ldEntries.forEach(function(e){
+  _fl.forEach(function(e){
     if(!e.date)return;
     var mk=e.date.slice(0,7);
     var bucket=months6.find(function(b){return b.key===mk;});
