@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.375">
+  <meta name="version" content="Beta.376">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.375","builtAt":"2026-07-14T21:28:45Z","commit":"c9a4d0e","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.376","builtAt":"2026-07-15T10:55:07Z","commit":"096dceb","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -36275,10 +36275,13 @@ async function pagDoAuth() {
         btn.textContent = isLogin ? 'Entrar →' : 'Crear cuenta →';
         return;
       }
-      // Guardia cambio de cuenta: si entra otro usuario en este dispositivo, limpiar datos del anterior
+      // Guardia cambio de cuenta: si entra otro usuario en este dispositivo, limpiar datos del anterior.
+      // OJO: se limpia TAMBIÉN cuando _prevUid es null. Un logbook local sin dueño marcado es
+      // huérfano (el logout ya borra sus datos), y darlo por bueno hacía que la cuenta nueva
+      // heredase los vuelos de la anterior y los subiera como propios.
       var _newUid = String((data.user && (data.user.id || data.user.email)) || '');
       var _prevUid = localStorage.getItem('pilotOS_last_uid');
-      if(_prevUid && _prevUid !== _newUid) clearAllUserData();
+      if(_prevUid !== _newUid) clearAllUserData();
       lsSet('cafi_auth_token', data.token);
       localStorage.setItem('cafi_auth_user', JSON.stringify(data.user));
       lsSet('pilotOS_plan', data.user.plan || 'free');
@@ -36482,7 +36485,17 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
     // Show avatar from cached data immediately (optimistic)
     try {
       var stored = localStorage.getItem('cafi_auth_user');
-      if (stored) updateUserAvatar(JSON.parse(stored));
+      if (stored) {
+        var _su = JSON.parse(stored);
+        updateUserAvatar(_su);
+        // Marcar al dueño de estos datos si la sesión venía de una versión anterior al
+        // guardia de cambio de cuenta. Sin esta marca, un re-login del MISMO piloto
+        // parecería un cambio de cuenta y le borraría lo que aún no hubiera subido.
+        var _suid = String((_su && (_su.id || _su.email)) || '');
+        if (_suid && !localStorage.getItem('pilotOS_last_uid')) {
+          localStorage.setItem('pilotOS_last_uid', _suid);
+        }
+      }
     } catch(ex) {}
     // Verify token with server — wait for real response (no timeout, Railway cold starts ~30s)
     var backendUrl = lsGet('cafi_backend_url','https://api.pilotos.aero');
