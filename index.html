@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.389">
+  <meta name="version" content="Beta.390">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.389","builtAt":"2026-07-15T19:02:09Z","commit":"9c22438","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.390","builtAt":"2026-07-15T19:17:42Z","commit":"8989cfc","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -20049,7 +20049,7 @@ function ldToggleMenu(){
     +mi('🔄',icoB,'Full sync desde cero','Resetea caché y descarga todo','ldResetSync()',lbl,'')
     +mi('⬇️',icoB,'Exportar','PDF · EASA · CSV','ldToggleExport()',lbl,'')
     +mi('💾',icoB,'Restaurar backup','Desde un JSON exportado','ldRestoreBackup()',lbl,'')
-    +mi('♻️',icoB,'Papelera','Restaurar vuelos borrados','ldOpenTrash()',lbl,'')
+    +mi('♻️',icoB,'Recuperar','Papelera · copias de seguridad','ldOpenTrash()',lbl,'')
     +'<div style="height:1px;background:'+redD+';margin:8px 0 2px"></div>'
     +mi('🗑',icoB,'Eliminar vuelos','Selección masiva','ldEnterSelectMode()',lbl,'',true)
     +'</div>';
@@ -20072,6 +20072,8 @@ function ldCloseMenu(){
 // Los tombstones anteriores al 15-jul-2026 no tienen cuerpo → no salen aquí.
 var _ldTrash = [];       // lo que devolvió el servidor
 var _ldTrashSel = null;  // Set de ids marcados
+var _ldTrashView = 'trash';   // 'trash' = vuelos sueltos · 'snaps' = copias completas
+var _ldSnaps = [];
 
 function ldOpenTrash(){
   if(document.getElementById('ld-trash-ov')) return;
@@ -20082,21 +20084,47 @@ function ldOpenTrash(){
   ov.innerHTML='<div id="ld-trash-sheet" style="width:100%;max-width:480px;'+(day?'background:linear-gradient(180deg,rgba(240,252,255,.98) 0%,rgba(220,244,255,.99) 100%);border-top:1.5px solid rgba(13,148,136,.22)':'background:linear-gradient(180deg,rgba(8,22,40,.97) 0%,rgba(4,14,28,.99) 100%);border-top:1.5px solid rgba(34,211,238,.2)')+';border-radius:24px 24px 0 0;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 14px);max-height:86vh;display:flex;flex-direction:column;animation:slideUp .28s cubic-bezier(.2,.8,.3,1)">'
     +'<div style="width:44px;height:5px;border-radius:3px;background:'+(day?'linear-gradient(90deg,rgba(109,40,217,.4),rgba(13,148,136,.4))':'linear-gradient(90deg,rgba(124,58,237,.65),rgba(34,211,238,.55))')+';margin:13px auto 4px;flex-shrink:0"></div>'
     +'<div style="display:flex;align-items:center;gap:10px;padding:10px 20px 6px;flex-shrink:0">'
-    +'<div style="flex:1;min-width:0"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:16px;font-weight:800;color:'+(day?'#0A1628':'rgba(248,250,252,.92)')+'">♻️ Papelera</div>'
+    +'<div style="flex:1;min-width:0"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:16px;font-weight:800;color:'+(day?'#0A1628':'rgba(248,250,252,.92)')+'">Recuperar</div>'
     +'<div id="ld-trash-sub" style="font-size:10px;color:'+(day?'#64748B':'rgba(248,250,252,.38)')+';font-family:\'Space Mono\',monospace;margin-top:2px">Cargando…</div></div>'
     +'<button onclick="ldCloseTrash()" style="width:34px;height:34px;border-radius:11px;background:'+(day?'rgba(15,23,42,.06)':'rgba(255,255,255,.06)')+';border:none;color:'+(day?'#64748B':'rgba(248,250,252,.5)')+';font-size:17px;cursor:pointer;flex-shrink:0">✕</button></div>'
+    // Dos herramientas distintas: la papelera es un bisturí (este vuelo), la copia es el
+    // botón de pánico (el logbook entero de ayer). Juntas porque el piloto viene aquí con
+    // el mismo problema; separadas porque la respuesta no es la misma.
+    +'<div style="display:flex;gap:6px;padding:4px 16px 8px;flex-shrink:0">'
+    +_ldTabBtn('trash','♻️ Papelera',day)+_ldTabBtn('snaps','🕐 Copias',day)
+    +'</div>'
     +'<div id="ld-trash-body" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px 16px 10px"></div>'
     +'<div id="ld-trash-foot" style="flex-shrink:0;padding:10px 16px 4px"></div></div>';
   ov.addEventListener('click',function(e){ if(e.target===ov) ldCloseTrash(); });
   document.body.appendChild(ov);
   document.body.style.overflow='hidden';
-  ldTrashLoad();
+  ldTrashSetView('trash');
+}
+function _ldTabBtn(key,label,day){
+  var on=_ldTrashView===key;
+  return '<button id="ld-tv-'+key+'" onclick="ldTrashSetView(\''+key+'\')" style="flex:1;padding:9px;border-radius:11px;cursor:pointer;font-size:11.5px;font-weight:800;font-family:\'Space Grotesk\',sans-serif;'
+    +'background:'+(on?(day?'rgba(8,145,178,.14)':'rgba(34,211,238,.16)'):'transparent')+';'
+    +'border:1px solid '+(on?(day?'rgba(8,145,178,.4)':'rgba(34,211,238,.4)'):(day?'rgba(15,23,42,.1)':'rgba(255,255,255,.08)'))+';'
+    +'color:'+(on?(day?'#0E7490':'#67E8F9'):(day?'#64748B':'rgba(248,250,252,.45)'))+'">'+label+'</button>';
+}
+function ldTrashSetView(v){
+  _ldTrashView=v;
+  var day=document.documentElement.classList.contains('day');
+  ['trash','snaps'].forEach(function(k){
+    var b=document.getElementById('ld-tv-'+k); if(!b) return;
+    var on=k===v;
+    b.style.background=on?(day?'rgba(8,145,178,.14)':'rgba(34,211,238,.16)'):'transparent';
+    b.style.borderColor=on?(day?'rgba(8,145,178,.4)':'rgba(34,211,238,.4)'):(day?'rgba(15,23,42,.1)':'rgba(255,255,255,.08)');
+    b.style.color=on?(day?'#0E7490':'#67E8F9'):(day?'#64748B':'rgba(248,250,252,.45)');
+  });
+  var foot=document.getElementById('ld-trash-foot'); if(foot) foot.innerHTML='';
+  if(v==='trash') ldTrashLoad(); else ldSnapsLoad();
 }
 function ldCloseTrash(){
   var ov=document.getElementById('ld-trash-ov');
   if(ov) ov.remove();
   document.body.style.overflow='';
-  _ldTrash=[]; _ldTrashSel=null;
+  _ldTrash=[]; _ldTrashSel=null; _ldSnaps=[]; _ldTrashView='trash';
 }
 function _ldTrashMsg(html){
   var b=document.getElementById('ld-trash-body');
@@ -20196,6 +20224,92 @@ async function ldTrashRestore(){
   }catch(e){
     showToast('No se pudo restaurar: '+(e.message||''),'error');
     ldTrashRender(90);
+  }
+}
+
+// ── COPIAS DE SEGURIDAD (snapshots) ──────────────────────────────────────
+// El servidor guarda las 3 últimas copias completas del logbook (antes de un borrado
+// masivo, una al día, y antes de restaurar). Hasta ahora solo se podían reponer desde el
+// backend a mano; esto se lo pone en la mano al piloto.
+// Restaurar es ADITIVO: repone lo que falta y no pisa ni borra nada, así que no puede
+// hacerse daño desde aquí.
+var _LD_SNAP_REASON = {
+  pre_delete:  'antes de un borrado masivo',
+  daily:       'copia automática diaria',
+  pre_restore: 'antes de restaurar otra copia',
+  manual:      'copia manual',
+};
+async function ldSnapsLoad(){
+  var token=lsGet('cafi_auth_token','');
+  if(!token){ _ldTrashMsg('Inicia sesión para ver tus copias'); return; }
+  _ldTrashMsg('Cargando…');
+  try{
+    var r=await fetch(ldBackendUrl()+'/api/logbook/snapshots',{headers:{'Authorization':'Bearer '+token}});
+    var d=await r.json();
+    if(!r.ok) throw new Error(d.message||d.error||'Error del servidor');
+    _ldSnaps=d.snapshots||[];
+    ldSnapsRender(d.keep||3);
+  }catch(e){
+    _ldTrashMsg('No se pudieron cargar las copias<br><span style="opacity:.6">'+(e.message||'')+'</span>');
+  }
+}
+function ldSnapsRender(keep){
+  var day=document.documentElement.classList.contains('day');
+  var body=document.getElementById('ld-trash-body');
+  var sub=document.getElementById('ld-trash-sub');
+  if(!body) return;
+  if(sub) sub.textContent=_ldSnaps.length? (_ldSnaps.length+' copia'+(_ldSnaps.length===1?'':'s')+' · se guardan las '+keep+' últimas')
+                                         : 'Sin copias todavía';
+  if(!_ldSnaps.length){
+    _ldTrashMsg('Todavía no hay ninguna copia.<br><span style="opacity:.6">Se hacen solas: una al día y otra antes de cualquier borrado grande.</span>');
+    return;
+  }
+  var txt=day?'#0A1628':'rgba(248,250,252,.92)';
+  var dim=day?'#64748B':'rgba(248,250,252,.42)';
+  body.innerHTML=_ldSnaps.map(function(s){
+    var cuando='';
+    try{
+      var d=new Date(s.created_at), hoy=new Date();
+      var mismoDia=d.toDateString()===hoy.toDateString();
+      var ayer=new Date(hoy.getTime()-86400000).toDateString()===d.toDateString();
+      var hh=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+      cuando=mismoDia?('Hoy '+hh):(ayer?('Ayer '+hh):(String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+' '+hh));
+    }catch(_e){}
+    return '<div style="padding:11px 13px;margin-bottom:7px;border-radius:13px;background:'+(day?'rgba(15,23,42,.03)':'rgba(255,255,255,.03)')+';border:1px solid '+(day?'rgba(15,23,42,.08)':'rgba(255,255,255,.07)')+'">'
+      +'<div style="display:flex;align-items:center;gap:10px">'
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="font-family:\'Space Mono\',monospace;font-size:12.5px;font-weight:700;color:'+txt+'">'+cuando+' · '+s.entry_count+' vuelos</div>'
+      +'<div style="font-size:9.5px;color:'+dim+';font-family:\'Space Mono\',monospace;margin-top:2px">'+(_LD_SNAP_REASON[s.reason]||s.reason||'')+' · '+Math.round((s.bytes||0)/1024)+' KB</div>'
+      +'</div>'
+      +'<button onclick="ldSnapRestore(\''+s.id+'\',this)" style="flex-shrink:0;padding:9px 14px;border-radius:10px;border:none;cursor:pointer;font-size:11px;font-weight:800;background:linear-gradient(135deg,#059669,#34D399);color:#03291b">Restaurar</button>'
+      +'</div></div>';
+  }).join('')
+  +'<div style="font-size:9.5px;color:'+dim+';text-align:center;padding:8px 6px 2px;line-height:1.6">Restaurar solo repone los vuelos que falten.<br>No borra ni sobrescribe nada de lo que ya tienes.</div>';
+}
+async function ldSnapRestore(id,btn){
+  if(btn){ btn.disabled=true; btn.textContent='Restaurando…'; }
+  var token=lsGet('cafi_auth_token','');
+  try{
+    var r=await fetch(ldBackendUrl()+'/api/logbook/snapshots/restore',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({id:id})
+    });
+    var d=await r.json();
+    if(!r.ok) throw new Error(d.message||d.error||'Error del servidor');
+    if(!d.restored){
+      showToast('No faltaba ningún vuelo de esa copia','success');
+      if(btn){ btn.disabled=false; btn.textContent='Restaurar'; }
+      return;
+    }
+    // El endpoint los repone en el SERVIDOR; hay que bajarlos a este dispositivo.
+    showToast('✓ '+d.restored+' vuelos repuestos · descargando…','success');
+    if(typeof ldManualPull==='function') await ldManualPull();
+    else if(typeof ldBgSync==='function') ldBgSync({delay:200,force:true});
+    ldCloseTrash();
+  }catch(e){
+    showToast('No se pudo restaurar: '+(e.message||''),'error');
+    if(btn){ btn.disabled=false; btn.textContent='Restaurar'; }
   }
 }
 
