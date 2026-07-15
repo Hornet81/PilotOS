@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.379">
+  <meta name="version" content="Beta.380">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.379","builtAt":"2026-07-15T14:46:47Z","commit":"5ef5527","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.380","builtAt":"2026-07-15T16:33:20Z","commit":"3bd4a7c","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -22124,6 +22124,7 @@ function ldCloseImport(){
   if(m){ m.style.display='none'; document.body.style.overflow=''; }
   if(tabs){ tabs.style.transform=''; tabs.style.transition='transform .2s'; }
   _ldImportData=null;
+  _ldPendingBalance=null; _ldPdfSummary='';
   if(_ldiProcTimer){ clearInterval(_ldiProcTimer); _ldiProcTimer=null; }
   var f=document.getElementById('ld_import_file'); if(f) f.value='';
   var p=document.getElementById('ld_import_preview'); if(p) p.style.display='none';
@@ -22171,9 +22172,100 @@ function ldImportDrop(e){
   var file=e.dataTransfer.files[0]; if(file) ldParseImportFile(file);
 }
 function ldImportFile(e){ var file=e.target.files[0]; if(file) ldParseImportFile(file); }
+
+// ── Importación de logbook en PDF (Jeppesen EASA — export de mccPILOTLOG/PilotLog) ──
+// El backend lo parsea con mupdf de forma DETERMINISTA (cero IA ⇒ sin gate de plan) y
+// devuelve `pilotos-logbook-v1`, autovalidado contra los totales impresos del propio PDF.
+var _ldPendingBalance=null;   // saldo de partida a guardar si el usuario confirma
+var _ldPdfSummary='';         // resumen extra a pintar en la vista previa
+
+function ldFileToB64(file){
+  return new Promise(function(res,rej){
+    var r=new FileReader();
+    r.onload=function(){ res(String(r.result).split(',')[1]); };
+    r.onerror=function(){ rej(new Error('No se pudo leer el archivo')); };
+    r.readAsDataURL(file);
+  });
+}
+function ldMinToHHMM(m){
+  if(m==null||isNaN(m)) return '';
+  return Math.floor(m/60)+':'+String(m%60).padStart(2,'0');
+}
+
+async function ldImportPdfViaBackend(file){
+  var token=''; try{ token=lsGet('cafi_auth_token',''); }catch(e){}
+  if(!token){ ldImportError('Inicia sesión para importar un logbook en PDF'); return; }
+  try{
+    var b64=await ldFileToB64(file);
+    var r=await fetch(ldBackendUrl()+'/logbook/analyze',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({pdf_buffer:b64})
+    });
+    var d=await r.json();
+    if(!r.ok){ ldImportError(d.message||d.error||'Error del servidor'); return; }
+
+    // Vuelos → filas con los MISMOS alias que entiende el importador CSV (ldMapRow),
+    // así reutilizamos su dedup, merge y alta sin tocar nada.
+    var rows=(d.flights||[]).map(function(f){
+      var esPic=(f.role==='PIC');
+      return {
+        fecha:f.date, vuelo:f.flightNum||'', origen:f.dep, destino:f.arr,
+        matricula:f.reg, tipo:f.acType,
+        atd:f.depTime, ata:f.arrTime,            // Jeppesen da OUT/IN (block time)
+        block:ldMinToHHMM(f.flightTime),          // SE+ME+MP — NUNCA la col 6 (lleva sim dentro)
+        nocturno:f.night?ldMinToHHMM(f.night):'',
+        ldg_dia:f.ldgDay||0, ldg_noche:f.ldgNight||0,
+        rol:esPic?'CPT':'FO',                     // el rol lo manda NAME PIC, no la columna PIC
+        cm1:esPic?(d.owner||''):(f.namePic||''),
+        // Función EASA (campo `pilotFunction`, el mismo que usa "Otros vuelos"). PICUS =
+        // copiloto al mando bajo supervisión: sigue sentado a la derecha (rol FO) pero
+        // EASA cuenta ese tiempo como PIC. Sin esto, la carrera queda corta.
+        funcion:esPic?'PIC':(f.picus?'PICUS':'Copiloto'),
+        notas:f.remarks||''
+      };
+    });
+
+    // Sesiones de simulador (columna 11 del Jeppesen): NO son vuelos — sin ruta y sin
+    // aterrizajes. Van como actividad SIM, que es lo que Pay Check lee (instr==='SIM')
+    // para el plus de formación.
+    rows=rows.concat((d.simSessions||[]).map(function(s){
+      return {
+        fecha:s.date, vuelo:'', origen:'', destino:'',
+        optype:'SIM', simtype:s.type||'',
+        block:ldMinToHHMM(s.minutes),
+        ldg_dia:0, ldg_noche:0,
+        notas:['Sesión de simulador', s.type||'', s.remarks||''].filter(Boolean).join(' · ')
+      };
+    }));
+
+    // Saldo de partida: NO es un vuelo. Se guarda en el perfil (sólo lo lee la lente
+    // Carrera) y lleva fecha de corte para que un import posterior no lo cuente dos veces.
+    _ldPendingBalance=d.openingBalance||null;
+
+    var ob=d.openingBalance||{};
+    var bits=[];
+    if(ob.flightTime) bits.push('<div style="margin-top:9px;padding:9px 11px;background:rgba(245,158,11,.09);border:1px solid rgba(245,158,11,.25);border-radius:9px">'
+      +'<div style="font-size:10px;font-weight:700;color:#FBBF24;letter-spacing:.5px">SALDO DE PARTIDA · hasta '+(ob.hasta||'—')+'</div>'
+      +'<div style="font-size:11px;color:#E2E8F0;margin-top:3px;font-family:Space Mono,monospace">'
+      +ldMinToHHMM(ob.flightTime)+' de vuelo · '+ldMinToHHMM(ob.sim||0)+' de simulador</div>'
+      +'<div style="font-size:9.5px;color:rgba(226,232,240,.6);margin-top:2px">Horas anteriores resumidas en el PDF. Suman a tu carrera, no son vuelos.</div></div>');
+    if((d.simSessions||[]).length) bits.push('<div style="margin-top:7px;font-size:10px;color:rgba(226,232,240,.6)">De las filas de arriba, '+d.simSessions.length+' son sesiones de simulador (sin ruta, no cuentan como horas de vuelo).</div>');
+    if(d.reconcile&&!d.reconcile.ok) bits.push('<div style="margin-top:7px;font-size:10px;color:#FCA5A5">⚠ El PDF no cuadra con sus propios totales impresos ('+d.reconcile.checks.filter(function(c){return !c.ok;}).length+' descuadres). Revisa antes de confirmar.</div>');
+    else bits.push('<div style="margin-top:7px;font-size:10px;color:#6EE7B7">✓ Cuadra con los totales impresos del PDF</div>');
+    _ldPdfSummary=bits.join('');
+
+    ldImportProcess(rows,file.name);
+  }catch(err){
+    ldImportError(err.message);
+  }
+}
+
 function ldParseImportFile(file){
   ldiShowProcessing(file.name);
+  _ldPendingBalance=null; _ldPdfSummary='';
   var name=file.name.toLowerCase();
+  if(name.endsWith('.pdf')){ ldImportPdfViaBackend(file); return; }
   var r=new FileReader();
   if(name.endsWith('.xls')||name.endsWith('.xlsx')){
     // Use SheetJS via CDN if available, otherwise fallback text
@@ -22244,7 +22336,12 @@ var LD_COL_MAP={
   func:['funcion','func','function'],
   cm1:['cm1','comandante','captain','cpt'],
   cm2:['cm2','copiloto','first_officer','fo'],
-  notes:['notas','notes','remarks','obs']
+  notes:['notas','notes','remarks','obs'],
+  opType:['optype','op_type','tipo_operacion','actividad'],
+  simType:['simtype','sim_type','tipo_sim'],
+  // Función EASA (PIC/Copiloto/Dual/Instructor/PICUS/SPIC) — mismo campo que "Otros vuelos".
+  // OJO: 'func' (PF/PM) es otra cosa; no mezclar los alias.
+  pilotFunction:['funcion','pilot_function','pilotfunction','funcion_easa']
 };
 function ldMapRow(row){
   // Build a lowercase-trimmed key map regardless of how the caller prepared the row
@@ -22318,7 +22415,8 @@ function ldImportProcess(rows,fname){
       status.className='ldi-status ok';
       status.innerHTML='<span class="ldi-status-icon">✓</span>'
         +'<div><span class="ldi-count">'+mapped.length+'</span>'
-        +'<span style="font-size:10px;opacity:.7;letter-spacing:.3px">vuelos detectados en <strong style="color:#F8FAFC">'+fname+'</strong> · Vista previa:</span></div>';
+        +'<span style="font-size:10px;opacity:.7;letter-spacing:.3px">vuelos detectados en <strong style="color:#F8FAFC">'+fname+'</strong> · Vista previa:</span></div>'
+        +(_ldPdfSummary||'');
     }
     var sample=mapped.slice(0,5);
     var cols=['date','flight','dep','arr','reg','block'];
@@ -22342,8 +22440,83 @@ function ldImportError(msg){
   if(zone) zone.style.display='block';
   _ldImportData=null;
 }
+// ── Saldo de partida (horas previas resumidas en el PDF) ──
+// Vive en el PERFIL, NUNCA en ldEntries: todo (mapa de rutas, ldRouteStats, OTP, export,
+// Pay Check) itera las entradas, y una fila sin ruta ni matrícula las rompería. Además
+// Pay Check calcula con las horas del MES: si viera este saldo, cobraría 2.600 horas.
+// Sólo lo lee la lente Carrera. `hasta` es la fecha de corte → evita contar dos veces
+// si el piloto sube después su histórico completo.
+var LD_BALANCE_KEY='pilotos_careerBalance';
+function ldBalanceGet(){ try{ return JSON.parse(lsGet(LD_BALANCE_KEY,'null')); }catch(e){ return null; } }
+function ldBalanceSet(b){ try{ lsSet(LD_BALANCE_KEY,JSON.stringify(b)); }catch(e){} }
+
+// ── Tarjeta del saldo de partida (sólo en la lente Carrera) ──
+// El piloto tiene que poder verlo y corregirlo: son SUS horas y el PDF puede venir mal.
+var LD_BAL_FIELDS=[
+  {k:'flightTime',l:'Vuelo',hm:1},{k:'sim',l:'Simulador',hm:1},
+  {k:'night',l:'Noche',hm:1},{k:'ifr',l:'IFR',hm:1},
+  {k:'pic',l:'PIC',hm:1},{k:'cop',l:'Copiloto',hm:1},
+  {k:'dual',l:'Dual',hm:1},
+  {k:'ldgDay',l:'Aterr. día'},{k:'ldgNight',l:'Aterr. noche'}
+];
+function _ldBalFmt(m){ m=m||0; return Math.floor(m/60)+':'+String(m%60).padStart(2,'0'); }
+function _ldBalParse(s){ var p=String(s||'').split(':'); return (+p[0]||0)*60+(+p[1]||0); }
+
+function ldBalanceCardHtml(){
+  var b=ldBalanceGet(); if(!b) return '';
+  var ed=!!window._ldBalEditing;
+  var cells=LD_BAL_FIELDS.map(function(f){
+    var v=f.hm?_ldBalFmt(b[f.k]):String(b[f.k]||0);
+    return '<div class="ld-stat"><div class="ld-stat-label">'+f.l+'</div>'
+      +(ed
+        ? '<input id="ldbal_'+f.k+'" value="'+v+'" style="width:100%;background:rgba(8,12,26,.6);border:1px solid rgba(245,158,11,.35);border-radius:7px;color:#FBBF24;font-family:\'Space Mono\',monospace;font-size:13px;padding:4px 6px;margin-top:3px">'
+        : '<div class="ld-stat-value" style="font-size:15px;color:#FBBF24">'+v+'</div>')
+      +'</div>';
+  }).join('');
+  return '<div class="crr-sec">Saldo de partida</div>'
+    +'<div class="crr-total" style="border-color:rgba(245,158,11,.4)">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">'
+        +'<div><div class="ld-stat-label" style="color:rgba(245,158,11,.85)">Horas anteriores a PilotOS</div>'
+        +'<div class="crr-muted" style="font-size:11px;margin-top:3px">Hasta el '+(b.hasta||'—')+' · '
+          +(b.fuente==='jeppesen-pdf'?'importado del PDF Jeppesen':'editado a mano')+'</div></div>'
+        +'<div class="crr-gbtn" onclick="ldBalanceEdit('+(ed?'false':'true')+')">'+(ed?'Cancelar':'Editar')+'</div>'
+      +'</div>'
+      +'<div class="ld-stats" style="grid-template-columns:repeat(4,1fr);margin:12px 0 0">'+cells+'</div>'
+      +(ed?('<div style="display:flex;gap:8px;margin-top:12px">'
+        +'<div class="crr-gbtn" onclick="ldBalanceSaveEdit()">Guardar</div>'
+        +'<div class="crr-gbtn" style="border-color:rgba(239,68,68,.4);color:#FCA5A5" onclick="ldBalanceRemove()">Eliminar saldo</div></div>'):'')
+      +'<div class="crr-muted" style="font-size:10.5px;margin-top:10px">Resumen de tus horas previas. Suman a los totales de carrera, pero no son vuelos: no aparecen en la lista ni en el mapa.</div>'
+    +'</div>';
+}
+function ldBalanceEdit(on){ window._ldBalEditing=!!on; ldRenderCarrera(); }
+function ldBalanceSaveEdit(){
+  var b=ldBalanceGet()||{};
+  LD_BAL_FIELDS.forEach(function(f){
+    var el=document.getElementById('ldbal_'+f.k); if(!el) return;
+    b[f.k]=f.hm?_ldBalParse(el.value):(parseInt(el.value)||0);
+  });
+  b.fuente='manual'; b.editadoEl=new Date().toISOString();
+  ldBalanceSet(b); window._ldBalEditing=false;
+  if(typeof showToast==='function') showToast('✓ Saldo de partida actualizado');
+  ldRenderCarrera();
+}
+function ldBalanceRemove(){
+  if(!confirm('¿Eliminar el saldo de partida?\n\nTu carrera pasará a contar solo los vuelos detallados.')) return;
+  try{ localStorage.removeItem(LD_BALANCE_KEY); }catch(e){}
+  window._ldBalEditing=false;
+  if(typeof showToast==='function') showToast('Saldo de partida eliminado');
+  ldRenderCarrera();
+}
+
 function ldImportConfirm(){
   if(!_ldImportData||_ldImportData.length===0){ ldCloseImport(); return; }
+
+  // Guardar el saldo de partida si venía en el PDF
+  if(_ldPendingBalance){
+    _ldPendingBalance.importadoEl=new Date().toISOString();
+    ldBalanceSet(_ldPendingBalance);
+    _ldPendingBalance=null;
+  }
 
   // Build index of existing entries by dedup key
   var existingMap={};
@@ -22384,6 +22557,7 @@ function ldImportConfirm(){
 
     if(!existing){
       // New entry — add it
+      var _ft=String(r.opType||r.flightType||'COM').toUpperCase();
       var e={
         id:ldStableId(r),
         savedAt:new Date().toISOString(),
@@ -22392,9 +22566,19 @@ function ldImportConfirm(){
         acType:r.acType||'',engine:r.engine||'CFM56',reg:(r.reg||'').toUpperCase(),
         fl:r.fl||'',std:r.std||'',atd:r.atd||'',sta:r.sta||'',ata:r.ata||'',
         block:r.block||'',role:r.role||'FO',func:r.func||'PF',
-        rules:r.rules||'IFR',opType:r.opType||'COM',conditions:r.conditions||'NORM',
-        ldgDay:parseInt(r.ldgDay||1),ldgNight:parseInt(r.ldgNight||0),
+        rules:r.rules||'IFR',conditions:r.conditions||'NORM',
+        // Tipo de vuelo unificado — MISMA lógica que ldSave: flightType es la fuente de
+        // verdad; sim/instrucción llevan además opType 'TRNG' e instr con el código
+        // (Pay Check lee instr==='SIM' para el plus de formación).
+        flightType:_ft, instr:/^(SIM|TRI|TRE|LSC|GTI)$/.test(_ft)?_ft:'',
+        opType:/^(SIM|TRI|TRE|LSC|GTI)$/.test(_ft)?'TRNG':_ft,
+        simType:r.simType||'',trainCenter:r.trainCenter||'',
+        // Un 0 explícito es un dato, no un hueco: `r.ldgDay||1` lo convertía en 1 y
+        // falseaba la recencia (3 aterrizajes/90 días). Sólo se asume 1 si NO viene el dato.
+        ldgDay:(r.ldgDay!==undefined&&r.ldgDay!=='')?(parseInt(r.ldgDay)||0):1,
+        ldgNight:(parseInt(r.ldgNight)||0),
         night:r.night||'',cm1:r.cm1||'',cm2:r.cm2||'',
+        pilotFunction:r.pilotFunction||'',
         notes:r.notes||'',source:'IMPORT'
       };
       ldEntries.push(e);
@@ -37592,20 +37776,42 @@ function ldRenderCarrera(){
   var body=document.getElementById('ld-carrera-body'); if(!body) return;
   var T=function(t){ return (typeof ldT2m==='function')?(ldT2m(t)||0):0; };
   var M=function(m){ return (typeof ldM2s==='function')?ldM2s(m):(Math.floor(m/60)+':'+('0'+(m%60)).slice(-2)); };
-  var ents=(window.ldEntries||[]).filter(function(e){ return e && e.type!=='__ac_db__' && e.date; });
-  var tot=0,pic=0,cop=0,night=0,ifr=0,mp=0,ldgD=0,ldgN=0,airMin=0,othMin=0;
+  var all=(window.ldEntries||[]).filter(function(e){ return e && e.type!=='__ac_db__' && e.date; });
+  // El simulador NO es tiempo de vuelo (EASA): va en su propia columna, nunca en el total.
+  // Es justo el fallo de mccPILOTLOG, que mete el FFS dentro de "total time of flight".
+  var _isSim=function(e){ return /^(SIM|TRI|TRE)$/.test(e.flightType||e.instr||''); };
+  var ents=all.filter(function(e){ return !_isSim(e); });
+  var simMin=all.filter(_isSim).reduce(function(a,e){ return a+T(e.block); },0);
+  var tot=0,pic=0,cop=0,picus=0,dual=0,night=0,ifr=0,mp=0,ldgD=0,ldgN=0,airMin=0,othMin=0;
   var byType={};
   ents.forEach(function(e){
     var b=T(e.block); tot+=b;
-    if(e.role==='CPT') pic+=b; else if(e.role==='FO') cop+=b;
+    // Función EASA: manda `pilotFunction` (lo rellenan "Otros vuelos" y el import de PDF);
+    // si no está, se deduce del rol — mismo fallback que la ficha del vuelo (l.19639).
+    // PICUS/SPIC cuentan como PIC: es tiempo de mando bajo supervisión.
+    var pf=e.pilotFunction||'';
+    // El tiempo Dual tiene columna propia en EASA: no es tiempo de copiloto.
+    if(pf) { if(/^(PIC|PICUS|SPIC|Instructor)$/.test(pf)) { pic+=b; if(pf==='PICUS') picus+=b; } else if(pf==='Dual') dual+=b; else if(pf==='Copiloto') cop+=b; }
+    else if(e.role==='CPT') pic+=b; else if(e.role==='FO') cop+=b;
     night+=T(e.night);
     if((e.rules||'IFR')==='IFR') ifr+=b;
     ldgD+=parseInt(e.ldgDay||0)||0; ldgN+=parseInt(e.ldgNight||0)||0;
     var ty=(e.acType||'?'); byType[ty]=(byType[ty]||0)+b;
     if(/^(A3[123]|B7|B3|E1|E2|CRJ|AT[R7])/i.test(ty)){ airMin+=b; mp+=b; } else { othMin+=b; }
   });
+  // ── Saldo de partida: horas previas a PilotOS (perfil, NO entradas) ──
+  // Suma sólo aquí, en la lente Carrera. Nadie más lo lee (ni Pay Check, que calcula
+  // con las horas del MES y se volvería loco con 2.600 horas de golpe).
+  var bal=(typeof ldBalanceGet==='function')?ldBalanceGet():null;
+  if(bal){
+    tot+=bal.flightTime||0; pic+=bal.pic||0; cop+=bal.cop||0;
+    night+=bal.night||0; ifr+=bal.ifr||0; mp+=bal.mp||0;
+    ldgD+=bal.ldgDay||0; ldgN+=bal.ldgNight||0; simMin+=bal.sim||0; dual+=bal.dual||0;
+  }
+
   var stat=function(l,v){ return '<div class="ld-stat"><div class="ld-stat-label">'+l+'</div><div class="ld-stat-value">'+v+'</div></div>'; };
-  var funcGrid='<div class="ld-stats">'+stat('PIC',M(pic))+stat('Copiloto',M(cop))+stat('Noche',M(night))+stat('IFR',M(ifr))+stat('Multipiloto',M(mp))+stat('Aterrizajes',ldgD+' / '+ldgN)+'</div>';
+  var funcGrid='<div class="ld-stats">'+stat('PIC',M(pic))+stat('Copiloto',M(cop))+stat('Noche',M(night))+stat('IFR',M(ifr))+stat('Multipiloto',M(mp))+stat('Aterrizajes',ldgD+' / '+ldgN)
+    +(picus?stat('· de ellas PICUS',M(picus)):'')+(dual?stat('Dual',M(dual)):'')+(simMin?stat('Simulador',M(simMin)):'')+'</div>';
   var dnaTot=(airMin+othMin)||1;
   var dna='<div class="crr-total" style="padding:13px 15px;margin-bottom:0">'
     +'<div style="height:22px;border-radius:8px;overflow:hidden;display:flex;border:1px solid rgba(128,128,128,.2)">'
@@ -37622,9 +37828,11 @@ function ldRenderCarrera(){
     +'<div class="crr-total"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">'
       +'<div><div class="ld-stat-label" style="color:rgba(16,185,129,.75)">Total de carrera · EASA</div>'
       +'<div class="ld-stat-value" style="font-size:32px;margin-top:4px">'+M(tot)+'</div>'
-      +'<div class="crr-muted" style="font-size:11px;margin-top:3px">'+ents.length+' vuelos · mismos que la pestaña Vuelos</div></div>'
+      +'<div class="crr-muted" style="font-size:11px;margin-top:3px">'+ents.length+' vuelos'
+        +(bal&&bal.flightTime?(' · + '+M(bal.flightTime)+' de saldo anterior'):' · mismos que la pestaña Vuelos')+'</div></div>'
       +'<div class="crr-gbtn" onclick="ldExportPickRange(\'pdf\')">↓ PDF EASA</div>'
     +'</div></div>'
+    +ldBalanceCardHtml()
     +'<div class="crr-sec">Función · FCL.050</div>'+funcGrid
     +'<div class="crr-sec">Aviation DNA</div>'+dna
     +(chips?('<div class="crr-sec">Por clase de avión</div><div style="display:flex;flex-wrap:wrap;gap:8px">'+chips+'</div>'):'')
@@ -39126,6 +39334,7 @@ function laShareWrapped() {
           <span class="ldi-fmt">XLSX</span>
           <span class="ldi-fmt cyan">CSV</span>
           <span class="ldi-fmt cyan">TXT</span>
+          <span class="ldi-fmt cyan">PDF</span>
         </div>
       </div>
       <button class="ldi-close" onclick="ldCloseImport()">
@@ -39134,7 +39343,7 @@ function laShareWrapped() {
     </div>
     <div class="ldi-body">
       <div class="ldi-info">
-        <div class="ldi-info-title">Columnas aceptadas · cualquier orden · español o inglés</div>
+        <div class="ldi-info-title">PDF Jeppesen EASA (PilotLog) · o CSV/Excel con estas columnas</div>
         <div class="ldi-info-cols">fecha/date · vuelo/flight · origen/dep · destino/arr · matrícula/reg · tipo/actype · atd block · ata block · total block · nocturno/night · ldg_dia · ldg_noche · rol/role · cm1 · cm2 · notas/notes</div>
       </div>
       <div id="ldi_zone" class="ldi-zone"
@@ -39145,7 +39354,7 @@ function laShareWrapped() {
         <div class="ldi-zone-title">Arrastra tu archivo aquí</div>
         <div class="ldi-zone-sub">o selecciona desde tu dispositivo</div>
         <label class="ldi-zone-btn">
-          <input type="file" id="ld_import_file" accept=".csv,.txt,.xls,.xlsx" onchange="ldImportFile(event)" style="display:none">
+          <input type="file" id="ld_import_file" accept=".csv,.txt,.xls,.xlsx,.pdf" onchange="ldImportFile(event)" style="display:none">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           Seleccionar archivo
         </label>
