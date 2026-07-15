@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.380">
+  <meta name="version" content="Beta.381">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.380","builtAt":"2026-07-15T16:33:20Z","commit":"6ac9894","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.381","builtAt":"2026-07-15T16:48:02Z","commit":"ce75f6b","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -19358,6 +19358,12 @@ function ldRender(){
   var total=ldFiltered.length, pages=Math.ceil(total/LD_PER);
   var pag=document.getElementById('ld_pag');
   pag.style.display=total>LD_PER?'block':'none';
+  // Rearmar aquí el observer del FAB: esta línea es la que decide si hay paginación, y el
+  // observer se monta sobre ella. Antes solo se montaba al arrancar (t+200ms), al paginar y
+  // al filtrar; con el logbook llegando de la nube DESPUÉS del arranque no había paginación
+  // todavía, ldInitFabObserver salía por su `return` y el botón se quedaba de píldora para
+  // siempre. Cubre también import, restaurar y borrar, que pasan todos por ldRender.
+  ldInitFabObserver();
   if(total<=LD_PER) return;
 
   // Progress bar
@@ -37761,6 +37767,11 @@ function ldSwitchTab(name, el) {
   });
   var fab = document.getElementById('ld-fab');
   if(fab) fab.style.display = name==='vuelos' ? 'flex' : 'none';
+  // El FAB acaba de hacerse visible: rearmar el observer. ldInitFabObserver se rinde si la
+  // pantalla está oculta (`!pag.offsetParent`), así que si el sync llegó mientras el piloto
+  // estaba en otra pestaña, este es el momento en que hay que volver a montarlo. Diferido
+  // para que el layout esté asentado.
+  if(name==='vuelos') setTimeout(ldInitFabObserver, 60);
   if(name==='mapa') {
     if(!window._ldMapInit) { window._ldMapInit=1; setTimeout(ldMapInit, 60); }
     else { setTimeout(function(){ ldMapInit(); }, 30); }
