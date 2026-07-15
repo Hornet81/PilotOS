@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.392">
+  <meta name="version" content="Beta.393">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.392","builtAt":"2026-07-15T19:56:01Z","commit":"44fccc6","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.393","builtAt":"2026-07-15T20:07:01Z","commit":"04d3073","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -19252,23 +19252,10 @@ function ldRender(){
   ldfUpdateUI();
   var container=document.getElementById('ld_cards');
   if(!ldFiltered.length){
-    // Sin vuelos pero CON saldo: la cabecera canta 2.607h y aquí ponía "Logbook vacío ·
-    // Añade tu primer vuelo". Parece un fallo. Hay que explicar de dónde salen esas horas.
-    var _b=(typeof ldBalanceGet==='function')?ldBalanceGet():null;
-    var _soloSaldo=!ldEntries.length&&_b&&_b.flightTime;
-    container.innerHTML='<div class="ld-fempty"><div class="ld-fempty-icon">'+(_soloSaldo?'⏳':'📋')+'</div>'
-      +'<div class="ld-fempty-title">'+(ldEntries.length?'Sin resultados':(_soloSaldo?'Sin vuelos detallados':'Logbook vacío'))+'</div>'
-      +'<div class="ld-fempty-sub">'+(ldEntries.length?'Prueba otra búsqueda':(_soloSaldo
-          ? 'Tus '+ldM2s(_b.flightTime)+' de saldo de partida (hasta el '+_b.hasta+') sí cuentan en tu total,<br>pero son un resumen: sin ellos detallados no hay mapa, rutas ni estadísticas.'
-          : 'Añade tu primer vuelo'))+'</div>'
+    container.innerHTML='<div class="ld-fempty"><div class="ld-fempty-icon">📋</div>'
+      +'<div class="ld-fempty-title">'+(ldEntries.length?'Sin resultados':'Logbook vacío')+'</div>'
+      +'<div class="ld-fempty-sub">'+(ldEntries.length?'Prueba otra búsqueda':'Añade tu primer vuelo')+'</div>'
       +(ldEntries.length?'':'<button onclick="ldShowImport()" style="padding:10px 20px;background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.3);border-radius:12px;color:rgba(180,160,255,.85);font-family:\'Space Grotesk\',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px">📥 Importar logbook</button>')
-      // Borrar el saldo desde aquí: si has vaciado el logbook y sigues viendo horas, el
-      // sitio de quitarlas es este, no enterrado en otra pestaña. NUNCA se borra solo:
-      // el piloto que viene de papel vive con saldo y cero vuelos — es su único dato.
-      +(_soloSaldo?'<div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">'
-        +'<span class="ld-fempty-sub" style="margin:0;cursor:pointer;text-decoration:underline" onclick="ldSwitchTab(\'carrera\',document.querySelector(\'[onclick*=carrera]\'))">Ver o editar el saldo</span>'
-        +'<span class="ld-fempty-sub" style="margin:0;cursor:pointer;text-decoration:underline;color:#FCA5A5" onclick="ldBalanceRemove()">Eliminar las '+Math.floor(_b.flightTime/60)+'h de saldo</span>'
-        +'</div>':'')
       +'</div>';
     document.getElementById('ld_pag').style.display='none'; return;
   }
@@ -19954,7 +19941,7 @@ function ldStats(){
   var m28=_fl.filter(function(e){return now-new Date(e.date).getTime()<=d28;}).reduce(function(s,e){return s+ldT2m(e.block);},0);
   // Total de carrera = lo detallado + las horas previas resumidas del PDF importado.
   // El piloto quiere ver TODAS sus horas, no sólo las que hay como fila.
-  var bal=(typeof ldBalanceGet==='function')?ldBalanceGet():null;
+  var bal=(typeof ldBalanceActive==='function')?ldBalanceActive():null;
   var tmCareer=tm+((bal&&bal.flightTime)?bal.flightTime:0);
   var el=function(id){return document.getElementById(id);};
   if(el('ld_total'))  el('ld_total').textContent=ldM2s(tmCareer);
@@ -22733,28 +22720,16 @@ function _ldBalRead(b, prefix){
   return b;
 }
 
+// Carrera es SOLO informacion y estadistica: aquí no se edita ni se borra nada.
+// El saldo se revisa y se corrige en el pop-up de importación, antes de entrar.
 function ldBalanceCardHtml(){
-  var b=ldBalanceGet(); if(!b) return '';
-  var ed=!!window._ldBalEditing;
-  var cells=_ldBalCells(b, ed, 'ldbal_');
+  var b=ldBalanceActive(); if(!b) return '';
   return '<div class="crr-sec">Saldo de partida</div>'
     +'<div class="crr-total" style="border-color:rgba(245,158,11,.4)">'
-      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">'
-        +'<div><div class="ld-stat-label ldbal-lbl">Horas anteriores a PilotOS</div>'
-        +'<div class="crr-muted" style="font-size:11px;margin-top:3px">Hasta el '+(b.hasta||'—')+' · '
-          +(b.fuente==='jeppesen-pdf'?'importado del PDF Jeppesen':'editado a mano')+'</div></div>'
-        // Eliminar SIEMPRE a la vista: estas horas son la única cosa del logbook que no
-        // se puede borrar desde la lista, así que enterrarlas tras "Editar" deja al
-        // piloto viendo un total que no sabe quitar.
-        +'<div style="display:flex;gap:6px;flex-shrink:0">'
-          +'<div class="crr-gbtn" onclick="ldBalanceEdit('+(ed?'false':'true')+')">'+(ed?'Cancelar':'Editar')+'</div>'
-          +(ed?'':'<div class="crr-gbtn" style="border-color:rgba(239,68,68,.4);color:#FCA5A5" onclick="ldBalanceRemove()">Eliminar</div>')
-        +'</div>'
-      +'</div>'
-      +'<div class="ld-stats" style="grid-template-columns:repeat(4,1fr);margin:12px 0 0">'+cells+'</div>'
-      +(ed?('<div style="display:flex;gap:8px;margin-top:12px">'
-        +'<div class="crr-gbtn" onclick="ldBalanceSaveEdit()">Guardar</div>'
-        +'<div class="crr-gbtn" style="border-color:rgba(239,68,68,.4);color:#FCA5A5" onclick="ldBalanceRemove()">Eliminar saldo</div></div>'):'')
+      +'<div><div class="ld-stat-label ldbal-lbl">Horas anteriores a PilotOS</div>'
+      +'<div class="crr-muted" style="font-size:11px;margin-top:3px">Hasta el '+(b.hasta||'—')+' · '
+        +(b.fuente==='jeppesen-pdf'?'importado del PDF Jeppesen':'editado a mano')+'</div></div>'
+      +'<div class="ld-stats" style="grid-template-columns:repeat(4,1fr);margin:12px 0 0">'+_ldBalCells(b,false,'ldbal_')+'</div>'
       +'<div class="crr-muted" style="font-size:10.5px;margin-top:10px">Resumen de tus horas previas. Suman a los totales de carrera, pero no son vuelos: no aparecen en la lista ni en el mapa.</div>'
     +'</div>';
 }
@@ -22766,28 +22741,19 @@ function ldBalanceCardHtml(){
 // Es una REGLA de lectura, no una resta sobre el saldo. La resta era asimétrica: al
 // importar bajaba el saldo, pero al BORRAR esos vuelos las horas no volvían y se
 // evaporaban de la carrera en silencio. Así el total es estable pase lo que pase.
-function ldBalCut(){ var b=ldBalanceGet(); return (b&&b.hasta)?b.hasta:null; }
+// El saldo sólo cuenta si hay logbook. Sin vuelos no hay horas en ninguna parte: ni en
+// el total, ni en Carrera. No se BORRA al vaciar (un pull lento deja ldEntries vacío un
+// instante y nos cargaríamos el dato), simplemente no cuenta.
+function ldBalanceActive(){
+  var b=ldBalanceGet(); if(!b||!b.flightTime) return null;
+  var hay=(window.ldEntries||[]).some(function(e){
+    return e && e.date && e.type!=='__ac_db__' && e.id!==LD_AC_DB_ENTRY_ID;
+  });
+  return hay?b:null;
+}
+function ldBalCut(){ var b=ldBalanceActive(); return (b&&b.hasta)?b.hasta:null; }
 function ldNotInBalance(e){ var c=ldBalCut(); return !c || !e || !e.date || e.date>c; }
 
-function ldBalanceEdit(on){ window._ldBalEditing=!!on; ldRenderCarrera(); }
-function ldBalanceSaveEdit(){
-  var b=_ldBalRead(ldBalanceGet()||{}, 'ldbal_');
-  b.fuente='manual'; b.editadoEl=new Date().toISOString();
-  ldBalanceSet(b); window._ldBalEditing=false;
-  if(typeof showToast==='function') showToast('✓ Saldo de partida actualizado');
-  ldRenderCarrera();
-}
-function ldBalanceRemove(){
-  var _b=ldBalanceGet()||{};
-  if(!confirm('¿Eliminar tus '+ldM2s(_b.flightTime||0)+' de saldo de partida?\n\nSon las horas anteriores al '+(_b.hasta||'—')+' que importaste resumidas. Tu carrera pasará a contar solo los vuelos detallados.')) return;
-  try{ localStorage.removeItem(LD_BALANCE_KEY); }catch(e){}
-  window._ldBalEditing=false;
-  if(typeof showToast==='function') showToast('Saldo de partida eliminado');
-  // Se puede llamar desde Carrera o desde el estado vacío de Vuelos: refrescar ambos,
-  // o el total de la cabecera se queda cantando horas que ya no existen.
-  try{ ldRenderCarrera(); }catch(e){}
-  try{ ldRender(); ldStats(); }catch(e){}
-}
 
 function ldImportConfirm(){
   if(!_ldImportData||_ldImportData.length===0){ ldCloseImport(); return; }
@@ -38118,7 +38084,7 @@ function ldRenderCarrera(){
   // ── Saldo de partida: horas previas a PilotOS (perfil, NO entradas) ──
   // Suma sólo aquí, en la lente Carrera. Nadie más lo lee (ni Pay Check, que calcula
   // con las horas del MES y se volvería loco con 2.600 horas de golpe).
-  var bal=(typeof ldBalanceGet==='function')?ldBalanceGet():null;
+  var bal=(typeof ldBalanceActive==='function')?ldBalanceActive():null;
   if(bal){
     tot+=bal.flightTime||0; pic+=bal.pic||0; cop+=bal.cop||0;
     night+=bal.night||0; ifr+=bal.ifr||0; mp+=bal.mp||0;
