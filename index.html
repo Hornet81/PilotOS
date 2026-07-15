@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.384">
+  <meta name="version" content="Beta.385">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.384","builtAt":"2026-07-15T17:56:41Z","commit":"bdeb498","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.385","builtAt":"2026-07-15T18:04:48Z","commit":"0c0b625","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -37885,7 +37885,15 @@ function ldRenderCarrera(){
       +'<div><div class="ld-stat-label" style="color:rgba(16,185,129,.75)">Total de carrera · EASA</div>'
       +'<div class="ld-stat-value" style="font-size:32px;margin-top:4px">'+M(tot)+'</div>'
       +'<div class="crr-muted" style="font-size:11px;margin-top:3px">'+ents.length+' vuelos'
-        +(bal&&bal.flightTime?(' · + '+M(bal.flightTime)+' de saldo anterior'):' · mismos que la pestaña Vuelos')+'</div></div>'
+        +(bal&&bal.flightTime?(' · + '+M(bal.flightTime)+' de saldo anterior'):' · mismos que la pestaña Vuelos')+'</div>'
+      // Reconciliación con el número que el piloto tiene en la cabeza. Su app anterior
+      // sumaba vuelo + simulador en un solo total; aquí van separados porque EASA los
+      // separa (el sim tiene su propia columna). Sin esta línea, al importar ve un total
+      // más bajo y piensa que le hemos perdido horas.
+      +(simMin?('<div class="crr-muted" style="font-size:10.5px;margin-top:6px;line-height:1.55;font-family:\'Space Mono\',monospace;opacity:.8">'
+        +M(tot)+' de vuelo + '+M(simMin)+' de simulador = <b style="color:#10B981">'+M(tot+simMin)+'</b><br>'
+        +'<span style="opacity:.75">No falta nada: el simulador va aparte, como pide EASA.</span></div>'):'')
+      +'</div>'
       +'<div class="crr-gbtn" onclick="ldExportPickRange(\'pdf\')">↓ PDF EASA</div>'
     +'</div></div>'
     +ldBalanceCardHtml()
