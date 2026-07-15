@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.386">
+  <meta name="version" content="Beta.387">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.386","builtAt":"2026-07-15T18:39:14Z","commit":"65bc018","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.387","builtAt":"2026-07-15T18:45:10Z","commit":"e482db9","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -7121,6 +7121,39 @@ html.day .ldi-zone-sub{color:#64748B!important}
 html.day .ldi-zone-fmt{background:rgba(14,116,144,.07)!important;border-color:rgba(14,116,144,.2)!important;color:rgba(14,116,144,.7)!important}
 html.day .ldi-ftr{background:rgba(240,249,255,.95)!important;border-top-color:rgba(14,116,144,.12)!important}
 html.day .ldi-ftr-note{color:rgba(14,116,144,.45)!important}
+
+/* ── Saldo de partida (pop-up de importar + tarjeta de Carrera) ──
+   En clases y no inline: el modo día se aplica con `html.day ... !important`,
+   y un estilo inline no se puede sobrescribir desde CSS sin !important. */
+.ldbal-box{margin-top:9px;padding:11px 12px;background:rgba(245,158,11,.09);border:1px solid rgba(245,158,11,.28);border-radius:10px}
+.ldbal-h{font-size:11px;font-weight:700;color:#FBBF24;letter-spacing:.3px}
+.ldbal-p{font-size:9.5px;color:rgba(226,232,240,.65);margin-top:3px;line-height:1.5}
+.ldbal-p b{color:rgba(251,191,36,.95)}
+.ldbal-cut{font-size:9.5px;color:rgba(226,232,240,.5);margin-top:7px}
+.ldbal-cut b{color:#FBBF24}
+.ldbal-note{font-size:9px;color:rgba(226,232,240,.5);margin-top:6px;padding:6px 8px;background:rgba(0,0,0,.18);border-radius:7px;line-height:1.55;font-family:'Space Mono',monospace}
+.ldbal-note b{color:rgba(251,191,36,.95)}
+.ldbal-inp{width:100%;background:rgba(8,12,26,.6);border:1px solid rgba(245,158,11,.35);border-radius:7px;color:#FBBF24;font-family:'Space Mono',monospace;font-size:13px;padding:4px 6px;margin-top:3px}
+.ldbal-v{font-size:15px;color:#FBBF24}
+.ldbal-hint{margin-top:7px;font-size:10px;color:rgba(226,232,240,.6)}
+.ldbal-good{color:#6EE7B7}
+.ldbal-bad{color:#FCA5A5}
+.ldbal-lbl{color:rgba(245,158,11,.85)}
+
+html.day .ldbal-box{background:rgba(245,158,11,.10)!important;border-color:rgba(180,83,9,.35)!important}
+html.day .ldbal-h{color:#92400E!important}
+html.day .ldbal-p{color:#475569!important}
+html.day .ldbal-p b{color:#92400E!important}
+html.day .ldbal-cut{color:#64748B!important}
+html.day .ldbal-cut b{color:#92400E!important}
+html.day .ldbal-note{background:rgba(255,255,255,.75)!important;color:#475569!important;border:1px solid rgba(180,83,9,.18)!important}
+html.day .ldbal-note b{color:#92400E!important}
+html.day .ldbal-inp{background:#fff!important;border-color:rgba(180,83,9,.4)!important;color:#92400E!important}
+html.day .ldbal-v{color:#92400E!important}
+html.day .ldbal-hint{color:#475569!important}
+html.day .ldbal-good{color:#047857!important}
+html.day .ldbal-bad{color:#B91C1C!important}
+html.day .ldbal-lbl{color:#92400E!important}
 html.day .rst-options-btn{
   background:rgba(0,0,0,.06) !important;
   border-color:rgba(0,0,0,.15) !important;
@@ -22303,24 +22336,24 @@ async function ldImportPdfViaBackend(file){
     var bits=[];
     // El saldo se enseña EDITABLE aquí, antes de confirmar: si el PDF trae una cifra
     // rara o el parser se equivoca, el sitio de arreglarlo es este, no después.
-    if(ob.flightTime) bits.push('<div style="margin-top:9px;padding:11px 12px;background:rgba(245,158,11,.09);border:1px solid rgba(245,158,11,.28);border-radius:10px">'
-      +'<div style="font-size:11px;font-weight:700;color:#FBBF24;letter-spacing:.3px">He detectado '+ldMinToHHMM(ob.flightTime)+' de páginas anteriores</div>'
-      +'<div style="font-size:9.5px;color:rgba(226,232,240,.65);margin-top:3px;line-height:1.5">Tu PDF sólo detalla los últimos vuelos; el resto viene resumido. Estas horas suman a tu carrera pero no son vuelos: no salen en la lista ni en el mapa.<br><b style="color:rgba(251,191,36,.9)">Compruébalas y corrige lo que haga falta antes de confirmar.</b></div>'
-      +'<div style="font-size:9.5px;color:rgba(226,232,240,.5);margin-top:7px">Hasta el <b style="color:#FBBF24">'+(ob.hasta||'—')+'</b> · lo anterior a esa fecha</div>'
+    if(ob.flightTime) bits.push('<div class="ldbal-box">'
+      +'<div class="ldbal-h">He detectado '+ldMinToHHMM(ob.flightTime)+' de páginas anteriores</div>'
+      +'<div class="ldbal-p">Tu PDF sólo detalla los últimos vuelos; el resto viene resumido. Estas horas suman a tu carrera pero no son vuelos: no salen en la lista ni en el mapa.<br><b>Compruébalas y corrige lo que haga falta antes de confirmar.</b></div>'
+      +'<div class="ldbal-cut">Hasta el <b>'+(ob.hasta||'—')+'</b> · lo anterior a esa fecha</div>'
       // El PDF imprime en "TOTAL TIME OF FLIGHT" la suma vuelo+simulador. Si no lo
       // explicamos, el piloto compara con su papel, ve otro número y piensa que
       // fallamos nosotros. Se enseña la cuenta.
       +((ob.totalColPrinted&&ob.sim&&Math.abs(ob.totalColPrinted-(ob.flightTime+ob.sim))<=1)
-        ? '<div style="font-size:9px;color:rgba(226,232,240,.45);margin-top:6px;padding:6px 8px;background:rgba(0,0,0,.18);border-radius:7px;line-height:1.55;font-family:Space Mono,monospace">'
+        ? '<div class="ldbal-note">'
           +'Tu PDF imprime <b>'+ldMinToHHMM(ob.totalColPrinted)+'</b> de «total time of flight», pero ahí dentro tu programa suma el simulador:<br>'
           +'&nbsp;&nbsp;'+ldMinToHHMM(ob.flightTime)+' de vuelo + '+ldMinToHHMM(ob.sim)+' de simulador = '+ldMinToHHMM(ob.totalColPrinted)+'<br>'
           +'Aquí van separados, como pide EASA: el simulador no es tiempo de vuelo.</div>'
         : '')
       +'<div class="ld-stats" style="grid-template-columns:repeat(3,1fr);gap:7px;margin:8px 0 0">'+_ldBalCells(ob,true,'ldimpbal_')+'</div>'
       +'</div>');
-    if((d.simSessions||[]).length) bits.push('<div style="margin-top:7px;font-size:10px;color:rgba(226,232,240,.6)">De las filas de arriba, '+d.simSessions.length+' son sesiones de simulador (sin ruta, no cuentan como horas de vuelo).</div>');
-    if(d.reconcile&&!d.reconcile.ok) bits.push('<div style="margin-top:7px;font-size:10px;color:#FCA5A5">⚠ El PDF no cuadra con sus propios totales impresos ('+d.reconcile.checks.filter(function(c){return !c.ok;}).length+' descuadres). Revisa antes de confirmar.</div>');
-    else bits.push('<div style="margin-top:7px;font-size:10px;color:#6EE7B7">✓ Cuadra con los totales impresos del PDF</div>');
+    if((d.simSessions||[]).length) bits.push('<div class="ldbal-hint">De las filas de arriba, '+d.simSessions.length+' son sesiones de simulador (sin ruta, no cuentan como horas de vuelo).</div>');
+    if(d.reconcile&&!d.reconcile.ok) bits.push('<div class="ldbal-hint ldbal-bad">⚠ El PDF no cuadra con sus propios totales impresos ('+d.reconcile.checks.filter(function(c){return !c.ok;}).length+' descuadres). Revisa antes de confirmar.</div>');
+    else bits.push('<div class="ldbal-hint ldbal-good">✓ Cuadra con los totales impresos del PDF</div>');
     _ldPdfSummary=bits.join('');
 
     ldImportProcess(rows,file.name);
@@ -22539,8 +22572,8 @@ function _ldBalCells(b, ed, prefix){
     var v=f.hm?_ldBalFmt(b[f.k]):String(b[f.k]||0);
     return '<div class="ld-stat"><div class="ld-stat-label">'+f.l+'</div>'
       +(ed
-        ? '<input id="'+prefix+f.k+'" value="'+v+'" style="width:100%;background:rgba(8,12,26,.6);border:1px solid rgba(245,158,11,.35);border-radius:7px;color:#FBBF24;font-family:\'Space Mono\',monospace;font-size:13px;padding:4px 6px;margin-top:3px">'
-        : '<div class="ld-stat-value" style="font-size:15px;color:#FBBF24">'+v+'</div>')
+        ? '<input class="ldbal-inp" id="'+prefix+f.k+'" value="'+v+'">'
+        : '<div class="ld-stat-value ldbal-v">'+v+'</div>')
       +'</div>';
   }).join('');
 }
@@ -22560,7 +22593,7 @@ function ldBalanceCardHtml(){
   return '<div class="crr-sec">Saldo de partida</div>'
     +'<div class="crr-total" style="border-color:rgba(245,158,11,.4)">'
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">'
-        +'<div><div class="ld-stat-label" style="color:rgba(245,158,11,.85)">Horas anteriores a PilotOS</div>'
+        +'<div><div class="ld-stat-label ldbal-lbl">Horas anteriores a PilotOS</div>'
         +'<div class="crr-muted" style="font-size:11px;margin-top:3px">Hasta el '+(b.hasta||'—')+' · '
           +(b.fuente==='jeppesen-pdf'?'importado del PDF Jeppesen':'editado a mano')+'</div></div>'
         +'<div class="crr-gbtn" onclick="ldBalanceEdit('+(ed?'false':'true')+')">'+(ed?'Cancelar':'Editar')+'</div>'
