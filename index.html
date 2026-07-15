@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.377">
+  <meta name="version" content="Beta.378">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.377","builtAt":"2026-07-15T11:28:05Z","commit":"580cbb3","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.378","builtAt":"2026-07-15T11:38:37Z","commit":"8b8cae5","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -19957,6 +19957,7 @@ function ldToggleMenu(){
     +mi('☁️',icoB,'Sincronizar nube','Descargar desde Supabase','ldManualPull()',lbl,'ld-menu-sync-btn')
     +mi('🔄',icoB,'Full sync desde cero','Resetea caché y descarga todo','ldResetSync()',lbl,'')
     +mi('⬇️',icoB,'Exportar','PDF · EASA · CSV','ldToggleExport()',lbl,'')
+    +mi('💾',icoB,'Restaurar backup','Desde un JSON exportado','ldRestoreBackup()',lbl,'')
     +mi('♻️',icoB,'Papelera','Restaurar vuelos borrados','ldOpenTrash()',lbl,'')
     +'<div style="height:1px;background:'+redD+';margin:8px 0 2px"></div>'
     +mi('🗑',icoB,'Eliminar vuelos','Selección masiva','ldEnterSelectMode()',lbl,'',true)
@@ -20105,6 +20106,144 @@ async function ldTrashRestore(){
     showToast('No se pudo restaurar: '+(e.message||''),'error');
     ldTrashRender(90);
   }
+}
+
+// ── BACKUP JSON — restaurar ──────────────────────────────────────────────
+// Contrapartida de _ldRunExportJSON. Un export sin importador no es un backup, es un
+// consuelo: hasta hoy la app generaba pilotOS-logbook-v1 y no sabía leerlo.
+// Va por su cuenta (input propio + entrada de menú) y NO por ldParseImportFile a
+// propósito: ese camino pasa por ldMapRow, que mapea columnas de CSV ajeno y se dejaría
+// por el camino justo los campos que un backup debe devolver intactos.
+// Es ADITIVO: añade lo que falta y jamás pisa un vuelo que ya tengas.
+var _ldBkPending=null;
+
+function ldRestoreBackup(){
+  var inp=document.createElement('input');
+  inp.type='file'; inp.accept='.json,application/json';
+  inp.style.display='none';
+  inp.onchange=function(ev){
+    var f=ev.target.files&&ev.target.files[0];
+    if(f) _ldReadBackupFile(f);
+    setTimeout(function(){ try{ inp.remove(); }catch(_e){} },0);
+  };
+  document.body.appendChild(inp);
+  inp.click();
+}
+function _ldReadBackupFile(file){
+  var r=new FileReader();
+  r.onload=function(ev){
+    var bk=null;
+    try{ bk=JSON.parse(ev.target.result); }
+    catch(e){ showToast('Ese archivo no es un JSON válido','error'); return; }
+    // Basta con que traiga un array de vuelos: así vale un v1, un v2 y un v3 futuro.
+    if(!bk||!Array.isArray(bk.entries)){ showToast('No parece un backup de PilotOS','error'); return; }
+    _ldShowBackupConfirm(bk,file.name);
+  };
+  r.onerror=function(){ showToast('No se pudo leer el archivo','error'); };
+  r.readAsText(file);
+}
+// Qué traería este backup, sin aplicar nada todavía
+function _ldBackupPlan(bk){
+  var byId={}, byKey={};
+  ldEntries.forEach(function(e){
+    if(!e) return;
+    if(e.id) byId[e.id]=1;
+    if(typeof ldContentKey==='function'){ var k=ldContentKey(e); if(k) byKey[k]=1; }
+  });
+  var nuevos=[], repes=0;
+  (bk.entries||[]).forEach(function(e){
+    if(!e||e.type==='__ac_db__') return;
+    var k=(typeof ldContentKey==='function')?ldContentKey(e):null;
+    if((e.id&&byId[e.id])||(k&&byKey[k])){ repes++; return; }
+    if(e.id) byId[e.id]=1;
+    if(k) byKey[k]=1;
+    nuevos.push(e);
+  });
+  return {nuevos:nuevos, repes:repes, extras:(bk.extras||{})};
+}
+function _ldShowBackupConfirm(bk,fname){
+  var plan=_ldBackupPlan(bk);
+  _ldBkPending={bk:bk, plan:plan};
+  var day=document.documentElement.classList.contains('day');
+  var old=document.getElementById('ld-bk-ov'); if(old) old.remove();
+  var ov=document.createElement('div');
+  ov.id='ld-bk-ov';
+  ov.style.cssText='position:fixed;inset:0;z-index:10000;background:'+(day?'rgba(10,22,48,.5)':'rgba(2,8,20,.65)')+';-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s ease';
+  var txt=day?'#0A1628':'rgba(248,250,252,.92)';
+  var dim=day?'#64748B':'rgba(248,250,252,.45)';
+  var ex=plan.extras, exBits=[];
+  if(ex.acDb) exBits.push(Object.keys(ex.acDb).length+' matrículas');
+  if(ex.namesDb) exBits.push('nombres de tripulación');
+  if(ex.careerBalance) exBits.push('saldo de partida');
+  if(ex.myName) exBits.push('tu nombre');
+  ov.innerHTML='<div style="width:100%;max-width:480px;'+(day?'background:linear-gradient(180deg,rgba(240,252,255,.98) 0%,rgba(220,244,255,.99) 100%);border-top:1.5px solid rgba(13,148,136,.22)':'background:linear-gradient(180deg,rgba(8,22,40,.97) 0%,rgba(4,14,28,.99) 100%);border-top:1.5px solid rgba(34,211,238,.2)')+';border-radius:24px 24px 0 0;padding:0 18px calc(env(safe-area-inset-bottom,0px) + 16px);animation:slideUp .28s cubic-bezier(.2,.8,.3,1)">'
+    +'<div style="width:44px;height:5px;border-radius:3px;background:'+(day?'rgba(13,148,136,.4)':'rgba(34,211,238,.5)')+';margin:13px auto 14px"></div>'
+    +'<div style="font-family:\'Space Grotesk\',sans-serif;font-size:16px;font-weight:800;color:'+txt+'">💾 Restaurar backup</div>'
+    +'<div style="font-size:10px;color:'+dim+';font-family:\'Space Mono\',monospace;margin:3px 0 12px">'+fname+' · '+(bk.version||'?')+(bk.exportedAt?' · '+String(bk.exportedAt).slice(0,10):'')+'</div>'
+    +'<div style="padding:12px 14px;border-radius:13px;background:'+(day?'rgba(15,23,42,.03)':'rgba(255,255,255,.03)')+';border:1px solid '+(day?'rgba(15,23,42,.08)':'rgba(255,255,255,.07)')+';font-family:\'Space Mono\',monospace;font-size:12px;color:'+txt+';line-height:1.9">'
+    +'<div><span style="color:#34D399;font-weight:700">'+plan.nuevos.length+'</span> vuelos se añadirán</div>'
+    +'<div><span style="color:'+dim+'">'+plan.repes+'</span> ya los tienes · no se tocan</div>'
+    +(exBits.length?'<div style="color:'+dim+';font-size:10.5px;margin-top:4px">+ '+exBits.join(' · ')+'</div>':'')
+    +'</div>'
+    +'<div style="font-size:10px;color:'+dim+';margin:10px 2px 12px;line-height:1.6">Restaurar solo añade lo que falta. Ningún vuelo tuyo se sobrescribe ni se borra.</div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button onclick="ldCloseBackupConfirm()" style="flex:1;padding:13px;border-radius:12px;background:'+(day?'rgba(15,23,42,.05)':'rgba(255,255,255,.05)')+';border:1px solid '+(day?'rgba(15,23,42,.14)':'rgba(255,255,255,.12)')+';color:'+(day?'#334155':'#cbd5e1')+';font-size:12px;font-weight:700;cursor:pointer">Cancelar</button>'
+    +'<button id="ld-bk-go" onclick="ldApplyBackup()" '+(plan.nuevos.length||exBits.length?'':'disabled')+' style="flex:2;padding:13px;border-radius:12px;border:none;font-size:12px;font-weight:800;cursor:pointer;background:'+((plan.nuevos.length||exBits.length)?'linear-gradient(135deg,#059669,#34D399)':(day?'rgba(15,23,42,.06)':'rgba(255,255,255,.05)'))+';color:'+((plan.nuevos.length||exBits.length)?'#03291b':dim)+'">Restaurar</button>'
+    +'</div></div>';
+  ov.addEventListener('click',function(e){ if(e.target===ov) ldCloseBackupConfirm(); });
+  document.body.appendChild(ov);
+}
+function ldCloseBackupConfirm(){
+  var ov=document.getElementById('ld-bk-ov'); if(ov) ov.remove();
+  _ldBkPending=null;
+}
+function ldApplyBackup(){
+  if(!_ldBkPending) return;
+  var plan=_ldBkPending.plan, ex=plan.extras||{};
+  var btn=document.getElementById('ld-bk-go');
+  if(btn){ btn.disabled=true; btn.textContent='Restaurando…'; }
+
+  // 1. Vuelos que faltan (aditivo: los que ya están no se tocan)
+  plan.nuevos.forEach(function(e){ ldEntries.unshift(e); });
+  ldEntries.sort(function(a,b){ return (b.date||'')<(a.date||'')?-1:1; });
+
+  // 2. Lo de fuera de ldEntries. Se FUSIONA, nunca se reemplaza: lo que ya tienes en el
+  //    dispositivo manda sobre lo del archivo (puede ser más reciente que el backup).
+  function mergeObj(key,inc){
+    if(!inc) return 0;
+    var cur={}; try{ cur=JSON.parse(lsGet(key,'{}'))||{}; }catch(e){}
+    var n=0;
+    Object.keys(inc).forEach(function(k){ if(!(k in cur)){ cur[k]=inc[k]; n++; } });
+    lsSet(key,JSON.stringify(cur));
+    return n;
+  }
+  var nAc=mergeObj('pilotOS_ac_db_v1',ex.acDb);
+  if(ex.namesDb){
+    try{
+      var cur=JSON.parse(lsGet('pilotOS_names_db','[]'));
+      if(Array.isArray(cur)&&Array.isArray(ex.namesDb)){
+        ex.namesDb.forEach(function(n){ if(cur.indexOf(n)===-1) cur.push(n); });
+        lsSet('pilotOS_names_db',JSON.stringify(cur));
+      } else if(!Array.isArray(cur)) { mergeObj('pilotOS_names_db',ex.namesDb); }
+    }catch(e){}
+  }
+  if(ex.myName){
+    if(ex.myName.cpt&&!lsGet('pilotOS_myname_cpt','')) lsSet('pilotOS_myname_cpt',ex.myName.cpt);
+    if(ex.myName.fo &&!lsGet('pilotOS_myname_fo','')) lsSet('pilotOS_myname_fo',ex.myName.fo);
+  }
+  // El saldo de partida solo se pone si no hay: sobrescribirlo duplicaría horas de carrera.
+  if(ex.careerBalance&&!lsGet('pilotos_careerBalance',null)){
+    try{ lsSet('pilotos_careerBalance',JSON.stringify(ex.careerBalance)); }catch(e){}
+  }
+
+  ldSaveData();
+  if(typeof ldRender==='function') ldRender();
+  if(typeof ldStats==='function') ldStats();
+  if(typeof ldAcDbInit==='function' && nAc) { try{ ldAcDbInit(); }catch(e){} }
+  ldCloseBackupConfirm();
+  showToast('✓ '+plan.nuevos.length+' vuelos restaurados','success');
+  // Subirlos a la nube (delta push): si no, viven solo en este dispositivo
+  if(typeof ldBgSync==='function') ldBgSync({delay:600,force:true});
 }
 
 // ── STRIPE UPGRADE ───────────────────────────────────────────────
@@ -20283,7 +20422,9 @@ function _ldExportOpen(fmt){
   ldExportPickRange(fmt);
 }
 function ldExportPickRange(fmt){
-  if(!planCanExport()){showPlanToast('export');return;}
+  // El backup JSON NO se cobra: el logbook es un documento legal EASA y sacar copia de las
+  // horas propias no puede depender del plan. Pro sigue cobrando PDF, CSV y estadísticas.
+  if(fmt!=='json' && !planCanExport()){showPlanToast('export');return;}
   if(!ldEntries.length){showToast('No hay vuelos para exportar','error');return;}
   _ldExportFmt  = fmt;
   _ldExportRange= 'all';
@@ -20468,12 +20609,39 @@ function _ldRunExportCSV(entries){
   ldDl('\uFEFF'+csv,'PilotOS_Logbook_'+ldToday()+'.csv','text/csv;charset=utf-8;');
   showToast('\u2713 CSV exportado','success');
 }
+// \u2500\u2500 BACKUP JSON \u2014 export \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// Debe salir TODO lo que el piloto ha metido en el logbook, no solo los vuelos:
+//   \u00b7 entries  \u2192 el objeto ENTERO de cada vuelo, sin lista blanca. Cualquier campo nuevo
+//                (Vueling, carrera EASA, GA, sim\u2026) viaja solo sin tocar esta funci\u00f3n.
+//   \u00b7 extras   \u2192 lo que vive FUERA de ldEntries y se perd\u00eda en el v1: la BD de matr\u00edculas,
+//                los nombres de tripulaci\u00f3n, tu propio nombre y el saldo de partida.
+// Las claves de `extras` se leen LITERALES (no por constante) a prop\u00f3sito: as\u00ed el export
+// no se rompe ni deja de incluirlas seg\u00fan qu\u00e9 m\u00f3dulos est\u00e9n cargados.
+function _ldBackupExtras(){
+  var x={};
+  function j(k){ try{ var v=lsGet(k,null); return v?JSON.parse(v):null; }catch(e){ return null; } }
+  var acDb=j('pilotOS_ac_db_v1');            // matr\u00edculas \u2192 tipo/motor
+  var names=j('pilotOS_names_db');           // tripulaci\u00f3n conocida
+  var bal=j('pilotos_careerBalance');        // saldo de partida (lente Carrera)
+  var cpt=lsGet('pilotOS_myname_cpt','');
+  var fo=lsGet('pilotOS_myname_fo','');
+  if(acDb&&Object.keys(acDb).length) x.acDb=acDb;
+  if(names&&(names.length||Object.keys(names).length)) x.namesDb=names;
+  if(bal) x.careerBalance=bal;
+  if(cpt||fo) x.myName={cpt:cpt||'',fo:fo||''};
+  return x;
+}
 function _ldRunExportJSON(entries){
   var tm=entries.reduce(function(s,e){return s+ldT2m(e.block);},0);
   var hash=btoa('v1:'+entries.length+':'+tm+':'+(entries[0]&&entries[0].id?entries[0].id:'')).slice(0,20);
-  var bk={version:'pilotOS-logbook-v1',exportedAt:new Date().toISOString(),integrityHash:hash,totalEntries:entries.length,totalBlockMins:tm,entries:entries};
+  var extras=_ldBackupExtras();
+  // `entries` en la ra\u00edz y el mismo integrityHash que el v1 \u2192 un v2 lo lee cualquier cosa
+  // que leyera el v1. El importador acepta ambos.
+  var bk={version:'pilotOS-logbook-v2',exportedAt:new Date().toISOString(),integrityHash:hash,
+          totalEntries:entries.length,totalBlockMins:tm,entries:entries,extras:extras};
   ldDl(JSON.stringify(bk,null,2),'PilotOS_Backup_'+ldToday()+'.json','application/json');
-  showToast('\u2713 Backup JSON exportado','success');
+  var n=Object.keys(extras).length;
+  showToast('\u2713 Backup: '+entries.length+' vuelos'+(n?' + matr\u00edculas y nombres':''),'success');
 }
 // ── PilotOS official logo → PNG data URL for PDF ──
 var _PILOTOS_SVG = '<svg id="Capa_1" xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 830.97 260.12"><defs><style>.st0{fill:#3a3bf8}.st1{fill:#fff}.st2{fill:url(#a)}.st3{fill:url(#b)}.st4{fill:url(#c)}.st5{fill:url(#d)}.st6{fill:#1d1d1b}</style><linearGradient id="a" x1="107.44" y1="110.85" x2="270.36" y2="110.85" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#1d1d1b"/></linearGradient><linearGradient id="d" x1="97.59" y1="963.84" x2="97.59" y2="882.64" gradientTransform="translate(0 -805.5)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#08c6f8"/><stop offset=".08" stop-color="#17aef8"/><stop offset=".4" stop-color="#4666f9"/><stop offset=".82" stop-color="#613df9"/></linearGradient><linearGradient id="b" x1="735.99" y1="935.94" x2="617.31" y2="935.94" gradientTransform="translate(0 -805.5)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#08c6f8"/><stop offset=".08" stop-color="#17aef8"/><stop offset=".4" stop-color="#4666f9"/><stop offset=".82" stop-color="#613df9"/></linearGradient><linearGradient id="c" x1="800.34" y1="935.36" x2="635.33" y2="935.36" gradientTransform="translate(0 -805.5)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#08c6f8"/><stop offset=".08" stop-color="#17aef8"/><stop offset=".4" stop-color="#4666f9"/><stop offset=".82" stop-color="#613df9"/></linearGradient></defs><path class="st0" d="M122.52,144.25H55.29c8.17,18.64,20.31,23.45,30.16,23.45h33.3l3.77-23.45Z"/><path class="st2" d="M229.11,89.59h-121.67c3.35-16.33,23.04-26.39,37.9-26.39h125.02c-8.38,41.67-32.04,99.47-113.71,95.07l15.5-22.83c26.81-1.47,47.54-21.99,56.96-45.86Z"/><path class="st5" d="M24.09,108.44h147.01l-47.96,72.46c-11.73,19.68-29.74,26.39-46.7,27.64,18.85-28.48,48.58-74.13,48.58-74.13H55.29c-6.49,0-23.45-5.45-31.2-25.97Z"/><path class="st6" d="M349.18,100.09c-11.27,0-21.52,4.69-28.86,12.19-7.35,7.5-11.89,17.88-11.89,29.27v67.94h12.87v-37.71c7.26,6.94,17.1,11.24,27.89,11.23,11.27,0,21.51-4.69,28.85-12.19,7.35-7.5,11.89-17.88,11.89-29.27s-4.54-21.77-11.89-29.27c-7.34-7.5-17.59-12.19-28.86-12.19Zm19.67,61.72c-5.08,5.17-11.99,8.33-19.67,8.33s-14.59-3.15-19.67-8.33c-5.06-5.17-8.2-12.29-8.21-20.22,0-7.96,3.15-15.08,8.21-20.26,5.08-5.17,11.99-8.33,19.67-8.33s14.59,3.15,19.67,8.33c5.07,5.18,8.21,12.31,8.21,20.26s-3.15,15.08-8.21,20.26Z"/><path class="st6" d="M505.33,100.09c-11.27,0-21.53,4.68-28.86,12.19-7.35,7.49-11.9,17.88-11.89,29.27,0,11.39,4.54,21.77,11.89,29.27,7.34,7.51,17.59,12.2,28.86,12.19,11.27,0,21.51-4.69,28.85-12.19,7.35-7.49,11.89-17.88,11.89-29.27s-4.54-21.77-11.89-29.27c-7.34-7.51-17.59-12.19-28.86-12.19Zm19.67,61.72c-5.08,5.17-11.99,8.32-19.67,8.33-7.68,0-14.59-3.15-19.67-8.33-5.07-5.18-8.21-12.31-8.21-20.26s3.15-15.08,8.21-20.26c5.08-5.17,11.99-8.32,19.67-8.33,7.68,0,14.59,3.15,19.67,8.33,5.07,5.18,8.21,12.31,8.21,20.26s-3.15,15.08-8.21,20.26Z"/><rect class="st6" x="437.55" y="70.79" width="12.87" height="110.28"/><rect class="st6" x="404.07" y="101.74" width="12.87" height="79.33"/><circle class="st1" cx="409.8" cy="80.22" r="8.86"/><path class="st6" d="M589.89,170.29c-3.57-.02-5.83-.91-7.25-2.29-1.41-1.39-2.79-3.91-2.82-9.43v-43.36h20.29v-12.87h-20.29v-21.98h-12.87v21.98h-13.54v12.87h13.54v43.36c-.04,7.71,2.19,14.27,6.72,18.65,4.49,4.36,10.44,5.94,16.12,5.94,3.91,0,7.85-.69,11.74-1.82l-3.6-12.36c-2.96.86-5.77,1.31-8.14,1.3Z"/><path class="st3" d="M665.8,77.58c-14.41,0-27.51,5.95-36.91,15.52-9.42,9.55-15.24,22.79-15.24,37.34s5.82,27.78,15.24,37.34c9.4,9.56,22.5,15.52,36.91,15.52,14.4,0,27.5-5.95,36.9-15.52,9.42-9.56,15.24-22.79,15.24-37.34s-5.82-27.78-15.24-37.34c-9.41-9.56-22.5-15.52-36.91-15.52Zm27.74,81.16c-7.14,7.24-16.9,11.67-27.74,11.67s-20.6-4.44-27.74-11.67c-7.13-7.25-11.54-17.22-11.54-28.31s4.41-21.06,11.54-28.31c7.14-7.24,16.9-11.67,27.74-11.67s20.6,4.44,27.74,11.67c7.13,7.25,11.54,17.22,11.54,28.31s-4.41,21.06-11.54,28.31Z"/><path class="st4" d="M804.64,139.25c-1.92-3.25-4.56-5.79-7.44-7.71-5.07-3.37-10.84-5.12-16.65-6.57-8.71-2.11-17.75-3.52-24.5-6.24-3.38-1.34-6.12-2.95-8.13-4.89-1.93-1.88-3.31-4.01-4.19-7.13-.05-.46-.07-.9-.07-1.33.05-4.43,2.07-7.86,6.3-10.9,4.21-2.95,10.61-4.9,17.65-4.88,9.78,0,20.53,3.61,28.81,11.9l9.1-9.1c-10.95-10.94-25.04-15.67-37.91-15.67-9.3.02-18.09,2.42-24.99,7.18-6.87,4.68-11.88,12.36-11.83,21.46,0,1.11.07,2.23.22,3.36l.05.39.1.37c1.22,4.83,3.52,8.97,6.5,12.22,5.25,5.72,12.1,8.69,18.89,10.77,10.21,3.05,20.96,4.35,28.25,7.14,3.65,1.36,6.24,2.99,7.78,4.79,1.51,1.83,2.47,3.89,2.52,7.94-.06,5.39-2.27,9.29-6.5,12.54-4.22,3.18-10.64,5.25-17.98,5.23-10.82,0-23.4-4.38-33.74-14.73l-9.1,9.1c12.79,12.79,28.61,18.5,42.84,18.5,9.66,0,18.7-2.6,25.69-7.8,6.98-5.13,11.72-13.33,11.66-22.85,0-4.94-1.13-9.43-3.34-13.13Z"/></svg>';
