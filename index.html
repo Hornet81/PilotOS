@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.378">
+  <meta name="version" content="Beta.379">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.378","builtAt":"2026-07-15T11:38:37Z","commit":"2874e72","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.379","builtAt":"2026-07-15T14:46:47Z","commit":"520ab0e","channel":"beta"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -20204,7 +20204,20 @@ function ldApplyBackup(){
   if(btn){ btn.disabled=true; btn.textContent='Restaurando…'; }
 
   // 1. Vuelos que faltan (aditivo: los que ya están no se tocan)
-  plan.nuevos.forEach(function(e){ ldEntries.unshift(e); });
+  //
+  // savedAt = AHORA, y no el del backup. Restaurar es un alta deliberada de HOY; el
+  // savedAt del archivo dice cuándo se editó el vuelo por última vez, que puede ser de
+  // hace años. Sin esto el vuelo entra en el logbook local y NO sale de este dispositivo:
+  //   · ldDeltaPush solo sube lo que tiene savedAt > ultimo sync  → se los salta en silencio
+  //   · y si el vuelo tiene tombstone, el backend lo tomaría por un re-push viejo de un
+  //     dispositivo desactualizado y lo descartaría (justo el caso de restaurar un backup
+  //     despues de un borrado, que es PARA lo que existe esta función).
+  // Es lo mismo que hace /api/logbook/restore de la papelera, y por eso aquella sí subía.
+  var _now=new Date().toISOString();
+  plan.nuevos.forEach(function(e){
+    e.savedAt=_now;
+    ldEntries.unshift(e);
+  });
   ldEntries.sort(function(a,b){ return (b.date||'')<(a.date||'')?-1:1; });
 
   // 2. Lo de fuera de ldEntries. Se FUSIONA, nunca se reemplaza: lo que ya tienes en el
