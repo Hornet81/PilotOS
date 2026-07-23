@@ -39,9 +39,37 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.395">
+  <meta name="version" content="Beta.398">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.395","builtAt":"2026-07-15T20:47:56Z","commit":"4441dab","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.398","builtAt":"2026-07-23T21:26:43Z","commit":"317bb9d","channel":"beta"};</script>
+  <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
+       para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
+       Usa addEventListener (no pisa ningún window.onerror existente). -->
+  <script>
+  (function(){
+    // ── BETA REPORTS ── cuando el frontend NO se sirve desde la web pública (pilotos.aero),
+    // lo sirve el propio backend (beta.pilotos.aero, *.up.railway.app…): mismo origen para front+API.
+    // Se fija cafi_backend_url una sola vez → todas las llamadas (api, tts, stt, version…) van a ese backend.
+    try {
+      var _h = location.hostname;
+      if (location.protocol.indexOf('http') === 0
+          && _h !== 'pilotos.aero' && _h !== 'www.pilotos.aero'
+          && _h !== 'localhost' && _h !== '127.0.0.1'
+          && !localStorage.getItem('cafi_backend_url')) {
+        localStorage.setItem('cafi_backend_url', location.origin);
+      }
+    } catch(e){}
+    window.__brJsErrors = window.__brJsErrors || [];
+    function _brPush(s){ try{ window.__brJsErrors.push(String(s).slice(0,300)); while(window.__brJsErrors.length>20) window.__brJsErrors.shift(); }catch(e){} }
+    window.addEventListener('error', function(e){
+      if(!e) return;
+      if(e.message){ _brPush(e.message + (e.filename ? ' @'+String(e.filename).split('/').pop()+':'+(e.lineno||'?') : '')); }
+    }, true);
+    window.addEventListener('unhandledrejection', function(e){
+      var r = e && e.reason; _brPush('Promise: ' + ((r && (r.message||r)) || 'rejection'));
+    });
+  })();
+  </script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -287,6 +315,9 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .fb.p .fbs{color:#4ADE80}.fb.x .fbs{color:#B45309}.fb.f .fbs{color:#F87171}
 .fbt{font-size:12px;color:#1E3A5F;line-height:1.55}
 .fbr{margin-top:4px;padding-top:4px;border-top:1px solid rgba(30,58,164,.1);font-size:11px;color:#0369A1;font-family:'Space Mono','SF Mono','Fira Code','Courier New',monospace}
+.fb-fig{margin-top:8px}
+.fb-fig .oes-fig{margin:0}
+.fb-fig svg{display:block;width:100%;max-width:340px;height:auto}
 
 /* START SCREEN */
 .start-sc{text-align:center;padding:32px 16px}
@@ -13873,50 +13904,28 @@ if(!window._dhClickListenerAdded){
 
 // ── OES MODULE ──
 const QB=[
+// ── Las preguntas de LIMITACIONES ya NO viven aquí: están en js/qbank-lim.js (294, trazadas al FCOM).
+//    Este array conserva sólo GEN / ABN / MEM / PROC.
 {sys:"AC",type:"GEN",q:"¿Cuántos packs de aire acondicionado tiene el A320 y de dónde obtienen el bleed air? (DSC-21)",keys:["2","pack","bleed","motor","apu","crossbleed","zona","trim air"],answer:"2 packs. Reciben bleed air de los motores (válvulas HP/IP) o del APU via crossbleed. Temperatura regulada por zonas (Cockpit, Fwd, Aft Cabin) mediante trim air valves. (FCOM DSC-21)",opts:["2 packs — bleed de motores o APU, temperatura por zonas con trim air valves","3 packs: 2 motores + 1 APU, temperatura fija","2 packs solo de motores","1 pack principal + 1 emergencia"]},
-{sys:"AC",type:"LIM",q:"¿Cuál es la presión diferencial máxima estructural del A320? (LIM-AG-PRESS)",keys:["8.6","psi","safety valve","diferencial"],answer:"8,6 PSI estructural. Safety valves abren a 8,6 PSI. Altitud máxima cabina normal: 8.000 ft.",opts:["8,6 PSI — safety valves abren a 8,6 PSI","9,0 PSI — a 9,0 PSI","7,5 PSI — a 7,5 PSI","8,6 PSI — a 9,2 PSI"]},
 {sys:"HYD",type:"GEN",q:"Según FCOM DSC-29-10-10, ¿a qué presión trabajan los sistemas hidráulicos del A320?",keys:["3000","2500","rat","blue","tres sistemas"],answer:"FCOM DSC-29-10-10: 'Normal system operating pressure is 3,000 PSI (2,500 PSI when powered by the RAT).' Tres sistemas: Green, Blue, Yellow. El fluido NO puede transferirse entre sistemas.",opts:["3.000 PSI normal; 2.500 PSI con RAT alimentando BLUE","3.000 PSI siempre incluido RAT","2.500 PSI normal; 3.000 PSI emergencia","3.000 Green/Yellow; 2.000 Blue"]},
 {sys:"HYD",type:"GEN",q:"Según FCOM DSC-29-10-20, ¿cuándo activa el PTU automáticamente?",keys:["500 psi","ptu","diferencial","bidireccional"],answer:"FCOM DSC-29-10-20: 'The PTU comes into action automatically when the differential pressure between the green and yellow systems is greater than 500 PSI.' Bidireccional — no transfiere fluido.",opts:["Cuando la diferencial Green-Yellow supera 500 PSI","Con >1.000 PSI de diferencial","Con >300 PSI de diferencial","Solo manualmente por la tripulación"]},
 {sys:"HYD",type:"GEN",q:"Según FCOM DSC-29-10-20, ¿en qué condición se despliega el RAT automáticamente?",keys:["rat","ac bus 1","ac bus 2","blue","2500"],answer:"FCOM DSC-29-10-20: 'The RAT deploys automatically if AC BUS 1 and AC BUS 2 are both lost.' Activa el sistema BLUE a 2.500 PSI y genera ~5 kVA eléctricos.",opts:["Si se pierden AC BUS 1 y AC BUS 2 simultáneamente","Si falla el motor 2","Manualmente desde el overhead","Si se pierden ambos motores independientemente de los buses"]},
-{sys:"FUEL",type:"LIM",q:"¿Cuál es el límite de desequilibrio entre wing tanks del A320?",keys:["500 kg","desequilibrio","ecam","manual"],answer:"500 kg. ECAM CAUTION si se supera. Gestión MANUAL: abrir crossfeed. No hay transferencia automática.",opts:["500 kg — ECAM CAUTION — gestión manual","750 kg — automático","300 kg — WARNING automático","1.000 kg — solo informativo"]},
 {sys:"FUEL",type:"GEN",q:"¿Cuándo se inhiben automáticamente las bombas del center tank?",keys:["750 kg","center tank","wing","inhibición"],answer:"Automáticamente cuando el wing tank cae por debajo de ~750 kg, para evitar descubrimiento de las entradas de bomba.",opts:["Cuando el wing tank baja de ~750 kg","Cuando el center tank llega a cero","Al abrir el crossfeed","En la emergencia eléctrica"]},
 {sys:"ELEC",type:"GEN",q:"¿Qué tensión y frecuencia generan los IDG del A320? (DSC-24)",keys:["115v","400hz","idg","28v","tr"],answer:"115V AC 400Hz. TRs (Transformer Rectifiers) convierten AC a 28V DC para los DC buses. (FCOM DSC-24-10)",opts:["115V AC 400Hz — 28V DC mediante TRs","115V AC 60Hz — 24V DC","230V AC 400Hz — 28V DC","115V AC 400Hz — 24V directamente de baterías"]},
 {sys:"FCTL",type:"GEN",q:"Según el FCTM (AOP-10-30-10), ¿qué es la 'control law' del A320?",keys:["control law","sidestick","respuesta","caracteristicas","manejo"],answer:"FCTM AOP-10-30-10: 'The relationship between the pilot input on the sidestick and the aircraft response is called the control law. The control law determines the handling characteristics of the aircraft.'",opts:["La relación entre el input del sidestick y la respuesta de la aeronave (FCTM AOP-10-30-10)","El software que controla los motores","La ley que regula las velocidades de maniobra","El sistema de protección contra el viento"]},
 {sys:"FCTL",type:"PROC",q:"Según el FCTM AOP-10-30-20, ¿qué debe hacer el PM si quiere actuar sobre el sidestick?",keys:["pm","i have control","sidestick","pushbutton","algebraica"],answer:"FCTM AOP-10-30-20: 'If the PM wants to act on the sidestick, the PM must: Clearly announce I have control, Press and maintain the sidestick pushbutton.' Los inputs se suman algebraicamente.",opts:["Anunciar 'I have control' y presionar el sidestick pushbutton (FCTM AOP-10-30-20)","Desconectar el AP primero","Esperar aprobación del PF","No puede actuar sobre el sidestick en ningún caso"]},
 {sys:"FCTL",type:"GEN",q:"Según el FCTM, ¿qué ocurre con los sidesticks cuando el autopiloto está enganchado?",keys:["autopilot","neutral","bloqueado","tactile","feedback"],answer:"FCTM AOP-10-30-10: 'When the autopilot is engaged: The sidesticks are locked in neutral position (immediate tactile feedback).'",opts:["Los sidesticks se bloquean en posición neutra con retroalimentación táctil inmediata","Los sidesticks se mueven siguiendo los comandos del AP","Los sidesticks se desconectan eléctricamente","Los sidesticks quedan libres pero inactivos"]},
-{sys:"FCTL",type:"LIM",q:"¿Cuáles son los límites de factor de carga del A320 en clean y con flaps? (LIM-AG-F_CTL)",keys:["-1","2.5","0","2","factor de carga","clean","flaps"],answer:"Clean: -1g a +2,5g. Con flaps/slats: 0g a +2g. (FCOM LIM-AG-F_CTL)",opts:["-1g a +2,5g clean; 0g a +2g con flaps","-1,5g a +3g clean","0g a +2,5g clean","-1g a +3g clean; 0g a +2,5g con flaps"]},
 {sys:"AF_FG",type:"GEN",q:"Según el FCTM (AS-FG-10-1), ¿qué indica el modo MANAGED en el FCU?",keys:["managed","managed mode","fms","gps","f-pln","accuracy"],answer:"FCTM AS-FG-10-1: los modos managed requieren buena precisión de navegación FMS (o GPS PRIMARY) y un F-PLN activo apropiado. FCU muestra guiones (---) y objetivo en magenta en PFD.",opts:["FCU muestra guiones; objetivo FMGC en magenta; requiere FMS accuracy y F-PLN activo","FCU muestra valor numérico en azul","El piloto controla directamente la velocidad","Solo disponible con AP enganchado"]},
 {sys:"AF_FM",type:"GEN",q:"¿Qué es el Cost Index y cuál es su rango? (DSC-22-70)",keys:["cost index","ci","combustible","tiempo","velocidad","economica"],answer:"CI es un ratio entre coste de tiempo y coste de combustible (0-999). CI=0: velocidad de mínimo combustible. CI=999: velocidad máxima. El FMGC calcula la velocidad ECON de crucero en función del CI.",opts:["Ratio tiempo/combustible (0-999); CI=0 mínimo combustible; CI=999 máxima velocidad","Índice de confort (0-100)","Factor de carga estructural","Parámetro de eficiencia del motor"]},
 {sys:"FIRE",type:"GEN",q:"¿Qué acciones realiza el FIRE PB de motor del A320? (DSC-26)",keys:["fuel sov","bleed valve","pack valve","idg","hydraulic firewall"],answer:"DSC-26: al presionar FIRE PB se cierra: fuel SOV, hydraulic firewall valve, bleed valve, pack valve; y se desconecta el IDG. Arma los agentes extintores para descarga giratoria.",opts:["Cierra fuel SOV + hyd firewall valve + bleed valve + pack valve + desconecta IDG","Solo cierra la fuel SOV","Cierra fuel SOV y para el motor","Descarga el agente directamente"]},
 {sys:"FIRE",type:"GEN",q:"¿Qué diferencia hay en la extinción de incendio de APU entre tierra y vuelo? (DSC-26)",keys:["tierra","automático","vuelo","manual","apu"],answer:"Tierra: APU para Y agente se descarga automáticamente sin acción de tripulación. Vuelo: tripulación actúa manualmente tras la advertencia del FIRE PB del APU. (FCOM DSC-26)",opts:["Tierra: extinción automática. Vuelo: tripulación actúa manualmente","Tierra: manual. Vuelo: automático","Siempre automático","Siempre manual"]},
-{sys:"GEAR",type:"LIM",q:"Según el FCOM Vueling LIM-AG-SPD, ¿cuáles son VLE, VLO extensión y VLO retracción?",keys:["280","0.67","vle","250","0.60","vlo","220","0.54"],answer:"VLE: 280 kt/M0,67. VLO extensión: 250 kt/M0,60. VLO retracción: 220 kt/M0,54. (FCOM VLG LIM-AG-SPD DEC 25)",opts:["VLE 280/M0,67 — VLO ext 250/M0,60 — VLO ret 220/M0,54","VLE 250/M0,60 — VLO ext 280/M0,67","VLE 300/M0,70 — VLO ext 260","VLE 260/M0,65 — VLO ext 250"]},
 {sys:"NAV",type:"MEM",q:"Items de memoria para UNRELIABLE AIRSPEED INDICATION del A320:",keys:["ap","fd","a/thr","off","qrh"],answer:"AP OFF — FD OFF — A/THR OFF. Después aplicar pitch y thrust de la tabla UNRELIABLE AIRSPEED del QRH según fase de vuelo.",opts:["AP OFF — FD OFF — A/THR OFF (luego tabla QRH)","AP OFF — PITCH UP — THRUST TOGA","FD OFF — A/THR OFF — EMERGENCIA","AP OFF — FD OFF — ENG MODE IGN"]},
 {sys:"SURV",type:"ABN",q:"Durante un RA del TCAS, ¿qué instrucción de ATC se ignora?",keys:["ra","atc","conflicto","prevalece","tcas"],answer:"El RA del TCAS prevalece siempre sobre las instrucciones de ATC. Si ATC da instrucción que conflicta con el RA, se sigue el RA y se informa a ATC.",opts:["Cualquier instrucción ATC que conflicte con el RA","Solo instrucciones de descenso","Las ATC si el RA ordena CLIMB","Ninguna — ATC siempre prevalece"]},
 {sys:"FIRE",type:"MEM",q:"Primera acción inmediata ante humo en cabina de vuelo:",keys:["oxígeno","máscara","100%","emergency","interphone"],answer:"Máscaras O2 al 100% EMERGENCY + comunicación por interphone. Luego identificar fuente y acciones ECAM.",opts:["Máscaras O2 100% EMERGENCY + interphone","Declarar emergencia y descender","Abrir RAM AIR","Identificar fuente antes"]},
-{sys:"AG",type:"LIM",q:"VMO y MMO del A320 según FCOM Vueling LIM-AG-SPD (Issue 03 DEC 25):",keys:["350","0.82","vmo","mmo"],answer:"VMO = 350 kt IAS. MMO = M 0,82. (FCOM VLG LIM-AG-SPD, Issue 03 DEC 25)",opts:["VMO 350 kt / MMO M 0,82","VMO 320 kt / MMO M 0,80","VMO 340 kt / MMO M 0,82","VMO 350 kt / MMO M 0,84"]},
-{sys:"FCTL",type:"LIM",q:"¿Cuál es la altitud máxima con slats y/o flaps extendidos? (LIM-AG-F_CTL)",keys:["20000","20.000","slats","flaps"],answer:"20.000 ft. Altitud certificada máxima: 39.800 ft. (FCOM VLG LIM-AG-F_CTL)",opts:["20.000 ft","15.000 ft","25.000 ft","10.000 ft"]},
-{sys:"APU",type:"LIM",q:"EGT máximo de arranque APU por debajo de 35.000 ft (LIM-APU):",keys:["1090","egt","apu","arranque"],answer:"1.090°C (< 35.000 ft). > 35.000 ft: 1.120°C. Operación continua: 675°C. (FCOM VLG LIM-APU)",opts:["1.090°C (< 35.000 ft)","900°C","1.200°C","675°C en todos los casos"]},
-{sys:"AG",type:"LIM",q:"Viento cruzado máximo demostrado en pista GOOD/DRY (LIM-AG-OPS):",keys:["38","demostrado","crosswind","good","dry"],answer:"38 kt (incluidas ráfagas) en GOOD/DRY. 29 kt en GOOD TO MEDIUM. 25 kt en MEDIUM. Valor demostrado en certificación, no limitación AFM. (FCOM VLG LIM-AG-OPS)",opts:["38 kt (gust included) en GOOD/DRY","29 kt en GOOD/DRY","25 kt en GOOD/DRY","45 kt en GOOD/DRY"]},
 {sys:"AG",type:"GEN",q:"Según el FCTM (AOP-10-20-20), ¿qué establece el concepto Dark Cockpit?",keys:["dark cockpit","overhead","sin iluminar","normal","anomalia","fault","off"],answer:"FCTM AOP-10-20-20: en configuración normal todos los pushbuttons del overhead panel deben estar sin iluminar. Luz FAULT (ámbar) = fallo. Luz blanca OFF = sistema desactivado/configuración no normal.",opts:["Overhead sin luces en normal; cualquier luz indica anomalía (FCTM AOP-10-20-20)","Cockpit con luz reducida","Pushbuttons verdes = normal","Solo FAULT amber indica anomalía"]},
 {sys:"AG",type:"GEN",q:"Según el FCTM (AOP-40), ¿cuál es el primer Golden Rule de Airbus para pilotos?",keys:["fly","navigate","communicate","golden rule","tasksharing","orden"],answer:"FCTM AOP-40: '1. Fly. Navigate. Communicate: In this order and with appropriate tasksharing.' Este orden es aplicable en TODAS las operaciones normales y situaciones anómalas/emergencia.",opts:["Fly, Navigate, Communicate en ese orden con tasksharing apropiado (FCTM AOP-40)","Communicate, Navigate, Fly","Aviate, Automate, Communicate","Manage, Monitor, Communicate"]},
 {sys:"AF_FG",type:"GEN",q:"Según el FCTM AOP-10-30-10, ¿cuál es el concepto 'non back-driven thrust lever'?",keys:["non back-driven","thrust lever","autothrust","posicion","maximo autorizado","thrust lever position"],answer:"FCTM AOP-10-30-10: 'When the autothrust is engaged, the Thrust Lever Position determines the maximum authorized thrust that may be commanded by the autothrust.' Las palancas no se mueven cuando el A/THR gestiona el empuje.",opts:["La posición de la palanca determina el empuje máximo autorizado para el A/THR (FCTM AOP-10-30-10)","Las palancas se mueven físicamente con el A/THR","Las palancas no tienen efecto cuando el A/THR está activo","El A/THR mueve las palancas automáticamente"]},
-{sys:"APU",type:"LIM",q:"¿Cuál es la velocidad máxima de rotor (N) del APU? (LIM-APU)",keys:["107","rotor","apu","n max"],answer:"Velocidad N máxima del APU: 107%. (FCOM VLG LIM-APU)",opts:["107%","100%","105%","110%"]},
-{sys:"APU",type:"LIM",q:"Tras tres intentos consecutivos de arranque del APU, ¿cuánto hay que esperar antes de un nuevo intento? (LIM-APU)",keys:["tres","3","60 min","60 minutos","arranque","apu"],answer:"Tras tres intentos consecutivos de arranque del APU hay que esperar 60 minutos antes de un nuevo intento. (FCOM VLG LIM-APU)",opts:["60 minutos","30 minutos","15 minutos","No hay espera obligatoria"]},
-{sys:"APU",type:"LIM",q:"Altitudes máximas de uso de APU BLEED (asistencia al arranque y acondicionamiento): (LIM-APU)",keys:["20000","20.000","22500","22.500","15000","15.000","anti-ice","wing"],answer:"APU bleed: asistencia al arranque de motor hasta 20.000 ft; A/C y presurización 22.500 ft (single pack) y 15.000 ft (dual pack). NO permitido para wing anti-ice. (FCOM VLG LIM-APU)",opts:["Arranque 20.000 ft; A/C 22.500 ft (single) / 15.000 ft (dual); no wing anti-ice","Arranque 25.000 ft; A/C 25.000 ft; sí wing anti-ice","Arranque 15.000 ft; A/C 20.000 ft (single) / 10.000 ft (dual)","Sin límite de altitud para APU bleed"]},
-{sys:"ENG",type:"LIM",q:"¿Hasta qué componente de viento cruzado es capaz de arrancar el motor en tierra? (LIM-ENG)",keys:["35","crosswind","viento cruzado","arranque","start"],answer:"El motor es capaz de arrancar con viento cruzado de hasta 35 kt. (FCOM VLG LIM-ENG)",opts:["35 kt","25 kt","38 kt","45 kt"]},
-{sys:"ENG",type:"LIM",q:"¿En qué tipo de pista NO está permitido el despegue con empuje reducido (FLEX)? (LIM-ENG)",keys:["flex","contaminada","contaminated","empuje reducido","no permitido"],answer:"El despegue FLEX (empuje reducido) no está permitido en pistas contaminadas. TFLEX no puede ser inferior a TREF ni al OAT real. (FCOM VLG LIM-ENG)",opts:["En pista contaminada","En pista mojada","En pista seca corta","En pista con pendiente negativa"]},
-{sys:"FUEL",type:"LIM",q:"Temperatura de combustible JET A1: mínima y máxima permitidas: (LIM-FUEL)",keys:["-43","54","jet a1","temperatura","combustible"],answer:"JET A1/JP8/N°3 JET: mínima -43°C, máxima 54°C (algún estándar 55°C). Para JET A la mínima es -36°C. (FCOM VLG LIM-FUEL)",opts:["Mín -43°C / máx 54°C","Mín -30°C / máx 60°C","Mín -54°C / máx 49°C","Mín -36°C / máx 65°C"]},
 {sys:"FUEL",type:"GEN",q:"¿Pueden mezclarse distintos tipos de combustible certificado en el A320? (LIM-FUEL)",keys:["mezclar","mezcla","todas las proporciones","mixed","combustible"],answer:"Sí: los distintos tipos de combustible certificado pueden mezclarse en todas las proporciones. En caso de mezcla, los valores mínimos de temperatura de la tabla dejan de aplicar. (FCOM VLG LIM-FUEL)",opts:["Sí, en todas las proporciones","No, nunca","Solo JET A1 con JET A","Solo con autorización de mantenimiento"]},
-{sys:"NAV",type:"LIM",q:"¿En qué latitudes es posible la alineación en tierra del IRS? (LIM-NAV)",keys:["82","73","latitud","irs","alineación","ground alignment"],answer:"La alineación en tierra del IRS es posible entre 82°N y 82°S (73° en aviones con ADIRU de tabla anterior). Volar más allá de los límites MAG REFERENCE está prohibido. (FCOM VLG LIM-NAV)",opts:["Entre 82°N y 82°S","Entre 60°N y 60°S","Sin límite de latitud","Entre 45°N y 45°S"]},
-{sys:"FCTL",type:"LIM",q:"Velocidades máximas (VFE) por configuración: CONF 1, CONF 2 y CONF 3: (LIM-FCTL)",keys:["230","215","195","vfe","conf","flaps"],answer:"CONF 1: 230 kt · CONF 1+F: 215 kt · CONF 2: 215 kt · CONF 3: 195 kt · CONF FULL: 186/190 kt (según avión). (FCOM VLG LIM-FCTL)",opts:["CONF 1 230 / CONF 2 215 / CONF 3 195 kt","CONF 1 250 / CONF 2 230 / CONF 3 200 kt","CONF 1 215 / CONF 2 195 / CONF 3 177 kt","CONF 1 230 / CONF 2 200 / CONF 3 180 kt"]},
-{sys:"AF_GEN",type:"LIM",q:"¿Cuál es la altura mínima de uso del autopilot tras el despegue? (LIM-AFS)",keys:["100","5 s","despegue","autopilot","ap","liftoff"],answer:"El AP puede usarse a partir de 100 ft AGL y al menos 5 s después del despegue (liftoff). (FCOM VLG LIM-AFS)",opts:["100 ft AGL y 5 s tras el liftoff","500 ft AGL","1.000 ft AGL","Inmediatamente tras rotación"]},
-{sys:"AF_GEN",type:"LIM",q:"¿Cuál es el viento de cola (tailwind) máximo para autoland (CAT II/III)? (LIM-AFS)",keys:["10","tailwind","viento de cola","autoland"],answer:"Tailwind máximo para autoland: 10 kt. (Headwind 30 kt, o 40 kt en CAT II; crosswind 20 kt, o 25 kt en CAT II.) (FCOM VLG LIM-AFS)",opts:["10 kt","15 kt","5 kt","20 kt"]},
-{sys:"AF_GEN",type:"LIM",q:"¿En qué configuraciones está aprobado el autoland CAT II/III fail passive? (LIM-AFS)",keys:["conf 3","full","autoland","cat ii","cat iii","1000"],answer:"El autoland CAT II/III fail passive está aprobado solo en CONF 3 y CONF FULL, y los procedimientos engine-out deben completarse antes de 1.000 ft en aproximación. (FCOM VLG LIM-AFS)",opts:["CONF 3 y CONF FULL","Solo CONF FULL","Cualquier configuración","CONF 1+F y CONF 2"]},
-{sys:"AG",type:"LIM",q:"Viento de cola máximo para aterrizaje y restricción de flaps asociada: (LIM-AG-OPS)",keys:["15","10","tailwind","viento de cola","flaps full","aterrizaje"],answer:"Tailwind máximo para aterrizaje: 15 kt. Con tailwind superior a 10 kt, usar FLAPS FULL únicamente. (FCOM VLG LIM-AG-OPS)",opts:["15 kt; con >10 kt usar FLAPS FULL","20 kt; sin restricción de flaps","10 kt; usar CONF 3","15 kt; usar CONF 3 siempre"]},
-{sys:"DOORS",type:"LIM",q:"Vientos máximos para la operación de puertas de pasaje y de carga: (LIM-AG-OPS)",keys:["65","40","puerta","door","pasaje","carga","cargo"],answer:"Puerta de pasaje: máximo 65 kt. Puertas de carga FWD/AFT: 40 kt (o 50 kt si el morro está al viento o las puertas a sotavento). Las puertas de carga deben cerrarse antes de superar 65 kt. (FCOM VLG LIM-AG-OPS)",opts:["Pasaje 65 kt; carga 40 kt","Pasaje 40 kt; carga 65 kt","Pasaje 50 kt; carga 50 kt","Sin límite de viento para puertas"]},
-{sys:"AG",type:"LIM",q:"¿Cuál es la velocidad mínima de control en aterrizaje (VMCL) del A320? (LIM-AG)",keys:["114","vmcl","control","aterrizaje"],answer:"VMCL = 114 kt. (FCOM VLG LIM-AG)",opts:["114 kt","125 kt","105 kt","98 kt"]},
-{sys:"AG",type:"LIM",q:"Por encima de qué peso hay límite de velocidad de rodaje en viraje, y cuál es? (LIM-AG)",keys:["76000","76.000","20 kt","taxi","rodaje","viraje","turn"],answer:"Si el peso de despegue supera 76.000 kg, no exceder 20 kt durante un viraje en rodaje. (FCOM VLG LIM-AG)",opts:["Por encima de 76.000 kg: máx 20 kt en viraje","Por encima de 64.000 kg: máx 10 kt","Sin límite de velocidad en viraje","Por encima de 70.000 kg: máx 30 kt"]},
-{sys:"AG",type:"LIM",q:"Pendiente máxima de pista y anchura mínima de pista certificadas: (LIM-AG-OPS)",keys:["3","30 m","45 m","pendiente","slope","anchura","width","pista"],answer:"Pendiente media de pista: ±3%. Anchura nominal de pista: 45 m; anchura mínima: 30 m. (FCOM VLG LIM-AG-OPS)",opts:["Pendiente ±3%; anchura mínima 30 m","Pendiente ±2%; anchura mínima 45 m","Pendiente ±5%; anchura mínima 23 m","Pendiente ±1,5%; anchura mínima 30 m"]},
 {sys:"O2",type:"GEN",q:"¿Cómo se calcula la REF Temperature para la presión mínima de la botella de oxígeno en tierra? (LIM-OXY)",keys:["ref temperature","oat","cockpit","media","ground","oxígeno"],answer:"En tierra: REF Temperature = (OAT + Cockpit TEMP) / 2. En vuelo: REF Temperature = CAB TEMP - 10°C. Sirve para entrar en la tabla de presión mínima de la botella de O2. (FCOM VLG LIM-OXY)",opts:["(OAT + Cockpit TEMP) / 2","OAT directamente","Cockpit TEMP - 10°C","(OAT + CAB TEMP) / 2"]},
 {sys:"O2",type:"GEN",q:"La presión mínima de la botella de O2 debe cubrir la protección contra humo. ¿Con qué parámetros? (LIM-OXY)",keys:["100%","15 min","8000","humo","smoke","oxígeno"],answer:"Protección contra humo con O2 al 100% para toda la tripulación y observadores durante 15 min a 8.000 ft de altitud de cabina (caso dimensionante de la presión mínima de botella). (FCOM VLG LIM-OXY)",opts:["100% O2, 15 min, a 8.000 ft de cabina","100% O2, 30 min, a nivel del mar","Oxígeno diluido, 15 min, a FL100","100% O2, 60 min, a 10.000 ft"]},
 {sys:"ELEC",type:"GEN",q:"En configuración eléctrica de emergencia (pérdida de ambos generadores de motor y del APU), ¿qué restablece la alimentación AC? (DSC-24)",keys:["rat","generador de emergencia","emergency generator","blue","ac ess","baterías"],answer:"El RAT se despliega y acciona el generador de emergencia (~5 kVA) a través del sistema hidráulico BLUE, alimentando el AC ESS BUS. Las baterías cubren la transición hasta que el generador de emergencia está disponible. (FCOM DSC-24)",opts:["El RAT acciona el generador de emergencia vía sistema BLUE","La APU arranca automáticamente","Las baterías alimentan todos los buses AC indefinidamente","Los TR invierten su función para generar AC"]},
@@ -14021,7 +14030,7 @@ function updOesVoiceUI(){
 // ── Question Bank — registro de sistemas (ATA) + tipos de pregunta ──
 const QB_TYPES=[["ALL","Todas"],["GEN","General"],["LIM","Limitaciones"],["ABN","Emergencias"],["MEM","Memory items"],["PROC","Procedimientos"]];
 const QB_FAMILIES=[
- {n:"Aircraft general",ic:"✈",sys:[["AG","Aircraft general"],["DOORS","Doors"],["WIN","Cockpit windows"],["EQUIP","Equipment"],["WW","Water / waste"],["LIGHTS","Lights"]]},
+ {n:"Aircraft general",ic:"✈",sys:[["AG","Aircraft general"],["SPD","Velocidades"],["WGHT","Pesos"],["ENV","Envolvente"],["ARPT","Aeropuerto y viento"],["DOORS","Doors"],["WIN","Cockpit windows"],["EQUIP","Equipment"],["WW","Water / waste"],["LIGHTS","Lights"]]},
  {n:"Powerplant",ic:"⚙",sys:[["ENG","Engines"],["APU","APU"],["FIRE","Fire protection"],["FUEL","Fuel"]]},
  {n:"Aire / presurización",ic:"❄",sys:[["AC","Air cond / press / vent"],["PNEU","Pneumatic"],["ICE","Ice & rain"],["O2","Oxygen"]]},
  {n:"Hidráulico y vuelo",ic:"⬡",sys:[["HYD","Hydraulic"],["GEAR","Landing gear"],["FCTL","Flight controls"]]},
@@ -14153,7 +14162,9 @@ function renderFB(fb){
   const mc={PASS:'p',PARTIAL:'x',FAIL:'f'};
   const ml={PASS:'✓ PASS',PARTIAL:'◑ PARTIAL',FAIL:'✗ FAIL'};
   const c=mc[fb.score]||'f';
-  return `<div class="fb ${c}"><div class="fbs">${ml[fb.score]}</div><div class="fbt">${esc(fb.comment)}<div class="fbr">FCOM VLG DEC 25: ${esc(fb.answer)}</div></div></div>`;
+  // Figura opcional (SVG nuestro, contenido controlado → NO se escapa) si la pregunta trae fig
+  const fig=(fb.fig&&window.OES_FIGS&&OES_FIGS[fb.fig])?`<div class="fb-fig">${OES_FIGS[fb.fig]}</div>`:'';
+  return `<div class="fb ${c}"><div class="fbs">${ml[fb.score]}</div><div class="fbt">${esc(fb.comment)}<div class="fbr">FCOM VLG DEC 25: ${esc(fb.answer)}</div>${fig}</div></div>`;
 }
 function shuffleOpts(q){const arr=q.opts.slice(),c=arr[0];for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return{opts:arr,correct:arr.indexOf(c)};}
 function oesPick(btn,i,qi){
@@ -14162,7 +14173,7 @@ function oesPick(btn,i,qi){
   const p=document.getElementById('oes-mc-opts')||btn.closest('.opts');
   if(p)p.querySelectorAll('.oes-mc-btn,.opt').forEach((b,idx)=>{b.disabled=true;if(idx===OS.sh.correct)b.classList.add(ok&&idx===i?'correct':'reveal');else if(idx===i&&!ok)b.classList.add('wrong');});
   if(ok)OS.pass++;else OS.fail++;updOes();
-  setTimeout(()=>{addOesMsg('ex','',{score:ok?'PASS':'FAIL',comment:ok?'Correcto.':'Incorrecto — respuesta correcta resaltada en verde.',answer:QB[qi].answer});var _nb=document.getElementById('oes-nbtn');if(_nb)_nb.disabled=false;var _nqb=document.getElementById('oes-nbtn-qb');if(_nqb)_nqb.style.display='block';},300);
+  setTimeout(()=>{addOesMsg('ex','',{score:ok?'PASS':'FAIL',comment:ok?'Correcto.':'Incorrecto — respuesta correcta resaltada en verde.',answer:QB[qi].answer,fig:QB[qi].fig});var _nb=document.getElementById('oes-nbtn');if(_nb)_nb.disabled=false;var _nqb=document.getElementById('oes-nbtn-qb');if(_nqb)_nqb.style.display='block';},300);
 }
 function evalFree(ans,q){
   const a=ans.toLowerCase();const m=q.keys.filter(k=>a.includes(k.toLowerCase()));const r=m.length/q.keys.length;const miss=q.keys.filter(k=>!a.includes(k.toLowerCase()));
@@ -14171,7 +14182,7 @@ function evalFree(ans,q){
   return{score:'FAIL',comment:`Insuficiente. Claves FCOM: ${q.keys.slice(0,6).join(', ')}.`,answer:q.answer};
 }
 function pickQ(){
-  const pool=QB.filter(q=>(OS.type==='ALL'||q.type===OS.type)&&(!OS.sys||q.sys===OS.sys));if(!pool.length)return null;
+  const pool=QB.filter(q=>(OS.type==='ALL'||q.type===OS.type)&&(!OS.sys||q.sys===OS.sys)&&!(OS.mode==='tv'&&q.mcOnly));if(!pool.length)return null;
   const pI=pool.map(q=>QB.indexOf(q));
   // 1) preferir preguntas NO vistas (persistente)
   let unseen=pI.filter(i=>!QBSEEN.has(qbId(QB[i])));
@@ -14238,6 +14249,7 @@ function oesSend(){
   const q=QB[OS.idx];
   gradeOesAnswer(ans,q,function(fb){
     if(fb.score==='PASS')OS.pass++;else if(fb.score==='PARTIAL')OS.part++;else OS.fail++;
+    fb.fig=q.fig;
     updOes();addOesMsg('ex','',fb);
     var _nb=document.getElementById('oes-nbtn');if(_nb)_nb.disabled=false;var _nqb=document.getElementById('oes-nbtn-qb');if(_nqb)_nqb.style.display='block';
   });
@@ -17715,7 +17727,7 @@ var PLAN_FREE_LOGBOOK_LIMIT = 25;
 var PLAN_FREE_OES_LIMIT     = 20;
 
 function pilotPlan(){ return lsGet('pilotOS_plan', 'free'); }
-function isPro(){      return pilotPlan() === 'pro' || pilotPlan() === 'unlimited'; }
+function isPro(){      var _p=pilotPlan(); return _p === 'pro' || _p === 'unlimited' || _p === 'beta'; }
 function isUnlimited(){ return pilotPlan() === 'unlimited'; }
 function isLoggedIn(){ var t=lsGet('cafi_auth_token',''); return !!(t&&t!=='demo-bypass-token'); }
 
@@ -22534,7 +22546,153 @@ function ldParseImportFile(file){
   r.onload=function(ev){ ldImportCSV(ev.target.result, file.name); };
   r.readAsText(file,'UTF-8');
 }
+// ══════════════════════════════════════════════════════════════════
+// SWIFT E-LOGBOOK — importador de la app iOS (carrera completa)
+// ══════════════════════════════════════════════════════════════════
+// CSV de 3 secciones (Flights / Simulator / Aircraft), fechas en español
+// ("11 dic. 2002") y el tiempo repartido en 8 columnas Day/Night×PIC/PICUS/P2/PUT
+// (no hay columna "block"). Todo client-side: es texto plano, ni IA ni backend.
+// Se emite en el MISMO formato-alias que el CSV normal ⇒ reutiliza dedup+merge+alta.
+// Verificado con el banco `pilotos-rag/scripts/swift-logbook-test.js` (3075 vuelos).
+var LD_SWIFT_MESES={ene:'01',feb:'02',mar:'03',abr:'04',may:'05',jun:'06',jul:'07',ago:'08',sep:'09',oct:'10',nov:'11',dic:'12'};
+function ldSwiftDate(s){
+  var m=String(s||'').trim().match(/^(\d{1,2})\s+([a-zá]+)\.?\s+(\d{4})$/i);
+  if(!m) return '';
+  var mm=LD_SWIFT_MESES[m[2].toLowerCase().slice(0,3)];
+  return mm ? (m[3]+'-'+mm+'-'+m[1].padStart(2,'0')) : '';
+}
+function ldCsvSplit(line){
+  var out=[],cur='',q=false;
+  for(var i=0;i<line.length;i++){ var c=line[i];
+    if(q){ if(c==='"'){ if(line[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else if(c==='"') q=true;
+    else if(c===','){ out.push(cur); cur=''; }
+    else cur+=c;
+  }
+  out.push(cur);
+  return out.map(function(s){return s.trim();});
+}
+// Firma: primera línea "Flights" + cabecera con las columnas partidas de Swift
+function ldIsSwift(text){
+  var head=text.slice(0,600);
+  return /^﻿?Flights\s*[\r\n]/.test(head) && /Day PIC.*Night PUT/.test(head);
+}
+function ldSwiftToRows(text){
+  var _hm=function(t){ var p=String(t||'').split(':'); return p.length===2?(+p[0])*60+(+p[1]):0; };
+  var _mmToHHMM=function(m){ return Math.floor(m/60)+':'+String(m%60).padStart(2,'0'); };
+  var lines=text.split(/\r?\n/);
+  var secAt={};
+  lines.forEach(function(l,i){ var t=l.trim(); if(t==='Flights'||t==='Simulator'||t==='Aircraft') secAt[t]=i; });
+
+  // AIRCRAFT → base de aviones (matrícula → tipo/motor/SE-ME/MP-SP/uso)
+  var acMeta={};
+  if(secAt.Aircraft!=null){
+    var AH=ldCsvSplit(lines[secAt.Aircraft+1]),aix={}; AH.forEach(function(h,i){aix[h]=i;});
+    for(var i=secAt.Aircraft+2;i<lines.length;i++){
+      if(!lines[i].trim()) continue;
+      var ar=ldCsvSplit(lines[i]), reg=(ar[aix.Registration]||'').toUpperCase();
+      if(!reg) continue;
+      var cat=ar[aix.Category]||'';
+      acMeta[reg]={
+        acType:ar[aix.Make]||'', engine:ar[aix['Engine Type']]||'',
+        seMe:/Multi Engine/i.test(cat)?'ME':(/Single Engine/i.test(cat)?'SE':''),
+        mp:/Multi/i.test(ar[aix.Crew]||'')?'MP':'SP',
+        use:ar[aix.Use]||''
+      };
+    }
+  }
+
+  var rows=[], sims=0, warnings=[];
+  var TCn=['Night PIC','Night PICUS','Night P2','Night PUT'];
+  var seq={};   // idSeq por (fecha|dep|arr): Swift no trae nº de vuelo → evita colisión de id
+
+  // FLIGHTS
+  if(secAt.Flights!=null){
+    var FH=ldCsvSplit(lines[secAt.Flights+1]),fix={}; FH.forEach(function(h,i){fix[h]=i;});
+    var fEnd=secAt.Simulator!=null?secAt.Simulator:(secAt.Aircraft!=null?secAt.Aircraft:lines.length);
+    for(var j=secAt.Flights+2;j<fEnd;j++){
+      if(!lines[j].trim()) continue;
+      var r=ldCsvSplit(lines[j]);
+      var date=ldSwiftDate(r[fix.Date]); if(!date){ warnings.push('fecha ilegible: '+r[fix.Date]); continue; }
+      var dep=(r[fix['From ICAO']]||r[fix.From]||'').toUpperCase();
+      var arr=(r[fix['To ICAO']]||r[fix.To]||'').toUpperCase();
+      var atd=r[fix.ATD]||'', ata=r[fix.ATA]||'';
+      var span=_hm(ata)-_hm(atd); if(span<0) span+=1440;
+      var sum=['Day PIC','Day PICUS','Day P2','Day PUT'].concat(TCn).reduce(function(s,c){return s+_hm(r[fix[c]]);},0);
+      var block=(atd&&ata&&span>0)?span:sum;
+      var night=TCn.reduce(function(s,c){return s+_hm(r[fix[c]]);},0);
+      // Función EASA: la columna (día+noche) con tiempo. PIC > PICUS > PUT(dual) > P2(copiloto)
+      var pic=_hm(r[fix['Day PIC']])+_hm(r[fix['Night PIC']]);
+      var picus=_hm(r[fix['Day PICUS']])+_hm(r[fix['Night PICUS']]);
+      var put=_hm(r[fix['Day PUT']])+_hm(r[fix['Night PUT']]);
+      var func,rol;
+      if(pic>0){ func='PIC'; rol='CPT'; }
+      else if(picus>0){ func='PICUS'; rol='FO'; }
+      else if(put>0){ func='Dual'; rol='FO'; }
+      else { func='Copiloto'; rol='FO'; }
+      var reg=(r[fix.Registration]||'').toUpperCase();
+      var meta=acMeta[reg]||{};
+      // Línea vs carrera: la señal fiable es MULTI-PILOTO, no la etiqueta "Use" de Swift
+      // (que trae A320 mal marcados como "General Aviation"). Multi-crew (A320/ATR) →
+      // compañía; single-pilot (C172, P28A…) → lente Carrera (verde). Sin ficha del
+      // avión no se asume carrera (default compañía).
+      var actType=(meta.mp==='SP')?'ga':'';
+      var k=date+'|'+dep+'|'+arr; seq[k]=(seq[k]||0)+1;
+      rows.push({
+        date:date, matricula:reg, tipo:meta.acType||'', motor:meta.engine||'',
+        origen:dep, destino:arr, atd:atd, ata:ata,
+        block:_mmToHHMM(block), nocturno:night?_mmToHHMM(night):'',
+        ldg_dia:(+(r[fix['Day Landings']]||0)||0), ldg_noche:(+(r[fix['Night Landings']]||0)||0),
+        rol:rol, pilot_function:func, reglas:_hm(r[fix.IFR])>0?'IFR':'VFR',
+        cm1:r[fix.Captain]||'', cm2:r[fix['Co-Pilot']]||'',
+        activitytype:actType, idseq:seq[k]>1?('l'+seq[k]):'',
+        notas:r[fix.Remarks]||''
+      });
+    }
+  }
+
+  // SIMULATOR → actividad SIM (igual que el Jeppesen)
+  if(secAt.Simulator!=null){
+    var SH=ldCsvSplit(lines[secAt.Simulator+1]),six={}; SH.forEach(function(h,i){six[h]=i;});
+    var sEnd=secAt.Aircraft!=null?secAt.Aircraft:lines.length;
+    var simSeq={};
+    for(var s=secAt.Simulator+2;s<sEnd;s++){
+      if(!lines[s].trim()) continue;
+      var sr=ldCsvSplit(lines[s]);
+      var sd=ldSwiftDate(sr[six.Date]); if(!sd) continue;
+      simSeq[sd]=(simSeq[sd]||0)+1;
+      rows.push({
+        date:sd, vuelo:'', origen:'', destino:'',
+        optype:'SIM', simtype:sr[six.Type]||'', activitytype:'sim',
+        block:_mmToHHMM(_hm(sr[six['Sim Time']])), ldg_dia:0, ldg_noche:0,
+        idseq:'sim'+simSeq[sd],
+        notas:['Sesión de simulador', sr[six.Type]||'', sr[six['Sim Partner']]||''].filter(Boolean).join(' · ')
+      });
+      sims++;
+    }
+  }
+
+  return {rows:rows, acMeta:acMeta, sims:sims, warnings:warnings};
+}
+function ldImportSwift(text,fname){
+  var parsed=ldSwiftToRows(text);
+  if(!parsed.rows.length){ ldImportError('El CSV de Swift no tiene vuelos legibles'); return; }
+  // Volcar la base de aviones (tipo/motor) para que los vuelos importados y los futuros
+  // autocompleten; guardamos también SE/ME y MP/SP para uso futuro (lente Carrera).
+  try{
+    var db=ldAcDbLoad();
+    Object.keys(parsed.acMeta).forEach(function(reg){
+      var m=parsed.acMeta[reg];
+      db[reg]={acType:m.acType||'',engine:m.engine||'',seMe:m.seMe||'',mp:m.mp||''};
+    });
+    ldAcDbSave(db);
+  }catch(e){}
+  var nFl=parsed.rows.filter(function(r){return r.optype!=='SIM';}).length;
+  _ldPdfSummary='<div class="ldbal-hint">Swift E-logbook · '+nFl+' vuelos + '+parsed.sims+' sesiones de simulador · '+Object.keys(parsed.acMeta).length+' aviones. Los vuelos ya existentes se enriquecen, no se duplican.</div>';
+  ldImportProcess(parsed.rows,fname);
+}
 function ldImportCSV(text,fname){
+  if(ldIsSwift(text)){ ldImportSwift(text,fname); return; }
   var lines=text.split(/\r?\n/).filter(function(l){return l.trim();});
   if(lines.length<2){ldImportError('Archivo vacío o sin datos');return;}
   // Detect delimiter
@@ -22578,7 +22736,8 @@ var LD_COL_MAP={
   // OJO: 'func' (PF/PM) es otra cosa; no mezclar los alias.
   pilotFunction:['funcion','pilot_function','pilotfunction','funcion_easa'],
   activityType:['activitytype','activity_type','tipo_actividad'],
-  idSeq:['idseq','id_seq']
+  idSeq:['idseq','id_seq'],
+  rules:['rules','ifr_vfr','reglas']
 };
 function ldMapRow(row){
   // Build a lowercase-trimmed key map regardless of how the caller prepared the row
@@ -22842,7 +23001,10 @@ function ldImportConfirm(){
       existingMap[key]={entry:e,idx:ldEntries.length-1};
       if(e.reg&&e.acType){
         var db=ldAcDbLoad();
-        db[e.reg.toUpperCase()]={acType:e.acType,engine:e.engine||''};
+        // Fusionar, no pisar: conserva seMe/mp (los rellena el import de Swift) — el alta
+        // por-vuelo sólo sabe tipo/motor y no debe borrar los datos ricos ya guardados.
+        var prev=db[e.reg.toUpperCase()]||{};
+        db[e.reg.toUpperCase()]=Object.assign({},prev,{acType:e.acType,engine:e.engine||prev.engine||''});
         ldAcDbSave(db);
       }
       added++;
@@ -23006,6 +23168,8 @@ document.addEventListener('focusin',function(e){
 </script>
 <script src="js/docs.js"></script>
 <script src="js/runways.js"></script>
+<script src="js/oes-figs.js"></script>
+<script src="js/qbank-lim.js"></script>
 <script>
 // Backend URL declared early so login works even if later code throws
 var cafiBackendUrl = 'https://api.pilotos.aero';
@@ -36934,9 +37098,14 @@ document.addEventListener('DOMContentLoaded', function(){
 // ══════════════════════════════════════════════════════════
 //  PILOT AUTH GATE — unified login / register for all PilotOS
 // ══════════════════════════════════════════════════════════
-// Force update backend URL — overrides any stale URL cached in localStorage
-lsSet('cafi_backend_url', 'https://api.pilotos.aero');
-var cafiBackendUrl = 'https://api.pilotos.aero';
+// Force update backend URL — overrides any stale URL cached in localStorage.
+// ── BETA REPORTS ── en hosts que NO son la web pública (beta.pilotos.aero, *.up.railway.app…)
+// el backend es el MISMO origen (Railway sirve front+API); en pilotos.aero/localhost → backend de prod.
+var _brPubHost = (location.protocol.indexOf('http') !== 0
+  || location.hostname === 'pilotos.aero' || location.hostname === 'www.pilotos.aero'
+  || location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+var cafiBackendUrl = _brPubHost ? 'https://api.pilotos.aero' : location.origin;
+lsSet('cafi_backend_url', cafiBackendUrl);
 
 // ── Airline card selector ──
 function pagSelectAirline(card, value) {
@@ -37387,6 +37556,15 @@ function sbUpdatePlanBadge() {
     if (upgradeBtn) upgradeBtn.style.display = 'inline-flex';
     if (ppLabel) ppLabel.textContent = 'Plan Pro';
     if (ppSub)   ppSub.textContent   = 'Gestionar suscripción';
+
+  } else if (plan === 'beta') {
+    badge.style.display = 'inline-flex';
+    badge.style.background = 'rgba(245,158,11,.18)';
+    badge.style.color      = 'rgba(251,191,36,.95)';
+    badge.style.border     = '1px solid rgba(245,158,11,.4)';
+    badge.textContent      = 'BETA';
+    if (ppLabel) ppLabel.textContent = 'Plan Beta (tester)';
+    if (ppSub)   ppSub.textContent   = 'Acceso de tester';
 
   } else {
     // free — solo botón "Ver planes →", sin badge
@@ -41385,5 +41563,290 @@ document.addEventListener('DOMContentLoaded', function(){
 })();
 </script>
 
+<!-- ══════════════════════════════════════════════════════════════════
+     ── BETA REPORTS ── Modal de reporte de fallos/sugerencias/dudas.
+     Inerte salvo que el backend responda channel==='beta' en /api/version.
+     Todo prefijado br-* (sin colisión con ids/clases existentes).
+     ══════════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+  if (window.__brInit) return; window.__brInit = true;
+
+  var MAX_FILES = 4, MAX_BYTES = 8*1024*1024;
+  var TYPE = 'bug', files = [];
+  var SERVER = { version:'?', channel:'?', commit:'?' };
+  var CLIENT_VERSION = (window.__PILOTOS_VERSION__ && window.__PILOTOS_VERSION__.version) || '?';
+
+  var COPY = {
+    bug:{label:'Qué ha pasado', ph:'Qué hacías, qué esperabas y qué ocurrió en su lugar.\n\nEj: importé el roster de agosto desde una foto y los standby aparecen como días libres.', drop:'Añadir captura del fallo o el roster que falló', btn:'Enviar reporte', done:'Reporte enviado'},
+    idea:{label:'Qué mejorarías', ph:'Qué te gustaría poder hacer y en qué momento del mes o del vuelo te haría falta.\n\nAdjunta un boceto o una captura marcada si lo tienes.', drop:'Añadir boceto, captura o documento de referencia', btn:'Enviar sugerencia', done:'Sugerencia enviada'},
+    question:{label:'Tu duda', ph:'Qué esperabas encontrar y dónde lo has buscado.\n\nAdjunta una captura de la pantalla si ayuda.', drop:'Añadir captura de la pantalla', btn:'Enviar duda', done:'Duda enviada'}
+  };
+
+  // ── Sanea el state: quita claves sensibles y trunca a ~12 KB ──
+  function brSanitize(obj){
+    var BANNED = ['token','password','passwd','secret','apikey','api_key','authorization','jwt','iban','cuenta','account','bank','banco','tarjeta','card','cvv'];
+    function isBanned(k){ k=String(k).toLowerCase(); for(var i=0;i<BANNED.length;i++){ if(k.indexOf(BANNED[i])>=0) return true; } return false; }
+    function clean(v,d){
+      if(d>6) return null;
+      if(v===null||typeof v!=='object') return v;
+      if(Array.isArray(v)) return v.slice(0,200).map(function(x){return clean(x,d+1);});
+      var o={}; for(var k in v){ if(!Object.prototype.hasOwnProperty.call(v,k)) continue; o[k]= isBanned(k) ? '[oculto]' : clean(v[k],d+1); } return o;
+    }
+    return clean(obj,0);
+  }
+
+  // ── Estado del módulo activo (mismo criterio que goTo(): la global curScreen) ──
+  function brCollectState(){
+    var s = (typeof curScreen!=='undefined' && curScreen) || 'home';
+    var out = {};
+    try {
+      if(s==='roster'){
+        var R = window.RST || {};
+        out = { month:(R.viewYear!=null ? R.viewYear+'-'+String((R.viewMonth||0)+1) : null), entries:(R.entries||[]).slice(0,120) };
+      } else if(s==='logbook'){
+        var sel = (typeof _ldSelected!=='undefined' && _ldSelected) ? Array.from(_ldSelected) : [];
+        out = { total:(window.ldEntries||[]).length, selMode:(typeof _ldSelMode!=='undefined'?_ldSelMode:false), selectedIds:sel.slice(0,50),
+                selectedEntries:(window.ldEntries||[]).filter(function(e){return e && sel.indexOf(e.id)>=0;}).slice(0,20) };
+      } else if(s==='pay'){
+        out = { payProfile: JSON.parse(localStorage.getItem('pilotos_payProfile')||'{}') };
+      } else if(s==='cafi'){
+        var h = (typeof conversationHistory!=='undefined' && conversationHistory) ? conversationHistory : [];
+        out = { lastTurns: h.slice(-4) };
+      } else if(s==='oes'){
+        var q = (typeof QB!=='undefined' && typeof OS!=='undefined' && OS && QB[OS.idx]) ? QB[OS.idx] : null;
+        out = { mode:(typeof OS!=='undefined'&&OS?OS.mode:null), answered:(typeof OS!=='undefined'&&OS?OS.answered:null),
+                question: q ? { q:q.q, answer:q.answer, cat:q.cat||q.category||null, type:q.type||null } : null };
+      } else if(s==='home' || s==='stats'){
+        out = { statsLayout: JSON.parse(localStorage.getItem('pilotOS_stats_layout')||'null') };
+      } else { out = {}; }
+    } catch(e){ out = { _error:'collectState: '+e.message }; }
+    out._activeScreen = s;
+    out = brSanitize(out);
+    try { var str = JSON.stringify(out); if(str.length>12000) out = { _truncated:true, _activeScreen:s, preview: str.slice(0,11000) }; } catch(e){}
+    return out;
+  }
+
+  function brToken(){ try { return (typeof lsGet==='function' ? lsGet('cafi_auth_token','') : (localStorage.getItem('cafi_auth_token')||'')); } catch(e){ return ''; } }
+  function brBase(){ try { return (typeof ldBackendUrl==='function') ? ldBackendUrl() : 'https://api.pilotos.aero'; } catch(e){ return 'https://api.pilotos.aero'; } }
+
+  // ── CSS (scoped bajo #br-fab / #br-ov). Fuentes: Space Grotesk + Space Mono (ya cargadas). ──
+  function injectStyle(){
+    if(document.getElementById('br-style')) return;
+    var css = [
+      '#br-fab{position:fixed;right:16px;bottom:calc(78px + env(safe-area-inset-bottom));z-index:120;display:flex;align-items:center;gap:9px;padding:11px 16px;border:1px solid rgba(245,158,11,.42);border-radius:14px;background:linear-gradient(180deg,#1B2B44,#111E33);color:#FBBF24;font-family:"Space Grotesk",-apple-system,sans-serif;font-weight:600;font-size:13px;cursor:pointer;box-shadow:0 10px 28px rgba(0,0,0,.5);-webkit-tap-highlight-color:transparent}',
+      '#br-fab .br-dot{width:7px;height:7px;border-radius:50%;background:#F59E0B;animation:brPulse 2.6s infinite}',
+      '@keyframes brPulse{0%{box-shadow:0 0 0 0 rgba(245,158,11,.55)}70%{box-shadow:0 0 0 9px rgba(245,158,11,0)}100%{box-shadow:0 0 0 0 rgba(245,158,11,0)}}',
+      '#br-ov{position:fixed;inset:0;z-index:10050;display:none;background:rgba(4,10,20,.72);-webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px);align-items:flex-end;justify-content:center;font-family:"Space Grotesk",-apple-system,sans-serif}',
+      '#br-ov.br-open{display:flex}',
+      '#br-ov *{box-sizing:border-box}',
+      '#br-sheet{width:100%;max-width:460px;max-height:92vh;overflow-y:auto;background:linear-gradient(180deg,#13223A,#0D1626);border:1px solid #1E3A5F;border-bottom:none;border-radius:22px 22px 0 0;padding:0 18px calc(20px + env(safe-area-inset-bottom));color:#E2F4FF;animation:brRise .3s cubic-bezier(.22,1,.36,1)}',
+      '@keyframes brRise{from{transform:translateY(26px);opacity:0}to{transform:none;opacity:1}}',
+      '@media(min-width:560px){#br-ov{align-items:center}#br-sheet{border-radius:20px;border-bottom:1px solid #1E3A5F}}',
+      '#br-sheet .br-grip{width:38px;height:4px;border-radius:99px;background:#1E3A5F;margin:10px auto 4px}',
+      '#br-sheet .br-head{display:flex;align-items:baseline;justify-content:space-between;padding:8px 0 14px}',
+      '#br-sheet .br-head h2{margin:0;font-size:17px;font-weight:600}',
+      '#br-sheet .br-close{background:none;border:none;color:#64748B;font-size:22px;cursor:pointer;line-height:1;padding:0 2px}',
+      '#br-sheet .br-seg{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:16px}',
+      '#br-sheet .br-seg button{padding:11px 6px;border-radius:11px;cursor:pointer;border:1px solid rgba(30,58,95,.55);background:rgba(15,23,42,.6);color:#94A3B8;font-family:inherit;font-size:12.5px;font-weight:500}',
+      '#br-sheet .br-seg button[aria-pressed="true"]{background:rgba(34,211,238,.12);border-color:#22D3EE;color:#22D3EE;font-weight:600}',
+      '#br-sheet label{display:block;font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:#64748B;margin:0 0 7px}',
+      '#br-sheet textarea,#br-sheet select{width:100%;background:rgba(10,22,40,.75);color:#E2F4FF;border:1px solid rgba(30,58,95,.55);border-radius:12px;padding:12px 13px;font-family:inherit;font-size:14.5px;line-height:1.55;outline:none}',
+      '#br-sheet textarea{min-height:112px;resize:vertical}',
+      '#br-sheet textarea:focus,#br-sheet select:focus{border-color:#22D3EE;box-shadow:0 0 0 3px rgba(34,211,238,.11)}',
+      '#br-sheet .br-counter{text-align:right;font-family:"Space Mono",ui-monospace,monospace;font-size:10.5px;color:#64748B;margin-top:5px}',
+      '#br-sheet .br-field{margin-bottom:15px}',
+      '#br-sheet .br-drop{border:1.5px dashed #1E3A5F;border-radius:12px;background:rgba(10,22,40,.4);padding:18px 14px;text-align:center;cursor:pointer}',
+      '#br-sheet .br-drop.br-over{border-color:#22D3EE;background:rgba(34,211,238,.06)}',
+      '#br-sheet .br-drop .br-ico{font-size:20px;display:block;margin-bottom:6px;opacity:.75}',
+      '#br-sheet .br-drop .br-t{font-size:13px;color:#94A3B8;font-weight:500}',
+      '#br-sheet .br-drop .br-s{font-size:11px;color:#64748B;margin-top:4px;font-family:"Space Mono",ui-monospace,monospace}',
+      '#br-sheet .br-files{margin-top:10px;display:flex;flex-direction:column;gap:7px}',
+      '#br-sheet .br-file{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid rgba(30,58,95,.55);border-radius:10px;background:rgba(15,23,42,.65)}',
+      '#br-sheet .br-file .br-thumb{width:34px;height:34px;border-radius:7px;flex-shrink:0;object-fit:cover;background:rgba(34,211,238,.1);display:flex;align-items:center;justify-content:center;font-size:15px}',
+      '#br-sheet .br-file .br-meta{flex:1;min-width:0}',
+      '#br-sheet .br-file .br-nm{font-size:12.5px;color:#E2F4FF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '#br-sheet .br-file .br-sz{font-family:"Space Mono",ui-monospace,monospace;font-size:10px;color:#64748B;margin-top:2px}',
+      '#br-sheet .br-file .br-rm{background:none;border:none;color:#64748B;cursor:pointer;font-size:17px;padding:0 3px;line-height:1}',
+      '#br-sheet .br-warn{display:none;margin-top:8px;padding:8px 11px;border-radius:9px;font-size:11.5px;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);color:#F87171}',
+      '#br-sheet .br-warn.br-show{display:block}',
+      '#br-sheet .br-tech{border:1px solid rgba(30,58,95,.55);border-radius:12px;background:rgba(10,22,40,.5);margin:16px 0;overflow:hidden}',
+      '#br-sheet .br-tech summary{list-style:none;cursor:pointer;padding:11px 13px;display:flex;align-items:center;justify-content:space-between;font-size:12.5px;color:#94A3B8}',
+      '#br-sheet .br-tech summary::-webkit-details-marker{display:none}',
+      '#br-sheet .br-tech .br-auto{font-family:"Space Mono",ui-monospace,monospace;font-size:9.5px;letter-spacing:.06em;color:#34D399;background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.28);padding:2.5px 7px;border-radius:5px;margin-left:8px}',
+      '#br-sheet .br-tech .br-rows{padding:2px 13px 12px;border-top:1px solid rgba(30,58,95,.55)}',
+      '#br-sheet .br-row{display:flex;justify-content:space-between;gap:14px;padding:6px 0;font-family:"Space Mono",ui-monospace,monospace;font-size:11px}',
+      '#br-sheet .br-row span:first-child{color:#64748B}',
+      '#br-sheet .br-row span:last-child{color:#94A3B8;text-align:right;word-break:break-all}',
+      '#br-sheet .br-row .br-ok{color:#34D399}#br-sheet .br-row .br-wn{color:#F87171}',
+      '#br-sheet .br-send{width:100%;padding:14px;border:none;border-radius:13px;cursor:pointer;background:linear-gradient(135deg,#22D3EE,#0891B2);color:#03212C;font-family:inherit;font-weight:700;font-size:14.5px}',
+      '#br-sheet .br-send:disabled{opacity:.42;cursor:not-allowed}',
+      '#br-sheet .br-foot{text-align:center;font-size:11px;color:#64748B;margin:11px 0 0;line-height:1.5}',
+      '#br-sheet .br-done{display:none;padding:32px 8px 20px;text-align:center}',
+      '#br-sheet .br-done.br-show{display:block;animation:brRise .3s cubic-bezier(.22,1,.36,1)}',
+      '#br-sheet .br-done .br-mark{width:52px;height:52px;border-radius:50%;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:24px;background:rgba(52,211,153,.13);border:1px solid rgba(52,211,153,.42);color:#34D399}',
+      '#br-sheet .br-done h3{margin:0 0 8px;font-size:16.5px;font-weight:600}',
+      '#br-sheet .br-done p{margin:0 0 6px;font-size:13px;color:#94A3B8;line-height:1.6}',
+      '#br-sheet .br-done .br-ref{font-family:"Space Mono",ui-monospace,monospace;font-size:11px;color:#22D3EE;margin-top:12px}',
+      '@media(prefers-reduced-motion:reduce){#br-fab,#br-sheet,#br-ov *{animation:none!important}}'
+    ].join('\n');
+    var st = document.createElement('style'); st.id='br-style'; st.textContent=css; document.head.appendChild(st);
+  }
+
+  function buildDOM(){
+    var fab = document.createElement('button');
+    fab.id='br-fab'; fab.type='button'; fab.innerHTML='<span class="br-dot"></span>Reportar';
+    document.body.appendChild(fab);
+
+    var ov = document.createElement('div'); ov.id='br-ov';
+    ov.innerHTML =
+      '<div id="br-sheet" role="dialog" aria-modal="true" aria-labelledby="br-ttl">'
+      + '<div class="br-grip"></div>'
+      + '<div id="br-form">'
+        + '<div class="br-head"><h2 id="br-ttl">Enviar reporte</h2><button class="br-close" id="br-close" aria-label="Cerrar">×</button></div>'
+        + '<div class="br-seg" role="group" aria-label="Tipo de reporte">'
+          + '<button data-type="bug" aria-pressed="true">Fallo</button>'
+          + '<button data-type="idea" aria-pressed="false">Sugerencia</button>'
+          + '<button data-type="question" aria-pressed="false">Duda</button>'
+        + '</div>'
+        + '<div class="br-field"><label for="br-screen">¿Qué módulo?</label>'
+          + '<select id="br-screen">'
+            + '<optgroup label="Vuelo y programación"><option value="roster">Roster</option><option value="logbook">Logbook</option><option value="skyview">Sky View</option><option value="descent">Approach Path Calculator</option><option value="fatigue">Fatigue Check</option></optgroup>'
+            + '<optgroup label="IA y estudio"><option value="cafi">CAFI</option><option value="oes">Oral Trainer</option><option value="career">Sim Prep / Briefings</option></optgroup>'
+            + '<optgroup label="Datos personales"><option value="pay">Pay Check / Nómina</option><option value="docs">Documentos</option><option value="career-tracker">Career Tracker</option><option value="crews">Crews</option><option value="stats">Stats</option></optgroup>'
+            + '<optgroup label="Otros"><option value="home">Home / Próximo servicio</option><option value="account">Cuenta / Plan / Login</option><option value="other">Otra pantalla</option></optgroup>'
+          + '</select></div>'
+        + '<div class="br-field"><label for="br-desc" id="br-desc-label">Qué ha pasado</label>'
+          + '<textarea id="br-desc" maxlength="1500"></textarea><div class="br-counter"><span id="br-count">0</span>/1500</div></div>'
+        + '<div class="br-field"><label>Archivos <span style="text-transform:none;letter-spacing:0;color:#43536B;font-weight:400">— opcional</span></label>'
+          + '<div class="br-drop" id="br-drop" tabindex="0" role="button"><span class="br-ico">📎</span><div class="br-t" id="br-drop-text">Añadir captura, roster o PDF</div><div class="br-s">PNG · JPG · PDF · máx 4 archivos · 8 MB</div></div>'
+          + '<input type="file" id="br-file" multiple accept="image/*,.pdf,.txt,.json,.csv" hidden>'
+          + '<div class="br-files" id="br-filelist"></div><div class="br-warn" id="br-warn"></div></div>'
+        + '<details class="br-tech"><summary>Datos técnicos <span class="br-auto">SE ADJUNTAN SOLOS</span></summary><div class="br-rows" id="br-techrows"></div></details>'
+        + '<button class="br-send" id="br-send" disabled>Enviar reporte</button>'
+        + '<p class="br-foot">Se envía con tu cuenta. No hace falta que copies nada.</p>'
+      + '</div>'
+      + '<div class="br-done" id="br-doneview"><div class="br-mark">✓</div><h3 id="br-done-title">Reporte enviado</h3><p id="br-done-msg">Queda registrado con la versión y el estado de tu sesión.</p><p>Si necesito reproducirlo, te escribo al grupo.</p><div class="br-ref" id="br-ref"></div></div>'
+      + '</div>';
+    document.body.appendChild(ov);
+    return { fab:fab, ov:ov };
+  }
+
+  function $(id){ return document.getElementById(id); }
+  var fmt = function(b){ return b<1024?b+' B':b<1048576?(b/1024).toFixed(0)+' KB':(b/1048576).toFixed(1)+' MB'; };
+
+  function init(){
+    injectStyle();
+    var nodes = buildDOM();
+    var fab = nodes.fab, ov = nodes.ov;
+
+    function applyCopy(){ var c=COPY[TYPE]; $('br-desc-label').textContent=c.label; $('br-desc').placeholder=c.ph; $('br-drop-text').textContent=c.drop; $('br-send').textContent=c.btn; }
+
+    function techData(){
+      var sync = (CLIENT_VERSION===SERVER.version);
+      var ua = (navigator.userAgent.match(/\(([^)]+)\)/)||[,'—'])[1].slice(0,42);
+      var errs = (window.__brJsErrors||[]).length;
+      return [
+        ['Versión cliente', CLIENT_VERSION, sync?'br-ok':'br-wn'],
+        ['Versión servidor', SERVER.version+' · '+SERVER.channel, sync?'br-ok':'br-wn'],
+        ['Commit', SERVER.commit||'—'],
+        ['Dispositivo', ua],
+        ['Pantalla', screen.width+'×'+screen.height+' @'+(devicePixelRatio||1)+'x'],
+        ['Zona horaria', Intl.DateTimeFormat().resolvedOptions().timeZone],
+        ['Conexión', navigator.onLine?'online':'offline', navigator.onLine?'br-ok':'br-wn'],
+        ['Errores JS', errs?errs+' capturados':'ninguno', errs?'br-wn':'br-ok']
+      ];
+    }
+    function renderTech(){ $('br-techrows').innerHTML = techData().map(function(r){ return '<div class="br-row"><span>'+r[0]+'</span><span class="'+(r[2]||'')+'">'+r[1]+'</span></div>'; }).join(''); }
+
+    function warn(m){ var w=$('br-warn'); w.textContent=m; w.classList.add('br-show'); clearTimeout(w._t); w._t=setTimeout(function(){w.classList.remove('br-show');},4200); }
+    function renderFiles(){
+      var box=$('br-filelist'); box.innerHTML='';
+      files.forEach(function(f,i){
+        var row=document.createElement('div'); row.className='br-file';
+        var thumb = f.type.indexOf('image/')===0 ? '<img class="br-thumb" src="'+URL.createObjectURL(f)+'" alt="">' : '<div class="br-thumb">'+(f.type.indexOf('pdf')>=0?'📄':'📋')+'</div>';
+        row.innerHTML = thumb+'<div class="br-meta"><div class="br-nm">'+f.name+'</div><div class="br-sz">'+fmt(f.size)+' · '+(f.type||'archivo')+'</div></div><button class="br-rm" data-i="'+i+'" aria-label="Quitar">×</button>';
+        box.appendChild(row);
+      });
+      box.querySelectorAll('.br-rm').forEach(function(b){ b.onclick=function(){ files.splice(+b.dataset.i,1); renderFiles(); }; });
+    }
+    function addFiles(list){
+      for(var i=0;i<list.length;i++){ var f=list[i];
+        if(files.length>=MAX_FILES){ warn('Máximo '+MAX_FILES+' archivos por reporte.'); break; }
+        if(f.size>MAX_BYTES){ warn('"'+f.name+'" supera 8 MB. Comprime la imagen o recórtala.'); continue; }
+        if(files.some(function(x){return x.name===f.name&&x.size===f.size;})) continue;
+        files.push(f);
+      }
+      renderFiles();
+    }
+
+    // Tipo
+    ov.querySelectorAll('.br-seg button').forEach(function(b){ b.onclick=function(){ ov.querySelectorAll('.br-seg button').forEach(function(x){x.setAttribute('aria-pressed','false');}); b.setAttribute('aria-pressed','true'); TYPE=b.dataset.type; applyCopy(); }; });
+    // Descripción
+    $('br-desc').oninput=function(){ $('br-count').textContent=$('br-desc').value.length; $('br-send').disabled=$('br-desc').value.trim().length<12; };
+    // Ficheros
+    var drop=$('br-drop');
+    drop.onclick=function(){ $('br-file').click(); };
+    drop.onkeydown=function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); $('br-file').click(); } };
+    $('br-file').onchange=function(e){ addFiles(e.target.files); e.target.value=''; };
+    ['dragenter','dragover'].forEach(function(ev){ drop.addEventListener(ev,function(e){ e.preventDefault(); drop.classList.add('br-over'); }); });
+    ['dragleave','drop'].forEach(function(ev){ drop.addEventListener(ev,function(e){ e.preventDefault(); drop.classList.remove('br-over'); }); });
+    drop.addEventListener('drop',function(e){ addFiles(e.dataTransfer.files); });
+    // Pegar (solo con el modal abierto, para no interferir con el resto de la app)
+    document.addEventListener('paste',function(e){ if(!ov.classList.contains('br-open')) return; var imgs=[].slice.call((e.clipboardData&&e.clipboardData.files)||[]).filter(function(f){return f.type.indexOf('image/')===0;}); if(imgs.length){ addFiles(imgs); } });
+
+    function open(){
+      // Preseleccionar el módulo por la pantalla activa si coincide con una opción
+      try { var cur=(typeof curScreen!=='undefined'&&curScreen)||''; var opt=$('br-screen').querySelector('option[value="'+cur+'"]'); if(opt) $('br-screen').value=cur; } catch(e){}
+      renderTech(); ov.classList.add('br-open'); $('br-form').style.display='block'; $('br-doneview').classList.remove('br-show');
+      setTimeout(function(){ try{$('br-desc').focus();}catch(e){} },120);
+    }
+    function close(){ ov.classList.remove('br-open'); }
+    fab.onclick=open; $('br-close').onclick=close;
+    ov.addEventListener('click',function(e){ if(e.target===ov) close(); });
+    document.addEventListener('keydown',function(e){ if(e.key==='Escape' && ov.classList.contains('br-open')) close(); });
+
+    var toB64=function(f){ return new Promise(function(res,rej){ var r=new FileReader(); r.onload=function(){ res(String(r.result).split(',')[1]); }; r.onerror=function(){ rej(new Error('read')); }; r.readAsDataURL(f); }); };
+
+    $('br-send').onclick=function(){
+      var btn=$('br-send'); btn.disabled=true; btn.textContent='Enviando…';
+      Promise.all(files.map(function(f){ return toB64(f).then(function(c){ return { filename:f.name, contentType:f.type||'application/octet-stream', size:f.size, content:c }; }); }))
+      .then(function(attachments){
+        var sel=$('br-screen');
+        var payload={ type:TYPE, screen:sel.value, screenLabel:sel.options[sel.selectedIndex].text,
+          description:$('br-desc').value.trim(), clientVersion:CLIENT_VERSION, userAgent:navigator.userAgent,
+          screenSize:screen.width+'x'+screen.height+'@'+(devicePixelRatio||1), timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,
+          online:navigator.onLine, errors:(window.__brJsErrors||[]).slice(-5), state:brCollectState(), attachments:attachments };
+        var tok=brToken();
+        return fetch(brBase()+'/api/bug-report',{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+tok }, body:JSON.stringify(payload) })
+          .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); });
+      })
+      .then(function(res){
+        if(!res.ok){ throw new Error((res.j&&res.j.error)||'error'); }
+        $('br-done-title').textContent=COPY[TYPE].done;
+        $('br-done-msg').textContent = files.length ? (files.length+(files.length===1?' archivo adjunto':' archivos adjuntos')+' · registrado con tu versión.') : 'Queda registrado con la versión y el estado de tu sesión.';
+        $('br-form').style.display='none'; $('br-doneview').classList.add('br-show');
+        $('br-ref').textContent = res.j && res.j.ref ? ('#'+res.j.ref) : '';
+        $('br-desc').value=''; $('br-count').textContent='0'; files=[]; renderFiles(); applyCopy(); btn.disabled=false;
+        setTimeout(close,2800);
+      })
+      .catch(function(e){ warn((e&&e.message&&e.message!=='error')?e.message:'No se pudo enviar. Revisa la conexión e inténtalo de nuevo.'); btn.disabled=false; applyCopy(); });
+    };
+
+    applyCopy();
+  }
+
+  // ── Gate: solo si el BACKEND dice channel==='beta' (no el build del cliente) ──
+  function boot(){
+    try {
+      fetch(brBase()+'/api/version',{ cache:'no-store' })
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(v){ if(v){ SERVER.version=v.version||'?'; SERVER.channel=v.channel||'?'; SERVER.commit=v.commit||'?'; } if(v && v.channel==='beta'){ init(); } })
+        .catch(function(){});
+    } catch(e){}
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+})();
+</script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 // PilotOS Service Worker
 // APP_VERSION lo reescribe scripts/stamp-version.js en cada deploy → cambia el
 // nombre del caché → los cachés de versiones viejas se borran al activar.
-const APP_VERSION   = 'Beta.395';
+const APP_VERSION   = 'Beta.398';
 
 const STATIC_CACHE  = 'pilotos-static-' + APP_VERSION;
 const FONT_CACHE    = 'pilotos-fonts-'  + APP_VERSION;
@@ -9,7 +9,7 @@ const CURRENT_CACHES = [STATIC_CACHE, FONT_CACHE];
 
 // '/' + librerías de export (jsPDF/autotable/qrcode) para que el logbook se
 // pueda exportar a PDF SIN conexión (mismo-origen → cache-first del SW).
-const PRECACHE_URLS = ['/', 'vendor/jspdf.umd.min.js', 'vendor/jspdf.plugin.autotable.min.js', 'vendor/qrcode.min.js', 'js/runways.js'];
+const PRECACHE_URLS = ['/', 'vendor/jspdf.umd.min.js', 'vendor/jspdf.plugin.autotable.min.js', 'vendor/qrcode.min.js', 'js/runways.js', 'js/oes-figs.js', 'js/qbank-lim.js'];
 
 self.addEventListener('install', function(e) {
   // NO hacer skipWaiting aquí: el SW nuevo se queda EN ESPERA y el frontend
