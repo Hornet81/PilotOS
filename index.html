@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.401">
+  <meta name="version" content="Beta.407">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.401","builtAt":"2026-07-24T06:51:02Z","commit":"743f7fd","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.407","builtAt":"2026-07-24T14:48:19Z","commit":"a1b7c9b","channel":"beta"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -1623,7 +1623,14 @@ html.day #scr-pay .pca-banner.lag .tx b{color:#1d6fb8}
 #pp-modal{position:fixed;inset:0;z-index:9000;display:none;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.7);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
 #pp-modal{align-items:center;padding:14px}
 #pp-modal.on{display:flex}
-#pp-modal .pp-sheet{width:100%;max-width:520px;max-height:86vh;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#140C00;border:1px solid rgba(245,158,11,.32);border-radius:22px;padding:20px 18px 14px;box-shadow:0 10px 44px rgba(0,0,0,.65)}
+/* max-height con dvh: en iOS Safari el vh usa el viewport GRANDE (sin la barra inferior),
+   así que 86vh dejaba el botón sticky "Confirmar" por debajo del pliegue. dvh = viewport
+   REAL visible → el botón queda siempre en pantalla. Se deja 86vh de fallback. */
+#pp-modal .pp-sheet{width:100%;max-width:520px;max-height:86vh;max-height:86dvh;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#140C00;border:1px solid rgba(245,158,11,.32);border-radius:22px;padding:20px 18px 14px;box-shadow:0 10px 44px rgba(0,0,0,.65)}
+/* El FAB "Reportar" (solo beta) flota sobre el modal y tapa el botón de confirmar → ocultarlo
+   mientras el modal está abierto. :has() (no ~) porque #br-fab y #pp-modal no son hermanos.
+   Inerte en prod (allí no existe #br-fab). */
+body:has(#pp-modal.on) #br-fab{display:none!important}
 #pp-modal .pp-sheet-title{font-size:16px;font-weight:800;color:#fff;margin-bottom:6px}
 #pp-modal .pp-sheet-sub{font-size:12px;color:rgba(255,255,255,.55);line-height:1.55;margin-bottom:14px}
 #pp-modal textarea{width:100%;min-height:120px;background:rgba(0,0,0,.55);border:1px solid rgba(245,158,11,.22);border-radius:14px;padding:12px;color:#FDE68A;font-family:'Space Mono',monospace;font-size:11px;line-height:1.5;outline:none;resize:vertical}
@@ -12199,6 +12206,10 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       role:role, func:(func==='Copiloto'?'PM':'PF'), rules:_gv('ifr')||'VFR', ldgDay:parseInt(_gv('ld')||1)||1, ldgNight:0,
       spMp:_gv('smp')||'', seMe:_gv('sme')||'', notes:_gv('rem')||'', meta:_ldoMeta(),
       night_lg:0, source:'Manual', activityType:_ldoType, pilotFunction:func, savedAt:new Date().toISOString(), flight:'' };
+    // Simulador: marcar flightType/instr='SIM' y conservar el dispositivo en simType, para
+    // que ldIsSim lo siga reconociendo (título "SIMULADOR", sesión, plus de formación) y
+    // no se pierda al re-guardar un sim importado.
+    if(_ldoType==='sim'){ e.flightType='SIM'; e.instr='SIM'; e.opType='TRNG'; e.simType=_gv('type')||''; }
     if(!window.ldEntries) window.ldEntries=[];
     if(_editId){
       var _i=window.ldEntries.findIndex(function(x){ return x.id===_editId; });
@@ -12220,9 +12231,29 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
     _ldoType = e.activityType || null;
     ldOtroRender();
     var set=function(id,v){ var el=document.getElementById('ldo_'+id); if(el && v!=null && v!=='') el.value=v; };
-    set('date',e.date); set('dep',e.dep); set('arr',e.arr); set('type',e.acType); set('reg',e.reg);
-    set('func',e.pilotFunction||'PIC'); set('block',e.block); set('ft',e.flightTime); set('night',e.night);
-    set('ifr',e.rules); set('smp',e.spMp); set('sme',e.seMe); set('ld',e.ldgDay); set('rem',e.notes);
+    // AVIÓN: un sim importado guarda el aparato en e.simType (p.ej. "A320-232 (FFS)"),
+    // no en acType → si no, el campo salía vacío al editar.
+    set('type', e.acType || e.simType); set('date',e.date); set('dep',e.dep); set('arr',e.arr); set('reg',e.reg);
+    set('block',e.block); set('ft',e.flightTime); set('night',e.night);
+    set('ifr',e.rules); set('ld',e.ldgDay); set('rem',e.notes);
+    // FUNCIÓN: si el import no la trae, derivarla del rol (Comandante→PIC, si no Copiloto),
+    // que es lo que ya muestra la ficha. Antes caía siempre a 'PIC'.
+    set('func', e.pilotFunction || (e.role==='CPT'?'PIC':'Copiloto'));
+    // SP/MP y SE/ME: el import a veces no los trae (y para un sim acType viene vacío) → si
+    // faltan, derivarlos del aparato. Un airliner (A320, B737, E-Jet, CRJ, ATR…) es ME + MP.
+    var _acCl=(e.acType||e.simType||'').toUpperCase();
+    var _isAirliner=/A2[12]\d|A3\d\d|A32\d|B7[0-9]\d|E1[7-9]\d|E2\d\d|CRJ|AT[R7]\b|ATR\d|DH8|Q4\d\d|MD8\d|F70|F100|RJ\d|SF34/.test(_acCl);
+    set('smp', e.spMp || (_isAirliner?'MP':''));
+    set('sme', e.seMe || (_isAirliner?'ME':''));
+    // Simulador: mapear el dispositivo DETECTADO al select (antes salía siempre FNPT II).
+    // El import trae el aparato en simType, el centro en trainCenter y la sesión en simSession.
+    if(_ldoType==='sim'){
+      var _dev=((e.meta&&e.meta.sm_type)||e.simType||e.acType||'')+'';
+      var _match=/FNPT/i.test(_dev)?'FNPT II':/FTD/i.test(_dev)?'FTD':/FFS/i.test(_dev)?(/A3\d0/i.test(_dev)?'A320 FFS':'FFS'):(_dev?'Otro':'');
+      if(_match) set('sm_type', _match);
+      if(!(e.meta&&e.meta.sm_center)) set('sm_center', e.trainCenter);
+      if(!(e.meta&&e.meta.sm_sess))   set('sm_sess', e.simSession);
+    }
     if(e.meta) Object.keys(e.meta).forEach(function(k){ set(k, e.meta[k]); });
   }
   window.ldOtroLoad=ldOtroLoad;
@@ -12266,6 +12297,12 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
         <style>
           .ldm-sheet.otro-cream, .otro-cream .ldm-hdr, .otro-cream .ldm-ftr{background:#E9F7EF !important}
           html.day .ldm-sheet.otro-cream, html.day .otro-cream .ldm-hdr, html.day .otro-cream .ldm-ftr{background:#E9F7EF !important}
+          /* El fondo crema se fuerza en día Y noche, pero el título base es casi-blanco
+             (#F8FAFC) → en modo noche "Nueva entrada" quedaba ilegible sobre la crema.
+             Se fuerzan textos oscuros del header en cualquier modo. */
+          .ldm-sheet.otro-cream .ldm-title{color:#0A2818 !important}
+          .ldm-sheet.otro-cream .ldm-sub{color:#0F6B49 !important;opacity:1}
+          .ldm-sheet.otro-cream .ldm-close{color:#334155 !important;background:rgba(15,23,42,.06) !important}
           .ldm-sheet.otro-cream{min-height:88vh}
           .ldm-vo{flex:1;text-align:center;padding:9px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;color:#7E8CA0;transition:all .15s}
           .ldm-vo.on-v{background:#22D3EE;color:#04121a;font-weight:700}
@@ -18184,6 +18221,9 @@ function ldSaveData(){
 
 function ldOpenModal(manual){
   ldManual=manual; ldResetForm();
+  // Reset SIEMPRE a Vueling: si la vez anterior se editó un vuelo de carrera (Otro/sim),
+  // el modal se quedaba en modo 'otro' y el siguiente vuelo Vueling abría el form de sim.
+  try{ if(typeof ldModalMode==='function') ldModalMode('vueling'); }catch(_e){}
   ldSectionTab('vuelo'); // siempre empieza en pestaña Vuelo
   document.getElementById('ld_date').value=new Date().toISOString().split('T')[0];
   document.getElementById('ld_zone').style.display=manual?'none':'';
@@ -19745,10 +19785,12 @@ function ldShowCard(id){
     +'<div style="padding:12px 18px 14px;border-bottom:1px solid rgba(34,211,238,.1);display:flex;align-items:flex-start;justify-content:space-between">'
       +'<div>'
         +'<div style="font-family:\'DM Mono\',\'Space Mono\',monospace;font-size:26px;font-weight:500;color:#F8FAFC;letter-spacing:.5px">'
-          +(e.dep||'???')+'<span style="color:#22D3EE;margin:0 8px;font-size:18px">›</span>'+(e.arr||'???')
+          // Una sesión de simulador no tiene ruta → "??? › ???" era un artefacto. Se muestra
+          // "SIMULADOR" (como en la lista) en vez de origen/destino inexistentes.
+          +(ldIsSim(e) ? 'SIMULADOR' : ((e.dep||'???')+'<span style="color:#22D3EE;margin:0 8px;font-size:18px">›</span>'+(e.arr||'???')))
         +'</div>'
         +'<div style="margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
-          +'<span style="font-size:12px;color:rgba(248,250,252,.45);font-family:\'Space Mono\',monospace">'+(e.flight||'—')+' · '+ldFmtD(e.date)+'</span>'
+          +'<span style="font-size:12px;color:rgba(248,250,252,.45);font-family:\'Space Mono\',monospace">'+(ldIsSim(e)?((e.simType||e.acType||'Simulador')):(e.flight||'—'))+' · '+ldFmtD(e.date)+'</span>'
           +'<div class="'+dotCls+'" style="flex-shrink:0"></div>'
         +'</div>'
       +'</div>'
@@ -38280,6 +38322,31 @@ function ldSwitchTab(name, el) {
 // ══════════════════════════════════════════════════════
 // PESTAÑA CARRERA — lente EASA / FCL.050 (solo lectura, misma base de datos)
 // ══════════════════════════════════════════════════════
+// Top compañeros de tripulación: cuenta cm1/cm2 excluyendo al propio piloto.
+// Mismo criterio que Stats › Tripulación (todas las grafías del propio slot + nombre de
+// perfil, comparación normalizada por tokens). Los vuelos de roster NO traen tripulación
+// (el import no la captura); sí la traen los de Swift y los editados a mano.
+function ldTopCrew(entries, limit){
+  var my={};
+  var norm=function(s){ return (s||'').trim().toUpperCase().replace(/\s+/g,' '); };
+  var tok=function(s){ var n=norm(s); return n?n.split(' ').filter(Boolean).sort().join(' '):''; };
+  var addMy=function(s){ var n=norm(s); if(!n||n==='COMANDANTE')return; my[n]=1; var t=tok(s); if(t)my[t]=1; };
+  var CMD=/^(CPT|CDR|CMD|CAP|CAPT|COMANDANTE)$/i, FO=/^(FO|F\/O|COP|SO|FIRST|COPILOTO)$/i;
+  try{ addMy(localStorage.getItem('pilot_name')||''); }catch(e){}
+  (entries||[]).forEach(function(e){
+    if(e.role&&CMD.test(e.role)&&e.cm1) addMy(e.cm1);
+    if(e.role&&FO.test(e.role)&&e.cm2) addMy(e.cm2);
+  });
+  var cnt={};
+  (entries||[]).forEach(function(e){
+    [e.cm1,e.cm2].forEach(function(n){
+      if(!n||!n.trim())return;
+      if(my[norm(n)]||my[tok(n)])return;   // es el propio piloto → excluir
+      cnt[n.trim()]=(cnt[n.trim()]||0)+1;
+    });
+  });
+  return Object.keys(cnt).sort(function(a,b){return cnt[b]-cnt[a];}).slice(0,limit||6).map(function(k){return [k,cnt[k]];});
+}
 function ldRenderCarrera(){
   var body=document.getElementById('ld-carrera-body'); if(!body) return;
   var T=function(t){ return (typeof ldT2m==='function')?(ldT2m(t)||0):0; };
@@ -38340,6 +38407,18 @@ function ldRenderCarrera(){
   var chips=Object.keys(byType).sort(function(a,b){return byType[b]-byType[a];}).slice(0,6).map(function(k){
     return '<div class="crr-chip"><span style="width:8px;height:8px;border-radius:50%;background:#2563EB"></span>'+k+' <b style="font-family:\'Space Mono\',monospace">'+M(byType[k])+'</b></div>';
   }).join('');
+  // ── Tripulación: con quién has volado más (cm1/cm2) ──
+  var _crewGrads=['135deg,#22D3EE,#0EA5E9','135deg,#34D399,#059669','135deg,#F59E0B,#FBBF24','135deg,#A78BFA,#7C3AED','135deg,#F472B6,#DB2777','135deg,#60A5FA,#2563EB'];
+  var topCrew=ldTopCrew(ents,6);
+  var crewH=topCrew.map(function(c,i){
+    var name=c[0], n=c[1];
+    var ini=name.split(/\s+/).filter(Boolean).slice(0,2).map(function(w){return w[0];}).join('').toUpperCase();
+    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(128,128,128,.1)">'
+      +'<div style="width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;color:#fff;background:linear-gradient('+_crewGrads[i%_crewGrads.length]+')">'+ini+'</div>'
+      +'<div style="font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+name+'</div>'
+      +'<div style="font-family:\'Space Mono\',monospace;font-size:15px;font-weight:600;color:#22D3EE">'+n+'</div>'
+      +'<div class="crr-muted" style="font-size:9px">vuelo'+(n!==1?'s':'')+'</div></div>';
+  }).join('');
   var ev=[['PDF EASA · FCL.050','Logbook formal firmable','ldExportPickRange(\'pdf\')'],['Revalidación SEP / MEP','Soporte de experiencia','typeof showToast===\'function\'&&showToast(\'Próximamente\',\'info\')'],['Resumen para CV / entrevista','Horas por categoría','typeof showToast===\'function\'&&showToast(\'Próximamente\',\'info\')']];
   var evH=ev.map(function(x){ return '<div class="crr-ev"><div style="flex:1"><div style="font-size:13.5px;font-weight:600">'+x[0]+'</div><div class="crr-muted" style="font-size:11px">'+x[1]+'</div></div><div class="crr-gbtn" onclick="'+x[2]+'">Generar</div></div>'; }).join('');
   body.innerHTML=''
@@ -38362,6 +38441,7 @@ function ldRenderCarrera(){
     +'<div class="crr-sec">Función · FCL.050</div>'+funcGrid
     +'<div class="crr-sec">Aviation DNA</div>'+dna
     +(chips?('<div class="crr-sec">Por clase de avión</div><div style="display:flex;flex-wrap:wrap;gap:8px">'+chips+'</div>'):'')
+    +(crewH?('<div class="crr-sec">Con quién has volado</div><div class="crr-total" style="padding:4px 15px 8px">'+crewH+'</div>'):'')
     +'<div class="crr-sec">Evidencia</div>'+evH
     +'<div class="crr-muted" style="text-align:center;font-size:10.5px;margin:16px 0 8px">Misma base de datos que Vuelos · solo lectura · no duplica vuelos</div>';
 }
