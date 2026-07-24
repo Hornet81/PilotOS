@@ -11769,14 +11769,16 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       <!-- Período -->
       <div class="ldf-sec">Período</div>
       <div class="ldf-chips" id="ldf_chips_period">
-        <div class="ldf-chip on" data-val="all" onclick="ldfSet('period',this)">Todo</div>
-        <div class="ldf-chip" data-val="12m" onclick="ldfSet('period',this)">Últimos 12m</div>
-        <div class="ldf-chip" data-val="90d" onclick="ldfSet('period',this)">Últimos 90d</div>
-        <div class="ldf-chip" data-val="2026" onclick="ldfSet('period',this)">2026</div>
-        <div class="ldf-chip" data-val="2025" onclick="ldfSet('period',this)">2025</div>
-        <div class="ldf-chip" data-val="2024" onclick="ldfSet('period',this)">2024</div>
-        <div class="ldf-chip" data-val="2023" onclick="ldfSet('period',this)">2023</div>
+        <div class="ldf-chip on" data-val="all" onclick="ldfPeriodQuick('all')">Todo</div>
+        <div class="ldf-chip" data-val="12m" onclick="ldfPeriodQuick('12m')">Últimos 12m</div>
+        <div class="ldf-chip" data-val="90d" onclick="ldfPeriodQuick('90d')">Últimos 90d</div>
       </div>
+      <!-- Año (se generan desde los vuelos del piloto por ldfBuildPeriod) -->
+      <div class="ldf-sec" style="margin-top:2px">Año</div>
+      <div class="ldf-chips" id="ldf_chips_year"></div>
+      <!-- Mes -->
+      <div class="ldf-sec" style="margin-top:2px">Mes</div>
+      <div class="ldf-chips" id="ldf_chips_month"></div>
       <!-- Tipo / Rol -->
       <div class="ldf-sec" style="margin-top:2px">Aeronave · Rol</div>
       <div class="ldf-chips" id="ldf_chips_meta">
@@ -19168,10 +19170,11 @@ function ldFmtDay(dateStr){
 // ════════════════════════════════════════════════════
 // LOGBOOK FILTER SYSTEM
 // ════════════════════════════════════════════════════
-var _ldf = { period:'all', role:'all', type:'all' };
+var _ldf = { period:'all', year:'', month:'', role:'all', type:'all' };
 
 function ldfOpen(){
   ldfBuildTypes();
+  ldfBuildPeriod();
   var tabs=document.getElementById('btabs');
   if(tabs){tabs.style.transform='translateY(100%)';tabs.style.transition='transform .2s';}
   document.getElementById('ldf_ov').classList.add('open');
@@ -19195,16 +19198,65 @@ function ldfSet(kind, el){
   _ldf[kind]=el.dataset.val;
   ldFilter(); ldfUpdateUI();
 }
+
+var LDF_MESES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+// Genera las fichas de Año (desde los vuelos reales) y de Mes. Se llama al abrir el filtro.
+function ldfBuildPeriod(){
+  var yWrap=document.getElementById('ldf_chips_year'); if(!yWrap) return;
+  var years=[...new Set((window.ldEntries||[]).map(function(e){return (e.date||'').slice(0,4);}).filter(function(y){return /^\d{4}$/.test(y);}))].sort().reverse();
+  yWrap.innerHTML='';
+  years.forEach(function(y){
+    var c=document.createElement('div');
+    c.className='ldf-chip'+(_ldf.year===y?' on':'');
+    c.dataset.val=y; c.textContent=y;
+    c.setAttribute('onclick','ldfSetYM("year",\''+y+'\')');
+    yWrap.appendChild(c);
+  });
+  var mWrap=document.getElementById('ldf_chips_month'); if(!mWrap) return;
+  mWrap.innerHTML='';
+  LDF_MESES.forEach(function(nm,i){
+    var mm=('0'+(i+1)).slice(-2);
+    var c=document.createElement('div');
+    c.className='ldf-chip'+(_ldf.month===mm?' on':'');
+    c.dataset.val=mm; c.textContent=nm;
+    c.setAttribute('onclick','ldfSetYM("month",\''+mm+'\')');
+    mWrap.appendChild(c);
+  });
+}
+// Año/Mes: toggle (re-pulsar deselecciona). Cualquiera desactiva el período rápido.
+function ldfSetYM(kind, val){
+  _ldf[kind] = (_ldf[kind]===val) ? '' : val;
+  if(_ldf.year||_ldf.month) _ldf.period='all';   // año/mes y "últimos 12m/90d" son excluyentes
+  ldfSyncPeriodUI(); ldFilter(); ldfUpdateUI();
+}
+// Período rápido (Todo / 12m / 90d): limpia año y mes.
+function ldfPeriodQuick(val){
+  _ldf.period=val; _ldf.year=''; _ldf.month='';
+  ldfSyncPeriodUI(); ldFilter(); ldfUpdateUI();
+}
+// Refleja el estado en las 3 filas de fichas (rápido / año / mes).
+function ldfSyncPeriodUI(){
+  var noQuickActive = !_ldf.year && !_ldf.month;
+  document.querySelectorAll('#ldf_chips_period .ldf-chip').forEach(function(c){
+    c.classList.toggle('on', noQuickActive && c.dataset.val===_ldf.period);
+  });
+  document.querySelectorAll('#ldf_chips_year .ldf-chip').forEach(function(c){
+    c.classList.toggle('on', c.dataset.val===_ldf.year);
+  });
+  document.querySelectorAll('#ldf_chips_month .ldf-chip').forEach(function(c){
+    c.classList.toggle('on', c.dataset.val===_ldf.month);
+  });
+}
 function ldfClear(){
-  _ldf={period:'all',role:'all',type:'all'};
+  _ldf={period:'all',year:'',month:'',role:'all',type:'all'};
   // Reset chips
-  document.querySelectorAll('#ldf_chips_period .ldf-chip').forEach(function(c){c.classList.toggle('on',c.dataset.val==='all')});
+  ldfSyncPeriodUI();
   document.querySelectorAll('#ldf_chips_meta [data-kind="role"]').forEach(function(c){c.classList.toggle('on',c.dataset.val==='all-role')});
   document.querySelectorAll('#ldf_chips_meta [data-kind="type"]').forEach(function(c){c.classList.toggle('on',c.dataset.val==='all-type')});
   ldFilter(); ldfUpdateUI();
 }
 function ldfHasActive(){
-  return _ldf.period!=='all'||_ldf.role!=='all'||_ldf.type!=='all';
+  return _ldf.period!=='all'||_ldf.year||_ldf.month||_ldf.role!=='all'||_ldf.type!=='all';
 }
 function ldfUpdateUI(){
   var btn=document.getElementById('ldf_btn');
@@ -19215,7 +19267,10 @@ function ldfUpdateUI(){
   if(banner) banner.classList.toggle('show',active);
   if(bannerTxt&&active){
     var parts=[];
-    if(_ldf.period!=='all') parts.push({all:'Todo','12m':'Últimos 12m','90d':'Últimos 90d'}[_ldf.period]||_ldf.period);
+    if(_ldf.period!=='all') parts.push({'12m':'Últimos 12m','90d':'Últimos 90d'}[_ldf.period]||_ldf.period);
+    if(_ldf.month||_ldf.year){
+      parts.push([(_ldf.month?LDF_MESES[parseInt(_ldf.month,10)-1]:''),_ldf.year].filter(Boolean).join(' '));
+    }
     if(_ldf.type!=='all'&&_ldf.type!=='all-type') parts.push(_ldf.type);
     if(_ldf.role!=='all'&&_ldf.role!=='all-role') parts.push(_ldf.role);
     bannerTxt.textContent=(ldFiltered.length)+' vuelos · '+parts.join(' · ');
@@ -19242,13 +19297,12 @@ function ldfBuildTypes(){
 function ldfApply(entries){
   var now=new Date();
   return entries.filter(function(e){
-    // Period
-    if(_ldf.period!=='all'){
-      var d=new Date(e.date);
-      if(_ldf.period==='90d'){ if((now-d)>90*864e5) return false; }
-      else if(_ldf.period==='12m'){ if((now-d)>365*864e5) return false; }
-      else { if(!e.date||!e.date.startsWith(_ldf.period)) return false; }
-    }
+    // Período rápido (relativo)
+    if(_ldf.period==='90d'){ if((now-new Date(e.date))>90*864e5) return false; }
+    else if(_ldf.period==='12m'){ if((now-new Date(e.date))>365*864e5) return false; }
+    // Año y Mes: dimensiones independientes → "2026", "Julio", o "Julio 2026"
+    if(_ldf.year){ if(!e.date||e.date.slice(0,4)!==_ldf.year) return false; }
+    if(_ldf.month){ if(!e.date||e.date.slice(5,7)!==_ldf.month) return false; }
     // Role
     if(_ldf.role!=='all'&&_ldf.role!=='all-role'&&e.role!==_ldf.role) return false;
     // Type
