@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.407">
+  <meta name="version" content="Beta.409">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.407","builtAt":"2026-07-24T14:48:19Z","commit":"3b991ea","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.409","builtAt":"2026-07-24T15:09:00Z","commit":"1fc5d38","channel":"beta"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -39401,8 +39401,18 @@ function laRenderAnalytics() {
     if(e.dep) depCnt[e.dep]=(depCnt[e.dep]||0)+1;
     if(e.dep&&e.arr){ var r=e.dep+'›'+e.arr; routeCnt[r]=(routeCnt[r]||0)+1; }
   });
-  var topDests  = Object.entries(destCnt).filter(function(d){ return d[0]!==_homeBase; }).sort(function(a,b){ return b[1]-a[1]; }).slice(0,8);
-  var topDepArr = Object.entries(depCnt).filter(function(d){ return d[0]!==_homeBase; }).sort(function(a,b){ return b[1]-a[1]; });
+  // Base "de facto" = el aeropuerto donde más sales/llegas. Un destino/origen favorito que
+  // ES tu base no dice nada (siempre vuelves ahí), así que se excluye. Se AUTO-DETECTA de
+  // los propios vuelos: no depende de que pilotOS_home_base esté fijado (Swift no lo pone)
+  // ni de que coincida el formato (ICAO/IATA). Se excluye tanto la base guardada como la
+  // detectada. Antes solo excluía la guardada → si estaba vacía, la base copaba el ranking.
+  var _apAll={};
+  entries.forEach(function(e){ if(e.dep)_apAll[e.dep]=(_apAll[e.dep]||0)+1; if(e.arr)_apAll[e.arr]=(_apAll[e.arr]||0)+1; });
+  var _autoBase='', _maxAp=0;
+  Object.keys(_apAll).forEach(function(a){ if(_apAll[a]>_maxAp){ _maxAp=_apAll[a]; _autoBase=a; } });
+  var _isBase=function(ap){ return ap===_homeBase || ap===_autoBase; };
+  var topDests  = Object.entries(destCnt).filter(function(d){ return !_isBase(d[0]); }).sort(function(a,b){ return b[1]-a[1]; }).slice(0,8);
+  var topDepArr = Object.entries(depCnt).filter(function(d){ return !_isBase(d[0]); }).sort(function(a,b){ return b[1]-a[1]; });
   var topRoutes = Object.entries(routeCnt).sort(function(a,b){ return b[1]-a[1]; });
   var airports  = new Set();
   entries.forEach(function(e){ if(e.dep)airports.add(e.dep); if(e.arr)airports.add(e.arr); });
