@@ -1763,10 +1763,12 @@ body:has(#pp-modal.on) #br-fab{display:none!important}
 
 /* ══ PRINT STYLES ══ */
 @media print {
+  html, body { background: #fff !important; }
   body * { visibility: hidden !important; }
-  
-  
-  .pc-no-print { display: none !important; }
+  /* Re-mostrar SOLO el informe (si no, se imprime el fondo oscuro del body → hoja negra) */
+  #pc-print-area, #pc-print-area * { visibility: visible !important; }
+  #pc-print-area { position: absolute !important; inset: 0 !important; z-index: 99999 !important; background: #fff !important; display: block !important; }
+  .pc-no-print, .pc-print-bar { display: none !important; }
   @page { margin: 15mm 12mm; size: A4 portrait; }
 }
 
@@ -10538,7 +10540,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
         </div>
       </div>
       <!-- Botón importar (pestaña Acumulado) -->
-      <button id="pc-import-btn-acum" onclick="pcImportFromLogbook(pcNowMonth())" style="width:100%;padding:11px 14px;margin-bottom:10px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:12px;color:#FBBF24;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px"><span>📥</span><span>Importar desde Logbook</span></button>
+      <button id="pc-import-btn-acum" onclick="pcImportFromLogbook(pcNowMonth())" style="width:100%;padding:11px 14px;margin-bottom:10px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:12px;color:#FBBF24;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px"><span>📥</span><span>Importar datos desde PilotOS</span></button>
       <div id="pc-acum-hint" style="text-align:center;font-size:11px;color:rgba(255,255,255,.3);margin-bottom:12px;line-height:1.65">Plus horas vuelo + dietas según IV Convenio 2026.<br>Nómina completa con retenciones en la pestaña <span style="color:rgba(245,158,11,.55);font-weight:600">◈ Nómina</span>.</div>
 
       <!-- ════ HISTÓRICO 6M ════ -->
@@ -10732,7 +10734,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
         </div>
       </div>
       <button id="pc-import-btn" onclick="pcImportFromLogbook()" style="width:100%;padding:11px 14px;margin-bottom:14px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:12px;color:#FBBF24;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
-        <span>📥</span><span>Importar desde Logbook</span>
+        <span>📥</span><span>Importar datos desde PilotOS</span>
       </button>
       <div class="frow" style="margin-bottom:10px">
         <div class="fg">
@@ -16067,9 +16069,9 @@ async function pcImportFromLogbook(month) {
   } catch(err) {
     showToast('❌ ' + err.message, 'error');
   } finally {
-    if (btn) { btn.innerHTML = '<span>📥</span><span>Importar desde Logbook</span>'; btn.disabled = false; }
+    if (btn) { btn.innerHTML = '<span>📥</span><span>Importar datos desde PilotOS</span>'; btn.disabled = false; }
     if (btnAcum) {
-      btnAcum.innerHTML = pcTkImported ? '<span>✓</span><span>Importado</span>' : '<span>📥</span><span>Importar desde Logbook</span>';
+      btnAcum.innerHTML = pcTkImported ? '<span>✓</span><span>Importado</span>' : '<span>📥</span><span>Importar datos desde PilotOS</span>';
       btnAcum.disabled = false;
     }
   }
