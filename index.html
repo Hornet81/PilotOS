@@ -16020,6 +16020,28 @@ async function pcImportFromLogbook(month) {
       }
     } catch(_e){}
 
+    // ── Actividades de tierra + posicionales desde el ROSTER del mismo mes ──
+    // e-learning (LM→2114), posicionales (→783), oficina (OFIC→2107), sparring
+    // (SPAR→2017), ground (GRND→414, en 'cargos'). Los sims/TRI/TRE/LSC/formación
+    // siguen viniendo del LOGBOOK por rol (bloque de arriba). Solo se aplica si el
+    // roster de ese mes está importado — si no, no se pisa nada y se avisa.
+    try {
+      if (data.roster_available) {
+        var _ra = data.roster_activity || {};
+        setVal('pc_fonline',  _ra.elearn_h     || 0);
+        setVal('pc_hpos',     _ra.positional_h || 0);
+        setVal('pc_oficina',  _ra.office_days  || 0);
+        setVal('pc_sparring', _ra.sparring_h   || 0);
+        if (_ra.ground_days) {                       // roster manda sobre pc_gti si tiene datos
+          setVal('pc_gti', _ra.ground_days);
+          try{ if(typeof PC_STATE!=='undefined') PC_STATE.cargo='si'; }catch(_e){}
+          var _cw2=document.getElementById('pc_cargos_wrap'); if(_cw2) _cw2.style.display='block';
+        }
+      } else {
+        showToast('ℹ️ Importa también el roster de ' + month + ' para incluir e-learnings, posicionales y oficina', 'warning');
+      }
+    } catch(_e){}
+
     // ── Mostrar banner de estado ──
     var banner = document.getElementById('pc-import-banner');
     var dot    = document.getElementById('pc-import-status-dot');
