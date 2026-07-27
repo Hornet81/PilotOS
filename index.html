@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.415">
+  <meta name="version" content="Beta.416">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.415","builtAt":"2026-07-27T10:00:03Z","commit":"4f1be59","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.416","builtAt":"2026-07-27T10:09:29Z","commit":"4a604b2","channel":"beta"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -17372,34 +17372,22 @@ function pcExportReport(compare) {
     + '<button class="pc-pb-back" onclick="pcClosePrint()">← Atrás</button>'
     + '<button class="pc-pb-print" onclick="pcPrintDoc()">🖨 Imprimir / Guardar PDF</button>'
     + '</div>'
-    + '<div class="pc-print-doc">' + styleHtml + bodyHtml + '</div>';
+    + '<iframe id="pc-print-frame" title="Informe" style="flex:1 1 auto;width:100%;min-height:0;border:0;background:#fff"></iframe>';
   area.classList.add('visible');
+  // Escribir el documento COMPLETO en el iframe VISIBLE (renderiza con sus propios
+  // estilos; imprimir su contentWindow imprime SOLO el informe, sin trucos @media print).
+  var _pf = document.getElementById('pc-print-frame');
+  if (_pf) { try { var _pd = _pf.contentDocument || _pf.contentWindow.document; _pd.open(); _pd.write(doc); _pd.close(); } catch(e){} }
 }
 
-// Imprime el informe en un IFRAME aislado con el documento completo. Es robusto en
-// iOS (Safari/PWA), donde el truco @media print { body * { visibility:hidden } }
-// deja la hoja en blanco. Si no hay doc guardado, cae a window.print().
+// Imprime el informe: el overlay ya muestra el documento en un iframe VISIBLE
+// (#pc-print-frame). Imprimir su contentWindow imprime SOLO ese informe, con sus
+// propios estilos — sin depender de @media print del documento principal (que en
+// iOS dejaba la hoja en blanco). El botón propio del informe también funciona.
 function pcPrintDoc() {
-  var html = window.PC_PRINT_DOC;
-  if (!html) { window.print(); return; }
-  var old = document.getElementById('pc-print-iframe');
-  if (old) old.parentNode.removeChild(old);
-  var ifr = document.createElement('iframe');
-  ifr.id = 'pc-print-iframe';
-  ifr.setAttribute('aria-hidden', 'true');
-  // Fuera de pantalla PERO con ancho real: un iframe de 1px hace el layout a 1px → imprime en blanco
-  ifr.style.cssText = 'position:fixed;left:-10000px;top:0;width:800px;height:1200px;border:0;background:#fff';
-  document.body.appendChild(ifr);
-  var idoc = ifr.contentWindow ? ifr.contentWindow.document : ifr.contentDocument;
-  idoc.open(); idoc.write(html); idoc.close();
-  var printed = false;
-  function go() {
-    if (printed) return; printed = true;
-    try { ifr.contentWindow.focus(); ifr.contentWindow.print(); }
-    catch(e) { try { window.print(); } catch(_e){} }
-  }
-  ifr.onload = function(){ setTimeout(go, 300); };
-  setTimeout(go, 900); // respaldo por si onload no dispara (iOS)
+  var pf = document.getElementById('pc-print-frame');
+  if (pf && pf.contentWindow) { try { pf.contentWindow.focus(); pf.contentWindow.print(); return; } catch(e){} }
+  window.print();
 }
 
 function pcClosePrint() {
