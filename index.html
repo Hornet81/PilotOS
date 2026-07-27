@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.412">
+  <meta name="version" content="Beta.413">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.412","builtAt":"2026-07-26T14:12:44Z","commit":"46f66c6","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.413","builtAt":"2026-07-27T09:39:15Z","commit":"a6b470e","channel":"beta"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -17352,6 +17352,9 @@ function pcExportReport(compare) {
     + '</div>'
     + '</body></html>';
 
+  // Guardar el documento COMPLETO para imprimirlo en un iframe aislado (robusto en iOS)
+  try { window.PC_PRINT_DOC = doc; } catch(e) {}
+
   // Extraer <style> y contenido del <body> para inyectarlos en el overlay
   var styleMatch = doc.match(/<style>([\s\S]*?)<\/style>/i);
   var bodyMatch  = doc.match(/<body>([\s\S]*?)<\/body>/i);
@@ -17363,15 +17366,42 @@ function pcExportReport(compare) {
   area.innerHTML =
     '<div class="pc-print-bar">'
     + '<button class="pc-pb-back" onclick="pcClosePrint()">← Atrás</button>'
-    + '<button class="pc-pb-print" onclick="window.print()">🖨 Imprimir / Guardar PDF</button>'
+    + '<button class="pc-pb-print" onclick="pcPrintDoc()">🖨 Imprimir / Guardar PDF</button>'
     + '</div>'
     + '<div class="pc-print-doc">' + styleHtml + bodyHtml + '</div>';
   area.classList.add('visible');
 }
 
+// Imprime el informe en un IFRAME aislado con el documento completo. Es robusto en
+// iOS (Safari/PWA), donde el truco @media print { body * { visibility:hidden } }
+// deja la hoja en blanco. Si no hay doc guardado, cae a window.print().
+function pcPrintDoc() {
+  var html = window.PC_PRINT_DOC;
+  if (!html) { window.print(); return; }
+  var old = document.getElementById('pc-print-iframe');
+  if (old) old.parentNode.removeChild(old);
+  var ifr = document.createElement('iframe');
+  ifr.id = 'pc-print-iframe';
+  ifr.setAttribute('aria-hidden', 'true');
+  ifr.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none';
+  document.body.appendChild(ifr);
+  var idoc = ifr.contentWindow ? ifr.contentWindow.document : ifr.contentDocument;
+  idoc.open(); idoc.write(html); idoc.close();
+  var printed = false;
+  function go() {
+    if (printed) return; printed = true;
+    try { ifr.contentWindow.focus(); ifr.contentWindow.print(); }
+    catch(e) { try { window.print(); } catch(_e){} }
+  }
+  ifr.onload = function(){ setTimeout(go, 300); };
+  setTimeout(go, 900); // respaldo por si onload no dispara (iOS)
+}
+
 function pcClosePrint() {
   var area = document.getElementById('pc-print-area');
   if (area) { area.classList.remove('visible'); area.innerHTML = ''; }
+  var ifr = document.getElementById('pc-print-iframe');
+  if (ifr) ifr.parentNode.removeChild(ifr);
 }
 
 function pcHandleBack() {
