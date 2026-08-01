@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.428">
+  <meta name="version" content="Beta.429">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.428","builtAt":"2026-07-30T10:01:36Z","commit":"bfc2438","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.429","builtAt":"2026-08-01T08:24:23Z","commit":"cef815c","channel":"beta"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -31130,7 +31130,7 @@ function SkyViewPilotOS() {
     window.addEventListener('pilotos-skyview-shown', onShown);
     return () => window.removeEventListener('pilotos-skyview-shown', onShown);
   }, []);
-  useEffect(() => {
+  const loadWx = () => {
     if (!_depIcao || !_arrIcao) return;
     (async () => {
       const _altIcaos = ((_baseLeg.alts || []).slice(0, 2)).map(a => iataToIcao(a.icao) || a.icao).filter(Boolean);
@@ -31163,10 +31163,14 @@ function SkyViewPilotOS() {
         }));
       }
     })();
-    // deps incluyen _depIcao/_arrIcao: cuando el roster carga tras el montaje y el leg real
-    // reemplaza al placeholder (-- → LEBL), legIdx no cambia pero los ICAO sí → re-fetch.
-    // Sin esto, BRIEF no cargaba la meteo hasta pasar por WX.
-  }, [legIdx, _depIcao, _arrIcao]);
+  };
+  try{ window.__skyLoadWx = loadWx; }catch(_e){}  // para pull-to-refresh / forzar carga
+  // deps _depIcao/_arrIcao: cuando el roster carga tras el montaje y el leg real reemplaza al
+  // placeholder (-- → LEBL), legIdx no cambia pero los ICAO sí → re-fetch.
+  useEffect(() => { loadWx(); }, [legIdx, _depIcao, _arrIcao]);
+  // Al ENTRAR en la pestaña BRIEF (o WX) fuerza la carga aunque el leg no haya cambiado —
+  // antes había que pasar por WX para que BRIEF cargara los datos.
+  useEffect(() => { if (tab === 'brief' || tab === 'meteo') loadWx(); }, [tab]);
   // Cargar fichas CCI del DEP/ARR desde backend -> cache CCI_BY_ICAO (nombre, pistas, alternativos)
   useEffect(() => {
     const ics = [_depIcao, _arrIcao].filter(Boolean);
