@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.433">
+  <meta name="version" content="Beta.434">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.433","builtAt":"2026-08-03T22:16:49Z","commit":"04e2768","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.434","builtAt":"2026-08-03T22:32:59Z","commit":"pending","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -2399,6 +2399,11 @@ select.ld-fi { appearance:none; -webkit-appearance:none; cursor:pointer; }
   box-shadow:0 -28px 80px rgba(124,58,237,.28),0 -6px 28px rgba(0,0,0,.75),inset 0 1px 0 rgba(255,255,255,.04);
   display:flex;flex-direction:column;overflow:hidden;
 }
+/* Modo revisión (U1): la hoja pasa a pantalla completa. Revisar 300 vuelos por una
+   rendija de 78vh es lo que hacía imposible el import grande. Sólo en revisión: la
+   zona de arrastre inicial se queda como estaba. */
+.ldi-sheet.review{max-height:100dvh;height:100dvh;border-radius:0;border-left:0;border-right:0}
+.ldi-sheet.review .ldi-table-wrap.editable{max-height:none}
 /* Drag handle */
 .ldi-sheet::before{
   content:'';display:block;width:38px;height:4px;
@@ -7203,6 +7208,65 @@ html.day .ldi-ftr-note{color:rgba(14,116,144,.45)!important}
 .ldimp-inp.uc{text-transform:uppercase;color:#5EEAD4}
 .ldimp-hd{font-size:11px;color:rgba(226,232,240,.72);margin:0 0 6px;line-height:1.45}
 .ldimp-hd b{color:#5EEAD4}
+/* ── U2 · columnas congeladas: con 18 columnas, al hacer scroll horizontal se pierde
+   de vista de qué vuelo es cada fila. # y Fecha se quedan pegadas a la izquierda. ── */
+.ldimp-etable th.rown,.ldimp-etable td.rown{position:sticky;left:0;z-index:3;background:rgba(8,12,26,.98)}
+.ldimp-etable th.c-date,.ldimp-etable td.c-date{position:sticky;left:34px;z-index:3;background:rgba(8,12,26,.98)}
+.ldimp-etable th.rown,.ldimp-etable th.c-date{z-index:4}
+.ldimp-etable tr.simrow td.rown,.ldimp-etable tr.simrow td.c-date{background:#0b1c1a}
+.ldimp-etable tr.sel td{background:rgba(34,211,238,.2)!important}
+/* selector de fila + desplegable de la ficha en móvil */
+.ldimp-etable td.rown{white-space:nowrap}
+.ldimp-rsel{width:13px;height:13px;vertical-align:middle;accent-color:#22D3EE;margin:0}
+.ldimp-exp{display:none;background:none;border:0;color:rgba(148,163,184,.8);font-size:15px;line-height:1;padding:0 4px;cursor:pointer}
+/* menú de columna (U5) */
+.ldimp-cbtn{background:none;border:0;color:rgba(34,211,238,.55);font-size:10px;cursor:pointer;padding:0 2px;line-height:1}
+.ldimp-cbtn:hover{color:#22D3EE}
+.ldimp-menu{position:absolute;z-index:100000;width:236px;background:#0F1628;border:1px solid rgba(34,211,238,.35);
+  border-radius:12px;padding:10px;box-shadow:0 18px 48px rgba(0,0,0,.7);font-family:'Space Mono',monospace}
+.ldimp-menu .mh{font-size:9.5px;text-transform:uppercase;letter-spacing:.5px;color:rgba(34,211,238,.8);margin-bottom:7px;line-height:1.4}
+.ldimp-menu input,.ldimp-menu select{width:100%;box-sizing:border-box;background:rgba(8,12,26,.8);border:1px solid rgba(34,211,238,.22);
+  border-radius:7px;color:#E2E8F0;font-family:'Space Mono',monospace;font-size:11px;padding:5px 6px;margin-bottom:5px}
+.ldimp-menu button.act{width:100%;box-sizing:border-box;background:rgba(34,211,238,.14);border:1px solid rgba(34,211,238,.3);
+  border-radius:7px;color:#5EEAD4;font-family:'Space Mono',monospace;font-size:10.5px;padding:6px;margin-bottom:5px;cursor:pointer;text-align:left}
+.ldimp-menu button.act:hover{background:rgba(34,211,238,.24);color:#F8FAFC}
+.ldimp-menu .sep{height:1px;background:rgba(34,211,238,.15);margin:7px 0}
+.ldimp-menu .two{display:flex;gap:5px}
+.ldimp-undo{background:rgba(248,113,113,.14);border:1px solid rgba(248,113,113,.35);color:#FCA5A5;
+  font-family:'Space Mono',monospace;font-size:10px;padding:5px 10px;border-radius:8px;cursor:pointer;margin-left:auto}
+.ldimp-selbar{display:flex;align-items:center;gap:8px;margin:0 0 8px;line-height:1.4;
+  font-size:10px;color:rgba(34,211,238,.75);font-family:'Space Mono',monospace}
+.ldimp-selbar b{color:#5EEAD4}
+.ldimp-selbar button{background:none;border:0;color:#5EEAD4;font-size:10px;text-decoration:underline;cursor:pointer;font-family:inherit;padding:0}
+/* ── U2 · móvil: 18 columnas no caben en 440 px y no tiene arreglo por CSS de tabla.
+   La MISMA tabla se repinta como fichas (mismo DOM, mismos ids ⇒ _ldReadEditableImport
+   no se entera). Se ven los 4 campos que la IA falla de verdad y el resto se despliega. ── */
+@media(max-width:720px){
+  .ldimp-etable,.ldimp-etable tbody,.ldimp-etable tr,.ldimp-etable td{display:block;width:auto}
+  .ldimp-etable thead{display:none}
+  .ldimp-etable tr{border:1px solid rgba(34,211,238,.18);border-radius:12px;margin-bottom:8px;padding:7px 9px;background:rgba(8,12,26,.5)}
+  .ldimp-etable tr.sel{border-color:rgba(34,211,238,.7)}
+  .ldimp-etable tbody tr:nth-child(odd) td,.ldimp-etable tbody tr:nth-child(even) td,
+  .ldimp-etable tbody tr:hover td,.ldimp-etable tr.simrow td{background:transparent!important}
+  .ldimp-etable tr.simrow{background:rgba(16,185,129,.1)}
+  .ldimp-etable td{display:flex;align-items:center;gap:9px;border:0;padding:2px 0;position:static!important}
+  .ldimp-etable td::before{content:attr(data-l);flex:0 0 76px;font-size:8.5px;text-transform:uppercase;letter-spacing:.5px;
+    color:rgba(148,163,184,.8);font-family:'Space Mono',monospace}
+  .ldimp-etable td.rown{justify-content:flex-start;gap:7px;margin-bottom:3px;color:rgba(148,163,184,.7)}
+  .ldimp-etable td.rown::before{content:'#'attr(data-n);flex:0 0 auto}
+  .ldimp-etable .ldimp-n{display:none}
+  .ldimp-exp{display:inline-block;margin-left:auto}
+  .ldimp-etable td.sec{display:none}
+  .ldimp-etable tr.exp td.sec{display:flex}
+  .ldimp-menu{width:min(280px,92vw)}
+}
+html.day .ldimp-etable th.rown,html.day .ldimp-etable td.rown,
+html.day .ldimp-etable th.c-date,html.day .ldimp-etable td.c-date{background:#eef2f7!important}
+html.day .ldimp-menu{background:#fff!important;border-color:rgba(3,105,161,.3)!important}
+html.day .ldimp-menu input,html.day .ldimp-menu select{background:#fff!important;color:#0f172a!important;border-color:rgba(3,105,161,.25)!important}
+html.day .ldimp-menu .mh{color:#0369A1!important}
+html.day .ldimp-menu button.act{color:#0369A1!important}
+@media(max-width:720px){ html.day .ldimp-etable tr{background:rgba(255,255,255,.9)!important;border-color:rgba(3,105,161,.2)!important} }
 html.day .ldi-table-wrap{background:rgba(255,255,255,.9)!important}
 html.day .ldimp-etable th{background:#eef2f7!important;color:#0369A1!important;border-color:rgba(3,105,161,.2)!important}
 html.day .ldimp-etable td{border-color:rgba(3,105,161,.08)!important}
@@ -12321,8 +12385,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
     set('func', e.pilotFunction || (e.role==='CPT'?'PIC':'Copiloto'));
     // SP/MP y SE/ME: el import a veces no los trae (y para un sim acType viene vacío) → si
     // faltan, derivarlos del aparato. Un airliner (A320, B737, E-Jet, CRJ, ATR…) es ME + MP.
-    var _acCl=(e.acType||e.simType||'').toUpperCase();
-    var _isAirliner=/A2[12]\d|A3\d\d|A32\d|B7[0-9]\d|E1[7-9]\d|E2\d\d|CRJ|AT[R7]\b|ATR\d|DH8|Q4\d\d|MD8\d|F70|F100|RJ\d|SF34/.test(_acCl);
+    var _isAirliner=ldIsAirliner(e.acType||e.simType);
     set('smp', e.spMp || (_isAirliner?'MP':''));
     set('sme', e.seMe || (_isAirliner?'ME':''));
     // Simulador: mapear el dispositivo DETECTADO al select (antes salía siempre FNPT II).
@@ -22604,6 +22667,10 @@ function ldCloseImport(){
   if(tabs){ tabs.style.transform=''; tabs.style.transition='transform .2s'; }
   _ldImportData=null;
   _ldPendingBalance=null; _ldPdfSummary=''; _ldImportEditable=false;
+  _ldImpSel={}; _ldImpLastSel=null; _ldImpUndo=[]; _ldImpCloseMenu();
+  var _sh=document.querySelector('#ld_import_modal .ldi-sheet'); if(_sh) _sh.classList.remove('review');
+  var _lt=document.getElementById('ldimp_live_totals'); if(_lt) _lt.remove();
+  var _si=document.getElementById('ldimp_selinfo'); if(_si) _si.remove();
   if(_ldiProcTimer){ clearInterval(_ldiProcTimer); _ldiProcTimer=null; }
   var f=document.getElementById('ld_import_file'); if(f) f.value='';
   var p=document.getElementById('ld_import_preview'); if(p) p.style.display='none';
@@ -22644,6 +22711,10 @@ function ldiShowResult(){
   var proc=document.getElementById('ldi_processing'); if(proc) proc.style.display='none';
   var info=document.querySelector('.ldi-info'); if(info) info.style.display='none';
   var prev=document.getElementById('ld_import_preview'); if(prev) prev.style.display='block';
+  // U1 · revisar vuelo por vuelo por una rendija de 78vh es lo que hacía imposible el
+  // import grande: en modo revisión editable la hoja pasa a pantalla completa.
+  var sh=document.querySelector('#ld_import_modal .ldi-sheet');
+  if(sh) sh.classList.toggle('review',!!_ldImportEditable);
 }
 
 function ldImportDrop(e){
@@ -22658,22 +22729,30 @@ function ldImportFile(e){ var file=e.target.files[0]; if(file) ldParseImportFile
 var _ldPendingBalance=null;   // saldo de partida a guardar si el usuario confirma
 var _ldPdfSummary='';         // resumen extra a pintar en la vista previa
 var _ldImportEditable=false;  // import por foto (IA): la vista previa es 100% editable
+var _ldImpSel={};             // filas seleccionadas para la edición masiva {idx:1}
+var _ldImpLastSel=null;       // ancla del shift-click (rango)
+var _ldImpUndo=[];            // pila de 5 estados previos de _ldImportData (U6)
 
 // Columnas de la tabla de revisión editable. La IA falla con letra a mano (matrículas,
 // nombres, aeropuertos), así que el piloto tiene que poder corregir TODO antes de confirmar.
 // Paridad TOTAL con las columnas del logbook Jeppesen EASA: el piloto puede corregir o
 // rellenar cualquier campo (SE/ME, tiempo, noche, IFR/VFR, landings, nombre PIC, función
 // incluida INSTRUCTOR, remarks). Las claves son las canónicas que consume ldImportConfirm.
+// `pri` = campo que se ve siempre en la ficha de móvil (los 4 que la IA falla de verdad).
 var _ldImpEditCols=[
-  {k:'date',l:'Fecha',w:96,ph:'AAAA-MM-DD'},
-  {k:'dep',l:'Origen',w:58,uc:1,ph:'ICAO'},
+  {k:'date',l:'Fecha',w:96,ph:'AAAA-MM-DD',pri:1},
+  {k:'dep',l:'Origen',w:58,uc:1,ph:'ICAO',pri:1},
   {k:'atd',l:'Hora sal.',w:60,ph:'HH:MM'},
-  {k:'arr',l:'Destino',w:58,uc:1,ph:'ICAO'},
+  {k:'arr',l:'Destino',w:58,uc:1,ph:'ICAO',pri:1},
   {k:'ata',l:'Hora lleg.',w:60,ph:'HH:MM'},
   {k:'acType',l:'Avión',w:64,uc:1,ph:'C680'},
-  {k:'reg',l:'Matrícula',w:84,uc:1,ph:'PH-XXX'},
-  {k:'seMe',l:'SE/ME',w:62,sel:['','SE','ME','MP']},
-  {k:'block',l:'Tiempo',w:60,ph:'H:MM'},
+  {k:'reg',l:'Matrícula',w:84,uc:1,ph:'PH-XXX',pri:1},
+  // SE/ME (nº de MOTORES) y SP/MP (nº de PILOTOS) son ejes independientes: un A320 es
+  // ME **y** MP a la vez, y con un solo selector no se podía decir. En el logbook EASA
+  // son columnas separadas y "Otros vuelos" ya las guardaba por separado.
+  {k:'seMe',l:'SE/ME',w:56,sel:['','SE','ME']},
+  {k:'spMp',l:'SP/MP',w:56,sel:['','SP','MP']},
+  {k:'block',l:'Tiempo',w:60,ph:'H:MM',pri:1},
   {k:'night',l:'Noche',w:58,ph:'H:MM'},
   {k:'rules',l:'IFR/VFR',w:72,sel:['IFR','VFR']},
   {k:'ldgDay',l:'Ldg día',w:50},
@@ -22686,24 +22765,38 @@ var _ldImpEditCols=[
 function _ldImpEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 // Pinta la tabla editable con TODOS los vuelos (una fila por vuelo, cada campo una casilla)
 function _ldRenderEditableImport(){
-  var th='<th class="rown">#</th>'+_ldImpEditCols.map(function(c){
-    return '<th style="min-width:'+c.w+'px">'+c.l+'</th>';
-  }).join('');
+  var allSel=(_ldImportData||[]).length>0&&Object.keys(_ldImpSel).length===(_ldImportData||[]).length;
+  var th='<th class="rown"><input type="checkbox" class="ldimp-rsel" id="ldimp_selall"'+(allSel?' checked':'')
+        +' onclick="ldImpSelAll(this.checked)" title="Seleccionar todas"></th>'
+    +_ldImpEditCols.map(function(c){
+      // El ▾ abre la edición masiva de ESA columna: los errores de la IA son por columna
+      // (todas las matrículas mal, todo el rol mal), no por fila.
+      return '<th class="c-'+c.k+'" style="min-width:'+c.w+'px">'+c.l
+        +'<button class="ldimp-cbtn" onclick="ldImpColMenu(\''+c.k+'\',event)" title="Aplicar a toda la columna">▾</button></th>';
+    }).join('');
   var trs=(_ldImportData||[]).map(function(r,i){
     var isSim=(r.activityType==='sim')||(String(r.opType||'').toUpperCase()==='SIM');
     var tds=_ldImpEditCols.map(function(c){
       var v=r[c.k];
       var id='ldimpc_'+i+'_'+c.k;
+      var cls='c-'+c.k+(c.pri?'':' sec');
+      var at=' data-l="'+_ldImpEsc(c.l)+'"';
       if(c.sel){
         var opts=c.sel.map(function(o){
           return '<option value="'+o+'"'+(String(v||'')===o?' selected':'')+'>'+(o||'—')+'</option>';
         }).join('');
-        return '<td><select class="ldimp-sel" id="'+id+'">'+opts+'</select></td>';
+        return '<td class="'+cls+'"'+at+'><select class="ldimp-sel" id="'+id+'">'+opts+'</select></td>';
       }
-      return '<td><input class="ldimp-inp'+(c.uc?' uc':'')+'" id="'+id+'" value="'+_ldImpEsc(v)+'"'
+      return '<td class="'+cls+'"'+at+'><input class="ldimp-inp'+(c.uc?' uc':'')+'" id="'+id+'" value="'+_ldImpEsc(v)+'"'
         +(c.ph?' placeholder="'+c.ph+'"':'')+' autocomplete="off" spellcheck="false"></td>';
     }).join('');
-    return '<tr class="'+(isSim?'simrow':'')+'"><td class="rown">'+(i+1)+'</td>'+tds+'</tr>';
+    return '<tr class="'+(isSim?'simrow ':'')+(_ldImpSel[i]?'sel':'')+'" id="ldimprow_'+i+'">'
+      +'<td class="rown" data-n="'+(i+1)+'">'
+        +'<input type="checkbox" class="ldimp-rsel" id="ldimpsel_'+i+'"'+(_ldImpSel[i]?' checked':'')
+        +' onclick="ldImpSelRow('+i+',event)" title="Seleccionar (shift = rango)">'
+        +'<span class="ldimp-n">'+(i+1)+'</span>'
+        +'<button class="ldimp-exp" onclick="ldImpToggleRow('+i+')" title="Ver el resto de campos">···</button>'
+      +'</td>'+tds+'</tr>';
   }).join('');
   return '<table class="ldimp-etable"><thead><tr>'+th+'</tr></thead><tbody>'+trs+'</tbody></table>';
 }
@@ -22755,6 +22848,162 @@ function _ldReadEditableImport(){
   });
 }
 
+// ═══ U5/U6 · EDICIÓN MASIVA POR COLUMNA + DESHACER ═══════════════════════════
+// Los errores de la IA son POR COLUMNA (todas las matrículas mal, todo el rol mal, todo
+// marcado VFR), no por fila. Corregir 300 vuelos casilla a casilla no lo hace nadie.
+//
+// ★ REGLA QUE NO SE PUEDE ROMPER: hasta que se llama a _ldReadEditableImport(), la fuente
+// de verdad es el DOM, no _ldImportData. Toda operación masiva va en este orden:
+//     _ldReadEditableImport() → mutar _ldImportData → repintar → _ldImpLiveTotals()
+// Repintar sin leer antes se lleva por delante, en silencio, todo lo que el piloto ya
+// hubiera corregido a mano.
+function _ldImpRepaint(){
+  var wrap=document.getElementById('ld_import_table_wrap');
+  if(!wrap) return;
+  var hd=wrap.querySelector('.ldimp-hd');
+  wrap.innerHTML=(hd?hd.outerHTML:'')+_ldRenderEditableImport();
+  _ldImpLiveTotals();
+  _ldImpSelInfo();
+}
+function _ldImpSnapshot(){
+  try{ _ldImpUndo.push(JSON.stringify(_ldImportData)); }catch(e){ return; }
+  if(_ldImpUndo.length>5) _ldImpUndo.shift();   // 5 niveles: sin marcha atrás nadie se atreve
+}
+function ldImpUndo(){
+  if(!_ldImpUndo.length) return;
+  try{ _ldImportData=JSON.parse(_ldImpUndo.pop()); }catch(e){ return; }
+  _ldImpRepaint();
+  if(window.showToast) showToast('Deshecho ✓','success');
+}
+// Aplica fn(valor, fila, idx) a una columna, sobre la selección o sobre todas las filas.
+function _ldImpApply(k,fn){
+  _ldReadEditableImport();
+  _ldImpSnapshot();
+  var sel=Object.keys(_ldImpSel).length?_ldImpSel:null;
+  var n=0;
+  (_ldImportData||[]).forEach(function(r,i){
+    if(sel&&!sel[i]) return;
+    var v=fn(r[k]==null?'':String(r[k]),r,i);
+    if(v!==undefined&&v!==null&&v!==r[k]){ r[k]=v; n++; }
+  });
+  (_ldImportData||[]).forEach(ldNormalizeRow);
+  _ldImpCloseMenu();
+  _ldImpRepaint();
+  if(window.showToast) showToast(n?(n+' fila'+(n>1?'s':'')+' actualizada'+(n>1?'s':'')):'Nada que cambiar', n?'success':'warning');
+}
+// ── selección de filas ──
+function ldImpSelRow(i,ev){
+  if(ev&&ev.shiftKey&&_ldImpLastSel!=null){
+    var a=Math.min(i,_ldImpLastSel), b=Math.max(i,_ldImpLastSel);
+    for(var j=a;j<=b;j++) _ldImpSel[j]=1;
+  } else {
+    if(_ldImpSel[i]) delete _ldImpSel[i]; else _ldImpSel[i]=1;
+    _ldImpLastSel=i;
+  }
+  _ldImpSelSync();
+}
+function ldImpSelAll(on){
+  _ldImpSel={};
+  if(on) (_ldImportData||[]).forEach(function(_,i){ _ldImpSel[i]=1; });
+  _ldImpSelSync();
+}
+function ldImpSelNone(){ ldImpSelAll(false); }
+// Sincroniza las casillas SIN repintar: un repintado aquí perdería las ediciones a mano.
+function _ldImpSelSync(){
+  (_ldImportData||[]).forEach(function(_,i){
+    var cb=document.getElementById('ldimpsel_'+i), tr=document.getElementById('ldimprow_'+i);
+    if(cb) cb.checked=!!_ldImpSel[i];
+    if(tr) tr.classList.toggle('sel',!!_ldImpSel[i]);
+  });
+  var all=document.getElementById('ldimp_selall');
+  if(all) all.checked=(_ldImportData||[]).length>0&&Object.keys(_ldImpSel).length===_ldImportData.length;
+  _ldImpSelInfo();
+}
+function _ldImpSelInfo(){
+  var host=document.getElementById('ldimp_selinfo');
+  if(!host) return;
+  var n=Object.keys(_ldImpSel).length;
+  host.innerHTML=(n?('<b>'+n+' fila'+(n>1?'s':'')+' seleccionada'+(n>1?'s':'')+'</b> · las acciones ▾ se aplican solo a '+(n>1?'ellas':'ella')
+                     +' <button onclick="ldImpSelNone()">quitar selección</button>')
+                   :'Marca filas con la casilla (mayúsculas = rango) para aplicar cambios solo a ellas · o usa ▾ en cualquier columna para todas')
+    +(_ldImpUndo.length?'<button class="ldimp-undo" onclick="ldImpUndo()">↶ Deshacer</button>':'');
+}
+function ldImpToggleRow(i){
+  var tr=document.getElementById('ldimprow_'+i); if(tr) tr.classList.toggle('exp');
+}
+// ── menú de columna ──
+function _ldImpCloseMenu(){ var m=document.getElementById('ldimp_menu'); if(m) m.remove(); }
+// Reglas de autocompletado por columna: lo que se puede deducir sin preguntar.
+function _ldImpAuto(k){
+  if(k==='seMe')  return function(v,r){ return v||(ldIsAirliner(r.acType)?'ME':''); };
+  if(k==='spMp')  return function(v,r){ return v||(ldIsAirliner(r.acType)?'MP':''); };
+  if(k==='rules') return function(v){ return v||'IFR'; };
+  if(k==='role')  return function(v,r){ return v||(/^(PIC|PICUS|SPIC|Instructor)$/.test(r.pilotFunction||'')?'CPT':(r.pilotFunction?'FO':'')); };
+  if(k==='pilotFunction') return function(v,r){ return v||(r.role==='CPT'?'PIC':(r.role==='FO'?'Copiloto':'')); };
+  return null;
+}
+function ldImpColMenu(k,ev){
+  if(ev){ ev.stopPropagation(); ev.preventDefault(); }
+  var col=_ldImpEditCols.filter(function(c){return c.k===k;})[0]; if(!col) return;
+  var open=document.getElementById('ldimp_menu');
+  _ldImpCloseMenu();
+  if(open&&open.getAttribute('data-k')===k) return;    // segundo toque = cerrar
+  var n=Object.keys(_ldImpSel).length;
+  var scope=n?(n+' fila'+(n>1?'s':'')+' seleccionada'+(n>1?'s':'')):'todas las filas';
+  var val=col.sel
+    ? '<select id="ldimp_mv">'+col.sel.map(function(o){return '<option value="'+o+'">'+(o||'— vacío —')+'</option>';}).join('')+'</select>'
+    : '<input id="ldimp_mv" placeholder="'+_ldImpEsc(col.ph||'valor')+'" autocomplete="off" spellcheck="false">';
+  var auto=_ldImpAuto(k);
+  var el=document.createElement('div');
+  el.className='ldimp-menu'; el.id='ldimp_menu'; el.setAttribute('data-k',k);
+  el.innerHTML='<div class="mh">'+_ldImpEsc(col.l)+' · '+scope+'</div>'
+    +val
+    +'<button class="act" onclick="ldImpDoSet(\''+k+'\')">Aplicar a '+(n?'las seleccionadas':'todas')+'</button>'
+    +'<div class="sep"></div>'
+    +'<div class="two"><input id="ldimp_mf" placeholder="buscar" autocomplete="off"><input id="ldimp_mr" placeholder="poner" autocomplete="off"></div>'
+    +'<button class="act" onclick="ldImpDoReplace(\''+k+'\')">Buscar y reemplazar</button>'
+    +'<button class="act" onclick="ldImpDoFill(\''+k+'\')">Rellenar hacia abajo</button>'
+    +(auto?'<button class="act" onclick="ldImpDoAuto(\''+k+'\')">Autocompletar los vacíos</button>':'');
+  document.body.appendChild(el);
+  // Posicionado junto al ▾, corrigiendo si se sale por la derecha o por abajo
+  var r=(ev&&ev.target&&ev.target.getBoundingClientRect)?ev.target.getBoundingClientRect():{left:20,bottom:80};
+  var w=el.offsetWidth, h=el.offsetHeight;
+  var left=Math.max(8,Math.min(r.left,(window.innerWidth||360)-w-8));
+  var top=r.bottom+6;
+  if(top+h>(window.innerHeight||640)-8) top=Math.max(8,r.top-h-6);
+  el.style.left=(left+window.scrollX)+'px';
+  el.style.top=(top+window.scrollY)+'px';
+  setTimeout(function(){
+    document.addEventListener('click',_ldImpMenuOutside);
+    var f=document.getElementById('ldimp_mv'); if(f&&f.focus) f.focus();
+  },0);
+}
+function _ldImpMenuOutside(e){
+  var m=document.getElementById('ldimp_menu');
+  if(m&&!m.contains(e.target)){ _ldImpCloseMenu(); document.removeEventListener('click',_ldImpMenuOutside); }
+}
+function ldImpDoSet(k){
+  var el=document.getElementById('ldimp_mv'); if(!el) return;
+  var v=el.value;
+  _ldImpApply(k,function(){ return v; });
+}
+function ldImpDoReplace(k){
+  var f=(document.getElementById('ldimp_mf')||{}).value||'';
+  var t=(document.getElementById('ldimp_mr')||{}).value||'';
+  if(!f) return;
+  _ldImpApply(k,function(v){ return v.split(f).join(t); });
+}
+function ldImpDoFill(k){
+  var src=null;
+  (_ldImportData||[]).some(function(r){ if(r[k]!==undefined&&r[k]!==null&&String(r[k])!==''){ src=r[k]; return true; } return false; });
+  if(src===null) return;
+  _ldImpApply(k,function(){ return src; });
+}
+function ldImpDoAuto(k){
+  var fn=_ldImpAuto(k); if(!fn) return;
+  _ldImpApply(k,fn);
+}
+
 function ldFileToB64(file){
   return new Promise(function(res,rej){
     var r=new FileReader();
@@ -22777,11 +23026,20 @@ async function ldImportPdfViaBackend(file){
     // (logbook manuscrito; gate Pro/Unlimited; el piloto revisa antes de confirmar).
     var isImg=/^image\//.test(file.type||'')||/\.(jpe?g|png|heic|webp)$/i.test(file.name||'');
     var body=isImg?{image_base64:b64, media_type:file.type||'image/jpeg'}:{pdf_buffer:b64};
-    var r=await fetch(ldBackendUrl()+'/logbook/analyze',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-      body:JSON.stringify(body)
-    });
+    // U3 · sin timeout, si el servidor tarda el radar gira para siempre y el piloto no
+    // sabe si sigue vivo (causa directa del "a veces no termina de subir"). 90 s: un PDF
+    // grande por visión ronda los 30 s, así que no corta nada legítimo.
+    var _ac=(typeof AbortController!=='undefined')?new AbortController():null;
+    var _to=_ac?setTimeout(function(){ _ac.abort(); },90000):null;
+    var r;
+    try{
+      r=await fetch(ldBackendUrl()+'/logbook/analyze',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+        body:JSON.stringify(body),
+        signal:_ac?_ac.signal:undefined
+      });
+    } finally { if(_to) clearTimeout(_to); }
     var d=await r.json();
     if(!r.ok){ ldImportError(d.message||d.error||'Error del servidor'); return; }
 
@@ -22801,7 +23059,11 @@ async function ldImportPdfViaBackend(file){
       return {
         fecha:f.date, vuelo:f.flightNum||'', origen:f.dep, destino:f.arr,
         matricula:f.reg, tipo:f.acType,
-        seme:f.seOrMe||'',                        // columna 5: SE / ME (single/multi-engine)
+        // Columna 5 del Jeppesen. El parser NO devuelve `seOrMe` (nunca lo ha devuelto):
+        // devuelve los minutos en se/me/mp, así que se deduce de cuál de los tres tiene
+        // tiempo. Con `f.seOrMe` todo import de PDF entraba con SE/ME vacío.
+        seme:f.se?'SE':(f.me?'ME':(f.mp?'ME':'')),
+        spmp:f.mp?'MP':((f.se||f.me)?'SP':''),    // multi-pilot = columna 6 del Jeppesen
         atd:f.depTime, ata:f.arrTime,            // Jeppesen da OUT/IN (block time)
         block:ldMinToHHMM(f.flightTime),          // SE+ME+MP — NUNCA la col 6 (lleva sim dentro)
         nocturno:f.night?ldMinToHHMM(f.night):'',
@@ -22909,6 +23171,10 @@ async function ldImportPdfViaBackend(file){
 
     ldImportProcess(rows,file.name);
   }catch(err){
+    if(err&&err.name==='AbortError'){
+      ldImportError('El archivo está tardando demasiado (más de 90 s). Vuelve a intentarlo; si tiene muchas páginas, súbelo por partes.');
+      return;
+    }
     ldImportError(err.message);
   }
 }
@@ -23131,7 +23397,10 @@ var LD_COL_MAP={
   night:['nocturno','night','night_time','tiempo_nocturno'],
   ldgDay:['ldg_dia','ldg_day','day_ldg','day_landing'],
   ldgNight:['ldg_noche','ldg_night','night_ldg','night_landing'],
-  seMe:['seme','se_me','sp_mp','single_multi'],
+  // SE/ME (motores) y SP/MP (pilotos) son ejes distintos: 'sp_mp' estaba en los alias de
+  // seMe, así que una columna SP/MP del fichero acababa en la casilla de motores.
+  seMe:['seme','se_me','single_multi'],
+  spMp:['spmp','sp_mp','multi_pilot','multipilot'],
   role:['rol','role'],
   func:['funcion','func','function'],
   cm1:['cm1','comandante','captain','cpt'],
@@ -23187,6 +23456,12 @@ function ldNormTime(v){
   return s;
 }
 // Aplica normalización de formatos a una fila ya mapeada
+// ¿Es un avión de línea? (A320, B737, E-Jet, CRJ, ATR, Dash…) ⇒ multimotor y multipiloto.
+// Estaba metido dentro de ldOtroLoad; se saca aquí para que lo use también el import.
+function ldIsAirliner(t){
+  return /A2[12]\d|A3\d\d|A32\d|B7[0-9]\d|E1[7-9]\d|E2\d\d|CRJ|AT[R7]\b|ATR\d|DH8|Q4\d\d|MD8\d|F70|F100|RJ\d|SF34/
+         .test(String(t||'').toUpperCase());
+}
 function ldNormalizeRow(r){
   if(r.date)  r.date  = ldNormDate(r.date);
   if(r.atd)   r.atd   = ldNormTime(r.atd);
@@ -23198,6 +23473,10 @@ function ldNormalizeRow(r){
   if(r.dep)   r.dep   = String(r.dep).trim();
   if(r.arr)   r.arr   = String(r.arr).trim();
   if(r.reg)   r.reg   = String(r.reg).trim();
+  // SE/ME (motores) y SP/MP (pilotos) por defecto en aviones de línea. SÓLO si la fila no
+  // trae el dato: lo que venga del documento o haya escrito el piloto NO se pisa.
+  if(!r.seMe && ldIsAirliner(r.acType||r.simType)) r.seMe='ME';
+  if(!r.spMp && ldIsAirliner(r.acType||r.simType)) r.spMp='MP';
   return r;
 }
 function ldImportProcess(rows,fname){
@@ -23226,10 +23505,13 @@ function ldImportProcess(rows,fname){
       wrap.classList.add('editable');
       // Tira de totales EN VIVO, fuera del scroll horizontal de la tabla (queda fija arriba).
       var _lt=document.getElementById('ldimp_live_totals'); if(_lt) _lt.remove();
-      wrap.insertAdjacentHTML('beforebegin','<div id="ldimp_live_totals" class="ldimp-totals"></div>');
-      wrap.innerHTML='<div class="ldimp-hd">✏️ Toca cualquier casilla para corregirla. Lo que dejes escrito es lo que se guarda — la IA solo ha hecho un primer intento. Revisa sobre todo <b>matrículas, aeropuertos y nombres</b>.</div>'
+      var _si=document.getElementById('ldimp_selinfo'); if(_si) _si.remove();
+      wrap.insertAdjacentHTML('beforebegin','<div id="ldimp_live_totals" class="ldimp-totals"></div>'
+        +'<div id="ldimp_selinfo" class="ldimp-selbar"></div>');
+      wrap.innerHTML='<div class="ldimp-hd">✏️ Toca cualquier casilla para corregirla. Lo que dejes escrito es lo que se guarda — la IA solo ha hecho un primer intento. Revisa sobre todo <b>matrículas, aeropuertos y nombres</b>. Con el <b>▾</b> de cada columna corriges esa columna entera de una vez.</div>'
         +_ldRenderEditableImport();
       _ldImpLiveTotals();
+      _ldImpSelInfo();
       // Recalcular al vuelo con cada edición (input para texto, change para los selects).
       wrap.addEventListener('input',_ldImpLiveTotals);
       wrap.addEventListener('change',_ldImpLiveTotals);
@@ -23442,7 +23724,7 @@ function ldImportConfirm(){
         // flightTime = tiempo de vuelo (la pastilla ✈ y algunas stats lo leen). Los imports
         // sólo traían block; sin esto el vuelo salía sin horas en la ficha. seMe (SE/ME/MP)
         // llega del logbook Jeppesen (col 5) o del editor de foto.
-        block:r.block||'',flightTime:r.flightTime||r.block||'',seMe:r.seMe||'',
+        block:r.block||'',flightTime:r.flightTime||r.block||'',seMe:r.seMe||'',spMp:r.spMp||'',
         role:r.role||'FO',func:r.func||'PF',
         rules:r.rules||'IFR',conditions:r.conditions||'NORM',
         // Tipo de vuelo unificado — MISMA lógica que ldSave: flightType es la fuente de
