@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.434">
+  <meta name="version" content="Beta.435">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.434","builtAt":"2026-08-03T22:32:59Z","commit":"5f578dd","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.435","builtAt":"2026-08-03T22:38:06Z","commit":"pending","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -7717,7 +7717,12 @@ function pilotosFmtBuilt(iso){
 function pilotosRunningVersion(){
   if(window.__PILOTOS_VERSION__ && window.__PILOTOS_VERSION__.version) return window.__PILOTOS_VERSION__;
   var m=document.querySelector('meta[name="version"]');
-  return m ? { version:m.getAttribute('content'), builtAt:null, commit:null } : { version:'—' };
+  return m ? { version:m.getAttribute('content'), builtAt:null, commit:null, channel:null } : { version:'—' };
+}
+// El número de versión se llama "Beta.N" en los dos canales (es el contador del build),
+// así que por sí solo no dice si esto es producción o el entorno de pruebas. El canal sí.
+function pilotosChannelLabel(ch){
+  return ch==='stable' ? 'estable' : (ch==='beta' ? 'beta' : '');
 }
 
 function pilotosRenderVersion(el){
@@ -7749,6 +7754,8 @@ function pilotosRenderVersion(el){
   // Etiqueta informativa: qué versión corre este dispositivo
   var run = pilotosRunningVersion();
   var txt = run.version || '—';
+  var ch = pilotosChannelLabel(run.channel);
+  if(ch) txt += ' · ' + ch;
   var when = pilotosFmtBuilt(run.builtAt);
   if(when) txt += ' · ' + when;
   if(run.commit) txt += ' · ' + run.commit;
