@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.429">
+  <meta name="version" content="Beta.433">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.429","builtAt":"2026-08-01T08:24:23Z","commit":"d767f4f","channel":"beta"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.433","builtAt":"2026-08-03T22:16:49Z","commit":"ac4a722","channel":"beta"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -12265,7 +12265,21 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
     // Al EDITAR hay que conservar el id original: si no, se creaba una entrada nueva
     // en cada guardado y el vuelo salía duplicado.
     var _editId = (typeof ldEditingId!=='undefined' && ldEditingId) ? ldEditingId : null;
-    var e={ id: _editId || (typeof ldStableId==='function'?ldStableId({date:_gv('date'),dep:_gv('dep'),arr:_gv('arr'),flight:_ldoType}):('lo_'+Math.random().toString(36).slice(2,9))),
+    // Un vuelo de carrera (escuela, GA, velero, sim…) no tiene nº de vuelo ni hora: fecha +
+    // tipo + ruta se repiten (varios circuitos el mismo día) ⇒ mismo id ⇒ el upsert
+    // (id,user_id) se queda con uno y el otro DESAPARECE en el primer sync. Mismo desempate
+    // `idSeq` que ya usa ldSave(). Sólo se añade si el id base ya está ocupado, así ningún
+    // vuelo existente cambia de id.
+    var _idbase={date:_gv('date'),dep:_gv('dep'),arr:_gv('arr'),flight:_ldoType};
+    var _prev = _editId ? ((window.ldEntries||[]).filter(function(x){return x.id===_editId;})[0]||{}) : {};
+    var _idSeq = _editId ? (_prev.idSeq||'') : '';
+    if(!_editId && typeof ldStableId==='function'){
+      var _taken={}; (window.ldEntries||[]).forEach(function(x){ if(x&&x.id) _taken[x.id]=1; });
+      if(_taken[ldStableId(_idbase)] && typeof ldFreeIdSeq==='function') _idSeq=ldFreeIdSeq(_idbase);
+    }
+    if(_idSeq) _idbase.idSeq=_idSeq;
+    var e={ id: _editId || (typeof ldStableId==='function'?ldStableId(_idbase):('lo_'+Math.random().toString(36).slice(2,9))),
+      idSeq:_idSeq||'',
       date:_gv('date')||new Date().toISOString().slice(0,10), dep:_gv('dep').toUpperCase(), arr:_gv('arr').toUpperCase(),
       acType:_gv('type'), reg:_gv('reg').toUpperCase(), block:_gv('block')||_gv('ft')||'0:00',
       flightTime:_gv('ft'), night:_gv('night')||'0:00',
@@ -22775,6 +22789,15 @@ async function ldImportPdfViaBackend(file){
     // así reutilizamos su dedup, merge y alta sin tocar nada.
     var rows=(d.flights||[]).map(function(f){
       var esPic=(f.role==='PIC');
+      // Función EASA (campo `pilotFunction`, el mismo que usa "Otros vuelos"). La manda la
+      // columna del bloque PILOT FUNCTION TIME donde el piloto apuntó el vuelo, que es lo
+      // que ya decide el `role` del parser. PICUS = copiloto al mando bajo supervisión:
+      // sigue sentado a la derecha (rol FO) pero EASA cuenta ese tiempo como PIC — sin
+      // esto la carrera queda corta.
+      var _fn = f.role==='INSTRUCTOR' ? 'Instructor'
+              : f.role==='DUAL'       ? 'Dual'
+              : esPic                 ? 'PIC'
+              : (f.picus ? 'PICUS' : 'Copiloto');
       return {
         fecha:f.date, vuelo:f.flightNum||'', origen:f.dep, destino:f.arr,
         matricula:f.reg, tipo:f.acType,
@@ -22784,14 +22807,26 @@ async function ldImportPdfViaBackend(file){
         nocturno:f.night?ldMinToHHMM(f.night):'',
         reglas:f.ifr?'IFR':'VFR',                 // col 9 IFR → vuelo IFR; si no, VFR
         ldg_dia:f.ldgDay||0, ldg_noche:f.ldgNight||0,
-        rol:esPic?'CPT':'FO',                     // el rol lo manda NAME PIC, no la columna PIC
+        rol:(_fn==='PIC'||_fn==='Instructor')?'CPT':'FO',
         cm1:esPic?(d.owner||''):(f.namePic||''),
-        // Función EASA (campo `pilotFunction`, el mismo que usa "Otros vuelos"). PICUS =
-        // copiloto al mando bajo supervisión: sigue sentado a la derecha (rol FO) pero
-        // EASA cuenta ese tiempo como PIC. Sin esto, la carrera queda corta.
-        funcion:esPic?'PIC':(f.picus?'PICUS':'Copiloto'),
+        funcion:_fn,
         notas:f.remarks||''
       };
+    });
+
+    // Un logbook EASA no trae nº de vuelo: dos sectores IGUALES el mismo día (la misma ruta
+    // repetida, típico de un ida-y-vuelta doble) comparten la clave de dedup del importador
+    // (fecha+origen+destino+vuelo) y el id de ldStableId, así que el 2º se fusionaba con el
+    // 1º en vez de añadirse — horas perdidas en silencio y sin aviso (caso real 08/2026:
+    // 508 vuelos → 499 importados, 15:45 evaporadas). Se desempata igual que el simulador:
+    // el índice dentro del grupo es determinista (reimportar el mismo PDF da el mismo id ⇒
+    // el dedup sigue funcionando) y el PRIMERO se queda sin idSeq, así ningún vuelo ya
+    // importado cambia de id.
+    var _fltNth={};
+    rows.forEach(function(r){
+      var k=(r.fecha||'')+'|'+(r.origen||'')+'|'+(r.destino||'')+'|'+(r.vuelo||'');
+      _fltNth[k]=(_fltNth[k]||0)+1;
+      if(_fltNth[k]>1) r.idseq='f'+_fltNth[k];
     });
 
     // Sesiones de simulador (columna 11 del Jeppesen): NO son vuelos — sin ruta y sin
@@ -31130,7 +31165,7 @@ function SkyViewPilotOS() {
     window.addEventListener('pilotos-skyview-shown', onShown);
     return () => window.removeEventListener('pilotos-skyview-shown', onShown);
   }, []);
-  const loadWx = () => {
+  useEffect(() => {
     if (!_depIcao || !_arrIcao) return;
     (async () => {
       const _altIcaos = ((_baseLeg.alts || []).slice(0, 2)).map(a => iataToIcao(a.icao) || a.icao).filter(Boolean);
@@ -31163,14 +31198,10 @@ function SkyViewPilotOS() {
         }));
       }
     })();
-  };
-  try{ window.__skyLoadWx = loadWx; }catch(_e){}  // para pull-to-refresh / forzar carga
-  // deps _depIcao/_arrIcao: cuando el roster carga tras el montaje y el leg real reemplaza al
-  // placeholder (-- → LEBL), legIdx no cambia pero los ICAO sí → re-fetch.
-  useEffect(() => { loadWx(); }, [legIdx, _depIcao, _arrIcao]);
-  // Al ENTRAR en la pestaña BRIEF (o WX) fuerza la carga aunque el leg no haya cambiado —
-  // antes había que pasar por WX para que BRIEF cargara los datos.
-  useEffect(() => { if (tab === 'brief' || tab === 'meteo') loadWx(); }, [tab]);
+    // deps incluyen _depIcao/_arrIcao: cuando el roster carga tras el montaje y el leg real
+    // reemplaza al placeholder (-- → LEBL), legIdx no cambia pero los ICAO sí → re-fetch.
+    // Sin esto, BRIEF no cargaba la meteo hasta pasar por WX.
+  }, [legIdx, _depIcao, _arrIcao]);
   // Cargar fichas CCI del DEP/ARR desde backend -> cache CCI_BY_ICAO (nombre, pistas, alternativos)
   useEffect(() => {
     const ics = [_depIcao, _arrIcao].filter(Boolean);
@@ -37681,11 +37712,7 @@ async function pagDoAuth() {
           rstPullFromServer();
         }
       }, 800);
-      if (typeof cafiAddMsg === 'function') {
-        setTimeout(function(){
-          cafiAddMsg('ai', '✅ <strong>Conectado como ' + (data.user.name || data.user.email) + '</strong><br>CAFI tiene acceso al FCOM/FCTM completo de Vueling via RAG. ¿Por dónde empezamos?');
-        }, 400);
-      }
+      /* login: mensaje Conectado como eliminado — borraba la pantalla de bienvenida de CAFI */
     }
   } catch(e) {
     clearTimeout(_h1); clearTimeout(_h2); clearTimeout(_h3);
@@ -41612,6 +41639,41 @@ document.addEventListener('DOMContentLoaded', function(){
   function _baseInfo(){ try{ var b=''; try{ b=localStorage.getItem('pilotOS_home_base')||''; }catch(e){} if(!b){ var lg=gatherLegs(); if(lg&&lg.length) b=lg[0].dep; } if(!b) return null; var ic=(window.iataToIcao&&window.iataToIcao(b))||b; var ap=(window.LD_AIRPORTS&&window.LD_AIRPORTS[ic])||null; if(!ap||ap.lat==null||ap.lon==null) return null; var nm=(window._WX_NAMES&&window._WX_NAMES[ic])||ap.city||ap.name||b; nm=String(nm).replace(/\s*(airport|aeropuerto|intl|international)/ig,'').trim(); return { icao:ic, lat:+ap.lat, lon:+ap.lon, label:'el aeropuerto de '+nm+' ('+b+')' }; }catch(e){ return null; } }
   function prevDayRoutes(legs){ try{ if(!legs||!legs.length||!legs[0].date) return []; var raw=localStorage.getItem('pilotOS_roster'); if(!raw) return []; var ents=JSON.parse(raw); if(!Array.isArray(ents)) return []; var d=new Date(legs[0].date+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()-1); var prev=d.toISOString().slice(0,10); var out=[]; ents.forEach(function(e){ if(e.type==='flight'&&e.dep&&e.arr&&e.date===prev){ out.push(e.dep+'-'+e.arr); } }); return out; }catch(e){ return []; } }
   function gatherLegs(){ var legs=(window.buildLegsFromRoster&&window.buildLegsFromRoster())||[]; return legs.map(function(l){ var di=(window.iataToIcao&&window.iataToIcao(l.dep))||l.dep; var ai=(window.iataToIcao&&window.iataToIcao(l.arr))||l.arr; return {flight:l.flight,dep:l.dep,arr:l.arr,depIcao:di,arrIcao:ai,std:stripZ(l.std),sta:stripZ(l.sta),acType:l.acType,arrMs:l._arrMs,date:l.date,cruiseFL:l.cruiseFL}; }); }
+  // Turbulencia REAL por fase de vuelo. Mismos datos que el PERFIL de MAPAS: Open-Meteo por
+  // niveles de presión a lo largo de la ruta → EDR por cizalladura vertical del viento (fl±10).
+  // Muestrea a lo largo del perfil de vuelo (ascenso→TOC, crucero a FL, TOD→descenso) y resume
+  // por fase. Sustituye la turbulencia SINTÉTICA de fetchTurbulenceProfile. Devuelve texto o null.
+  async function _ariaTurbByPhase(leg){
+    try{
+      var rc=(typeof window.getRouteCoords==='function')?window.getRouteCoords(leg.dep,leg.arr):null;
+      if(!rc||rc.length<2) return null;
+      var LV=[{h:925,fl:25},{h:850,fl:48},{h:700,fl:100},{h:600,fl:138},{h:500,fl:183},{h:400,fl:236},{h:300,fl:301},{h:250,fl:340},{h:200,fl:387},{h:150,fl:446}];
+      var N=5, sm=[];
+      for(var i=0;i<N;i++){ var f=i/(N-1), tt=f*(rc.length-1), lo=Math.floor(tt), hi=Math.min(rc.length-1,lo+1), fr=tt-lo; sm.push([rc[lo][0]*(1-fr)+rc[hi][0]*fr, rc[lo][1]*(1-fr)+rc[hi][1]*fr]); }
+      var vars=[]; for(var k=0;k<LV.length;k++){ vars.push('wind_speed_'+LV[k].h+'hPa','wind_direction_'+LV[k].h+'hPa'); }
+      var lat=sm.map(function(s){return s[0].toFixed(3);}).join(','), lon=sm.map(function(s){return s[1].toFixed(3);}).join(',');
+      var url='https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+'&hourly='+vars.join(',')+'&wind_speed_unit=kn&timezone=UTC&forecast_days=2';
+      var d=await fetch(url).then(function(r){return r.ok?r.json():Promise.reject();});
+      var arr=Array.isArray(d)?d:[d];
+      if(!arr[0]||!arr[0].hourly||!arr[0].hourly.time) return null;
+      var time=arr[0].hourly.time, now=Date.now(), bi=0;
+      for(var ti=0;ti<time.length;ti++){ if(new Date(time[ti]+':00Z').getTime()>=now-1800000){ bi=ti; break; } }
+      var COLS=arr.map(function(loc){ var h=loc.hourly, prof=[]; for(var kk=0;kk<LV.length;kk++){ var sa=h['wind_speed_'+LV[kk].h+'hPa'], da=h['wind_direction_'+LV[kk].h+'hPa']; if(!sa||sa[bi]==null)continue; var wsp=sa[bi], wa=((da&&da[bi]!=null)?da[bi]:0)*Math.PI/180; prof.push({fl:LV[kk].fl, u:wsp*Math.sin(wa), v:wsp*Math.cos(wa)}); } return prof; });
+      if(!COLS.length||COLS.some(function(p){return !p.length;})) return null;
+      var CRZ=leg.cruiseFL||340, FLMAX=Math.max(420,Math.ceil((CRZ+50)/20)*20);
+      function ipK(prof,fl,key){ var n=prof.length; if(fl<=prof[0].fl)return prof[0][key]; if(fl>=prof[n-1].fl)return prof[n-1][key]; for(var i2=0;i2<n-1;i2++){ if(fl<=prof[i2+1].fl){ var a=prof[i2],b=prof[i2+1],kk2=(fl-a.fl)/(b.fl-a.fl); return a[key]+(b[key]-a[key])*kk2; } } return prof[n-1][key]; }
+      function at(x,fl){ var s=Math.max(0,Math.min(1,x))*(COLS.length-1), lo=Math.floor(s), hi=Math.min(COLS.length-1,lo+1), fr=s-lo, A=COLS[lo], B=COLS[hi]; return { u: ipK(A,fl,'u')*(1-fr)+ipK(B,fl,'u')*fr, v: ipK(A,fl,'v')*(1-fr)+ipK(B,fl,'v')*fr }; }
+      function edr(x,fl){ var a=at(x,Math.min(FLMAX,fl+10)), b=at(x,Math.max(0,fl-10)); return Math.max(0,Math.min(0.6,(Math.hypot(a.u-b.u,a.v-b.v)/2-3)/16)); }
+      function profFL(x){ if(x<0.14)return CRZ*(x/0.14); if(x>0.86)return CRZ*((1-x)/0.14); return CRZ; }
+      function phMax(x0,x1){ var mx=0,at2=x0,st=(x1-x0)/8; for(var x=x0;x<=x1+1e-9;x+=st){ var e=edr(x,profFL(x)); if(e>mx){mx=e;at2=x;} } return {e:mx,at:at2}; }
+      var cl=phMax(0,0.14), cr=phMax(0.14,0.86), de=phMax(0.86,1);
+      function lb(e){ return e<0.1?'nula':e<0.2?'ligera':e<0.45?'moderada':'severa'; }
+      function wh(a){ var f=(a-0.14)/0.72; return f<0.34?'el primer tercio':f>0.66?'el último tercio':'la mitad'; }
+      var wmx=0, wfl=CRZ; for(var fx=0.1;fx<=0.9+1e-9;fx+=0.2){ for(var wl=40;wl<=FLMAX;wl+=10){ var we=edr(fx,wl); if(we>wmx){wmx=we;wfl=wl;} } }
+      var lvlNote = (wmx>cr.e+0.08 && wmx>=0.2) ? (' A OTROS NIVELES: lo más turbulento de la ruta es EDR '+wmx.toFixed(2)+' ('+lb(wmx)+') a FL'+wfl+(wfl>CRZ+10?' (por encima del crucero)':wfl<CRZ-10?' (por debajo del crucero)':'')+' — menciónalo solo si es relevante para un cambio de nivel.') : '';
+      return 'Ascenso (hasta TOC): '+lb(cl.e)+' (EDR '+cl.e.toFixed(2)+'). Crucero FL'+CRZ+': '+lb(cr.e)+' (EDR máx '+cr.e.toFixed(2)+'), lo peor hacia '+wh(cr.at)+' de la ruta. Descenso (tras TOD): '+lb(de.e)+' (EDR '+de.e.toFixed(2)+').'+lvlNote;
+    }catch(e){ return null; }
+  }
   async function ctxSys(leg,turbData){
     var turb=turbData;
     if((!turb||!turb.length) && leg && window.getRouteCoords && window.fetchTurbulenceProfile){
@@ -41619,7 +41681,9 @@ document.addEventListener('DOMContentLoaded', function(){
     }
     var winds=null;
     if(leg && window.fetchRouteWinds){ try{ winds=await window.fetchRouteWinds(leg.dep,leg.arr); }catch(e){} }
-    return window.buildAISystem ? window.buildAISystem(leg,turb,winds) : '';
+    var _base = window.buildAISystem ? window.buildAISystem(leg,turb,winds) : '';
+    try{ var _tp=await _ariaTurbByPhase(leg); if(_tp) _base += '\n\nTURBULENCIA REAL POR FASE DE VUELO (Open-Meteo, usa ESTO y no el "Perfil turbulencia" de arriba): '+_tp+' Al hablar de turbulencia, descríbela por FASE (ascenso hasta el TOC, crucero indicando dónde, tras el TOD en descenso), NUNCA como "punto 1/punto 2".'; }catch(e){}
+    return _base;
   }
   function chatLog(role,text){ var box=q('#ar-chat'); if(!box)return null; var w=document.createElement('div'); w.style.cssText='margin-bottom:9px;display:flex;'+(role==='you'?'justify-content:flex-end':'justify-content:flex-start'); var b=document.createElement('div'); b.style.cssText='max-width:88%;font-size:12px;line-height:1.45;padding:8px 11px;border-radius:13px;'+(role==='you'?'background:linear-gradient(135deg,rgba(10,60,75,.55),rgba(10,163,199,.32));color:#eaf3f8':'background:rgba(8,20,27,.9);color:#cfe6ef;border:1px solid rgba(63,210,240,.12)'); b.textContent=text; w.appendChild(b); box.appendChild(w); try{ updateWelcome(); }catch(e){} try{ b.scrollIntoView({behavior:'smooth',block:'nearest'}); }catch(e){} return b; }
   function _matchAskedLeg(question, legs, activeLeg){
@@ -41632,11 +41696,11 @@ document.addEventListener('DOMContentLoaded', function(){
   }
   async function _liveSectorBlock(leg){
     var ts='no disponible', ws='no disponible';
-    try{ var co=window.getRouteCoords(leg.dep,leg.arr); if(co&&co.length){ var tb=await window.fetchTurbulenceProfile(co, leg.cruiseFL||300); if(tb&&tb.length) ts=tb.map(function(p,i){return 'WP'+(i+1)+':EDR'+p.edr.toFixed(2);}).join(' '); } }catch(e){}
+    try{ var _tp=await _ariaTurbByPhase(leg); if(_tp){ ts=_tp; } else { var co=window.getRouteCoords(leg.dep,leg.arr); if(co&&co.length){ var tb=await window.fetchTurbulenceProfile(co, leg.cruiseFL||300); if(tb&&tb.length) ts=tb.map(function(p,i){return 'WP'+(i+1)+':EDR'+p.edr.toFixed(2);}).join(' '); } } }catch(e){}
     try{ var wd=await window.fetchRouteWinds(leg.dep,leg.arr); if(wd&&wd.length) ws=wd.map(function(w){return 'FL'+w.fl+' '+w.dir+'\u00b0/'+w.speed+'kt';}).join(', '); }catch(e){}
     var altw='';
     try{ var _al=(leg.alts||[]).slice(0,3); if(_al.length && window.fetchLiveMetar){ var ar=await Promise.all(_al.map(function(a){ var ic=(window.iataToIcao&&window.iataToIcao(a.icao))||a.icao; return window.fetchLiveMetar(ic).then(function(m){ return (a.city||a.icao)+' ('+(a.icao||ic)+'): '+((m&&m.raw)||(m&&m.cat)||'sin datos'); }).catch(function(){ return (a.city||a.icao)+': sin datos'; }); })); altw=ar.filter(Boolean).join(' | '); } }catch(e){}
-    return '\n\nDATOS EN VIVO DEL SECTOR PREGUNTADO ('+leg.dep+'\u2192'+leg.arr+'): Turbulencia NOAA GTG: '+ts+' (EDR <0.15 poca, 0.15-0.30 moderada, >0.30 fuerte). Vientos en ruta (TOC\u2192crucero\u2192descenso, Open-Meteo): '+ws+'.'+(altw?(' Meteo EN VIVO de los ALTERNATIVOS: '+altw+'.'):'')+' Responde sobre ESE sector con estos datos en vivo.';
+    return '\n\nDATOS EN VIVO DEL SECTOR PREGUNTADO ('+leg.dep+'\u2192'+leg.arr+'): Turbulencia REAL por fase de vuelo (Open-Meteo, EDR <0.10 nula, 0.10-0.20 ligera, 0.20-0.45 moderada, >0.45 severa): '+ts+' Descr\u00edbela por FASE (ascenso/TOC, crucero, TOD/descenso), NUNCA como "punto 1/2". Vientos en ruta (TOC\u2192crucero\u2192descenso, Open-Meteo): '+ws+'.'+(altw?(' Meteo EN VIVO de los ALTERNATIVOS: '+altw+'.'):'')+' Responde sobre ESE sector con estos datos en vivo.';
   }
   async function qaContext(question){
     var ctx=window.__ariaCtx||{};
