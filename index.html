@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.436">
+  <meta name="version" content="Beta.438">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.436","builtAt":"2026-08-03T22:47:14Z","commit":"6db852b","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.438","builtAt":"2026-08-03T23:05:27Z","commit":"pending","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -23713,6 +23713,17 @@ function ldImportConfirm(){
       var hasOld=dv&&String(dv).trim()!=='';
       if(hasNew&&!hasOld){ dst[f]=sv; changed=true; }
     });
+    // Rol y función EASA: aquí NO vale con rellenar huecos. Si el documento dice otra cosa
+    // que lo guardado, manda el documento — es la única forma de que reimportar REPARE un
+    // vuelo que se importó mal (p.ej. los que salieron de comandante por leer un NAME PIC
+    // en blanco como "era yo"). Sólo se toca lo que vino de un import: un vuelo tuyo, de
+    // roster o metido a mano, no se pisa nunca.
+    if(String(dst.source||'').toUpperCase()==='IMPORT'){
+      ['role','func','pilotFunction'].forEach(function(f){
+        var sv=src[f];
+        if(sv&&String(sv).trim()!==''&&sv!==dst[f]){ dst[f]=sv; changed=true; }
+      });
+    }
     return changed;
   }
 
