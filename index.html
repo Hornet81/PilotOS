@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.438">
+  <meta name="version" content="Beta.440">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.438","builtAt":"2026-08-03T23:05:27Z","commit":"c470a60","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.440","builtAt":"2026-08-04T10:18:01Z","commit":"pending","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -37905,11 +37905,100 @@ function pagTab(tab) {
 }
 
 // ── Forgot password ──
-function pagForgot() {
+// ── Recuperación de contraseña ────────────────────────────────────────────
+// Las contraseñas son bcrypt: nadie puede leerlas ni devolvérselas al piloto, ni
+// mirando la base de datos. El piloto pide un enlace a su email y elige una nueva.
+async function pagForgot() {
   var err = document.getElementById('pag-err');
-  err.textContent = 'Recuperación de contraseña — contacta al administrador de tu aerolínea.';
-  err.style.color = 'rgba(34,211,238,.8)';
+  var email = (document.getElementById('pag-email').value || '').trim();
+  err.style.color = ''; err.classList.remove('show');
+  if (!email) {
+    err.textContent = 'Escribe tu email arriba y vuelve a pulsar aquí.';
+    err.style.color = 'rgba(34,211,238,.9)';
+    err.classList.add('show');
+    document.getElementById('pag-email').focus();
+    return;
+  }
+  var link = document.getElementById('pag-forgot');
+  if (link) link.textContent = 'Enviando…';
+  try {
+    var r = await fetch(cafiBackendUrl + '/auth/forgot', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email, origin: location.origin })
+    });
+    var d = await r.json().catch(function(){ return {}; });
+    // El servidor responde lo mismo exista o no la cuenta (no se filtra quién está
+    // registrado), así que aquí tampoco se promete que el email exista.
+    err.textContent = d.message || 'Si ese email tiene una cuenta, te llega un correo con el enlace. Mira también en spam.';
+    err.style.color = '#4ADE80';
+  } catch (e) {
+    err.textContent = 'No se ha podido contactar con el servidor. Inténtalo de nuevo.';
+    err.style.color = '';
+  }
   err.classList.add('show');
+  if (link) link.textContent = '¿Olvidaste tu contraseña?';
+}
+
+// Modo "elegir nueva contraseña": se entra por el enlace del email (?pwreset=…)
+var PAG_RESET_TOKEN = (function(){
+  try { return new URLSearchParams(location.search).get('pwreset') || ''; } catch(e){ return ''; }
+})();
+function pagResetMode() {
+  if (!PAG_RESET_TOKEN) return;
+  var hide = function(sel){ var el=document.querySelector(sel); if(el) el.style.display='none'; };
+  hide('.pag-tabs'); hide('#pag-forgot'); hide('#pag-register-fields');
+  var em = document.getElementById('pag-email');
+  if (em && em.closest) { var f = em.closest('.pag-field'); if (f) f.style.display = 'none'; }
+  var lab = document.querySelector('label[for="pag-pass"]');
+  if (lab) lab.textContent = 'Nueva contraseña (mínimo 8 caracteres)';
+  var p = document.getElementById('pag-pass');
+  if (p) { p.setAttribute('autocomplete','new-password'); p.placeholder = 'Nueva contraseña'; }
+  var btn = document.getElementById('pag-btn');
+  if (btn) btn.textContent = 'Guardar contraseña →';
+  var err = document.getElementById('pag-err');
+  if (err) { err.textContent = 'Elige tu nueva contraseña.'; err.style.color = 'rgba(34,211,238,.9)'; err.classList.add('show'); }
+}
+async function pagDoReset() {
+  var err = document.getElementById('pag-err');
+  var btn = document.getElementById('pag-btn');
+  var pass = document.getElementById('pag-pass').value || '';
+  err.style.color = ''; err.classList.remove('show');
+  if (pass.length < 8) {
+    err.textContent = 'La contraseña debe tener al menos 8 caracteres.';
+    err.classList.add('show'); return;
+  }
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  try {
+    var r = await fetch(cafiBackendUrl + '/auth/reset', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: PAG_RESET_TOKEN, password: pass })
+    });
+    var d = await r.json().catch(function(){ return {}; });
+    if (!r.ok) {
+      err.textContent = d.error || 'No se ha podido cambiar la contraseña.';
+      err.classList.add('show');
+      btn.disabled = false; btn.textContent = 'Guardar contraseña →';
+      return;
+    }
+    // Contraseña cambiada: se sale del modo reset y se deja la pantalla de acceso normal
+    // con el email puesto. El token del enlace ya no vale (el hash ha cambiado).
+    PAG_RESET_TOKEN = '';
+    try { history.replaceState(null, '', location.pathname); } catch(e){}
+    var em = document.getElementById('pag-email');
+    if (em) { var f = em.closest ? em.closest('.pag-field') : null; if (f) f.style.display = ''; if (d.email) em.value = d.email; }
+    var tabs = document.querySelector('.pag-tabs'); if (tabs) tabs.style.display = '';
+    var fg = document.getElementById('pag-forgot'); if (fg) fg.style.display = '';
+    var lab = document.querySelector('label[for="pag-pass"]'); if (lab) lab.textContent = 'Contraseña';
+    var p = document.getElementById('pag-pass');
+    if (p) { p.value = ''; p.setAttribute('autocomplete','current-password'); p.placeholder = '••••••••'; }
+    btn.disabled = false; btn.textContent = 'Entrar →';
+    err.textContent = '✅ Contraseña cambiada. Ya puedes entrar con la nueva.';
+    err.style.color = '#4ADE80'; err.classList.add('show');
+  } catch (e) {
+    err.textContent = 'No se ha podido contactar con el servidor. Inténtalo de nuevo.';
+    err.classList.add('show');
+    btn.disabled = false; btn.textContent = 'Guardar contraseña →';
+  }
 }
 
 // ── Hide the gate after successful auth ──
@@ -37926,7 +38015,13 @@ function pagShow() {
   if (!gate) return;
   gate.classList.remove('hidden');
   gate.style.animation = 'gateIn .35s ease both';
-  setTimeout(function(){ var el = document.getElementById('pag-email'); if(el) el.focus(); }, 200);
+  // ¿Ha entrado por el enlace de recuperación? Entonces la tarjeta pide la contraseña
+  // nueva en vez de las credenciales.
+  try { pagResetMode(); } catch(e){}
+  setTimeout(function(){
+    var el = document.getElementById(PAG_RESET_TOKEN ? 'pag-pass' : 'pag-email');
+    if(el) el.focus();
+  }, 200);
 }
 
 // ── Backward-compat aliases used by existing CAFI code ──
@@ -37936,6 +38031,8 @@ function cafiAuthTab(tab) { pagTab(tab); }
 
 // ── Main auth submit ──
 async function pagDoAuth() {
+  // Si venimos del enlace del email, el mismo formulario guarda la contraseña nueva.
+  if (PAG_RESET_TOKEN) return pagDoReset();
   var isLogin = document.getElementById('pag-tab-login').classList.contains('on');
   var email   = (document.getElementById('pag-email').value || '').trim();
   var pass    = document.getElementById('pag-pass').value || '';
@@ -38044,6 +38141,11 @@ document.addEventListener('keydown', function(e){
 document.addEventListener('DOMContentLoaded', function pagInit(){
   var token = '';
   try { token = lsGet('cafi_auth_token',''); } catch(ex){}
+
+  // Enlace de recuperación de contraseña: la pantalla de acceso tiene que salir SÍ o SÍ,
+  // aunque en este dispositivo hubiera una sesión abierta (si no, el enlace del email no
+  // haría nada y el piloto se queda sin entender por qué).
+  if (PAG_RESET_TOKEN) { try { pagShow(); } catch(ex){} }
 
   // ── eCrews roster sync via iOS Shortcut ──
   // El Atajo navega a pilotos.aero?rosterSync=BASE64 con las actividades extraídas
