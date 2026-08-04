@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.442">
+  <meta name="version" content="Beta.443">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.442","builtAt":"2026-08-04T17:53:48Z","commit":"c3c3858","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.443","builtAt":"2026-08-04T18:26:50Z","commit":"0233c0b","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -6657,6 +6657,10 @@ html.day #ld-mini-stats > div{background:rgba(255,255,255,.82) !important;border
 html.day #ld-mini-stats [style*="color:rgba(248,250,252,.3)"]{color:#475569 !important}
 html.day #ld-mini-stats [style*="color:#22D3EE"]{color:#0369A1 !important}
 html.day #ld-mini-stats [style*="color:rgba(180,160,255"]{color:#4C1D95 !important}
+/* Casillas nuevas de la tira (Vuelo / Sim). Sin esto, en modo día "Vuelo" queda en blanco
+   sobre fondo claro (invisible) y el verde del simulador se queda en 2,5:1 de contraste. */
+html.day #ld-mini-stats [style*="color:rgba(248,250,252,.9)"]{color:#0F172A !important}
+html.day #ld-mini-stats [style*="color:#10B981"]{color:#047857 !important}
 
 /* ── Texto Sincronizando / Sincronizado (color por estado, modo día) ── */
 html.day #ld-sync-indicator[data-syncstate="ok"] .ld-sync-pill,
@@ -11393,12 +11397,22 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       </div>
       <!-- The round glass button + quick actions -->
       <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px">
-        <div id="ld-mini-stats" style="flex:1;display:flex;gap:8px;overflow:hidden">
-          <div style="flex:1;background:rgba(17,24,39,.7);border:1px solid rgba(34,211,238,.12);border-radius:12px;padding:8px 10px;min-width:0">
+        <!-- 4 tarjetas no caben en una fila en el móvil (la tira sólo dispone de ~147px porque
+             comparte fila con los botones): con flex-wrap caen a 2x2 en vez de recortarse. -->
+        <div id="ld-mini-stats" style="flex:1;display:flex;flex-wrap:wrap;gap:6px;overflow:hidden">
+          <div style="flex:1 1 64px;background:rgba(17,24,39,.7);border:1px solid rgba(34,211,238,.12);border-radius:12px;padding:8px 9px;min-width:0">
             <div style="font-family:'Space Mono',monospace;font-size:9px;color:rgba(248,250,252,.3);text-transform:uppercase;letter-spacing:.5px">Total</div>
             <div style="font-family:'DM Mono','Space Mono',monospace;font-size:14px;font-weight:500;color:#22D3EE;line-height:1.2" id="ld_mini_total">0h</div>
           </div>
-          <div style="flex:1;background:rgba(17,24,39,.7);border:1px solid rgba(124,58,237,.15);border-radius:12px;padding:8px 10px;min-width:0">
+          <div style="flex:1 1 64px;background:rgba(17,24,39,.7);border:1px solid rgba(34,211,238,.12);border-radius:12px;padding:8px 9px;min-width:0">
+            <div style="font-family:'Space Mono',monospace;font-size:9px;color:rgba(248,250,252,.3);text-transform:uppercase;letter-spacing:.5px">Vuelo</div>
+            <div style="font-family:'DM Mono','Space Mono',monospace;font-size:14px;font-weight:500;color:rgba(248,250,252,.9);line-height:1.2" id="ld_mini_fly">0h</div>
+          </div>
+          <div style="flex:1 1 64px;background:rgba(17,24,39,.7);border:1px solid rgba(16,185,129,.18);border-radius:12px;padding:8px 9px;min-width:0">
+            <div style="font-family:'Space Mono',monospace;font-size:9px;color:rgba(248,250,252,.3);text-transform:uppercase;letter-spacing:.5px">Sim</div>
+            <div style="font-family:'DM Mono','Space Mono',monospace;font-size:14px;font-weight:500;color:#10B981;line-height:1.2" id="ld_mini_sim">0h</div>
+          </div>
+          <div style="flex:1 1 64px;background:rgba(17,24,39,.7);border:1px solid rgba(124,58,237,.15);border-radius:12px;padding:8px 9px;min-width:0">
             <div style="font-family:'Space Mono',monospace;font-size:9px;color:rgba(248,250,252,.3);text-transform:uppercase;letter-spacing:.5px">Vuelos</div>
             <div style="font-family:'DM Mono','Space Mono',monospace;font-size:14px;font-weight:500;color:rgba(180,160,255,.9);line-height:1.2" id="ld_mini_count">0</div>
           </div>
@@ -20301,9 +20315,21 @@ function ldStats(){
   if(el('ld_28'))     el('ld_28').className='ld-stat-value'+(warn?' warn':'');
   if(el('ld_stat28card')) el('ld_stat28card').className='ld-stat'+(warn?' warn':'');
   if(el('ld_28sub'))  el('ld_28sub').textContent=warn?'⚠ Próximo al límite EASA':'límite EASA: 100h / 28 días';
-  // Mini stats bar — el TOTAL es de carrera (incluye las horas previas del PDF)
-  var th=Math.floor(tmCareer/60);
-  if(el('ld_mini_total')) el('ld_mini_total').textContent=th+'h';
+  // Mini stats bar — de carrera (incluye las horas previas resumidas del PDF importado).
+  // TOTAL = vuelo + simulador, y al lado los dos por separado: es la cuenta que el piloto
+  // compara con su logbook de papel, donde el "TOTAL TIME OF FLIGHT" impreso lleva el sim
+  // dentro. Enseñar sólo una cifra le obligaba a hacer la resta de cabeza para saber si
+  // cuadraba (y a creerse que la app le había perdido horas cuando no).
+  // El simulador NO es tiempo de vuelo para EASA: por eso va aparte y en su verde, no
+  // sumado en la casilla de vuelo.
+  var _simMin=_real.filter(ldIsSim).filter(ldNotInBalance)
+                   .reduce(function(s,e){return s+ldT2m(e.block);},0)
+              +((bal&&bal.sim)?bal.sim:0);
+  // Con menos de una hora, "0h" parecería que no hay nada: ahí se enseña H:MM.
+  var _hh=function(m){ return (m>0&&m<60)?ldM2s(m):(Math.floor(m/60)+'h'); };
+  if(el('ld_mini_total')) el('ld_mini_total').textContent=_hh(tmCareer+_simMin);
+  if(el('ld_mini_fly'))   el('ld_mini_fly').textContent=_hh(tmCareer);
+  if(el('ld_mini_sim'))   el('ld_mini_sim').textContent=_hh(_simMin);
   if(el('ld_mini_count')) el('ld_mini_count').textContent=_fl.length;
   // ── Home card: total hours + 6-month bar chart ──────────────────
   var totalH=Math.floor(tmCareer/60);
