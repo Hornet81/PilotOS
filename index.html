@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.440">
+  <meta name="version" content="Beta.442">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.440","builtAt":"2026-08-04T10:18:01Z","commit":"2747bcc","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.442","builtAt":"2026-08-04T17:53:48Z","commit":"654e90a","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -31298,9 +31298,9 @@ function buildLegsFromRoster() {
     var nowMs = Date.now();
     // Los registros del roster guardan la hora en std/std_actual/std_estimated (según la vía
     // de importación). Resolver con la misma cascada que el resto del código para no perder horas.
-    // El briefing es PRE-vuelo → SIEMPRE la hora SCHEDULED (programada, prevista de salida).
-    // La "S"/sin prefijo es solo cómo viene el dato crudo. Solo si faltara la scheduled se
-    // cae a estimada y, en último caso, a la real, para no dejar la hora en blanco.
+    // ARIA/briefing usan la hora PROGRAMADA (scheduled), igual que el roster (bloquea la "S 🔒"
+    // y la muestra; coincide con el documento de la compañía). La ESCALA se calcula de estas
+    // horas programadas. Solo cae a estimada/actual si faltara la programada.
     function _pickT(s, e, a) { var arr = [s, e, a]; for (var i = 0; i < arr.length; i++) { var v = arr[i]; if (v != null && v !== '' && v !== 'null') { v = String(v).slice(0, 5); if (/^\d{1,2}:\d{2}$/.test(v)) return v; } } return ''; }
     function _stdOf(e) { return _pickT(e.std, e.std_estimated, e.std_actual); }
     function _staOf(e) { return _pickT(e.sta, e.sta_estimated, e.sta_actual); }
@@ -42091,6 +42091,7 @@ document.addEventListener('DOMContentLoaded', function(){
     if(leg && window.fetchRouteWinds){ try{ winds=await window.fetchRouteWinds(leg.dep,leg.arr); }catch(e){} }
     var _base = window.buildAISystem ? window.buildAISystem(leg,turb,winds) : '';
     try{ var _tp=await _ariaTurbByPhase(leg); if(_tp) _base += '\n\nTURBULENCIA REAL POR FASE DE VUELO (Open-Meteo, usa ESTO y no el "Perfil turbulencia" de arriba): '+_tp+' Al hablar de turbulencia, descríbela por FASE (ascenso hasta el TOC, crucero indicando dónde, tras el TOD en descenso), NUNCA como "punto 1/punto 2".'; }catch(e){}
+    try{ var _nb=await _ariaNotamBlock(leg); if(_nb) _base += '\n\nNOTAMs REALES DE SALIDA/LLEGADA (rojo=crítico, ámbar=importante; ventana ±2h de la hora Z; usa ESTOS, no los NOTAMs de arriba; prioriza los rojos): '+_nb; }catch(e){}
     return _base;
   }
   function chatLog(role,text){ var box=q('#ar-chat'); if(!box)return null; var w=document.createElement('div'); w.style.cssText='margin-bottom:9px;display:flex;'+(role==='you'?'justify-content:flex-end':'justify-content:flex-start'); var b=document.createElement('div'); b.style.cssText='max-width:88%;font-size:12px;line-height:1.45;padding:8px 11px;border-radius:13px;'+(role==='you'?'background:linear-gradient(135deg,rgba(10,60,75,.55),rgba(10,163,199,.32));color:#eaf3f8':'background:rgba(8,20,27,.9);color:#cfe6ef;border:1px solid rgba(63,210,240,.12)'); b.textContent=text; w.appendChild(b); box.appendChild(w); try{ updateWelcome(); }catch(e){} try{ b.scrollIntoView({behavior:'smooth',block:'nearest'}); }catch(e){} return b; }
@@ -42102,20 +42103,40 @@ document.addEventListener('DOMContentLoaded', function(){
     for(var i=0;i<legs.length;i++){ var L=legs[i]; if(hit(toks(L.dep))&&hit(toks(L.arr))){ if(activeLeg && L.flight===activeLeg.flight && L.dep===activeLeg.dep && L.arr===activeLeg.arr) return null; return L; } }
     return null;
   }
+  // NOTAMs REALES filtrados para ARIA (misma fuente que la sección NOTAMs: /api/wx/notam vía
+  // fetchLiveNotams). Se queda con CRÍTICOS (sev danger=rojo) e IMPORTANTES (sev warning=ámbar),
+  // y filtra por ventana horaria alrededor de la hora Z de salida/llegada + 2h (timeStart/timeEnd).
+  async function _ariaNotamBlock(leg){
+    try{
+      if(typeof fetchLiveNotams!=='function') return null;
+      var today=new Date().toISOString().slice(0,10);
+      function win(t){ var s=String(t||'').slice(0,5); var base=/^\d{1,2}:\d{2}$/.test(s)?new Date(today+'T'+s+':00Z'):new Date(); return [new Date(base.getTime()-30*60000), new Date(base.getTime()+2*3600000)]; }
+      function inW(n,w){ var s=n.timeStart?new Date(n.timeStart):null, e=n.timeEnd?new Date(n.timeEnd):null; if(!s&&!e)return true; if(s&&s>w[1])return false; if(e&&e<w[0])return false; return true; }
+      async function forAp(iata,t){ try{ var ic=(window.iataToIcao&&window.iataToIcao(iata))||iata; var list=await fetchLiveNotams(ic); var w=win(t); return (list||[]).filter(function(n){ return (n.sev==='danger'||n.sev==='warning')&&inW(n,w); }).sort(function(a,b){ return (a.sev==='danger'?0:1)-(b.sev==='danger'?0:1); }).map(function(n){ return '['+(n.sev==='danger'?'ROJO/CRÍTICO':'ÁMBAR')+'] '+iata+' '+(n.id||'')+': '+String(n.short||n.title||n.raw||'').replace(/\s+/g,' ').trim().slice(0,150); }); }catch(e){ return []; } }
+      var res=await Promise.all([forAp(leg.dep,leg.std), forAp(leg.arr,leg.sta)]);
+      var all=res[0].concat(res[1]);
+      if(!all.length) return 'Sin NOTAMs rojos (críticos) ni ámbar (importantes) activos en la ventana salida/llegada (±2h).';
+      return all.join(' | ');
+    }catch(e){ return null; }
+  }
   async function _liveSectorBlock(leg){
     var ts='no disponible', ws='no disponible';
     try{ var _tp=await _ariaTurbByPhase(leg); if(_tp){ ts=_tp; } else { var co=window.getRouteCoords(leg.dep,leg.arr); if(co&&co.length){ var tb=await window.fetchTurbulenceProfile(co, leg.cruiseFL||300); if(tb&&tb.length) ts=tb.map(function(p,i){return 'WP'+(i+1)+':EDR'+p.edr.toFixed(2);}).join(' '); } } }catch(e){}
     try{ var wd=await window.fetchRouteWinds(leg.dep,leg.arr); if(wd&&wd.length) ws=wd.map(function(w){return 'FL'+w.fl+' '+w.dir+'\u00b0/'+w.speed+'kt';}).join(', '); }catch(e){}
-    var altw='';
+    var altw='', nb='';
     try{ var _al=(leg.alts||[]).slice(0,3); if(_al.length && window.fetchLiveMetar){ var ar=await Promise.all(_al.map(function(a){ var ic=(window.iataToIcao&&window.iataToIcao(a.icao))||a.icao; return window.fetchLiveMetar(ic).then(function(m){ return (a.city||a.icao)+' ('+(a.icao||ic)+'): '+((m&&m.raw)||(m&&m.cat)||'sin datos'); }).catch(function(){ return (a.city||a.icao)+': sin datos'; }); })); altw=ar.filter(Boolean).join(' | '); } }catch(e){}
-    return '\n\nDATOS EN VIVO DEL SECTOR PREGUNTADO ('+leg.dep+'\u2192'+leg.arr+'): Turbulencia REAL por fase de vuelo (Open-Meteo, EDR <0.10 nula, 0.10-0.20 ligera, 0.20-0.45 moderada, >0.45 severa): '+ts+' Descr\u00edbela por FASE (ascenso/TOC, crucero, TOD/descenso), NUNCA como "punto 1/2". Vientos en ruta (TOC\u2192crucero\u2192descenso, Open-Meteo): '+ws+'.'+(altw?(' Meteo EN VIVO de los ALTERNATIVOS: '+altw+'.'):'')+' Responde sobre ESE sector con estos datos en vivo.';
+    try{ var _nb=await _ariaNotamBlock(leg); if(_nb) nb=_nb; }catch(e){}
+    return '\n\nDATOS EN VIVO DEL SECTOR PREGUNTADO ('+leg.dep+'\u2192'+leg.arr+'): Turbulencia REAL por fase de vuelo (Open-Meteo, EDR <0.10 nula, 0.10-0.20 ligera, 0.20-0.45 moderada, >0.45 severa): '+ts+' Descr\u00edbela por FASE (ascenso/TOC, crucero, TOD/descenso), NUNCA como "punto 1/2". Vientos en ruta (TOC\u2192crucero\u2192descenso, Open-Meteo): '+ws+'.'+(altw?(' Meteo EN VIVO de los ALTERNATIVOS: '+altw+'.'):'')+(nb?(' NOTAMs REALES (rojo=crítico, ámbar=importante; ventana salida/llegada ±2h; menciona SOLO estos, prioriza los rojos): '+nb+'.'):'')+' Responde sobre ESE sector con estos datos en vivo.';
   }
   async function qaContext(question){
     var ctx=window.__ariaCtx||{};
     var langLine=(CUR.lang==='en'?'\n\nReply in English.':'\n\nResponde en castellano de España.');
     var dayLegs=gatherLegs();
     var dayList=dayLegs.length?dayLegs.map(function(l){ return l.flight+' '+l.dep+'→'+l.arr+' ('+l.std+'-'+l.sta+'Z)'; }).join(' | '):'';
-    var dayHdr=dayList?('JORNADA COMPLETA DE HOY (TODOS los sectores que vuela el piloto): '+dayList+'. El piloto VUELA todos estos sectores hoy: NUNCA digas que no hace un sector que esté en esta lista. Si te preguntan por un sector que no está en el briefing de abajo, reconócelo como parte de su jornada y responde lo que puedas; si no tienes su detalle, dilo y ofrece briefarlo. '):''; var askedBlock=''; try{ var _ask=_matchAskedLeg(question,dayLegs,(window.__ariaCtx||{}).leg); var _needLive=/turbulenc|\bedr\b|baches|zarande|viento|\bwind\b|\bjet\b|cizalla|shear|engelam|icing|meteo|alternativ|desv[ií]|divert|\balt\b/i.test(String(question)); var _target=_ask||(_needLive?((window.__ariaCtx||{}).leg):null); if(_target)askedBlock=await _liveSectorBlock(_target); }catch(e){}
+    var _t2m=function(t){ t=String(t||'').slice(0,5); var mm=t.match(/^(\d{1,2}):(\d{2})$/); return mm?(+mm[1]*60+ +mm[2]):null; };
+    var escList=[]; for(var _ei=0;_ei<dayLegs.length-1;_ei++){ var _ea=dayLegs[_ei], _eb=dayLegs[_ei+1]; if(_ea.arr===_eb.dep){ var _esa=_t2m(_ea.sta), _esd=_t2m(_eb.std); if(_esa!=null&&_esd!=null){ var _em=_esd-_esa; if(_em<0)_em+=1440; escList.push(_ea.arr+' '+(_em>=60?(Math.floor(_em/60)+'h '+(_em%60)+'m'):(_em+'m'))+' (entre '+_ea.flight+' y '+_eb.flight+')'); } } }
+    var escStr=escList.length?(' ESCALAS del día (tiempo en tierra, calculado de las horas PROGRAMADAS del roster — usa EXACTAMENTE estos valores, no los recalcules): '+escList.join(' · ')+'.'):'';
+    var dayHdr=dayList?('JORNADA COMPLETA DE HOY (TODOS los sectores que vuela el piloto): '+dayList+'.'+escStr+' El piloto VUELA todos estos sectores hoy: NUNCA digas que no hace un sector que esté en esta lista. Si te preguntan por un sector que no está en el briefing de abajo, reconócelo como parte de su jornada y responde lo que puedas; si no tienes su detalle, dilo y ofrece briefarlo. '):''; var askedBlock=''; try{ var _ask=_matchAskedLeg(question,dayLegs,(window.__ariaCtx||{}).leg); var _needLive=/turbulenc|\bedr\b|baches|zarande|viento|\bwind\b|\bjet\b|cizalla|shear|engelam|icing|meteo|alternativ|desv[ií]|divert|notam|cerrad|closed|clsd|\bpista\b|\brwy\b|\bils\b|\balt\b/i.test(String(question)); var _target=_ask||(_needLive?((window.__ariaCtx||{}).leg):null); if(_target)askedBlock=await _liveSectorBlock(_target); }catch(e){}
     if(LAST_SCOPE==='hoy' && LAST_TEXT){
       return 'Eres ARIA, copiloto del piloto para TODA su jornada. '+dayHdr+askedBlock+'\n\nBRIEFING ENTREGADO:\n'+LAST_TEXT+langLine;
     }
