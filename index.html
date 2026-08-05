@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.443">
+  <meta name="version" content="Beta.448">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.443","builtAt":"2026-08-04T18:26:50Z","commit":"b8fa8d6","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.448","builtAt":"2026-08-05T16:29:37Z","commit":"79cd83a","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -1389,7 +1389,7 @@ html.day .doc-sheet-sectlbl{color:#94A3B8}
 .pc-table-wrap::after{content:'';position:absolute;bottom:0;left:0;right:0;height:24px;background:linear-gradient(0deg,rgba(10,6,0,.95),transparent);pointer-events:none}
 .pc-table{width:100%;min-width:520px;border-collapse:collapse}
 .pc-table th{font-size:8px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:1.2px;padding:10px 12px;text-align:left;border-bottom:1px solid rgba(245,158,11,.12);background:rgba(0,0,0,.4);position:-webkit-sticky;position:sticky;top:0;z-index:1}
-.pc-table td{font-size:12px;padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.05);color:rgba(255,255,255,.82)}
+.pc-table td{font-size:12px;padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.05);color:rgba(255,255,255,.88)}
 .pc-table td.mono{font-family:'Space Mono',monospace;font-size:11px;color:rgba(255,255,255,.70)}
 .pc-table td.amt{font-family:'Space Mono',monospace;font-size:12px;font-weight:600;color:#FFFFFF;text-align:right}
 .pc-table tr:last-child td{border-bottom:none}
@@ -3534,7 +3534,9 @@ html.day #ld-panel-mapa.ld-panel{background:#cfe0f0}
 .ld-fdate{font-size:10px;color:rgba(248,250,252,.25);margin-left:auto;font-family:'Space Mono',monospace}
 .ld-fdel{
   background:none;border:none;cursor:pointer;font-size:13px;
-  padding:2px 4px;opacity:.35;transition:opacity .15s;flex-shrink:0
+  /* .35 dejaba el icono en 1,07:1 sobre la tarjeta oscura: discreto está bien (es un botón
+     destructivo), invisible no. .55 lo mantiene apagado pero se ve. */
+  padding:2px 4px;opacity:.55;transition:opacity .15s;flex-shrink:0
 }
 .ld-fdel:active{opacity:1}
 .ld-fempty{
@@ -5991,6 +5993,24 @@ html.day .btab-pill svg{color:#FFFFFF!important}
   box-shadow:0 2px 18px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.02)
 }
 .la-insight-icon{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+/* ✈ y 🛩 son glifos MONOCROMOS: se pintan con `color`, que se hereda — y NINGÚN tema le daba
+   uno propio, así que salían apagados también de noche (el 🛩 morado sobre su propio tinte
+   morado, casi invisible). Cada icono toma el acento de su tarjeta, que viaja en el style
+   en línea. 🌙 y ⏰ son emoji a color y no dependen de esto: por eso el fallo se veía sólo
+   en "Destino dominante" y "Tu avión habitual". */
+.la-insight-icon[style*="rgba(34,211,238"]{color:#22D3EE}
+.la-insight-icon[style*="rgba(124,58,237"]{color:#C4B5FD}
+.la-insight-icon[style*="rgba(16,185,129"]{color:#34D399}
+.la-insight-icon[style*="rgba(239,68,68"]{color:#F87171}
+/* En modo día los mismos acentos, oscurecidos para que contrasten sobre blanco. */
+   el claro de la tarjeta oscura y desaparecían sobre el fondo blanco (🌙 y ⏰ no, porque son
+   emoji a color y por eso el fallo sólo se veía en esas dos tarjetas). Se les da el tono de
+   su propia tarjeta, que va en el style en línea. */
+html.day .la-insight-icon{color:#334155}
+html.day .la-insight-icon[style*="rgba(34,211,238"]{color:#0369A1}
+html.day .la-insight-icon[style*="rgba(124,58,237"]{color:#5B21B6}
+html.day .la-insight-icon[style*="rgba(16,185,129"]{color:#046C4E}
+html.day .la-insight-icon[style*="rgba(239,68,68"]{color:#B91C1C}
 .la-insight-body{flex:1;min-width:0}
 .la-insight-title{font-size:13px;font-weight:600;color:rgba(248,250,252,.92);margin-bottom:4px}
 .la-insight-text{font-size:11px;color:rgba(248,250,252,.36);line-height:1.58;font-family:'Space Mono',monospace}
@@ -6211,7 +6231,7 @@ html.day .ld-fcard-ap{color:#0A1628 !important}
 html.day .ld-far{color:#6D28D9 !important}
 html.day .ld-fcard-fi{color:#475569 !important}
 html.day .ld-fcard-bv{color:#0A1628 !important}
-html.day .ld-fcard-bl{color:#64748B !important}
+html.day .ld-fcard-bl{color:#475569 !important}   /* 4,2:1 -> 6,4:1 */
 html.day .ld-fcard-bot{border-top-color:rgba(15,23,42,.07) !important}
 html.day .ld-fdate{color:#64748B !important}
 html.day .ld-fcard-draft{background:rgba(255,251,235,.85) !important;border-color:rgba(217,119,6,.35) !important}
@@ -6220,8 +6240,17 @@ html.day .ld-fcard-draft{background:rgba(255,251,235,.85) !important;border-colo
 html.day .ld-fpill-ac{background:rgba(109,40,217,.1) !important;color:#4C1D95 !important;border-color:rgba(109,40,217,.25) !important}
 html.day .ld-fpill-fo{background:rgba(8,145,178,.1) !important;color:#0369A1 !important;border-color:rgba(8,145,178,.25) !important}
 html.day .ld-fpill-cpt{background:rgba(217,119,6,.1) !important;color:#92400E !important;border-color:rgba(217,119,6,.2) !important}
-html.day .ld-fpill-pf{background:rgba(22,163,74,.1) !important;color:#15803D !important;border-color:rgba(22,163,74,.2) !important}
+html.day .ld-fpill-pf{background:rgba(22,163,74,.1) !important;color:#116534 !important;border-color:rgba(22,163,74,.2) !important}
 html.day .ld-fpill-pm,html.day .ld-fpill-noc{background:rgba(99,102,241,.1) !important;color:#3730A3 !important;border-color:rgba(99,102,241,.2) !important}
+/* Pastillas VERDES de la tarjeta de vuelo (✈ tiempo de vuelo · 🎓 carrera/simulador) y la
+   papelera. Van con estilo EN LÍNEA, así que ninguna regla de modo día las alcanzaba y en
+   claro quedaban casi invisibles: el verde #10B981 sobre blanco da 2,5:1 y el 🗑 al 35 %
+   de opacidad, 2,4:1. Se seleccionan por el propio texto del style, que es como ya se
+   resuelven en este archivo los inline de la tira de cabecera. */
+html.day .ld-fpill[style*="color:rgba(0,220,80,.85)"]{background:rgba(5,150,105,.12) !important;color:#046C4E !important;border-color:rgba(5,150,105,.35) !important}
+html.day .ld-fpill[style*="color:#10B981"]{background:rgba(16,185,129,.14) !important;color:#046C4E !important;border-color:rgba(5,150,105,.4) !important}
+html.day .ld-fdel{opacity:.8 !important}
+html.day .ld-fdel:hover{opacity:1 !important}
 html.day .ld-fsdot.complete{background:#0369A1 !important;box-shadow:0 0 5px rgba(3,105,161,.4) !important}
 html.day .ld-fsdot.partial{background:#B45309 !important;box-shadow:0 0 5px rgba(180,83,9,.4) !important}
 
@@ -12447,12 +12476,9 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
         <span class="ldm-adsb-strip-clear" onclick="ldAdsbStripClear()">✕</span>
       </div>
 
-      <!-- OCR strip (solo visible en modo manual) -->
-      <div id="ld-ocr-avail-strip" class="ldm-ocr-strip">
-        <div class="ldm-ocr-dot"></div>
-        <span class="ldm-ocr-text">MCDU OCR disponible</span>
-        <span class="ldm-ocr-btn" onclick="ldSwitchToPhotoMode()">Usar foto ›</span>
-      </div>
+      <!-- La tira "MCDU OCR disponible · Usar foto ›" se quitó: hacía lo MISMO que el botón
+           de abajo (ldSwitchToPhotoMode) y dos entradas a la misma acción se estorban. Se
+           queda la de abajo, que es la que explica qué hace. -->
 
       <!-- Scrollable body -->
       <div class="ldm-body">
@@ -12530,21 +12556,66 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
              ADS-B no va aquí: no es una forma de empezar, es una acción que necesita
              nº de vuelo + fecha → vive junto al Nº VUELO, que es su entrada. -->
         <div style="margin:0 0 14px">
-          <button type="button" onclick="ldSwitchToPhotoMode()" class="ld-qa2">
-            <svg class="ld-qa2-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-              <circle cx="12" cy="13" r="4"/>
-            </svg>
-            <span>Rellenar con foto de la MCDU</span>
+          <button type="button" id="ld_qa2_ocr" onclick="ldSwitchToPhotoMode()" class="ld-qa2">
+            <span class="ld-qa2-lens">
+              <svg class="ld-qa2-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+            </span>
+            <span class="ld-qa2-txt">
+              <span class="ld-qa2-t1">Rellenar con foto de la MCDU</span>
+              <!-- El beneficio, con lo que la AOC STATUS trae DE VERDAD: no hay combustible
+                   en esa página, y prometerlo sería mentir en el sitio donde el piloto decide. -->
+              <span class="ld-qa2-t2">Vuelo, ruta, fecha y horas OUT · OFF · ON · IN</span>
+            </span>
+            <span class="ld-qa2-go" aria-hidden="true">›</span>
           </button>
         </div>
         <style>
-          .ld-qa2{width:100%;display:flex;align-items:center;justify-content:center;gap:9px;padding:10px;
-            border-radius:12px;border:1px solid rgba(34,211,238,.32);background:rgba(34,211,238,.07);
-            color:#0EA5C4;font-family:'Space Grotesk',sans-serif;font-size:12.5px;font-weight:700;cursor:pointer;transition:background .15s}
-          .ld-qa2:active{background:rgba(34,211,238,.16)}
-          .ld-qa2-ic{width:20px;height:20px;flex-shrink:0}
-          html.day .ld-qa2{color:#0E7490;background:rgba(34,211,238,.10);border-color:rgba(8,145,178,.3)}
+          /* Acción PRINCIPAL de este bloque: antes era un botón fantasma (fondo al 7 %) y
+             parecía secundario, compitiendo además con la tira de arriba. */
+          /* RELLENO SÓLIDO, no una pastilla translúcida: en modo día el formulario ya es de
+             un cian claro, así que un botón cian al 14 % desaparecía dentro del fondo —
+             ese era todo el motivo de que se viera soso. Con el degradado oscuro el botón
+             se despega de la página en los dos temas Y el destello blanco por fin se ve. */
+          .ld-qa2{position:relative;overflow:hidden;width:100%;display:flex;align-items:center;
+            gap:13px;padding:14px 16px;
+            border-radius:16px;border:1px solid rgba(34,211,238,.55);
+            background:linear-gradient(103deg,#083D55 0%,#0B4F6C 48%,#0C5C78 100%);
+            box-shadow:0 8px 22px rgba(8,145,178,.28),inset 0 1px 0 rgba(255,255,255,.14);
+            color:#fff;font-family:'Space Grotesk',sans-serif;cursor:pointer;text-align:left;
+            transition:box-shadow .18s,transform .12s;-webkit-tap-highlight-color:transparent}
+          .ld-qa2:active{transform:translateY(1px);box-shadow:0 3px 12px rgba(8,145,178,.3)}
+          /* El icono en su propia "lente": el ojo va ahí, que es lo que dice QUÉ hace. */
+          .ld-qa2-lens{width:38px;height:38px;border-radius:11px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+            background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22)}
+          .ld-qa2-ic{width:21px;height:21px;flex-shrink:0;color:#fff}
+          .ld-qa2-txt{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0;flex:1}
+          .ld-qa2-t1{font-size:13.5px;font-weight:700;letter-spacing:.2px;color:#fff}
+          .ld-qa2-t2{font-size:10px;font-weight:500;font-family:'Space Mono',monospace;letter-spacing:.1px;
+            color:rgba(255,255,255,.88)}
+          .ld-qa2-go{flex-shrink:0;font-size:19px;line-height:1;color:rgba(255,255,255,.6);margin-left:2px}
+          html.day .ld-qa2{border-color:rgba(8,145,178,.5);box-shadow:0 8px 22px rgba(8,145,178,.22),inset 0 1px 0 rgba(255,255,255,.16)}
+
+          /* ── Llamada de atención, sólo hasta que el piloto lo use una vez (clase .call) ──
+             Un destello que cruza y luego CALLA 4,5 s: una luz que no para deja de ser una
+             invitación y pasa a ser una alarma, y esto es una herramienta de cabina.
+             Sólo transform/opacity ⇒ va en compositor: sin repintados y sin castigar batería. */
+          .ld-qa2.call::after{content:'';position:absolute;top:0;left:-55%;width:42%;height:100%;pointer-events:none;
+            background:linear-gradient(100deg,transparent,rgba(255,255,255,.5),transparent);
+            animation:ldQaSheen 5.4s ease-in-out infinite}
+          @keyframes ldQaSheen{0%{transform:translateX(0)}
+            17%{transform:translateX(380%)}100%{transform:translateX(380%)}}
+          /* El latido va en el ICONO, que es lo que dice QUÉ hace el botón, y desfasado del
+             barrido para que no compitan. */
+          .ld-qa2.call .ld-qa2-lens{animation:ldQaPulse 5.4s ease-in-out infinite}
+          @keyframes ldQaPulse{0%,62%,100%{transform:scale(1)}72%{transform:scale(1.14)}82%{transform:scale(1)}}
+          /* Al pulsar se calla en el acto: ya te ha convencido. */
+          .ld-qa2:active::after,.ld-qa2:active .ld-qa2-lens{animation:none}
+          @media (prefers-reduced-motion:reduce){
+            .ld-qa2.call::after,.ld-qa2.call .ld-qa2-lens{animation:none}
+          }
 
           /* ── Botón ADS-B (junto al Nº VUELO): acción con estados honestos ──
              apagado → no se puede usar · cian → listo · verde → SOLO cuando ya hay datos */
@@ -12561,7 +12632,24 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           @keyframes ldAdsbTx{0%,100%{opacity:.3}50%{opacity:1}}
           .ld-adsb-b.ok{border-color:rgba(16,185,129,.55);background:rgba(16,185,129,.16);color:#10B981;cursor:pointer}
           .ld-adsb-b.nodata{border-color:rgba(245,158,11,.5);background:rgba(245,158,11,.14);color:#F59E0B;cursor:pointer}
-          html.day .ld-adsb-b{color:#94A3B8;background:rgba(148,163,184,.1);border-color:rgba(148,163,184,.26)}
+          /* En día, gris sobre un formulario ya claro = el botón desaparecía. El estado
+             APAGADO sigue siendo apagado (no se puede usar todavía y eso hay que decirlo),
+             pero legible: 4,6:1 en vez de 1,9:1. */
+          html.day .ld-adsb-b{color:#475569;background:rgba(100,116,139,.14);border-color:rgba(71,85,105,.35)}
+          /* Interrogante de ayuda */
+          .ld-adsb-q{flex-shrink:0;width:24px;height:24px;border-radius:50%;cursor:pointer;
+            border:1px solid rgba(34,211,238,.4);background:rgba(34,211,238,.1);color:#22D3EE;
+            font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;line-height:1;padding:0;align-self:center}
+          html.day .ld-adsb-q{border-color:rgba(8,145,178,.45);background:rgba(8,145,178,.12);color:#0E7490}
+          .ld-adsb-help{margin-top:8px;padding:11px 13px;border-radius:12px;
+            border:1px solid rgba(34,211,238,.28);background:rgba(34,211,238,.07)}
+          .ld-adsb-help-t{font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:700;color:#22D3EE;margin-bottom:6px}
+          .ld-adsb-help-b{font-family:'Space Mono',monospace;font-size:10.5px;line-height:1.65;color:rgba(248,250,252,.72)}
+          .ld-adsb-help-b b{color:rgba(248,250,252,.95)}
+          html.day .ld-adsb-help{border-color:rgba(8,145,178,.35);background:rgba(8,145,178,.08)}
+          html.day .ld-adsb-help-t{color:#0E7490}
+          html.day .ld-adsb-help-b{color:#334155}
+          html.day .ld-adsb-help-b b{color:#0F172A}
           html.day .ld-adsb-b.ready{color:#0E7490;background:rgba(34,211,238,.14);border-color:rgba(8,145,178,.4)}
           html.day .ld-adsb-b.ok{color:#0F6B49;background:rgba(16,185,129,.14);border-color:rgba(16,185,129,.45)}
           html.day .ld-adsb-b.nodata{color:#B45309;background:rgba(245,158,11,.14);border-color:rgba(217,119,6,.45)}
@@ -12582,13 +12670,13 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           </div>
         </div>
         <style>
-          .ldm-bp{height:auto!important;min-height:76px;padding:12px 12px!important;
+          .ldm-bp{height:auto!important;min-height:90px;padding:12px 12px!important;
             background:linear-gradient(135deg,#0EA5E9 0%,#22D3EE 58%,#38BDF8 120%)!important;border:none!important;
             box-shadow:0 12px 30px rgba(34,211,238,.4)!important;position:relative;overflow:visible!important}
           .ldm-bp:focus-within{box-shadow:0 14px 34px rgba(34,211,238,.5)!important}
           .ldm-bp-cell{display:flex;flex-direction:column;align-items:center;min-width:0}
-          .ldm-bp-lab{font-size:9px;letter-spacing:2px;font-family:'Space Mono',monospace;color:rgba(255,255,255,.85);font-weight:700}
-          .ldm-bp .ldm-rh-inp{height:auto!important;color:#fff!important;font-size:26px!important;font-weight:700!important;padding:0 4px!important;text-shadow:0 1px 6px rgba(0,0,0,.18)}
+          .ldm-bp-lab{font-size:11px;letter-spacing:2.4px;font-family:'Space Mono',monospace;color:rgba(255,255,255,.85);font-weight:700}
+          .ldm-bp .ldm-rh-inp{height:auto!important;color:#fff!important;font-size:34px!important;font-weight:700!important;padding:0 4px!important;text-shadow:0 1px 6px rgba(0,0,0,.18)}
           /* Neutraliza el fondo blanco del autocompletado nativo (autofill) del navegador */
           .ldm-bp .ldm-rh-inp:-webkit-autofill,
           .ldm-bp .ldm-rh-inp:-webkit-autofill:hover,
@@ -12601,7 +12689,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
             transition:background-color 99999s ease-in-out 0s!important;
             -webkit-transition:background-color 99999s ease-in-out 0s!important}
           .ldm-bp .ldm-rh-dep::placeholder,.ldm-bp .ldm-rh-dest::placeholder{color:rgba(255,255,255,.55)!important}
-          .ldm-bp .ldm-rh-arr{color:#fff!important;font-size:18px!important;align-self:flex-end;padding-bottom:4px;filter:drop-shadow(0 1px 4px rgba(0,0,0,.25))}
+          .ldm-bp .ldm-rh-arr{color:#fff!important;font-size:26px!important;align-self:flex-end;padding-bottom:4px;filter:drop-shadow(0 1px 4px rgba(0,0,0,.25))}
           .ldm-bp::before,.ldm-bp::after{content:'';position:absolute;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:#0B1020;z-index:2}
           html.day .ldm-bp::before,html.day .ldm-bp::after{background:#EAF1F8}
           .ldm-bp::before{left:-7px}.ldm-bp::after{right:-7px}
@@ -12663,6 +12751,21 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
                 </svg>
                 <span id="ld_adsb_lbl">ADS-B</span>
               </button>
+              <button type="button" class="ld-adsb-q" onclick="ldAdsbHelp(event)" aria-label="Cuándo están disponibles los datos ADS-B">?</button>
+            </div>
+            <!-- Panel informativo del ADS-B. Se explica en el sitio donde el piloto se
+                 encuentra el "no encontrado", que es cuando le surge la duda. -->
+            <div id="ld_adsb_help" class="ld-adsb-help" style="display:none">
+              <div class="ld-adsb-help-t">¿Cuándo aparece un vuelo en ADS-B?</div>
+              <div class="ld-adsb-help-b">
+                Los datos no son inmediatos: el vuelo tarda un rato en consolidarse después de
+                aterrizar. Si acabas de volar y no lo encuentra, <b>vuelve a intentarlo pasadas
+                unas horas o al día siguiente</b>.<br><br>
+                Por el otro lado, el proveedor <b>sólo guarda los vuelos recientes</b>: si dejas
+                pasar semanas puede que ya no esté. Lo cómodo es <b>rellenar el logbook cada dos
+                o tres días</b>.<br><br>
+                Y si no aparece, no pasa nada: escribe las horas a mano — el vuelo se guarda igual.
+              </div>
             </div>
           </div>
         </div>
@@ -18485,8 +18588,15 @@ function ldOpenModal(manual){
   var subEl=document.getElementById('ld_modal_sub');
   if(subEl) subEl.textContent=manual?'MANUAL · UTC':'MCDU OCR · UTC';
   // Show/hide OCR strip
-  var ocrStrip=document.getElementById('ld-ocr-avail-strip');
-  if(ocrStrip) ocrStrip.style.display=manual?'flex':'none';
+  // El botón de la MCDU sólo se anuncia (barrido de luz) mientras el piloto NO lo haya
+  // usado nunca: al que ya lo conoce, insistirle es ruido. En modo OCR no se anuncia
+  // —ya está ahí— ni tampoco si el atajo no aplica.
+  // El botón de la MCDU se anuncia SIEMPRE que el atajo aplica (modo manual). Se probó a
+  // callarlo tras el primer uso, pero entonces el piloto que ya lo tocó una vez no vuelve a
+  // verlo nunca — y es el atajo que más trabajo le ahorra, no una novedad que "ya ha visto".
+  // El destello es corto y con 4,5 s de silencio entre pasadas: llama sin dar la lata.
+  var _qa=document.getElementById('ld_qa2_ocr');
+  if(_qa) _qa.classList.toggle('call', !!manual);
   // Auto-fill own name based on current role selection
   var _role=document.getElementById('ld_role').value;
   var _myFo=lsGet('pilotOS_myname_fo','');
@@ -18542,7 +18652,16 @@ function ldOpenModal(manual){
   document.getElementById('scr-logbook').classList.add('modal-active');
   document.body.style.overflow='hidden';
 }
+// Abre/cierra el panel de "¿cuándo aparece un vuelo en ADS-B?" (interrogante junto al botón)
+function ldAdsbHelp(ev){
+  if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+  var p=document.getElementById('ld_adsb_help'); if(!p) return;
+  p.style.display = (p.style.display==='none' || !p.style.display) ? 'block' : 'none';
+}
+
 function ldSwitchToPhotoMode(){
+  // Al entrar en modo foto el botón ya no pinta nada: se calla mientras dure.
+  var _qa=document.getElementById('ld_qa2_ocr'); if(_qa) _qa.classList.remove('call');
   // Cambiar a modo foto/OCR SIN resetear el formulario (preserva todo lo ya escrito)
   ldManual=false;
   var z=document.getElementById('ld_zone'); if(z) z.style.display='';
@@ -20325,8 +20444,9 @@ function ldStats(){
   var _simMin=_real.filter(ldIsSim).filter(ldNotInBalance)
                    .reduce(function(s,e){return s+ldT2m(e.block);},0)
               +((bal&&bal.sim)?bal.sim:0);
-  // Con menos de una hora, "0h" parecería que no hay nada: ahí se enseña H:MM.
-  var _hh=function(m){ return (m>0&&m<60)?ldM2s(m):(Math.floor(m/60)+'h'); };
+  // Horas Y MINUTOS, sin redondear: es un logbook, y "1093h" a secas esconde hasta 59
+  // minutos justo en la cifra que el piloto compara con su libro de papel.
+  var _hh=function(m){ return ldM2s(m); };
   if(el('ld_mini_total')) el('ld_mini_total').textContent=_hh(tmCareer+_simMin);
   if(el('ld_mini_fly'))   el('ld_mini_fly').textContent=_hh(tmCareer);
   if(el('ld_mini_sim'))   el('ld_mini_sim').textContent=_hh(_simMin);
@@ -22705,7 +22825,7 @@ function ldCloseImport(){
   if(m){ m.style.display='none'; document.body.style.overflow=''; }
   if(tabs){ tabs.style.transform=''; tabs.style.transition='transform .2s'; }
   _ldImportData=null;
-  _ldPendingBalance=null; _ldPdfSummary=''; _ldImportEditable=false;
+  _ldPendingBalance=null; _ldPdfSummary=''; _ldImportEditable=false; _ldImportFromAI=false;
   _ldImpSel={}; _ldImpLastSel=null; _ldImpUndo=[]; _ldImpCloseMenu();
   var _sh=document.querySelector('#ld_import_modal .ldi-sheet'); if(_sh) _sh.classList.remove('review');
   var _lt=document.getElementById('ldimp_live_totals'); if(_lt) _lt.remove();
@@ -22767,7 +22887,12 @@ function ldImportFile(e){ var file=e.target.files[0]; if(file) ldParseImportFile
 // devuelve `pilotos-logbook-v1`, autovalidado contra los totales impresos del propio PDF.
 var _ldPendingBalance=null;   // saldo de partida a guardar si el usuario confirma
 var _ldPdfSummary='';         // resumen extra a pintar en la vista previa
-var _ldImportEditable=false;  // import por foto (IA): la vista previa es 100% editable
+// La vista previa de CUALQUIER import es editable y a pantalla completa. Antes sólo lo era
+// la del import por FOTO, con el argumento de que el PDF es determinista y se autovalida —
+// pero un parser puede leer bien y aun así equivocarse de columna, y el piloto se quedaba
+// mirando sus vuelos sin poder tocarlos ni verlos enteros por una rendija.
+var _ldImportEditable=false;
+var _ldImportFromAI=false;    // sólo la foto: cambia el texto de ayuda, no la edición
 var _ldImpSel={};             // filas seleccionadas para la edición masiva {idx:1}
 var _ldImpLastSel=null;       // ancla del shift-click (rango)
 var _ldImpUndo=[];            // pila de 5 estados previos de _ldImportData (U6)
@@ -23201,7 +23326,7 @@ async function ldImportPdfViaBackend(file){
       +'</div>');
     }
     if((d.simSessions||[]).length) bits.push('<div class="ldbal-hint">De las filas de arriba, '+d.simSessions.length+' son sesiones de simulador (sin ruta, no cuentan como horas de vuelo).</div>');
-    _ldImportEditable=(d.source==='vision');
+    _ldImportFromAI=(d.source==='vision');
     if(d.source==='vision') bits.push('<div class="ldbal-hint ldbal-bad">📷 Leído por IA de una foto (letra a mano) — <b>revisa y corrige cada campo</b> abajo antes de confirmar. Las matrículas, nombres y aeropuertos suelen fallar.</div>');
     else if(d.reconcile&&!d.reconcile.ok) bits.push('<div class="ldbal-hint ldbal-bad">⚠ El PDF no cuadra con sus propios totales impresos ('+d.reconcile.checks.filter(function(c){return !c.ok;}).length+' descuadres). Revisa antes de confirmar.</div>');
     else if(d.source==='vision') bits.push('<div class="ldbal-hint ldbal-bad">📷 Leído por IA de una foto (letra a mano) — <b>revisa matrículas, nombres y aeropuertos</b> antes de confirmar.</div>');
@@ -23526,6 +23651,7 @@ function ldImportProcess(rows,fname){
     return;
   }
   _ldImportData=mapped;
+  _ldImportEditable=true;   // toda vista previa: pantalla completa y editable
   // Small delay so the radar animation is visible
   setTimeout(function(){
     ldiShowResult();
@@ -23547,7 +23673,11 @@ function ldImportProcess(rows,fname){
       var _si=document.getElementById('ldimp_selinfo'); if(_si) _si.remove();
       wrap.insertAdjacentHTML('beforebegin','<div id="ldimp_live_totals" class="ldimp-totals"></div>'
         +'<div id="ldimp_selinfo" class="ldimp-selbar"></div>');
-      wrap.innerHTML='<div class="ldimp-hd">✏️ Toca cualquier casilla para corregirla. Lo que dejes escrito es lo que se guarda — la IA solo ha hecho un primer intento. Revisa sobre todo <b>matrículas, aeropuertos y nombres</b>. Con el <b>▾</b> de cada columna corriges esa columna entera de una vez.</div>'
+      wrap.innerHTML='<div class="ldimp-hd">✏️ Toca cualquier casilla para corregirla. Lo que dejes escrito es lo que se guarda'
+        +(_ldImportFromAI
+            ? ' — la IA solo ha hecho un primer intento. Revisa sobre todo <b>matrículas, aeropuertos y nombres</b>.'
+            : '.')
+        +' Con el <b>▾</b> de cada columna corriges esa columna entera de una vez; marca filas a la izquierda para corregir solo esas.</div>'
         +_ldRenderEditableImport();
       _ldImpLiveTotals();
       _ldImpSelInfo();
@@ -39131,6 +39261,32 @@ function ldSwitchTab(name, el) {
 // Mismo criterio que Stats › Tripulación (todas las grafías del propio slot + nombre de
 // perfil, comparación normalizada por tokens). Los vuelos de roster NO traen tripulación
 // (el import no la captura); sí la traen los de Swift y los editados a mano.
+// Base del piloto. El roster ya la calculaba, pero dentro de su propia función y sólo la
+// dejaba en localStorage cuando había roster importado: un piloto que llega con su logbook
+// y nada más se quedaba sin base, y entonces "destino dominante" le decía su PROPIA BASE,
+// que es el aeropuerto al que más vuelve por definición. Misma regla que el roster —la moda
+// del primer despegue de cada día— pero calculada también desde el logbook.
+function ldHomeBase(entries){
+  var b=''; try{ b=localStorage.getItem('pilotOS_home_base')||''; }catch(e){}
+  if(b) return b.toUpperCase();
+  var porDia={}, cnt={};
+  (entries||window.ldEntries||[]).forEach(function(e){
+    if(!e||!e.date||!e.dep||e.type==='__ac_db__') return;
+    var dep=String(e.dep).replace(/^\*/,'').toUpperCase();
+    if(dep && !porDia[e.date]) porDia[e.date]=dep;      // primer despegue del día
+  });
+  Object.keys(porDia).forEach(function(d){ cnt[porDia[d]]=(cnt[porDia[d]]||0)+1; });
+  var max=0; Object.keys(cnt).forEach(function(k){ if(cnt[k]>max){ max=cnt[k]; b=k; } });
+  // Con dos o tres días sueltos no hay "base": mejor no descartar nada que descartar mal.
+  return max>=5 ? b : '';
+}
+
+// "SELF" es como muchos logbooks (y el propio Jeppesen) anotan que el comandante eras TÚ.
+// No es un compañero: si no se descarta, SELF acaba encabezando "con quién has volado" —
+// que es justo lo contrario de lo que significa. Se cubren las variantes que aparecen a
+// mano; la exclusión por NOMBRE del piloto sigue funcionando aparte.
+function ldIsSelfName(n){ return /^(SELF|MYSELF|YO|ME|MI|MISMO|YO MISMO)$/i.test(String(n||'').trim()); }
+
 function ldTopCrew(entries, limit){
   var my={};
   var norm=function(s){ return (s||'').trim().toUpperCase().replace(/\s+/g,' '); };
@@ -39146,6 +39302,7 @@ function ldTopCrew(entries, limit){
   (entries||[]).forEach(function(e){
     [e.cm1,e.cm2].forEach(function(n){
       if(!n||!n.trim())return;
+      if(ldIsSelfName(n))return;           // "SELF" = el propio piloto, no un compañero
       if(my[norm(n)]||my[tok(n)])return;   // es el propio piloto → excluir
       cnt[n.trim()]=(cnt[n.trim()]||0)+1;
     });
@@ -40252,6 +40409,7 @@ function laRenderAnalytics() {
   entries.forEach(function(e){
     [e.cm1,e.cm2].forEach(function(n){
       if(!n||!n.trim())return;
+      if(typeof ldIsSelfName==='function'&&ldIsSelfName(n))return;  // "SELF" = el propio piloto
       if(_myKeys[_laNorm(n)]||_myKeys[_laTok(n)])return; // es el usuario → excluir
       crewCnt[n.trim()]=(crewCnt[n.trim()]||0)+1;
     });
@@ -40573,7 +40731,10 @@ function laRenderIA() {
   }
 
   // 3. Destino top
-  var _hb2=localStorage.getItem('pilotOS_home_base')||'';
+  // Tu base NO es un "destino": es el sitio al que siempre vuelves. Antes sólo se
+  // descartaba si el roster había dejado la base en localStorage; con `ldHomeBase` se
+  // deduce también del propio logbook (moda del primer despegue del día).
+  var _hb2=(typeof ldHomeBase==='function')?ldHomeBase(entries):(localStorage.getItem('pilotOS_home_base')||'');
   var destCnt2={};
   entries.forEach(function(e){ if(e.arr&&e.arr!==_hb2) destCnt2[e.arr]=(destCnt2[e.arr]||0)+1; });
   var td=Object.entries(destCnt2).sort(function(a,b){return b[1]-a[1];})[0];
@@ -40669,7 +40830,9 @@ function laRenderWrapped() {
     else if(e.role==='FO'&&e.cm2) myName=e.cm2.trim();
   }
   var crewCnt3={};
-  entries.forEach(function(e){ [e.cm1,e.cm2].forEach(function(n){ if(n&&n.trim()&&n.trim()!==myName) crewCnt3[n.trim()]=(crewCnt3[n.trim()]||0)+1; }); });
+  entries.forEach(function(e){ [e.cm1,e.cm2].forEach(function(n){
+    if(typeof ldIsSelfName==='function'&&ldIsSelfName(n))return;   // "SELF" = el propio piloto
+    if(n&&n.trim()&&n.trim()!==myName) crewCnt3[n.trim()]=(crewCnt3[n.trim()]||0)+1; }); });
 
   if(_e('la-wr-year')) _e('la-wr-year').textContent = cy;
   if(_e('la-wr-name')) _e('la-wr-name').textContent = (myName||'Piloto PilotOS')+' · '+cy;
