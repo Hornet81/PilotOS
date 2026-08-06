@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.448">
+  <meta name="version" content="Beta.453">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.448","builtAt":"2026-08-05T16:29:37Z","commit":"cb2277a","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.453","builtAt":"2026-08-06T18:52:38Z","commit":"fbe5614","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -76,6 +76,13 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
 <style>
 :root{
+  /* ── Escala del texto crudo de METAR / TAF / NOTAM ──────────────────────────────────────
+     Los tres bloques monoespaciados (RAW METAR, RAW TAF y el cuerpo del NOTAM) multiplican su
+     tamaño base por esta variable. Vale 1 en todas partes salvo en TABLET, donde sube.
+     Se llama "tablet", NO "iPad", a propósito: la detección es por características del
+     dispositivo, no por marca ni por user agent — el iPad se identifica como Macintosh y
+     olfatear el UA daría falsos negativos. El criterio está en el @media de abajo. */
+  --tablet-wx-scale:1;
   /* Light sky theme */
   --ink:#FFFFFF;     /* card background: white */
   --ink2:#F0F6FF;    /* secondary surface: pale blue */
@@ -378,7 +385,8 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .bottom-tabs::after{content:'';position:fixed;bottom:0;left:0;right:0;height:env(safe-area-inset-bottom,0px);background:rgba(8,12,26,.94);z-index:1}
 .btab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:4px 0;transition:all .14s}
 .btab svg{transition:all .14s;color:#334155}
-.btab-l{font-size:11px;font-weight:600;color:#1E3A5F;transition:color .14s;letter-spacing:.3px}
+.btab-l{font-size:12.5px;font-weight:700;color:#1E3A5F;transition:color .14s;letter-spacing:.3px}
+.btab svg{width:24px;height:24px}
 .btab.on svg{filter:drop-shadow(0 0 8px rgba(109,40,217,.5)) brightness(1.1)}
 .btab.on .btab-l{color:#6D28D9;font-weight:700}
 
@@ -2932,7 +2940,8 @@ html.day .ldm-adsb-strip-icon { color:#0369A1 !important; }
 /* Section headers */
 .ldm-sec {
   font-size:10px; font-weight:700; letter-spacing:1.2px;
-  text-transform:uppercase; color:rgba(34,211,238,.6);
+  /* 4,35 sobre la tarjeta nueva → 7,59 al 85 %. (En día manda html.day .ldm-sec.) */
+  text-transform:uppercase; color:rgba(34,211,238,.85);
   margin:18px 0 10px; display:flex; align-items:center; gap:7px;
 }
 .ldm-sec:first-child { margin-top:0; }
@@ -2945,7 +2954,9 @@ html.day .ldm-adsb-strip-icon { color:#0369A1 !important; }
 /* Labels */
 .ldm-lbl {
   font-size:10px; font-weight:700; letter-spacing:.7px;
-  text-transform:uppercase; color:rgba(248,250,252,.35);
+  /* Estaba al 35 % de opacidad: 3,10 de contraste sobre la tarjeta. MATRÍCULA, TIPO, MOTOR,
+     CALL SIGN y POB se leían a medias. Al 72 % son 6,26. (En día manda html.day .ldm-lbl.) */
+  text-transform:uppercase; color:rgba(226,240,252,.72);
   display:flex; align-items:center; gap:5px;
 }
 
@@ -3035,7 +3046,8 @@ html.day .dsc-row{ background:rgba(124,58,237,.04); }
 /* iPad/iOS: el control nativo de time no debe desbordar la caja */
 .ldm-inp[type="time"], .ldm-inp[type="date"]{ -webkit-appearance:none; appearance:none; }
 .ldm-inp[type="time"]::-webkit-date-and-time-value{ text-align:left; margin:0; }
-.ldm-inp::placeholder { color:rgba(248,250,252,.2) !important; font-size:12px; }
+/* Al 20 % el ejemplo del campo (EC-MXY, VY1234, VLG1234) daba 1,83: no se veía. Al 46 %, 4,13. */
+.ldm-inp::placeholder { color:rgba(226,240,252,.46) !important; font-size:12px; }
 .ldm-inp:focus {
   border-color:rgba(124,58,237,.55) !important;
   background:rgba(20,10,42,.7) !important;
@@ -4697,6 +4709,14 @@ html.day .qrh-wrap[data-active="alt2"] .qrh-icao{color:#BE185D!important;}
 .dh-header{display:flex;align-items:center;justify-content:space-between;padding:18px 18px 12px;padding-top:calc(18px + env(safe-area-inset-top,0px));flex-shrink:0;background:transparent;}
 /* Versión bajo el logo en la barra superior de Home — pequeña pero legible */
 .dh-version{font-size:9.5px!important;line-height:1.3!important;letter-spacing:.2px;white-space:nowrap}
+/* ── TABLET: METAR / TAF / NOTAM más grandes ────────────────────────────────────────────
+   Ancho de tablet Y puntero grueso (dedo). El puntero es lo que descarta un portátil o un
+   monitor a 1024–1366 px, donde el texto ya se lee bien y agrandarlo sobraría. No se mira el
+   user agent: el iPad se declara Macintosh y la detección por UA fallaría. Sólo cambia la
+   escala; cada bloque conserva su tamaño base relativo. */
+@media (min-width:768px) and (max-width:1366px) and (pointer:coarse){
+  :root{ --tablet-wx-scale:1.3; }
+}
 /* Logo del Home: siempre blanco; en modo día gana contraste/nitidez con un halo oscuro */
 html.day .dh-logo-img{filter:drop-shadow(0 1px 1px rgba(0,0,0,.3)) drop-shadow(0 0 .5px rgba(0,0,0,.25))}
 .dh-pilot{display:flex;align-items:center;gap:9px}
@@ -5232,9 +5252,16 @@ html.day .bottom-tabs{
   backdrop-filter:blur(20px)!important;
 }
 html.day .bottom-tabs::after{background:rgba(58,106,139,.94)!important}
-html.day .btab{color:rgba(255,255,255,.5)!important}
-html.day .btab svg{color:rgba(255,255,255,.5)!important}
-html.day .btab.on{color:#FFFFFF!important;filter:drop-shadow(0 0 6px rgba(255,255,255,.4))}
+/* La barra en dia NO es blanca: es azul-gris #4A7A9B. Sobre ella el blanco da 4,62:1
+   y cualquier tono oscuro se hunde (el navy que probe antes: 2,49:1). Asi que TODOS los
+   items van en blanco puro, y el activo se distingue por una PASTILLA detras en vez de por
+   color — asi ninguna etiqueta baja del minimo legible para marcar el estado. */
+html.day .btab{color:#FFFFFF!important}
+html.day .btab svg{color:#FFFFFF!important}
+html.day .btab .btab-l{color:#FFFFFF!important}
+html.day .btab.on{border-radius:12px;background:rgba(255,255,255,.22)}
+html.day .btab.on svg{color:#FFFFFF!important}
+html.day .btab.on .btab-l{color:#FFFFFF!important;font-weight:800}
 html.day .btab.on svg{color:#FFFFFF!important}
 html.day .btab-l{color:inherit!important}
 html.day .btab-pill{
@@ -6865,7 +6892,9 @@ html.day .ldm-inp{
   color:#0A1628 !important;
   font-weight:600 !important;
 }
-html.day .ldm-inp::placeholder{color:rgba(15,23,42,.3) !important}
+/* Mismo problema que en noche: al 30 % el ejemplo daba 1,95. Al 55 %, 3,94 — sigue leyéndose
+   como pista (más flojo que el valor real, 17,4) pero se ve. */
+html.day .ldm-inp::placeholder{color:rgba(15,23,42,.55) !important}
 html.day .ldm-inp:focus{
   border-color:#6D28D9 !important;
   background:#FFFFFF !important;
@@ -7766,8 +7795,12 @@ function pilotosRenderVersion(el){
   el.style.textAlign = 'center';
   el.innerHTML = '';
 
-  // ¿Hay una versión nueva esperando? Lo sabe el Service Worker, no un número.
-  var isDay = document.documentElement.classList.contains('day');
+  // El color se elige por el fondo REAL sobre el que cae la etiqueta, no por html.day: el menú
+  // lateral (sb-dropdown, rgba(8,14,36,.88)) y el gate de login son paneles OSCUROS también en
+  // modo día, así que ahí el color claro es el único legible. Solo la del Home va sobre el
+  // degradado claro de scr-home y sigue al tema. Medido: con el color de día sobre esos paneles
+  // el contraste es 1.01 (invisible).
+  var isDay = document.documentElement.classList.contains('day') && el.id === 'pilotos-version-home';
   if(window.__pilotosUpdateReady){
     el.style.color = isDay ? '#9a6700' : 'rgba(251,191,36,.95)';
     var span = document.createElement('span');
@@ -8769,6 +8802,18 @@ html.day .fp-ym-st-col.free .fp-ym-st-rng{color:var(--fp-gd)}
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" stroke-width="1.9"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
       </div>
       <div><div class="gear-label" id="day-mode-gear-label">Modo Día</div><div class="gear-sub" id="day-mode-gear-sub">Activar para mayor visibilidad</div></div>
+    </div>
+    <div class="gear-divider"></div>
+    <!-- Automático día/noche. No cierra el panel al pulsarlo: el piloto ve cambiar el
+         interruptor y la hora del próximo cambio en el sitio. -->
+    <div class="gear-item" id="pda-gear-item" onclick="pdaToggleAuto(event)">
+      <div class="gear-icon" style="background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.3)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="1.9" stroke-linecap="round"><path d="M12 2v3"/><path d="M4.9 6.9 7 9"/><path d="M2 14h3"/><path d="M19 14h3"/><path d="m17 9 2.1-2.1"/><path d="M7 14a5 5 0 0 1 10 0"/><path d="M3 18h18"/><path d="M6 21h12"/></svg>
+      </div>
+      <div style="flex:1;min-width:0"><div class="gear-label">Automático día/noche</div><div class="gear-sub" id="pda-gear-sub">Sigue el orto y el ocaso</div></div>
+      <div id="pda-switch" style="flex-shrink:0;width:34px;height:19px;border-radius:19px;background:rgba(148,163,184,.28);border:1px solid rgba(148,163,184,.4);position:relative;transition:background .18s,border-color .18s">
+        <div id="pda-knob" style="position:absolute;top:1.5px;left:1.5px;width:14px;height:14px;border-radius:50%;background:#F8FAFC;box-shadow:0 1px 3px rgba(0,0,0,.4);transition:transform .18s cubic-bezier(.2,.8,.3,1)"></div>
+      </div>
     </div>
   </div>
   <!-- SHARED BACKDROP -->
@@ -12641,6 +12686,12 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
             border:1px solid rgba(34,211,238,.4);background:rgba(34,211,238,.1);color:#22D3EE;
             font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;line-height:1;padding:0;align-self:center}
           html.day .ld-adsb-q{border-color:rgba(8,145,178,.45);background:rgba(8,145,178,.12);color:#0E7490}
+          /* El min-width de #ld_flight ya no hace falta: existía porque el ADS-B compartía fila
+             con el input y sin suelo propio el campo cedía todo el ancho. Ahora el ADS-B está
+             fuera de la columna, y ese mínimo sólo servía para desbordar el modal 39 px a 320. */
+          .ld-adsb-row{display:flex;align-items:center;gap:8px;margin-top:12px}
+          .ld-adsb-row .ld-adsb-b{flex:1;height:42px;justify-content:center;font-size:12px}
+          .ld-adsb-row .ld-adsb-q{width:42px;height:42px;border-radius:12px;font-size:15px}
           .ld-adsb-help{margin-top:8px;padding:11px 13px;border-radius:12px;
             border:1px solid rgba(34,211,238,.28);background:rgba(34,211,238,.07)}
           .ld-adsb-help-t{font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:700;color:#22D3EE;margin-bottom:6px}
@@ -12670,13 +12721,13 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           </div>
         </div>
         <style>
-          .ldm-bp{height:auto!important;min-height:90px;padding:12px 12px!important;
+          .ldm-bp{height:auto!important;min-height:104px;padding:12px 12px!important;
             background:linear-gradient(135deg,#0EA5E9 0%,#22D3EE 58%,#38BDF8 120%)!important;border:none!important;
             box-shadow:0 12px 30px rgba(34,211,238,.4)!important;position:relative;overflow:visible!important}
           .ldm-bp:focus-within{box-shadow:0 14px 34px rgba(34,211,238,.5)!important}
           .ldm-bp-cell{display:flex;flex-direction:column;align-items:center;min-width:0}
-          .ldm-bp-lab{font-size:11px;letter-spacing:2.4px;font-family:'Space Mono',monospace;color:rgba(255,255,255,.85);font-weight:700}
-          .ldm-bp .ldm-rh-inp{height:auto!important;color:#fff!important;font-size:34px!important;font-weight:700!important;padding:0 4px!important;text-shadow:0 1px 6px rgba(0,0,0,.18)}
+          .ldm-bp-lab{font-size:12px;letter-spacing:2.4px;font-family:'Space Mono',monospace;color:rgba(255,255,255,.85);font-weight:700}
+          .ldm-bp .ldm-rh-inp{height:auto!important;color:#fff!important;font-size:40px!important;font-weight:700!important;padding:0 4px!important;text-shadow:0 1px 6px rgba(0,0,0,.18)}
           /* Neutraliza el fondo blanco del autocompletado nativo (autofill) del navegador */
           .ldm-bp .ldm-rh-inp:-webkit-autofill,
           .ldm-bp .ldm-rh-inp:-webkit-autofill:hover,
@@ -12689,14 +12740,19 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
             transition:background-color 99999s ease-in-out 0s!important;
             -webkit-transition:background-color 99999s ease-in-out 0s!important}
           .ldm-bp .ldm-rh-dep::placeholder,.ldm-bp .ldm-rh-dest::placeholder{color:rgba(255,255,255,.55)!important}
-          .ldm-bp .ldm-rh-arr{color:#fff!important;font-size:26px!important;align-self:flex-end;padding-bottom:4px;filter:drop-shadow(0 1px 4px rgba(0,0,0,.25))}
+          .ldm-bp .ldm-rh-arr{color:#fff!important;font-size:32px!important;align-self:flex-end;padding-bottom:4px;filter:drop-shadow(0 1px 4px rgba(0,0,0,.25))}
           .ldm-bp::before,.ldm-bp::after{content:'';position:absolute;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:#0B1020;z-index:2}
           html.day .ldm-bp::before,html.day .ldm-bp::after{background:#EAF1F8}
           .ldm-bp::before{left:-7px}.ldm-bp::after{right:-7px}
           /* SIN overflow:hidden — recortaba los desplegables absolutos que cuelgan del
              campo (sugerencias de CM1/CM2/examinador y de matrícula quedaban ocultas).
              La línea de brillo se mete hacia dentro para no salirse por las esquinas. */
-          .ldm-card{position:relative;background:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.028));border:1px solid rgba(255,255,255,.10);border-radius:18px;padding:15px 16px 16px;margin-bottom:13px;box-shadow:0 16px 38px rgba(0,0,0,.34),0 2px 6px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.09)}
+          /* En noche la tarjeta era un velo blanco al 7,5 % sobre el fondo del modal: medido,
+             rgb(26,32,47) contra rgb(14,20,36) = 1,13 — o sea, invisible. Ahora es una superficie
+             navy con color propio (rgb(39,54,82), 1,51 contra el fondo): se ve dónde empieza y
+             acaba cada bloque, y los campos pasan a leerse como huecos hundidos dentro de ella
+             (1,44 respecto a la tarjeta) en vez de flotar sobre la nada. */
+          .ldm-card{position:relative;background:linear-gradient(180deg,#2B3C58 0%,#22304B 100%);border:1px solid rgba(125,211,252,.20);border-radius:18px;padding:15px 16px 16px;margin-bottom:13px;box-shadow:0 16px 38px rgba(0,0,0,.34),0 2px 6px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.09)}
           .ldm-card::before{content:'';position:absolute;top:0;left:18px;right:18px;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.22),transparent);pointer-events:none}
           html.day .ldm-card{background:linear-gradient(180deg,#FFFFFF 0%,#F4FAFF 100%);border:1px solid rgba(255,255,255,.85);box-shadow:0 16px 36px rgba(23,52,120,.16),0 3px 8px rgba(23,52,120,.09),inset 0 1px 0 #FFFFFF}
           html.day .ldm-card::before{background:linear-gradient(90deg,transparent,rgba(23,52,120,.10),transparent)}
@@ -12742,6 +12798,15 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
             <div style="display:flex;gap:6px;align-items:center">
               <input class="ldm-inp" type="text" id="ld_flight" placeholder="VY1234" style="flex:1;min-width:0"
                 oninput="if(typeof ldAdsbSync==='function')ldAdsbSync()">
+            </div>
+          </div>
+        </div>
+
+        <!-- ADS-B a su PROPIA fila y a TODO EL ANCHO de la tarjeta. Estaba dentro de la columna
+             del Nº VUELO, así que sólo ocupaba media tarjeta (131 px de 333) y quedaba como un
+             chip perdido. Sacándolo de la columna queda como hermano del botón de la MCDU: las
+             dos son "rellena esto por mí", y las dos ocupan la caja entera. -->
+            <div class="ld-adsb-row">
               <button type="button" id="ld_adsb_btn" class="ld-adsb-b" onclick="ldFetchAdsb()" disabled
                 title="Escribe el nº de vuelo y la fecha para poder buscar en ADS-B">
                 <svg class="ld-adsb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -12749,7 +12814,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
                   <circle cx="12" cy="12" r="1.8"/>
                   <path d="M16.2 7.8a6 6 0 0 1 0 8.4"/><path d="M19.1 4.9a10 10 0 0 1 0 14.2"/>
                 </svg>
-                <span id="ld_adsb_lbl">ADS-B</span>
+                <span id="ld_adsb_lbl">Buscar este vuelo en ADS-B</span>
               </button>
               <button type="button" class="ld-adsb-q" onclick="ldAdsbHelp(event)" aria-label="Cuándo están disponibles los datos ADS-B">?</button>
             </div>
@@ -12767,8 +12832,6 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
                 Y si no aparece, no pasa nada: escribe las horas a mano — el vuelo se guarda igual.
               </div>
             </div>
-          </div>
-        </div>
 
         </div><!-- /card fecha -->
         <div class="ldm-card">
@@ -13261,7 +13324,7 @@ html.day #ec-sync-overlay [style*="background:rgba(8,145,178,.15)"]{
 </style>
 
 <div class="bottom-tabs" id="btabs">
-  <div class="btab on" id="bt-home" onclick="tabTo('home')"><div class="btab-pill"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Inicio</div></div>
+  <div class="btab on" id="bt-home" onclick="tabTo('home')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span class="btab-l">Inicio</span></div>
   <div class="btab" id="bt-oes" onclick="tabTo('oes')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg><span class="btab-l">Exam</span></div>
   <div class="btab" id="bt-cafi" onclick="tabTo('cafi')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><circle cx="12" cy="10" r="2.5"/></svg><span class="btab-l">CAFI</span></div>
   <div class="btab" id="bt-tools" onclick="tabTo('tools')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="btab-l">Tools</span></div>
@@ -13417,7 +13480,9 @@ function updateTabs(key){
 // Acceso rápido al briefing de ARIA desde el Home: navega a SkyView, selecciona la pestaña
 // ARIA (vía __skySetTab, con reintentos hasta que SkyView monta) y auto-genera+reproduce
 // (flag __ariaAutoBrief que ARIA comprueba al montar).
-function homeAriaBrief(){ try{ window.__ariaAutoBrief=1; goTo('skyview'); var _n=0; (function _pt(){ if(window.__skySetTab){ try{ window.__skySetTab('aria'); }catch(e){} return; } if(_n++<50) setTimeout(_pt,50); })(); }catch(e){} }
+// El chip del Home es el briefing de COCHE: la jornada entera. Fuerza ese alcance aunque ARIA
+// esté por defecto en el sector seleccionado (window.__ariaAutoBriefScope lo lee __ariaMount).
+function homeAriaBrief(){ try{ window.__ariaAutoBrief=1; window.__ariaAutoBriefScope='hoy'; goTo('skyview'); var _n=0; (function _pt(){ if(window.__skySetTab){ try{ window.__skySetTab('aria'); }catch(e){} setTimeout(function(){ try{ if(window.__ariaAutoBrief && window.__ariaRunAutoBrief) window.__ariaRunAutoBrief(); }catch(e){} }, 350); return; } if(_n++<50) setTimeout(_pt,50); })(); }catch(e){} }
 function goTo(key){
   curScreen = key;
   // Cancel RAF loops not needed on inactive screens
@@ -14146,10 +14211,127 @@ document.addEventListener('DOMContentLoaded',function(){
 function toggleDayMode(){
   var isDay = document.documentElement.classList.toggle('day');
   try{ localStorage.setItem('pilotday', isDay?'1':'0'); }catch(e){}
+  // Con el automático puesto, tocar el modo a mano NO lo desactiva: manda el piloto hasta el
+  // siguiente orto u ocaso. Se guarda el estado del sol EN ESTE MOMENTO; cuando cambie, el
+  // automático vuelve a mandar. Si no, el próximo repaso le revertiría el cambio en minutos.
+  try{ if(pdaOn()) localStorage.setItem(PDA_OVR, pdaShouldBeDay()?'1':'0'); }catch(e){}
   _updateDayLabel(isDay);
   if(navigator.vibrate) navigator.vibrate(isDay?[30,20,30]:20);
   _ldTitleColorCycle(isDay);
+  // La etiqueta de versión lleva el color EN LÍNEA, elegido según html.day. Se pintaba una sola
+  // vez al cargar, así que al cambiar de modo se quedaba con el color del modo anterior y
+  // desaparecía contra el fondo nuevo (azul marino sobre fondo noche: contraste 1.29).
+  try{ pilotosRefreshVersionTags(); }catch(e){}
 }
+
+/* ════════ MODO DÍA/NOCHE AUTOMÁTICO — orto y ocaso donde está el piloto ════════
+   Reutiliza el cálculo solar que ya usa el logbook para el tiempo nocturno (ldSolarEvents /
+   ldIsNight, crepúsculo civil −6° EASA): mismo criterio de "es de noche" en toda la app.
+   Claves: pilotday_auto (1/0) · pilotday_pos (última posición) · pilotday_ovr (override manual). */
+var PDA_KEY='pilotday_auto', PDA_POS='pilotday_pos', PDA_OVR='pilotday_ovr';
+var PDA_ANGLE=function(){ return (typeof LD_NIGHT_ANGLE!=='undefined')?LD_NIGHT_ANGLE:96; };
+function pdaOn(){ try{ return localStorage.getItem(PDA_KEY)!=='0'; }catch(e){ return true; } }  // por defecto SÍ
+function pdaSetOn(v){ try{ localStorage.setItem(PDA_KEY, v?'1':'0'); }catch(e){} }
+
+/* Posición para el cálculo, en cascada. ⚠️ NUNCA se pide permiso de GPS sólo para pintar el
+   tema: se usa el que el piloto ya concedió (ARIA lo pide) o su base. Sólo se pregunta si él
+   mismo acaba de activar el automático — ahí el permiso lo ha provocado él. */
+function pdaCachedPos(){ try{ var p=JSON.parse(localStorage.getItem(PDA_POS)||'null'); return (p&&isFinite(p.lat)&&isFinite(p.lon))?p:null; }catch(e){ return null; } }
+function pdaBasePos(){
+  try{
+    var b=localStorage.getItem('pilotOS_home_base')||''; if(!b) return null;
+    var ic=(window.iataToIcao&&window.iataToIcao(b))||b;
+    var a=(window.LD_AIRPORTS||{})[ic];
+    return (a&&isFinite(a.lat))?{lat:a.lat,lon:a.lon,src:'base'}:null;
+  }catch(e){ return null; }
+}
+function pdaPos(){ return pdaCachedPos()||pdaBasePos(); }
+function pdaRefreshPos(pedirPermiso){
+  if(!navigator.geolocation) return;
+  var pedir=function(){
+    navigator.geolocation.getCurrentPosition(function(p){
+      try{ localStorage.setItem(PDA_POS, JSON.stringify({lat:p.coords.latitude,lon:p.coords.longitude,ts:Date.now()})); }catch(e){}
+      pdaApply(); pdaUpdateUI();
+    }, function(){}, {enableHighAccuracy:false, timeout:8000, maximumAge:3600000});
+  };
+  if(pedirPermiso) return pedir();
+  try{
+    if(navigator.permissions&&navigator.permissions.query)
+      navigator.permissions.query({name:'geolocation'}).then(function(s){ if(s.state==='granted') pedir(); }).catch(function(){});
+  }catch(e){}
+}
+
+/* ¿Toca modo DÍA ahora mismo? Sin posición no se inventa un orto: se cae al reloj local. */
+function pdaShouldBeDay(){
+  var now=new Date(), p=pdaPos();
+  if(p && typeof ldIsNight==='function'){
+    try{ return !ldIsNight(p.lat, p.lon, now.toISOString().slice(0,10), now.getUTCHours()*60+now.getUTCMinutes()); }catch(e){}
+  }
+  var h=now.getHours(); return (h>=7 && h<20);
+}
+function pdaSetTheme(isDay){
+  if(document.documentElement.classList.contains('day')===isDay) return;
+  document.documentElement.classList.toggle('day', isDay);
+  try{ localStorage.setItem('pilotday', isDay?'1':'0'); }catch(e){}
+  try{ _updateDayLabel(isDay); }catch(e){}
+  try{ _ldTitleColorCycle(isDay); }catch(e){}
+  try{ pilotosRefreshVersionTags(); }catch(e){}
+}
+function pdaApply(){
+  if(!pdaOn()) return;
+  var quiereDia=pdaShouldBeDay(), ovr=null;
+  try{ ovr=localStorage.getItem(PDA_OVR); }catch(e){}
+  // Override vigente: el sol sigue como estaba cuando el piloto lo tocó → no se le pisa.
+  if(ovr!=null && ovr===(quiereDia?'1':'0')) return;
+  if(ovr!=null){ try{ localStorage.removeItem(PDA_OVR); }catch(e){} }
+  pdaSetTheme(quiereDia);
+}
+/* Hora local del próximo cambio, para que el ajuste diga algo comprobable en vez de "activado" */
+function pdaNextChange(){
+  var p=pdaPos(); if(!p || typeof ldSolarEvents!=='function') return null;
+  try{
+    var now=new Date(), ds=now.toISOString().slice(0,10);
+    var ev=ldSolarEvents(p.lat, p.lon, ds, PDA_ANGLE());
+    if(!ev || ev.polar) return null;
+    var esDia=pdaShouldBeDay();
+    var d=new Date(Date.UTC(+ds.slice(0,4), +ds.slice(5,7)-1, +ds.slice(8,10), 0, 0, 0));
+    d.setUTCMinutes(Math.round(esDia?ev.sunset:ev.sunrise));
+    var p2=function(n){ return (n<10?'0':'')+n; };
+    return (esDia?'anochece ':'amanece ')+p2(d.getHours())+':'+p2(d.getMinutes());
+  }catch(e){ return null; }
+}
+function pdaUpdateUI(){
+  var on=pdaOn();
+  var sub=document.getElementById('pda-gear-sub'), sw=document.getElementById('pda-switch'), kn=document.getElementById('pda-knob');
+  if(sub){
+    if(!on) sub.textContent='Desactivado · lo eliges tú';
+    else {
+      var nx=pdaNextChange(), p=pdaPos();
+      sub.textContent = nx ? ('Sigue el sol · '+nx) : (p?'Sigue el orto y el ocaso':'Sin ubicación · por hora local');
+    }
+  }
+  if(sw){ sw.style.background=on?'rgba(34,211,238,.85)':'rgba(148,163,184,.28)'; sw.style.borderColor=on?'rgba(34,211,238,.9)':'rgba(148,163,184,.4)'; }
+  if(kn){ kn.style.transform=on?'translateX(15px)':'translateX(0)'; }
+}
+function pdaToggleAuto(e){
+  if(e) e.stopPropagation();
+  var on=!pdaOn();
+  pdaSetOn(on);
+  try{ localStorage.removeItem(PDA_OVR); }catch(e){}   // activar/desactivar borra el override
+  if(navigator.vibrate) navigator.vibrate(20);
+  if(on){ pdaRefreshPos(true); pdaApply(); }           // lo ha pedido él → aquí sí se puede pedir el GPS
+  pdaUpdateUI();
+}
+function pdaStart(){
+  pdaUpdateUI();
+  pdaApply();
+  pdaRefreshPos(false);
+  // Repaso periódico + al volver a primer plano: la PWA se queda abierta horas y el ocaso llega
+  // sin que nadie recargue nada.
+  setInterval(function(){ pdaApply(); pdaUpdateUI(); }, 5*60*1000);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden){ pdaApply(); pdaUpdateUI(); } });
+}
+document.addEventListener('DOMContentLoaded', function(){ setTimeout(pdaStart, 400); });
 
 /* ── Color cycling para título Logbook en modo día ── */
 var _ldTitleTimer = null;
@@ -29339,7 +29521,7 @@ function TabMeteoV2(_refM2){
       const b=BANDC[s.type]||BANDC.BASE;
       return React.createElement("div",{key:i,style:{display:"flex",gap:9,padding:"8px 2px",borderBottom:i<segs.length-1?"1px solid "+T.line:"none"}},
         React.createElement("span",{style:{flex:"0 0 auto",alignSelf:"flex-start",fontFamily:mono,fontSize:7.5,fontWeight:700,letterSpacing:".5px",padding:"2px 6px",borderRadius:5,color:b.c,background:b.bg,border:"1px solid "+b.bd,whiteSpace:"nowrap"}},s.type),
-        React.createElement("div",{style:{flex:1,fontFamily:mono,fontSize:9,lineHeight:1.55,color:T.tx2,wordBreak:"break-word"}},(function(){
+        React.createElement("div",{style:{flex:1,fontFamily:mono,fontSize:"calc(9px * var(--tablet-wx-scale,1))",lineHeight:1.55,color:T.tx2,wordBreak:"break-word"}},(function(){
           const CRIT=/\b(TSRA|TSGR|FZRA|FZFG|FZDZ|\+TSRA|\+TS|TS\b|GR\b|FC\b|VA\b|SS\b|DS\b)/g;
           const WARN=/\b(FG\b|\+RA\b|\+SN\b|\+RASN\b|SQ\b)/g;
           const txt=s.text;
@@ -29360,7 +29542,7 @@ function TabMeteoV2(_refM2){
     }):React.createElement("div",{style:{fontFamily:mono,fontSize:9.5,color:T.tx3,textAlign:"center",padding:"10px 0"}},"Sin TAF disponible para "+cur.icao);
     const metarBody=React.createElement("div",{style:{padding:"13px 16px 16px"}},
       React.createElement("div",{style:{fontSize:10,color:T.tx3,marginBottom:8,fontFamily:mono}},"Actualizado "+(metarObs.ago||"—")),
-      React.createElement("div",{style:{fontFamily:mono,fontSize:9.5,lineHeight:1.7,color:T.tx1,letterSpacing:".3px",wordBreak:"break-word"}},rawMetarEls),
+      React.createElement("div",{style:{fontFamily:mono,fontSize:"calc(9.5px * var(--tablet-wx-scale,1))",lineHeight:1.7,color:T.tx1,letterSpacing:".3px",wordBreak:"break-word"}},rawMetarEls),
       tilesStrip
     );
     const tafBody=React.createElement("div",{style:{padding:"13px 16px 16px"}},
@@ -29369,7 +29551,7 @@ function TabMeteoV2(_refM2){
         React.createElement("div",{onClick:function(){setRawTafOpen(function(o){return !o;});},style:{fontFamily:mono,fontSize:8.5,fontWeight:700,color:T.cyan,cursor:"pointer",letterSpacing:".3px"}},rawTafOpen?"OCULTAR CRUDO":"VER CRUDO")
       ),
       React.createElement("div",null,tafSegEls),
-      rawTafOpen?React.createElement("div",{style:{fontFamily:mono,fontSize:9.5,lineHeight:1.7,color:T.rawTx,background:T.rawBg,border:"1px solid "+T.line,borderRadius:11,padding:"10px 12px",whiteSpace:"pre-wrap",wordBreak:"break-word",marginTop:10}},tafRaw||"—"):null
+      rawTafOpen?React.createElement("div",{style:{fontFamily:mono,fontSize:"calc(9.5px * var(--tablet-wx-scale,1))",lineHeight:1.7,color:T.rawTx,background:T.rawBg,border:"1px solid "+T.line,borderRadius:11,padding:"10px 12px",whiteSpace:"pre-wrap",wordBreak:"break-word",marginTop:10}},tafRaw||"—"):null
     );
     // ── Pestaña ATIS (D-ATIS atis.guru) + SNOWTAM ──
     const atisData=atisStore[cur.icao];
@@ -30108,8 +30290,8 @@ function TabNotamV2(_refN2) {
             )
           ),
           React.createElement("div", { style: { fontSize: 9, fontWeight: 700, color: T.tx1, marginBottom: 1, lineHeight: 1.3 } }, n.title),
-          React.createElement("div", { style: { fontFamily: mono, fontSize: 8, color: T.tx2, lineHeight: 1.45 } }, n.short),
-          isExp && n.raw && React.createElement("div", { style: { marginTop: 7, padding: "8px 10px", background: T.rawBg, color: T.rawTx, borderRadius: 8, border: "1px solid " + T.line, fontFamily: mono, fontSize: 9.5, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.6, maxHeight: 200, overflowY: "auto" } }, n.raw)
+          React.createElement("div", { style: { fontFamily: mono, fontSize: "calc(8px * var(--tablet-wx-scale,1))", color: T.tx2, lineHeight: 1.45 } }, n.short),
+          isExp && n.raw && React.createElement("div", { style: { marginTop: 7, padding: "8px 10px", background: T.rawBg, color: T.rawTx, borderRadius: 8, border: "1px solid " + T.line, fontFamily: mono, fontSize: "calc(9.5px * var(--tablet-wx-scale,1))", whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.6, maxHeight: 200, overflowY: "auto" } }, n.raw)
         ),
         React.createElement("span", { style: { color: T.tx3, fontSize: 13, transform: isExp ? "rotate(90deg)" : "none", transition: ".18s", flexShrink: 0 } }, "›")
       )
@@ -31001,7 +31183,14 @@ function TabMaps(_ref51) {
 function TabAria(_ref52) {
   let leg = _ref52.leg,
     turbData = _ref52.turbData;
-  try { window.__ariaCtx = { leg: leg, turbData: turbData }; } catch (e) {}
+  // ARIA lee el leg de aquí. Si el piloto cambia de sector en la cinta superior, hay que
+  // avisarla: un briefing de UN sector ya generado no puede quedarse pintado ni sonando.
+  try {
+    const _prevK = (function (l) { return l ? ((l.flight || '') + '|' + (l.dep || '') + '|' + (l.arr || '')) : ''; })((window.__ariaCtx || {}).leg);
+    window.__ariaCtx = { leg: leg, turbData: turbData };
+    const _newK = leg ? ((leg.flight || '') + '|' + (leg.dep || '') + '|' + (leg.arr || '')) : '';
+    if (_prevK && _newK && _prevK !== _newK && window.__ariaLegChanged) window.__ariaLegChanged(_newK);
+  } catch (e) {}
   const _useState27 = useState([{
       role: "assistant",
       content: "Buenos d\xEDas \u2600\uFE0F Soy **ARIA**, tu copiloto IA.\n\nTengo cargado **".concat(leg.flight, " ").concat(leg.dep, "\u2192").concat(leg.arr, "** FL").concat(leg.cruiseFL, " con toda la informaci\xF3n del leg.\n\nPulsa **\"Generar Briefing IA\"** para an\xE1lisis completo de METARs, NOTAMs, PIREPs, turbulencia NOAA y fatiga.")
@@ -31414,23 +31603,23 @@ function _navSvg(sz, dArr) {
 }
 const MAIN_TABS = [{
   id: "brief",
-  icon: _navSvg(17, [{ d: "M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2", sw: 1.0 }, "M15 2H9a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1Z", "M12 11h4", "M12 16h4", "M8 11h.01", "M8 16h.01"]),
+  icon: _navSvg(20, [{ d: "M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2", sw: 1.0 }, "M15 2H9a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1Z", "M12 11h4", "M12 16h4", "M8 11h.01", "M8 16h.01"]),
   label: "BRIEF"
 }, {
   id: "meteo",
-  icon: _navSvg(18, ["M12 2v2", "m4.93 4.93 1.41 1.41", "M20 12h2", "m19.07 4.93-1.41 1.41", "M15.947 12.65a4 4 0 0 0-5.925-4.128", "M13 22H7a5 5 0 1 1 4.9-6H13a3 3 0 0 1 0 6Z"]),
+  icon: _navSvg(21, ["M12 2v2", "m4.93 4.93 1.41 1.41", "M20 12h2", "m19.07 4.93-1.41 1.41", "M15.947 12.65a4 4 0 0 0-5.925-4.128", "M13 22H7a5 5 0 1 1 4.9-6H13a3 3 0 0 1 0 6Z"]),
   label: "WX"
 }, {
   id: "notam",
-  icon: _navSvg(17, ["m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z", "M12 9v4", "M12 17h.01"]),
+  icon: _navSvg(20, ["m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z", "M12 9v4", "M12 17h.01"]),
   label: "NOTAM"
 }, {
   id: "maps",
-  icon: _navSvg(17, ["M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z", "M15 5.764v15", "M9 3.236v15"]),
+  icon: _navSvg(20, ["M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z", "M15 5.764v15", "M9 3.236v15"]),
   label: "MAPAS"
 }, {
   id: "aria",
-  icon: _navSvg(17, ["M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z", "M20 3v4", "M22 5h-4", "M4 17v2", "M5 18H3"]),
+  icon: _navSvg(20, ["M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z", "M20 3v4", "M22 5h-4", "M4 17v2", "M5 18H3"]),
   label: "ARIA IA",
   ai: true
 }];
@@ -31627,7 +31816,7 @@ function SkyViewPilotOS() {
     window.addEventListener('pilotos-skyview-shown', onShown);
     return () => window.removeEventListener('pilotos-skyview-shown', onShown);
   }, []);
-  useEffect(() => {
+  const loadWx = () => {
     if (!_depIcao || !_arrIcao) return;
     (async () => {
       const _altIcaos = ((_baseLeg.alts || []).slice(0, 2)).map(a => iataToIcao(a.icao) || a.icao).filter(Boolean);
@@ -31660,10 +31849,14 @@ function SkyViewPilotOS() {
         }));
       }
     })();
-    // deps incluyen _depIcao/_arrIcao: cuando el roster carga tras el montaje y el leg real
-    // reemplaza al placeholder (-- → LEBL), legIdx no cambia pero los ICAO sí → re-fetch.
-    // Sin esto, BRIEF no cargaba la meteo hasta pasar por WX.
-  }, [legIdx, _depIcao, _arrIcao]);
+  };
+  try{ window.__skyLoadWx = loadWx; }catch(_e){}  // para pull-to-refresh / forzar carga
+  // deps _depIcao/_arrIcao: cuando el roster carga tras el montaje y el leg real reemplaza al
+  // placeholder (-- → LEBL), legIdx no cambia pero los ICAO sí → re-fetch.
+  useEffect(() => { loadWx(); }, [legIdx, _depIcao, _arrIcao]);
+  // Al ENTRAR en la pestaña BRIEF (o WX) fuerza la carga aunque el leg no haya cambiado —
+  // antes había que pasar por WX para que BRIEF cargara los datos.
+  useEffect(() => { if (tab === 'brief' || tab === 'meteo') loadWx(); }, [tab]);
   // Cargar fichas CCI del DEP/ARR desde backend -> cache CCI_BY_ICAO (nombre, pistas, alternativos)
   useEffect(() => {
     const ics = [_depIcao, _arrIcao].filter(Boolean);
@@ -31955,20 +32148,20 @@ function SkyViewPilotOS() {
       onClick: () => setTab(t.id),
       style: {
         flex: 1,
-        padding: "9px 3px 13px",
+        padding: "8px 2px 12px",
         background: "none",
         border: "none",
         cursor: "pointer",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        gap: 3
+        gap: 4
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
-        width: 28,
-        height: 28,
-        borderRadius: 8,
+        width: 34,
+        height: 34,
+        borderRadius: 10,
         background: active ? activeBg : "rgba(0,20,55,0.5)",
         border: "1px solid ".concat(active ? activeBorder : "rgba(126,251,254,0.07)"),
         display: "flex",
@@ -31981,15 +32174,19 @@ function SkyViewPilotOS() {
       }
     }, t.icon), /*#__PURE__*/React.createElement("span", {
       style: {
-        fontSize: 6,
+        // Estaba a 6px: ilegible en el móvil, que es donde se usa. Con 5 pestañas a flex:1
+        // caben de sobra a 9.5px incluso en una pantalla de 320px ("ARIA IA" es la más larga).
+        fontSize: 9.5,
         fontFamily: mono,
         fontWeight: 700,
+        letterSpacing: "0.2px",
+        whiteSpace: "nowrap",
         color: active ? activeColor : C.dimmer,
         transition: "color 0.2s"
       }
     }, t.label), active && /*#__PURE__*/React.createElement("div", {
       style: {
-        width: 12,
+        width: 16,
         height: 2,
         borderRadius: 1,
         background: isAI ? "linear-gradient(90deg,#7a3000,".concat(C.orange, ")") : isTurb ? "#FFB800" : C.blue,
@@ -42217,8 +42414,17 @@ document.addEventListener('DOMContentLoaded', function(){
     vol:(lg('db_vol',null)!=null?parseFloat(lg('db_vol','1')):1),
     autoMic: lg('db_autoMic','1')!=='0' }; }
   function saveCfg(kk,v){ try{ localStorage.setItem('db_'+kk,v); }catch(e){} }
-  var CUR=cfg(), RATE=CUR.rate, VOL=CUR.vol, SCOPE='hoy';
-  var LAST_TEXT='', LAST_SCOPE='';
+  // Alcance del briefing. Por defecto 'leg': ARIA briefea el LEG SELECCIONADO en la cinta
+  // superior de SkyView, que es lo que el piloto tiene delante. La jornada completa sigue a un
+  // toque ('hoy') y es lo que usa el chip de Briefing del Home (el briefing de coche).
+  // Se recuerda entre sesiones: antes SCOPE volvía a 'hoy' en cada recarga.
+  var CUR=cfg(), RATE=CUR.rate, VOL=CUR.vol, SCOPE=(lg('db_scope','leg')==='hoy'?'hoy':'leg');
+  var LAST_TEXT='', LAST_SCOPE='', LAST_LEGKEY='';
+  // Firma del leg activo (el de la cinta de SkyView). Sirve para no repintar/reproducir un
+  // briefing de OTRO leg cuando el piloto cambia de sector.
+  function _legKey(l){ return l?((l.flight||'')+'|'+(l.dep||'')+'|'+(l.arr||'')):''; }
+  function _curLegKey(){ try{ return _legKey((window.__ariaCtx||{}).leg); }catch(e){ return ''; } }
+  var paintScopeNow=function(){};   // lo rellena buildPanel (paintScope vive en su closure)
   var _msSet=false, _gen=0, _visBound=false;
   var TURBINE_SVG="<svg viewBox=\"0 0 425.35 434.51\" width=\"18\" height=\"18\" fill=\"currentColor\" style=\"display:block;transition:transform .7s cubic-bezier(.2,.8,.3,1)\"><path d=\"M211.97,22.6c108.86,0,197.12,88.25,197.12,197.11s-88.25,197.11-197.12,197.11S14.86,328.58,14.86,219.72,103.11,22.6,211.97,22.6h0ZM177.14,258.27c-8.18,12.48-29.66,45.31-40.57,62.3-8.58,13.37-16.14,27.84-34.28,29.74-7.25.76-12.08,1.99-15.84,4.14,10.46,9.75,22.05,18.3,34.56,25.42,2.57-2.85,6.21-5.69,11.69-8.25,14.63-6.83,22.53-14.1,30.66-35.22,6.79-17.66,18.8-58.72,22.56-71.72-3.15-1.83-6.09-3.98-8.78-6.41h0ZM71.75,339.08c3.39-1.79,7.77-3.21,13.77-3.74,16.08-1.41,25.99-5.54,40.86-22.61,12.43-14.27,37.77-48.76,45.74-59.68-2.32-2.77-4.36-5.79-6.07-9.01-11.96,8.94-43.37,32.43-59.42,44.66-12.64,9.63-24.69,20.64-42.38,16.22-7.1-1.78-12.07-2.27-16.36-1.52,6.56,12.84,14.59,24.81,23.87,35.69h0ZM242.67,38.13c-1.44,3.56-3.89,7.47-8.16,11.74-11.42,11.42-16.36,20.95-16.77,43.58-.35,18.92,2.41,61.61,3.32,75.11,3.63.64,7.12,1.66,10.45,3.01,3.42-14.53,12.38-52.72,16.81-72.41,3.49-15.5,5.64-31.68,22.04-39.67,6.59-3.21,10.71-6.03,13.51-9.35-13.04-5.53-26.85-9.6-41.22-12.01h0ZM213.87,167.8c-1.76-14.82-6.4-53.78-8.97-73.8-2.02-15.76-5.53-31.7,7.15-44.82,5.08-5.25,7.98-9.29,9.48-13.37-3.17-.16-6.35-.25-9.56-.25-11.36,0-22.47,1.03-33.26,3-.14,3.84-1.1,8.35-3.65,13.83-6.82,14.63-8.2,25.28-.85,46.69,6.15,17.89,23.34,57.07,28.81,69.44,2.91-.5,5.89-.77,8.95-.77.64,0,1.27.02,1.9.04h0ZM302.93,59.57c-2.57,2.85-6.21,5.7-11.69,8.25-14.63,6.83-22.54,14.1-30.66,35.22-6.8,17.66-18.81,58.72-22.57,71.72,3.15,1.83,6.1,3.98,8.78,6.41,8.18-12.48,29.66-45.31,40.57-62.3,8.58-13.37,16.14-27.84,34.28-29.74,7.25-.76,12.07-1.99,15.84-4.14-10.46-9.75-22.05-18.3-34.56-25.42h0ZM352.19,100.36c-3.39,1.79-7.77,3.21-13.77,3.74-16.08,1.41-26,5.54-40.86,22.61-12.43,14.27-37.77,48.76-45.74,59.68,2.32,2.77,4.36,5.79,6.07,9.02,11.96-8.94,43.37-32.43,59.42-44.66,12.64-9.63,24.69-20.64,42.38-16.22,7.1,1.78,12.07,2.27,16.36,1.52-6.56-12.84-14.59-24.81-23.86-35.69h0ZM384.61,155.51c-3.81.53-8.43.38-14.27-1.19-15.6-4.18-26.32-3.69-46.13,7.27-16.55,9.16-52.14,32.88-63.38,40.43,1.22,3.37,2.1,6.9,2.6,10.56,14.29-4.31,51.85-15.64,71.12-21.65,15.17-4.73,30.26-10.95,45.38-.74,6.05,4.09,10.54,6.25,14.82,7.02-1.76-14.49-5.21-28.45-10.14-41.7h0ZM396.1,218.41c-3.75-.81-8.02-2.53-12.95-5.99-13.23-9.26-23.47-12.47-45.83-8.94-18.69,2.95-60.27,13.08-73.4,16.32,0,3.71-.4,7.32-1.14,10.81,14.9.84,54.07,3.04,74.23,3.98,15.87.75,32.18.06,42.89,14.82,4.3,5.93,7.79,9.49,11.55,11.68,3.06-13.3,4.67-27.15,4.67-41.37,0-.44-.01-.87-.02-1.31h0ZM385.49,281.49c-3.26-2.04-6.69-5.13-10.17-10.08-9.26-13.22-17.79-19.74-40.01-24.08-18.57-3.62-61.07-8.32-74.54-9.77-1.26,3.44-2.87,6.71-4.79,9.76,13.71,5.89,49.77,21.34,68.39,29.13,14.66,6.13,30.22,11.06,35.24,28.6,2.01,7.02,4.06,11.56,6.84,14.9,7.76-11.94,14.17-24.83,19.03-38.47h0ZM353.87,337.09c-2.36-3.03-4.52-7.1-6.08-12.92-4.18-15.6-9.97-24.64-29.36-36.31-16.21-9.76-54.58-28.73-66.71-34.68-2.34,2.78-4.97,5.3-7.83,7.54,10.87,10.22,39.47,37.08,54.31,50.77,11.68,10.77,24.61,20.73,23.33,38.93-.51,7.28-.14,12.25,1.33,16.34,11.46-8.65,21.87-18.61,31.02-29.66h0ZM305.18,378.56c-1.18-3.65-1.83-8.22-1.3-14.24,1.41-16.09-.94-26.56-15.17-44.16-11.9-14.71-41.45-45.64-50.82-55.4-3.12,1.8-6.45,3.28-9.94,4.41,6.72,13.33,24.4,48.34,33.66,66.27,7.29,14.12,16.04,27.9,8.61,44.56-2.98,6.69-4.33,11.49-4.34,15.85,13.86-4.24,27.03-10.07,39.3-17.29h0ZM245.23,400.87c.14-3.84,1.1-8.36,3.65-13.83,6.82-14.64,8.2-25.28.85-46.69-6.15-17.89-23.34-57.07-28.81-69.44-2.91.51-5.9.77-8.95.77-.64,0-1.27-.01-1.9-.04,1.76,14.82,6.4,53.78,8.97,73.8,2.02,15.76,5.53,31.7-7.15,44.82-5.08,5.25-7.98,9.29-9.49,13.37,3.17.16,6.36.25,9.56.25,11.36,0,22.47-1.03,33.26-3h0ZM181.27,401.31c1.44-3.56,3.89-7.47,8.16-11.74,11.41-11.42,16.35-20.95,16.77-43.58.34-18.92-2.41-61.61-3.32-75.11-3.63-.64-7.12-1.66-10.45-3.01-3.42,14.53-12.38,52.71-16.81,72.41-3.49,15.5-5.64,31.68-22.04,39.67-6.59,3.21-10.71,6.03-13.51,9.35,13.04,5.53,26.85,9.6,41.22,12.01h0ZM39.34,283.93c3.81-.53,8.43-.37,14.27,1.19,15.6,4.18,26.32,3.69,46.12-7.27,16.55-9.16,52.14-32.89,63.38-40.43-1.22-3.37-2.1-6.9-2.6-10.56-14.29,4.31-51.85,15.64-71.12,21.65-15.17,4.73-30.26,10.95-45.37.74-6.05-4.09-10.54-6.25-14.82-7.02,1.76,14.49,5.21,28.45,10.14,41.7h0ZM27.84,221.02c3.75.81,8.02,2.53,12.95,5.99,13.23,9.26,23.47,12.47,45.83,8.94,18.69-2.95,60.27-13.07,73.4-16.32,0-3.71.4-7.32,1.14-10.81-14.9-.84-54.07-3.04-74.23-3.98-15.87-.75-32.18-.06-42.89-14.82-4.3-5.93-7.79-9.49-11.55-11.68-3.06,13.3-4.67,27.15-4.67,41.37,0,.44.01.87.02,1.31h0ZM38.45,157.94c3.26,2.04,6.7,5.13,10.17,10.08,9.26,13.23,17.79,19.75,40.01,24.08,18.57,3.62,61.08,8.32,74.54,9.77,1.26-3.44,2.87-6.71,4.79-9.76-13.71-5.89-49.77-21.35-68.39-29.13-14.66-6.13-30.22-11.06-35.24-28.6-2.01-7.03-4.06-11.56-6.84-14.9-7.76,11.94-14.17,24.83-19.03,38.47h0ZM70.07,102.35c2.36,3.03,4.52,7.1,6.08,12.92,4.18,15.6,9.97,24.64,29.36,36.31,16.22,9.76,54.57,28.73,66.71,34.68,2.34-2.78,4.97-5.3,7.83-7.54-10.87-10.22-39.47-37.08-54.31-50.77-11.68-10.77-24.61-20.73-23.33-38.93.51-7.28.14-12.25-1.33-16.34-11.46,8.65-21.87,18.61-31.02,29.66h0ZM118.76,60.88c1.18,3.65,1.83,8.22,1.3,14.24-1.41,16.09.94,26.56,15.17,44.16,11.9,14.71,41.45,45.64,50.82,55.4,3.12-1.8,6.45-3.28,9.94-4.41-6.72-13.33-24.4-48.34-33.66-66.27-7.29-14.12-16.04-27.9-8.61-44.56,2.98-6.69,4.33-11.49,4.34-15.85-13.86,4.24-27.03,10.07-39.3,17.29h0ZM211.97,195.74c-13.24,0-23.98,10.74-23.98,23.98s10.74,23.98,23.98,23.98,23.98-10.74,23.98-23.98-10.74-23.98-23.98-23.98Z\"/></svg>";
   var MIC_SVG="<svg viewBox=\"120 55 366 690\" fill=\"currentColor\" style=\"height:22px;width:auto;display:block\"><path d=\"M466.9,298.58v110.59c0,46.16-18.88,88.13-49.3,118.55-30.42,30.51-72.47,49.39-118.64,49.39h0c-46.26,0-88.22-18.88-118.64-49.39-30.42-30.42-49.3-72.38-49.3-118.55v-110.59h31.49v110.59c0,37.49,15.39,71.57,40.08,96.27,24.78,24.7,58.87,40.08,96.36,40.08h0c37.49,0,71.57-15.39,96.27-40.08,24.78-24.69,40.08-58.78,40.08-96.27v-110.59h31.58Z\"/> <path d=\"M220.32,487.72c20.94,20.94,49.03,32.75,78.65,32.75s57.71-11.81,78.65-32.75c20.94-20.94,32.75-48.94,32.75-78.55v-221.17c0-29.62-11.81-57.71-32.75-78.64-20.94-20.94-49.03-32.75-78.65-32.75s-57.71,11.81-78.65,32.75c-20.93,20.93-32.74,49.03-32.74,78.64v221.17c0,29.62,11.81,57.62,32.74,78.55h0ZM192.32,266.37c1.25,1.07,2.06,2.86,2.06,4.74s-.8,3.67-2.06,4.83v-9.57ZM206.72,264.85c3.31-.09,6,2.77,6,6.17-.09,3.49-2.77,6.35-6,6.35s-5.9-2.86-5.9-6.26,2.69-6.26,5.9-6.26h0ZM225.51,264.67c3.31,0,6.08,2.77,6.08,6.35s-2.77,6.35-6.17,6.35c-3.4-.09-6.09-2.86-6.09-6.35s2.77-6.35,6.18-6.35h0ZM244.66,264.58c3.49,0,6.26,2.86,6.26,6.35s-2.77,6.35-6.26,6.35-6.26-2.86-6.26-6.35,2.86-6.35,6.26-6.35h0ZM264.34,264.49c3.49,0,6.35,2.86,6.35,6.44s-2.86,6.35-6.44,6.35-6.35-2.77-6.35-6.35c.09-3.58,2.86-6.44,6.44-6.44h0ZM284.21,264.49c3.49,0,6.35,2.86,6.35,6.44s-2.86,6.35-6.44,6.35-6.35-2.86-6.35-6.35,2.86-6.44,6.44-6.44h0ZM304.16,264.49c3.49,0,6.44,2.86,6.44,6.44s-2.95,6.44-6.44,6.44-6.44-2.95-6.44-6.44,2.86-6.44,6.44-6.44h0ZM324.11,264.49c3.49,0,6.35,2.86,6.35,6.44s-2.86,6.44-6.35,6.44-6.44-2.95-6.44-6.44,2.86-6.44,6.44-6.44h0ZM343.8,264.58c3.49,0,6.35,2.86,6.35,6.44s-2.77,6.35-6.26,6.35-6.35-2.86-6.35-6.44,2.77-6.35,6.26-6.35h0ZM363.21,264.67c3.4,0,6.26,2.95,6.26,6.35,0,3.58-2.77,6.35-6.17,6.35s-6.26-2.86-6.26-6.35,2.77-6.35,6.17-6.35h0ZM382.18,264.85c3.4,0,6.08,2.86,6.08,6.26s-2.69,6.35-5.99,6.26c-3.31,0-6.09-2.77-6.09-6.26s2.68-6.35,6-6.26h0ZM400.61,265.03c2.15,0,4.03,1.25,5.01,3.13v6.35c-.98,1.79-2.86,2.95-4.92,2.95-3.22,0-5.9-2.86-5.9-6.17,0-3.49,2.59-6.26,5.82-6.26h0ZM197.6,250.08c3.13,0,5.73,2.77,5.73,6.17-.09,3.49-2.77,6.26-5.99,6.35-2.24,0-4.12-1.34-5.01-3.31v-5.55c.98-2.15,2.95-3.58,5.28-3.67h0ZM215.94,249.82c3.31-.09,5.91,2.77,5.91,6.17s-2.77,6.35-6.09,6.35c-3.31.09-5.99-2.68-5.9-6.17,0-3.49,2.77-6.26,6.08-6.35h0ZM234.82,249.55c3.4,0,6.18,2.77,6.18,6.26-.09,3.49-2.86,6.35-6.26,6.44-3.4,0-6.18-2.77-6.08-6.35,0-3.4,2.77-6.26,6.17-6.35h0ZM254.24,249.37c3.49,0,6.26,2.77,6.26,6.35s-2.86,6.35-6.35,6.35-6.26-2.77-6.26-6.35,2.86-6.26,6.35-6.35h0ZM273.92,249.28c3.49,0,6.35,2.77,6.35,6.35s-2.86,6.44-6.44,6.44-6.35-2.86-6.35-6.44c.09-3.49,2.95-6.35,6.44-6.35h0ZM293.78,249.19c3.57,0,6.44,2.86,6.44,6.44s-2.87,6.35-6.44,6.35-6.44-2.86-6.44-6.35,2.95-6.44,6.44-6.44h0ZM313.73,249.28c3.58,0,6.44,2.86,6.44,6.35s-2.86,6.44-6.44,6.44-6.44-2.95-6.44-6.44,2.87-6.44,6.44-6.35h0ZM333.59,249.37c3.49,0,6.36,2.86,6.36,6.35s-2.87,6.35-6.36,6.35-6.35-2.86-6.35-6.44,2.78-6.35,6.35-6.26h0ZM353.1,249.55c3.49,0,6.26,2.86,6.26,6.35.09,3.49-2.68,6.35-6.18,6.35s-6.26-2.95-6.26-6.44c-.09-3.58,2.77-6.35,6.17-6.26h0ZM372.33,249.73c3.31.09,6.09,2.95,6.09,6.35.09,3.49-2.6,6.35-5.99,6.26-3.4,0-6.18-2.86-6.18-6.35s2.69-6.26,6.08-6.26h0ZM390.94,250.08c3.31,0,6,2.95,6,6.35.09,3.4-2.6,6.08-5.82,6.08s-5.99-2.77-5.99-6.26c-.09-3.49,2.6-6.26,5.81-6.17h0ZM405.62,261.36c-1.34-1.16-2.24-2.86-2.24-4.83s.8-3.76,2.24-4.92v9.75ZM197.24,281.4c3.22-.09,5.91,2.77,5.91,6.26s-2.6,6.17-5.82,6.08c-2.15,0-4.03-1.25-5.01-3.04v-6.35c.98-1.79,2.86-3.04,4.92-2.95h0ZM215.67,281.4c3.31,0,6,2.77,6.08,6.26,0,3.49-2.68,6.35-6.08,6.35-3.31-.09-6-2.95-6-6.35s2.69-6.35,6-6.26h0ZM234.64,281.31c3.4.09,6.17,2.95,6.17,6.44.09,3.49-2.68,6.35-6.17,6.35s-6.17-2.86-6.17-6.35,2.77-6.35,6.17-6.44h0ZM254.06,281.4c3.49,0,6.35,2.86,6.35,6.35s-2.77,6.44-6.35,6.44c-3.4-.09-6.26-2.95-6.26-6.44s2.77-6.35,6.26-6.35h0ZM273.83,281.4c3.58,0,6.44,2.86,6.44,6.44s-2.86,6.35-6.44,6.35-6.35-2.86-6.35-6.44,2.86-6.35,6.35-6.35h0ZM293.78,281.4c3.57,0,6.44,2.86,6.44,6.44s-2.87,6.35-6.44,6.35-6.44-2.86-6.44-6.35,2.86-6.44,6.44-6.44h0ZM313.73,281.31c3.58,0,6.44,2.95,6.44,6.44s-2.86,6.44-6.44,6.44-6.44-2.86-6.44-6.44,2.95-6.35,6.44-6.44h0ZM333.59,281.4c3.58-.09,6.36,2.77,6.36,6.35s-2.77,6.35-6.36,6.44c-3.49,0-6.35-2.86-6.35-6.44s2.86-6.44,6.35-6.35h0ZM353.28,281.31c3.4,0,6.26,2.86,6.17,6.35,0,3.49-2.77,6.35-6.17,6.35-3.49.09-6.35-2.77-6.26-6.35,0-3.49,2.77-6.35,6.26-6.35h0ZM372.51,281.31c3.31,0,6.08,2.77,6.08,6.26s-2.77,6.35-6.17,6.35-6.09-2.77-6.09-6.26,2.77-6.35,6.17-6.35h0ZM391.21,281.31c3.22-.09,5.91,2.68,5.91,6.17s-2.69,6.26-6,6.35c-3.22,0-5.9-2.86-5.9-6.26s2.68-6.26,5.99-6.26h0ZM405.62,292.31c-1.25-1.16-2.15-2.86-2.05-4.83,0-1.88.8-3.58,2.05-4.74v9.57ZM192.32,236.22c1.61.98,2.6,2.86,2.6,5.01-.09,2.15-1.08,4.03-2.6,5.19v-10.2ZM207.35,234.78c3.22-.09,5.81,2.68,5.73,6.08-.09,3.4-2.77,6.17-6,6.26-3.31.09-5.81-2.68-5.81-5.99.09-3.4,2.77-6.17,6.08-6.35h0ZM225.96,234.34c3.31-.09,6,2.68,5.91,6.17,0,3.49-2.77,6.26-6.17,6.35-3.4,0-5.99-2.68-5.99-6.17.09-3.4,2.86-6.26,6.26-6.35h0ZM245.02,234.07c3.49-.09,6.26,2.68,6.17,6.08,0,3.49-2.86,6.35-6.35,6.44-3.4,0-6.17-2.77-6.08-6.17,0-3.49,2.86-6.35,6.26-6.35h0ZM264.52,233.8c3.49-.09,6.35,2.77,6.26,6.26,0,3.49-2.86,6.35-6.35,6.35s-6.35-2.77-6.26-6.26c0-3.49,2.86-6.35,6.35-6.35h0ZM284.3,233.62c3.49,0,6.35,2.86,6.35,6.35s-2.86,6.35-6.44,6.35-6.35-2.77-6.35-6.35,2.86-6.35,6.44-6.35h0ZM304.07,233.62c3.58,0,6.44,2.86,6.44,6.35s-2.86,6.35-6.35,6.35-6.44-2.86-6.44-6.35,2.86-6.35,6.35-6.35h0ZM323.93,233.71c3.49,0,6.35,2.86,6.44,6.35,0,3.49-2.87,6.35-6.36,6.35-3.58-.09-6.44-2.86-6.44-6.44s2.86-6.26,6.35-6.26h0ZM343.62,233.98c3.4,0,6.26,2.86,6.26,6.26.09,3.58-2.69,6.35-6.18,6.26-3.49,0-6.35-2.86-6.35-6.35s2.77-6.26,6.26-6.17h0ZM362.85,234.25c3.4.09,6.26,2.95,6.26,6.35.09,3.49-2.6,6.26-6,6.17-3.49-.09-6.26-2.95-6.26-6.35-.09-3.49,2.59-6.26,5.99-6.17h0ZM381.73,234.7c3.31.09,5.99,2.86,6.08,6.26.09,3.49-2.51,6.17-5.82,6.17-3.31-.09-6.08-2.95-6.17-6.44,0-3.4,2.6-6.08,5.9-5.99h0ZM400.07,235.23c2.5.09,4.74,1.88,5.54,4.3v4.2c-.8,2.24-2.86,3.76-5.28,3.67-3.22,0-5.9-2.77-5.99-6.26-.09-3.4,2.5-6,5.73-5.91h0ZM198.4,220.65c3.22-.09,5.73,2.42,5.64,5.82-.18,3.4-2.86,6.17-6.08,6.35-3.13,0-5.64-2.51-5.46-5.91.09-3.31,2.77-6.17,5.9-6.26h0ZM216.66,219.93c3.31-.09,5.82,2.6,5.82,6-.09,3.4-2.86,6.17-6.26,6.35-3.22,0-5.82-2.68-5.73-5.99.09-3.4,2.86-6.17,6.17-6.35h0ZM235.45,219.4c3.31-.09,5.99,2.68,5.99,6.08-.09,3.4-2.95,6.26-6.35,6.35-3.31,0-6.09-2.68-5.99-6.08.09-3.4,2.95-6.17,6.35-6.35h0ZM254.59,219.04c3.49,0,6.26,2.68,6.17,6.17,0,3.4-2.86,6.26-6.35,6.26-3.49.09-6.26-2.68-6.18-6.08.09-3.49,2.95-6.26,6.35-6.35h0ZM274.1,218.86c3.58-.09,6.35,2.68,6.35,6.17-.09,3.4-2.95,6.26-6.44,6.26s-6.26-2.77-6.26-6.17c.09-3.49,2.86-6.26,6.35-6.26h0ZM293.87,218.68c3.49,0,6.36,2.77,6.36,6.26s-2.87,6.26-6.44,6.26-6.26-2.77-6.35-6.26c0-3.4,2.86-6.26,6.44-6.26h0ZM313.64,218.77c3.49,0,6.35,2.77,6.35,6.26s-2.77,6.26-6.35,6.26c-3.49-.09-6.36-2.86-6.36-6.35s2.87-6.17,6.36-6.17h0ZM333.24,218.95c3.49,0,6.35,2.86,6.35,6.26.09,3.49-2.69,6.26-6.17,6.17-3.49,0-6.35-2.86-6.44-6.35,0-3.4,2.77-6.17,6.26-6.08h0ZM352.65,219.31c3.49.09,6.26,2.86,6.35,6.35,0,3.31-2.68,6.08-6.08,6.08-3.49-.09-6.26-2.95-6.35-6.35-.09-3.49,2.68-6.17,6.08-6.08h0ZM371.71,219.75c3.31.09,6.09,2.95,6.17,6.26.09,3.49-2.6,6.08-5.9,5.99-3.31,0-6.18-2.86-6.18-6.26-.18-3.4,2.51-6.08,5.91-5.99h0ZM390.23,220.38c3.22.18,5.91,2.95,5.99,6.26.18,3.4-2.41,6-5.64,5.91-3.31-.09-5.99-2.95-6.08-6.26-.09-3.4,2.41-6.08,5.72-5.91h0ZM405.62,232.19c-1.7-1.07-2.95-3.04-3.04-5.37-.09-2.33,1.17-4.29,3.04-5.19v10.56ZM271.95,84.83c-.62.27-1.25.45-1.88.54.62-.18,1.25-.36,1.88-.54h0ZM291.81,81.61c-.45,1.79-2.78,3.22-5.37,3.31-2.33,0-4.12-.89-5.01-2.15,3.49-.54,6.89-.98,10.38-1.16h0ZM308.81,81.79c-.45,1.7-2.69,3.04-5.19,3.04-2.95-.09-5.37-1.61-5.63-3.49h.98c3.31,0,6.53.18,9.84.45h0ZM324.11,84.39c-.89.54-2.06.8-3.49.72-2.24,0-4.21-1.07-5.1-2.42,2.86.45,5.73.98,8.59,1.7h0ZM248.06,94.41c-.9,1.7-3.04,3.04-5.55,3.22h0c1.79-1.16,3.67-2.24,5.55-3.22h0ZM261.12,88.32c2.51.18,4.56,1.7,4.38,3.76-.18,2.24-2.86,4.29-5.91,4.38-3.04.18-5.37-1.52-5.1-3.76.09-.71.36-1.34.8-1.97.98-.45,1.97-.9,2.95-1.25.98-.45,1.88-.8,2.86-1.16h0ZM277.32,87.61c3.05-.09,5.55,1.61,5.37,3.85,0,2.24-2.6,4.21-5.63,4.3-3.13.09-5.64-1.7-5.37-3.94,0-2.24,2.68-4.11,5.63-4.2h0ZM294.5,87.25c3.04,0,5.55,1.79,5.73,4.03,0,2.24-2.6,4.12-5.73,4.21-3.13,0-5.64-1.88-5.55-4.12,0-2.24,2.69-4.12,5.55-4.12h0ZM311.85,87.34c3.04.09,5.64,1.97,5.54,4.2.18,2.24-2.23,4.12-5.37,4.03-3.13-.09-5.64-1.97-5.73-4.3.09-2.24,2.42-3.94,5.55-3.94h0ZM328.94,87.87c3.13.18,5.73,2.15,5.9,4.39.09,2.24-2.33,3.94-5.37,3.85-3.13-.18-5.72-2.15-5.82-4.38-.09-2.24,2.33-3.94,5.28-3.85h0ZM351.31,95.21c-.81,1.25-2.51,1.97-4.56,1.88-3.05-.27-5.64-2.24-5.9-4.56-.09-.81.27-1.61.8-2.24,3.31,1.52,6.53,3.13,9.66,4.92h0ZM237.86,100.76c.98.72,1.52,1.7,1.34,2.95-.18,2.42-2.95,4.56-5.99,4.83-1.61.18-3.04-.27-3.85-1.07,2.69-2.42,5.55-4.65,8.5-6.71h0ZM251.28,98.61c3.04-.18,5.37,1.52,5.19,3.94-.18,2.41-2.77,4.47-5.9,4.74-3.13.18-5.55-1.61-5.28-4.03.18-2.42,2.95-4.47,5.99-4.65h0ZM268.55,97.63c2.95-.09,5.46,1.7,5.46,4.12-.18,2.42-2.77,4.47-5.9,4.65-3.22.09-5.64-1.79-5.37-4.2.09-2.33,2.69-4.38,5.82-4.56h0ZM286.08,97.18c3.13-.09,5.55,1.79,5.55,4.21-.09,2.42-2.69,4.47-5.82,4.47-3.13.09-5.64-1.88-5.55-4.3,0-2.41,2.69-4.38,5.82-4.38h0ZM303.71,97.09c3.04,0,5.55,1.97,5.55,4.3.09,2.5-2.33,4.47-5.64,4.38-3.13,0-5.72-1.97-5.81-4.38.18-2.42,2.77-4.38,5.9-4.3h0ZM321.07,97.36c3.22.09,5.82,2.15,5.82,4.47.18,2.51-2.24,4.38-5.46,4.3-3.13-.09-5.73-2.15-5.73-4.56-.09-2.41,2.24-4.3,5.37-4.2h0ZM338.61,98.16c3.04.18,5.55,2.15,5.9,4.56.18,2.42-2.15,4.29-5.46,4.11-3.04-.18-5.72-2.24-5.72-4.65-.18-2.42,2.06-4.21,5.28-4.03h0ZM355.78,99.33c2.86.18,5.55,2.33,5.73,4.65.36,2.41-1.88,4.2-5.01,3.94-2.95-.18-5.72-2.42-5.82-4.74-.27-2.42,1.97-4.12,5.1-3.85h0ZM224.26,112.12c3.04-.27,5.19,1.52,4.83,4.03-.27,2.6-2.86,4.83-6,5.19-2.5.18-4.38-.98-4.74-2.86,1.7-1.97,3.49-3.94,5.28-5.73l.63-.63ZM241.35,110.69c2.95-.18,5.37,1.61,5.1,4.2-.09,2.51-2.95,4.83-5.9,5.01-3.22.27-5.46-1.7-5.37-4.2.36-2.6,3.04-4.74,6.18-5.01h0ZM258.71,109.62c3.13-.18,5.73,1.79,5.55,4.29-.18,2.6-2.86,4.83-6.09,5.01-3.22.18-5.55-1.88-5.37-4.47.18-2.51,2.86-4.65,5.9-4.83h0ZM276.6,108.9c3.04-.09,5.55,1.97,5.46,4.47-.09,2.6-2.68,4.74-5.9,4.83-3.13.09-5.64-1.97-5.64-4.56.09-2.5,2.77-4.65,6.08-4.74h0ZM294.5,108.63c3.04,0,5.63,2.06,5.73,4.56,0,2.6-2.6,4.74-5.82,4.74s-5.82-2.06-5.82-4.65,2.6-4.65,5.9-4.65h0ZM312.3,108.72c3.31.09,5.82,2.15,5.82,4.74.27,2.6-2.33,4.65-5.55,4.56-3.31,0-5.9-2.15-6-4.74,0-2.59,2.6-4.56,5.73-4.56h0ZM330.2,109.26c3.13.09,5.81,2.24,5.99,4.83.09,2.59-2.42,4.56-5.55,4.47-3.13-.18-5.99-2.33-6.08-4.92-.09-2.59,2.41-4.56,5.64-4.38h0ZM347.73,110.06c3.13.27,5.9,2.51,6,5.01.26,2.51-2.06,4.47-5.28,4.3-3.13-.18-5.82-2.42-6-5.01-.09-2.51,2.24-4.38,5.28-4.3h0ZM365.09,111.41c2.95.27,5.73,2.5,5.99,5.01.27,2.6-2.06,4.38-5.01,4.2-3.22-.27-5.9-2.59-5.99-5.1-.45-2.6,1.97-4.38,5.01-4.12h0ZM382.62,122.05c-2.86-.45-5.28-2.68-5.64-5.1,0-.45,0-.89.18-1.25,1.88,2.06,3.67,4.2,5.46,6.35h0ZM214.87,123.84c2.86-.27,5.19,1.61,4.83,4.3-.27,2.68-2.87,5.01-6,5.37-2.23.18-4.11-.89-4.74-2.59,1.52-2.33,3.13-4.65,4.83-6.89.36-.09.71-.18,1.07-.18h0ZM231.96,122.32c3.04-.27,5.46,1.7,5.19,4.38-.27,2.68-2.95,5.1-6.09,5.28-3.13.27-5.55-1.7-5.19-4.47.27-2.6,2.95-4.92,6.09-5.19h0ZM249.49,121.16c3.22-.18,5.64,1.79,5.46,4.47-.27,2.77-2.95,5.1-6.09,5.28-3.22.18-5.73-1.88-5.46-4.56.27-2.77,2.95-5.01,6.08-5.19h0ZM267.39,120.35c3.31-.18,5.82,1.97,5.55,4.65,0,2.68-2.68,5.01-5.91,5.1-3.31.09-5.72-2.06-5.72-4.74.18-2.68,2.95-4.92,6.08-5.01h0ZM285.64,119.82c3.22,0,5.73,2.15,5.64,4.83,0,2.77-2.6,5.01-5.9,5.01-3.31.09-5.91-2.06-5.82-4.83,0-2.68,2.68-4.92,6.08-5.01h0ZM303.71,119.82c3.22,0,5.99,2.15,5.9,4.92.18,2.69-2.59,4.92-5.72,4.92-3.31-.09-6-2.33-6.09-5.01,0-2.69,2.68-4.92,5.9-4.83h0ZM321.96,120.08c3.22.09,5.9,2.33,6.08,5.01,0,2.68-2.51,4.92-5.82,4.83-3.22-.09-5.99-2.42-5.99-5.1-.09-2.68,2.42-4.83,5.73-4.74h0ZM340.04,120.71c3.04.18,5.82,2.5,5.99,5.19.18,2.68-2.23,4.74-5.46,4.65-3.31-.18-5.9-2.5-6.08-5.19-.27-2.77,2.23-4.83,5.55-4.65h0ZM357.75,121.78c3.13.18,5.81,2.51,5.99,5.19.27,2.68-2.15,4.74-5.19,4.56-3.22-.27-5.91-2.59-6.18-5.28-.09-2.68,2.24-4.74,5.37-4.47h0ZM375.02,123.13c3.13.36,5.73,2.6,6.08,5.28.27,2.68-1.97,4.65-5.01,4.38-3.04-.27-5.81-2.6-6.17-5.37-.09-2.6,2.15-4.56,5.1-4.3h0ZM390.58,133.68c-1.88-1.07-3.31-2.77-3.49-4.65v-.81c1.25,1.79,2.42,3.58,3.49,5.46h0ZM205.21,137.44c2.68-.09,4.56,1.79,4.29,4.47-.36,2.77-2.95,5.28-5.99,5.55-1.08.09-2.06-.09-2.86-.54,1.34-3.31,2.86-6.44,4.56-9.48h0ZM221.67,135.83c3.22-.27,5.55,1.79,5.19,4.65-.09,2.77-2.95,5.28-6.08,5.46-3.04.27-5.46-1.79-5.1-4.65.27-2.77,2.95-5.19,6-5.46h0ZM239.38,134.58c3.13-.18,5.55,1.88,5.37,4.74-.18,2.86-2.86,5.28-6.17,5.55-3.13.18-5.55-2.06-5.37-4.83.27-2.86,2.95-5.28,6.18-5.46h0ZM257.37,133.59c3.22-.09,5.81,2.06,5.63,4.92,0,2.86-2.77,5.28-6.17,5.46-3.22.09-5.82-2.06-5.55-5.01.18-2.77,2.95-5.19,6.09-5.37h0ZM275.71,133.06c3.22-.09,5.9,2.15,5.82,5.01-.09,2.86-2.77,5.28-5.99,5.28-3.4.09-5.99-2.15-5.91-5.01,0-2.86,2.86-5.28,6.09-5.28h0ZM294.23,132.79c3.22,0,5.99,2.24,5.99,5.1s-2.69,5.28-6.09,5.28-5.91-2.33-5.99-5.19c.09-2.86,2.86-5.19,6.09-5.19h0ZM312.75,132.88c3.31,0,6,2.42,6,5.19.18,2.95-2.51,5.19-5.82,5.19-3.31-.09-6.08-2.42-6.08-5.28-.09-2.86,2.68-5.19,5.9-5.1h0ZM331.27,133.33c3.22.09,5.99,2.51,5.99,5.28.09,2.86-2.42,5.1-5.72,5.01-3.22-.09-6.09-2.5-6.09-5.37-.09-2.86,2.42-5.01,5.82-4.92h0ZM349.34,134.04c3.22.18,6,2.59,6.18,5.46.27,2.86-2.24,5.1-5.55,4.83-3.22-.09-5.99-2.6-6.17-5.46-.09-2.77,2.41-4.92,5.54-4.83h0ZM367.23,135.2c3.22.27,5.82,2.6,6.09,5.46.27,2.86-2.06,5.01-5.28,4.74-3.22-.27-5.9-2.68-6.08-5.55-.27-2.77,2.24-4.83,5.28-4.65h0ZM384.59,136.64c3.13.36,5.81,2.77,6.08,5.55.36,2.77-1.97,4.83-5.1,4.56-3.04-.27-5.73-2.77-5.91-5.55-.27-2.77,1.97-4.83,4.92-4.56h0ZM198.85,151.4c.89.81,1.35,2.06,1.25,3.49-.27,2.24-1.88,4.3-4.11,5.28.8-3.04,1.79-5.9,2.86-8.77h0ZM212.18,148.62c3.13-.27,5.46,1.88,5.19,4.83-.27,2.95-2.95,5.55-6.09,5.73-3.04.18-5.37-1.88-5.1-4.83.27-2.95,2.95-5.46,6-5.73h0ZM229.9,147.28c3.05-.18,5.64,2.06,5.37,5.01-.18,2.95-2.86,5.46-6.17,5.73-3.13.09-5.64-2.06-5.37-5.01.18-2.95,2.86-5.46,6.17-5.73h0ZM247.88,146.3c3.31-.09,5.9,2.15,5.72,5.1-.09,2.95-2.95,5.55-6.17,5.64-3.31.18-5.82-2.15-5.64-5.1.09-2.95,2.86-5.46,6.08-5.64h0ZM266.31,145.67c3.4-.18,5.99,2.15,5.9,5.19,0,2.95-2.86,5.46-6.17,5.55-3.31.09-5.9-2.33-5.82-5.28.09-2.95,2.87-5.37,6.09-5.46h0ZM285.1,145.22c3.31,0,5.99,2.33,6.08,5.28-.09,3.04-2.77,5.55-6.18,5.55s-6.08-2.42-5.99-5.37c-.09-2.95,2.69-5.37,6.09-5.46h0ZM303.89,145.14c3.4.09,6.08,2.51,6.08,5.46.09,2.95-2.6,5.46-6.08,5.37-3.31,0-6.09-2.42-6-5.46,0-2.95,2.69-5.37,6-5.37h0ZM322.68,145.4c3.31.09,6,2.51,6.17,5.55.09,2.95-2.51,5.37-5.99,5.28-3.31-.09-6.17-2.6-6.08-5.55-.18-3.04,2.5-5.37,5.9-5.28h0ZM341.2,145.94c3.22.18,6.09,2.68,6.17,5.64.18,2.95-2.41,5.28-5.72,5.19-3.22-.09-6.18-2.68-6.09-5.64-.18-2.95,2.33-5.28,5.64-5.19h0ZM359.63,146.92c3.13.18,5.82,2.6,6.09,5.64.18,2.95-2.23,5.19-5.55,5.01-3.31-.18-6-2.68-6.18-5.73-.18-2.95,2.33-5.19,5.64-4.92h0ZM377.44,148.09c3.04.18,5.81,2.77,6.08,5.64.27,2.95-2.15,5.1-5.37,4.92-3.04-.18-5.91-2.77-5.99-5.73-.27-2.95,2.06-5.1,5.28-4.83h0ZM394.79,149.52c1.79.18,3.4,1.16,4.56,2.5.45,1.43.98,2.77,1.34,4.21-.18,2.41-2.23,4.03-5.01,3.76-2.95-.18-5.73-2.86-5.91-5.73-.45-2.95,1.88-5.1,5.01-4.74h0ZM202.07,163.21c3.04-.27,5.28,2.06,5.1,5.1-.27,3.04-2.95,5.64-6.09,5.91-3.04.18-5.37-2.06-5.1-5.01.27-3.04,2.95-5.64,6.08-6h0ZM219.61,161.96c3.13-.18,5.55,2.15,5.37,5.1-.18,3.13-2.95,5.82-6.17,5.91-3.22.27-5.54-2.15-5.28-5.19.18-3.04,2.95-5.64,6.09-5.82h0ZM237.68,160.88c3.22-.09,5.81,2.24,5.63,5.28-.18,3.13-2.95,5.73-6.17,5.81-3.31.27-5.82-2.15-5.64-5.28.09-3.04,2.95-5.64,6.17-5.82h0ZM256.2,160.17c3.4-.18,5.99,2.24,5.82,5.37-.09,3.13-2.86,5.73-6.17,5.81-3.4.09-5.99-2.33-5.91-5.46.18-3.04,2.95-5.64,6.26-5.73h0ZM275.08,159.63c3.31,0,5.99,2.41,5.99,5.55-.09,3.13-2.86,5.73-6.26,5.73-3.31.09-6.08-2.42-5.99-5.55.09-3.13,2.86-5.64,6.26-5.73h0ZM294.14,159.45c3.31,0,6.09,2.5,6.09,5.55.09,3.13-2.87,5.73-6.18,5.73s-6.17-2.5-6.17-5.64c.09-3.13,2.86-5.64,6.26-5.64h0ZM313.11,159.54c3.4,0,6.17,2.6,6.26,5.64,0,3.13-2.69,5.64-6.18,5.64-3.31-.09-6.08-2.6-6.17-5.73-.09-3.13,2.77-5.64,6.08-5.55h0ZM331.98,159.9c3.4.09,6.26,2.69,6.35,5.73,0,3.13-2.51,5.64-6,5.46-3.4-.09-6.17-2.68-6.26-5.73-.09-3.13,2.6-5.55,5.91-5.46h0ZM350.77,160.52c3.31.18,6.09,2.77,6.26,5.82.09,3.04-2.42,5.55-5.73,5.37-3.4-.09-6.18-2.77-6.26-5.81-.18-3.13,2.42-5.46,5.73-5.37h0ZM369.11,161.42c3.31.27,6.08,2.86,6.17,5.9.18,3.04-2.24,5.37-5.55,5.19-3.22-.18-5.99-2.77-6.17-5.82-.18-3.13,2.33-5.46,5.55-5.28h0ZM387.01,162.58c3.13.27,5.72,2.86,6.08,5.99.27,3.04-2.15,5.28-5.28,5.1-3.13-.27-5.91-2.95-6.08-5.9-.18-3.04,2.15-5.37,5.28-5.19h0ZM404.81,174.93c-2.86-.45-5.37-3.04-5.64-5.99-.18-2.42,1.34-4.47,3.67-4.83.9,3.58,1.52,7.16,1.97,10.83h0ZM192.86,176.9c2.95-.18,5.1,2.24,4.92,5.19-.18,2.86-2.6,5.55-5.46,5.99v-.09c0-3.76.18-7.43.54-11.09h0ZM210.03,175.65c3.22-.18,5.64,2.15,5.37,5.37-.09,3.13-2.86,5.81-6,5.99-3.22.27-5.64-2.15-5.37-5.37.09-3.04,2.86-5.73,5.99-5.99h0ZM228.11,174.66c3.22-.18,5.81,2.24,5.63,5.37-.09,3.22-2.86,5.91-6.17,6-3.31.18-5.82-2.24-5.73-5.37.27-3.22,3.04-5.81,6.26-5.99h0ZM246.63,173.85c3.31-.18,6,2.33,5.9,5.46-.18,3.22-2.86,5.9-6.26,5.99-3.4.18-5.99-2.33-5.9-5.55.27-3.22,2.95-5.82,6.26-5.91h0ZM265.6,173.23c3.31,0,6.09,2.51,6,5.64,0,3.22-2.77,5.9-6.26,5.99-3.49.09-6.17-2.5-6.08-5.73.09-3.13,2.95-5.82,6.35-5.91h0ZM284.74,172.96c3.49,0,6.17,2.5,6.17,5.73s-2.77,5.91-6.26,5.91-6.26-2.6-6.17-5.82c.09-3.22,2.86-5.81,6.26-5.81h0ZM303.98,172.87c3.4,0,6.26,2.68,6.26,5.81s-2.77,5.91-6.26,5.82c-3.4,0-6.26-2.6-6.17-5.82,0-3.22,2.77-5.81,6.17-5.81h0ZM323.22,173.14c3.4,0,6.17,2.68,6.26,5.82.09,3.22-2.68,5.81-6.08,5.81-3.49-.09-6.26-2.77-6.26-6-.09-3.22,2.68-5.73,6.08-5.64h0ZM342.27,173.59c3.31.09,6.17,2.77,6.26,5.91.09,3.22-2.6,5.73-5.9,5.64-3.4-.09-6.17-2.77-6.35-5.99,0-3.13,2.6-5.73,6-5.55h0ZM360.97,174.21c3.31.18,6.08,2.86,6.26,5.99.09,3.22-2.41,5.64-5.72,5.55-3.31-.09-6.17-2.86-6.26-5.99-.18-3.22,2.42-5.64,5.73-5.55h0ZM379.31,175.2c3.22.27,5.91,2.86,6.18,6,.18,3.13-2.24,5.64-5.55,5.37-3.22-.09-6.09-2.86-6.17-6-.18-3.13,2.32-5.55,5.54-5.37h0ZM397.03,176.45c3.05.18,5.82,2.86,5.99,5.91.27,3.22-2.06,5.55-5.19,5.28-3.13-.18-5.91-2.95-6.09-6-.18-3.22,2.24-5.46,5.28-5.19h0ZM199.92,191.21c3.13-.18,5.55,2.24,5.37,5.46-.18,3.13-2.86,5.91-6,6.08-3.13.18-5.54-2.24-5.37-5.46.18-3.13,2.95-5.99,5.99-6.08h0ZM217.82,190.23c3.31-.27,5.81,2.24,5.63,5.55-.09,3.22-2.86,5.99-6.17,6.08-3.22.18-5.73-2.33-5.55-5.64.09-3.13,2.86-5.91,6.09-6h0ZM236.34,189.33c3.31-.09,6,2.41,5.9,5.73-.18,3.31-2.95,6.08-6.35,6.17-3.31.09-5.9-2.51-5.82-5.73.09-3.22,2.95-5.99,6.26-6.17h0ZM255.22,188.8c3.49-.09,6.17,2.51,6.08,5.73-.09,3.4-2.95,6.08-6.35,6.17-3.31.09-6-2.59-6-5.81.09-3.31,2.95-5.99,6.26-6.08h0ZM274.46,188.44c3.49-.09,6.26,2.51,6.26,5.82s-2.86,6.08-6.35,6.08c-3.49.09-6.26-2.59-6.17-5.9.09-3.31,2.95-6,6.26-6h0ZM293.96,188.26c3.4,0,6.26,2.6,6.26,5.9s-2.77,6.08-6.36,6.08c-3.4,0-6.26-2.68-6.26-5.99.09-3.31,2.86-6,6.35-6h0ZM313.47,188.35c3.4,0,6.17,2.68,6.26,6,0,3.31-2.77,5.99-6.26,5.9-3.49,0-6.26-2.68-6.26-5.99-.09-3.31,2.77-6,6.26-5.91h0ZM332.79,188.62c3.4.09,6.17,2.77,6.26,6,.09,3.31-2.6,5.99-6.09,5.9-3.4,0-6.26-2.77-6.26-6.08-.09-3.31,2.59-5.91,6.08-5.82h0ZM351.94,189.07c3.31.18,6.18,2.86,6.18,6.08.18,3.31-2.51,5.91-5.91,5.82-3.4-.09-6.26-2.86-6.26-6.08-.09-3.31,2.51-5.9,5.99-5.82h0ZM370.64,189.78c3.31.18,5.99,2.86,6.17,6.17.09,3.22-2.41,5.82-5.72,5.64-3.31-.18-6.09-2.86-6.17-6.17-.18-3.22,2.32-5.81,5.73-5.64h0ZM388.89,190.76c3.13.09,5.91,2.86,6.08,6.08.09,3.22-2.33,5.73-5.55,5.55-3.22-.18-5.99-2.95-6.08-6.17-.18-3.22,2.24-5.73,5.55-5.46h0ZM405.62,203.02c-2.42-.81-4.29-3.13-4.38-5.82-.27-2.95,1.7-5.19,4.38-5.37v11.18ZM192.32,205.62c2.24.63,3.85,2.77,3.76,5.46-.18,2.42-1.7,4.65-3.76,5.64v-11.09ZM208.43,204.54c3.22-.09,5.73,2.41,5.64,5.73-.09,3.31-2.86,6.08-6.09,6.17-3.22.18-5.73-2.42-5.55-5.73.09-3.22,2.86-6.08,6-6.17h0ZM226.76,203.83c3.4-.18,6,2.42,5.91,5.82-.09,3.31-2.95,6.08-6.26,6.26-3.4.09-5.9-2.6-5.81-5.91.18-3.31,2.86-6.08,6.17-6.17h0ZM245.64,203.2c3.4-.09,6.18,2.6,6.09,5.91-.09,3.4-2.95,6.17-6.35,6.26-3.4.09-6.09-2.59-5.99-5.9.09-3.4,2.86-6.17,6.26-6.26h0ZM264.97,202.84c3.4-.09,6.17,2.59,6.17,5.99s-2.95,6.17-6.35,6.17c-3.49.09-6.26-2.68-6.17-5.99,0-3.4,2.95-6.17,6.35-6.17h0ZM284.48,202.58c3.49,0,6.26,2.68,6.35,6.08-.09,3.4-2.95,6.17-6.44,6.17s-6.35-2.68-6.26-6.08c0-3.4,2.86-6.17,6.35-6.17h0ZM304.07,202.58c3.49,0,6.35,2.77,6.35,6.08s-2.86,6.17-6.35,6.17-6.35-2.77-6.35-6.17,2.86-6.08,6.35-6.08h0ZM323.66,202.67c3.4.09,6.26,2.86,6.36,6.26,0,3.31-2.69,6.08-6.26,5.99-3.4,0-6.26-2.77-6.36-6.17,0-3.4,2.78-6.08,6.26-6.08h0ZM343.08,203.02c3.4.09,6.26,2.86,6.26,6.26.09,3.31-2.59,5.99-6.08,5.9-3.4,0-6.26-2.86-6.36-6.17-.09-3.4,2.69-6.08,6.18-6h0ZM362.14,203.56c3.4.09,6.17,2.86,6.26,6.26.09,3.31-2.51,6-5.91,5.82-3.4-.09-6.26-2.86-6.35-6.26,0-3.31,2.6-5.91,6-5.82h0ZM380.83,204.28c3.22.09,5.91,2.86,6.08,6.17.09,3.31-2.41,5.91-5.63,5.82-3.31-.09-6.17-2.95-6.26-6.26-.09-3.31,2.42-5.91,5.81-5.73h0ZM398.82,205.08c3.13.18,5.82,2.95,5.99,6.26.18,3.22-2.33,5.73-5.46,5.64-3.13-.09-5.82-2.86-6-6.17-.09-3.31,2.33-5.81,5.46-5.73h0Z\"/> <rect x=\"283.14\" y=\"555.9\" width=\"31.58\" height=\"138.05\"/> <rect x=\"178.99\" y=\"689.38\" width=\"239.96\" height=\"31.58\"/></svg>";
@@ -42418,6 +42624,27 @@ document.addEventListener('DOMContentLoaded', function(){
   function rewind(sec){ if(!audios.length)return; seekToPlay(curElapsed()-sec); }
   function showDeckTransport(on){ var pl=q('#ar-player'),gn=q('#ar-gen'); if(pl)pl.style.display=on?'flex':'none'; if(gn)gn.style.display=on?'none':'block'; }
   function updateWelcome(){ var w=q('#ar-welcome'); if(!w)return; var tr=q('#ar-tr'), ch=q('#ar-chat'); var hasBrief=(tr&&tr.children.length)||audios.length||LAST_TEXT; var hasChat=ch&&ch.children.length; w.style.display=(hasBrief||hasChat)?'none':'flex'; }
+  // Tira el briefing en pantalla (texto + audio ya preparado) dejando intacta la conversación.
+  // Se usa cuando cambia el LEG o el alcance: un briefing de otro sector no puede quedarse
+  // pintado ni sonando, que es justo lo que hacía creer que ARIA ignoraba el leg elegido.
+  function _dropBrief(){
+    _gen++;
+    try{ if(curAudio)curAudio.pause(); }catch(e){}
+    try{ for(var i=0;i<audios.length;i++){ try{audios[i].a.pause();}catch(e){} } }catch(e){}
+    try{ if(_va){ _va.pause(); _va.onended=null; } }catch(e){}
+    audios=[]; curAudio=null; playing=false; paused=false; k=0; acc=0; total=0; durs=[]; SENT=[]; PEL=[]; SEG=[];
+    LAST_TEXT=''; LAST_SCOPE=''; LAST_LEGKEY='';
+    try{ localStorage.removeItem('db_lastText'); localStorage.removeItem('db_lastScope'); localStorage.removeItem('db_lastLegKey'); }catch(e){}
+    var tr=q('#ar-tr'); if(tr)tr.innerHTML='';
+    var f=q('#ar-fill'); if(f)f.style.width='0';
+    var c=q('#ar-cur'); if(c)c.textContent='0:00';
+    var tt=q('#ar-tot'); if(tt)tt.textContent='0:00';
+    showDeckTransport(false);
+    var gen=q('#ar-gen'); if(gen){ gen.disabled=false; gen.style.opacity='1'; gen.textContent=(CUR.lang==='en'?'▶ Generate briefing':'▶ Generar briefing'); }
+    applyChrome(); mediaState(); try{ updateWelcome(); }catch(e){}
+  }
+  // Lo llama SkyView cuando cambia el leg de la cinta superior estando ARIA montada.
+  window.__ariaLegChanged=function(){ try{ if(LAST_SCOPE==='leg' && LAST_TEXT) _dropBrief(); }catch(e){} try{ paintScopeNow(); }catch(e){} };
   function resetAria(){ _gen++; try{ if(curAudio)curAudio.pause(); }catch(e){} try{ for(var i=0;i<audios.length;i++){ try{audios[i].a.pause();}catch(e){} } }catch(e){} try{ if(_va){ _va.pause(); _va.onended=null; } }catch(e){} try{ vStop(); }catch(e){} audios=[]; curAudio=null; playing=false; paused=false; k=0; acc=0; total=0; durs=[]; SENT=[]; PEL=[]; SEG=[]; LAST_TEXT=''; LAST_SCOPE=''; try{ localStorage.removeItem('db_lastText'); localStorage.removeItem('db_lastScope'); }catch(e){} var tr=q('#ar-tr'); if(tr)tr.innerHTML=''; var ch=q('#ar-chat'); if(ch)ch.innerHTML=''; var vl=q('#ar-vlog'); if(vl)vl.innerHTML=''; var f=q('#ar-fill'); if(f)f.style.width='0'; var c=q('#ar-cur'); if(c)c.textContent='0:00'; var tt=q('#ar-tot'); if(tt)tt.textContent='0:00'; showDeckTransport(false); var gen=q('#ar-gen'); if(gen){ gen.disabled=false; gen.style.opacity='1'; gen.textContent=(CUR.lang==='en'?'▶ Generate briefing':'▶ Generar briefing'); } hideVoiceDock(); stat(''); applyChrome(); mediaState(); var st=q('#ar-set'); if(st)st.style.display='none'; try{ updateWelcome(); }catch(e){} }
   function applyChrome(){ var col=playing&&!paused; ['#ar-dhead'].forEach(function(sel){ var el=q(sel); if(el){ if(col)el.classList.add('ar-collapsed'); else el.classList.remove('ar-collapsed'); } }); mediaState(); }
   function stopBriefing(){ _gen++; try{ haltVoice(); }catch(e){} try{ if(curAudio)curAudio.pause(); }catch(e){} playing=false; paused=true; var pb=q('#ar-play'); if(pb)pb.textContent='▶'; hi(-1,-1); stat(CUR.lang==='en'?'■ Briefing stopped — ask me anything':'■ Briefing detenido — pregúntame lo que quieras'); showVoiceDock(true); applyChrome(); }
@@ -42459,7 +42686,7 @@ document.addEventListener('DOMContentLoaded', function(){
         var pos=await getPos(); try{ _locNote(pos); }catch(e){} var _bi=_baseInfo(); var lbody={legs:one,pilot:pilotName()||undefined,lang:CUR.lang,localHour:new Date().getHours(),yesterdayRoutes:prevDayRoutes(one)}; if(pos){ lbody.userLat=pos.lat; lbody.userLon=pos.lon; } if(_bi){ lbody.baseIcao=_bi.icao; lbody.baseLat=_bi.lat; lbody.baseLon=_bi.lon; lbody.baseLabel=_bi.label; } var r2=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify(lbody)});
         if(!r2.ok){ var je=await r2.json().catch(function(){return{};}); stat('⚠ '+(je.message||je.error||('Error '+r2.status))); return _done(gen); } var d2=await r2.json(); txt=d2.text||'';
       }
-      if(!txt){ stat('⚠ ARIA no devolvió texto'); return _done(gen); } LAST_TEXT=txt; LAST_SCOPE=SCOPE; try{ localStorage.setItem('db_lastText',txt); localStorage.setItem('db_lastScope',SCOPE); }catch(e){}
+      if(!txt){ stat('⚠ ARIA no devolvió texto'); return _done(gen); } LAST_TEXT=txt; LAST_SCOPE=SCOPE; LAST_LEGKEY=(SCOPE==='leg'?_curLegKey():''); try{ localStorage.setItem('db_lastText',txt); localStorage.setItem('db_lastScope',SCOPE); localStorage.setItem('db_lastLegKey',LAST_LEGKEY); }catch(e){}
       renderText(txt); showDeckTransport(true); stat('Preparando voz…');
       var ok=await prepareVoice();
       if(ok){ var pb=q('#ar-play'); if(pb){ pb.disabled=false; pb.style.opacity='1'; } var bk=q('#ar-back'); if(bk){ bk.disabled=false; bk.style.opacity='1'; } var sb=q('#ar-stop'); if(sb){ sb.disabled=false; sb.style.opacity='1'; } var rg=q('#ar-regen'); if(rg){ rg.disabled=false; rg.style.opacity='1'; } stat(CUR.lang==='en'?'▶ Ready · plays offline':'▶ Listo · pulsa play (suena sin cobertura)'); showVoiceDock(false); if(_autoPlayNext){ _autoPlayNext=false; setTimeout(function(){ try{ if(audios.length&&!playing) togglePlay(); }catch(e){} }, 120); } }
@@ -42675,9 +42902,13 @@ document.addEventListener('DOMContentLoaded', function(){
     var CHIPS=['¿Turbulencia en ruta?','Alternativos','¿Riesgo de fatiga?','Meteo de llegada'];
     var chipsBox=q('#ar-chips'); if(chipsBox){ CHIPS.forEach(function(c){ var cb=document.createElement('button'); cb.textContent=c; cb.style.cssText='flex-shrink:0;white-space:nowrap;font-size:10px;color:#cdeefb;border:1px solid rgba(63,210,240,.28);background:rgba(63,210,240,.06);padding:4px 9px;border-radius:15px;font-family:inherit'; cb.onclick=function(){ chatSend(c); }; chipsBox.appendChild(cb); }); }
 
-    function paintScope(){ R.querySelectorAll('.ar-sc').forEach(function(b){ var on=b.getAttribute('data-sc')===SCOPE; b.style.background=on?'linear-gradient(135deg,#063a4a,#0aa3c7)':'transparent'; b.style.color=on?'#fff':'#9fb3bd'; }); }
+    function paintScope(){ R.querySelectorAll('.ar-sc').forEach(function(b){ var sc=b.getAttribute('data-sc'); var on=sc===SCOPE; b.style.background=on?'linear-gradient(135deg,#063a4a,#0aa3c7)':'transparent'; b.style.color=on?'#fff':'#9fb3bd';
+      // El botón del sector dice QUÉ vuelo es, para que se vea a qué leg de la cinta se refiere.
+      if(sc==='leg'){ var _l=(window.__ariaCtx||{}).leg; b.textContent=(_l&&_l.dep&&_l.arr)?((_l.flight?_l.flight+' ':'')+_l.dep+'→'+_l.arr):(CUR.lang==='en'?'This flight':'Este vuelo'); }
+    }); }
+    paintScopeNow=paintScope;
     function paintLg(){ R.querySelectorAll('.ar-lg').forEach(function(b){ var on=b.getAttribute('data-lg')===CUR.lang; b.style.background=on?'linear-gradient(135deg,#063a4a,#0aa3c7)':'transparent'; b.style.color=on?'#fff':'#9fb3bd'; }); }
-    R.querySelectorAll('.ar-sc').forEach(function(b){ b.onclick=function(){ SCOPE=b.getAttribute('data-sc'); paintScope(); }; });
+    R.querySelectorAll('.ar-sc').forEach(function(b){ b.onclick=function(){ var nx=b.getAttribute('data-sc'); if(nx===SCOPE)return; SCOPE=nx; try{ localStorage.setItem('db_scope',SCOPE); }catch(e){} if(LAST_TEXT) _dropBrief(); paintScope(); }; });
     R.querySelectorAll('.ar-lg').forEach(function(b){ b.onclick=function(){ CUR.lang=b.getAttribute('data-lg'); saveCfg('lang',CUR.lang); paintLg(); }; });
     paintScope(); paintLg();
     q('#ar-gear').onclick=toggleSettings;
@@ -42708,8 +42939,11 @@ document.addEventListener('DOMContentLoaded', function(){
     // Recupera el texto de una recarga dura si el estado en memoria se perdió. SOLO el botón
     // "Reiniciar conversación" borra LAST_TEXT + localStorage, así que navegar (MAPAS, etc.)
     // nunca pierde el briefing.
-    if(!LAST_TEXT){ try{ var _s=localStorage.getItem('db_lastText'); if(_s){ LAST_TEXT=_s; LAST_SCOPE=localStorage.getItem('db_lastScope')||SCOPE; } }catch(e){} }
+    if(!LAST_TEXT){ try{ var _s=localStorage.getItem('db_lastText'); if(_s){ LAST_TEXT=_s; LAST_SCOPE=localStorage.getItem('db_lastScope')||SCOPE; LAST_LEGKEY=localStorage.getItem('db_lastLegKey')||''; } }catch(e){} }
     if(!LAST_TEXT) return;
+    // Un briefing de UN sector solo se repinta si sigue siendo el leg elegido en la cinta. Si el
+    // piloto cambió de sector, se descarta: ver el briefing del anterior es peor que no ver nada.
+    if(LAST_SCOPE==='leg'){ var _ck=_curLegKey(); if(_ck && LAST_LEGKEY && _ck!==LAST_LEGKEY){ _dropBrief(); return; } }
     try{ renderText(LAST_TEXT); }catch(e){}
     var hasAudio = audios.length>0 && total>0;
     if(hasAudio){
@@ -42732,7 +42966,22 @@ document.addEventListener('DOMContentLoaded', function(){
   }
   window.__ariaStop=function(){ _pauseKeep(); };
   var _autoPlayNext=false;
-  window.__ariaMount=function(container){ try{ buildPanel(container); restoreState(); }catch(e){ try{ buildPanel(container); }catch(e2){} } try{ var _sa=(window.navigator&&window.navigator.standalone===true)||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches); if(!_sa) getPos(); }catch(e){} try{ if(window.__ariaAutoBrief){ window.__ariaAutoBrief=0; _autoPlayNext=true; setTimeout(function(){ try{ generate(); }catch(e){} }, 200); } }catch(e){} };
+  window.__ariaMount=function(container){ try{ buildPanel(container); restoreState(); }catch(e){ try{ buildPanel(container); }catch(e2){} } try{ var _sa=(window.navigator&&window.navigator.standalone===true)||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches); if(!_sa) getPos(); }catch(e){} try{ window.__ariaRunAutoBrief(); }catch(e){} };
+  // Consume el encargo del chip del Home. Vive aparte de __ariaMount porque si el piloto ya
+  // estaba en la pestaña ARIA el panel NO se remonta y el encargo se quedaba sin ejecutar
+  // (el chip no hacía nada), dejando además el alcance forzado colgado para el próximo montaje.
+  window.__ariaRunAutoBrief=function(){
+    try{
+      if(!window.__ariaAutoBrief) return false;
+      window.__ariaAutoBrief=0;
+      var _asc=window.__ariaAutoBriefScope; window.__ariaAutoBriefScope=null;
+      if(_asc&&_asc!==SCOPE){ SCOPE=_asc; try{ paintScopeNow(); }catch(e){} }
+      if(LAST_TEXT) _dropBrief();
+      _autoPlayNext=true;
+      setTimeout(function(){ try{ generate(); }catch(e){} }, 200);
+      return true;
+    }catch(e){ return false; }
+  };
 })();
 </script>
 
