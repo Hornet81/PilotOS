@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.464">
+  <meta name="version" content="Beta.466">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.464","builtAt":"2026-08-07T20:59:13Z","commit":"7d779fd","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.466","builtAt":"2026-08-07T21:39:08Z","commit":"1ed0045","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -16511,6 +16511,7 @@ async function pcImportFromLogbook(month, opts) {
           var _ra = data.roster_activity || {};
           setVal('pc_fonline', _ra.elearn_h||0); setVal('pc_hpos', _ra.positional_h||0);
           setVal('pc_oficina', _ra.office_days||0); setVal('pc_sparring', _ra.sparring_h||0);
+          setVal('pc_imag', _ra.imaginaria_days||0);   // Art. 13.19: días de bloque que SÍ se pagan
           if (_ra.ground_days) { setVal('pc_gti', _ra.ground_days);
             try{ if(typeof PC_STATE!=='undefined') PC_STATE.cargo='si'; }catch(_e){}
             var _cw2=document.getElementById('pc_cargos_wrap'); if(_cw2) _cw2.style.display='block'; }
@@ -17363,18 +17364,24 @@ function pcGross(data) {
   var pernNac  = CONVENIO.dietas.nac_pern.sujeta + CONVENIO.dietas.nac_pern.exenta;
   var pernInt  = CONVENIO.dietas.pernoc.sujeta + CONVENIO.dietas.pernoc.exenta;
   var rElearn=12.35, rOfi=119.03, rGti=(esp==='cmd'?210.05:161.04), rTri=800.99, rTre=924.22, rForm=119.03, rSpar=70.02;
+  // Imaginaria (Anexo A): 144,23 €/día · copiloto NIVEL 6 → 72,12 €/día
+  var _niv = (document.getElementById('pc_nivel') || {}).value || '';
+  var rImag = (T.imaginaria && typeof T.imaginaria === 'object')
+    ? (String(_niv) === '6' ? T.imaginaria.nivel6 : T.imaginaria.normal)
+    : (T.imaginaria || 144.23);
 
   var _ra = data.roster_activity || {}, _sims = data._sims || {};
   var q = {
     blk:+data.block_hours||0, noct:+data.night_hours||0, dnac:+data.nac_diets||0, dint:+data.int_diets||0,
     pnac:+data.nac_pernoc||0, pint:+data.int_pernoc||0, pos:+_ra.positional_h||0, elearn:+_ra.elearn_h||0,
     ofi:+_ra.office_days||0, grnd:+_ra.ground_days||0, spar:+_ra.sparring_h||0,
+    imag:+_ra.imaginaria_days||0,
     tri:+_sims.tri||0, tre:+_sims.tre||0, form:+_sims.formacion||0
   };
   var e = {
     hv:q.blk*rateHV, noct:q.noct*rateNoct, nac:q.dnac*dietaNac, int:q.dint*dietaInt,
     pnac:q.pnac*pernNac, pint:q.pint*pernInt, pos:q.pos*ratePos, elearn:q.elearn*rElearn,
-    ofi:q.ofi*rOfi, grnd:q.grnd*rGti, spar:q.spar*rSpar,
+    ofi:q.ofi*rOfi, grnd:q.grnd*rGti, spar:q.spar*rSpar, imag:q.imag*rImag,
     tri:q.tri*rTri, tre:q.tre*rTre, form:q.form*rForm
   };
   var total = 0; for (var k in e) total += e[k];
@@ -17506,9 +17513,11 @@ function pcRenderTracker(data) {
   var _g = pcGross(data), _q = _g.q, _e = _g.e, total = _g.total;
   var qBlk=_q.blk, qNoct=_q.noct, qDnac=_q.dnac, qDint=_q.dint, qPnac=_q.pnac, qPint=_q.pint;
   var qPos=_q.pos, qElearn=_q.elearn, qOfi=_q.ofi, qGrnd=_q.grnd, qSpar=_q.spar;
+  var qImag=_q.imag;
   var qTri=_q.tri, qTre=_q.tre, qForm=_q.form;
   var eurHV=_e.hv, eurNoct=_e.noct, eurNac=_e.nac, eurInt=_e.int, eurPnac=_e.pnac, eurPint=_e.pint;
   var eurPos=_e.pos, eurElearn=_e.elearn, eurOfi=_e.ofi, eurGrnd=_e.grnd, eurSpar=_e.spar;
+  var eurImag=_e.imag;
   var eurTri=_e.tri, eurTre=_e.tre, eurForm=_e.form;
 
   function fmtE(n) { return n.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2}); }
@@ -17587,6 +17596,7 @@ function pcRenderTracker(data) {
     ['🏢','Actividad oficinas',            qOfi+' días',       eurOfi],
     ['🎓','Ground / instrucción tierra',   qGrnd+' días',      eurGrnd],
     ['🥊','Sparring',                      _n2(qSpar)+' h',   eurSpar],
+    ['⏱️','Imaginarias',                   qImag+' días',      eurImag],
     ['🎮','Simulador TRI',                 qTri+' ses.',       eurTri],
     ['🎮','Simulador TRE',                 qTre+' ses.',       eurTre],
     ['🎓','Simulador (alumno/formación)',  qForm+' ses.',      eurForm]
