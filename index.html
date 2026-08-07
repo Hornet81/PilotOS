@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.462">
+  <meta name="version" content="Beta.464">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.462","builtAt":"2026-08-07T20:45:08Z","commit":"3507e1e","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.464","builtAt":"2026-08-07T20:59:13Z","commit":"f5a3aba","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -9346,11 +9346,16 @@ html.day .fp-ym-st-col.free .fp-ym-st-rng{color:var(--fp-gd)}
 	</g>
 </g>
 </svg></div><span class="dh-badge dh-b-amber" style="font-size:8px;padding:2px 5px">Live</span></div>
-        <div style="font-size:10px;font-weight:700;color:#fff;margin-bottom:1px">Pay Check</div>
-        <div style="font-size:8px;color:rgba(241,245,249,.4);margin-bottom:3px">Nómina de Mayo</div>
-        
-        <div style="font-size:16px;font-weight:900;color:#FFE082;font-family:monospace;line-height:1">2.450 €</div>
-        <div style="font-size:8px;color:rgba(241,245,249,.4)">Nómina neta est.</div>
+        <div style="display:flex;align-items:center;gap:4px;margin-bottom:1px">
+          <div style="font-size:10px;font-weight:700;color:#fff;flex:1">Pay Check</div>
+          <!-- Ojo: onclick con stopPropagation → oculta el importe SIN abrir Pay Check -->
+          <div id="pcHomeEye" onclick="pcHomeToggleHide(event)" title="Ocultar/mostrar el importe"
+               style="font-size:17px;line-height:1;padding:5px 6px;margin:-5px -6px -5px 0;cursor:pointer;opacity:.8">👁</div>
+        </div>
+        <div id="pcHomeSub" style="font-size:8px;color:rgba(241,245,249,.4);margin-bottom:3px">Acumulado del mes</div>
+
+        <div id="pcHomeAmount" style="font-size:16px;font-weight:900;color:#FFE082;font-family:monospace;line-height:1">—</div>
+        <div id="pcHomeFoot" style="font-size:8px;color:rgba(241,245,249,.4)">Bruto devengado</div>
       </div>
       <div class="dh-card dh-card-fatigue" style="background:linear-gradient(135deg,#052E1E 0%,#0A4D33 45%,#0F7A4A 100%);border:1px solid rgba(34,255,122,.28);box-shadow:0 0 40px rgba(34,255,122,0.15)" onclick="goTo('fatigue')">
         <div class="dh-card-top"><div class="dh-cicon dh-ci-green" style="width:56px;height:56px;border-radius:15px"><svg style="width:100%;height:100%;display:block" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 501.999 460.665">
@@ -10694,7 +10699,10 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
     <div id="pc-tab-acum">
       <div class="pc-tracker">
         <div class="pc-tk-top">
-          <div class="pc-tk-eye">⬡ Acumulado del mes</div>
+          <div class="pc-tk-eye">⬡ Acumulado del mes
+            <span id="pcTkEye" onclick="pcHomeToggleHide(event)" title="Ocultar/mostrar el importe"
+                  style="cursor:pointer;font-size:15px;margin-left:7px;padding:4px;opacity:.8">👁</span>
+          </div>
           <div class="pc-tk-status" id="pc-tk-status">
             <span class="pc-tk-dot" id="pc-tk-dot"></span>
             <span id="pc-tk-status-txt">Sin datos</span>
@@ -10745,7 +10753,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
               <path id="pc-spark-line" fill="none" stroke="#FCD34D" stroke-width="2"
                 stroke-linecap="round" stroke-linejoin="round" d=""/>
             </svg>
-            <div class="pc-spark-foot">Media mensual de referencia: €3.200</div>
+            <div class="pc-spark-foot" id="pc-spark-foot">Calculando tu media real…</div>
           </div>
         </div>
       </div>
@@ -16481,20 +16489,10 @@ async function pcImportFromLogbook(month, opts) {
     function setVal(id, val) { var el = document.getElementById(id); if (el) el.value = val; }
 
     // ── Contadores de simulador/cargos desde el logbook LOCAL (rol: campo 'instr') ──
-    // Necesarios para el formulario (Nómina) Y para el detalle (Acumulado).
-    var _pcMin = function(t){ var m=String(t||'').match(/^(\d{1,2}):(\d{2})$/); return m?parseInt(m[1])*60+parseInt(m[2]):0; };
-    var _tri=0,_tre=0,_lscMin=0,_gtiDays={},_sim=0;
-    (window.ldEntries||[]).forEach(function(en){
-      if(!en||!en.date||String(en.date).slice(0,7)!==month) return;
-      var it=(en.instr||'').toUpperCase();
-      if(it==='TRI') _tri++;
-      else if(it==='TRE') _tre++;
-      else if(it==='LSC') _lscMin+=_pcMin(en.block||en.flightTime);
-      else if(it==='GTI') _gtiDays[en.date]=1;
-      else if(it==='SIM') _sim++;   // simulador como alumno → plus formación
-    });
-    var _lscH=Math.round(_lscMin/60*100)/100, _gti=Object.keys(_gtiDays).length;
-    data._sims = { tri:_tri, tre:_tre, lscH:_lscH, gti:_gti, formacion:_sim };
+    // Necesarios para el formulario (Nómina), el detalle (Acumulado) y el widget del Home.
+    var _s = pcSimsFromLogbook(month);
+    var _tri=_s.tri, _tre=_s.tre, _lscH=_s.lscH, _gti=_s.gti, _sim=_s.formacion;
+    data._sims = _s;
     data.month = month;
 
     // ── Rellenar el FORMULARIO (solo pestaña Nómina; opts.form !== false) ──
@@ -17348,9 +17346,13 @@ function ppInit(){
 if (document.readyState !== 'loading') { try { ppInit(); } catch(e){} }
 else { document.addEventListener('DOMContentLoaded', function(){ try { ppInit(); } catch(e){} }); }
 
-/* ══ Pay Check: Earnings Tracker renderer ══ */
-var pcTkAnimFrom = 0;
-function pcRenderTracker(data) {
+/* ══ Pay Check: bruto devengado a partir de la respuesta de /api/paycheck ══
+   FUENTE ÚNICA del importe — la usan el tracker del Acumulado y el widget del Home.
+   NO duplicar este cálculo en ningún otro sitio: dos copias del mismo importe acaban
+   divergiendo (es exactamente así como se coló el bug de los posicionales). */
+var PC_AVG_REF = 3200;   // media de referencia, solo mientras no hay histórico propio
+function pcGross(data) {
+  data = data || {};
   var esp = (document.getElementById('pc_esp') || {}).value || 'cmd';
   var T = CONVENIO[esp] || CONVENIO.cmd;
   var rateHV   = T.plusHoraVuelo || 39.29;
@@ -17361,24 +17363,164 @@ function pcRenderTracker(data) {
   var pernNac  = CONVENIO.dietas.nac_pern.sujeta + CONVENIO.dietas.nac_pern.exenta;
   var pernInt  = CONVENIO.dietas.pernoc.sujeta + CONVENIO.dietas.pernoc.exenta;
   var rElearn=12.35, rOfi=119.03, rGti=(esp==='cmd'?210.05:161.04), rTri=800.99, rTre=924.22, rForm=119.03, rSpar=70.02;
-  var AVG = 3200;
 
   var _ra = data.roster_activity || {}, _sims = data._sims || {};
-  var qBlk=+data.block_hours||0, qNoct=+data.night_hours||0, qDnac=+data.nac_diets||0, qDint=+data.int_diets||0;
-  var qPnac=+data.nac_pernoc||0, qPint=+data.int_pernoc||0, qPos=+_ra.positional_h||0, qElearn=+_ra.elearn_h||0;
-  var qOfi=+_ra.office_days||0, qGrnd=+_ra.ground_days||0, qSpar=+_ra.sparring_h||0;
-  var qTri=+_sims.tri||0, qTre=+_sims.tre||0, qForm=+_sims.formacion||0;
+  var q = {
+    blk:+data.block_hours||0, noct:+data.night_hours||0, dnac:+data.nac_diets||0, dint:+data.int_diets||0,
+    pnac:+data.nac_pernoc||0, pint:+data.int_pernoc||0, pos:+_ra.positional_h||0, elearn:+_ra.elearn_h||0,
+    ofi:+_ra.office_days||0, grnd:+_ra.ground_days||0, spar:+_ra.sparring_h||0,
+    tri:+_sims.tri||0, tre:+_sims.tre||0, form:+_sims.formacion||0
+  };
+  var e = {
+    hv:q.blk*rateHV, noct:q.noct*rateNoct, nac:q.dnac*dietaNac, int:q.dint*dietaInt,
+    pnac:q.pnac*pernNac, pint:q.pint*pernInt, pos:q.pos*ratePos, elearn:q.elearn*rElearn,
+    ofi:q.ofi*rOfi, grnd:q.grnd*rGti, spar:q.spar*rSpar,
+    tri:q.tri*rTri, tre:q.tre*rTre, form:q.form*rForm
+  };
+  var total = 0; for (var k in e) total += e[k];
+  return { q:q, e:e, total:total };
+}
 
-  var eurHV=qBlk*rateHV, eurNoct=qNoct*rateNoct, eurNac=qDnac*dietaNac, eurInt=qDint*dietaInt;
-  var eurPnac=qPnac*pernNac, eurPint=qPint*pernInt, eurPos=qPos*ratePos, eurElearn=qElearn*rElearn;
-  var eurOfi=qOfi*rOfi, eurGrnd=qGrnd*rGti, eurSpar=qSpar*rSpar, eurTri=qTri*rTri, eurTre=qTre*rTre, eurForm=qForm*rForm;
-  var total = eurHV+eurNoct+eurNac+eurInt+eurPnac+eurPint+eurPos+eurElearn+eurOfi+eurGrnd+eurSpar+eurTri+eurTre+eurForm;
+/* ══ Simulador / cargos del mes, desde el logbook LOCAL (el rol lo sabe `instr`) ══
+   Fuente única: la usan la Nómina, el detalle del Acumulado y el widget del Home. */
+function pcSimsFromLogbook(month) {
+  var _min = function(t){ var m=String(t||'').match(/^(\d{1,2}):(\d{2})$/); return m?parseInt(m[1])*60+parseInt(m[2]):0; };
+  var tri=0,tre=0,lscMin=0,gtiDays={},sim=0;
+  (window.ldEntries||[]).forEach(function(en){
+    if(!en||!en.date||String(en.date).slice(0,7)!==month) return;
+    var it=(en.instr||'').toUpperCase();
+    if(it==='TRI') tri++;
+    else if(it==='TRE') tre++;
+    else if(it==='LSC') lscMin+=_min(en.block||en.flightTime);
+    else if(it==='GTI') gtiDays[en.date]=1;
+    else if(it==='SIM') sim++;   // simulador como alumno → plus formación
+  });
+  return { tri:tri, tre:tre, lscH:Math.round(lscMin/60*100)/100, gti:Object.keys(gtiDays).length, formacion:sim };
+}
+
+/* ══ Widget "Pay Check" del Home ══
+   Muestra el ACUMULADO REAL del mes en curso (bruto devengado), el mismo número que la
+   pestaña Acumulado — calculado con pcGross(), nunca con una copia del cálculo.
+   👁 oculta el importe (Home y Acumulado a la vez) para mirar la app delante de gente. */
+var PC_HOME_CACHE = 'pilotos_pc_home';   // último valor conocido → pinta al instante y offline
+var PC_HOME_HIDE  = 'pilotos_pc_hide';
+var PC_MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+function pcHomeIsHidden(){ try { return localStorage.getItem(PC_HOME_HIDE)==='1'; } catch(e){ return false; } }
+
+function pcHomeToggleHide(ev){
+  // stopPropagation: el ojo vive dentro de una tarjeta con onclick → si no, abriría Pay Check
+  if (ev) { ev.stopPropagation(); if (ev.preventDefault) ev.preventDefault(); }
+  try { localStorage.setItem(PC_HOME_HIDE, pcHomeIsHidden() ? '0' : '1'); } catch(e){}
+  pcHomePaint();
+  pcTkPaintAmount();
+}
+
+// Importe grande del Acumulado — respeta el mismo interruptor que el Home
+function pcTkPaintAmount(){
+  var el = document.getElementById('pc-tk-amount');
+  var eye = document.getElementById('pcTkEye');
+  var hidden = pcHomeIsHidden();
+  if (eye) { eye.textContent = hidden ? '🙈' : '👁'; eye.style.opacity = hidden ? '1' : '.8'; }
+  if (!el) return;
+  if (hidden) el.textContent = '•••••';
+  else if (typeof window._pcTkTotal === 'number')
+    el.textContent = window._pcTkTotal.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+function pcHomePaint(){
+  var amtEl=document.getElementById('pcHomeAmount'), subEl=document.getElementById('pcHomeSub');
+  var footEl=document.getElementById('pcHomeFoot'), eyeEl=document.getElementById('pcHomeEye');
+  if (!amtEl) return;
+  var hidden = pcHomeIsHidden();
+  if (eyeEl) { eyeEl.textContent = hidden ? '🙈' : '👁'; eyeEl.style.opacity = hidden ? '1' : '.8'; }
+  var c=null; try { c=JSON.parse(localStorage.getItem(PC_HOME_CACHE)||'null'); } catch(e){}
+  if (subEl) subEl.textContent = (c && c.monthLabel) ? c.monthLabel + ' · acumulado' : 'Acumulado del mes';
+  if (hidden){ amtEl.textContent='••••• €'; if(footEl) footEl.textContent='Importe oculto'; return; }
+  if (!c){ amtEl.textContent='—'; if(footEl) footEl.textContent='Sin datos del mes'; return; }
+  amtEl.textContent = Math.round(c.total).toLocaleString('es-ES') + ' €';
+  if (footEl) footEl.textContent = (c.flights||0) + ' vuelos · ' + (+c.blockH||0).toFixed(1).replace('.',',') + ' h';
+}
+
+async function pcHomeRefresh(){
+  pcHomePaint();                                   // 1º lo cacheado: instantáneo, y vale offline
+  var token=''; try{ token=lsGet('cafi_auth_token',''); }catch(e){}
+  if (!token) return;
+  var month = (typeof pcNowMonth==='function') ? pcNowMonth() : new Date().toISOString().slice(0,7);
+  try{
+    var r = await fetch(ldBackendUrl()+'/api/paycheck?month='+month+'&source=logbook',
+                        { headers:{ 'Authorization':'Bearer '+token } });
+    if (!r.ok) return;
+    var d = await r.json();
+    if (!d || d.status==='empty') return;
+    d._sims = pcSimsFromLogbook(month);             // los sims también cuentan en el bruto
+    var total = pcGross(d).total;                   // MISMO cálculo que el Acumulado
+    try{ localStorage.setItem(PC_HOME_CACHE, JSON.stringify({
+      total: total, month: month, monthLabel: PC_MESES[parseInt(month.slice(5,7),10)-1] || '',
+      flights: d.flights_total||0, blockH: +d.block_hours||0, at: Date.now()
+    })); }catch(e){}
+    pcHomePaint();
+  } catch(e){ /* sin red: se queda el valor cacheado */ }
+}
+
+// Al arrancar: pintar ya lo cacheado y refrescar por detrás (tras ppInit, que fija la especialidad)
+function pcHomeInit(){ try{ pcHomePaint(); pcTkPaintAmount(); }catch(e){} setTimeout(function(){ pcHomeRefresh(); }, 1200); }
+if (document.readyState !== 'loading') pcHomeInit();
+else document.addEventListener('DOMContentLoaded', pcHomeInit);
+
+/* ══ Pay Check: anillo + badge + pie "vs media", SIEMPRE los tres a la vez ══
+   Un único sitio que los pinta ⇒ no puede haber un 12% en el anillo y un 88% en el badge.
+   nMonths = nº de meses de histórico real; 0 ⇒ se está usando la media de referencia. */
+function pcPaintVsAvg(total, avg, nMonths) {
+  var circ = 207.3;
+  var ring  = document.getElementById('pc-tk-ring');
+  var pctEl = document.getElementById('pc-tk-pct');
+  var del   = document.getElementById('pc-tk-delta');
+  var foot  = document.getElementById('pc-spark-foot');
+  if (!avg || avg <= 0) return pcResetVsAvg();
+  var pct = Math.min(total / avg, 1.5);
+  if (ring)  ring.style.strokeDashoffset = circ * (1 - Math.min(pct, 1));
+  if (pctEl) pctEl.textContent = Math.round(pct * 100) + '%';
+  var diff = total - avg;
+  if (del) {
+    del.style.display = 'inline-block';
+    del.className = 'pc-tk-delta ' + (diff >= 0 ? 'up' : 'dn');
+    del.textContent = (diff >= 0 ? '▲ +' : '▼ ') + Math.round(Math.abs(diff) / avg * 100) + '% vs media';
+  }
+  if (foot) foot.textContent = nMonths >= 2
+    ? 'Media real (' + nMonths + ' meses): €' + Math.round(avg).toLocaleString('es-ES')
+    : 'Media de referencia: €' + Math.round(avg).toLocaleString('es-ES');
+}
+/* Estado "aún no lo sé": anillo vacío y badge oculto. Nunca un número provisional
+   que luego rebote — antes salía 12% con la media de referencia y saltaba al 8% real. */
+function pcResetVsAvg() {
+  var ring  = document.getElementById('pc-tk-ring');   if (ring)  ring.style.strokeDashoffset = 207.3;
+  var pctEl = document.getElementById('pc-tk-pct');    if (pctEl) pctEl.textContent = '··';
+  var del   = document.getElementById('pc-tk-delta');  if (del)   del.style.display = 'none';
+  var foot  = document.getElementById('pc-spark-foot');if (foot)  foot.textContent = 'Calculando tu media…';
+}
+
+/* ══ Pay Check: Earnings Tracker renderer ══ */
+var pcTkAnimFrom = 0;
+function pcRenderTracker(data) {
+  var _g = pcGross(data), _q = _g.q, _e = _g.e, total = _g.total;
+  var qBlk=_q.blk, qNoct=_q.noct, qDnac=_q.dnac, qDint=_q.dint, qPnac=_q.pnac, qPint=_q.pint;
+  var qPos=_q.pos, qElearn=_q.elearn, qOfi=_q.ofi, qGrnd=_q.grnd, qSpar=_q.spar;
+  var qTri=_q.tri, qTre=_q.tre, qForm=_q.form;
+  var eurHV=_e.hv, eurNoct=_e.noct, eurNac=_e.nac, eurInt=_e.int, eurPnac=_e.pnac, eurPint=_e.pint;
+  var eurPos=_e.pos, eurElearn=_e.elearn, eurOfi=_e.ofi, eurGrnd=_e.grnd, eurSpar=_e.spar;
+  var eurTri=_e.tri, eurTre=_e.tre, eurForm=_e.form;
 
   function fmtE(n) { return n.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2}); }
 
-  // Count-up animado
+  // Count-up animado (si el piloto ha ocultado el importe, ni se anima ni se enseña)
+  window._pcTkTotal = total;
   var amtEl = document.getElementById('pc-tk-amount');
-  if (amtEl) {
+  if (amtEl && pcHomeIsHidden()) {
+    pcTkAnimFrom = total;
+    pcTkPaintAmount();
+  } else if (amtEl) {
+    pcTkPaintAmount();   // deja el ojo en su estado
     var from = pcTkAnimFrom, to = total, startTs = null, dur = 700;
     (function step(ts) {
       if (!startTs) startTs = ts;
@@ -17401,13 +17543,10 @@ function pcRenderTracker(data) {
   // Caption + delta vs media
   var cap = document.getElementById('pc-tk-caption');
   if (cap) cap.textContent = (data.flights_complete || 0) + '/' + (data.flights_total || 0) + ' vuelos · ' + parseFloat(data.block_hours || 0).toFixed(1) + ' h bloque';
-  var diff = total - AVG;
-  var del = document.getElementById('pc-tk-delta');
-  if (del) {
-    del.style.display = 'inline-block';
-    del.className = 'pc-tk-delta ' + (diff >= 0 ? 'up' : 'dn');
-    del.textContent = (diff >= 0 ? '▲ +' : '▼ ') + Math.round(Math.abs(diff) / AVG * 100) + '% vs media';
-  }
+  // El "vs media" NO se pinta aquí: la media buena es la REAL y la calcula
+  // pcRenderHistChart. Pintarlo antes con la de referencia hacía que el anillo
+  // saliera al 12% y rebotara al 8% un segundo después.
+  pcResetVsAvg();
 
   // Barra apilada
   var maxBar = Math.max(total, 1);
@@ -17418,10 +17557,7 @@ function pcRenderTracker(data) {
   var lDN = document.getElementById('pc-lg-dn'); if (lDN) lDN.textContent = '€' + fmtE(eurNac);
   var lDI = document.getElementById('pc-lg-di'); if (lDI) lDI.textContent = '€' + fmtE(eurInt);
 
-  // Anillo vs media
-  var pct = Math.min(total / AVG, 1.5), circ = 207.3;
-  var ring = document.getElementById('pc-tk-ring'); if (ring) ring.style.strokeDashoffset = circ * (1 - Math.min(pct, 1));
-  var pctEl = document.getElementById('pc-tk-pct'); if (pctEl) pctEl.textContent = Math.round(pct * 100) + '%';
+  // (el anillo ya se ha puesto en vacío arriba con pcResetVsAvg)
 
   // Sparkline — distribución uniforme entre días del mes
   var n = Math.max(data.flights_total || 1, 1);
@@ -17489,25 +17625,35 @@ function pcGetPrevMonths(n, refMonth) {
 }
 
 async function pcLoadHistory(currentData, currentMonth) {
+  // Red de seguridad: si el histórico no llega (sin sesión, sin red, error), el anillo
+  // NO puede quedarse en '··' para siempre — cae a la media de referencia.
+  function fallback() {
+    try { pcPaintVsAvg(pcGross(currentData).total, PC_AVG_REF, 0); } catch(e) {}
+  }
   var token = ''; try { token = lsGet('cafi_auth_token',''); } catch(e) {}
-  if (!token) return;
+  if (!token) return fallback();
   var card = document.getElementById('pc-hist-card');
-  if (!card) return;
+  if (!card) return fallback();
   card.style.display = '';
 
-  var prevMonths = pcGetPrevMonths(11, currentMonth);
-  var fetches = prevMonths.map(function(m) {
-    return fetch(ldBackendUrl() + '/api/paycheck?month=' + m, {
-      headers: { 'Authorization': 'Bearer ' + token }
-    }).then(function(r) { return r.json(); })
-      .then(function(d) { return { month: m, data: d }; })
-      .catch(function() { return { month: m, data: null }; });
-  });
+  try {
+    var prevMonths = pcGetPrevMonths(11, currentMonth);
+    var fetches = prevMonths.map(function(m) {
+      return fetch(ldBackendUrl() + '/api/paycheck?month=' + m, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      }).then(function(r) { return r.json(); })
+        .then(function(d) { return { month: m, data: d }; })
+        .catch(function() { return { month: m, data: null }; });
+    });
 
-  var results = await Promise.all(fetches);
-  results.push({ month: currentMonth, data: currentData });
-  results.sort(function(a, b) { return a.month.localeCompare(b.month); });
-  pcRenderHistChart(results);
+    var results = await Promise.all(fetches);
+    results.push({ month: currentMonth, data: currentData });
+    results.sort(function(a, b) { return a.month.localeCompare(b.month); });
+    pcRenderHistChart(results);
+  } catch(e) {
+    console.warn('[PayCheck] histórico no disponible:', e && e.message);
+    fallback();
+  }
 }
 
 function pcRenderHistChart(results) {
@@ -17526,17 +17672,13 @@ function pcRenderHistChart(results) {
   });
 
   var nonEmpty = mData.filter(function(m){return !m.empty;});
-  var avg = nonEmpty.length ? nonEmpty.reduce(function(s,m){return s+m.total;},0)/nonEmpty.length : 3200;
+  // Con un solo mes no hay media que valga: se usa la de referencia y se dice.
+  var useRef = nonEmpty.length < 2;
+  var avg = useRef ? PC_AVG_REF : nonEmpty.reduce(function(s,m){return s+m.total;},0)/nonEmpty.length;
   var maxT = Math.max.apply(null, mData.map(function(m){return m.total;}));
   if (maxT===0) maxT = avg||1;
 
-  // Actualizar anillo y pie sparkline con media real
-  var sfEl = document.getElementById('pc-spark-foot');
-  if (sfEl) sfEl.textContent = 'Media real (' + nonEmpty.length + ' meses): €' + Math.round(avg).toLocaleString('es-ES');
-  var lastTotal = mData[mData.length-1].total;
-  var pct = Math.min(lastTotal/avg,1.5), circ=207.3;
-  var ring=document.getElementById('pc-tk-ring'); if(ring) ring.style.strokeDashoffset=circ*(1-Math.min(pct,1));
-  var pctEl=document.getElementById('pc-tk-pct'); if(pctEl) pctEl.textContent=Math.round(pct*100)+'%';
+  pcPaintVsAvg(mData[mData.length-1].total, avg, useRef ? 0 : nonEmpty.length);
 
   window._pcHistData = mData;
   window._pcHistMax  = maxT;
