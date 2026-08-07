@@ -110,8 +110,16 @@ if (!arg || /^(auto|next)$/i.test(arg)) {
 }
 fs.writeFileSync(VERSION_FILE, version + '\n');
 
-// Canal según prefijo: Beta.* → beta, resto (v1.0, etc.) → prod
-const channel = /^beta/i.test(version) ? 'beta' : 'prod';
+// Canal: este repo ES producción (pilotos.aero), así que SIEMPRE 'stable'. No se deduce del
+// prefijo de la versión — la beta vive en OTRO repo (pilotos-backend, rama `beta`, servida por
+// Railway) y se sella aparte.
+// ⚠️ Antes era `/^beta/i.test(version) ? 'beta' : 'prod'`, y eso fallaba por los dos lados:
+//   · Con "Beta.NNN" —que es como se numera SIEMPRE, también en producción— escribía
+//     channel:"beta", así que la etiqueta bajo el logo decía "beta" a los pilotos de PROD. Había
+//     que acordarse de corregirlo A MANO en cada promoción; se coló en Beta.454 y Beta.455.
+//   · El otro valor posible, 'prod', tampoco servía: pilotosChannelLabel() sólo entiende 'stable'
+//     y 'beta'; cualquier otra cosa deja la etiqueta del canal VACÍA.
+const channel = 'stable';
 
 // 2. Fecha-hora de build (UTC, ISO, sin milisegundos) — formato crudo, se formatea en cliente
 const builtAt = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
