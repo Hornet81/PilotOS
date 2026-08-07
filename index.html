@@ -39,9 +39,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.453">
+  <meta name="version" content="Beta.454">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.453","builtAt":"2026-08-06T18:52:38Z","commit":"d741778","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.454","builtAt":"2026-08-07T19:48:23Z","commit":"faa2f62","channel":"beta"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -10750,8 +10750,16 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
         </div>
       </div>
       <!-- Botón importar (pestaña Acumulado) -->
-      <button id="pc-import-btn-acum" onclick="pcImportFromLogbook(pcNowMonth())" style="width:100%;padding:11px 14px;margin-bottom:10px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:12px;color:#FBBF24;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px"><span>📥</span><span>Importar datos desde PilotOS</span></button>
+      <button id="pc-import-btn-acum" onclick="pcImportFromLogbook(pcNowMonth(),{tracker:true,form:false,source:'logbook'})" style="width:100%;padding:11px 14px;margin-bottom:10px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:12px;color:#FBBF24;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px"><span>📥</span><span>Importar datos desde PilotOS</span></button>
       <div id="pc-acum-hint" style="text-align:center;font-size:11px;color:rgba(255,255,255,.3);margin-bottom:12px;line-height:1.65">Plus horas vuelo + dietas según IV Convenio 2026.<br>Nómina completa con retenciones en la pestaña <span style="color:rgba(245,158,11,.55);font-weight:600">◈ Nómina</span>.</div>
+
+      <!-- ════ DETALLE DEL CÁLCULO (solo lectura) ════ -->
+      <div id="pc-detail-card" class="card-box" style="display:none;padding:14px 16px;margin-bottom:12px">
+        <div class="pc-sep"><span>🧮 Detalle del cálculo</span></div>
+        <div id="pc-detail-src" style="display:none;font-size:11px;line-height:1.5;color:#C4B5FD;background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.28);border-radius:10px;padding:8px 11px;margin-bottom:10px"></div>
+        <div id="pc-detail-body"></div>
+        <div style="font-size:10.5px;color:rgba(255,255,255,.35);line-height:1.5;margin-top:10px">Cantidades reales del mes en curso (solo lectura, del logbook). Bruto sin retenciones — la nómina completa está en la pestaña <span style="color:rgba(245,158,11,.55);font-weight:600">◈ Nómina</span>.</div>
+      </div>
 
       <!-- ════ HISTÓRICO 6M ════ -->
       <div id="pc-hist-card" class="card-box" style="display:none;padding:14px 16px">
@@ -10943,7 +10951,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           📅 La nómina paga las variables (vuelo, dietas, nocturnas) del <b style="color:#7DD3FC">mes anterior</b>. Para la nómina de julio, importa <b style="color:#7DD3FC">junio</b>. Por defecto: el mes pasado.
         </div>
       </div>
-      <button id="pc-import-btn" onclick="pcImportFromLogbook()" style="width:100%;padding:11px 14px;margin-bottom:14px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:12px;color:#FBBF24;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+      <button id="pc-import-btn" onclick="pcImportFromLogbook(null,{tracker:false,form:true,source:'roster'})" style="width:100%;padding:11px 14px;margin-bottom:14px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:12px;color:#FBBF24;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
         <span>📥</span><span>Importar datos desde PilotOS</span>
       </button>
       <div class="frow" style="margin-bottom:10px">
@@ -13527,7 +13535,7 @@ function goTo(key){
   if (key === 'pay') {
     // Auto-importar desde Logbook al entrar en PayCheck
     var token = ''; try { token = lsGet('cafi_auth_token',''); } catch(ex) {}
-    if (token && typeof pcImportFromLogbook === 'function') pcImportFromLogbook();
+    if (token && typeof pcImportFromLogbook === 'function') pcImportFromLogbook(pcNowMonth(),{tracker:true,form:false,source:'logbook'});
   }
   var btabs = document.getElementById('btabs');
   if (btabs) btabs.style.display = (key === 'skyview') ? 'none' : '';
@@ -16439,7 +16447,8 @@ document.addEventListener('click', function(e){
   if(mp && !mp.contains(e.target)) pcMpClose();
 });
 
-async function pcImportFromLogbook(month) {
+async function pcImportFromLogbook(month, opts) {
+  opts = opts || {};
   var token = ''; try { token = lsGet('cafi_auth_token',''); } catch(e) {}
   if (!token) { showToast('Inicia sesión en CAFI primero', 'error'); return; }
 
@@ -16456,99 +16465,81 @@ async function pcImportFromLogbook(month) {
   var pcTkImported = false;
 
   try {
-    var r = await fetch(ldBackendUrl() + '/api/paycheck?month=' + month, {
+    var r = await fetch(ldBackendUrl() + '/api/paycheck?month=' + month + '&source=' + source, {
       headers: { 'Authorization': 'Bearer ' + token }
     });
     var data = await r.json();
     if (!r.ok) throw new Error(data.error || 'Error del servidor');
 
     if (data.status === 'empty') {
-      showToast('No hay vuelos en el Logbook para ' + month, 'error');
+      showToast('No hay datos (logbook ni roster) para ' + month, 'error');
       return;
     }
 
-    // ── Rellenar campos del formulario ──
-    function setVal(id, val) {
-      var el = document.getElementById(id);
-      if (el) el.value = val;
-    }
+    function setVal(id, val) { var el = document.getElementById(id); if (el) el.value = val; }
 
-    setVal('pc_hv',      data.block_hours || 0);
-    setVal('pc_hn',      data.night_hours || 0);
-    setVal('pc_dnat',    data.nac_diets   || 0);
-    setVal('pc_dint',    data.int_diets   || 0);
-    setVal('pc_dpern_nat', data.nac_pernoc || 0);
-    setVal('pc_dpern',   data.int_pernoc  || 0);
+    // ── Contadores de simulador/cargos desde el logbook LOCAL (rol: campo 'instr') ──
+    // Necesarios para el formulario (Nómina) Y para el detalle (Acumulado).
+    var _pcMin = function(t){ var m=String(t||'').match(/^(\d{1,2}):(\d{2})$/); return m?parseInt(m[1])*60+parseInt(m[2]):0; };
+    var _tri=0,_tre=0,_lscMin=0,_gtiDays={},_sim=0;
+    (window.ldEntries||[]).forEach(function(en){
+      if(!en||!en.date||String(en.date).slice(0,7)!==month) return;
+      var it=(en.instr||'').toUpperCase();
+      if(it==='TRI') _tri++;
+      else if(it==='TRE') _tre++;
+      else if(it==='LSC') _lscMin+=_pcMin(en.block||en.flightTime);
+      else if(it==='GTI') _gtiDays[en.date]=1;
+      else if(it==='SIM') _sim++;   // simulador como alumno → plus formación
+    });
+    var _lscH=Math.round(_lscMin/60*100)/100, _gti=Object.keys(_gtiDays).length;
+    data._sims = { tri:_tri, tre:_tre, lscH:_lscH, gti:_gti, formacion:_sim };
+    data.month = month;
 
-    // ── Cargos de instrucción/simulador (TRI/TRE/LSC/GTI) desde el logbook LOCAL ──
-    // El backend aún no los cuenta; se derivan del campo 'instr' de cada entrada del mes.
-    // TRI/TRE = nº de sesiones de sim · LSC = horas (block) · GTI = nº de días. Si hay
-    // alguno, auto-activa la sección "¿Tienes algún cargo activo?".
-    try {
-      var _pcMin = function(t){ var m=String(t||'').match(/^(\d{1,2}):(\d{2})$/); return m?parseInt(m[1])*60+parseInt(m[2]):0; };
-      var _tri=0,_tre=0,_lscMin=0,_gtiDays={},_sim=0;
-      (window.ldEntries||[]).forEach(function(en){
-        if(!en||!en.date||String(en.date).slice(0,7)!==month) return;
-        var it=(en.instr||'').toUpperCase();
-        if(it==='TRI') _tri++;
-        else if(it==='TRE') _tre++;
-        else if(it==='LSC') _lscMin+=_pcMin(en.block||en.flightTime);
-        else if(it==='GTI') _gtiDays[en.date]=1;
-        else if(it==='SIM') _sim++;   // simulador como alumno → plus formación (119,03/sesión)
-      });
-      var _lscH=Math.round(_lscMin/60*100)/100, _gti=Object.keys(_gtiDays).length;
+    // ── Rellenar el FORMULARIO (solo pestaña Nómina; opts.form !== false) ──
+    if (opts.form !== false) {
+      setVal('pc_hv', data.block_hours||0); setVal('pc_hn', data.night_hours||0);
+      setVal('pc_dnat', data.nac_diets||0); setVal('pc_dint', data.int_diets||0);
+      setVal('pc_dpern_nat', data.nac_pernoc||0); setVal('pc_dpern', data.int_pernoc||0);
       setVal('pc_tri',_tri); setVal('pc_tre',_tre); setVal('pc_lsc',_lscH); setVal('pc_gti',_gti); setVal('pc_formacion',_sim);
       if(_tri||_tre||_lscH||_gti||_sim){
         try{ if(typeof PC_STATE!=='undefined') PC_STATE.cargo='si'; }catch(_e){}
         var _cw=document.getElementById('pc_cargos_wrap'); if(_cw) _cw.style.display='block';
         document.querySelectorAll('.pc-tog-btn').forEach(function(b){ if((b.getAttribute('onclick')||'').indexOf("'cargo'")>=0){ b.classList.toggle('on', b.getAttribute('data-val')==='si'); } });
       }
-    } catch(_e){}
-
-    // ── Actividades de tierra + posicionales desde el ROSTER del mismo mes ──
-    // e-learning (LM→2114), posicionales (→783), oficina (OFIC→2107), sparring
-    // (SPAR→2017), ground (GRND→414, en 'cargos'). Los sims/TRI/TRE/LSC/formación
-    // siguen viniendo del LOGBOOK por rol (bloque de arriba). Solo se aplica si el
-    // roster de ese mes está importado — si no, no se pisa nada y se avisa.
-    try {
-      if (data.roster_available) {
-        var _ra = data.roster_activity || {};
-        setVal('pc_fonline',  _ra.elearn_h     || 0);
-        setVal('pc_hpos',     _ra.positional_h || 0);
-        setVal('pc_oficina',  _ra.office_days  || 0);
-        setVal('pc_sparring', _ra.sparring_h   || 0);
-        if (_ra.ground_days) {                       // roster manda sobre pc_gti si tiene datos
-          setVal('pc_gti', _ra.ground_days);
-          try{ if(typeof PC_STATE!=='undefined') PC_STATE.cargo='si'; }catch(_e){}
-          var _cw2=document.getElementById('pc_cargos_wrap'); if(_cw2) _cw2.style.display='block';
+      try {
+        if (data.roster_available) {
+          var _ra = data.roster_activity || {};
+          setVal('pc_fonline', _ra.elearn_h||0); setVal('pc_hpos', _ra.positional_h||0);
+          setVal('pc_oficina', _ra.office_days||0); setVal('pc_sparring', _ra.sparring_h||0);
+          if (_ra.ground_days) { setVal('pc_gti', _ra.ground_days);
+            try{ if(typeof PC_STATE!=='undefined') PC_STATE.cargo='si'; }catch(_e){}
+            var _cw2=document.getElementById('pc_cargos_wrap'); if(_cw2) _cw2.style.display='block'; }
+        } else if (source !== 'roster') {
+          showToast('ℹ️ Importa también el roster de ' + month + ' para e-learnings, posicionales y oficina', 'warning');
         }
-      } else {
-        showToast('ℹ️ Importa también el roster de ' + month + ' para incluir e-learnings, posicionales y oficina', 'warning');
-      }
-    } catch(_e){}
+      } catch(_e){}
 
-    // ── Mostrar banner de estado ──
-    var banner = document.getElementById('pc-import-banner');
-    var dot    = document.getElementById('pc-import-status-dot');
-    var txt    = document.getElementById('pc-import-status-txt');
-    var sub    = document.getElementById('pc-import-sub');
-    var flights= document.getElementById('pc-import-flights');
+      // banner de estado (Nómina)
+      var banner = document.getElementById('pc-import-banner');
+      var dot = document.getElementById('pc-import-status-dot'), txt = document.getElementById('pc-import-status-txt');
+      var sub = document.getElementById('pc-import-sub'), flights = document.getElementById('pc-import-flights');
+      var isRoster = (data.source === 'roster'), isConfirmed = (data.status === 'confirmed');
+      if (banner) banner.style.display = 'block';
+      if (dot) dot.style.background = isRoster ? '#A78BFA' : (isConfirmed ? '#22D3EE' : '#F59E0B');
+      if (txt){ txt.textContent = isRoster ? 'Del roster' : (isConfirmed ? 'Confirmado' : 'Estimado'); txt.style.color = isRoster ? '#A78BFA' : (isConfirmed ? '#22D3EE' : '#FBBF24'); }
+      if (flights) flights.textContent = (data.flights_total||0) + ' vuelos';
+      if (sub) sub.textContent = isRoster
+        ? '⚠️ Horas y dietas tomadas del ROSTER (programado). Si el roster de ese mes no está actualizado, el importe puede variar.'
+        : (isConfirmed ? 'Todos los vuelos tienen AOBT/AIBT — datos confirmados.' : 'Faltan tiempos reales en algunos vuelos — añádelos en el Logbook para confirmar.');
+      showToast('✅ Datos importados para ' + month + (isRoster?' (roster)':(isConfirmed?' (confirmado)':' (estimado)')));
+    }
 
-    if (banner) banner.style.display = 'block';
-    var isConfirmed = (data.status === 'confirmed');
-    if (dot) dot.style.background = isConfirmed ? '#22D3EE' : '#F59E0B';
-    if (txt) txt.textContent = isConfirmed ? 'Confirmado' : 'Estimado';
-    if (txt) txt.style.color  = isConfirmed ? '#22D3EE' : '#FBBF24';
-    if (flights) flights.textContent = data.flights_complete + '/' + data.flights_total + ' vuelos completos';
-    if (sub) sub.textContent = isConfirmed
-      ? 'Todos los vuelos tienen AOBT/AIBT registrados — datos de nómina confirmados.'
-      : 'Faltan tiempos reales en algunos vuelos — abre el Logbook y añade ATD/ATA para confirmar.';
-
-    showToast('✅ Datos importados para ' + month + ' (' + (isConfirmed ? 'Confirmado' : 'Estimado') + ')');
-    data.month = month;
-    pcRenderTracker(data);
-    pcTkImported = true;
-    pcLoadHistory(data, month);
+    // ── Render del TRACKER + detalle (solo pestaña Acumulado; opts.tracker) ──
+    if (opts.tracker) {
+      pcRenderTracker(data);
+      pcTkImported = true;
+      pcLoadHistory(data, month);
+    }
   } catch(err) {
     showToast('❌ ' + err.message, 'error');
   } finally {
@@ -17359,15 +17350,27 @@ else { document.addEventListener('DOMContentLoaded', function(){ try { ppInit();
 var pcTkAnimFrom = 0;
 function pcRenderTracker(data) {
   var esp = (document.getElementById('pc_esp') || {}).value || 'cmd';
-  var rateHV   = (CONVENIO[esp] && CONVENIO[esp].plusHoraVuelo) ? CONVENIO[esp].plusHoraVuelo : 39.29;
+  var T = CONVENIO[esp] || CONVENIO.cmd;
+  var rateHV   = T.plusHoraVuelo || 39.29;
+  var rateNoct = T.horaNoct || 44.2;
+  var ratePos  = T.horaPos || 29.46;
   var dietaNac = CONVENIO.dietas.nac.sujeta + CONVENIO.dietas.nac.exenta;   // 67.22
   var dietaInt = CONVENIO.dietas.int.sujeta + CONVENIO.dietas.int.exenta;   // 119.03
+  var pernNac  = CONVENIO.dietas.nac_pern.sujeta + CONVENIO.dietas.nac_pern.exenta;
+  var pernInt  = CONVENIO.dietas.pernoc.sujeta + CONVENIO.dietas.pernoc.exenta;
+  var rElearn=12.35, rOfi=119.03, rGti=(esp==='cmd'?210.05:161.04), rTri=800.99, rTre=924.22, rForm=119.03, rSpar=70.02;
   var AVG = 3200;
 
-  var eurHV  = (data.block_hours || 0) * rateHV;
-  var eurNac = (data.nac_diets   || 0) * dietaNac;
-  var eurInt = (data.int_diets   || 0) * dietaInt;
-  var total  = eurHV + eurNac + eurInt;
+  var _ra = data.roster_activity || {}, _sims = data._sims || {};
+  var qBlk=+data.block_hours||0, qNoct=+data.night_hours||0, qDnac=+data.nac_diets||0, qDint=+data.int_diets||0;
+  var qPnac=+data.nac_pernoc||0, qPint=+data.int_pernoc||0, qPos=+_ra.positional_h||0, qElearn=+_ra.elearn_h||0;
+  var qOfi=+_ra.office_days||0, qGrnd=+_ra.ground_days||0, qSpar=+_ra.sparring_h||0;
+  var qTri=+_sims.tri||0, qTre=+_sims.tre||0, qForm=+_sims.formacion||0;
+
+  var eurHV=qBlk*rateHV, eurNoct=qNoct*rateNoct, eurNac=qDnac*dietaNac, eurInt=qDint*dietaInt;
+  var eurPnac=qPnac*pernNac, eurPint=qPint*pernInt, eurPos=qPos*ratePos, eurElearn=qElearn*rElearn;
+  var eurOfi=qOfi*rOfi, eurGrnd=qGrnd*rGti, eurSpar=qSpar*rSpar, eurTri=qTri*rTri, eurTre=qTre*rTre, eurForm=qForm*rForm;
+  var total = eurHV+eurNoct+eurNac+eurInt+eurPnac+eurPint+eurPos+eurElearn+eurOfi+eurGrnd+eurSpar+eurTri+eurTre+eurForm;
 
   function fmtE(n) { return n.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2}); }
 
@@ -17431,6 +17434,44 @@ function pcRenderTracker(data) {
   var spL = document.getElementById('pc-spark-line'); if (spL) spL.setAttribute('d', sPath);
   var spF = document.getElementById('pc-spark-fill'); if (spF) spF.setAttribute('d', sPath + ' L ' + sx(arr[arr.length-1].day).toFixed(1) + ' ' + H + ' L ' + sx(arr[0].day).toFixed(1) + ' ' + H + ' Z');
   var spTip = document.getElementById('pc-spark-tip'); if (spTip) spTip.textContent = '€' + fmtE(total);
+
+  // ── Detalle del cálculo (solo lectura): concepto → cantidad → € ──
+  function _n2(x){ return x.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  var det = [
+    ['🛫','Horas de vuelo',                _n2(qBlk)+' h',    eurHV],
+    ['🌙','Nocturnas',                     _n2(qNoct)+' h',   eurNoct],
+    ['🍽️','Dietas nacionales',            qDnac+' días',      eurNac],
+    ['🌍','Dietas internacionales',        qDint+' días',      eurInt],
+    ['🛏️','Pernoctas nacionales',         qPnac+' noches',    eurPnac],
+    ['🛏️','Pernoctas internacionales',    qPint+' noches',    eurPint],
+    ['✈️','Posicionales',                  _n2(qPos)+' h',    eurPos],
+    ['💻','E-learning',                    _n2(qElearn)+' h', eurElearn],
+    ['🏢','Actividad oficinas',            qOfi+' días',       eurOfi],
+    ['🎓','Ground / instrucción tierra',   qGrnd+' días',      eurGrnd],
+    ['🥊','Sparring',                      _n2(qSpar)+' h',   eurSpar],
+    ['🎮','Simulador TRI',                 qTri+' ses.',       eurTri],
+    ['🎮','Simulador TRE',                 qTre+' ses.',       eurTre],
+    ['🎓','Simulador (alumno/formación)',  qForm+' ses.',      eurForm]
+  ];
+  var body = det.filter(function(d){ return d[3] > 0.005; }).map(function(d){
+    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.06)">'
+      +'<span style="font-size:15px;width:20px;text-align:center;flex:none">'+d[0]+'</span>'
+      +'<span style="flex:1;font-size:12.5px;color:rgba(255,255,255,.82)">'+d[1]+'</span>'
+      +'<span style="font-family:\'Space Mono\',monospace;font-size:11.5px;color:#FBBF24;min-width:60px;text-align:right">'+d[2]+'</span>'
+      +'<span style="font-family:\'Space Mono\',monospace;font-size:12px;font-weight:600;color:#34D399;min-width:76px;text-align:right">€'+_n2(d[3])+'</span>'
+      +'</div>';
+  }).join('');
+  if (!body) body = '<div style="text-align:center;font-size:12px;color:rgba(255,255,255,.4);padding:10px">Aún no hay actividad este mes.</div>';
+  body += '<div style="display:flex;align-items:center;gap:8px;padding:10px 2px 0;margin-top:4px;border-top:1px solid rgba(245,158,11,.25)">'
+    +'<span style="flex:1;font-size:12.5px;font-weight:700;color:#FBBF24">◈ Total devengado (bruto)</span>'
+    +'<span style="font-family:\'Space Mono\',monospace;font-size:13px;font-weight:700;color:#34D399">€'+_n2(total)+'</span></div>';
+  var dbody = document.getElementById('pc-detail-body'); if (dbody) dbody.innerHTML = body;
+  var dcard = document.getElementById('pc-detail-card'); if (dcard) dcard.style.display = 'block';
+  var dsrc = document.getElementById('pc-detail-src');
+  if (dsrc) {
+    if (data.source === 'roster') { dsrc.style.display='block'; dsrc.innerHTML='ℹ️ Datos del <b>ROSTER</b> (programado), no del logbook. Si el roster de este mes no está actualizado, el importe puede variar.'; }
+    else dsrc.style.display='none';
+  }
 }
 
 /* ══ Pay Check: carga histórico 6M ══ */
@@ -19738,7 +19779,7 @@ function ldSave(){
   ldSaveData(); ldCloseModal(); ldRender(); ldStats(); ldUpdatePlanBanners();
   ldBgSync({delay:2000,force:true}); // sync unificado: push + pull + estado
   // Si el piloto tiene PayCheck abierto, refrescar automáticamente
-  if (typeof curScreen !== 'undefined' && curScreen === 'pay' && typeof pcImportFromLogbook === 'function') pcImportFromLogbook();
+  if (typeof curScreen !== 'undefined' && curScreen === 'pay' && typeof pcImportFromLogbook === 'function') pcImportFromLogbook(pcNowMonth(),{tracker:true,form:false,source:'logbook'});
   // Si el Roster tiene un día seleccionado, refrescar el detalle para que aparezca la L cyan
   if (typeof RST !== 'undefined' && RST.editDate && typeof rosterSelectDay === 'function') {
     setTimeout(function(){ rosterSelectDay(RST.editDate); }, 60);
