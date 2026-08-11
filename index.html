@@ -56,9 +56,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.510">
+  <meta name="version" content="Beta.511">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.510","builtAt":"2026-08-11T13:33:33Z","commit":"4de4b29","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.511","builtAt":"2026-08-11T19:00:29Z","commit":"edbea90","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -11969,6 +11969,10 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
               <div class="la-prog-track"><div class="la-prog-fill" id="la-total-prog-bar" style="background:linear-gradient(90deg,#7C3AED,#22D3EE)"></div></div>
             </div>
           </div>
+          <div class="la-card">
+            <div class="la-card-label">Fiabilidad del logbook</div>
+            <div class="la-stat-grid" id="la-trust-grid"></div>
+          </div>
         </div>
       </div>
 
@@ -12001,6 +12005,10 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           <div class="la-card">
             <div class="la-card-label">Motivos de retraso</div>
             <div id="la-bars-delay"></div>
+          </div>
+          <div class="la-card">
+            <div class="la-card-label">Rotación y recuperación</div>
+            <div class="la-stat-grid" id="la-turn-grid"></div>
           </div>
         </div>
       </div>
@@ -43106,6 +43114,102 @@ function laRenderAnalytics() {
       var _catTop=Object.keys(_dcCatMins).sort(function(a,b){ return _dcCatMins[b]-_dcCatMins[a]; })[0];
       if(_catTop) _bDly.innerHTML+='<div class="la-stat-box-sub" style="margin-top:8px">Lo que más te retrasa: <strong style="color:#F59E0B">'+_catTop+'</strong> · '+_dcCatMins[_catTop]+' min en total</div>';
       setTimeout(laAnimateFills,80);
+    }
+  }
+
+  // ════ ROTACIÓN Y RECUPERACIÓN ════════════════════════════════
+  // Turnaround REAL: IN de un vuelo → OUT del siguiente del MISMO día. Es tiempo
+  // que hoy no se ve en ningún sitio y dice si tus días van holgados o al límite.
+  // Solo cuenta pares consecutivos del mismo día y por debajo de 4 h: por encima
+  // no es una rotación, es un hueco de programación y desvirtúa la media.
+  var _byDay={};
+  entries.forEach(function(e){
+    if(!e||!e.date) return;
+    var _in=ldT2mDelay(e.ata||e.aibt), _out=ldT2mDelay(e.atd||e.aobt);
+    if(_in==null&&_out==null) return;
+    (_byDay[e.date]=_byDay[e.date]||[]).push({e:e,in:_in,out:_out});
+  });
+  var _turns=[], _turnMin=null;
+  Object.keys(_byDay).forEach(function(d){
+    var day=_byDay[d].filter(function(x){ return x.out!=null; })
+                     .sort(function(a,b){ return a.out-b.out; });
+    for(var i=0;i<day.length-1;i++){
+      var prevIn=day[i].in, nextOut=day[i+1].out;
+      if(prevIn==null||nextOut==null) continue;
+      var t=nextOut-prevIn;
+      if(t<-120) t+=1440;                    // el par cruza medianoche
+      // Se descarta lo que no es una rotación: negativo, o hueco de más de 4 h.
+      // Aquí cae también el día anotado entero bajo una sola fecha que cruza
+      // medianoche (22:00 y 00:20 juntos): al ordenar por hora de salida el orden
+      // se invierte y el par sale absurdo. Con solo horas no se puede distinguir
+      // ese caso de un día largo 07:00–23:00, así que se PIERDE la rotación en vez
+      // de inventarla — un turnaround falso contamina la media, uno ausente no.
+      if(t<=0||t>240) continue;
+      _turns.push(t);
+      if(!_turnMin||t<_turnMin.t) _turnMin={t:t,dep:day[i+1].e.dep,arr:day[i+1].e.arr,date:d};
+    }
+  });
+
+  // Retraso recuperado en vuelo: sales tarde y llegas menos tarde. La diferencia
+  // es tiempo que has recuperado en el aire — la cara amable del panel de arriba.
+  var _recSum=0, _recN=0, _recBest=null;
+  entries.forEach(function(e){
+    if(!e) return;
+    var so=ldT2mDelay(e.sched_out||e.std), out=ldT2mDelay(e.atd||e.aobt);
+    var si=ldT2mDelay(e.sched_in||e.sta),  inn=ldT2mDelay(e.ata||e.aibt);
+    if(so==null||out==null||si==null||inn==null) return;
+    var dOut=out-so; if(dOut<-120) dOut+=1440;
+    var dIn=inn-si;  if(dIn<-120)  dIn+=1440;
+    if(dOut<=0) return;                      // sin retraso de salida no hay nada que recuperar
+    var rec=dOut-dIn;                        // >0 = recuperado; <0 = perdido más aún
+    if(rec<=0) return;
+    _recSum+=rec; _recN++;
+    if(!_recBest||rec>_recBest.rec) _recBest={rec:rec,dep:e.dep,arr:e.arr,date:e.date};
+  });
+
+  var _tGrid=_e('la-turn-grid');
+  if(_tGrid){
+    var _tBoxes=[];
+    if(_turns.length){
+      var _tAvg=Math.round(_turns.reduce(function(s,t){return s+t;},0)/_turns.length);
+      _tBoxes.push({lbl:'Rotación media', val:_tAvg+' min', cls:'la-cyan', sub:_turns.length+' rotaciones'});
+      if(_turnMin) _tBoxes.push({lbl:'La más justa', val:_turnMin.t+' min', cls:'',
+        sub:[(_turnMin.dep&&_turnMin.arr)?(_turnMin.dep+'→'+_turnMin.arr):'', _turnMin.date?ldFmtD(_turnMin.date):''].filter(Boolean).join(' · ')});
+    }
+    if(_recN){
+      _tBoxes.push({lbl:'Recuperado en vuelo', val:Math.round(_recSum/60)+' h', cls:'la-cyan', sub:'en '+_recN+' vuelos'});
+      if(_recBest) _tBoxes.push({lbl:'Mejor recuperada', val:'−'+_recBest.rec+' min', cls:'',
+        sub:[(_recBest.dep&&_recBest.arr)?(_recBest.dep+'→'+_recBest.arr):'', _recBest.date?ldFmtD(_recBest.date):''].filter(Boolean).join(' · ')});
+    }
+    _tGrid.innerHTML = _tBoxes.length
+      ? _tBoxes.map(function(b){ return '<div class="la-stat-box"><div class="la-stat-box-lbl">'+b.lbl+'</div><div class="la-stat-box-val '+b.cls+'">'+b.val+'</div>'+(b.sub?'<div class="la-stat-box-sub">'+b.sub+'</div>':'')+'</div>'; }).join('')
+      : '<div class="la-empty-text" style="padding:8px 0;grid-column:1/-1">Anota IN y OUT en vuelos del mismo día para ver tus rotaciones</div>';
+  }
+
+  // ════ FIABILIDAD DEL LOGBOOK ═════════════════════════════════
+  // Poco vistoso, pero es lo que te dice si te puedes fiar del resto de números:
+  // un logbook lleno de horas estimadas hace que toda esta pantalla sea una
+  // aproximación. estado y source ya los graba cada entrada al guardarse.
+  var _trEl=_e('la-trust-grid');
+  if(_trEl){
+    var _conf=0, _est=0, _srcCnt={};
+    entries.forEach(function(e){
+      if(!e) return;
+      if(e.estado==='estimado') _est++; else _conf++;
+      var s=e.source||'MANUAL';
+      _srcCnt[s]=(_srcCnt[s]||0)+1;
+    });
+    var _tot=_conf+_est;
+    if(!_tot){ _trEl.innerHTML='<div class="la-empty-text" style="padding:8px 0;grid-column:1/-1">Sin vuelos todavía</div>'; }
+    else {
+      var _topSrc=Object.keys(_srcCnt).sort(function(a,b){ return _srcCnt[b]-_srcCnt[a]; })[0];
+      var _SRC={'MANUAL':'a mano','ADSB':'desde ADS-B','MCDU-OCR':'del MCDU'};
+      var _boxes2=[
+        {lbl:'Horas confirmadas', val:Math.round(_conf/_tot*100)+'%', cls:'la-cyan', sub:_conf+' de '+_tot+' vuelos'},
+        {lbl:'Con horas estimadas', val:String(_est), cls:'', sub:_est?'revísalos cuando puedas':'ninguno, impecable'},
+        {lbl:'Origen más común', val:(_SRC[_topSrc]||_topSrc), cls:'', sub:Math.round(_srcCnt[_topSrc]/_tot*100)+'% de los vuelos'},
+      ];
+      _trEl.innerHTML=_boxes2.map(function(b){ return '<div class="la-stat-box"><div class="la-stat-box-lbl">'+b.lbl+'</div><div class="la-stat-box-val '+b.cls+'">'+b.val+'</div>'+(b.sub?'<div class="la-stat-box-sub">'+b.sub+'</div>':'')+'</div>'; }).join('');
     }
   }
 
