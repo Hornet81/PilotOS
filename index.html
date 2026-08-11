@@ -56,9 +56,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.505">
+  <meta name="version" content="Beta.510">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.505","builtAt":"2026-08-10T15:31:17Z","commit":"c4765f3","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.510","builtAt":"2026-08-11T13:33:33Z","commit":"4de4b29","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -11994,6 +11994,14 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
             <div class="la-card-label">Sectores</div>
             <div class="la-stat-grid" id="la-sectores-grid"></div>
           </div>
+          <div class="la-card">
+            <div class="la-card-label">Puntualidad · cota 15</div>
+            <div class="la-stat-grid" id="la-otp-grid"></div>
+          </div>
+          <div class="la-card">
+            <div class="la-card-label">Motivos de retraso</div>
+            <div id="la-bars-delay"></div>
+          </div>
         </div>
       </div>
 
@@ -12081,6 +12089,11 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
             <div class="la-mini-card"><div class="la-mini-val" id="la-c28h" style="font-size:18px">—</div><div class="la-mini-lbl">30 días</div></div>
             <div class="la-mini-card"><div class="la-mini-val" id="la-c12m" style="font-size:18px">—</div><div class="la-mini-lbl">12 meses</div></div>
             <div class="la-mini-card"><div class="la-mini-val" id="la-c-sectors" style="font-size:18px">—</div><div class="la-mini-lbl">sectores</div></div>
+          </div>
+          <div class="la-hero-card la-hero-green" style="text-align:center">
+            <div class="la-hero-label" style="color:rgba(16,185,129,.6);text-align:center">Personas transportadas</div>
+            <div class="la-hero-route" id="la-pax-total" style="color:#34D399;text-shadow:0 0 24px rgba(16,185,129,.45)">—</div>
+            <div class="la-hero-foot" id="la-pax-cmp">—</div>
           </div>
           <div class="la-card">
             <div class="la-card-label">Desglose de horas</div>
@@ -13349,7 +13362,20 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       <label style="display:block;font-family:'Space Grotesk',sans-serif;font-size:11px;color:rgba(8,145,178,.8);margin-bottom:6px">Email corporativo</label>
       <input id="ec-email" type="email" autocomplete="off" placeholder="nombre.apellido@correo.com" style="width:100%;padding:12px 13px;background:rgba(255,255,255,.04);border:1.5px solid rgba(8,145,178,.3);border-radius:11px;color:#F0FFFE;font-family:'Space Mono',monospace;font-size:14px;outline:none;margin-bottom:12px;box-sizing:border-box">
       <label style="display:block;font-family:'Space Grotesk',sans-serif;font-size:11px;color:rgba(8,145,178,.8);margin-bottom:6px">Contraseña</label>
-      <input id="ec-pass" type="password" autocomplete="off" placeholder="••••••••" style="width:100%;padding:12px 13px;background:rgba(255,255,255,.04);border:1.5px solid rgba(8,145,178,.3);border-radius:11px;color:#F0FFFE;font-family:'Space Mono',monospace;font-size:14px;outline:none;margin-bottom:14px;box-sizing:border-box">
+      <!-- Ojo para VER la contraseña: una letra mal escrita aquí no da un error claro,
+           manda al piloto a un login de Microsoft que falla y le deja sin saber por qué.
+           Poder mirar lo que ha escrito antes de enviar evita justo eso. Empieza oculta;
+           el padding derecho reserva sitio al botón para que el texto no se meta debajo. -->
+      <div style="position:relative;margin-bottom:14px">
+        <input id="ec-pass" type="password" autocomplete="off" placeholder="••••••••" style="width:100%;padding:12px 44px 12px 13px;background:rgba(255,255,255,.04);border:1.5px solid rgba(8,145,178,.3);border-radius:11px;color:#F0FFFE;font-family:'Space Mono',monospace;font-size:14px;outline:none;box-sizing:border-box">
+        <button id="ec-pass-eye" type="button" aria-label="Mostrar contraseña" aria-pressed="false"
+          onclick="ecTogglePass()"
+          style="position:absolute;right:4px;top:50%;transform:translateY(-50%);width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:none;border:none;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent">
+          <svg id="ec-pass-eye-svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
       <label style="display:flex;gap:9px;align-items:flex-start;font-family:'Space Mono',monospace;font-size:10px;color:rgba(248,250,252,.5);line-height:1.5;margin-bottom:16px;cursor:pointer">
         <input id="ec-consent" type="checkbox" style="margin-top:2px;flex-shrink:0">
         <span>Autorizo a PilotOS a iniciar sesión en eCrews en mi nombre solo para importar mi roster. Mi contraseña no se almacena.</span>
@@ -13484,6 +13510,13 @@ html.day #ec-sync-overlay [style*="background:rgba(255,255,255,.04)"]{
   border-color:rgba(13,148,136,.4) !important;
 }
 html.day #ec-email::placeholder,html.day #ec-pass::placeholder{color:#94A3B8 !important}
+/* Ojo de "ver contraseña": la hoja es OSCURA de noche y CLARA de día, así que el icono
+   necesita un color por tema. El estado "visible" va más marcado a propósito, para que se
+   note de un vistazo que la contraseña está a la vista. */
+#ec-pass-eye{color:rgba(240,255,254,.6)}
+#ec-pass-eye.ec-eye-on{color:#22D3EE}
+html.day #ec-pass-eye{color:#0E7490 !important}
+html.day #ec-pass-eye.ec-eye-on{color:#134E4A !important}
 
 /* Spinner */
 html.day .ec-spin{border-color:rgba(13,148,136,.25) !important;border-top-color:#0891B2 !important}
@@ -33165,6 +33198,9 @@ function buildLegsFromRoster() {
         flight: e.flightNum || '—',
         dep: e.dep,
         arr: e.arr,
+        // Posicional (deadhead): el piloto va de PASAJERO en este tramo. ARIA no debe
+        // brifarlo como sector operativo (pista/NOTAMs/viento) sino en "modo pasajero".
+        positioning: !!(e.isPositioning || e.positioning || (e.dep && String(e.dep).charAt(0) === '*')),
         std: stdZ,
         sta: staZ,
         _arrMs: _legArrMs(e),
@@ -38972,7 +39008,37 @@ function _ecShowState(id){
   ['ec-state-creds','ec-state-number','ec-state-fetching','ec-state-months','ec-state-received'].forEach(function(s){
     var el = document.getElementById(s); if(el) el.style.display = (s===id ? 'block' : 'none');
   });
+  // La contraseña vuelve a ocultarse siempre que se muestra el formulario: que no se
+  // quede a la vista de un intento anterior sin que el piloto se dé cuenta.
+  if(id === 'ec-state-creds') ecTogglePass(false);
 }
+// Ver/ocultar la contraseña de eCrews. `force` opcional: false = ocultar siempre.
+// Se conserva el cursor porque cambiar el type lo manda al final en algunos navegadores,
+// y ahí es fácil seguir escribiendo en el sitio equivocado.
+// ★ window.* OBLIGATORIO: este bloque vive en un closure y el botón la llama desde un
+// onclick inline. Declarada como `function ecTogglePass()` a secas, el botón no hacía
+// nada — igual que ecProxyConnect/ecProxyCancel, que también van por window.
+window.ecTogglePass = function(force){
+  var inp = document.getElementById('ec-pass');
+  var btn = document.getElementById('ec-pass-eye');
+  var svg = document.getElementById('ec-pass-eye-svg');
+  if(!inp || !btn || !svg) return;
+  var ver = (force === false) ? false : (inp.type === 'password');
+  var ini = inp.selectionStart, fin = inp.selectionEnd, tenia = (document.activeElement === inp);
+  inp.type = ver ? 'text' : 'password';
+  btn.setAttribute('aria-pressed', ver ? 'true' : 'false');
+  btn.setAttribute('aria-label', ver ? 'Ocultar contraseña' : 'Mostrar contraseña');
+  // El color va por CLASE, no inline: la hoja de eCrews es clara en modo día y oscura
+  // de noche, y un color inline no se puede corregir desde el bloque html.day.
+  btn.classList.toggle('ec-eye-on', ver);
+  svg.innerHTML = ver
+    // ojo tachado
+    ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>'
+      + '<path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>'
+      + '<path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+    : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+  if(tenia){ try{ inp.focus(); inp.setSelectionRange(ini, fin); }catch(e){} }
+};
 function _ecProxyReset(){
   if(_ecProxyPollTimer){ clearInterval(_ecProxyPollTimer); _ecProxyPollTimer = null; }
   _ecProxySid = null; _ecProxyRoster = null; _ecProxyByMonth = [];
@@ -42961,6 +43027,104 @@ function laRenderAnalytics() {
     secEl.innerHTML=boxes.map(function(b){ return '<div class="la-stat-box"><div class="la-stat-box-lbl">'+b.lbl+'</div><div class="la-stat-box-val '+b.cls+'">'+b.val+'</div>'+(b.sub?'<div class="la-stat-box-sub">'+b.sub+'</div>':'')+'</div>'; }).join('');
   }
 
+  // ════ PUNTUALIDAD · COTA 15 ══════════════════════════════════
+  // MISMA regla que ldCheckDelay() en el modal del logbook, a propósito: si aquí
+  // se calculara distinto, Stats y la ficha del vuelo dirían dos retrasos
+  // diferentes del mismo vuelo. delay = OUT real − OUT programado, con el mismo
+  // arreglo de cruce de medianoche, y "dentro de cota" es < 15 min.
+  var _otpTot=0, _otpOnTime=0, _otpIn=0, _otpOut=0, _dlySum=0, _dlyWorst=null;
+  var _dcMins={}, _dcCnt={}, _dcCatMins={};
+  entries.forEach(function(e){
+    if(!e) return;
+    // Mismos fallbacks que usa el modal al rellenar sus campos.
+    var sm=ldT2mDelay(e.sched_out||e.std), om=ldT2mDelay(e.atd||e.aobt);
+    if(sm==null||om==null||isNaN(sm)||isNaN(om)) return;   // sin horas → no cuenta
+    var d=om-sm;
+    if(d<-120) d+=1440;
+    _otpTot++;
+    if(d<=0){ _otpOnTime++; }
+    else {
+      if(d<15) _otpIn++; else _otpOut++;
+      _dlySum+=d;
+      if(!_dlyWorst||d>_dlyWorst.d) _dlyWorst={d:d,e:e};
+    }
+    // Motivos: los códigos que el piloto anotó en ESE vuelo.
+    (Array.isArray(e.delayCodes)?e.delayCodes:[]).forEach(function(dc){
+      var code=String(dc&&dc.code||'').trim().toUpperCase();
+      if(!code) return;
+      var mins=parseInt(dc.mins)||0;
+      _dcCnt[code]=(_dcCnt[code]||0)+1;
+      _dcMins[code]=(_dcMins[code]||0)+mins;
+      var _r=(typeof ldResolveCode==='function')?ldResolveCode(code):{};
+      var _cat=_r.categoryName||'Sin categoría';
+      _dcCatMins[_cat]=(_dcCatMins[_cat]||0)+mins;
+    });
+  });
+
+  var _otpGrid=_e('la-otp-grid');
+  if(_otpGrid){
+    if(!_otpTot){
+      _otpGrid.innerHTML='<div class="la-empty-text" style="padding:8px 0;grid-column:1/-1">Anota OUT y OUT programado en tus vuelos para ver la puntualidad</div>';
+    } else {
+      var _dlyTot=_otpIn+_otpOut;
+      // Puntualidad = salidas con menos de 15 min de retraso (incluye las que
+      // salieron a hora o antes). Es el D15 con el que mide la compañía.
+      var _pct=Math.round((_otpOnTime+_otpIn)/_otpTot*100);
+      var _boxes=[
+        {lbl:'Dentro de cota 15', val:String(_otpIn),  cls:'la-cyan', sub:_dlyTot?Math.round(_otpIn/_dlyTot*100)+'% de los retrasados':'—'},
+        {lbl:'Fuera de cota 15',  val:String(_otpOut), cls:'',        sub:_dlyTot?Math.round(_otpOut/_dlyTot*100)+'% de los retrasados':'—'},
+        {lbl:'Puntualidad D15',   val:_pct+'%',        cls:'la-cyan', sub:'de '+_otpTot+' salidas con hora'},
+        {lbl:'Retraso medio',     val:_dlyTot?('+'+Math.round(_dlySum/_dlyTot)+' min'):'—', cls:'', sub:_dlyTot+' con retraso'},
+      ];
+      if(_dlyWorst) _boxes.push({lbl:'Mayor retraso', val:'+'+_dlyWorst.d+' min', cls:'',
+        sub:[(_dlyWorst.e.dep&&_dlyWorst.e.arr)?(_dlyWorst.e.dep+'→'+_dlyWorst.e.arr):'', _dlyWorst.e.date?ldFmtD(_dlyWorst.e.date):''].filter(Boolean).join(' · ')});
+      _otpGrid.innerHTML=_boxes.map(function(b){ return '<div class="la-stat-box"><div class="la-stat-box-lbl">'+b.lbl+'</div><div class="la-stat-box-val '+b.cls+'">'+b.val+'</div>'+(b.sub?'<div class="la-stat-box-sub">'+b.sub+'</div>':'')+'</div>'; }).join('');
+    }
+  }
+
+  // Motivos, ordenados por minutos perdidos — no por número de veces: tres códigos
+  // de 5 min molestan menos que uno de 90.
+  var _bDly=_e('la-bars-delay');
+  if(_bDly){
+    var _dcTop=Object.keys(_dcMins).map(function(c){ return [c,_dcMins[c]]; })
+                     .sort(function(a,b){ return b[1]-a[1]; }).slice(0,6);
+    if(!_dcTop.length){
+      _bDly.innerHTML='<div class="la-empty-text" style="padding:8px 0">Sin códigos de retraso anotados todavía</div>';
+    } else {
+      var _dcMax=_dcTop[0][1]||1;
+      var _rC=['la-r1','la-r2','la-r3'];
+      _bDly.innerHTML=_dcTop.map(function(d,i){
+        var _r=(typeof ldResolveCode==='function')?ldResolveCode(d[0]):{};
+        var _desc=(_r.full||'').split(' · ')[0] || 'Código '+d[0];
+        var _pct2=Math.round(d[1]/_dcMax*100);
+        return '<div class="la-bar-row">'
+          +'<div class="la-bar-lbl"><span class="la-rank '+(_rC[i]||'')+'">'+(i+1)+'</span></div>'
+          +'<div class="la-bar-inner"><div class="la-bar-name">'+d[0]+' · '+_desc+'</div>'
+            +'<div class="la-bar-track"><div class="la-bar-fill" data-pct="'+_pct2+'" style="background:linear-gradient(90deg,#F59E0B,#F97316)"></div></div></div>'
+          +'<div class="la-bar-val">'+d[1]+'m<br><span style="opacity:.6">'+_dcCnt[d[0]]+'×</span></div></div>';
+      }).join('');
+      var _catTop=Object.keys(_dcCatMins).sort(function(a,b){ return _dcCatMins[b]-_dcCatMins[a]; })[0];
+      if(_catTop) _bDly.innerHTML+='<div class="la-stat-box-sub" style="margin-top:8px">Lo que más te retrasa: <strong style="color:#F59E0B">'+_catTop+'</strong> · '+_dcCatMins[_catTop]+' min en total</div>';
+      setTimeout(laAnimateFills,80);
+    }
+  }
+
+  // ════ PERSONAS TRANSPORTADAS ═════════════════════════════════
+  // Suma de POB (personas a bordo), que es lo que el piloto anota. Incluye
+  // tripulación — de ahí "personas" y no "pasajeros": el dato no los separa.
+  var _paxEl=_e('la-pax-total');
+  if(_paxEl){
+    var _paxN=0, _paxFlights=0;
+    entries.forEach(function(e){ var p=parseInt(e&&e.pob); if(p>0){ _paxN+=p; _paxFlights++; } });
+    if(!_paxN){
+      _paxEl.textContent='—';
+      if(_e('la-pax-cmp')) _e('la-pax-cmp').textContent='Anota POB en tus vuelos para verlo';
+    } else {
+      _paxEl.textContent=_paxN.toLocaleString('es-ES');
+      if(_e('la-pax-cmp')) _e('la-pax-cmp').innerHTML=laPaxCompare(_paxN)+' · '+_paxFlights+' vuelos con POB';
+    }
+  }
+
   // ════ FLOTA ══════════════════════════════════════════════════
   if(topRegs[0]&&_e('la-top-reg')){
     _e('la-top-reg').textContent=topRegs[0][0];
@@ -43082,6 +43246,37 @@ function laSetProg(valId, barId, valText, pct, valColor, barBg) {
   var vEl=document.getElementById(valId), bEl=document.getElementById(barId);
   if(vEl){ vEl.textContent=valText; vEl.style.color=valColor; }
   if(bEl){ bEl.style.background=barBg; setTimeout(function(){ bEl.setAttribute('data-pct',pct); bEl.style.width=pct+'%'; },100); }
+}
+
+// ── Comparación de POB acumulado con algo que se pueda imaginar ──────────────
+// Un número de seis cifras no dice nada; "toda Valladolid" sí. Se busca la mayor
+// referencia que ya hayas superado y, si la superas de largo, se dice cuántas
+// veces. Poblaciones aproximadas (INE 2024, redondeadas) — no necesitan ser
+// exactas para lo que hacen, pero sí estar ordenadas de mayor a menor.
+var LA_PAX_REFS=[
+  {n:3300000,l:'Madrid'},      {n:1700000,l:'Barcelona'},   {n:800000,l:'Valencia'},
+  {n:680000, l:'Sevilla'},     {n:590000, l:'Málaga'},      {n:450000,l:'Palma'},
+  {n:380000, l:'Las Palmas'},  {n:345000, l:'Bilbao'},      {n:335000,l:'Alicante'},
+  {n:320000, l:'Córdoba'},     {n:300000, l:'Valladolid'},  {n:295000,l:'Vigo'},
+  {n:250000, l:'A Coruña'},    {n:230000, l:'Granada'},     {n:205000,l:'Pamplona'},
+  {n:175000, l:'Santander'},   {n:145000, l:'Salamanca'},   {n:105000,l:'Girona'},
+  {n:65000,  l:'Ibiza'},       {n:40000,  l:'Soria'},       {n:30000, l:'Mahón'},
+];
+function laPaxCompare(n){
+  if(!n||n<=0) return '';
+  for(var i=0;i<LA_PAX_REFS.length;i++){
+    var r=LA_PAX_REFS[i];
+    if(n>=r.n){
+      var x=n/r.n;
+      // ×1,0–1,9 no se dice: "1,2 veces Madrid" se lee peor que "toda Madrid".
+      if(x>=2) return '≈ <strong style="color:#34D399">'+(x>=10?Math.round(x):x.toFixed(1).replace('.',','))+' veces</strong> la población de '+r.l;
+      return '≈ toda la población de <strong style="color:#34D399">'+r.l+'</strong>';
+    }
+  }
+  // Por debajo de la referencia más pequeña, algo que un piloto sí dimensiona.
+  var av=Math.round(n/180);
+  return av>=2 ? '≈ <strong style="color:#34D399">'+av+' A320</strong> llenos hasta arriba'
+               : '≈ <strong style="color:#34D399">un A320</strong> lleno';
 }
 
 function laRenderHBars(containerId, data, keyFn, valFn, maxVal, color) {
@@ -44544,6 +44739,7 @@ document.addEventListener('DOMContentLoaded', function(){
       var depIcao = (window.iataToIcao&&window.iataToIcao(l.dep))||l.dep;
       var arrIcao = (window.iataToIcao&&window.iataToIcao(l.arr))||l.arr;
       return { flight:l.flight, dep:l.dep, arr:l.arr, depIcao:depIcao, arrIcao:arrIcao,
+               positioning:!!l.positioning,
                std:stripZ(l.std), sta:stripZ(l.sta), acType:l.acType, arrMs:l._arrMs };
     });
   }
@@ -44706,7 +44902,7 @@ document.addEventListener('DOMContentLoaded', function(){
   async function _locNote(pos){ if(pos) return; var en=(CUR&&CUR.lang)==='en'; var er=''; try{ er=window.__ariaGeoErr||''; }catch(e){} var code=(String(er).split(':')[0]||''); var msg; if(code==='1'){ msg=en?'📍 Location was blocked — tap here to allow it, then Generate':'📍 Ubicación bloqueada — toca aquí para permitirla y pulsa Generar'; } else if(code==='2'){ msg=en?'📍 No GPS fix — near a window/outdoors, tap here to retry':'📍 Sin señal GPS — junto a una ventana o al aire libre, toca aquí para reintentar'; } else if(code==='3'){ msg=en?'📍 Location timed out — tap here to try again':'📍 La ubicación tardó demasiado — toca aquí para reintentar'; } else { msg=en?'📍 Tap here to enable location for your drive time to base':'📍 Toca aquí para activar la ubicación y ver el tiempo en coche a la base'; } _locToast(msg, _requestLocTap); }
   function _baseInfo(){ try{ var b=''; try{ b=localStorage.getItem('pilotOS_home_base')||''; }catch(e){} if(!b){ var lg=gatherLegs(); if(lg&&lg.length) b=lg[0].dep; } if(!b) return null; var ic=(window.iataToIcao&&window.iataToIcao(b))||b; var ap=(window.LD_AIRPORTS&&window.LD_AIRPORTS[ic])||null; if(!ap||ap.lat==null||ap.lon==null) return null; var nm=(window._WX_NAMES&&window._WX_NAMES[ic])||ap.city||ap.name||b; nm=String(nm).replace(/\s*(airport|aeropuerto|intl|international)/ig,'').trim(); return { icao:ic, lat:+ap.lat, lon:+ap.lon, label:'el aeropuerto de '+nm+' ('+b+')' }; }catch(e){ return null; } }
   function prevDayRoutes(legs){ try{ if(!legs||!legs.length||!legs[0].date) return []; var raw=localStorage.getItem('pilotOS_roster'); if(!raw) return []; var ents=JSON.parse(raw); if(!Array.isArray(ents)) return []; var d=new Date(legs[0].date+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()-1); var prev=d.toISOString().slice(0,10); var out=[]; ents.forEach(function(e){ if(e.type==='flight'&&e.dep&&e.arr&&e.date===prev){ out.push(e.dep+'-'+e.arr); } }); return out; }catch(e){ return []; } }
-  function gatherLegs(){ var legs=(window.buildLegsFromRoster&&window.buildLegsFromRoster())||[]; return legs.map(function(l){ var di=(window.iataToIcao&&window.iataToIcao(l.dep))||l.dep; var ai=(window.iataToIcao&&window.iataToIcao(l.arr))||l.arr; return {flight:l.flight,dep:l.dep,arr:l.arr,depIcao:di,arrIcao:ai,std:stripZ(l.std),sta:stripZ(l.sta),acType:l.acType,arrMs:l._arrMs,date:l.date,cruiseFL:l.cruiseFL}; }); }
+  function gatherLegs(){ var legs=(window.buildLegsFromRoster&&window.buildLegsFromRoster())||[]; return legs.map(function(l){ var di=(window.iataToIcao&&window.iataToIcao(l.dep))||l.dep; var ai=(window.iataToIcao&&window.iataToIcao(l.arr))||l.arr; return {flight:l.flight,dep:l.dep,arr:l.arr,depIcao:di,arrIcao:ai,positioning:!!l.positioning,std:stripZ(l.std),sta:stripZ(l.sta),acType:l.acType,arrMs:l._arrMs,date:l.date,cruiseFL:l.cruiseFL}; }); }
   // Turbulencia REAL por fase de vuelo. Mismos datos que el PERFIL de MAPAS: Open-Meteo por
   // niveles de presión a lo largo de la ruta → EDR por cizalladura vertical del viento (fl±10).
   // Muestrea a lo largo del perfil de vuelo (ascenso→TOC, crucero a FL, TOD→descenso) y resume
@@ -44956,7 +45152,7 @@ document.addEventListener('DOMContentLoaded', function(){
         var ctx=window.__ariaCtx||{}; var leg=ctx.leg;
         if(!leg){ stat('No hay vuelo activo en SkyView.'); return _done(gen); }
         stat(CUR.lang==='en'?'Generating briefing with ARIA…':'Generando briefing con ARIA…');
-        var all=gatherLegs(); var one=all.filter(function(L){ return L.flight===leg.flight && L.dep===leg.dep && L.arr===leg.arr; }); if(!one.length){ var di=(window.iataToIcao&&window.iataToIcao(leg.dep))||leg.dep, ai=(window.iataToIcao&&window.iataToIcao(leg.arr))||leg.arr; one=[{flight:leg.flight,dep:leg.dep,arr:leg.arr,depIcao:di,arrIcao:ai,std:stripZ(leg.std),sta:stripZ(leg.sta),acType:leg.acType,arrMs:leg._arrMs}]; } else { one=[one[0]]; }
+        var all=gatherLegs(); var one=all.filter(function(L){ return L.flight===leg.flight && L.dep===leg.dep && L.arr===leg.arr; }); if(!one.length){ var di=(window.iataToIcao&&window.iataToIcao(leg.dep))||leg.dep, ai=(window.iataToIcao&&window.iataToIcao(leg.arr))||leg.arr; one=[{flight:leg.flight,dep:leg.dep,arr:leg.arr,depIcao:di,arrIcao:ai,positioning:!!(leg.positioning||leg.isPositioning||(leg.dep&&String(leg.dep).charAt(0)==='*')),std:stripZ(leg.std),sta:stripZ(leg.sta),acType:leg.acType,arrMs:leg._arrMs}]; } else { one=[one[0]]; }
         var pos=await getPos(); try{ _locNote(pos); }catch(e){} var _bi=_baseInfo(); var lbody={legs:one,pilot:pilotName()||undefined,lang:CUR.lang,localHour:new Date().getHours(),yesterdayRoutes:prevDayRoutes(one)}; if(pos){ lbody.userLat=pos.lat; lbody.userLon=pos.lon; } if(_bi){ lbody.baseIcao=_bi.icao; lbody.baseLat=_bi.lat; lbody.baseLon=_bi.lon; lbody.baseLabel=_bi.label; } var r2=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify(lbody)});
         if(!r2.ok){ var je=await r2.json().catch(function(){return{};}); stat('⚠ '+(je.message||je.error||('Error '+r2.status))); return _done(gen); } var d2=await r2.json(); txt=d2.text||'';
       }
