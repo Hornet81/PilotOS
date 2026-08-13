@@ -56,9 +56,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.511">
+  <meta name="version" content="Beta.534">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.511","builtAt":"2026-08-11T19:00:29Z","commit":"f7cada5","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.534","builtAt":"2026-08-13T13:13:18Z","commit":"9634487","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -90,7 +90,10 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<!-- SheetJS (lector de .xls/.xlsx del importador de logbook) servido desde nuestro
+     origen: así lo cachea el service worker y la importación funciona sin cobertura.
+     Desde el CDN la respuesta es opaca y NO se puede cachear. -->
+<script src="vendor/xlsx.full.min.js" defer></script>
 <style>
 :root{
   /* ── Escala del texto crudo de METAR / TAF / NOTAM ──────────────────────────────────────
@@ -3549,9 +3552,18 @@ html.day #ld-panel-mapa.ld-panel{background:#cfe0f0}
   padding:6px 13px 9px 18px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;
   border-top:1px solid rgba(34,211,238,.06)
 }
-.ld-fsdot{width:6px;height:6px;border-radius:50%;background:#475569;flex-shrink:0}
-.ld-fsdot.partial{background:#F59E0B;box-shadow:0 0 5px rgba(245,158,11,.5)}
-.ld-fsdot.complete{background:#22D3EE;box-shadow:0 0 5px rgba(34,211,238,.5)}
+/* Punto de estado del vuelo. Dos ejes, no uno:
+   relleno → hay horas reales (cian) o es solo roster (gris)
+   anillo  → esas horas las puso ADS-B/OCR y nadie las ha confirmado (ambar)
+   La paleta vive SOLO aqui, en variables: la pantalla de Roster pintaba los mismos
+   puntos con hex a pelo y en tema claro los dos codigos de color divergian. */
+.ld-fsdot{--ld-dot-on:#22D3EE;--ld-dot-onx:rgba(34,211,238,.5);--ld-dot-est:#F59E0B;--ld-dot-estx:rgba(245,158,11,.45);--ld-dot-off:#475569;
+  width:6px;height:6px;border-radius:50%;background:var(--ld-dot-off);flex-shrink:0}
+.ld-fsdot.complete{background:var(--ld-dot-on);box-shadow:0 0 5px var(--ld-dot-onx)}
+.ld-fsdot.est{box-shadow:0 0 0 2px var(--ld-dot-est)}
+.ld-fsdot.complete.est{box-shadow:0 0 0 2px var(--ld-dot-est),0 0 6px var(--ld-dot-estx)}
+/* tarjetas de fondo claro fijo (detalle de dia del Roster): paleta de dia siempre */
+.ld-fsdot.on-light{--ld-dot-on:#0369A1;--ld-dot-onx:rgba(3,105,161,.4);--ld-dot-est:#B45309;--ld-dot-estx:rgba(180,83,9,.4);--ld-dot-off:#64748B}
 @keyframes ld-draft-pulse{0%,100%{opacity:.65}50%{opacity:1;box-shadow:0 0 10px rgba(245,158,11,.75)}}
 .ld-fcard-draft{background:rgba(245,158,11,.05)!important;border:1px solid rgba(245,158,11,.28)!important}
 .ld-fcard-draft:active{border-color:rgba(245,158,11,.5)!important}
@@ -6373,8 +6385,7 @@ html.day .ld-fpill[style*="color:rgba(0,220,80,.85)"]{background:rgba(5,150,105,
 html.day .ld-fpill[style*="color:#10B981"]{background:rgba(16,185,129,.14) !important;color:#046C4E !important;border-color:rgba(5,150,105,.4) !important}
 html.day .ld-fdel{opacity:.8 !important}
 html.day .ld-fdel:hover{opacity:1 !important}
-html.day .ld-fsdot.complete{background:#0369A1 !important;box-shadow:0 0 5px rgba(3,105,161,.4) !important}
-html.day .ld-fsdot.partial{background:#B45309 !important;box-shadow:0 0 5px rgba(180,83,9,.4) !important}
+html.day .ld-fsdot{--ld-dot-on:#0369A1;--ld-dot-onx:rgba(3,105,161,.4);--ld-dot-est:#B45309;--ld-dot-estx:rgba(180,83,9,.4);--ld-dot-off:#64748B}
 
 /* ══ SIDEBAR CATEGORÍAS ══ */
 html.day .home-sidebar{
@@ -8980,7 +8991,7 @@ html.day .fp-ym-st-col.free .fp-ym-st-rng{color:var(--fp-gd)}
         <div class="dh-stat" id="dh-brief-chip" data-metric="briefing" onclick="homeAriaBrief()" style="order:0;min-width:120px;cursor:pointer"><div class="dh-stat-icon dh-si-blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-5a9 9 0 0 1 18 0v5"/><path d="M21 19a2 2 0 0 1-2 2h-1v-6h1a2 2 0 0 1 2 2zM3 19a2 2 0 0 0 2 2h1v-6H5a2 2 0 0 0-2 2z"/></svg></div><div><div class="dh-stat-lbl">Briefing</div><div class="dh-stat-val" style="font-size:13px">▶ ARIA</div></div></div>
         <div class="dh-stat" data-metric="flightHours" style="order:4"><div class="dh-stat-icon dh-si-blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 2l4 4-4 4M3 11V9a4 4 0 014-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 01-4 4H3"/></svg></div><div><div class="dh-stat-lbl">Flight Hours</div><div class="dh-stat-val" id="dh-hours-val">— h</div></div></div>
         <div class="dh-stat" data-metric="nextFlight" style="order:2"><div class="dh-stat-icon dh-si-blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div><div class="dh-stat-lbl">Next Flight</div><div class="dh-stat-val" id="dh-nf-val" style="font-size:12px">—</div><div class="dh-stat-sub" id="dh-nf-sub">cargando…</div></div></div>
-        <div class="dh-stat" data-metric="report" id="dh-stat-report" style="min-width:132px;order:1"><div class="dh-stat-icon dh-si-blue" id="dh-rep-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></div><div><div class="dh-stat-lbl">Report</div><div id="dh-rep-flip" style="display:flex;align-items:center;gap:3px;height:24px;margin-top:1px"><span style="font-size:14px;font-weight:800;color:#F1F5F9;font-family:monospace">—:—</span></div><div class="dh-stat-sub" id="dh-rep-sub">—</div></div></div>
+        <div class="dh-stat" data-metric="report" id="dh-stat-report" style="min-width:132px;order:1"><div class="dh-stat-icon dh-si-blue" id="dh-rep-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></div><div><div class="dh-stat-lbl" id="dh-rep-lbl">Report</div><div id="dh-rep-flip" style="display:flex;align-items:center;gap:3px;height:24px;margin-top:1px"><span style="font-size:14px;font-weight:800;color:#F1F5F9;font-family:monospace">—:—</span></div><div class="dh-stat-sub" id="dh-rep-sub">—</div></div></div>
         <div class="dh-stat" data-metric="duty" id="dh-stat-duty" style="order:3"><div class="dh-stat-icon dh-si-blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="dh-stat-lbl">Duty Time</div><div class="dh-stat-val" id="dh-duty-val">—</div><div class="dh-stat-sub">próximo servicio</div></div></div>
         <div class="dh-stat" data-metric="recurrent" style="order:5"><div class="dh-stat-icon dh-si-green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div><div class="dh-stat-lbl">Recurrent</div><div class="dh-stat-val" id="dh-rec-val">48d</div><div class="dh-stat-sub">A320</div></div></div>
         <div class="dh-stat" data-metric="overall" style="min-width:120px;order:6"><div style="position:relative;width:36px;height:36px;flex-shrink:0"><svg width="36" height="36" viewBox="0 0 36 36" style="transform:rotate(-90deg)"><circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="3"/><circle cx="18" cy="18" r="14" fill="none" stroke="#22D3EE" stroke-width="3" stroke-linecap="round" stroke-dasharray="87.96" stroke-dashoffset="15.8"/></svg><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#22D3EE;font-family:monospace">82%</div></div><div><div class="dh-stat-lbl">Overall</div><div class="dh-stat-val" style="font-size:10px;color:#22D3EE">Progress</div></div></div><button type="button" class="dh-stat" data-metric="__edit" onclick="dhOpenStatsConfig()" aria-label="Personalizar paneles" title="Personalizar paneles" style="order:99;min-width:auto;padding:0 14px;cursor:pointer;background:rgba(34,211,238,.06)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></button>
@@ -11757,8 +11768,8 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
     </div>
     <!-- Status dot legend -->
     <div style="display:flex;align-items:center;gap:14px;padding:0 2px 8px;font-family:'Space Mono',monospace;font-size:10px;color:rgba(248,250,252,.35)">
-      <div style="display:flex;align-items:center;gap:5px"><div class="ld-fsdot complete"></div><span>Completo</span></div>
-      <div style="display:flex;align-items:center;gap:5px"><div class="ld-fsdot partial"></div><span>Parcial</span></div>
+      <div style="display:flex;align-items:center;gap:5px"><div class="ld-fsdot complete"></div><span>Confirmado</span></div>
+      <div style="display:flex;align-items:center;gap:7px"><div class="ld-fsdot complete est"></div><span>Sin confirmar</span></div>
       <div style="display:flex;align-items:center;gap:5px"><div class="ld-fsdot"></div><span>Solo roster</span></div>
     </div>
 
@@ -13791,6 +13802,172 @@ function goTo(key){
 function goHome(){goTo('home');}
 function tabTo(key){goTo(key);}
 
+// ── Deep link ?tab=<sección> ──
+// Es lo que usan los accesos directos del manifest (/?tab=roster, /?tab=logbook):
+// hasta ahora nadie leía el parámetro, así que el atajo abría el Home. Después se
+// limpia la URL, igual que ?checkout y ?rosterSync, para que un refresco no vuelva
+// a forzar la sección.
+(function(){
+  function openTabFromUrl(){
+    try{
+      var key = new URLSearchParams(window.location.search).get('tab');
+      if(!key) return;
+      key = key.toLowerCase();
+      // Sólo claves reales de screens: un valor inventado no debe dejar la app en blanco.
+      if(!Object.prototype.hasOwnProperty.call(screens, key)) return;
+      window.history.replaceState({}, '', window.location.pathname);
+      if(typeof goTo === 'function') goTo(key);
+    }catch(e){}
+  }
+  // DOMContentLoaded, NO window.load: sin cobertura el evento load puede no llegar
+  // nunca (la hoja de Google Fonts se queda colgada), y entonces el atajo no
+  // navegaría justo en el caso para el que existe. Con DOMContentLoaded todos los
+  // scripts en línea ya han corrido, así que rosterInit/_initLD están registrados.
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(openTabFromUrl, 0); });
+  } else {
+    setTimeout(openTabFromUrl, 0);
+  }
+})();
+
+// ── Horas de un tramo para el Home: real > estimada > programada ─────────────
+// El Home leía sólo std/std_actual. Un tramo que eCrews entrega ESTIMADO (prefijo
+// "(E1001)" → std_estimated/sta_estimated) se quedaba SIN hora en el Home, y sin hora
+// no hay forma de saber que ya ha aterrizado: seguía saliendo como "próximo vuelo",
+// con su firma en verde ("FIRMA AHORA"), el resto del día natural. El resto de la app
+// (Roster, FDP, logbook) ya usa esta misma jerarquía.
+function dhStdOf(f){ return String((f && (f.std_actual || f.std_estimated || f.std)) || '').slice(0,5); }
+function dhStaOf(f){ return String((f && (f.sta_actual || f.sta_estimated || f.sta)) || '').slice(0,5); }
+
+// Instante UTC de la LLEGADA de un tramo. Las horas del roster son Zulú.
+// null = el tramo no trae ninguna hora (ni real, ni estimada, ni programada).
+function dhArrMsOf(f){
+  if(!f || !f.date) return null;
+  var std = dhStdOf(f), sta = dhStaOf(f) || std;
+  if(!sta) return null;
+  var p = String(f.date).split('-');
+  var d = new Date(Date.UTC(+p[0], +p[1]-1, +p[2], +sta.slice(0,2), +sta.slice(3,5), 0));
+  // Cruce de medianoche: flag del parser o envoltura por reloj (llega antes de salir).
+  if(f.crossesMidnight === true || (std && sta < std)) d.setUTCDate(d.getUTCDate() + 1);
+  return d.getTime();
+}
+
+// Un tramo sigue siendo "próximo" hasta 15 min después de su llegada.
+var DH_GRACE_MS = 15 * 60000;
+// …y la JORNADA, hasta 1h después de su debrief declarado. El margen es deliberadamente
+// ancho: una jornada se alarga (retrasos, extensión de FDP) y cerrar antes de tiempo
+// escondería un vuelo que el piloto todavía tiene por delante — el error grave.
+var DH_DUTY_END_MARGIN_MS = 60 * 60000;
+
+// ── Fin de la JORNADA, en ms UTC (null si el roster no lo trae) ──────────────────────
+// eCrews manda, en cada leg, los dos extremos de la jornada ENTERA:
+//   · checkin  = hora de REPORT (firma). Es lo que identifica la jornada: los tramos que
+//                comparten firma son la misma jornada.
+//   · debrief  = aterrizaje del ÚLTIMO vuelo + 20 min → el fin REAL, no una previsión.
+//   · dutyH    = su duración desde la firma (respaldo si no hay debrief).
+// El Home no miraba ninguno de los tres: sólo la STA de cada tramo. Por eso un tramo con
+// una hora que ya no es real — una ESTIMADA que nunca llegó a ser actual porque el vuelo
+// se canceló, se reasignó o lo sustituyó un resync — se queda como "el próximo vuelo"
+// hasta que su hora inventada vence, aunque el piloto haya hecho el debrief hace horas.
+// Los roster de PDF no traen debrief ni dutyH → devuelve null y manda la regla por tramo,
+// que es la que había: este cierre sólo añade información, nunca la quita.
+function dhDutyEndMs(dutyLegs){
+  if(!dutyLegs || !dutyLegs.length) return null;
+  var _m = function(t){
+    if(!t || String(t).indexOf(':') < 0) return null;
+    var p = String(t).replace(/^[ASE]/, '').split(':');
+    var v = (+p[0] || 0) * 60 + (+p[1] || 0);
+    return isNaN(v) ? null : v;
+  };
+  var p = String(dutyLegs[0].date).split('-');
+  var base = Date.UTC(+p[0], +p[1] - 1, +p[2]);   // 00:00Z del día de la jornada
+  var checkinM = null, debriefM = null, dutyM = null;
+  dutyLegs.forEach(function(f){
+    if(checkinM == null) checkinM = _m(f.checkin);
+    var d = _m(f.debrief); if(d != null) debriefM = d;   // el del último tramo manda
+    if(dutyM == null)   dutyM   = _m(f.dutyH);
+  });
+  // 1) Debrief explícito. Si cae antes de la firma, la jornada cruzó medianoche.
+  if(debriefM != null){
+    if(checkinM != null && debriefM < checkinM) debriefM += 1440;
+    return base + debriefM * 60000;
+  }
+  // 2) Firma + duración oficial de la jornada (dutyH de eCrews).
+  if(checkinM != null && dutyM != null) return base + (checkinM + dutyM) * 60000;
+  return null;
+}
+
+// Tramos que aún están por delante, en orden. Tres cortes, de más fiable a menos:
+//  · la jornada a la que pertenece el tramo ya ha terminado (debrief + margen) → fuera;
+//  · su propia llegada ya pasó (+15 min) → fuera;
+//  · sin ninguna hora, límite = última llegada conocida de su día (o el fin de ese día
+//    Zulú), porque de un tramo sin horas no se puede saber nada mejor.
+// Así, con datos o sin ellos, un vuelo ya volado nunca se queda clavado como "el próximo".
+function dhUpcomingFlights(allFlights, nowMs){
+  var list = allFlights || [];
+  // Clave de JORNADA = día + firma. Los tramos que comparten report son la misma jornada,
+  // así que un día con dos jornadas (una de mañana ya cerrada y otra de tarde) se cierra
+  // por separado en vez de mezclar el debrief de una con la firma de la otra.
+  var _dutyKey = function(f){ return f.date + '|' + (f.checkin || ''); };
+  var dayEnd = {};     // fecha → última llegada conocida (límite de los tramos sin hora)
+  var byDuty = {};     // jornada → sus tramos
+  list.forEach(function(f){
+    if(!f || !f.date) return;
+    var k = _dutyKey(f);
+    (byDuty[k] = byDuty[k] || []).push(f);
+    var am = dhArrMsOf(f);
+    if(am == null) return;
+    if(!dayEnd[f.date] || am > dayEnd[f.date]) dayEnd[f.date] = am;
+  });
+  var dutyEnd = {};
+  Object.keys(byDuty).forEach(function(k){
+    var end = dhDutyEndMs(byDuty[k]);
+    if(end == null){ dutyEnd[k] = null; return; }
+    // Una jornada se alarga de verdad cuando el vuelo se retrasa de verdad. Las horas
+    // REALES (A de eCrews) son hechos y estiran el cierre; una ESTIMADA no estira nada
+    // — es precisamente la que puede haberse quedado obsoleta. (Con debrief = aterrizaje
+    // real + 20 min esto rara vez hace falta, pero cubre el roster que no se ha resincronizado
+    // desde que empezó el retraso: sin ello, un vuelo en curso desaparecería del Home.)
+    byDuty[k].forEach(function(f){
+      if(!f.std_actual && !f.sta_actual) return;
+      var am = dhArrMsOf(f);
+      if(am != null && am > end) end = am;
+    });
+    dutyEnd[k] = end;
+  });
+
+  return list.filter(function(f){
+    if(!f || !f.date) return false;
+    // La jornada ya hizo el debrief: ningún tramo suyo está por delante.
+    var de = dutyEnd[_dutyKey(f)];
+    if(de != null && de + DH_DUTY_END_MARGIN_MS <= nowMs) return false;
+    var am = dhArrMsOf(f);
+    if(am != null) return am + DH_GRACE_MS > nowMs;
+    var lim = dayEnd[f.date];
+    if(lim == null){
+      var p = String(f.date).split('-');
+      lim = Date.UTC(+p[0], +p[1]-1, +p[2], 23, 59, 59);   // fin del día Zulú
+    }
+    return lim + DH_GRACE_MS > nowMs;
+  });
+}
+
+// "Hoy" / "Mañana" / "En 2 días" / "14 AGO" — el piloto pedía saber de qué día es la
+// firma que ve en el Home sin tener que comparar la fecha mentalmente.
+function dhRelDayLabel(dateStr, nowDate, MONTHS){
+  if(!dateStr) return '—';
+  var _MO = MONTHS || ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+  var p = String(dateStr).split('-');
+  var target = Date.UTC(+p[0], +p[1]-1, +p[2]);
+  var n = nowDate || new Date();
+  var today = Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate());
+  var days = Math.round((target - today) / 86400000);
+  if(days === 0) return 'Hoy';
+  if(days === 1) return 'Mañana';
+  if(days === 2) return 'En 2 días';
+  return p[2] + ' ' + _MO[parseInt(p[1],10)-1];
+}
+
 // ── Home: Roster card — misma lógica que "Próximo Servicio" en Roster ──
 function dhUpdateRosterCard(){
   var container = document.getElementById('dh-roster-flights');
@@ -13815,7 +13992,7 @@ function dhUpdateRosterCard(){
   if(!entries.length){
     container.innerHTML = '<div class="dh-frow"><div class="dh-fdate">–</div><div class="dh-froute" style="color:rgba(241,245,249,.3);font-size:8px">Sin roster importado</div></div>';
     if(subtitle) subtitle.textContent = 'Próximos 3 vuelos';
-    dhUpdateHeaderStats([], todayStr, MONTHS);
+    dhUpdateHeaderStats([], todayStr, MONTHS, []);
     return;
   }
 
@@ -13823,36 +14000,46 @@ function dhUpdateRosterCard(){
   var allFlights = entries
     .filter(function(e){ return e.type === 'flight'; })
     .sort(function(a,b){
-      return (a.date + (a.std||a.std_actual||'00:00'))
-        .localeCompare(b.date + (b.std||b.std_actual||'00:00'));
+      return (a.date + (dhStdOf(a)||'00:00'))
+        .localeCompare(b.date + (dhStdOf(b)||'00:00'));
     });
 
-  var todayFlights  = allFlights.filter(function(e){ return e.date === todayStr; });
-  var futureFlights = allFlights.filter(function(e){ return e.date >  todayStr; });
+  // SERVICIOS: todo aquello a lo que hay que presentarse (vuelo, imaginaria, simulador,
+  // e-learning, oficina), ordenados por día + hora de presentación. La tarjeta de Report
+  // se alimenta de aquí, no de los vuelos: es la misma definición que usa el Roster
+  // (rstIsWork/rstWorkStartMin), para que las dos pantallas no discrepen. Si el Roster
+  // aún no está cargado, se queda en los vuelos y el Home se comporta como antes.
+  var allDuties = allFlights;
+  try {
+    if (typeof rstIsWork === 'function' && typeof rstWorkStartMin === 'function') {
+      allDuties = entries.filter(rstIsWork).sort(function(a, b){
+        var sa = rstWorkStartMin(a), sb = rstWorkStartMin(b);
+        return (a.date + String(10000 + (sa == null ? 9999 : sa)))
+          .localeCompare(b.date + String(10000 + (sb == null ? 9999 : sb)));
+      });
+    }
+  } catch(e){}
 
-  // Hoy primero, luego futuros — igual que "Próximo Servicio"
-  var upcoming = todayFlights.concat(futureFlights).slice(0, 3);
+  // "Próximos" de verdad: por hora de llegada, no por día natural. Antes entraban TODOS
+  // los vuelos de hoy, así que a las 18:00 la tarjeta seguía listando los tres tramos
+  // que el piloto ya había volado por la mañana.
+  var upcoming = dhUpcomingFlights(allFlights, now.getTime()).slice(0, 3);
 
   if(!upcoming.length){
     container.innerHTML = '<div class="dh-frow"><div class="dh-fdate">–</div><div class="dh-froute" style="color:rgba(241,245,249,.3);font-size:8px">Sin vuelos próximos</div></div>';
     if(subtitle) subtitle.textContent = 'Próximos 3 vuelos';
-    dhUpdateHeaderStats(allFlights, todayStr, MONTHS);
+    dhUpdateHeaderStats(allFlights, todayStr, MONTHS, allDuties);
     return;
   }
-  function fmtDate(ds){
-    var p = ds.split('-');
-    return p[2]+' '+MONTHS[parseInt(p[1],10)-1];
-  }
-
   var html = '';
   upcoming.forEach(function(f, idx){
     var isLast = (idx === upcoming.length - 1);
     var style  = isLast ? ' style="border-bottom:none"' : '';
     var dep    = (f.dep||'???').replace(/^\*/,'').toUpperCase();
     var arr    = (f.arr||'???').replace(/^\*/,'').toUpperCase();
-    var std    = (f.std||f.std_actual||'').slice(0,5);
+    var std    = dhStdOf(f);
     html += '<div class="dh-frow"'+style+'>'
-          + '<div class="dh-fdate">'+fmtDate(f.date)+'</div>'
+          + '<div class="dh-fdate">'+dhRelDayLabel(f.date, now, MONTHS)+'</div>'
           + '<div class="dh-froute">'+dep+'–'+arr+'</div>'
           + (std ? '<div class="dh-ftime">'+std+'</div>' : '')
           + '</div>';
@@ -13860,10 +14047,10 @@ function dhUpdateRosterCard(){
 
   container.innerHTML = html;
   if(subtitle) subtitle.textContent = 'Próximos 3 vuelos';
-  dhUpdateHeaderStats(allFlights, todayStr, MONTHS);
+  dhUpdateHeaderStats(allFlights, todayStr, MONTHS, allDuties);
 }
 
-function dhUpdateHeaderStats(allFlights, todayStr, MONTHS) {
+function dhUpdateHeaderStats(allFlights, todayStr, MONTHS, allDuties) {
   var nfVal  = document.getElementById('dh-nf-val');
   var nfSub  = document.getElementById('dh-nf-sub');
   var dutyEl = document.getElementById('dh-duty-val');
@@ -13878,48 +14065,32 @@ function dhUpdateHeaderStats(allFlights, todayStr, MONTHS) {
     return Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0');
   }
   var _MO = MONTHS || ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
-  function fmtD(ds) {
-    if (!ds) return '—';
-    var p = ds.split('-');
-    return p[2] + ' ' + _MO[parseInt(p[1], 10) - 1];
-  }
 
   // Los tiempos del roster (STD/STA/checkin) están en ZULU (UTC). Usamos la fecha/hora UTC
   // de hoy. (Antes se asumía hora local → desajuste entre local y Zulu en la cuenta atrás.)
-  var _now      = new Date();
-  var localDate = _now.getUTCFullYear() + '-' +
-                  String(_now.getUTCMonth()+1).padStart(2,'0') + '-' +
-                  String(_now.getUTCDate()).padStart(2,'0');
-  var localHHMM = String(_now.getUTCHours()).padStart(2,'0') + ':' +
-                  String(_now.getUTCMinutes()).padStart(2,'0');
+  var _now = new Date();
 
   // Next: el vuelo sigue siendo "próximo" hasta 15 min después de su STA (hora de llegada).
-  // Al pasar STA+15min avanza automáticamente al siguiente vuelo.
-  var GRACE_MS = 15 * 60000;
+  // Al pasar STA+15min avanza automáticamente al siguiente vuelo. El cálculo vive en
+  // dhUpcomingFlights/dhArrMsOf (arriba), compartido con la tarjeta de Roster para que
+  // las dos no puedan discrepar sobre qué vuelo es el próximo.
   var nowMs = _now.getTime();
-  function _arrMs(f) {
-    var std = (f.std || f.std_actual || '').slice(0, 5);
-    var sta = (f.sta || f.sta_actual || '').slice(0, 5) || std;
-    if (!sta) return null;
-    var p = f.date.split('-');
-    // Los tiempos del roster son ZULU → construir el instante en UTC (antes usaba hora local
-    // → llegada 1-2h desfasada → elegía mal el "próximo vuelo" y su report).
-    var d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2], +sta.slice(0, 2), +sta.slice(3, 5), 0));
-    if (std && sta < std) d.setUTCDate(d.getUTCDate() + 1); // cruza medianoche → llega al día siguiente
-    return d.getTime();
-  }
-  var upcoming = (allFlights || []).filter(function(f) {
-    var am = _arrMs(f);
-    if (am == null) return f.date >= localDate; // sin horas: mantener si es hoy o futuro
-    return am + GRACE_MS > nowMs;
-  });
+  var upcoming = dhUpcomingFlights(allFlights, nowMs);
+
+  // El REPORT no es del próximo vuelo: es del próximo SERVICIO. Una imaginaria, un
+  // simulador o una oficina también tienen hora de presentación, y hasta ahora el Home
+  // decía "Sin vuelos próximos" y dejaba la firma en "—" aunque el piloto tuviera que
+  // presentarse mañana a las 05:00 — con la pantalla Roster mostrándosela a la vez.
+  // Las tarjetas de vuelo (Next Flight, Duty Time, Sky View) siguen siendo de VUELOS:
+  // un simulador no tiene ruta ni meteo de destino.
+  var nd = dhUpcomingFlights(allDuties && allDuties.length ? allDuties : allFlights, nowMs)[0] || null;
+  dhRenderReportCard(nd, _now, _MO);
+
   if (!upcoming.length) {
     nfVal.textContent = '—';
-    nfSub.textContent = 'Sin vuelos próximos';
+    nfSub.textContent = nd ? (dhDutyLabelOf(nd) + ' · ' + dhRelDayLabel(nd.date, _now, _MO))
+                           : 'Sin vuelos próximos';
     dutyEl.textContent = '—';
-    window._dhRepStr = null;
-    if (typeof dhRenderReportFlip === 'function') dhRenderReportFlip(null, false);
-    var _rs = document.getElementById('dh-rep-sub'); if (_rs) _rs.textContent = '—';
     dhUpdateWeatherCard(null);
     return;
   }
@@ -13928,9 +14099,11 @@ function dhUpdateHeaderStats(allFlights, todayStr, MONTHS) {
   var nf  = upcoming[0];
   var dep = (nf.dep || '???').replace(/^\*/, '').toUpperCase();
   var arr = (nf.arr || '???').replace(/^\*/, '').toUpperCase();
-  var std = (nf.std || nf.std_actual || '').slice(0, 5);
+  var std = dhStdOf(nf);
   nfVal.textContent = dep + '–' + arr;
-  nfSub.textContent = fmtD(nf.date) + (std ? ' · ' + std : '');
+  // "Hoy · 06:28" / "Mañana · 05:40": el día relativo evita la duda de si el vuelo que
+  // se ve es el que ya se ha volado hoy o el de mañana.
+  nfSub.textContent = dhRelDayLabel(nf.date, _now, _MO) + (std ? ' · ' + std : '');
   dhUpdateWeatherCard(nf);
 
   // Duty Time: tramos del día del próximo vuelo
@@ -13958,9 +14131,9 @@ function dhUpdateHeaderStats(allFlights, todayStr, MONTHS) {
         dutyStr = fmm(d);
       } else {
         // 3) firma → última STA + 20 min (omitir si último tramo es posicionamiento)
-        var stdM = t2m(first.std_actual || first.std);
+        var stdM = t2m(dhStdOf(first));
         var dutyStart = checkinM != null ? checkinM : (stdM != null ? stdM - 55 : null);
-        var lastSTA   = t2m(last.sta_actual || last.sta);
+        var lastSTA   = t2m(dhStaOf(last));
         if (dutyStart != null && lastSTA != null) {
           var lastIsPos = last.isPositioning || last.positioning ||
             (last.dep && last.dep.charAt(0) === '*');
@@ -13973,48 +14146,101 @@ function dhUpdateHeaderStats(allFlights, todayStr, MONTHS) {
   }
   dutyEl.textContent = dutyStr;
 
-  // ── Report time (firma): checkin del próximo vuelo, o STD−55min ──
+}
+
+// ── Etiqueta de un servicio que no es vuelo ("2SBY", "Simulador", "Oficina"…) ──
+// Reutiliza rstWorkLabel de la pantalla Roster para que el Home lo llame igual que el
+// resto de la app; si aún no está cargada, cae a algo legible en vez de a "undefined".
+function dhDutyLabelOf(e){
+  if(!e) return 'Servicio';
+  if(e.type === 'flight') return ((e.dep||'???').replace(/^\*/,'') + '–' + (e.arr||'???').replace(/^\*/,'')).toUpperCase();
+  try { if(typeof rstWorkLabel === 'function') return rstWorkLabel(e); } catch(err){}
+  return ({ standby:'Imaginaria', osb:'Imaginaria en aeropuerto', training:'Simulador',
+            ebt:'EBT', eva:'Evaluación', lm:'e-Learning' })[e.type] || 'Servicio';
+}
+
+// ── Tarjeta de REPORT (firma) del próximo SERVICIO ───────────────────────────────
+// `nd` es el próximo servicio, sea vuelo o no. La hora de presentación sale de
+// rstWorkStartMin (la misma que usa el Roster: checkin → start → STD−55 para vuelos),
+// así que el Home y el Roster no pueden dar dos firmas distintas para lo mismo.
+function dhRenderReportCard(nd, _now, _MO){
   var _repFlip = document.getElementById('dh-rep-flip');
   var _repSub  = document.getElementById('dh-rep-sub');
   var _repIcon = document.getElementById('dh-rep-icon');
-  if (_repFlip) {
-    var nfStdM  = t2m(nf.std || nf.std_actual);
-    var repTotM = (nf.checkin && t2m(nf.checkin) != null) ? t2m(nf.checkin)
-                : (nfStdM != null ? nfStdM - 55 : null);
+  var _repLbl  = document.getElementById('dh-rep-lbl');
+  if (!_repFlip) return;
+
+  function _t2m(t){
+    if(!t || String(t).indexOf(':') < 0) return null;
+    var a = String(t).replace(/^[ASE]/,'').split(':');
+    var v = (+a[0]||0) * 60 + (+a[1]||0);
+    return isNaN(v) ? null : v;
+  }
+  var repTotM = null;
+  if (nd) {
+    try { if (typeof rstWorkStartMin === 'function') repTotM = rstWorkStartMin(nd); } catch(e){}
     if (repTotM == null) {
-      window._dhRepStr = null; window._dhRepColor = '#22D3EE';
-      dhRenderReportFlip(null, false);
-      if (_repSub) _repSub.textContent = '—';
-    } else {
-      var _p = nf.date.split('-');
-      // El report (firma) del roster está en hora Zulu (UTC). Construir el instante en UTC
-      // para que la cuenta atrás cuente las horas reales que quedan hasta la firma.
-      var reportDt = new Date(Date.UTC(+_p[0], +_p[1] - 1, +_p[2], 0, repTotM)); // los minutos normalizan si cruza medianoche
-      var repStr   = String(reportDt.getUTCHours()).padStart(2, '0') + ':' + String(reportDt.getUTCMinutes()).padStart(2, '0');
-      var diffMs   = reportDt.getTime() - _now.getTime();
-      var repColor, subTxt;
-      if (diffMs <= 0) {
-        repColor = '#34d399'; subTxt = 'FIRMA AHORA';
-      } else {
-        var dH = Math.floor(diffMs / 3600000), dM = Math.floor((diffMs % 3600000) / 60000);
-        // Formato "solo minutos" SOLO por debajo de 1h; de 1h a 2h hay que mostrar la hora
-        // (antes el umbral era 2h y dM=minutos-del-resto → 1h53m salía como "en 53m").
-        var when = (diffMs < 3600000) ? ('en ' + dM + 'm') : ('en ' + dH + 'h ' + String(dM).padStart(2, '0') + 'm');
-        var _nowUTCDate = _now.getUTCFullYear() + '-' + String(_now.getUTCMonth() + 1).padStart(2, '0') + '-' + String(_now.getUTCDate()).padStart(2, '0');
-        var sameDay = (nf.date === _nowUTCDate);
-        subTxt   = (sameDay ? '' : (fmtD(nf.date) + ' · ')) + when;
-        repColor = (diffMs < 2 * 3600000) ? '#f59e0b' : '#22D3EE';
-      }
-      window._dhRepStr = repStr; window._dhRepColor = repColor;
-      dhRenderReportFlip(repStr, false);
-      if (_repSub)  { _repSub.textContent = subTxt; _repSub.style.color = repColor; }
-      if (_repIcon) _repIcon.style.color = repColor;
-      // Animar la primera vez que aparece una hora válida (tras cargar datos / al refrescar la página)
-      if (window._dhRepAnimPending) { window._dhRepAnimPending = false; setTimeout(dhPlayReportFlip, 200); }
-      // Dentro de las 2h previas a la firma: ofrecer el briefing de audio (una vez por día).
-      if (diffMs > 0 && diffMs <= 2 * 3600000) { try { dhOfferPreBrief(nf.date, repStr); } catch (e) {} }
+      var _std = _t2m(dhStdOf(nd));
+      repTotM = _t2m(nd.checkin);
+      if (repTotM == null && _std != null) repTotM = (nd.type === 'flight') ? _std - 55 : _std;
     }
   }
+  if (!nd || repTotM == null) {
+    window._dhRepStr = null; window._dhRepColor = '#22D3EE';
+    dhRenderReportFlip(null, false);
+    if (_repSub) _repSub.textContent = '—';
+    if (_repLbl) _repLbl.textContent = 'Report';
+    return;
+  }
+
+  var _p = nd.date.split('-');
+  // El report (firma) del roster está en hora Zulu (UTC). Construir el instante en UTC
+  // para que la cuenta atrás cuente las horas reales que quedan hasta la firma.
+  var reportDt = new Date(Date.UTC(+_p[0], +_p[1] - 1, +_p[2], 0, repTotM)); // los minutos normalizan si cruza medianoche
+  var repStr   = String(reportDt.getUTCHours()).padStart(2, '0') + ':' + String(reportDt.getUTCMinutes()).padStart(2, '0');
+  var diffMs   = reportDt.getTime() - _now.getTime();
+  var repColor, subTxt;
+  var _relDay = dhRelDayLabel(nd.date, _now, _MO);
+  // El rótulo dice DE QUÉ firma se trata; la hora grande por sí sola no distingue la
+  // de hoy de la de mañana. Hoy → "Today's report". Mañana o más adelante → "Next
+  // report · 13 AGO", con la fecha para no tener que deducirla de la cuenta atrás.
+  // (dhRelDayLabel devuelve ya "13 AGO" a partir de 3 días; para hoy/mañana/2 días
+  // hace falta componer la fecha aparte.)
+  var _repDate = _p[2] + ' ' + _MO[parseInt(_p[1], 10) - 1];
+  if (_repLbl) _repLbl.textContent = (_relDay === 'Hoy') ? "Today's report"
+                                                         : ('Next report · ' + _repDate);
+  if (diffMs <= 0) {
+    // La firma ya pasó. Sólo es "FIRMA AHORA" en la ventana de la propia firma: si han
+    // pasado más de 30 min el piloto ya está de servicio (típicamente volando el 2º o
+    // 3er tramo de la jornada), y seguir gritándole que firme no dice nada.
+    repColor = '#34d399';
+    subTxt   = (diffMs > -30 * 60000) ? 'FIRMA AHORA' : 'EN SERVICIO';
+  } else {
+    var dH = Math.floor(diffMs / 3600000), dM = Math.floor((diffMs % 3600000) / 60000);
+    // Formato "solo minutos" SOLO por debajo de 1h; de 1h a 2h hay que mostrar la hora
+    // (antes el umbral era 2h y dM=minutos-del-resto → 1h53m salía como "en 53m").
+    // A partir de 24h, en días y horas: "en 38h 10m" no se lee de un vistazo.
+    var when = (diffMs < 3600000)      ? ('en ' + dM + 'm')
+             : (diffMs < 24 * 3600000) ? ('en ' + dH + 'h ' + String(dM).padStart(2, '0') + 'm')
+             : ('en ' + Math.floor(dH / 24) + 'd ' + (dH % 24) + 'h');
+    // Día relativo sólo cuando aporta algo sobre el rótulo: "Mañana · en 12h 30m".
+    // "Hoy" ya lo dice el rótulo ("Today's report"), y a partir de 3 días el día relativo
+    // ES la fecha, que el rótulo también lleva → en esos dos casos, sólo la cuenta atrás.
+    var _dayPfx = (_relDay === 'Mañana' || _relDay === 'En 2 días') ? (_relDay + ' · ') : '';
+    // Si el servicio NO es un vuelo, decir cuál es: una firma a las 05:00 sin más deja
+    // al piloto sin saber si es un vuelo, una imaginaria o el simulador.
+    var _kind = (nd.type === 'flight') ? '' : (dhDutyLabelOf(nd) + ' · ');
+    subTxt   = _kind + _dayPfx + when;
+    repColor = (diffMs < 2 * 3600000) ? '#f59e0b' : '#22D3EE';
+  }
+  window._dhRepStr = repStr; window._dhRepColor = repColor;
+  dhRenderReportFlip(repStr, false);
+  if (_repSub)  { _repSub.textContent = subTxt; _repSub.style.color = repColor; }
+  if (_repIcon) _repIcon.style.color = repColor;
+  // Animar la primera vez que aparece una hora válida (tras cargar datos / al refrescar la página)
+  if (window._dhRepAnimPending) { window._dhRepAnimPending = false; setTimeout(dhPlayReportFlip, 200); }
+  // Dentro de las 2h previas a la firma: ofrecer el briefing de audio (una vez por día).
+  if (diffMs > 0 && diffMs <= 2 * 3600000) { try { dhOfferPreBrief(nd.date, repStr); } catch (e) {} }
 }
 
 // ── Aviso de 2h antes de la firma: "¿te preparo el briefing de audio?" ────────
@@ -20403,6 +20629,31 @@ function ldfApply(entries){
   });
 }
 
+/* ── Punto de estado del vuelo ──────────────────────────────────────────────
+   Un solo sitio decide el color. Antes lo decidian tres (lista, ficha y detalle de
+   dia del Roster) y se habian separado: el Roster miraba si habia datos reales y el
+   Logbook miraba `e.dep||e.arr`, que son los AEROPUERTOS y los tiene todo vuelo. Con
+   eso el gris "Solo roster" era inalcanzable y cada vuelo del roster salia ambar.
+   Tampoco existe un estado "parcial": ldSave() exige OUT, IN y block, asi que a mano
+   no se puede guardar una entrada a medias — el ambar no tenia forma legitima de
+   aparecer. Ahora el punto contesta DOS preguntas en vez de una:
+     relleno  cian = hay horas reales · gris = solo lo programado
+     anillo   ambar = esas horas las puso ADS-B/OCR y no las has confirmado
+   `estado` lo calcula ldSave desde el origen de cada campo (linea ~20365) y es el
+   mismo dato que cuenta el panel de confianza de estadisticas. */
+function ldStatusDot(e, opt){
+  e = e || {};
+  var hasHours = !!(e.atd || e.aobt || e.ata || e.aibt || e.block);
+  var est = (e.estado === 'estimado');
+  return {
+    cls: 'ld-fsdot' + (hasHours ? ' complete' : '') + (est ? ' est' : '') + ((opt && opt.onLight) ? ' on-light' : ''),
+    title: !hasHours ? 'Solo roster \u00b7 sin horas reales'
+         : est       ? 'Sin confirmar \u00b7 horas estimadas por ADS-B/OCR, rev\u00edsalas'
+                     : 'Confirmado \u00b7 cuenta en n\u00f3mina',
+    hasHours: hasHours, est: est
+  };
+}
+function ldStatusDotHtml(e, opt){ var d=ldStatusDot(e, opt); return '<div class="'+d.cls+'" title="'+d.title+'"></div>'; }
 function ldRender(){
   var _ls=document.getElementById('ld_search');var q=(_ls?_ls.value:'').toLowerCase();
   var base=q?ldEntries.filter(function(e){return(e.flight+e.dep+e.arr+e.reg+e.acType+e.date+e.notes).toLowerCase().includes(q);}):ldEntries.slice();
@@ -20534,7 +20785,7 @@ function ldRender(){
               +'</div>'
             +'</div>'
             +'<div class="ld-fcard-bot" style="border-top-color:rgba(245,158,11,.1)">'
-              +'<div class="ld-fsdot partial" title="Borrador · Pendiente de completar"></div>'
+              +ldStatusDotHtml(e)
               +'<span style="font-size:10px;font-family:\'Space Mono\',monospace;font-weight:600;padding:2px 8px;border-radius:6px;background:rgba(245,158,11,.12);color:#F59E0B;border:1px solid rgba(245,158,11,.28)">⏱ ROSTER</span>'
               +(e.std&&e.sta?'<span class="ld-fdate" style="color:rgba(245,158,11,.5)">'+e.std+'–'+e.sta+'</span>':'')
               +'<button onclick="event.stopPropagation();ldEditFlight(\''+e.id+'\')" style="margin-left:auto;font-size:10px;font-family:\'Space Grotesk\',sans-serif;font-weight:700;padding:3px 10px;border-radius:8px;border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.1);color:#F59E0B;cursor:pointer">✏ Completar</button>'
@@ -20559,12 +20810,7 @@ function ldRender(){
               +'<div class="ld-fcard-bk"><div class="ld-fcard-bv">'+(e.block||'—')+'</div><div class="ld-fcard-bl">'+(ldIsSim(e)?'sesión':'block')+'</div></div>'
             +'</div>'
             +'<div class="ld-fcard-bot">'
-              +(function(){
-                var hasAtd=!!(e.atd||e.aobt), hasAta=!!(e.ata||e.aibt);
-                if(hasAtd&&hasAta&&e.block) return '<div class="ld-fsdot complete" title="Completo · Cuenta en nómina"></div>';
-                if(e.block||e.dep||e.arr)   return '<div class="ld-fsdot partial" title="Parcial · Faltan ATD/ATA"></div>';
-                return '<div class="ld-fsdot" title="Sin datos"></div>';
-              })()
+              +ldStatusDotHtml(e)
               +(acLabel?'<span class="ld-fpill ld-fpill-ac">'+acLabel+'</span>':'')
               // En un simulador, FO/PF no significan nada: lo que importa es si ibas de
               // alumno o de instructor, y eso ya lo dice la pastilla de la derecha.
@@ -20808,8 +21054,7 @@ async function ldBulkDeleteFromServer(ids){
 function ldShowCard(id){
   var e=ldEntries.find(function(x){return x.id===id;});
   if(!e) return;
-  var hasAtd=!!(e.atd||e.aobt), hasAta=!!(e.ata||e.aibt);
-  var dotCls=(hasAtd&&hasAta&&e.block)?'ld-fsdot complete':(e.block||e.dep||e.arr)?'ld-fsdot partial':'ld-fsdot';
+  var _dot=ldStatusDot(e);
   var acLabel=(e.acType||'')+(e.reg?' · '+e.reg:'');
   var roleClass=e.role==='CPT'?'ld-fpill-cpt':'ld-fpill-fo';
   var funcClass=e.func==='PM'?'ld-fpill-pm':'ld-fpill-pf';
@@ -20853,7 +21098,7 @@ function ldShowCard(id){
         +'</div>'
         +'<div style="margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
           +'<span style="font-size:12px;color:rgba(248,250,252,.45);font-family:\'Space Mono\',monospace">'+(ldIsSim(e)?((e.simType||e.acType||'Simulador')):(e.flight||'—'))+' · '+ldFmtD(e.date)+'</span>'
-          +'<div class="'+dotCls+'" style="flex-shrink:0"></div>'
+          +'<div class="'+_dot.cls+'" title="'+_dot.title+'" style="flex-shrink:0"></div>'
         +'</div>'
       +'</div>'
       +'<button onclick="ldCloseCard()" style="background:rgba(255,255,255,.07);border:none;border-radius:50%;width:32px;height:32px;color:rgba(248,250,252,.5);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px">✕</button>'
@@ -24087,11 +24332,12 @@ function ldParseImportFile(file){
       } catch(err){ ldImportError('Error leyendo Excel: '+err.message); } };
       r.readAsArrayBuffer(file);
     } else {
-      // Dynamically load SheetJS
+      // Cargar SheetJS bajo demanda desde nuestro propio origen (lo tiene precacheado
+      // el service worker) → también funciona sin cobertura.
       var s=document.createElement('script');
-      s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.src='vendor/xlsx.full.min.js';
       s.onload=function(){ ldParseImportFile(file); };
-      s.onerror=function(){ ldImportError('No se pudo cargar el lector de Excel. Comprueba tu conexión o convierte el archivo a CSV.'); };
+      s.onerror=function(){ ldImportError('No se pudo cargar el lector de Excel. Convierte el archivo a CSV e inténtalo de nuevo.'); };
       document.head.appendChild(s);
     }
     return;
@@ -24666,12 +24912,26 @@ function ldImportConfirm(){
   }
 
   // Build index of existing entries by dedup key
-  var existingMap={};
+  // ── Dedup NORMALIZADO (evita duplicar al importar de varias fuentes) ──
+  // Un nº de vuelo es único por día → misma fecha + mismo nº normalizado = el MISMO vuelo,
+  // aunque venga en IATA (BCN) o ICAO (LEBL), o con el nº escrito distinto (VY123=123=VLG123
+  // =851D). Sin nº, se compara por ruta normalizada + block. Así una importación IATA no
+  // vuelve a crear el vuelo que ya existe en ICAO, y viceversa.
+  var _LDI2A=(window.LDM&&LDM.ICAO2IATA)||{};
+  function _ldCanonAp(c){ c=(c||'').toUpperCase(); return (c.length===4&&_LDI2A[c])?_LDI2A[c]:c; }
+  function _ldNormFlt(f){ return (f||'').toString().toUpperCase().replace(/^[A-Z]+/,'').replace(/[A-Z]+$/,''); }
+  function _ldNormKey(e){
+    var nf=_ldNormFlt(e.flight);
+    var base=nf ? nf : (_ldCanonAp(e.dep)+'>'+_ldCanonAp(e.arr)+'@'+(e.block||''));
+    return (e.date||'')+'|'+base+(e.idSeq?('|'+e.idSeq):'');
+  }
+  var existingMap={}, existingByNorm={};
   ldEntries.forEach(function(e,idx){
     // idSeq entra en la clave: sin él, dos sesiones de sim del mismo día son "la misma"
     // y la segunda se perdía al fusionarse con la primera.
     var key=(e.date||'')+(e.dep||'')+(e.arr||'')+(e.flight||'')+(e.idSeq||'');
     existingMap[key]={entry:e,idx:idx};
+    var nk=_ldNormKey(e); if(nk&&!existingByNorm[nk]) existingByNorm[nk]={entry:e,idx:idx};
   });
 
   // Score completeness: count non-empty meaningful fields
@@ -24714,7 +24974,8 @@ function ldImportConfirm(){
 
   _ldImportData.forEach(function(r){
     var key=(r.date||'')+(r.dep||'')+(r.arr||'')+(r.flight||'')+(r.idSeq||'');
-    var existing=existingMap[key];
+    // Coincidencia exacta O normalizada (mismo vuelo aunque venga IATA/ICAO o con otro formato de nº)
+    var existing=existingMap[key]||existingByNorm[_ldNormKey(r)];
 
     if(!existing){
       // New entry — add it
@@ -24751,6 +25012,9 @@ function ldImportConfirm(){
       addedEntries.push(e);
       importedIds.push(e.id);
       existingMap[key]={entry:e,idx:ldEntries.length-1};
+      // registrar también en el índice normalizado: dos filas del MISMO import que sean el
+      // mismo vuelo (una IATA, otra ICAO) no se añaden las dos.
+      var _nk=_ldNormKey(e); if(_nk&&!existingByNorm[_nk]) existingByNorm[_nk]={entry:e,idx:ldEntries.length-1};
       if(e.reg&&e.acType){
         var db=ldAcDbLoad();
         // Fusionar, no pisar: conserva seMe/mp (los rellena el import de Swift) — el alta
@@ -25993,16 +26257,65 @@ async function fetchLiveTaf(icao) {
   return _openMeteoToTaf(icao, om);
 }
 
+/* ★ PROCEDENCIA DE LOS NOTAMs — de qué fuente vienen y CUÁNTO DE VIEJOS son.
+   El 13-ago-2026 el proveedor estuvo semanas devolviendo HTTP 200 con su base congelada y
+   la app enseñó "sin NOTAMs críticos" en Barcelona con el ILS de la 24L inoperativo. Sin
+   este dato el frontend NO PUEDE ser honesto: no tiene forma de distinguir "he comprobado
+   y no hay nada" de "no me he enterado de nada". El backend lo manda en cabeceras. */
+var NOTAM_META_BY_ICAO = {};
+function notamMeta(icao) { return NOTAM_META_BY_ICAO[icao] || null; }
+/* ¿Podemos AFIRMAR que no hay NOTAMs? Sólo si la fuente está fresca. Ante la duda, NO.
+   Estricta a propósito: sin procedencia (aún cargando, o backend viejo) devuelve false, para
+   que nunca se pinte un "DESPEJADO" que no podemos sostener. */
+function notamTrustworthy(icaos) {
+  var list = [].concat(icaos || []);
+  if (!list.length) return true;
+  for (var i = 0; i < list.length; i++) {
+    var m = notamMeta(list[i]);
+    if (!m || m.stale) return false;
+  }
+  return true;
+}
+/* Distinta de la anterior: aquí SABEMOS que la fuente está mal (no es que aún no haya
+   contestado). Para textos informativos, que durante la carga no deben alarmar. */
+function notamKnownStale(icaos) {
+  var list = [].concat(icaos || []);
+  for (var i = 0; i < list.length; i++) {
+    var m = notamMeta(list[i]);
+    if (m && m.stale) return true;
+  }
+  return false;
+}
 async function fetchLiveNotams(icao) {
   try {
     // NOTAMs via backend (requires auth)
     const t = localStorage.getItem('cafi_auth_token');
     if (!t) return [];
     const r = await fetch(_wxUrl() + '/api/wx/notam/' + icao, { headers: { 'Authorization': 'Bearer ' + t } });
-    if (!r.ok) return [];
+    if (!r.ok) { NOTAM_META_BY_ICAO[icao] = { source: null, stale: true, ageH: null, httpError: r.status }; return []; }
+    var _ageRaw = r.headers.get('X-Notam-Age-H');
+    NOTAM_META_BY_ICAO[icao] = {
+      source: r.headers.get('X-Notam-Source') || null,
+      /* Sin cabecera = backend viejo: se asume RANCIO. Ante la duda, el aviso se muestra;
+         un falso aviso molesta, un falso "despejado" es el que hace daño. */
+      stale: r.headers.get('X-Notam-Stale') !== '0',
+      newest: r.headers.get('X-Notam-Newest') || null,
+      ageH: (_ageRaw === null || _ageRaw === '') ? null : Number(_ageRaw),
+      at: Date.now()
+    };
     const d = await r.json();
     return Array.isArray(d) ? d : [];
-  } catch { return []; }
+  } catch { NOTAM_META_BY_ICAO[icao] = { source: null, stale: true, ageH: null }; return []; }
+}
+/* Texto del aviso cuando la fuente no es de fiar. */
+function notamStaleMsg(icaos) {
+  var list = [].concat(icaos || []);
+  var worst = null;
+  list.forEach(function (ic) { var m = notamMeta(ic); if (!m) { worst = worst || { unknown: true }; return; } if (m.stale) { if (!worst || worst.unknown || (m.ageH || 0) > (worst.ageH || 0)) worst = m; } });
+  if (!worst) return null;
+  if (worst.unknown || worst.ageH == null) return 'No se ha podido verificar la vigencia de los NOTAMs — compruébalos en el OFP';
+  var d = Math.floor(worst.ageH / 24);
+  return 'Fuente de NOTAMs sin novedades desde hace ' + (d >= 1 ? (d + (d === 1 ? ' día' : ' días')) : (worst.ageH + ' h')) + ' — pueden faltar NOTAMs, compruébalos en el OFP';
 }
 
 // Ventana de aplicabilidad de un NOTAM → para mostrar junto a la severidad.
@@ -28031,8 +28344,139 @@ function _bCatSev(cat) {
   if (cat === 'IFR' || cat === 'IMC' || cat === 'LIFR') return 'crit';
   return 'info';
 }
-function _bNotamsOf(icao) {
+/* ★ CUÁNDO CADUCA UN NOTAM — fuente ÚNICA para el panel del BRIEF y para la pestaña NOTAM.
+   Lee el campo C) del NOTAM CRUDO, no la fecha que calcula el proveedor: AVWX interpreta el
+   sufijo "EST" (que en un NOTAM significa ESTIMATED) como huso horario de Nueva York y
+   desplaza esas fechas +5h. El texto del NOTAM no miente nunca.
+   Devuelve null = no caduca (PERM o sin fin conocido). */
+function _bNotamEndMs(n) {
+  var raw = (n && n.raw) || '';
+  var c = raw.match(/\bC\)\s*([0-9]{10}|PERM)/i);
+  if (c) {
+    if (/PERM/i.test(c[1])) return null;
+    var m = c[1].match(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/);
+    if (m) return Date.UTC(2000 + +m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  }
+  if (n && n.timeEnd) { var t = Date.parse(n.timeEnd); if (!isNaN(t)) return t; }
+  return null;
+}
+function _bNotamVigente(n) {
+  var e = _bNotamEndMs(n);
+  return e === null || e >= Date.now();
+}
+/* Inicio del NOTAM (campo B) del crudo, mismo criterio que _bNotamEndMs). */
+function _bNotamStartMs(n) {
+  var raw = (n && n.raw) || '';
+  var b = raw.match(/\bB\)\s*([0-9]{10})/);
+  if (b) {
+    var m = b[1].match(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/);
+    if (m) return Date.UTC(2000 + +m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  }
+  if (n && n.timeStart) { var t = Date.parse(n.timeStart); if (!isNaN(t)) return t; }
+  return null;
+}
+/* ★ CAMPO D) — el horario REAL dentro de la ventana B)-C). Un "RWY 02/20 CLSD" vigente del 6
+   al 16 de agosto con D) "06 11 16 1400-1700" sólo cierra esos tres días de 14 a 17. Sin
+   esto, el BRIEF lo pinta como si te afectara el día 13 a las 09:25. Mismo criterio que el
+   backend (ARIA) — o las dos volverían a contar cosas distintas del MISMO NOTAM.
+   Conservador: si el horario no se entiende devuelve null y el NOTAM se trata como vigente. */
+function _bDParse(d) {
+  var s = String(d || '').trim().toUpperCase();
+  if (!s) return null;
+  if (/[A-Z]/.test(s.replace(/\s/g, ''))) return null;   // MON-FRI, DAILY, H24… no se intenta
+  var out = [];
+  var segs = s.split(',');
+  for (var i = 0; i < segs.length; i++) {
+    var dias = [], rangos = [], toks = segs[i].trim().split(/\s+/).filter(Boolean);
+    for (var j = 0; j < toks.length; j++) {
+      var m = toks[j].match(/^(\d{4})-(\d{4})$/);
+      if (m) { rangos.push([+m[1], +m[2]]); continue; }
+      m = toks[j].match(/^(\d{1,2})$/);
+      if (m && +m[1] >= 1 && +m[1] <= 31) { dias.push(+m[1]); continue; }
+      return null;
+    }
+    if (!dias.length || !rangos.length) return null;
+    out.push({ dias: dias, rangos: rangos });
+  }
+  return out.length ? out : null;
+}
+/* ¿aplica en ALGÚN momento de la ventana [desdeMs, hastaMs]? true / false / null */
+function _bDAplicaEn(n, desdeMs, hastaMs) {
+  var p = _bDParse(n && n.schedule);
+  if (!p || !desdeMs || !hastaMs) return null;
+  for (var t = desdeMs; t <= hastaMs; t += 5 * 60000) {
+    var dt = new Date(t), dia = dt.getUTCDate(), hhmm = dt.getUTCHours() * 100 + dt.getUTCMinutes();
+    for (var i = 0; i < p.length; i++) {
+      if (p[i].dias.indexOf(dia) < 0) continue;
+      for (var j = 0; j < p[i].rangos.length; j++) {
+        var a = p[i].rangos[j][0], b = p[i].rangos[j][1];
+        if (a <= b ? (hhmm >= a && hhmm <= b) : (hhmm >= a || hhmm <= b)) return true;
+      }
+    }
+  }
+  return false;
+}
+/* ★ CLASIFICACIÓN ÚNICA de un NOTAM respecto a TU vuelo. Vive aquí, global, porque la usan
+   la pestaña NOTAM y el panel del BRIEF: cuando cada una tenía la suya, el BRIEF enseñaba
+   cierres nocturnos como si te afectaran mientras la pestaña —con la misma lista— decía otra
+   cosa. Dos pantallas, un solo criterio.
+   Devuelve 'flight' (te afecta) · 'next24' · 'perm' · 'expired'. */
+function _bLegWindow(leg) {
+  var now = new Date(), today = now.toISOString().slice(0, 10);
+  function hhmm(t) { var m = String(t == null ? '' : t).match(/(\d{1,2}):?(\d{2})/); return m ? (String(m[1]).padStart(2, '0') + ':' + m[2]) : null; }
+  var std = hhmm(leg && leg.std && leg.std !== 'null' ? leg.std : null);
+  var sta = hhmm(leg && leg.sta && leg.sta !== 'null' ? leg.sta : null);
+  var fStart = std ? new Date(today + 'T' + std + ':00Z') : new Date(now.getTime() - 30 * 60000);
+  if (std) fStart.setMinutes(fStart.getMinutes() - 30);
+  var fEnd;
+  if (sta) { fEnd = new Date(today + 'T' + sta + ':00Z'); fEnd.setMinutes(fEnd.getMinutes() + 30); if (fEnd < fStart) fEnd = new Date(fEnd.getTime() + 86400000); }
+  else fEnd = new Date(fStart.getTime() + 5 * 3600000);
+  return { fStart: fStart, fEnd: fEnd, now: now };
+}
+function _bNotamBucket(n, leg) {
+  if (!n || !n.timeStart) return 'flight';
+  var w = _bLegWindow(leg);
+  var eMs = _bNotamEndMs(n);
+  var e = (eMs === null) ? null : new Date(eMs);
+  var s = new Date(n.timeStart);
+  if (!e) return 'perm';
+  if (e < w.now) return 'expired';
+  if (s <= w.fEnd && e >= w.fStart) {
+    /* Solapa por fechas, pero su campo D) puede decir que a tu hora NO aplica. */
+    if (_bDAplicaEn(n, w.fStart.getTime(), w.fEnd.getTime()) === false) return 'next24';
+    return 'flight';
+  }
+  return 'next24';
+}
+/* Orden DESCENDENTE por fecha de inicio: lo más nuevo arriba, dentro de cada grupo de
+   severidad. Un NOTAM emitido hace una hora importa más que uno de hace tres semanas que ya
+   te sabes. Los que no traen fecha van al final (no se pueden situar). */
+function _bNotamNewestFirst(a, b) {
+  var sa = _bNotamStartMs(a), sb = _bNotamStartMs(b);
+  if (sa === null && sb === null) return 0;
+  if (sa === null) return 1;
+  if (sb === null) return -1;
+  return sb - sa;
+}
+/* ★ NEW = empieza HOY (fecha UTC). Es lo que el piloto necesita cazar de un vistazo: lo que
+   ha cambiado desde ayer. Se compara en UTC porque el NOTAM va en UTC. */
+function _bNotamIsNew(n) {
+  var s = _bNotamStartMs(n);
+  if (s === null) return false;
+  return new Date(s).toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10);
+}
+function _bNotamsAll(icao) {
   return (typeof NOTAMS_BY_ICAO !== 'undefined' && NOTAMS_BY_ICAO[icao]) || [];
+}
+/* Un NOTAM caducado NO es un aviso. Pintarlo en rojo le decía al piloto que el ILS de la 24L
+   estaba fuera de servicio con un NOTAM muerto tres semanas antes. Se filtra en la RAÍZ para
+   que conteo, severidad, chips y lista no puedan discrepar entre sí.
+   NO se ocultan: se cuentan aparte y se anuncian en la cabecera (ver _bNotamHead). */
+function _bNotamsOf(icao) {
+  return _bNotamsAll(icao).filter(_bNotamVigente);
+}
+function _bNotamsExpired(icao) {
+  return _bNotamsAll(icao).filter(function (n) { return !_bNotamVigente(n); });
 }
 function _bNotamSev(list) {
   for (var i = 0; i < list.length; i++) if (list[i].sev === 'danger') return 'crit';
@@ -28065,13 +28509,18 @@ function _bNotamCount(icaos) {
   return String(n);
 }
 function _bNotamHead(icaos) {
-  var n = 0, c = 0;
+  var n = 0, c = 0, x = 0;
   icaos.forEach(function (ic) {
     var l = _bNotamsOf(ic); n += l.length;
-    c += l.filter(function (x) { return x.sev === 'danger'; }).length;
+    c += l.filter(function (v) { return v.sev === 'danger'; }).length;
+    x += _bNotamsExpired(ic).length;
   });
-  if (!n) return 'Sin NOTAMs cargados';
-  return n + ' aviso(s)' + (c ? ' · ' + c + ' crítico(s)' : '');
+  var cad = x ? ' · ' + x + ' caducado(s)' : '';
+  /* Si la fuente no es de fiar, decirlo AQUÍ: este titular es lo único que mucha gente lee. */
+  var fiable = (typeof notamKnownStale === 'function') ? !notamKnownStale(icaos) : true;
+  if (!fiable) return (n ? n + ' vigente(s) · ' : '') + '⚠ fuente no verificada';
+  if (!n) return (x ? 'Sin NOTAMs vigentes' + cad : 'Sin NOTAMs cargados');
+  return n + ' vigente(s)' + (c ? ' · ' + c + ' crítico(s)' : '') + cad;
 }
 /* Los ICAO de los alternativos: misma cascada que AlternatesSection (CCI del destino) */
 function _bAltIcaos(leg) {
@@ -28122,6 +28571,7 @@ function _briefEnsureCss() {
     '.bp-card.bp-drag{z-index:70;box-shadow:0 14px 34px rgba(0,0,0,.45)!important;opacity:.96}',
     '.bp-body{animation:bpIn .2s ease}',
     '@keyframes bpIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}',
+    '@keyframes briefSpin{to{transform:rotate(360deg)}}',
     '.bp-sheet{animation:bpUp .26s cubic-bezier(.2,.9,.25,1)}',
     '@keyframes bpUp{from{transform:translateY(100%)}to{transform:none}}',
     '.bp-strip::-webkit-scrollbar,.bp-pre::-webkit-scrollbar{display:none}',
@@ -28252,13 +28702,46 @@ function BriefNotamBody(_bn) {
     }, n));
   }));
 
-  if (!list.length) return React.createElement('div', null, chips, React.createElement('div', {
-    style: { fontSize: 10.5, color: T.tx3, fontFamily: sans, marginTop: 10, lineHeight: 1.5 }
-  }, 'Sin NOTAMs cargados para ' + cur + '. Desliza hacia abajo para actualizar.'));
+  /* Aviso de fuente no verificada, arriba del listado. */
+  var _fiable = (typeof notamKnownStale === 'function') ? !notamKnownStale([cur]) : true;
+  var _avisoFuente = _fiable ? null : React.createElement('div', {
+    style: { marginTop: 8, padding: '7px 10px', borderRadius: 9, background: 'rgba(243,156,18,.12)', border: '1px solid rgba(243,156,18,.35)', color: '#e08e0b', fontSize: 10, fontFamily: sans, lineHeight: 1.45 }
+  }, '⚠ ' + ((typeof notamStaleMsg === 'function' && notamStaleMsg([cur])) || 'Fuente de NOTAMs no verificable'));
+
+  if (!list.length) {
+    /* Distinguir "no hay dato" de "el dato que hay ya expiró": son dos situaciones muy
+       distintas para el piloto y antes las dos decían lo mismo. */
+    var _cad = _bNotamsExpired(cur).length;
+    return React.createElement('div', null, chips, _avisoFuente, React.createElement('div', {
+      style: { fontSize: 10.5, color: T.tx3, fontFamily: sans, marginTop: 10, lineHeight: 1.5 }
+    }, !_fiable
+      ? ('No se ha podido verificar la vigencia de los NOTAMs de ' + cur + '. Compruébalos en el OFP antes de salir.')
+      : (_cad
+        ? ('Sin NOTAMs vigentes para ' + cur + '. Los ' + _cad + ' que hay ya han caducado — compruébalo en la pestaña NOTAM.')
+        : ('Sin NOTAMs cargados para ' + cur + '. Desliza hacia abajo para actualizar.'))));
+  }
 
   var ord = { danger: 0, warning: 1, info: 2 };
-  return React.createElement('div', null, chips, React.createElement('div', { style: { marginTop: 8 } },
-    list.slice().sort(function (a, b) { return (ord[a.sev] === undefined ? 3 : ord[a.sev]) - (ord[b.sev] === undefined ? 3 : ord[b.sev]); })
+  /* ★ El BRIEF es el RESUMEN de la sección NOTAM, así que ordena con el MISMO criterio: lo
+     que afecta a tu vuelo primero (clasificación compartida `_bNotamBucket`), y dentro de
+     eso por severidad y por fecha. Antes ordenaba sólo por severidad, así que el resumen te
+     enseñaba cierres nocturnos que hoy no te tocan mientras la pestaña decía otra cosa. */
+  var _leg = _bn.leg || {};
+  var _bk = { flight: 0, next24: 1, perm: 2, expired: 3 };
+  function _rank(n) { var b = _bNotamBucket(n, _leg); return _bk[b] === undefined ? 4 : _bk[b]; }
+  var _afectan = list.filter(function (n) { return _bNotamBucket(n, _leg) === 'flight'; }).length;
+  return React.createElement('div', null, chips, _avisoFuente,
+    /* Titular del resumen: cuántos te afectan de verdad, del total vigente. */
+    React.createElement('div', { style: { marginTop: 8, fontFamily: mono, fontSize: 9, fontWeight: 700, color: _afectan ? T.amb : T.tx3, letterSpacing: '.3px' } },
+      _afectan ? ('▸ ' + _afectan + ' afecta' + (_afectan === 1 ? '' : 'n') + ' a tu vuelo · ' + list.length + ' vigentes en total')
+               : ('▸ ninguno afecta a tu ventana de vuelo · ' + list.length + ' vigentes en total')),
+    React.createElement('div', { style: { marginTop: 8 } },
+    list.slice().sort(function (a, b) {
+      var r = _rank(a) - _rank(b);
+      if (r !== 0) return r;
+      var d = (ord[a.sev] === undefined ? 3 : ord[a.sev]) - (ord[b.sev] === undefined ? 3 : ord[b.sev]);
+      return d !== 0 ? d : _bNotamNewestFirst(a, b);
+    })
       .slice(0, 8).map(function (n, i) {
         var sv = _bSev(T, n.sev === 'danger' ? 'crit' : n.sev === 'warning' ? 'warn' : 'info');
         return React.createElement('div', {
@@ -28268,16 +28751,49 @@ function BriefNotamBody(_bn) {
             borderRadius: 10, padding: '8px 10px', marginBottom: 6
           }
         },
-          React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 } },
+          React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' } },
             React.createElement('span', { style: { fontSize: 11 } }, n.icon || '📋'),
-            React.createElement('span', { style: { fontFamily: mono, fontSize: 9, fontWeight: 700, color: sv.c, letterSpacing: '.5px' } }, n.id || cur)
+            React.createElement('span', { style: { fontFamily: mono, fontSize: 9, fontWeight: 700, color: sv.c, letterSpacing: '.5px' } }, n.id || cur),
+            _bNotamIsNew(n) ? React.createElement('span', {
+              style: { fontFamily: mono, fontSize: 7.5, fontWeight: 800, letterSpacing: '.8px', color: '#06101c', background: '#2BE5A0', borderRadius: 5, padding: '1px 5px', flexShrink: 0 }
+            }, 'NUEVO') : null,
+            /* Marca lo que cae DENTRO de tu ventana de vuelo, con la MISMA clasificación que
+               la pestaña NOTAM. Distingue "esto te toca hoy" de "esto existe, pero no a tu
+               hora" — que era justo lo que el resumen no decía. */
+            _bNotamBucket(n, _leg) === 'flight' ? React.createElement('span', {
+              style: { fontFamily: mono, fontSize: 7.5, fontWeight: 800, letterSpacing: '.8px', color: sv.c, background: sv.bg, border: '1px solid ' + sv.c, borderRadius: 5, padding: '1px 5px', flexShrink: 0 }
+            }, 'AFECTA') : null,
+            /* El horario del campo D): la diferencia entre "cerrada" y "cierra de noche". */
+            n.schedule ? React.createElement('span', {
+              style: { fontFamily: mono, fontSize: 7.5, fontWeight: 700, color: T.tx2, background: T.surf2, border: '1px solid ' + T.line2, borderRadius: 5, padding: '1px 5px' }
+            }, 'SOLO ' + String(n.schedule).slice(0, 30)) : null,
+            /* ★ La validez, SIEMPRE. Sin ella un NOTAM de hace tres semanas es indistinguible
+               de uno de hoy: el piloto leía "RWY 24L ILS U/S" en rojo y no tenía forma de saber
+               que había muerto el 24 de julio. */
+            (function () {
+              var w = (typeof notamWindow === 'function') ? notamWindow(n) : null;
+              if (!w) return null;
+              return React.createElement('span', { style: { fontFamily: mono, fontSize: 8, fontWeight: 700, color: T.tx3, display: 'inline-flex', gap: 3, alignItems: 'center' } },
+                w.start ? React.createElement('span', { style: { color: T.tx2 } }, w.start.date + ' ' + w.start.time + 'z') : null,
+                (w.perm || w.end) ? React.createElement('span', null, '→') : null,
+                w.perm ? React.createElement('span', { style: { color: T.tx2, fontWeight: 800 } }, 'PERM')
+                       : (w.end ? React.createElement('span', { style: { color: T.tx2 } }, w.end.date + ' ' + w.end.time + 'z') : null)
+              );
+            })()
           ),
           React.createElement('div', { style: { fontSize: 10.5, color: T.tx1, fontFamily: sans, lineHeight: 1.45 } }, n.short || n.title || '')
         );
       }),
-    list.length > 8 ? React.createElement('div', {
-      style: { fontSize: 10, color: T.tx3, fontFamily: sans, marginTop: 4 }
-    }, '+' + (list.length - 8) + ' más en la pestaña NOTAM') : null
+    (function () {
+      var extra = list.length > 8 ? ('+' + (list.length - 8) + ' más') : '';
+      var cad = _bNotamsExpired(cur).length;
+      var cadTxt = cad ? (cad + ' caducado(s) ocultos') : '';
+      var txt = [extra, cadTxt].filter(Boolean).join(' · ');
+      if (!txt) return null;
+      return React.createElement('div', {
+        style: { fontSize: 10, color: T.tx3, fontFamily: sans, marginTop: 4 }
+      }, txt + ' — ver en la pestaña NOTAM');
+    })()
   ));
 }
 
@@ -28445,7 +28961,7 @@ var BRIEF_CATALOG = [
     sev: function (leg) { return _bNotamSevOf(this.icaos(leg)); },
     head: function (leg) { return _bNotamHead(this.icaos(leg)); },
     badge: function (leg) { return _bNotamCount(this.icaos(leg)); },
-    render: function (leg, x) { return React.createElement(BriefNotamBody, { icaos: this.icaos(leg), T: x.T }); }
+    render: function (leg, x) { return React.createElement(BriefNotamBody, { icaos: this.icaos(leg), T: x.T, leg: leg }); }
   },
   {
     id: 'notamarr', grp: 'NOTAM', ico: _bPlane('down'), lbl: 'NOTAM · LLEGADA', d: 'Avisos del aeropuerto de destino',
@@ -28453,7 +28969,7 @@ var BRIEF_CATALOG = [
     sev: function (leg) { return _bNotamSevOf(this.icaos(leg)); },
     head: function (leg) { return _bNotamHead(this.icaos(leg)); },
     badge: function (leg) { return _bNotamCount(this.icaos(leg)); },
-    render: function (leg, x) { return React.createElement(BriefNotamBody, { icaos: this.icaos(leg), T: x.T }); }
+    render: function (leg, x) { return React.createElement(BriefNotamBody, { icaos: this.icaos(leg), T: x.T, leg: leg }); }
   },
   {
     id: 'notamalt', grp: 'NOTAM', ico: _bPlane('alt'), lbl: 'NOTAM · ALTERNATIVOS', d: 'Avisos de los aeropuertos alternativos',
@@ -28465,7 +28981,7 @@ var BRIEF_CATALOG = [
       return ic.length + ' aeropuerto(s) · ' + _bNotamHead(ic).toLowerCase();
     },
     badge: function (leg) { return _bNotamCount(this.icaos(leg)); },
-    render: function (leg, x) { return React.createElement(BriefNotamBody, { icaos: this.icaos(leg), T: x.T }); }
+    render: function (leg, x) { return React.createElement(BriefNotamBody, { icaos: this.icaos(leg), T: x.T, leg: leg }); }
   },
 
   /* ── de la pestaña MAPAS ── */
@@ -28730,12 +29246,23 @@ function TabBrief(_ref21) {
   const pullRef = useRef(0);
   const refreshRef = useRef(null);
   const loadingRef = useRef(false);
+  /* Hora de la última carga de datos, para enseñarla bajo el botón ↻. En zulú, como todo
+     lo demás de la app. Si no consta, "--:--z" — mejor un hueco honesto que una hora falsa. */
+  const _lu = useState(function () { try { return window.__skyWxLoadedAt || null; } catch (e) { return null; } }), lastUpd = _lu[0], setLastUpd = _lu[1];
+  function _updStr(ms) {
+    if (!ms) return '--:--z';
+    var d = new Date(ms);
+    return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0') + 'z';
+  }
   function doRefresh() {
     if (loadingRef.current) return;
     loadingRef.current = true; setLoading(true);
     Promise.resolve(typeof window.__skyLoadWx === 'function' ? window.__skyLoadWx() : false)
       .catch(function () { return false; })
-      .then(function () { loadingRef.current = false; setLoading(false); });
+      .then(function () {
+        loadingRef.current = false; setLoading(false);
+        try { setLastUpd(window.__skyWxLoadedAt || Date.now()); } catch (e) { setLastUpd(Date.now()); }
+      });
   }
   refreshRef.current = doRefresh;
   useEffect(function () {
@@ -28761,6 +29288,15 @@ function TabBrief(_ref21) {
     sc.addEventListener('touchmove', tm, { passive: true });
     sc.addEventListener('touchend', te, { passive: true });
     return function () { sc.removeEventListener('touchstart', ts); sc.removeEventListener('touchmove', tm); sc.removeEventListener('touchend', te); };
+  }, []);
+
+  /* La carga también la disparan el gesto y la entrada a la pestaña, no sólo el botón: se
+     sincroniza el sello desde window. Si no cambia, React no re-renderiza. */
+  useEffect(function () {
+    var id = setInterval(function () {
+      try { var v = window.__skyWxLoadedAt || null; setLastUpd(function (p) { return v !== p ? v : p; }); } catch (e) {}
+    }, 5000);
+    return function () { clearInterval(id); };
   }, []);
 
   /* layout de la nube al montar */
@@ -29008,6 +29544,29 @@ function TabBrief(_ref21) {
       React.createElement('span', { style: { fontFamily: mono, fontSize: 8, fontWeight: 700, letterSpacing: '2px', color: T.tx3 } },
         edit ? 'ARRASTRA ⠿ PARA ORDENAR' : 'PANELES'),
       React.createElement('span', { style: { flex: 1, height: 1, background: T.line2 } }),
+      /* ── BOTÓN REDONDO DE ACTUALIZAR ──
+         El gesto de deslizar ya existía, pero no se ve y en tablet/escritorio no hay forma
+         de dispararlo. Un botón siempre visible hace lo mismo: recarga METAR, TAF y NOTAM
+         de salida, llegada y alternativos. Gira mientras trabaja. */
+      React.createElement('div', {
+        onClick: function () { if (!loading) doRefresh(); },
+        title: 'Actualizar METAR, TAF y NOTAM',
+        style: { cursor: loading ? 'default' : 'pointer', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }
+      },
+        React.createElement('span', {
+          style: {
+            width: 26, height: 26, borderRadius: '50%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontFamily: mono, fontSize: 13, fontWeight: 700,
+            border: '1px solid ' + (loading ? T.cyan : T.line2),
+            background: T.surf2, color: loading ? T.cyan : T.tx2,
+            animation: loading ? 'briefSpin .9s linear infinite' : 'none'
+          }
+        }, '↻'),
+        React.createElement('span', {
+          style: { fontFamily: mono, fontSize: 7.5, fontWeight: 700, letterSpacing: '.3px', color: loading ? T.cyan : T.tx3, lineHeight: 1, whiteSpace: 'nowrap' }
+        }, loading ? '···' : _updStr(lastUpd))
+      ),
       React.createElement('span', {
         onClick: function () { setInfo(true); },
         aria: 'Cómo funciona el BRIEF',
@@ -30337,14 +30896,24 @@ function _wxCloudSVG(T,day,clouds,tempC,icao,wx,isDay){
 }
 
 // Tema "combo" SOLO para WX: cielo real por hora + tarjetas de vidrio oscuro + banner vivo por categoría
+/* ★ WX_THEME es CRISTAL SOBRE EL CIELO, no un tema oscuro: superficies traslúcidas que dejan
+   ver el fondo. Se probó una variante clara para la sección NOTAM y se descartó: el resultado
+   era una tarjeta blanca plana que rompía el lenguaje de SkyView. Lo que fallaba no era el
+   tinte, sino que el panel usaba floatBg (navy SÓLIDO). ⚠️ Si vuelves a tocarlo: estas
+   superficies son translúcidas, así que el contraste del texto DEPENDE DEL FONDO que quede
+   detrás — sobre el cielo claro del mediodía, .44 hunde los acentos a 2.79. Mídelo componiendo
+   el alfa sobre el fondo real (TabNotam usa .66 por eso), no lo elijas a ojo. */
 function WX_THEME(){
   return {
     surf1:"rgba(16,24,40,.44)", surf2:"rgba(16,24,40,.32)", surf3:"rgba(255,255,255,.16)",
     line:"rgba(255,255,255,.14)", line2:"rgba(255,255,255,.22)", line3:"rgba(255,255,255,.38)",
-    tx1:"#F4F9FF", tx2:"rgba(232,242,255,.82)", tx3:"rgba(212,228,250,.62)",
+    /* tx2/tx3 subidos: el gris de APLICABLE y el cuerpo del NOTAM se perdían sobre el
+       cristal. Medido sobre la superficie compuesta, no a ojo. */
+    tx1:"#F4F9FF", tx2:"rgba(238,246,255,.94)", tx3:"rgba(214,230,252,.82)",
     cyan:"#5BE8F5",
     red:"#FF8095", redBg:"rgba(48,13,23,.58)", redBd:"rgba(255,107,129,.6)",
-    amb:"#FFD15A", ambBg:"rgba(46,33,7,.56)", ambBd:"rgba(255,200,61,.6)",
+    /* AVISO en NARANJA translúcido en vez del mostaza: se pidió naranja con transparencia. */
+    amb:"#FFB067", ambBg:"rgba(255,138,40,.20)", ambBd:"rgba(255,150,60,.65)",
     inf:"#7AD6FB", infBg:"rgba(9,31,48,.58)", infBd:"rgba(90,200,250,.6)",
     grn:"#4EE6AE", grnBg:"rgba(9,42,31,.58)", grnBd:"rgba(52,224,161,.6)",
     ice:"#9BDEFF", iceBg:"rgba(10,34,46,.52)", iceBd:"rgba(127,212,255,.55)",
@@ -31539,10 +32108,21 @@ function useSkyDay() {
 function TabNotamV2(_refN2) {
   const leg = _refN2.leg;
   const day = useSkyDay();
-  const T = day ? WX_THEME() : SKY_THEME(false);
+  /* ★ Mismo cristal que WX, pero MÁS DENSO — y no por gusto: de día el fondo es el cielo, y
+     sobre el tramo claro del mediodía el cristal de WX (.44) deja la tarjeta en gris medio y
+     los acentos se caen a 2.79 (medido componiendo tarjeta sobre panel sobre cielo). El
+     límite medido está en .62; se usa .66 por margen. Sigue viéndose el cielo detrás.
+     Se deriva de T en vez de tocar WX_THEME para NO cambiar la pestaña WX, que ya funciona
+     porque su fondo es más oscuro. De noche se queda exactamente como estaba. */
+  const _T0 = day ? WX_THEME() : SKY_THEME(false);
+  const T = day ? Object.assign({}, _T0, {
+    surf1: "rgba(14,21,36,.66)", surf2: "rgba(14,21,36,.56)", glassBg: "rgba(14,21,36,.62)"
+  }) : _T0;
   const _e = useState(null), expanded = _e[0], setExpanded = _e[1];
   const _a = useState(null), activeSel = _a[0], setActive = _a[1];
   const _c = useState({}), collapsed = _c[0], setCollapsed = _c[1];
+  /* Cajón activo. Arranca en "mi vuelo": es la pregunta que el piloto se hace siempre. */
+  const _bk = useState("flight"), bucket = _bk[0], setBucket = _bk[1];
   function toggleC(k) { setCollapsed(p => Object.assign({}, p, { [k]: !p[k] })); }
   const _ca = useState(function () { try { return JSON.parse(localStorage.getItem("sky_custom_aps") || "[]"); } catch (e) { return []; } }), customAps = _ca[0], setCustomAps = _ca[1];
   const _ao = useState(false), addOpen = _ao[0], setAddOpen = _ao[1];
@@ -31621,27 +32201,21 @@ function TabNotamV2(_refN2) {
     }
     return [];
   }
-  function classify(n) {
-    if (!n.timeStart) return "flight";
-    const e = n.timeEnd ? new Date(n.timeEnd) : null;
-    const now = new Date();
-    const today = now.toISOString().slice(0, 10);
-    const std = (leg.std && leg.std !== "null") ? leg.std : null;
-    const sta = (leg.sta && leg.sta !== "null") ? leg.sta : null;
-    let fStart = std ? new Date(today + "T" + std + ":00Z") : new Date(now.getTime() - 30 * 60000);
-    if (std) fStart.setMinutes(fStart.getMinutes() - 30);
-    let fEnd;
-    if (sta) { fEnd = new Date(today + "T" + sta + ":00Z"); fEnd.setMinutes(fEnd.getMinutes() + 30); if (fEnd < fStart) fEnd = new Date(fEnd.getTime() + 86400000); }
-    else fEnd = new Date(fStart.getTime() + 5 * 3600000);
-    const s = new Date(n.timeStart);
-    if (!e) return "perm";
-    if (e < now) return null;
-    if (s <= fEnd && e >= fStart) return "flight";
-    return "next24";
+  /* ★ leg.std/sta llegan a veces como "07:40" y a veces como "07:40Z", según de dónde salga
+     el leg. Concatenar la Z sin limpiar producía "2026-08-13T07:40Z:00Z" = Invalid Date, y
+     CUALQUIER comparación contra una fecha inválida es false ⇒ ningún NOTAM entraba nunca en
+     "Afectan a tu vuelo" y la caja salía DESPEJADO siempre, aunque hubiera un ILS fuera de
+     servicio en tu ventana. El doble "Zz" del subtítulo era la pista. */
+  function _legHHMM(t) {
+    var m = String(t == null ? "" : t).match(/(\d{1,2}):?(\d{2})/);
+    return m ? (String(m[1]).padStart(2, "0") + ":" + m[2]) : null;
   }
+  /* Delega en la clasificación GLOBAL, compartida con el panel del BRIEF. Antes cada pantalla
+     tenía la suya y contaban cosas distintas del mismo NOTAM. */
+  function classify(n) { return _bNotamBucket(n, leg); }
   function split(ns) {
-    const r = { flight: [], n24: [], perm: [] };
-    ns.forEach(n => { const c = classify(n); if (c === "flight") r.flight.push(n); else if (c === "next24") r.n24.push(n); else if (c === "perm") r.perm.push(n); });
+    const r = { flight: [], n24: [], perm: [], exp: [] };
+    ns.forEach(n => { const c = classify(n); if (c === "flight") r.flight.push(n); else if (c === "next24") r.n24.push(n); else if (c === "perm") r.perm.push(n); else if (c === "expired") r.exp.push(n); });
     return r;
   }
   function sevCount(ns) { return { d: ns.filter(n => n.sev === "danger").length, w: ns.filter(n => n.sev === "warning").length, i: ns.filter(n => n.sev === "info").length }; }
@@ -31668,47 +32242,77 @@ function TabNotamV2(_refN2) {
     try { localStorage.setItem("sky_custom_aps", JSON.stringify(next)); } catch (e) {}
     if (cur.icao === ic) setActive(null);
   }
+  /* Cifras del hero → llevan al grupo correspondiente. Reescrito para los cajones en
+     pestañas: apuntaba a las secciones viejas (sec_flight, sec_24h…) que ya no existen, así
+     que los contadores no hacían nada al pulsarlos. */
+  function _bucketsOf() {
+    return [["flight", curSplit.flight], ["n24", curSplit.n24], ["perm", curSplit.perm], ["exp", curSplit.exp]];
+  }
   function goToSev(sev) {
-    let skey = null;
-    if (curSplit.flight.some(n => n.sev === sev)) skey = "sec_flight";
-    else if (curSplit.n24.some(n => n.sev === sev)) skey = "sec_24h";
-    else if (curSplit.perm.some(n => n.sev === sev)) skey = "sec_perm";
-    if (!skey) return;
-    setCollapsed(prev => Object.assign({}, prev, { [skey]: false, [skey + "_" + sev]: false }));
-    const id = "sg_" + skey + "_" + sev;
-    setTimeout(function () { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 90);
+    const map = _bucketsOf();
+    /* TOTAL (sin severidad): despliega los tres grupos del cajón activo. */
+    if (!sev) {
+      const pfx = "bk_" + bucket;
+      setCollapsed(prev => Object.assign({}, prev, { [pfx + "_danger"]: false, [pfx + "_warning"]: false, [pfx + "_info"]: false }));
+      setTimeout(function () {
+        const el = document.getElementById("sg_" + pfx + "_danger") || document.getElementById("sg_" + pfx + "_warning") || document.getElementById("sg_" + pfx + "_info");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 120);
+      return;
+    }
+    /* Se prefiere el cajón que ya estás mirando; si ahí no hay de esa severidad, se salta al
+       primero que sí la tenga (si no, pulsar no haría nada y parecería roto). */
+    const here = map.find(m => m[0] === bucket && m[1].some(n => n.sev === sev));
+    const target = here || map.find(m => m[1].some(n => n.sev === sev));
+    if (!target) return;
+    const key = "bk_" + target[0] + "_" + sev;
+    if (target[0] !== bucket) setBucket(target[0]);
+    setCollapsed(prev => Object.assign({}, prev, { [key]: false }));
+    setTimeout(function () { const el = document.getElementById("sg_" + key); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 120);
   }
 
   // ── Selector · estilo "tarjeta de ruta" (mismo diseño que WX) ──
   const scrollMode = airports.length > 4;
+  /* Tema OSCURO solo para la tira de aeropuertos: se pidio dejarla como estaba porque
+     sobre el cielo tiene mas contraste y los OACI se leen de un vistazo. */
+  const TSEL = WX_THEME();
   const selKids = [];
   airports.forEach(function (ap, i) {
     const cm = CATM[ap.cat];
-    if (i > 0) selKids.push(React.createElement("div", { key: "sep" + ap.key, style: { width: 1, flexShrink: 0, alignSelf: "stretch", margin: "6px 0", background: "linear-gradient(180deg,transparent," + T.line2 + ",transparent)" } }));
+    if (i > 0) selKids.push(React.createElement("div", { key: "sep" + ap.key, style: { width: 1, flexShrink: 0, alignSelf: "stretch", margin: "6px 0", background: "linear-gradient(180deg,transparent," + TSEL.line2 + ",transparent)" } }));
     const isOn = ap.key === active;
     const sp = split(notamsOf(ap));
     const w = worst(sp.flight.concat(sp.n24));
-    const sevB = w === "danger" ? { c: T.red, bg: T.redBg, bd: T.redBd, label: "CRÍT" }
-      : w === "warning" ? { c: T.amb, bg: T.ambBg, bd: T.ambBd, label: "AVISO" }
-      : w === "info" ? { c: T.inf, bg: T.infBg, bd: T.infBd, label: "INFO" }
-      : { c: T.grn, bg: T.grnBg, bd: T.grnBd, label: "OK" };
+    const sevB = w === "danger" ? { c: TSEL.red, bg: TSEL.redBg, bd: TSEL.redBd, label: "CRÍT" }
+      : w === "warning" ? { c: TSEL.amb, bg: TSEL.ambBg, bd: TSEL.ambBd, label: "AVISO" }
+      : w === "info" ? { c: TSEL.inf, bg: TSEL.infBg, bd: TSEL.infBd, label: "INFO" }
+      : { c: TSEL.grn, bg: TSEL.grnBg, bd: TSEL.grnBd, label: "OK" };
     selKids.push(React.createElement("div", {
       key: ap.key, onClick: function () { setActive(ap.key); setExpanded(null); },
       style: { flex: scrollMode ? "0 0 86px" : 1, minWidth: 0, position: "relative", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, padding: "9px 4px 10px", borderRadius: 12, transition: "all .18s", background: isOn ? "rgba(91,232,245,.07)" : "transparent", boxShadow: isOn ? ("inset 0 0 0 1px " + cm.bd) : "none" }
     },
-      ap.custom && React.createElement("div", { onClick: function (e) { e.stopPropagation(); removeAirport(ap.icao); }, style: { position: "absolute", top: -5, right: 1, width: 18, height: 18, borderRadius: "50%", background: T.floatBg, border: "1px solid " + T.line2, color: T.tx2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, zIndex: 5 } }, "×"),
-      React.createElement("div", { style: { fontFamily: mono, fontSize: 7.5, fontWeight: 700, letterSpacing: ".8px", color: isOn ? T.cyan : cm.c, whiteSpace: "nowrap" } }, ap.role),
-      React.createElement("div", { style: { fontSize: scrollMode ? 14 : 16, fontWeight: 700, letterSpacing: ".4px", lineHeight: 1, color: isOn ? T.cyan : T.tx1, textShadow: isOn ? "0 0 12px " + cm.bd : "none" } }, ap.icao),
+      ap.custom && React.createElement("div", { onClick: function (e) { e.stopPropagation(); removeAirport(ap.icao); }, style: { position: "absolute", top: -5, right: 1, width: 18, height: 18, borderRadius: "50%", background: TSEL.floatBg, border: "1px solid " + TSEL.line2, color: TSEL.tx2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, zIndex: 5 } }, "×"),
+      React.createElement("div", { style: { fontFamily: mono, fontSize: 7.5, fontWeight: 700, letterSpacing: ".8px", color: isOn ? TSEL.cyan : cm.c, whiteSpace: "nowrap" } }, ap.role),
+      React.createElement("div", { style: { fontSize: scrollMode ? 14 : 16, fontWeight: 700, letterSpacing: ".4px", lineHeight: 1, color: isOn ? TSEL.cyan : TSEL.tx1, textShadow: isOn ? "0 0 12px " + cm.bd : "none" } }, ap.icao),
       React.createElement("div", { style: { fontFamily: mono, fontSize: 7, fontWeight: 700, letterSpacing: ".3px", padding: "1px 5px", borderRadius: 4, color: sevB.c, background: sevB.bg, border: "1px solid " + sevB.bd } }, sevB.label),
-      isOn ? React.createElement("div", { style: { position: "absolute", bottom: -1, left: "26%", right: "26%", height: 2, borderRadius: 2, background: T.cyan, boxShadow: "0 0 8px " + T.cyan } }) : null
+      isOn ? React.createElement("div", { style: { position: "absolute", bottom: -1, left: "26%", right: "26%", height: 2, borderRadius: 2, background: TSEL.cyan, boxShadow: "0 0 8px " + TSEL.cyan } }) : null
     ));
   });
-  selKids.push(React.createElement("div", { key: "sepadd", style: { width: 1, flexShrink: 0, alignSelf: "stretch", margin: "6px 0", background: "linear-gradient(180deg,transparent," + T.line2 + ",transparent)" } }));
-  selKids.push(React.createElement("div", { key: "add", onClick: function () { setAddOpen(function (o) { return !o; }); }, title: "Añadir aeropuerto", style: { width: 36, height: 36, flexShrink: 0, alignSelf: "center", borderRadius: 12, border: "1.5px dashed " + (addOpen ? T.extra : T.cyan), display: "flex", alignItems: "center", justifyContent: "center", color: addOpen ? T.extra : T.cyan, cursor: "pointer", fontSize: 22, fontWeight: 700, lineHeight: 1, background: addOpen ? T.extraBg : "rgba(91,232,245,.05)", transition: "all .18s" } }, "+"));
+  selKids.push(React.createElement("div", { key: "sepadd", style: { width: 1, flexShrink: 0, alignSelf: "stretch", margin: "6px 0", background: "linear-gradient(180deg,transparent," + TSEL.line2 + ",transparent)" } }));
+  selKids.push(React.createElement("div", { key: "add", onClick: function () { setAddOpen(function (o) { return !o; }); }, title: "Añadir aeropuerto", style: { width: 36, height: 36, flexShrink: 0, alignSelf: "center", borderRadius: 12, border: "1.5px dashed " + (addOpen ? TSEL.extra : TSEL.cyan), display: "flex", alignItems: "center", justifyContent: "center", color: addOpen ? TSEL.extra : TSEL.cyan, cursor: "pointer", fontSize: 22, fontWeight: 700, lineHeight: 1, background: addOpen ? TSEL.extraBg : "rgba(91,232,245,.05)", transition: "all .18s" } }, "+"));
   const selector = React.createElement("div", {
-    style: Object.assign({ display: "flex", gap: 5, alignItems: "stretch", marginBottom: 12, padding: "10px 11px", borderRadius: 18, background: T.surf1, border: "1px solid " + T.cardBd, boxShadow: T.cardSh },
+    style: Object.assign({ display: "flex", gap: 5, alignItems: "stretch", marginBottom: 12, padding: "10px 11px", borderRadius: 18, background: TSEL.surf1, border: "1px solid " + TSEL.cardBd, boxShadow: TSEL.cardSh, backdropFilter: TSEL.blur, WebkitBackdropFilter: TSEL.blur },
       scrollMode ? { overflowX: "auto" } : {})
   }, selKids);
+
+  /* Hora de la última descarga de ESTE aeropuerto. Sale del sello que guarda
+     fetchLiveNotams, así que es la hora real de la petición, no la del render. */
+  const _notamUpdStr = (function () {
+    var m = (typeof notamMeta === 'function') ? notamMeta(cur.icao) : null;
+    if (!m || !m.at) return "--:--z";
+    var d = new Date(m.at);
+    return String(d.getUTCHours()).padStart(2, "0") + ":" + String(d.getUTCMinutes()).padStart(2, "0") + "z";
+  })();
 
   // ── Hero unificado (ICAO + nombre + rol + pista + viento + cifras) ──
   const cm = CATM[cur.cat];
@@ -31743,7 +32347,12 @@ function TabNotamV2(_refN2) {
       React.createElement("span", { style: { fontFamily: mono, fontSize: 21, fontWeight: 800, color: heroSev.c, letterSpacing: ".5px", lineHeight: 1, textShadow: "0 0 14px " + heroSev.bd, flexShrink: 0 } }, cur.icao),
       React.createElement("span", { style: { flex: 1, minWidth: 0, fontSize: 11, fontWeight: 600, color: T.tx2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, apName),
       React.createElement("span", { style: { fontFamily: mono, fontSize: 7, fontWeight: 700, letterSpacing: ".6px", color: cm.c, background: cm.bg, border: "1px solid " + cm.bd, borderRadius: 6, padding: "3px 7px", whiteSpace: "nowrap", flexShrink: 0 } }, cur.role),
-      React.createElement("button", { onClick: () => refreshRef.current && refreshRef.current(true), title: "Actualizar NOTAMs", style: { width: 30, height: 30, borderRadius: 9, background: "transparent", border: "1px solid " + heroSev.bd, color: heroSev.c, cursor: "pointer", fontSize: 15, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, animation: loading ? "spin .8s linear infinite" : "none" } }, "↻")
+      /* Botón de actualizar + HORA de la última descarga debajo, como en el BRIEF. Sin la
+         hora, un listado de NOTAMs no dice si lo estás viendo de hace un minuto o de ayer. */
+      React.createElement("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 2, flexShrink: 0 } },
+        React.createElement("button", { onClick: () => refreshRef.current && refreshRef.current(true), title: "Actualizar NOTAMs", style: { width: 30, height: 30, borderRadius: 9, background: "transparent", border: "1px solid " + heroSev.bd, color: heroSev.c, cursor: "pointer", fontSize: 15, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", animation: loading ? "spin .8s linear infinite" : "none" } }, "↻"),
+        React.createElement("span", { style: { fontFamily: mono, fontSize: 7.5, fontWeight: 700, letterSpacing: ".3px", color: loading ? heroSev.c : T.tx3, lineHeight: 1, whiteSpace: "nowrap" } }, loading ? "···" : _notamUpdStr)
+      )
     ),
     // c) Tira de pista en uso + viento
     React.createElement("div", { style: { display: "flex", alignItems: "flex-end", gap: 12, marginBottom: 11 } },
@@ -31761,7 +32370,9 @@ function TabNotamV2(_refN2) {
     // d) Franja de cifras (CRÍTICO / AVISO / INFO / TOTAL)
     React.createElement("div", { style: { display: "flex", gap: 6 } }, heroCells.map(function (cl) {
       const on = cl.n > 0;
-      const clickable = on && cl.sev;
+      /* TOTAL también se pulsa: despliega los tres grupos. Antes se excluía por no tener
+         severidad y quedaba como la única cifra muerta de la fila. */
+      const clickable = on;
       return React.createElement("div", {
         key: cl.label,
         onClick: clickable ? function () { goToSev(cl.sev); } : null,
@@ -31788,6 +32399,11 @@ function TabNotamV2(_refN2) {
           React.createElement("div", { style: { display: "flex", gap: 5, alignItems: "center", marginBottom: 1, flexWrap: "wrap" } },
             React.createElement("span", { style: { fontFamily: mono, fontSize: 7.5, fontWeight: 700, color: m.c } }, n.id),
             React.createElement("span", { style: { fontFamily: mono, fontSize: 6, fontWeight: 700, color: m.c, background: m.bg, border: "1px solid " + m.bd, borderRadius: 4, padding: "1px 4px" } }, m.label),
+            _bNotamIsNew(n) ? React.createElement("span", { style: { fontFamily: mono, fontSize: 6.5, fontWeight: 800, letterSpacing: ".6px", color: "#04231A", background: "#2BE5A0", borderRadius: 4, padding: "1px 5px" } }, "NUEVO") : null,
+            /* El horario del campo D) cuando existe: es la diferencia entre "la pista está
+               cerrada" y "la pista cierra por las noches". */
+            n.schedule ? React.createElement("span", { style: { fontFamily: mono, fontSize: 6, fontWeight: 700, color: T.tx2, background: T.surf3, border: "1px solid " + T.line2, borderRadius: 4, padding: "1px 4px" } }, "SOLO " + String(n.schedule).slice(0, 34)) : null,
+            !_bNotamVigente(n) ? React.createElement("span", { style: { fontFamily: mono, fontSize: 6, fontWeight: 800, letterSpacing: ".6px", color: T.tx3, background: T.surf2, border: "1px solid " + T.line2, borderRadius: 4, padding: "1px 4px" } }, "CADUCADO") : null,
             win && React.createElement("span", { style: { fontFamily: mono, fontSize: 7, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 3, letterSpacing: ".2px", color: T.tx3 } },
               React.createElement("span", { style: { opacity: .8 } }, "APLICABLE"),
               win.start && React.createElement("span", { style: { color: T.tx1 } }, win.start.date),
@@ -31811,19 +32427,30 @@ function TabNotamV2(_refN2) {
 
   // ── Secciones ──
   function renderSevGroups(ns, pfx, subOpen) {
+    /* Dentro de CADA grupo (crítico, aviso, info), lo más nuevo arriba. */
+    const _bySev = s => ns.filter(n => n.sev === s).sort(_bNotamNewestFirst);
     const groups = [
-      { sev: "danger",  label: "CRÍTICO", desc: "Pista · ILS · navegación",       items: ns.filter(n => n.sev === "danger") },
-      { sev: "warning", label: "AVISO",   desc: "Rodaje · drones · restricciones", items: ns.filter(n => n.sev === "warning") },
-      { sev: "info",    label: "INFO",    desc: "Información general",              items: ns.filter(n => n.sev === "info") }
+      { sev: "danger",  label: "CRÍTICO", desc: "Pista · ILS · navegación",       items: _bySev("danger") },
+      { sev: "warning", label: "AVISO",   desc: "Rodaje · drones · restricciones", items: _bySev("warning") },
+      { sev: "info",    label: "INFO",    desc: "Información general",              items: _bySev("info") }
     ].filter(g => g.items.length > 0);
+    /* ★ Sólo se despliega solo el grupo MÁS GRAVE que tenga contenido; los demás llegan
+       recogidos. Con 13 críticos + 14 avisos + 7 info, abrirlo todo obliga a hacer scroll a
+       ciegas para encontrar lo que importa. Como `groups` ya viene filtrado a los no vacíos y
+       ordenado crítico→aviso→info, el primero ES el más grave presente: si no hay críticos se
+       abren los avisos, y si tampoco, la info. */
+    const abrePorDefecto = groups.length ? groups[0].sev : null;
     return groups.map(g => {
       const m = sevMeta(g.sev);
       const k = pfx + "_" + g.sev;
-      const isC = collapsed[k] === undefined ? !subOpen : collapsed[k];
+      const isC = collapsed[k] === undefined ? !(subOpen && g.sev === abrePorDefecto) : collapsed[k];
       return React.createElement("div", { key: k, id: "sg_" + k, style: { marginTop: 7 } },
         React.createElement("div", {
           onClick: () => toggleC(k),
-          style: { display: "flex", alignItems: "center", gap: 9, padding: "6px 10px", borderRadius: 10, cursor: "pointer", background: m.bg, border: "1px solid " + m.bd, borderLeft: "4px solid " + m.c }
+          /* Pegajosa: en una lista de 20 NOTAMs hay que saber SIEMPRE si lo que estás
+             leyendo es un crítico o un aviso, sin volver a subir. Fondo opaco para que la
+             lista no se transparente por detrás. */
+          style: { position: "sticky", top: 0, zIndex: 4, display: "flex", alignItems: "center", gap: 9, padding: "6px 10px", borderRadius: 10, cursor: "pointer", background: m.bg, backgroundColor: T.floatBg, backgroundImage: "linear-gradient(" + m.bg + "," + m.bg + ")", border: "1px solid " + m.bd, borderLeft: "4px solid " + m.c }
         },
           React.createElement("span", { style: { fontFamily: mono, fontSize: 14, fontWeight: 800, color: m.c, minWidth: 18, textAlign: "center", lineHeight: 1 } }, g.items.length),
           React.createElement("div", { style: { flex: 1 } },
@@ -31856,30 +32483,125 @@ function TabNotamV2(_refN2) {
   }
 
   // Ventana de vuelo real desde STD/STA (formato "16:00z – 17:45z")
-  const _std = (leg.std && leg.std !== "null") ? leg.std : null;
-  const _sta = (leg.sta && leg.sta !== "null") ? leg.sta : null;
+  const _std = _legHHMM(leg.std && leg.std !== "null" ? leg.std : null);
+  const _sta = _legHHMM(leg.sta && leg.sta !== "null" ? leg.sta : null);
   const winStr = (_std && _sta) ? (_std + "z – " + _sta + "z") : "Tu ventana de vuelo";
 
   // "Afectan a tu vuelo"
-  const flightSec = curSplit.flight.length === 0
-    ? React.createElement("div", { style: { marginBottom: 10, display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", borderRadius: 12, background: T.grnBg, border: "1px solid " + T.grnBd, borderLeft: "4px solid " + T.grn } },
-        React.createElement("div", { style: { width: 26, height: 26, borderRadius: 8, background: T.grnBg, border: "1px solid " + T.grnBd, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: T.grn, flexShrink: 0 } }, "✓"),
-        React.createElement("div", { style: { flex: 1, minWidth: 0 } },
-          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: T.grn } }, "Afectan a tu vuelo"),
-          React.createElement("div", { style: { fontFamily: mono, fontSize: 8, color: T.tx3, marginTop: 2 } }, winStr)
-        ),
-        React.createElement("span", { style: { fontFamily: mono, fontSize: 7.5, fontWeight: 700, letterSpacing: "1px", color: T.grn, background: T.grnBg, border: "1px solid " + T.grnBd, borderRadius: 6, padding: "3px 8px", flexShrink: 0 } }, "DESPEJADO")
-      )
-    : secGroup("sec_flight", "Afectan a tu vuelo", curSplit.flight, true, winStr, { c: T.amb, bg: T.ambBg, bd: T.ambBd });
+  /* ★ EL VERDE HAY QUE GANÁRSELO. "DESPEJADO" es una AFIRMACIÓN sobre la realidad, y sólo
+     podemos hacerla si la fuente está viva. Con el proveedor congelado esta pantalla decía
+     DESPEJADO en Barcelona mientras el ILS de la 24L estaba inoperativo: un falso negativo
+     silencioso, que en una app de briefing es lo único de verdad inaceptable.
+     Sin fuente fresca no se dice "no hay": se dice "no lo sé". */
+  const _notamOk = (typeof notamTrustworthy === 'function') ? notamTrustworthy([cur.icao]) : true;
+  const _staleMsg = (typeof notamStaleMsg === 'function') ? notamStaleMsg([cur.icao]) : null;
+  /* Sólo se pinta cuando el cajón "mi vuelo" está VACÍO (ver bucketBody), así que no
+     necesita rama para el caso con NOTAMs: de eso se encarga renderSevGroups. */
+  const _emptyFlightBox = (_notamOk
+      ? React.createElement("div", { style: { marginBottom: 10, display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", borderRadius: 12, background: T.grnBg, border: "1px solid " + T.grnBd, borderLeft: "4px solid " + T.grn } },
+          React.createElement("div", { style: { width: 26, height: 26, borderRadius: 8, background: T.grnBg, border: "1px solid " + T.grnBd, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: T.grn, flexShrink: 0 } }, "✓"),
+          React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+            React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: T.grn } }, "Afectan a tu vuelo"),
+            React.createElement("div", { style: { fontFamily: mono, fontSize: 8, color: T.tx3, marginTop: 2 } }, winStr)
+          ),
+          React.createElement("span", { style: { fontFamily: mono, fontSize: 7.5, fontWeight: 700, letterSpacing: "1px", color: T.grn, background: T.grnBg, border: "1px solid " + T.grnBd, borderRadius: 6, padding: "3px 8px", flexShrink: 0 } }, "DESPEJADO")
+        )
+      : React.createElement("div", { style: { marginBottom: 10, display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", borderRadius: 12, background: T.ambBg, border: "1px solid " + T.ambBd, borderLeft: "4px solid " + T.amb } },
+          React.createElement("div", { style: { width: 26, height: 26, borderRadius: 8, background: T.ambBg, border: "1px solid " + T.ambBd, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: T.amb, flexShrink: 0 } }, "!"),
+          React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+            React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: T.amb } }, "No verificable"),
+            React.createElement("div", { style: { fontFamily: mono, fontSize: 8, color: T.tx3, marginTop: 2, lineHeight: 1.4 } }, _staleMsg || "Fuente de NOTAMs no disponible")
+          ),
+          React.createElement("span", { style: { fontFamily: mono, fontSize: 7.5, fontWeight: 700, letterSpacing: "1px", color: T.amb, background: T.ambBg, border: "1px solid " + T.ambBd, borderRadius: 6, padding: "3px 8px", flexShrink: 0 } }, "SIN DATO")
+        ));
 
-  // "Próximas 24 horas"
-  const _c24 = sevCount(curSplit.n24);
-  const sub24 = curSplit.n24.length ? (_c24.w + " aviso · " + _c24.i + " info") : "Sin NOTAMs";
-  const n24Sec = secGroup("sec_24h", "Próximas 24 horas", curSplit.n24, false, sub24, { c: T.amb, bg: T.ambBg, bd: T.ambBd });
+  /* ══ CAJONES EN PESTAÑAS ═══════════════════════════════════════════════════════════════
+     Antes eran cuatro acordeones APILADOS, y el padre ("Afectan a tu vuelo") y el hijo
+     ("CRÍTICO") se pintaban con el mismo peso: misma barra, mismo número grande, mismo
+     borde. Nada decía que uno colgara del otro y, al hacer scroll, la cabecera del padre
+     se iba de pantalla: el piloto veía 11 NOTAMs sin saber a qué cajón pertenecían.
+     ★ Con pestañas sólo hay UN cajón en pantalla, así que la ambigüedad desaparece por
+     construcción, no por señalización.
+     ★ Y el padre tiene PALETA PROPIA (cian/violeta/gris), que no pisa el rojo/ámbar/azul de
+     las severidades. Así no hay que rebajar el peso de CRÍTICO —que es justo lo que hay que
+     leer rápido— para que se entienda la jerarquía: se distinguen por color Y por forma
+     (el padre es pastilla rellena; el hijo, barra con borde). */
+  const BUCKETS = [
+    { k: "flight", lbl: "MI VUELO",  items: curSplit.flight, c: T.cyan,  sub: winStr },
+    { k: "n24",    lbl: "24 H",      items: curSplit.n24,    c: T.alt,   sub: "Resto del día" },
+    { k: "perm",   lbl: "PERM",      items: curSplit.perm,   c: T.tx2,   sub: "Sin fecha de fin" },
+    { k: "exp",    lbl: "CADUCADOS", items: curSplit.exp,    c: T.tx3,   sub: "Ya no aplican · solo consulta" }
+  ];
+  const curBucket = BUCKETS.find(b => b.k === bucket) || BUCKETS[0];
 
-  // "Permanentes"
-  const subPerm = curSplit.perm.length ? (curSplit.perm.length + (curSplit.perm.length === 1 ? " permanente" : " permanentes")) : "Sin NOTAMs";
-  const permSec = secGroup("sec_perm", "Permanentes", curSplit.perm, false, subPerm, { c: T.tx2, bg: T.surf2, bd: T.line2 });
+  /* ★ Color del texto sobre la pestaña activa, calculado por LUMINANCIA del relleno.
+     Antes se decidía comparando una cadena del tema (T.rawBg === "#0C1B33"), que fallaba en
+     cuanto el tema no era exactamente ése: pintaba texto casi negro sobre relleno oscuro y
+     la pestaña activa quedaba ilegible. Un color no se deduce del nombre del tema. */
+  function _onFill(c) {
+    var m = String(c || "").match(/^#?([0-9a-f]{6})$/i);
+    if (!m) return "#FFFFFF";
+    var n = parseInt(m[1], 16);
+    var rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(function (v) {
+      v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    var L = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+    return L > 0.45 ? "#06101c" : "#FFFFFF";
+  }
+
+  const bucketBar = React.createElement("div", {
+    style: { display: "flex", gap: 6, overflowX: "auto", marginBottom: 10, paddingBottom: 2 }, className: "bp-strip"
+  }, BUCKETS.map(function (b) {
+    const on = b.k === curBucket.k;
+    const crit = b.items.filter(n => n.sev === "danger").length;
+    return React.createElement("div", {
+      key: b.k,
+      onClick: function () { setBucket(b.k); },
+      style: {
+        flexShrink: 0, cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+        padding: "7px 11px", borderRadius: 10, transition: "all .15s",
+        background: on ? b.c : "transparent",
+        border: "1px solid " + (on ? b.c : T.line2),
+        color: on ? _onFill(b.c) : T.tx2
+      }
+    },
+      React.createElement("span", { style: { fontFamily: mono, fontSize: 9.5, fontWeight: 800, letterSpacing: ".8px" } }, b.lbl),
+      React.createElement("span", {
+        style: {
+          fontFamily: mono, fontSize: 9, fontWeight: 800, padding: "1px 5px", borderRadius: 5,
+          background: on ? "rgba(0,0,0,.20)" : T.surf2, color: on ? "inherit" : T.tx2
+        }
+      }, b.items.length),
+      /* Los críticos se ven SIN entrar en la pestaña: es lo único que no puede esperar. */
+      crit ? React.createElement("span", {
+        style: {
+          fontFamily: mono, fontSize: 8, fontWeight: 800, padding: "1px 5px", borderRadius: 5,
+          background: on ? "rgba(0,0,0,.20)" : T.redBg,
+          color: on ? "inherit" : T.red,
+          border: on ? "none" : "1px solid " + T.redBd
+        }
+      }, crit + "★") : null
+    );
+  }));
+
+  /* Franja de contexto: repite en qué cajón estás, con SU color. Barato y evita el
+     "¿esto de qué era?" cuando la barra de pestañas queda arriba tras hacer scroll. */
+  const bucketCtx = React.createElement("div", {
+    style: { display: "flex", alignItems: "center", gap: 8, margin: "0 2px 8px", paddingLeft: 9, borderLeft: "3px solid " + curBucket.c }
+  },
+    React.createElement("span", { style: { fontSize: 10.5, fontWeight: 700, color: T.tx1 } },
+      curBucket.k === "flight" ? "Afectan a tu vuelo" : curBucket.k === "n24" ? "Próximas 24 horas" : curBucket.k === "perm" ? "Permanentes" : "Caducados"),
+    React.createElement("span", { style: { fontFamily: mono, fontSize: 8, color: T.tx3 } }, curBucket.sub)
+  );
+
+  /* Contenido del cajón activo. Las severidades conservan sus colores de siempre. */
+  const bucketBody = curBucket.items.length
+    ? renderSevGroups(curBucket.items, "bk_" + curBucket.k, true)
+    : (curBucket.k === "flight"
+      ? _emptyFlightBox
+      : React.createElement("div", {
+          style: { padding: "14px 12px", textAlign: "center", fontSize: 10.5, color: T.tx3, fontFamily: sans }
+        }, "Sin NOTAMs en este apartado."));
 
   const addPanel = addOpen ? React.createElement("div", { style: { position: "absolute", top: "100%", left: 0, right: 0, marginTop: 7, background: T.floatBg, border: "1px solid " + T.extra, borderRadius: 14, padding: "11px 13px", boxShadow: "0 14px 36px rgba(0,0,0,.45)", zIndex: 30 } },
     React.createElement("div", { style: { fontFamily: mono, fontSize: 8.5, fontWeight: 700, color: T.extra, marginBottom: 6, letterSpacing: ".5px" } }, "🔍 AÑADIR AEROPUERTO"),
@@ -31892,11 +32614,19 @@ function TabNotamV2(_refN2) {
   const pullInd = React.createElement("div", { key: "pull", style: { height: loading ? 34 : pullDist, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", transition: pullDist === 0 ? "height .25s" : "none" } },
     React.createElement("span", { style: { fontFamily: mono, fontSize: 11, fontWeight: 700, color: loading ? T.cyan : T.tx3 } }, loading ? "↻ Actualizando NOTAMs…" : (pullDist > 50 ? "↑ Suelta para actualizar" : "↓ Desliza para actualizar")));
 
-  const frame = React.createElement("div", { style: { border: "1px solid " + cm.bd, borderRadius: 16, background: T.floatBg, boxShadow: T.cardSh, padding: "13px 12px 14px", position: "relative", zIndex: 1 } },
+  /* ★ El panel usaba floatBg, que es un navy SÓLIDO: por eso se veía como un bloque opaco
+     pegado sobre el cielo mientras la pestaña WX, con las mismas superficies traslúcidas,
+     se integra. Ahora usa glassBg + desenfoque: mismo cristal que WX. */
+  const frame = React.createElement("div", { style: Object.assign({ border: "1px solid " + cm.bd, borderRadius: 16, background: T.glassBg || T.floatBg, boxShadow: T.cardSh, padding: "13px 12px 14px", position: "relative", zIndex: 1 }, T.blur ? { backdropFilter: T.blur, WebkitBackdropFilter: T.blur } : { backdropFilter: "blur(18px) saturate(140%)", WebkitBackdropFilter: "blur(18px) saturate(140%)" }) },
     heroEl,
-    flightSec,
-    n24Sec,
-    permSec
+    /* Si la fuente está rancia pero SÍ hay NOTAMs, la lista puede estar incompleta: el
+       aviso va arriba del todo. "Faltan NOTAMs" es tan importante como los que se ven. */
+    (!_notamOk && curSplit.flight.length > 0) ? React.createElement("div", {
+      style: { marginBottom: 10, padding: "8px 11px", borderRadius: 12, background: T.ambBg, border: "1px solid " + T.ambBd, borderLeft: "4px solid " + T.amb, fontSize: 9.5, color: T.amb, lineHeight: 1.45 }
+    }, "⚠ " + (_staleMsg || "Fuente de NOTAMs no verificable")) : null,
+    bucketBar,
+    bucketCtx,
+    bucketBody
   );
   return React.createElement("div", { ref: rootRef, style: { padding: "12px 14px 100px", fontFamily: sans, background: day ? _skyPhaseGrad(phase) : T.pageBg, minHeight: "100%", position: "relative", transition: "background .8s ease" } },
     pullInd,
@@ -33369,6 +34099,9 @@ function SkyViewPilotOS() {
       _altIcaos.forEach((ic, i) => { NOTAMS_BY_ICAO[ic] = (_altN[i] || []).map(x => Object.assign({}, x, {airport: ic})); });
       const notams = [].concat(NOTAMS_BY_ICAO[_depIcao], NOTAMS_BY_ICAO[_arrIcao]);
       if (notams.length || _altIcaos.length) { NOTAMS_BY_LEG[_baseLeg.num] = notams; setTick(x => x + 1); }
+      // Sello de "última actualización": lo lee el BRIEF para mostrarlo bajo el botón ↻.
+      // Aquí, para que dé igual quién dispare la recarga (gesto, botón o entrada a la pestaña).
+      try { window.__skyWxLoadedAt = Date.now(); } catch (_e) {}
       // Refresh Sky View home card with live data
       if ((dm || am) && window.refreshSkyViewCard) {
         window.refreshSkyViewCard(Object.assign({}, _baseLeg, {
@@ -36277,12 +37010,13 @@ window.rosterSelectDay = function(dateStr){
         blockMin=_bem-_bsm; if(blockMin<0) blockMin+=1440;
       }
       var blockStr = blockMin>0 ? Math.floor(blockMin/60)+'h'+(('0'+(blockMin%60)).slice(-2))+'m' : '';
-      // ── Status dot (same rule as logbook cards) ──
+      // ── Punto de estado: la MISMA funcion que pintan las tarjetas del Logbook.
+      // Antes era una copia manual con los hex a pelo, y por eso los dos codigos de
+      // color no coincidian: aqui se miraba hasA/hasE (datalink y horas estimadas de
+      // la compania) y alli si habia entrada de logbook. El punto habla del logbook
+      // del piloto; las horas de datalink ya tienen sus propias filas en esta ficha.
       var _lbBlock = _lb && (_lb.block || '');
-      var _lbComplete = hasL && atdOk && ataOk && !!_lbBlock;
-      var _legDotBg = _lbComplete ? '#22D3EE' : (hasL||hasA||hasE) ? '#F59E0B' : '#475569';
-      var _legDotShadow = _lbComplete ? '0 0 5px rgba(34,211,238,.6)' : (hasL||hasA||hasE) ? '0 0 5px rgba(245,158,11,.5)' : 'none';
-      var _legDotTitle = _lbComplete ? 'Completo · AOBT+AIBT+Block' : (hasL||hasA||hasE) ? 'Parcial' : 'Solo roster';
+      var _legDot = ldStatusDot(_lb ? {atd:(atdOk?e.atd:''), ata:(ataOk?e.ata:''), block:_lbBlock, estado:_lb.estado} : {}, {onLight:true});
       html += '<div style="display:flex;align-items:stretch;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.09)">'
         + '<div style="background:'+flightCfg.bg+';padding:12px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:54px;gap:2px">'
         + '<span style="font-size:22px;line-height:1;filter:brightness(0) invert(1)">✈</span>'
@@ -36326,7 +37060,7 @@ window.rosterSelectDay = function(dateStr){
         + (blockStr
             ? '<span style="font-size:13px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace;line-height:1;text-align:center;background:rgba(255,255,255,.92);border-radius:4px;padding:2px 6px">'+blockStr+'</span>'
             : '')
-        + '<div title="'+_legDotTitle+'" style="width:8px;height:8px;border-radius:50%;background:'+_legDotBg+';box-shadow:'+_legDotShadow+';flex-shrink:0"></div>'
+        + '<div class="'+_legDot.cls+'" title="'+_legDot.title+'" style="width:8px;height:8px"></div>'
         + '</div>'
         + '</div>';
     });
@@ -45002,8 +45736,99 @@ document.addEventListener('DOMContentLoaded', function(){
   function stripZ(s){ return String(s||'').replace(/[^0-9:]/g,''); }
   function getPos(){ return new Promise(function(res){ var CK='pilotOS_lastPos'; function cached(){ try{ var r=localStorage.getItem(CK); if(!r)return null; var o=JSON.parse(r); if(o&&o.lat!=null&&o.lon!=null&&(Date.now()-(o.t||0))<43200000) return {lat:o.lat,lon:o.lon}; }catch(e){} return null; } if(!navigator.geolocation) return res(cached()); var done=false, wid=null, lastErr=null; function fin(v){ if(done)return; done=true; if(wid!=null){ try{ navigator.geolocation.clearWatch(wid); }catch(e){} } if(v){ try{ window.__ariaGeoErr=''; }catch(e){} try{ localStorage.setItem(CK, JSON.stringify({lat:v.lat,lon:v.lon,t:Date.now()})); }catch(e){} res(v); } else { try{ window.__ariaGeoErr=lastErr?(lastErr.code+':'+(lastErr.message||'')):'none'; }catch(e){} res(cached()); } } function ok(p){ fin({lat:p.coords.latitude,lon:p.coords.longitude}); } /* watchPosition (alta precision) es mas fiable en PWA iOS: no se rinde al primer error, solo si el permiso esta denegado (code 1) */ try{ wid=navigator.geolocation.watchPosition(ok, function(e){ lastErr=e; if(e&&e.code===1){ fin(null); } }, {enableHighAccuracy:true, timeout:20000, maximumAge:600000}); }catch(e){ lastErr=e; } /* en paralelo, un fix rapido y grueso (wifi/cell) */ try{ navigator.geolocation.getCurrentPosition(ok, function(e){ lastErr=e; }, {enableHighAccuracy:false, timeout:12000, maximumAge:600000}); }catch(e){ lastErr=e; } setTimeout(function(){ fin(null); },14000); }); }
   function _locToast(msg, onTap){ try{ var t=document.createElement('div'); t.textContent=msg; t.style.cssText='position:fixed;left:50%;bottom:96px;transform:translateX(-50%);max-width:88%;background:var(--ar-sheet);color:var(--ar-tx1);border:1px solid #0aa3c7;border-radius:12px;padding:10px 14px;font:600 13px/1.35 inherit;z-index:99999;box-shadow:0 8px 30px var(--ar-shc);text-align:center;'; if(onTap){ t.style.cursor='pointer'; t.addEventListener('click',function(){ try{ t.remove(); }catch(e){} try{ onTap(); }catch(e){} }); } document.body.appendChild(t); setTimeout(function(){ try{ t.style.transition='opacity .4s'; t.style.opacity='0'; setTimeout(function(){ t.remove(); },420); }catch(e){} }, onTap?9000:5600); }catch(e){} }
-  function _requestLocTap(){ var en=(CUR&&CUR.lang)==='en'; _locToast(en?'📍 Getting location…':'📍 Obteniendo ubicación…'); getPos().then(function(p){ if(p){ _locToast(en?'✓ Location ready — tap Generate for your drive time':'✓ Ubicación lista — pulsa Generar para el tiempo en coche'); } else { _locNote(null); } }); }
-  async function _locNote(pos){ if(pos) return; var en=(CUR&&CUR.lang)==='en'; var er=''; try{ er=window.__ariaGeoErr||''; }catch(e){} var code=(String(er).split(':')[0]||''); var msg; if(code==='1'){ msg=en?'📍 Location was blocked — tap here to allow it, then Generate':'📍 Ubicación bloqueada — toca aquí para permitirla y pulsa Generar'; } else if(code==='2'){ msg=en?'📍 No GPS fix — near a window/outdoors, tap here to retry':'📍 Sin señal GPS — junto a una ventana o al aire libre, toca aquí para reintentar'; } else if(code==='3'){ msg=en?'📍 Location timed out — tap here to try again':'📍 La ubicación tardó demasiado — toca aquí para reintentar'; } else { msg=en?'📍 Tap here to enable location for your drive time to base':'📍 Toca aquí para activar la ubicación y ver el tiempo en coche a la base'; } _locToast(msg, _requestLocTap); }
+  /* Permiso de ubicacion: por que hay una hoja de ayuda y no un reintento.
+     Cuando el navegador guarda un "denegado" para el sitio, getCurrentPosition deja
+     de preguntar: falla en silencio con code 1. Volver a llamarlo desde aqui no abre
+     ningun dialogo — al piloto le parece que el aviso no hace nada. El permiso solo
+     se puede reabrir en los ajustes del navegador, asi que eso es lo que explicamos. */
+  function _geoPermState(){ return new Promise(function(res){ try{ if(!navigator.permissions||!navigator.permissions.query) return res(''); navigator.permissions.query({name:'geolocation'}).then(function(s){ res((s&&s.state)||''); }).catch(function(){ res(''); }); }catch(e){ res(''); } }); }
+  function _geoSteps(){
+    var en=(CUR&&CUR.lang)==='en';
+    var ua=navigator.userAgent||'';
+    var iOS=/iPad|iPhone|iPod/.test(ua)||(/Macintosh/.test(ua)&&(navigator.maxTouchPoints||0)>1);
+    var android=/Android/.test(ua);
+    var pwa=false; try{ pwa=(navigator.standalone===true)||!!(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches); }catch(e){}
+    var host=''; try{ host=location.hostname||''; }catch(e){}
+    if(iOS&&pwa) return { title: en?'Enable location for PilotOS':'Activar la ubicaci\u00f3n para PilotOS',
+      steps: en?['Open the iPhone Settings app.','Go to Privacy & Security \u2192 Location Services and make sure it is on.','Find PilotOS in the app list and choose \u201cWhile Using the App\u201d.','If PilotOS is not listed, pick Safari instead and set it to \u201cWhile Using the App\u201d.','Come back here and tap \u201cI enabled it\u201d.']
+                :['Abre Ajustes en el iPhone.','Entra en Privacidad y seguridad \u2192 Localizaci\u00f3n y comprueba que est\u00e1 activada.','Busca PilotOS en la lista de apps y elige \u00abAl usar la app\u00bb.','Si PilotOS no aparece, elige Safari y ponlo en \u00abAl usar la app\u00bb.','Vuelve aqu\u00ed y pulsa \u00abYa lo he activado\u00bb.'],
+      extra: en?'Last resort: remove the app from the Home Screen and add it again from Safari \u2014 the permission is asked from scratch.'
+               :'\u00daltimo recurso: borra la app de la pantalla de inicio y vu\u00e9lvela a a\u00f1adir desde Safari \u2014 el permiso se pide de cero.' };
+    if(iOS) return { title: en?'Enable location in Safari':'Activar la ubicaci\u00f3n en Safari',
+      steps: en?['In the address bar, tap the \u201caA\u201d / page button next to '+(host||'the site')+'.','Choose \u201cWebsite Settings\u2026\u201d.','Under \u201cLocation\u201d, pick \u201cAsk\u201d or \u201cAllow\u201d.','Come back here and tap \u201cI enabled it\u201d.']
+                :['En la barra de direcciones, toca el bot\u00f3n \u00abaA\u00bb / de p\u00e1gina junto a '+(host||'la web')+'.','Elige \u00abAjustes de la web\u2026\u00bb.','En \u00abUbicaci\u00f3n\u00bb, selecciona \u00abPreguntar\u00bb o \u00abPermitir\u00bb.','Vuelve aqu\u00ed y pulsa \u00abYa lo he activado\u00bb.'],
+      extra: en?'If \u201cLocation\u201d is not there: Settings \u2192 Apps \u2192 Safari \u2192 Location \u2192 \u201cAsk\u201d. Also check Settings \u2192 Privacy & Security \u2192 Location Services \u2192 Safari.'
+               :'Si ah\u00ed no ves \u00abUbicaci\u00f3n\u00bb: Ajustes \u2192 Apps \u2192 Safari \u2192 Ubicaci\u00f3n \u2192 \u00abPreguntar\u00bb. Y comprueba Ajustes \u2192 Privacidad y seguridad \u2192 Localizaci\u00f3n \u2192 Safari.' };
+    if(android) return { title: en?'Enable location for this site':'Activar la ubicaci\u00f3n para esta web',
+      steps: en?['Tap the lock / sliders icon on the left of the address bar.','Open \u201cPermissions\u201d \u2192 \u201cLocation\u201d and set it to Allow.','Come back here and tap \u201cI enabled it\u201d.']
+                :['Toca el candado o el icono de ajustes a la izquierda de la direcci\u00f3n.','Entra en \u00abPermisos\u00bb \u2192 \u00abUbicaci\u00f3n\u00bb y ponlo en Permitir.','Vuelve aqu\u00ed y pulsa \u00abYa lo he activado\u00bb.'],
+      extra: en?'Not there? \u22ee \u2192 Settings \u2192 Site settings \u2192 Location. Also make sure the browser itself has location permission in Android settings.'
+               :'\u00bfNo aparece? \u22ee \u2192 Ajustes \u2192 Configuraci\u00f3n de sitios \u2192 Ubicaci\u00f3n. Comprueba tambi\u00e9n que el navegador tiene permiso de ubicaci\u00f3n en los ajustes de Android.' };
+    return { title: en?'Enable location for this site':'Activar la ubicaci\u00f3n para esta web',
+      steps: en?['Click the icon on the left of the address bar (lock or sliders).','Set \u201cLocation\u201d to Allow.','Reload the page with the button below.']
+                :['Haz clic en el icono a la izquierda de la direcci\u00f3n (candado o controles).','Pon \u00abUbicaci\u00f3n\u00bb en Permitir.','Recarga la p\u00e1gina con el bot\u00f3n de abajo.'],
+      extra: en?'Safari on Mac: Safari \u2192 Settings \u2192 Websites \u2192 Location \u2192 '+(host||'this site')+' \u2192 Allow.'
+               :'Safari en Mac: Safari \u2192 Ajustes \u2192 Sitios web \u2192 Ubicaci\u00f3n \u2192 '+(host||'esta web')+' \u2192 Permitir.' };
+  }
+  function _locHelpSheet(){
+    var en=(CUR&&CUR.lang)==='en';
+    try{ var prev=document.getElementById('ar-locperm'); if(prev) prev.remove(); }catch(e){}
+    var g=_geoSteps(), ps=null, busy=false;
+    var ov=document.createElement('div'); ov.id='ar-locperm';
+    ov.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(2,8,14,.72);display:flex;align-items:flex-end;justify-content:center;padding:14px;';
+    var card=document.createElement('div');
+    card.style.cssText='width:100%;max-width:460px;max-height:82vh;overflow:auto;-webkit-overflow-scrolling:touch;background:var(--ar-sheet);color:var(--ar-tx1);border:1px solid #0aa3c7;border-radius:16px;padding:16px;box-shadow:0 18px 50px var(--ar-shc);font:400 14px/1.45 inherit;';
+    var h=document.createElement('div'); h.textContent='\ud83d\udccd '+g.title; h.style.cssText='font:700 16px/1.3 inherit;margin:0 0 6px;';
+    var p=document.createElement('div'); p.style.cssText='opacity:.85;margin:0 0 10px;';
+    p.textContent=en?'Your browser has location blocked for this site, so ARIA cannot ask for it again from inside the app. It has to be re-enabled here:'
+                   :'El navegador tiene la ubicaci\u00f3n bloqueada para esta web, as\u00ed que ARIA no puede volver a pedirla desde dentro de la app. Hay que reactivarla aqu\u00ed:';
+    var ol=document.createElement('ol'); ol.style.cssText='margin:0 0 10px;padding-left:20px;';
+    g.steps.forEach(function(s){ var li=document.createElement('li'); li.textContent=s; li.style.cssText='margin:0 0 6px;'; ol.appendChild(li); });
+    var extra=document.createElement('div'); extra.textContent=g.extra; extra.style.cssText='opacity:.72;font-size:12.5px;margin:0 0 12px;';
+    var note=document.createElement('div'); note.style.cssText='display:none;margin:0 0 10px;color:#ffd479;font:700 13px/1.35 inherit;';
+    var why=document.createElement('div'); why.style.cssText='opacity:.6;font-size:12px;margin:10px 0 0;';
+    why.textContent=en?'Location is only used to estimate your drive time to base. Without it, everything else in the briefing works the same.'
+                     :'La ubicaci\u00f3n solo se usa para estimar tu tiempo en coche hasta la base. Sin ella, el resto del briefing funciona igual.';
+    var row=document.createElement('div'); row.style.cssText='display:flex;gap:8px;flex-wrap:wrap;';
+    function btn(txt, primary){ var b=document.createElement('button'); b.type='button'; b.textContent=txt; b.style.cssText='flex:1 1 auto;min-width:118px;padding:11px 12px;border-radius:11px;font:700 13px/1 inherit;cursor:pointer;border:1px solid '+(primary?'#0aa3c7':'var(--ar-s3)')+';background:'+(primary?'#0aa3c7':'transparent')+';color:'+(primary?'#04121a':'var(--ar-tx1)')+';'; row.appendChild(b); return b; }
+    var bRetry=btn(en?'I enabled it \u2014 retry':'Ya lo he activado', true);
+    var bReload=btn(en?'Reload page':'Recargar', false);
+    var bClose=btn(en?'Close':'Cerrar', false);
+    function close(){ try{ if(ps) ps.onchange=null; }catch(e){} try{ ov.remove(); }catch(e){} }
+    function retry(){
+      if(busy) return; busy=true; bRetry.textContent=en?'Checking\u2026':'Comprobando\u2026';
+      _geoPermState().then(function(st){
+        if(st==='denied') return null;
+        /* getPos() cae al ultimo fix cacheado; __ariaGeoErr distingue un fix real de la cache */
+        return getPos().then(function(pp){ var er=''; try{ er=window.__ariaGeoErr||''; }catch(e){} return (pp&&!er)?pp:null; });
+      }).catch(function(){ return null; }).then(function(pp){
+        busy=false; bRetry.textContent=en?'Retry':'Reintentar';
+        if(pp){ close(); _locToast(en?'\u2713 Location ready \u2014 tap Generate for your drive time':'\u2713 Ubicaci\u00f3n lista \u2014 pulsa Generar para el tiempo en coche'); return; }
+        note.style.display='block';
+        note.textContent=en?'Still blocked. If you just changed the setting, reload the page.':'Sigue bloqueada. Si acabas de cambiar el ajuste, recarga la p\u00e1gina.';
+      });
+    }
+    bRetry.addEventListener('click', retry);
+    bReload.addEventListener('click', function(){ try{ location.reload(); }catch(e){} });
+    bClose.addEventListener('click', close);
+    ov.addEventListener('click', function(e){ if(e.target===ov) close(); });
+    card.appendChild(h); card.appendChild(p); card.appendChild(ol); card.appendChild(extra); card.appendChild(note); card.appendChild(row); card.appendChild(why);
+    ov.appendChild(card); document.body.appendChild(ov);
+    /* si el piloto concede el permiso en los ajustes sin cerrar la app, seguimos solos */
+    try{ if(navigator.permissions&&navigator.permissions.query){ navigator.permissions.query({name:'geolocation'}).then(function(s){ ps=s; s.onchange=function(){ try{ if(s.state!=='denied'&&document.getElementById('ar-locperm')===ov) retry(); }catch(e){} }; }).catch(function(){}); } }catch(e){}
+  }
+  function _requestLocTap(){ var en=(CUR&&CUR.lang)==='en';
+    _geoPermState().then(function(st){
+      if(st==='denied'){ _locHelpSheet(); return; }
+      _locToast(en?'\ud83d\udccd Getting location\u2026':'\ud83d\udccd Obteniendo ubicaci\u00f3n\u2026');
+      getPos().then(function(p){ var er=''; try{ er=window.__ariaGeoErr||''; }catch(e){}
+        if(p&&!er){ _locToast(en?'\u2713 Location ready \u2014 tap Generate for your drive time':'\u2713 Ubicaci\u00f3n lista \u2014 pulsa Generar para el tiempo en coche'); }
+        else if(String(er).split(':')[0]==='1'){ _locHelpSheet(); }
+        else { _locNote(null); }
+      });
+    });
+  }
+  async function _locNote(pos){ if(pos) return; var en=(CUR&&CUR.lang)==='en'; var er=''; try{ er=window.__ariaGeoErr||''; }catch(e){} var code=(String(er).split(':')[0]||''); var msg, tap=_requestLocTap; if(code==='1'){ msg=en?'\ud83d\udccd Location blocked \u2014 tap here to see how to re-enable it':'\ud83d\udccd Ubicaci\u00f3n bloqueada \u2014 toca aqu\u00ed para ver c\u00f3mo reactivarla'; tap=_locHelpSheet; } else if(code==='2'){ msg=en?'\ud83d\udccd No GPS fix \u2014 near a window/outdoors, tap here to retry':'\ud83d\udccd Sin se\u00f1al GPS \u2014 junto a una ventana o al aire libre, toca aqu\u00ed para reintentar'; } else if(code==='3'){ msg=en?'\ud83d\udccd Location timed out \u2014 tap here to try again':'\ud83d\udccd La ubicaci\u00f3n tard\u00f3 demasiado \u2014 toca aqu\u00ed para reintentar'; } else { msg=en?'\ud83d\udccd Tap here to enable location for your drive time to base':'\ud83d\udccd Toca aqu\u00ed para activar la ubicaci\u00f3n y ver el tiempo en coche a la base'; } _locToast(msg, tap); }
   function _baseInfo(){ try{ var b=''; try{ b=localStorage.getItem('pilotOS_home_base')||''; }catch(e){} if(!b){ var lg=gatherLegs(); if(lg&&lg.length) b=lg[0].dep; } if(!b) return null; var ic=(window.iataToIcao&&window.iataToIcao(b))||b; var ap=(window.LD_AIRPORTS&&window.LD_AIRPORTS[ic])||null; if(!ap||ap.lat==null||ap.lon==null) return null; var nm=(window._WX_NAMES&&window._WX_NAMES[ic])||ap.city||ap.name||b; nm=String(nm).replace(/\s*(airport|aeropuerto|intl|international)/ig,'').trim(); return { icao:ic, lat:+ap.lat, lon:+ap.lon, label:'el aeropuerto de '+nm+' ('+b+')' }; }catch(e){ return null; } }
   function prevDayRoutes(legs){ try{ if(!legs||!legs.length||!legs[0].date) return []; var raw=localStorage.getItem('pilotOS_roster'); if(!raw) return []; var ents=JSON.parse(raw); if(!Array.isArray(ents)) return []; var d=new Date(legs[0].date+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()-1); var prev=d.toISOString().slice(0,10); var out=[]; ents.forEach(function(e){ if(e.type==='flight'&&e.dep&&e.arr&&e.date===prev){ out.push(e.dep+'-'+e.arr); } }); return out; }catch(e){ return []; } }
   function gatherLegs(){ var legs=(window.buildLegsFromRoster&&window.buildLegsFromRoster())||[]; return legs.map(function(l){ var di=(window.iataToIcao&&window.iataToIcao(l.dep))||l.dep; var ai=(window.iataToIcao&&window.iataToIcao(l.arr))||l.arr; return {flight:l.flight,dep:l.dep,arr:l.arr,depIcao:di,arrIcao:ai,positioning:!!l.positioning,std:stripZ(l.std),sta:stripZ(l.sta),acType:l.acType,arrMs:l._arrMs,date:l.date,cruiseFL:l.cruiseFL}; }); }
@@ -45652,6 +46477,53 @@ document.addEventListener('DOMContentLoaded', function(){
     return clean(obj,0);
   }
 
+  // ── Roster alrededor de hoy + veredicto del Home ────────────────────────────────
+  // Ventana corta (ayer → +3 días): lo justo para reproducir qué vuelo/servicio debería
+  // salir en el Home y por qué. Las tripulaciones se quitan: son datos de terceros y no
+  // sirven para diagnosticar nada.
+  function brRosterWindow(){
+    var entries = [];
+    try {
+      var raw = localStorage.getItem('pilotOS_roster');
+      if(raw){ var p = JSON.parse(raw); if(Array.isArray(p)) entries = p; }
+    } catch(e){ return null; }
+    if(!entries.length) return { entries:[], verdict:{ note:'roster vacío' } };
+    var now = new Date(), nowMs = now.getTime();
+    var _ds = function(off){
+      var d = new Date(nowMs + off*86400000);
+      return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+    };
+    var from = _ds(-1), to = _ds(2);
+    var win = entries.filter(function(e){ return e && e.date && e.date >= from && e.date <= to; })
+      .map(function(e){
+        var o = {};
+        for(var k in e){
+          if(!Object.prototype.hasOwnProperty.call(e,k)) continue;
+          if(k === 'crew' || k === 'crewMembers' || k === 'Crew') continue;  // datos de terceros
+          o[k] = e[k];
+        }
+        return o;
+      });
+    var verdict = { nowUTC: now.toISOString(), window: from+' → '+to };
+    try {
+      var flights = entries.filter(function(e){ return e.type === 'flight'; })
+        .sort(function(a,b){ return (a.date+(dhStdOf(a)||'00:00')).localeCompare(b.date+(dhStdOf(b)||'00:00')); });
+      var up = dhUpcomingFlights(flights, nowMs);
+      var nf = up[0];
+      verdict.upcomingCount = up.length;
+      verdict.nextFlight = nf ? { date:nf.date, route:(nf.dep||'?')+'-'+(nf.arr||'?'),
+        std:dhStdOf(nf), sta:dhStaOf(nf), checkin:nf.checkin||null, debrief:nf.debrief||null,
+        dutyH:nf.dutyH||null, arrivalUTC:new Date(dhArrMsOf(nf)).toISOString() } : null;
+      // Fin de jornada calculado para el día de HOY: es el corte que decide si el Home
+      // debe haber pasado ya al servicio siguiente.
+      var today = _ds(0);
+      var todayLegs = flights.filter(function(f){ return f.date === today; });
+      var de = todayLegs.length ? dhDutyEndMs(todayLegs) : null;
+      verdict.todayDutyEnd = de != null ? new Date(de).toISOString() : null;
+    } catch(e){ verdict.error = e.message; }
+    return { entries: win, verdict: verdict };
+  }
+
   // ── Estado del módulo activo (mismo criterio que goTo(): la global curScreen) ──
   function brCollectState(){
     var s = (typeof curScreen!=='undefined' && curScreen) || 'home';
@@ -45675,11 +46547,24 @@ document.addEventListener('DOMContentLoaded', function(){
                 question: q ? { q:q.q, answer:q.answer, cat:q.cat||q.category||null, type:q.type||null } : null };
       } else if(s==='home' || s==='stats'){
         out = { statsLayout: JSON.parse(localStorage.getItem('pilotOS_stats_layout')||'null') };
+        // Un fallo del Home es casi siempre un fallo de "qué servicio toca ahora", y eso
+        // NO se puede diagnosticar sin ver el roster: el reporte G24C0 sólo traía
+        // statsLayout y hubo que deducir qué horas tenía cada tramo a partir de tres
+        // capturas de pantalla. Se adjunta la ventana [ayer, +3 días] TAL CUAL está
+        // guardada (con std/sta/_actual/_estimated, checkin, debrief y dutyH: son
+        // justo los campos que deciden), más lo que el Home ha concluido con ella.
+        try {
+          var _rw = brRosterWindow();
+          if(_rw) { out.roster = _rw.entries; out.homeVerdict = _rw.verdict; }
+        } catch(e){ out.roster = '[error: '+e.message+']'; }
       } else { out = {}; }
     } catch(e){ out = { _error:'collectState: '+e.message }; }
     out._activeScreen = s;
     out = brSanitize(out);
-    try { var str = JSON.stringify(out); if(str.length>12000) out = { _truncated:true, _activeScreen:s, preview: str.slice(0,11000) }; } catch(e){}
+    // Tope de tamaño. Subido de 12 KB a 20 KB porque el estado útil de Home y Roster
+    // (entradas del roster con todas sus horas) se pasaba de 12 KB y el reporte llegaba
+    // convertido en un `preview` recortado — es decir, sin el dato que hacía falta.
+    try { var str = JSON.stringify(out); if(str.length>20000) out = { _truncated:true, _activeScreen:s, preview: str.slice(0,19000) }; } catch(e){}
     return out;
   }
 
