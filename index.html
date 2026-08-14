@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.540">
+  <meta name="version" content="Beta.541">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.540","builtAt":"2026-08-14T14:57:32Z","commit":"6dd3d58","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.541","builtAt":"2026-08-14T16:19:54Z","commit":"ad0a1ee","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -28665,7 +28665,14 @@ function _bNotamBucket(n, leg) {
     if (_bDAplicaEn(n, w.fStart.getTime(), w.fEnd.getTime()) === false) return 'next24';
     return 'flight';
   }
-  return 'next24';
+  /* ★★ "24 H" era un CAJÓN DE SASTRE: todo lo que no fuese de tu vuelo, permanente o
+     caducado caía aquí, sin mirar si empezaba dentro de 24 horas. Con un vuelo el día 17, la
+     pestaña rotulada "Próximas 24 horas · Resto del día" le enseñaba al piloto DIEZ NOTAMs
+     con chapa CRÍTICO —cierres de pista e ILS fuera de servicio— que empezaban los días 18,
+     19, 20 y 21. Al verlos concluyó que ARIA le ocultaba críticos, cuando ARIA acertaba: ese
+     día no había ninguno. No se oculta nada; simplemente lo de otros días va a su cajón. */
+  if (s <= w.fStart.getTime() + 24 * 3600000) return 'next24';
+  return 'later';
 }
 /* Orden DESCENDENTE por fecha de inicio: lo más nuevo arriba, dentro de cada grupo de
    severidad. Un NOTAM emitido hace una hora importa más que uno de hace tres semanas que ya
@@ -32433,8 +32440,17 @@ function TabNotamV2(_refN2) {
      tenía la suya y contaban cosas distintas del mismo NOTAM. */
   function classify(n) { return _bNotamBucket(n, leg); }
   function split(ns) {
-    const r = { flight: [], n24: [], perm: [], exp: [] };
-    ns.forEach(n => { const c = classify(n); if (c === "flight") r.flight.push(n); else if (c === "next24") r.n24.push(n); else if (c === "perm") r.perm.push(n); else if (c === "expired") r.exp.push(n); });
+    const r = { flight: [], n24: [], later: [], perm: [], exp: [] };
+    /* El `else` final es a propósito: un bucket nuevo sin cajón haría DESAPARECER esos
+       NOTAMs de todas las pestañas, que es peor que enseñarlos en el sitio equivocado. */
+    ns.forEach(n => {
+      const c = classify(n);
+      if (c === "flight") r.flight.push(n);
+      else if (c === "next24") r.n24.push(n);
+      else if (c === "perm") r.perm.push(n);
+      else if (c === "expired") r.exp.push(n);
+      else r.later.push(n);
+    });
     return r;
   }
   function sevCount(ns) { return { d: ns.filter(n => n.sev === "danger").length, w: ns.filter(n => n.sev === "warning").length, i: ns.filter(n => n.sev === "info").length }; }
@@ -32747,7 +32763,10 @@ function TabNotamV2(_refN2) {
      (el padre es pastilla rellena; el hijo, barra con borde). */
   const BUCKETS = [
     { k: "flight", lbl: "MI VUELO",  items: curSplit.flight, c: T.cyan,  sub: winStr },
-    { k: "n24",    lbl: "24 H",      items: curSplit.n24,    c: T.alt,   sub: "Resto del día" },
+    { k: "n24",    lbl: "24 H",      items: curSplit.n24,    c: T.alt,   sub: "Empiezan en las 24 h siguientes a tu salida" },
+    /* Cajón propio para lo de otros días. Antes caían en "24 H" y un cierre de pista de
+       dentro de cuatro días se leía como si fuera de hoy. */
+    { k: "later",  lbl: "DESPUÉS",   items: curSplit.later,  c: T.tx2,   sub: "Otros días · aún no te afectan" },
     { k: "perm",   lbl: "PERM",      items: curSplit.perm,   c: T.tx2,   sub: "Sin fecha de fin" },
     { k: "exp",    lbl: "CADUCADOS", items: curSplit.exp,    c: T.tx3,   sub: "Ya no aplican · solo consulta" }
   ];
@@ -32809,7 +32828,7 @@ function TabNotamV2(_refN2) {
     style: { display: "flex", alignItems: "center", gap: 8, margin: "0 2px 8px", paddingLeft: 9, borderLeft: "3px solid " + curBucket.c }
   },
     React.createElement("span", { style: { fontSize: 10.5, fontWeight: 700, color: T.tx1 } },
-      curBucket.k === "flight" ? "Afectan a tu vuelo" : curBucket.k === "n24" ? "Próximas 24 horas" : curBucket.k === "perm" ? "Permanentes" : "Caducados"),
+      curBucket.k === "flight" ? "Afectan a tu vuelo" : curBucket.k === "n24" ? "Próximas 24 horas" : curBucket.k === "later" ? "Otros días" : curBucket.k === "perm" ? "Permanentes" : "Caducados"),
     React.createElement("span", { style: { fontFamily: mono, fontSize: 8, color: T.tx3 } }, curBucket.sub)
   );
 
