@@ -9,6 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="PilotOS">
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="stylesheet" href="css/expense.css">
 <title>PilotOS</title>
 <script>
 /* Reset del zoom SOLO al abrir/reabrir la PWA (iOS restaura una escala con zoom
@@ -56,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.538">
+  <meta name="version" content="Beta.540">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.538","builtAt":"2026-08-14T12:00:06Z","commit":"667083a","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.540","builtAt":"2026-08-14T14:57:32Z","commit":"6c5bd98","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -1445,7 +1446,7 @@ html.day .doc-sheet-sectlbl{color:#94A3B8}
 #scr-pay .pc-rf-chip.on::after{background:#F59E0B;border-color:#F59E0B;content:'✓';color:#451a03;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 8px rgba(245,158,11,.5)}
 #scr-pay .pc-rf-chip-inp{width:76px !important;padding:4px 8px !important;font-size:12px !important;border-radius:8px !important;margin-left:auto;flex-shrink:0}
 /* ── Pay Check: tab bar ── */
-#scr-pay .pc-tab-bar{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin:4px 0 16px;background:rgba(0,0,0,.35);border:1px solid rgba(245,158,11,.14);border-radius:16px;padding:4px}
+#scr-pay .pc-tab-bar{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;margin:4px 0 16px;background:rgba(0,0,0,.35);border:1px solid rgba(245,158,11,.14);border-radius:16px;padding:4px}
 #scr-pay .pc-tab-btn{padding:9px 2px;border:1px solid transparent;border-radius:12px;font-family:'Space Grotesk',sans-serif;font-size:11.5px;font-weight:700;letter-spacing:.2px;cursor:pointer;transition:all .2s;background:transparent;color:rgba(255,255,255,.45);white-space:nowrap}
 #scr-pay .pc-tab-btn.active{background:rgba(245,158,11,.18);color:#FBBF24;box-shadow:0 2px 12px rgba(245,158,11,.2),inset 0 1px 0 rgba(255,255,255,.07);border-color:rgba(245,158,11,.28)}
 
@@ -10872,6 +10873,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       <button class="pc-tab-btn active" data-tab="acum" onclick="pcSwitchTab('acum')">⬡ Acumulado</button>
       <button class="pc-tab-btn" data-tab="nom" onclick="pcSwitchTab('nom')">◈ Nómina</button>
       <button class="pc-tab-btn" data-tab="audit" onclick="pcSwitchTab('audit')">⚖ Auditoría</button>
+      <button class="pc-tab-btn" data-tab="gastos" onclick="pcSwitchTab('gastos')">🧾 Gastos</button>
     </div>
 
     <!-- ════ TAB: ACUMULADO ════ -->
@@ -11407,6 +11409,9 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
     <div id="pc-tab-audit" style="display:none">
       <div id="pc_audit"></div>
     </div>
+
+    <!-- NOTAS DE GASTO (js/expense.js) -->
+    <div id="pc-tab-gastos" style="display:none"></div>
 
     <!-- Overlay informe nómina (reemplaza window.open) -->
     <div id="pc-print-area"></div>
@@ -17077,7 +17082,10 @@ function pcSwitchTab(tab) {
   var btns = document.querySelectorAll('#scr-pay .pc-tab-btn');
   btns.forEach(function(b) { b.classList.toggle('active', b.dataset.tab === tab); });
   if (tab === 'nom') pcSetDefaultImportMonth();
+  var gast = document.getElementById('pc-tab-gastos');
+  if (gast) gast.style.display = (tab === 'gastos') ? '' : 'none';
   if (tab === 'audit') pcAuditRender();
+  if (tab === 'gastos' && window.exRender) window.exRender();
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -25190,6 +25198,8 @@ document.addEventListener('focusin',function(e){
 <script src="js/qbank-ac.js"></script>
 <script src="js/qbank-ag.js"></script>
 <script src="js/qbank-afgen.js"></script>
+<script src="js/expense-engine.js"></script>
+<script src="js/expense.js"></script>
 <script>
 // Backend URL declared early so login works even if later code throws
 var cafiBackendUrl = 'https://api.pilotos.aero';
@@ -28609,16 +28619,34 @@ function _bDAplicaEn(n, desdeMs, hastaMs) {
    cierres nocturnos como si te afectaran mientras la pestaña —con la misma lista— decía otra
    cosa. Dos pantallas, un solo criterio.
    Devuelve 'flight' (te afecta) · 'next24' · 'perm' · 'expired'. */
+/* ★★ La ventana sale de la FECHA DEL LEG, nunca de la de hoy.
+   Esto valía `new Date().toISOString().slice(0,10)` y montaba la ventana con la fecha de HOY
+   y la hora del vuelo. Para el vuelo de hoy acierta por casualidad; para cualquier otro día
+   del roster mide el día equivocado. Caso real (14-ago): briefing de un BCN→BLQ del día 18 a
+   las 04:30z. `LEBL A5476/26 RWY 06L/24R CLSD` caduca el 16 a las 04:00z, o sea DOS DÍAS antes
+   de ese vuelo, y la pantalla lo pintaba como CRÍTICO que "afecta a tu vuelo" porque lo medía
+   contra el 14. ARIA —que sí usa la fecha del leg— decía correctamente que no había críticos,
+   y el piloto concluyó que ARIA se callaba un cierre de pista. El falso positivo de una
+   pantalla se paga en confianza sobre todo lo demás.
+   `_depMs`/`_arrMs` son los MISMOS milisegundos que se le mandan al backend como depMs/arrMs
+   ⇒ pestaña NOTAM, panel del BRIEF y ARIA miden exactamente la misma ventana. */
 function _bLegWindow(leg) {
-  var now = new Date(), today = now.toISOString().slice(0, 10);
-  function hhmm(t) { var m = String(t == null ? '' : t).match(/(\d{1,2}):?(\d{2})/); return m ? (String(m[1]).padStart(2, '0') + ':' + m[2]) : null; }
-  var std = hhmm(leg && leg.std && leg.std !== 'null' ? leg.std : null);
-  var sta = hhmm(leg && leg.sta && leg.sta !== 'null' ? leg.sta : null);
-  var fStart = std ? new Date(today + 'T' + std + ':00Z') : new Date(now.getTime() - 30 * 60000);
-  if (std) fStart.setMinutes(fStart.getMinutes() - 30);
-  var fEnd;
-  if (sta) { fEnd = new Date(today + 'T' + sta + ':00Z'); fEnd.setMinutes(fEnd.getMinutes() + 30); if (fEnd < fStart) fEnd = new Date(fEnd.getTime() + 86400000); }
-  else fEnd = new Date(fStart.getTime() + 5 * 3600000);
+  var now = new Date();
+  var sMs = leg && leg._depMs, eMs = leg && leg._arrMs;
+  if (sMs == null || eMs == null) {
+    /* Respaldo para legs que no traen los ms (alternativos, legs sintéticos): se compone con
+       la fecha del PROPIO leg; sólo si tampoco la hay se cae a hoy, que es lo de antes. */
+    function hhmm(t) { var m = String(t == null ? '' : t).match(/(\d{1,2}):?(\d{2})/); return m ? (String(m[1]).padStart(2, '0') + ':' + m[2]) : null; }
+    var day = (leg && leg.date) || now.toISOString().slice(0, 10);
+    var std = hhmm(leg && leg.std && leg.std !== 'null' ? leg.std : null);
+    var sta = hhmm(leg && leg.sta && leg.sta !== 'null' ? leg.sta : null);
+    if (sMs == null) sMs = std ? Date.parse(day + 'T' + std + ':00Z') : now.getTime();
+    if (eMs == null) eMs = sta ? Date.parse(day + 'T' + sta + ':00Z') : null;
+    if (!sMs) sMs = now.getTime();
+    if (eMs && eMs < sMs) eMs += 86400000;            // el leg cruza medianoche
+  }
+  var fStart = new Date(sMs - 30 * 60000);
+  var fEnd = eMs ? new Date(eMs + 30 * 60000) : new Date(sMs + 5 * 3600000);
   return { fStart: fStart, fEnd: fEnd, now: now };
 }
 function _bNotamBucket(n, leg) {
@@ -28628,7 +28656,10 @@ function _bNotamBucket(n, leg) {
   var e = (eMs === null) ? null : new Date(eMs);
   var s = new Date(n.timeStart);
   if (!e) return 'perm';
-  if (e < w.now) return 'expired';
+  /* Caducado = ya no te sirve. Vale tanto si murió antes de AHORA como si muere antes de que
+     salgas: para un vuelo del día 18, un NOTAM que expira el 16 está igual de muerto, y
+     colarlo en "Próximas 24 horas" lo dejaría a un dedo de parecer vigente. */
+  if (e < w.now || e < w.fStart) return 'expired';
   if (s <= w.fEnd && e >= w.fStart) {
     /* Solapa por fechas, pero su campo D) puede decir que a tu hora NO aplica. */
     if (_bDAplicaEn(n, w.fStart.getTime(), w.fEnd.getTime()) === false) return 'next24';
