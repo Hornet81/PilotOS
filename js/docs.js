@@ -23,6 +23,134 @@ const MAX_FILE_MB = 5;
 let docsData = {};
 try { docsData = JSON.parse(lsGet('pilotos_docs','{}')); } catch(e) {}
 
+// ── Archivos de los documentos: IndexedDB (offline de verdad) ───────────────
+// Las fotos/PDF NO caben en localStorage: iOS da ~5 MB por ORIGEN y ahí dentro ya
+// viven el logbook (3.800 vuelos ≈ 2 MB) y el roster. Al llenarse, el setItem
+// lanzaba QuotaExceeded y el catch se lo tragaba EN SILENCIO: con cobertura los
+// documentos se veían (recién bajados de la nube) y sin cobertura desaparecían.
+// Ahora las páginas viven en IndexedDB (cientos de MB) y en localStorage se queda
+// SOLO el metadato (fechas, números, habilitaciones), que pesa nada.
+const DOCF_DB = 'pilotos-docfiles', DOCF_STORE = 'pages';
+let _docfOk = true;        // false → sin IndexedDB (modo privado) ⇒ se vuelve a localStorage
+let _docsHydrated = false; // true cuando las páginas ya están cargadas en memoria
+let _docfDbP = null;
+function _docfDb() {
+  if (_docfDbP) return _docfDbP;
+  _docfDbP = new Promise(function (resolve) {
+    try {
+      if (!window.indexedDB) return resolve(null);
+      const rq = indexedDB.open(DOCF_DB, 1);
+      rq.onupgradeneeded = function () { const db = rq.result; if (!db.objectStoreNames.contains(DOCF_STORE)) db.createObjectStore(DOCF_STORE); };
+      rq.onsuccess = function () { resolve(rq.result); };
+      rq.onerror = function () { resolve(null); };
+      rq.onblocked = function () { resolve(null); };
+    } catch (e) { resolve(null); }
+  }).then(function (db) { if (!db) _docfOk = false; return db; });
+  return _docfDbP;
+}
+function _docfPut(id, pages) {
+  return _docfDb().then(function (db) {
+    if (!db) return false;
+    return new Promise(function (resolve) {
+      try {
+        const tx = db.transaction(DOCF_STORE, 'readwrite');
+        tx.objectStore(DOCF_STORE).put(pages, id);
+        tx.oncomplete = function () { resolve(true); };
+        tx.onerror = function () { resolve(false); };
+        tx.onabort = function () { resolve(false); };
+      } catch (e) { resolve(false); }
+    });
+  });
+}
+function _docfDel(id) {
+  return _docfDb().then(function (db) {
+    if (!db) return false;
+    return new Promise(function (resolve) {
+      try {
+        const tx = db.transaction(DOCF_STORE, 'readwrite');
+        tx.objectStore(DOCF_STORE).delete(id);
+        tx.oncomplete = function () { resolve(true); };
+        tx.onerror = function () { resolve(false); };
+      } catch (e) { resolve(false); }
+    });
+  });
+}
+function _docfAll() {
+  return _docfDb().then(function (db) {
+    if (!db) return {};
+    return new Promise(function (resolve) {
+      const out = {};
+      try {
+        const tx = db.transaction(DOCF_STORE, 'readonly');
+        const cur = tx.objectStore(DOCF_STORE).openCursor();
+        cur.onsuccess = function () { const c = cur.result; if (!c) return; out[c.key] = c.value; c.continue(); };
+        tx.oncomplete = function () { resolve(out); };
+        tx.onerror = function () { resolve(out); };
+      } catch (e) { resolve(out); }
+    });
+  });
+}
+// Mete unas páginas en el documento en memoria (pages + los campos derivados que usa el render)
+function _docApplyPages(id, pages) {
+  if (!docsData[id]) docsData[id] = {};
+  docsData[id].pages = pages;
+  docsData[id].fileData = pages[0] ? pages[0].d : '';
+  docsData[id].fileType = pages[0] ? pages[0].t : '';
+}
+// ★ ÚNICA puerta de escritura de 'pilotos_docs'. Guarda SOLO metadatos (las páginas
+// están en IndexedDB) y devuelve false SIN callar si el navegador no deja escribir.
+function _docsSaveMeta(silent) {
+  const out = {};
+  Object.keys(docsData).forEach(function (id) {
+    const d = docsData[id]; if (!d) return;
+    const m = {};
+    Object.keys(d).forEach(function (k) {
+      if (!_docfOk) { m[k] = d[k]; return; }          // sin IndexedDB: se guarda todo como antes
+      if (k !== 'pages' && k !== 'fileData') m[k] = d[k];
+    });
+    const np = _docPages(id).length;
+    if (np) m._np = np; else delete m._np;            // nº de páginas → el estado no depende de la hidratación
+    out[id] = m;
+  });
+  try { localStorage.setItem('pilotos_docs', JSON.stringify(out)); return true; }
+  catch (e) { if (!silent) showToast('⚠ El navegador no deja guardar más datos. Libera espacio.'); return false; }
+}
+// Arranque: sube las páginas de IndexedDB a memoria y MIGRA las que aún estén en
+// localStorage (así se liberan los MB que ahogaban al resto de la app).
+const _docsReady = _docfAll().then(function (map) {
+  const mig = [];
+  Object.keys(docsData).forEach(function (id) {
+    const d = docsData[id] || {};
+    const inLs = (Array.isArray(d.pages) && d.pages.length) ? d.pages : (d.fileData ? [{ d: d.fileData, t: d.fileType || 'image/jpeg' }] : null);
+    if (inLs) mig.push({ id: id, pages: inLs });                 // lo de localStorage manda (era la copia viva)
+    else if (map[id] && map[id].length) _docApplyPages(id, map[id]);
+  });
+  if (!mig.length) return true;
+  return Promise.all(mig.map(function (m) { return _docfPut(m.id, m.pages); }))
+    .then(function (res) { return res.every(Boolean); });
+}).then(function (allOk) {
+  if (allOk === false) _docfOk = false;   // no se pudo migrar → seguimos guardando en localStorage
+  _docsHydrated = true;
+  _docsSaveMeta(true);
+  try { renderWallet(); } catch (e) {}
+  return true;
+}).catch(function () { _docfOk = false; _docsHydrated = true; return true; });
+// ¿Este documento está guardado en el dispositivo (se ve sin cobertura)?
+function docIsOffline(id) {
+  const pgs = _docPages(id);
+  return !!(pgs.length && pgs.every(function (p) { return _isValidFileData(p.d); }));
+}
+// Documentos con archivo (aquí o en la nube) y cuántos de ellos están ya en el móvil
+function docOfflineStats() {
+  let withFile = 0, off = 0;
+  Object.keys(docsData).forEach(function (id) {
+    const d = docsData[id] || {};
+    if (!(d.fileName || d._np || _docPages(id).length)) return;
+    withFile++; if (docIsOffline(id)) off++;
+  });
+  return { total: withFile, off: off };
+}
+
 // Acabados metálicos para tarjetas personalizadas
 const FINISHES = {
   gold:   { label: 'Oro',   col: '#C9A227', grad: 'linear-gradient(135deg,#FBE7A8 0%,#E7C766 26%,#B8912F 52%,#F3DE9B 70%,#8C6E1F 100%)', light: true },
@@ -114,7 +242,7 @@ const PILL_LABEL = { ok:'Vigente', warn:'Caduca pronto', exp:'Caducado', empty:'
 function docStatus(id) {
   const d = docsData[id];
   const meta = DOCS_META[id] || {};
-  const hasData = d && (d.fileName || d.expiry || d.issued || d.number || d.level || (d.ratings && d.ratings.length) || (d.types && d.types.length) || (d.classes && d.classes.length) || (d.pages && d.pages.length));
+  const hasData = d && (d.fileName || d.expiry || d.issued || d.number || d.level || (d.ratings && d.ratings.length) || (d.types && d.types.length) || (d.classes && d.classes.length) || (d.pages && d.pages.length) || d._np);
   if (!hasData) return { state:'empty', days:null, expStr:null };
   // Habilitaciones: estado dinámico cruzando Licencia ↔ Revalidaciones (manda la fecha más reciente)
   if (docIsRatings(id)) {
@@ -307,9 +435,43 @@ function renderHero() {
       + '</div>'
       + '<div class="dw-hero-pct">' + (tracked ? pct + '%' : '—') + (tracked ? ' <span style="font-size:12px;font-weight:600;color:' + ringCol + '">compliant</span>' : '') + '</div>'
       + '<div class="dw-hero-sub">' + subTxt + '</div>'
+      + _heroOfflineHtml()
     + '</div>'
     + nextHtml
     + '</div>';
+}
+
+// ¿Este piloto tiene copia en la nube? Free = SOLO local (el dispositivo es la única copia).
+function _docCloudPlan() { try { return (typeof isPro === 'function') ? !!isPro() : true; } catch (e) { return true; } }
+// Línea "sin conexión" del hero: cuántos documentos se ven ya sin cobertura.
+function _heroOfflineHtml() {
+  const st = docOfflineStats();
+  if (!st.total) return '';
+  const all = st.off >= st.total;
+  const cloud = _docCloudPlan();
+  const col = all ? '#4ADE80' : '#FBBF24';
+  const txt = !cloud
+    ? 'EN ESTE DISPOSITIVO · ' + st.off + '/' + st.total
+    : (all ? 'SIN CONEXIÓN · ' + st.off + '/' + st.total : 'SIN CONEXIÓN · ' + st.off + '/' + st.total + ' · descargar');
+  return '<div onclick="event.stopPropagation();docDownloadAllOffline()" style="display:inline-flex;align-items:center;gap:5px;margin-top:5px;font-size:9.5px;font-weight:700;letter-spacing:.03em;color:' + col + ';background:' + col + '1a;border:1px solid ' + col + '44;border-radius:99px;padding:2px 8px;cursor:pointer">'
+    + '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>'
+    + txt
+    + '</div>';
+}
+// Fuerza la descarga de los archivos que aún no están en el dispositivo.
+function docDownloadAllOffline() {
+  if (!_docCloudPlan()) { showToast('Plan Free: tus documentos se guardan SOLO en este dispositivo. Con Pro se copian a la nube.'); return; }
+  if (!_docAuthToken()) { showToast('Inicia sesión para descargar tus documentos'); return; }
+  const st = docOfflineStats();
+  if (st.off >= st.total && st.total) { showToast('✓ Ya tienes todos los documentos en el dispositivo'); return; }
+  showToast('⬇ Descargando documentos para verlos sin conexión…');
+  _docSyncSpin(true);
+  docCloudPull(true, function (res) {
+    _docSyncSpin(false);
+    if (!res || !res.ok) { showToast('⚠ No se pudo descargar. Revisa la conexión.'); return; }
+    const s2 = docOfflineStats();
+    showToast(s2.off >= s2.total ? '✓ ' + s2.off + ' documento' + (s2.off === 1 ? '' : 's') + ' disponible' + (s2.off === 1 ? '' : 's') + ' sin conexión' : '⚠ ' + s2.off + ' de ' + s2.total + ' guardados en el dispositivo');
+  });
 }
 
 // ── Render: banner "¿Legal para volar?" ─────────────────────
@@ -488,7 +650,7 @@ function docAddOpen() {
   const id = 'cst_' + Date.now().toString(36);
   docsData[id] = { custom: true, name: 'Nuevo documento', finish: 'gold', icon: 'custom' };
   _loadCustomDocs();
-  try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); } catch (e) {}
+  _docsSaveMeta();
   renderWallet();
   openDocSheet(id);
 }
@@ -510,8 +672,9 @@ function docSetFinish(id, key) {
 function docDelete(id) {
   if (typeof confirm === 'function' && !confirm('¿Eliminar este documento?')) return;
   docCloudDelete(id);
+  _docfDel(id);
   delete docsData[id]; delete DOCS_META[id];
-  try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); } catch (e) {}
+  _docsSaveMeta();
   closeDocSheet();
   renderWallet();
   showToast('Documento eliminado');
@@ -527,14 +690,15 @@ function _docPages(id) {
 }
 function _docSetPages(id, pages) {
   if (!docsData[id]) docsData[id] = {};
-  docsData[id].pages = pages;
-  docsData[id].fileData = pages[0] ? pages[0].d : '';
-  docsData[id].fileType = pages[0] ? pages[0].t : '';
+  _docApplyPages(id, pages);
   docsData[id].fileName = pages.length > 1 ? (pages.length + ' páginas') : 'documento';
   docsData[id].fileSize = pages[0] ? Math.round((pages[0].d.length * 0.73) / 1024) + ' KB' : '';
   docsData[id]._cloudFile = false;
   docsData[id]._ts = Date.now();
-  try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); } catch (e) { showToast('⚠ Almacenamiento lleno. Imagen demasiado grande.'); }
+  _docfPut(id, pages).then(function (ok) {
+    if (!ok) _docfOk = false;   // sin IndexedDB → el archivo vuelve a localStorage (y ya avisará si no cabe)
+    _docsSaveMeta();
+  });
 }
 function _docAddPage(id, dataURL, type) {
   const pages = _docPages(id).slice();
@@ -591,6 +755,12 @@ function openDocSheet(id) {
     if (s.days != null && s.days >= 0) rows += '<div class="doc-sheet-row"><span class="k">Días restantes</span><span class="v">' + s.days + ' días</span></div>';
   }
   if (d.fileName) rows += '<div class="doc-sheet-row"><span class="k">Archivo</span><span class="v">' + (d.fileType === 'application/pdf' ? 'PDF' : 'JPEG') + ' · ' + (d.fileSize || '') + '</span></div>';
+  if (d.fileName || d._np) {
+    const offOk = docIsOffline(id);
+    rows += '<div class="doc-sheet-row"><span class="k">Sin conexión</span><span class="v" style="color:' + (offOk ? '#4ADE80' : '#FBBF24') + '">'
+      + (offOk ? 'Guardado en el dispositivo' + (_docCloudPlan() ? ' y en la nube' : ' (solo aquí · plan Free)')
+               : '<span onclick="docDownloadAllOffline()" style="cursor:pointer;text-decoration:underline">No descargado · tocar para bajarlo</span>') + '</span></div>';
+  }
   // Descarga offline
   const dl = d.fileData
     ? '<a class="doc-download-btn" style="width:48px;height:46px" href="' + d.fileData + '" download="' + m.name + '_offline' + (d.fileType === 'application/pdf' ? '.pdf' : '.jpg') + '" title="Descargar offline">💾</a>'
@@ -680,8 +850,7 @@ function saveDoc(id) {
   const finP = document.getElementById('doc-' + id + '-finish');
   if (finP && DOCS_META[id] && DOCS_META[id].custom) { const fk = finP.getAttribute('data-fin') || 'gold'; const fc = (FINISHES[fk] || FINISHES.gold).col; DOCS_META[id].finish = fk; docsData[id].finish = fk; DOCS_META[id].col = fc; docsData[id].col = fc; }
   docsData[id]._ts = Date.now();
-  try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); }
-  catch(e) { showToast('⚠ Almacenamiento lleno. Imagen demasiado grande.'); return; }
+  if (!_docsSaveMeta()) return;
   closeDocSheet();
   renderWallet();
   docCloudPush(id);
@@ -1333,8 +1502,8 @@ function scanSaveReview() {
   }
   docsData[id]._ts = Date.now();
   docsData[id]._cloudFile = false;
-  try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); }
-  catch (e) { showToast('⚠ Almacenamiento lleno. Imagen demasiado grande.'); return; }
+  if (_scanShot) _docfPut(id, docsData[id].pages);
+  if (!_docsSaveMeta()) return;
   closeScanner();
   renderWallet();
   const sheet = document.getElementById('doc-sheet');
@@ -1366,7 +1535,7 @@ function docCloudPush(id) {
   if (sendFile) { body.pages = pages.map(function (p) { return { b: p.d.split(',')[1], t: p.t || 'image/jpeg' }; }); }
   fetch(ldBackendUrl() + '/api/documents', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, body: JSON.stringify(body) })
     .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (j) { if (j && j.ok && sendFile && docsData[id]) { docsData[id]._cloudFile = true; try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); } catch (e) {} } })
+    .then(function (j) { if (j && j.ok && sendFile && docsData[id]) { docsData[id]._cloudFile = true; _docsSaveMeta(true); } })
     .catch(function () {});
 }
 function docCloudDelete(id) {
@@ -1376,6 +1545,8 @@ function docCloudDelete(id) {
 }
 function docCloudPull(force, cb) {
   if (!_docCloudOn()) { if (cb) cb({ ok: false, reason: 'noauth' }); return; }
+  // Sin esperar a la hidratación creería que no hay copia local y se bajaría todo otra vez.
+  if (!_docsHydrated) { _docsReady.then(function () { docCloudPull(force, cb); }); return; }
   const now = Date.now();
   if (!force && _docCloudPulled) { if (cb) cb({ ok: true, skipped: true }); return; }
   if (force && !cb && (now - _docCloudPullTs < 4000)) return; // throttle solo el auto (el manual con cb siempre corre)
@@ -1387,7 +1558,7 @@ function docCloudPull(force, cb) {
       if (!j || !j.documents) { if (cb) cb({ ok: false, reason: 'empty' }); return; }
       let pending = 0, changed = false, filesDl = 0;
       const docsN = j.documents.length;
-      const done = function () { if (changed) { _loadCustomDocs(); try { localStorage.setItem('pilotos_docs', JSON.stringify(docsData)); } catch (e) {} renderWallet(); const io = document.getElementById('doc-inspect'); if (io && io.classList.contains('open') && typeof openInspect === 'function') openInspect(); } if (cb) cb({ ok: true, docs: docsN, files: filesDl }); };
+      const done = function () { if (changed) { _loadCustomDocs(); _docsSaveMeta();  renderWallet(); const io = document.getElementById('doc-inspect'); if (io && io.classList.contains('open') && typeof openInspect === 'function') openInspect(); } if (cb) cb({ ok: true, docs: docsN, files: filesDl }); };
       j.documents.forEach(function (rd) {
         const id = rd.doc_id, remoteTs = Date.parse(rd.updated_at) || 0;
         const local = docsData[id], localTs = (local && local._ts) || 0;
@@ -1408,7 +1579,7 @@ function docCloudPull(force, cb) {
             }).catch(function () { return null; });
           })).then(function (pgs) {
             pgs = pgs.filter(Boolean);
-            if (pgs.length && docsData[id]) { docsData[id].pages = pgs; docsData[id].fileData = pgs[0].d; docsData[id].fileType = pgs[0].t; docsData[id]._cloudFile = true; changed = true; filesDl++; }
+            if (pgs.length && docsData[id]) { _docApplyPages(id, pgs); docsData[id]._cloudFile = true; changed = true; filesDl++; _docfPut(id, pgs); }
             pending--; if (pending === 0) done();
           });
         }
