@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.541">
+  <meta name="version" content="Beta.560">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.541","builtAt":"2026-08-14T16:19:54Z","commit":"855fef3","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.560","builtAt":"2026-08-18T15:27:24Z","commit":"0d7c542","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -5592,21 +5592,44 @@ html.day .btab-pill svg{color:#FFFFFF!important}
   font-size:17px !important;
   filter:none;
 }
+/* ── HOY ──
+   Esta clase existía desde hacía tiempo y NO se la ponía nadie: la única marca
+   del día actual era un borde de 1,5 px, que se pierde entre 31 celdas y compite
+   con el ámbar de los avisos. Ahora sí se aplica, y va en CIAN RELLENO (borde
+   grueso + halo + número en pastilla) para que se lea de un vistazo.
+   El día SELECCIONADO es otra cosa y se distingue aparte, en verde azulado: hoy
+   dice "qué día es", la selección dice "qué estás mirando". */
 .rst-today-cell{
-  background:rgba(207,250,254,0.85) !important;
-  border-color:#0891B2 !important;
-  box-shadow:0 0 0 2px #0891B2,0 0 16px rgba(8,145,178,.45),0 0 30px rgba(34,211,238,.2) !important;
-  animation:todayPulse 2.8s ease-in-out infinite;
+  border:2.5px solid #0891B2 !important;
+  box-shadow:0 0 0 3px rgba(8,145,178,.22),0 4px 14px rgba(8,145,178,.30) !important;
+  animation:todayPulse 3.2s ease-in-out infinite;
 }
 @keyframes todayPulse{
-  0%,100%{box-shadow:0 0 0 2px #0891B2,0 0 16px rgba(8,145,178,.45),0 0 30px rgba(34,211,238,.2)}
-  50%{box-shadow:0 0 0 2.5px #22D3EE,0 0 22px rgba(34,211,238,.65),0 0 42px rgba(34,211,238,.25)}
+  0%,100%{box-shadow:0 0 0 3px rgba(8,145,178,.22),0 4px 14px rgba(8,145,178,.30)}
+  50%{box-shadow:0 0 0 5px rgba(34,211,238,.30),0 4px 18px rgba(8,145,178,.42)}
+}
+/* Quien pide menos movimiento no quiere un calendario latiendo: se queda el
+   halo fijo, que ya distingue el día de sobra. */
+@media(prefers-reduced-motion:reduce){ .rst-today-cell{animation:none} }
+.rst-hoy-num{
+  display:inline-block;min-width:19px;padding:1px 6px;border-radius:999px;
+  background:#0891B2;color:#FFFFFF !important;
+  font-size:11px;font-weight:900;line-height:1.35;
+  box-shadow:0 1px 5px rgba(8,145,178,.55);
 }
 .rst-day-selected{
   outline:2.5px solid #0d9488 !important;
   outline-offset:1px;
   box-shadow:0 0 0 2px #0d9488,0 0 20px rgba(13,148,136,.5) !important;
   background:rgba(153,246,228,.55) !important;
+}
+/* Hoy Y seleccionado a la vez (el caso de entrar a la pantalla): el relleno
+   verde de la selección se queda, y el aro de hoy pasa por fuera para que se
+   sigan leyendo los dos. */
+.rst-today-cell.rst-day-selected{
+  outline:3px solid #0d9488 !important;outline-offset:2px;
+  box-shadow:0 0 0 3px rgba(8,145,178,.35),0 4px 16px rgba(8,145,178,.35) !important;
+  animation:none;
 }
 .dc-num{
   position:absolute;bottom:3px;left:0;right:0;
@@ -5636,6 +5659,27 @@ html.day .btab-pill svg{color:#FFFFFF!important}
   box-shadow:0 6px 24px rgba(13,148,136,.40),inset 0 1px 0 rgba(255,255,255,.12);
 }
 #rst-detail-body{font-size:14px;color:#1E3A5F;line-height:1.65}
+/* ── Leyenda de las horas ──
+   Dentro de cada leg, cada hora lleva delante una letra (S/E/A/L) que dice de
+   dónde sale. Estaba sin explicar en ninguna parte: el piloto veía una S y una A
+   y tenía que adivinar. Va centrada entre la barra de firma y las legs —pegada
+   a lo que explica, no colgando de la fecha—, y cada letra con
+   EXACTAMENTE el mismo color y fondo que su distintivo en la leg — si no
+   coincidieran, la leyenda sería una pista falsa. */
+#rst-detail-leyenda{display:none;flex-wrap:wrap;gap:6px 10px;justify-content:center;
+  margin:-2px 0 10px;padding:8px 6px;border-radius:10px;background:rgba(15,23,42,.03);
+  border:1px solid rgba(15,23,42,.06)}
+#rst-detail-leyenda .lg{display:flex;align-items:center;gap:5px;font-size:10.5px;
+  color:#475569;font-weight:600;white-space:nowrap}
+#rst-detail-leyenda .lg b{font-family:'Space Mono',monospace;font-size:9px;font-weight:700;
+  border-radius:4px;padding:1px 5px;line-height:1.6}
+
+/* ── Aviso de discrepancia con el logbook ──
+   Sale al final de la fila L cuando lo anotado por el piloto no coincide con los
+   calzos (A, o E si no hay A). A 10px se perdía entre las horas monoespaciadas
+   de 11px justo cuando más importa verlo, así que va a 15px. */
+.rst-mismatch{font-size:15px;line-height:1;color:#EF4444;margin-left:2px;
+  cursor:help;text-shadow:0 1px 2px rgba(239,68,68,.25)}
 
 /* ── Status Now ── */
 #rst-status-now{
@@ -7287,11 +7331,16 @@ html.day #rst-cal-grid td .dc{
 }
 html.day #rst-cal-grid td .dc:active{background:rgba(255,255,255,.9) !important}
 
-/* ── Celda hoy ── */
+/* ── Celda hoy (modo día) ──
+   El cian claro pierde fuerza sobre el fondo blanco de esta pantalla, así que
+   aquí el aro va en azul, que es el acento del modo día. */
 html.day .rst-today-cell{
-  background:rgba(219,234,254,.9) !important;
-  border-color:#2563EB !important;
-  box-shadow:0 0 0 2px #2563EB,0 0 14px rgba(37,99,235,.35) !important;
+  border:2.5px solid #2563EB !important;
+  box-shadow:0 0 0 3px rgba(37,99,235,.22),0 4px 14px rgba(37,99,235,.28) !important;
+}
+html.day .rst-hoy-num{background:#2563EB;box-shadow:0 1px 5px rgba(37,99,235,.5)}
+html.day .rst-today-cell.rst-day-selected{
+  box-shadow:0 0 0 3px rgba(37,99,235,.35),0 4px 16px rgba(37,99,235,.35) !important;
 }
 
 /* ── Banners de warnings / month ── */
@@ -14655,6 +14704,18 @@ function dhCloseStatsConfig(){
   if (ov){ dhApplyStatsLayout(); ov.remove(); } // descarta cambios no guardados
 }
 document.addEventListener('DOMContentLoaded', function(){ setTimeout(dhApplyStatsLayout, 60); });
+// ── ¿Este tramo lo hace el piloto de PASAJERO? ──────────────────────────────
+// Criterio ÚNICO de posicional para toda la app. El mismo concepto llega con TRES marcas
+// distintas según de dónde venga el roster, y cada pantalla que se invente su propia
+// comprobación acaba mirando solo una: por eso el chip POSICIONAL salía en unas pantallas
+// y en otras no, según si el roster venía de eCrews o de un PDF.
+//   · isPositioning → deducido por bloque en el roster de eCrews
+//   · positioning   → parser de PDF
+//   · dep con "*"   → marca per-leg de eCrews
+// Si añades una fuente nueva, se añade AQUÍ y la app entera se entera.
+window.isPosLeg = function(f){
+  return !!(f && (f.isPositioning || f.positioning || (f.dep && String(f.dep).charAt(0)==='*')));
+};
 // ── Safe localStorage wrapper (iOS private mode, storage full) ──
 function lsGet(k,def){try{var v=localStorage.getItem(k);return v!==null?v:def||null;}catch(e){return def||null;}}
 function lsSet(k,v){try{localStorage.setItem(k,v);return true;}catch(e){return false;}}
@@ -35019,6 +35080,17 @@ function entriesForDate(dateStr){
   return RST.entries.filter(function(e){ return e.date === dateStr; });
 }
 
+/* HOY, en la fecha del RELOJ DEL PILOTO. toISOString() da la fecha UTC: en España
+   (UTC+2 en verano) entre las 00:00 y las 02:00 devuelve AYER, así que el
+   calendario marcaba como hoy el día anterior y al entrar se seleccionaba solo
+   ese. Justo la franja en la que un piloto mira el roster antes de una firma de
+   madrugada. */
+function rstHoy(){
+  var n = new Date();
+  return n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0') + '-' + String(n.getDate()).padStart(2,'0');
+}
+window.rstHoy = rstHoy;
+
 // ── Calendar rendering ──
 function rstRenderCalendar(){
   var tbody = document.getElementById('rst-cal-tbody');
@@ -35033,7 +35105,7 @@ function rstRenderCalendar(){
   var firstDay = new Date(y, mo, 1).getDay(); // 0=Sun
   var offset = (firstDay === 0) ? 6 : firstDay - 1;
   var daysInMonth = new Date(y, mo+1, 0).getDate();
-  var todayStr = new Date().toISOString().slice(0,10);
+  var todayStr = rstHoy();
 
   // ── Home base: stored from last PDF import, or inferred from moda of first-DEP ──
   var homeBase = '';
@@ -35458,14 +35530,21 @@ function rstRenderCalendar(){
     }
 
     cells += '<td style="padding:1px;height:60px;vertical-align:top">'
-      + '<div data-date="'+dateStr+'" onclick="rosterSelectDay(\''+dateStr+'\');rosterCellPop(this,\''+glowCol+'\')" '
+      + '<div data-date="'+dateStr+'"'+(isToday?' class="rst-today-cell"':'')
+      + ' onclick="rosterSelectDay(\''+dateStr+'\');rosterCellPop(this,\''+glowCol+'\')" '
       + 'style="position:relative;width:100%;height:58px;background:#FFFFFF;border:1.5px solid '+(isToday?'#0891B2':(dayHasWarnings?'#F59E0B':(hasEntry?border:'rgba(30,58,164,.08)')))+';border-radius:8px;cursor:pointer;transition:box-shadow .15s,transform .12s;overflow:visible">'
       + warnBadge
       + checkBadge
       + moonBadge
       + barTopHTML
       + '<div style="position:absolute;bottom:4px;left:0;right:0;text-align:center">'
-      + '<span style="font-size:11px;font-weight:700;color:'+(isSun?'#0369A1':'#0F172A')+'">'+d+'</span>'
+      /* HOY: el número va en pastilla cian rellena. Antes la única marca era un
+         borde de 1,5 px del mismo color que el resto de acentos — se perdía
+         entre 31 celdas, y más aún con las tiras de color arriba. La pastilla se
+         ve a un metro y no depende del borde, que ya lo usan los avisos. */
+      + (isToday
+          ? '<span class="rst-hoy-num">'+d+'</span>'
+          : '<span style="font-size:11px;font-weight:700;color:'+(isSun?'#0369A1':'#0F172A')+'">'+d+'</span>')
       + '</div>'
       + '</div>'
       + '</td>';
@@ -35498,6 +35577,16 @@ function rstRenderCalendar(){
     tableHTML += '</tr>';
   }
   tbody.innerHTML = tableHTML;
+  /* Repintar crea celdas NUEVAS, así que la marca de selección se pierde: hay
+     que volver a ponerla. Y si el mes que se está viendo es el de hoy y no hay
+     nada seleccionado todavía, se abre HOY — que es lo que el piloto espera ver
+     al entrar, sin tener que buscarlo. */
+  var _mesVisible = y + '-' + String(mo+1).padStart(2,'0');
+  var _sel = (RST.editDate && RST.editDate.slice(0,7) === _mesVisible) ? RST.editDate
+           : (todayStr.slice(0,7) === _mesVisible ? todayStr : null);
+  if(_sel && tbody.querySelector('[data-date="'+_sel+'"]') && typeof rosterSelectDay === 'function'){
+    setTimeout(function(){ try{ rosterSelectDay(_sel); }catch(e){} }, 0);
+  }
   if(typeof window.fpMaybeShowBanner==='function') window.fpMaybeShowBanner();
 }
 
@@ -36889,7 +36978,7 @@ function rstRenderFatigue(){
         var legsHTML = nextDutyFlights.map(function(f,idx){
           var stdDisp = f.std ? f.std.slice(0,5) : (f.std_actual?f.std_actual.slice(0,5):'--:--');
           var staDisp = f.sta ? f.sta.slice(0,5) : (f.sta_actual?f.sta_actual.slice(0,5):'--:--');
-          var isPos = f.positioning===true || !!(f.dep && f.dep.charAt(0)==='*');
+          var isPos = window.isPosLeg(f);   // le faltaba isPositioning (el de eCrews) → sin chip POSICIONAL
           var depDisp = f.dep || '?';
           var lc = legColors[idx % legColors.length];
           return '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px 8px 13px;background:'+_legBg+';border-radius:10px;border:1px solid '+_legBd+';border-left:3px solid '+lc+';margin-bottom:4px;box-shadow:inset 3px 0 0 0 '+lc+'">'
@@ -37062,6 +37151,32 @@ window.rosterSelectDay = function(dateStr){
     }
   }
 
+  /* ── Leyenda de las letras de las horas ──
+     Cada hora de una leg lleva delante S, E, A o L según de dónde salga, y hasta
+     ahora eso no se explicaba en ningún sitio. Se pinta debajo de la fecha, con
+     el MISMO color y fondo que lleva cada letra dentro de la leg — la leyenda
+     tiene que ser el mismo objeto, no un parecido.
+     Solo aparece en días CON vuelos: en un día de vacaciones no hay ninguna hora
+     que explicar y sería ruido. */
+  var leyEl = document.getElementById('rst-detail-leyenda');
+  if(leyEl){
+    var _hayLegs = dayEntries.some(function(e){ return e.type==='flight'; });
+    if(_hayLegs){
+      leyEl.innerHTML = [
+        ['S','Scheduled','#64748B','rgba(100,116,139,.1)','rgba(100,116,139,.2)'],
+        ['E','Estimada', '#D97706','rgba(217,119,6,.1)',  'rgba(217,119,6,.25)'],
+        ['A','Actual',   '#059669','rgba(5,150,105,.1)',  'rgba(5,150,105,.25)'],
+        ['L','Logbook',  '#0891B2','rgba(8,145,178,.12)', 'rgba(8,145,178,.3)']
+      ].map(function(x){
+        return '<span class="lg"><b style="color:'+x[2]+';background:'+x[3]+
+               ';border:1px solid '+x[4]+'">'+x[0]+'</b>'+x[1]+'</span>';
+      }).join('');
+      leyEl.style.display = 'flex';
+    } else {
+      leyEl.innerHTML = ''; leyEl.style.display = 'none';
+    }
+  }
+
   if(!dayEntries.length){
     bodyEl.innerHTML = '<div style="color:#475569;font-size:13px">Sin actividad registrada · <button onclick="rosterAddForDate(\''+dateStr+'\')" style="background:none;border:none;color:#0D9488;cursor:pointer;font-size:13px;font-family:\'Space Grotesk\',sans-serif;text-decoration:underline;font-weight:600">Añadir</button></div>';
   } else {
@@ -37116,7 +37231,9 @@ window.rosterSelectDay = function(dateStr){
             type:'flight', date:dateStr,
             flightNum:pe.flightNum, dep:pe.dep, arr:pe.arr,
             acType:pe.acType, acTypeCode:pe.acTypeCode,
-            positioning:pe.positioning,
+            // Por el criterio único: copiar solo pe.positioning perdía la marca cuando el
+            // vuelo venía de eCrews (isPositioning) y la continuación salía como operada.
+            positioning:window.isPosLeg(pe),
             std:'00:00', sta:peSta,
             _isMidnightCont:true
           });
@@ -37262,8 +37379,12 @@ window.rosterSelectDay = function(dateStr){
       var dispE_arr = staEstOk ? rstFormatTime(e.sta_estimated): '--:--';
       var dispL_dep = atdOk    ? rstFormatTime(e.atd)          : '--:--';
       var dispL_arr = ataOk    ? rstFormatTime(e.ata)          : '--:--';
-      // Discrepancia: ATD o ATA del Logbook difieren de la hora de calzos de referencia (A, o E si no hay A)
-      // en más de 1 minuto. S (programado) no se usa como referencia aquí.
+      // Discrepancia: ATD o ATA del Logbook difieren de la hora de calzos de referencia
+      // (A, o E si no hay A). S (programado) no se usa como referencia aquí.
+      // ⚠ CUALQUIER diferencia cuenta, incluida la de UN minuto: antes el umbral era
+      // «> 1», así que un desfase de 1 min —el más frecuente y el que más descuadra
+      // el bloque al redondear— pasaba desapercibido. Devuelve los MINUTOS de la
+      // mayor discrepancia (0 = ninguna) para poder decirlos en el tooltip.
       var t2m = function(t){ var p=(t||'').split(':'); return (+p[0]||0)*60+(+p[1]||0); };
       var hasMismatch = (function(){
         if (!hasL) return false;
@@ -37276,7 +37397,7 @@ window.rosterSelectDay = function(dateStr){
         // Corregir paso de medianoche
         if (depDiff > 720) depDiff = 1440 - depDiff;
         if (arrDiff > 720) arrDiff = 1440 - arrDiff;
-        return depDiff > 1 || arrDiff > 1;
+        return Math.max(depDiff, arrDiff);
       })();
       var isPos = (e.dep && e.dep.charAt(0) === '*') || e.isPositioning === true || e.positioning === true;
       // Block time
@@ -37328,7 +37449,7 @@ window.rosterSelectDay = function(dateStr){
             +'<span style="font-size:9px;font-weight:700;background:rgba(8,145,178,.12);color:#0891B2;border:1px solid rgba(8,145,178,.3);border-radius:4px;padding:0 4px;line-height:1.6">L</span>'
             +dispL_dep+' – '+dispL_arr+timeLabel
             +(nextDay?_plus1:'')
-            +(hasMismatch?' <span title="Difiere de A/E" style="font-size:10px;color:#EF4444">⚠</span>':'')
+            +(hasMismatch?' <span class="rst-mismatch" title="Difiere de '+(hasA?'A':'E')+' en '+hasMismatch+' min">⚠</span>':'')
             +'</div>' : '')
         + '</div>'
         + '<div style="background:linear-gradient(180deg,#0C4A6E 0%,#075985 100%);padding:12px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:62px;gap:5px;border-left:1px solid rgba(255,255,255,.08)">'
@@ -37696,8 +37817,8 @@ window.rstGoToday = function(){
   rstRenderCalendar(); rstRenderStats();
   rstCheckMonthBanner();
   rosterShowCalendar();
-  // Select today
-  var todayStr = now.toISOString().slice(0,10);
+  // Select today — fecha LOCAL (toISOString daría la UTC: de madrugada, ayer)
+  var todayStr = rstHoy();
   setTimeout(function(){
     var cell = document.querySelector('[data-date="'+todayStr+'"]');
     if(cell) cell.click();
@@ -39761,6 +39882,11 @@ var _rstImportDesel = {};  // keys of deselected importable flights
 
 function _rstFlightKey(f){ return (f.date||'')+'|'+(f.dep||'')+'|'+(f.arr||'')+'|'+(f.flightNum||''); }
 
+// Posicional (deadhead): el piloto va de PASAJERO. No es tiempo de vuelo y NO entra en el
+// logbook (EASA FCL.050). Mismo criterio que el resto de la app (ARIA, FTL): el * de eCrews,
+// el flag del parser PDF (positioning) y el deducido por bloque en el roster (isPositioning).
+function _rstIsPositioning(f){ return window.isPosLeg(f); }
+
 window.ldRosterImportOpen = function(){
   rstLoad();
   var hasFlights = RST.entries.some(function(e){ return e.type==='flight'; });
@@ -39846,11 +39972,12 @@ function _ldRstImportRender(){
   var selObj=new Date(selDate+'T12:00:00Z');
   var dateLabel=selObj.getUTCDate()+' '+MONTHS_F[selObj.getUTCMonth()]+' '+selObj.getUTCFullYear();
 
-  var alreadyN=0, toImportN=0;
+  var alreadyN=0, toImportN=0, posN=0;
   dayFlights.forEach(function(f){
     var match=typeof rstFindLogbookMatch==='function'?rstFindLogbookMatch(f):null;
     var isDraftAlready=ldEntries.some(function(e){return e.source==='ROSTER-DRAFT'&&e.date===f.date&&e.dep===f.dep&&e.arr===f.arr;});
-    if(match||isDraftAlready){ alreadyN++; }
+    if(match||isDraftAlready){ alreadyN++; if(_rstIsPositioning(f)) posN++; }
+    else if(_rstIsPositioning(f)){ posN++; }   // de pasajero → nunca importable
     else if(!_rstImportDesel[_rstFlightKey(f)]){ toImportN++; }
   });
 
@@ -39863,9 +39990,26 @@ function _ldRstImportRender(){
       var isDraftAlready=ldEntries.some(function(e){return e.source==='ROSTER-DRAFT'&&e.date===f.date&&e.dep===f.dep&&e.arr===f.arr;});
       var inLB=!!(match||isDraftAlready);
       var key=_rstFlightKey(f);
-      var isDesel=!inLB&&!!_rstImportDesel[key];
+      var isPos=_rstIsPositioning(f);
+      var isDesel=!inLB&&!isPos&&!!_rstImportDesel[key];
 
-      if(inLB){
+      if(isPos){
+        // De pasajero — no es tiempo de vuelo, no se importa. Se muestra igualmente para que
+        // el piloto vea que la app lo ha reconocido y no crea que se ha perdido un vuelo.
+        // Si además YA está en el logbook (sembrado antes de detectarlo) se le avisa, porque
+        // la app no borra vuelos sola: eso lo decide el piloto desde la tarjeta del logbook.
+        var posTxt=inLB?'⚠ de pasajero · está en tu logbook':'de pasajero · no computa';
+        var posCol=inLB?'#F59E0B':'rgba(248,250,252,.4)';
+        var posBdr=inLB?'rgba(245,158,11,.3)':'rgba(255,255,255,.08)';
+        flHtml+='<div style="margin-bottom:9px;padding:11px 13px;background:rgba(255,255,255,.02);border:1px dashed '+posBdr+';border-radius:13px;display:flex;align-items:center;gap:11px">'
+          +'<div style="width:3px;height:40px;border-radius:2px;background:rgba(255,255,255,.12);flex-shrink:0"></div>'
+          +'<div style="flex:1;min-width:0">'
+            +'<div style="font-family:\'DM Mono\',\'Space Mono\',monospace;font-size:16px;font-weight:500;color:rgba(248,250,252,.42)">'+(f.dep||'?')+'<span style="color:rgba(255,255,255,.2);margin:0 7px;font-size:13px">›</span>'+(f.arr||'?')+'</div>'
+            +'<div style="font-size:11px;color:rgba(248,250,252,.22);font-family:\'Space Mono\',monospace;margin-top:3px">'+_rstTimesLine(f)+'</div>'
+          +'</div>'
+          +'<div style="font-size:10px;font-family:\'Space Mono\',monospace;color:'+posCol+';font-weight:700;text-align:right;max-width:96px;line-height:1.3">'+posTxt+'</div>'
+        +'</div>';
+      } else if(inLB){
         // Already in logbook — static, non-toggleable
         var statusTxt=isDraftAlready?'⏱ borrador':'✓ en logbook';
         flHtml+='<div style="margin-bottom:9px;padding:11px 13px;background:rgba(34,211,238,.05);border:1px solid rgba(34,211,238,.15);border-radius:13px;display:flex;align-items:center;gap:11px;opacity:.7">'
@@ -39901,6 +40045,7 @@ function _ldRstImportRender(){
     });
     // Hint below cards
     var importableCount=dayFlights.filter(function(f){
+      if(_rstIsPositioning(f)) return false;
       var m=typeof rstFindLogbookMatch==='function'?rstFindLogbookMatch(f):null;
       var d=ldEntries.some(function(e){return e.source==='ROSTER-DRAFT'&&e.date===f.date&&e.dep===f.dep&&e.arr===f.arr;});
       return !m&&!d;
@@ -39916,7 +40061,8 @@ function _ldRstImportRender(){
         +'<span>Importar '+toImportN+' vuelo'+(toImportN===1?'':'s')+'</span>'
       +'</button>'
     :'<div style="width:100%;padding:14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:15px;color:rgba(248,250,252,.22);font-family:\'Space Grotesk\',sans-serif;font-size:13px;font-weight:600;text-align:center">'
-      +(alreadyN>0&&toImportN===0?'Todos los vuelos ya están en el logbook':'Sin vuelos seleccionados')
+      +(alreadyN>0&&toImportN===0?'Todos los vuelos ya están en el logbook'
+        :(posN>0&&toImportN===0?'Solo vuelos de pasajero · no van al logbook':'Sin vuelos seleccionados'))
     +'</div>';
 
   sheet.innerHTML=''
@@ -39933,7 +40079,7 @@ function _ldRstImportRender(){
     +'<div style="padding:0 14px">'+stripHtml+'</div>'
     +'<div style="margin:0 18px 12px;height:1px;background:linear-gradient(90deg,rgba(245,158,11,.35),rgba(245,158,11,.04))"></div>'
     +'<div style="padding:0 16px">'
-      +(dayFlights.length?'<div style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:rgba(245,158,11,.5);font-family:\'Space Mono\',monospace;margin-bottom:10px;font-weight:700">'+dayFlights.length+' vuelo'+(dayFlights.length===1?'':'s')+' · '+alreadyN+' en logbook · '+toImportN+' seleccionado'+(toImportN===1?'':'s')+'</div>':'')
+      +(dayFlights.length?'<div style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:rgba(245,158,11,.5);font-family:\'Space Mono\',monospace;margin-bottom:10px;font-weight:700">'+dayFlights.length+' vuelo'+(dayFlights.length===1?'':'s')+' · '+alreadyN+' en logbook · '+toImportN+' seleccionado'+(toImportN===1?'':'s')+(posN?' · '+posN+' de pasajero':'')+'</div>':'')
       +flHtml
     +'</div>'
     +'<div style="padding:6px 16px 20px">'+confirmHtml+'</div>';
@@ -39944,8 +40090,12 @@ window.ldRosterImportConfirm = function(){
   var selDate = _rstImportSelDate;
   var dayFlights = RST.entries.filter(function(e){return e.type==='flight'&&e.date===selDate;});
   var realCount = ldRealEntryCount();
-  var imported=0, skipped=0;
+  var imported=0, skipped=0, posSkipped=0;
   dayFlights.forEach(function(f){
+    // Posicional = el piloto va de pasajero. No es tiempo de vuelo y NO entra en el logbook
+    // (EASA FCL.050). Se comprueba ANTES que nada: aunque el sheet ya no lo ofrezca, esta es
+    // la única puerta de siembra desde el roster y el filtro tiene que vivir aquí.
+    if(_rstIsPositioning(f)){posSkipped++;return;}
     var match=typeof rstFindLogbookMatch==='function'?rstFindLogbookMatch(f):null;
     var isDraftAlready=ldEntries.some(function(e){return e.source==='ROSTER-DRAFT'&&e.date===f.date&&e.dep===f.dep&&e.arr===f.arr;});
     if(match||isDraftAlready){skipped++;return;}
@@ -39989,6 +40139,9 @@ window.ldRosterImportConfirm = function(){
   } else if(skipped>0){
     ldRosterImportClose();
     showToast('Todos los vuelos ya estaban en el logbook','info');
+  } else if(posSkipped>0){
+    ldRosterImportClose();
+    showToast('Vas de pasajero: no es tiempo de vuelo, no va al logbook','info');
   } else {
     showToast('Sin vuelos seleccionados','info');
   }
@@ -40129,6 +40282,16 @@ function _ecProxyStartPoll(){
         var secs = v.meta && v.meta.seconds;
         var sub = document.getElementById('ec-months-sub');
         if(sub) sub.textContent = '✅ Roster capturado' + (secs ? (' en '+secs+'s') : '') + '. ¿Qué mes importar?';
+        /* ⚠️ HUSO DE LAS HORAS. eCrews sirve todo en el huso que diga su selector
+           «Times in», y aquí se da por hecho que es UTC. El proxy lo pone en UTC
+           antes de capturar, pero si no pudo (otra maquetación, otro idioma) hay
+           que decirlo: importar horas locales etiquetadas como Zulu desplaza el
+           roster entero y con él los límites FTL. Callarlo sería lo peor. */
+        /* El huso con el que se va a interpretar lo capturado, dicho en la
+           cara y con un botón para corregirlo. Antes esto se decidía en
+           silencio (siempre UTC) y un roster en local entraba desplazado dos
+           horas sin que nadie se enterase hasta mirar un FDP. */
+        if(sub) ecPintaHuso(sub, v.roster || {});
         ecRenderMonths();
         _ecShowState('ec-state-months');
       }
@@ -40144,6 +40307,27 @@ window.ecProxyCancel = function(){
   _ecProxyReset();
   _ecShowState('ec-state-creds');
 };
+
+/* Cartel del huso en el importador: qué se ha detectado, qué se va a hacer con
+   ello y cómo cambiarlo. El piloto es el único que puede desempatar cuando el
+   selector de eCrews no se deja leer. */
+function ecPintaHuso(sub, payload){
+  var modo = ecTimesInModo(payload);
+  var leido = payload && payload.TimesIn;          // 'UTC' | 'LOCAL' | null
+  var man   = ecTimesInManual();
+  var comoLoSe = man ? 'lo has puesto tú'
+               : (leido ? 'leído de eCrews' : 'deducido de tus horas reales');
+  var txt = modo === 'local'
+    ? '🕑 eCrews te está dando las horas en <b>hora local de estación</b> ('+comoLoSe+'). '+
+      'Se convierten a UTC al importar.'
+    : '🕑 Horas en <b>UTC</b> ('+comoLoSe+').';
+  var otro = modo === 'local' ? 'utc' : 'local';
+  sub.innerHTML = '✅ Roster capturado. ¿Qué mes importar?<br>' + txt +
+    ' <span onclick="ecSetTimesIn(\''+otro+'\')" style="color:#22D3EE;border-bottom:1px dotted rgba(34,211,238,.5);cursor:pointer">'+
+    'no, vienen en '+(otro==='utc'?'UTC':'local')+'</span>' +
+    (man ? ' · <span onclick="ecSetTimesIn(\'\')" style="color:rgba(248,250,252,.45);cursor:pointer">automático</span>' : '');
+  sub.style.color = modo === 'local' ? '#FFB067' : '';
+}
 
 var _EC_MES = ['','enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 function _ecMonthLabel(ym){ var p = (ym||'').split('-'); return (_EC_MES[+p[1]] || ym) + ' ' + p[0]; }
@@ -40304,7 +40488,8 @@ window.ecResyncMonth = function(month){
     }
     if(res.j.status === 'COMPLETE' && res.j.roster){
       var roster = res.j.roster;
-      var parsedAll = _ecParseSchedulerEvents(roster.SchedulerEvents || [], roster.BlockDutyTimes || {});
+      var parsedAll = _ecParseSchedulerEvents(roster.SchedulerEvents || [], roster.BlockDutyTimes || {},
+                                             { timesIn: ecTimesInModo(roster) });
       // El periodo de eCrews DESBORDA al mes siguiente (p.ej. junio llega al 02/07) →
       // quedarnos SOLO con los días del mes pedido (si no, vuelos de julio entran en junio).
       var parsedMonth = parsedAll.filter(function(e){ return e.date && e.date.slice(0,7)===month; });
@@ -40334,9 +40519,101 @@ setTimeout(function(){
 }, 1200);
 
 // ── Parse SchedulerEvents → RST entries ─────────────────────────
-function _ecParseSchedulerEvents(events, blockDutyTimes){
+/* ════════════════════════════════════════════════════════════════════════════
+   ¿EN QUÉ HUSO NOS MANDA eCREWS LAS HORAS?
+   ════════════════════════════════════════════════════════════════════════════
+   Manda, por este orden:
+
+   1. Lo que haya dicho el piloto en el importador. Si nos hemos equivocado,
+      tiene que poder corregirnos sin esperar a nadie.
+   2. El selector «Times in» que lee el proxy en la propia página de eCrews
+      (`TimesIn` en el payload). Es la fuente de la verdad cuando se puede leer.
+   3. Dos sondas sobre los propios datos:
+      · La FIRMA contra la primera salida. `ev.report` viene en Zulu siempre;
+        la salida sale del texto renderizado. Si entre las dos hay horas de más,
+        el texto viene en otro huso.
+      · Horas REALES que, leídas como Zulu, caerían en el futuro: un vuelo no
+        puede haber aterrizado mañana.
+
+   Si nada de esto habla, se asume UTC — que es lo que ha hecho la app toda la
+   vida y lo que tiene la mayoría. */
+var K_EC_TZ = 'pilotos_ecrews_timesin';
+function ecTimesInManual(){ try { return localStorage.getItem(K_EC_TZ) || ''; } catch(e){ return ''; } }
+window.ecSetTimesIn = function(modo){        // 'local' | 'utc' | '' (=automático)
+  try { modo ? localStorage.setItem(K_EC_TZ, modo) : localStorage.removeItem(K_EC_TZ); } catch(e){}
+  if (typeof ecRenderMonths === 'function') { try { ecRenderMonths(); } catch(e){} }
+};
+/* Sonda de la FIRMA — la buena, y la que nació de descubrir que eCrews mezcla:
+   `ev.report` viene en Zulu pase lo que pase, y la primera salida sale del texto
+   de `details`, que sí sigue al selector. Entre firmar y salir pasan unos 45-70
+   minutos; si entre las dos horas hay 2h55, no es que el briefing sea largo: es
+   que la salida viene en otro huso. Funciona en días pasados y futuros, y con
+   una sola jornada de vuelo ya dice algo. */
+function _ecSondaFirma(events){
+  var aFavor = 0, enContra = 0;
+  (events||[]).forEach(function(ev){
+    var rep = (ev && ev.report || '').match(/(\d{1,2}):?(\d{2})/);
+    var det = (ev && ev.details || '');
+    var pri = det.split('\n').map(function(l){
+      var m = l.trim().match(/^[A-Z0-9]+\s+-\s+\*?[A-Z]{3}\s+\([AES]?(\d{4})/);
+      return m ? m[1] : null;
+    }).filter(Boolean)[0];
+    if(!rep || !pri) return;
+    var mRep = (+rep[1])*60 + (+rep[2]);
+    var mStd = (+pri.slice(0,2))*60 + (+pri.slice(2));
+    var hueco = mStd - mRep; if(hueco < -720) hueco += 1440; if(hueco > 720) hueco -= 1440;
+    if(hueco >= 20 && hueco <= 90) enContra++;        // firma y salida en el mismo huso
+    else if(hueco > 90 && hueco < 600) aFavor++;      // salida adelantada horas enteras
+  });
+  return aFavor > enContra && aFavor >= 2;
+}
+function _ecSondaFuturo(events){
+  var ahora = Date.now(), sospechosos = 0;
+  (events||[]).forEach(function(ev){
+    var d = (ev && ev.start || '').slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+    var det = (ev && ev.details || '');
+    det.split('\n').forEach(function(l){
+      // Solo horas REALES (prefijo A): son las únicas que no pueden estar en el futuro.
+      var m = l.match(/\(A(\d{4})\)\s*-\s*\*?[A-Z]{3}\s*\(A(\d{4})\)/);
+      if(!m) return;
+      var ms = Date.parse(d + 'T' + m[2].slice(0,2) + ':' + m[2].slice(2) + ':00Z');
+      if(isFinite(ms) && ms - ahora > 90*60000) sospechosos++;
+    });
+  });
+  return sospechosos >= 2;   // dos legs imposibles ya no son casualidad
+}
+function ecTimesInModo(payload){
+  var man = ecTimesInManual();
+  if(man === 'local' || man === 'utc') return man;
+  var ti = payload && (payload.TimesIn || (payload.meta && payload.meta.timesIn));
+  if(ti === 'LOCAL') return 'local';
+  if(ti === 'UTC')   return 'utc';
+  var evs = payload && (payload.SchedulerEvents || payload.events);
+  // La firma primero: es la que más veces puede hablar y la que menos se equivoca.
+  if(evs && _ecSondaFirma(evs))  return 'local';
+  if(evs && _ecSondaFuturo(evs)) return 'local';
+  return 'utc';
+}
+
+function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
   var entries = [];
   var RST_ICAO_TO_IATA = window.RST_ICAO_IATA || {};
+  /* ¿En qué huso viene lo que estamos parseando? 'local' → hay que convertir a
+     UTC; cualquier otra cosa → ya viene en Zulu y no se toca nada. Lo decide
+     ecTimesInModo(): el selector que leyó el proxy, o lo que haya dicho el
+     piloto en el importador. */
+  /* ⚠️ REGLA: eCrews mezcla dos tipos de hora en el mismo evento.
+       · Los CAMPOS de fecha-hora (ev.start, ev.end, ev.report, ev.debrief) son
+         datetimes reales y llegan SIEMPRE en Zulu — la firma de Marc entraba
+         bien (03:35Z) mientras eCrews le enseñaba 0535 local.
+       · El texto de `details`, del que salen las LEGS, lo renderiza eCrews
+         según el selector «Times in» → ese sí puede venir en local.
+     Por eso aquí solo se convierte lo que sale de `details`. Convertir además
+     la firma la rompería, que es justo lo que estuve a punto de hacer. */
+  var EC_LOCAL = !!(opts && opts.timesIn === 'local');
+  var EC_BASE  = (function(){ try { return localStorage.getItem('pilotOS_home_base') || 'BCN'; }
+                              catch(e){ return 'BCN'; } })();
 
   // Helper: extract code from eCrews text, skipping HHMM/HH:MM time lines
   // eCrews sometimes puts the start time on the first line before the code, e.g.:
@@ -40369,6 +40646,64 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
   // dentro de la rama groundduty). Se usa cuando un evento de vuelo/Default llega SIN legs
   // (p.ej. Franco 'F', que eCrews manda como Default → antes se descartaba y el día salía
   // en blanco). Franco (F/F2/FR/EF) → type 'f' (coral); guardias → standby; LM → training.
+  /* ════════════════════════════════════════════════════════════════════════
+     HORAS EN LOCAL → UTC
+     ════════════════════════════════════════════════════════════════════════
+     eCrews sirve TODO en el huso que diga su selector «Times in». Con el perfil
+     en «Estacion Local» manda la hora local DE CADA ESTACIÓN — confirmado con
+     un BCN-ACE-BCN, que solo cuadra leyendo cada punta en su huso (3h20 de ida
+     y 2h55 de vuelta; en local de base saldrían 2h20 y 3h55, imposible).
+
+     El roster de la app vive en UTC y así se queda: 672 sitios leen estas horas
+     (FTL, dietas, logbook, briefing) y ninguno debe preguntarse en qué huso
+     está el dato. Se convierte AQUÍ, en la puerta de entrada, y punto.
+
+     El día lo ancla la SALIDA en UTC, no el día natural de eCrews: un vuelo que
+     sale a las 00:30 local del 6 sale a las 22:30Z del 5, y en UTC pertenece al
+     día 5. Es raro (solo pasa saliendo entre 00:00 y 02:00 locales) pero, si no
+     se hace, ese vuelo entra 24 h desplazado.
+
+     Los husos salen de la tabla del motor de dietas (`NGasto.tzFor`, 82
+     aeropuertos de la red + fallback), que ya está cargada y probada. */
+  function _ecTz(iata){
+    try { if (window.NGasto && window.NGasto.tzFor) return window.NGasto.tzFor(iata); } catch(e){}
+    return 'Europe/Madrid';
+  }
+  function _ecLocalMs(dateStr, hhmm, tz){
+    try {
+      var p = dateStr.split('-'), t = hhmm.split(':');
+      // window.NGasto y no NGasto a secas: así el banco puede inyectar el motor
+      // sin montar un global, y en el navegador es exactamente lo mismo.
+      return window.NGasto.localToUTC(+p[0], +p[1], +p[2], +t[0], +t[1], tz);
+    } catch(e){ return null; }
+  }
+  function _ecMsToDate(ms){ return new Date(ms).toISOString().slice(0,10); }
+  function _ecMsToHHMM(ms){ return new Date(ms).toISOString().slice(11,16); }
+  /* Convierte una leg entera. Devuelve null si algo no cuadra: mejor dejarla
+     como estaba que inventarse una hora. */
+  function _ecLegUTC(fecha, tDep, depNext, tArr, arrNext, depIata, arrIata){
+    var fDep = depNext ? _addDay(fecha) : fecha;
+    var fArr = arrNext ? _addDay(fecha) : fecha;
+    var msDep = _ecLocalMs(fDep, tDep, _ecTz(depIata));
+    var msArr = _ecLocalMs(fArr, tArr, _ecTz(arrIata));
+    if (msDep == null || msArr == null) return null;
+    // Llegada antes que salida = cruzó medianoche y eCrews no lo marcó con ⁺¹.
+    if (msArr < msDep) msArr += 86400000;
+    return {
+      date:    _ecMsToDate(msDep),
+      std:     _ecMsToHHMM(msDep),
+      sta:     _ecMsToHHMM(msArr),
+      crosses: _ecMsToDate(msArr) !== _ecMsToDate(msDep)
+    };
+  }
+  /* Una hora suelta del día (firma, debrief, inicio de guardia): se convierte con
+     el huso del aeropuerto de referencia — el de salida del primer vuelo, o la
+     base si la actividad no tiene aeropuerto. */
+  function _ecHoraUTC(fecha, hhmm, iata){
+    if (!hhmm || String(hhmm).indexOf(':') < 0) return hhmm;
+    var ms = _ecLocalMs(fecha, hhmm, _ecTz(iata));
+    return ms == null ? hhmm : _ecMsToHHMM(ms);
+  }
   function _ecFallbackMap(c){
     c = (c||'').toUpperCase();
     if(/^LM/.test(c)) return { type:'training', code:'TR' };
@@ -40417,6 +40752,7 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
       var sbCode = _sbDetCode || _extractCode(text);
       var sbStart = (ev.start||'').slice(11,16);
       var sbEnd   = (ev.end||'').slice(11,16);
+
       // Franco: eCrews lo entrega como type "Standby" (F/F2/FR/EF) pero NO es una guardia →
       // type 'f' (coral, sin icono de reloj), no 'standby'.
       var _sbU = String(sbCode||'').toUpperCase();
@@ -40430,6 +40766,7 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
       var trCode = text.split('\n')[0].trim();
       var trStart = (ev.start||'').slice(11,16);
       var trEnd   = (ev.end||'').slice(11,16);
+
       entries.push({ date:date, type:'training', code:trCode, std:trStart, sta:trEnd, source:'ECREWS' });
       return;
     }
@@ -40516,6 +40853,18 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
         var legDate    = date;
         var legCrosses = arrNext;
 
+        /* ── Local de estación → UTC ──
+           Se hace AQUÍ, con los dos aeropuertos ya resueltos a IATA y antes de
+           construir la entrada, para que todo lo que venga después (el cruce de
+           medianoche, la deducción de posicionales por bloque, el guardado) vea
+           horas Zulu y no tenga que preguntarse nada. Si la conversión no sale
+           —aeropuerto raro, hora ilegible— se deja el leg tal cual: media hora
+           mal es peor que dos horas mal de forma consistente y detectable. */
+        if(EC_LOCAL){
+          var _u = _ecLegUTC(legDate, tDep, depNext, tArr, arrNext, depIATA, arrIATA);
+          if(_u){ legDate = _u.date; tDep = _u.std; tArr = _u.sta; legCrosses = _u.crosses; }
+        }
+
         // Guardia metida como leg A→A (OSB2/OSB3/OSBY, *SBY): es STANDBY, no vuelo/training.
         if(_isStandbyCode(fNum)){
           entries.push({ date:legDate, type:'standby', code:fNum, std:tDep, sta:tArr, source:'ECREWS' });
@@ -40590,6 +40939,7 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
           var _gm0 = _ecFallbackMap(_gc0);
           var _ge0 = { date:date, type:_gm0.type, code:_gm0.code, source:'ECREWS' };
           var _gs0=(ev.start||'').slice(11,16), _gn0=(ev.end||'').slice(11,16);
+
           if(_gs0) _ge0.std=_gs0; if(_gn0) _ge0.sta=_gn0;
           entries.push(_ge0);
         }
@@ -40605,6 +40955,7 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
       var gCode  = _extractCode(text);
       var gStart = (ev.start||'').slice(11,16);
       var gEnd   = (ev.end||'').slice(11,16);
+
 
       // Vueling eCrews → PilotOS  (códigos completos Vueling)
       var EC_MAP = {
@@ -40768,6 +41119,18 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
       if(s===null||a===null) return null;
       var d=a-s; if(d<0) d+=1440; return d;
     }
+    // Orden cronológico dentro del día de bloque. Va por (fecha, salida) y no por hora
+    // suelta: la leg que cruzó medianoche viene del día ANTERIOR y es la primera del
+    // grupo aunque su salida sea 23:xx.
+    function _legKey(e){ return (e.date||'') + ' ' + (e.std_actual||e.std_estimated||e.std||''); }
+    // ¿las legs de `mask` forman un tramo SEGUIDO en el orden `seq`?
+    function _isRun(mask, seq){
+      var on = seq.map(function(i){ return !!(mask & (1<<i)); });
+      var a = on.indexOf(true), b = on.lastIndexOf(true);
+      if(a < 0) return false;
+      for(var i=a; i<=b; i++) if(!on[i]) return false;
+      return true;
+    }
     // Agrupar por DÍA DE BLOQUE: un leg que cruza medianoche (crossesMidnight) computa su
     // bloque en el DÍA SIGUIENTE (eCrews contabiliza BlockDutyTimes por día natural). Si no
     // se agrupa así, el subset-sum del día de origen marcaría el leg nocturno como posicional.
@@ -40792,8 +41155,39 @@ function _ecParseSchedulerEvents(events, blockDutyTimes){
         var sum=0; for(var i=0;i<n;i++){ if(mask&(1<<i)) sum+=blks[i]; }
         if(Math.abs(sum-target)<=1) matches.push(mask);
       }
-      if(matches.length!==1) return;             // ambiguo o sin match → conservador, no tocar
+      if(!matches.length) return;                // sin match → conservador, no tocar
       var real=matches[0];
+      if(matches.length>1){
+        // Empate de subconjuntos. Antes se dejaba el día ENTERO sin marcar, y con dos
+        // posicionales de ida y vuelta el empate es lo normal, no la excepción: si los
+        // dos tramos posicionales suman lo que uno de los operados, el complemento
+        // también cuadra. Caso del reporte (#61C67): BCN→IBZ 1:05 · IBZ→FCO 2:00 ·
+        // FCO→IBZ 2:10 · IBZ→BCN 1:05 con bloque 4:10 → cuadran {2:00+2:10} y
+        // {1:05+2:00+1:05}, así que los dos posicionales salían como vuelo operado.
+        //
+        // Se desempata por la FORMA de la jornada: se posiciona para IR y para VOLVER,
+        // de modo que las legs operadas van seguidas y los posicionales quedan en los
+        // extremos. Un posicional intercalado entre dos legs operadas (lo que pide el
+        // otro candidato) no es una jornada real. Si tras el filtro sigue habiendo más
+        // de uno, se mantiene el criterio conservador de no tocar nada.
+        var cand = matches;
+        // Si alguna leg ya viene marcada (el * per-leg de eCrews, que es fiable), los
+        // candidatos que la den por operada quedan descartados de entrada.
+        var marked = legs.map(function(e){ return !!e.isPositioning; });   // posicional-ok: estado interno del algoritmo que DEDUCE la marca
+        if(marked.some(Boolean)){
+          var keep = cand.filter(function(m){
+            return !marked.some(function(mk,i){ return mk && (m & (1<<i)); });
+          });
+          if(keep.length) cand = keep;
+        }
+        var seq = legs.map(function(_,i){ return i; }).sort(function(a,b){
+          var ka=_legKey(legs[a]), kb=_legKey(legs[b]);
+          return ka<kb ? -1 : ka>kb ? 1 : 0;
+        });
+        var runs = cand.filter(function(m){ return _isRun(m, seq); });
+        if(runs.length!==1) return;
+        real = runs[0];
+      }
       for(var j=0;j<n;j++){ if(real&(1<<j)) delete legs[j].isPositioning; else legs[j].isPositioning=true; }
     });
   })();
@@ -40849,7 +41243,7 @@ function _ecHandleData(payload){
   var bdt     = payload.BlockDutyTimes  || {};
   var period  = (payload.PeriodStart||'').slice(0,7); // YYYY-MM
 
-  _ecParsedEntries = _ecParseSchedulerEvents(events, bdt);
+  _ecParsedEntries = _ecParseSchedulerEvents(events, bdt, { timesIn: ecTimesInModo(payload) });
 
   var flights  = _ecParsedEntries.filter(function(e){ return e.type==='flight'; });
   var offs     = _ecParsedEntries.filter(function(e){ return e.type==='off'; });
@@ -40893,7 +41287,7 @@ function _ecHandleData(payload){
         if(e.type==='flight'){
           html += '<div style="display:flex;align-items:center;gap:8px">';
           html += '<span style="font-family:\'Space Mono\',monospace;font-size:12px;font-weight:600;color:#F0FFFE">'+e.dep+' › '+e.arr+'</span>';
-          html += '<span style="font-family:\'Space Mono\',monospace;font-size:10px;color:rgba(248,250,252,.35)">'+(e.flightNum||'')+(e.isPositioning?' ·POS':'')+'</span>';
+          html += '<span style="font-family:\'Space Mono\',monospace;font-size:10px;color:rgba(248,250,252,.35)">'+(e.flightNum||'')+(window.isPosLeg(e)?' ·POS':'')+'</span>';
           html += '</div>';
           var _fStd = e.std_actual ? '(A)'+e.std_actual : (e.std_estimated ? '(E)'+e.std_estimated : (e.std||'?'));
           var _fSta = e.sta_actual ? '(A)'+e.sta_actual : (e.sta_estimated ? '(E)'+e.sta_estimated : (e.sta||'?'));
@@ -41142,7 +41536,7 @@ window.goTo = function(key){
       try { rstRenderCalendar(); rstRenderStats(); } catch(e){}
       try { rosterShowCalendar(); } catch(e){}
       try { rstCheckMonthBanner(); } catch(e){}
-      var todayStr = now.toISOString().slice(0,10);
+      var todayStr = rstHoy();   // local, no UTC (de madrugada difieren)
       var todayCell = document.querySelector('[data-date="'+todayStr+'"]');
       if(todayCell) { todayCell.click(); }
     }, 80);
@@ -42480,6 +42874,9 @@ function pagSignOut() {
         <button onclick="rosterEditDay()" style="padding:6px 14px;background:#0D9488;border:none;border-radius:10px;color:#FFFFFF;font-size:12px;font-weight:700;cursor:pointer;font-family:'Space Grotesk',sans-serif;-webkit-appearance:none;box-shadow:0 2px 8px rgba(13,148,136,.35)">✏️ Editar</button>
       </div>
       <div id="rst-detail-report"></div>
+      <!-- La leyenda va DESPUÉS de la barra de firma y justo antes de las legs:
+           explica las letras de las legs, así que tiene que leerse pegada a ellas. -->
+      <div id="rst-detail-leyenda"></div>
       <div id="rst-detail-body"></div>
       <div id="rst-day-warnings" style="display:none"></div>
     </div>
@@ -45851,7 +46248,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
   function gatherLegs(){
     var legs = (window.buildLegsFromRoster && window.buildLegsFromRoster()) || [];
-    return legs.map(function(l){
+    return legs.map(function(l){   // posicional-ok: legs ya normalizadas por buildLegsFromRoster
       var depIcao = (window.iataToIcao&&window.iataToIcao(l.dep))||l.dep;
       var arrIcao = (window.iataToIcao&&window.iataToIcao(l.arr))||l.arr;
       return { flight:l.flight, dep:l.dep, arr:l.arr, depIcao:depIcao, arrIcao:arrIcao,
@@ -45996,7 +46393,7 @@ document.addEventListener('DOMContentLoaded', function(){
   // Volumen >100%: la parte <=1 atenua el <audio> (en vivo); la parte >1 sube la ganancia
   // horneada en el PCM (__ariaGain, base x2 al 100%, hasta x4 al 200%). BT-safe (sin Web Audio).
   window.__ariaGain=2.0*Math.max(1,CUR.vol||1);
-  var LAST_TEXT='', LAST_SCOPE='', LAST_LEGKEY='';
+  var LAST_TEXT='', LAST_SCOPE='', LAST_LEGKEY='', LAST_LANG='';
   // Firma del leg activo (el de la cinta de SkyView). Sirve para no repintar/reproducir un
   // briefing de OTRO leg cuando el piloto cambia de sector.
   function _legKey(l){ return l?((l.flight||'')+'|'+(l.dep||'')+'|'+(l.arr||'')):''; }
@@ -46109,7 +46506,7 @@ document.addEventListener('DOMContentLoaded', function(){
   async function _locNote(pos){ if(pos) return; var en=(CUR&&CUR.lang)==='en'; var er=''; try{ er=window.__ariaGeoErr||''; }catch(e){} var code=(String(er).split(':')[0]||''); var msg, tap=_requestLocTap; if(code==='1'){ msg=en?'\ud83d\udccd Location blocked \u2014 tap here to see how to re-enable it':'\ud83d\udccd Ubicaci\u00f3n bloqueada \u2014 toca aqu\u00ed para ver c\u00f3mo reactivarla'; tap=_locHelpSheet; } else if(code==='2'){ msg=en?'\ud83d\udccd No GPS fix \u2014 near a window/outdoors, tap here to retry':'\ud83d\udccd Sin se\u00f1al GPS \u2014 junto a una ventana o al aire libre, toca aqu\u00ed para reintentar'; } else if(code==='3'){ msg=en?'\ud83d\udccd Location timed out \u2014 tap here to try again':'\ud83d\udccd La ubicaci\u00f3n tard\u00f3 demasiado \u2014 toca aqu\u00ed para reintentar'; } else { msg=en?'\ud83d\udccd Tap here to enable location for your drive time to base':'\ud83d\udccd Toca aqu\u00ed para activar la ubicaci\u00f3n y ver el tiempo en coche a la base'; } _locToast(msg, tap); }
   function _baseInfo(){ try{ var b=''; try{ b=localStorage.getItem('pilotOS_home_base')||''; }catch(e){} if(!b){ var lg=gatherLegs(); if(lg&&lg.length) b=lg[0].dep; } if(!b) return null; var ic=(window.iataToIcao&&window.iataToIcao(b))||b; var ap=(window.LD_AIRPORTS&&window.LD_AIRPORTS[ic])||null; if(!ap||ap.lat==null||ap.lon==null) return null; var nm=(window._WX_NAMES&&window._WX_NAMES[ic])||ap.city||ap.name||b; nm=String(nm).replace(/\s*(airport|aeropuerto|intl|international)/ig,'').trim(); return { icao:ic, lat:+ap.lat, lon:+ap.lon, label:'el aeropuerto de '+nm+' ('+b+')' }; }catch(e){ return null; } }
   function prevDayRoutes(legs){ try{ if(!legs||!legs.length||!legs[0].date) return []; var raw=localStorage.getItem('pilotOS_roster'); if(!raw) return []; var ents=JSON.parse(raw); if(!Array.isArray(ents)) return []; var d=new Date(legs[0].date+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()-1); var prev=d.toISOString().slice(0,10); var out=[]; ents.forEach(function(e){ if(e.type==='flight'&&e.dep&&e.arr&&e.date===prev){ out.push(e.dep+'-'+e.arr); } }); return out; }catch(e){ return []; } }
-  function gatherLegs(){ var legs=(window.buildLegsFromRoster&&window.buildLegsFromRoster())||[]; return legs.map(function(l){ var di=(window.iataToIcao&&window.iataToIcao(l.dep))||l.dep; var ai=(window.iataToIcao&&window.iataToIcao(l.arr))||l.arr; return {flight:l.flight,dep:l.dep,arr:l.arr,depIcao:di,arrIcao:ai,positioning:!!l.positioning,std:stripZ(l.std),sta:stripZ(l.sta),acType:l.acType,arrMs:l._arrMs,depMs:l._depMs,date:l.date,cruiseFL:l.cruiseFL}; }); }
+  function gatherLegs(){ var legs=(window.buildLegsFromRoster&&window.buildLegsFromRoster())||[]; return legs.map(function(l){ var di=(window.iataToIcao&&window.iataToIcao(l.dep))||l.dep; var ai=(window.iataToIcao&&window.iataToIcao(l.arr))||l.arr; return {flight:l.flight,dep:l.dep,arr:l.arr,depIcao:di,arrIcao:ai,positioning:!!l.positioning,std:stripZ(l.std),sta:stripZ(l.sta),acType:l.acType,arrMs:l._arrMs,depMs:l._depMs,date:l.date,cruiseFL:l.cruiseFL}; }); }   // posicional-ok: legs ya normalizadas por buildLegsFromRoster
   // Turbulencia REAL por fase de vuelo. Mismos datos que el PERFIL de MAPAS: Open-Meteo por
   // niveles de presión a lo largo de la ruta → EDR por cizalladura vertical del viento (fl±10).
   // Muestrea a lo largo del perfil de vuelo (ascenso→TOC, crucero a FL, TOD→descenso) y resume
@@ -46310,8 +46707,8 @@ document.addEventListener('DOMContentLoaded', function(){
     try{ for(var i=0;i<audios.length;i++){ try{audios[i].a.pause();}catch(e){} } }catch(e){}
     try{ if(_va){ _va.pause(); _va.onended=null; } }catch(e){}
     audios=[]; curAudio=null; playing=false; paused=false; k=0; acc=0; total=0; durs=[]; SENT=[]; PEL=[]; SEG=[];
-    LAST_TEXT=''; LAST_SCOPE=''; LAST_LEGKEY='';
-    try{ localStorage.removeItem('db_lastText'); localStorage.removeItem('db_lastScope'); localStorage.removeItem('db_lastLegKey'); }catch(e){}
+    LAST_TEXT=''; LAST_SCOPE=''; LAST_LEGKEY=''; LAST_LANG='';
+    try{ localStorage.removeItem('db_lastText'); localStorage.removeItem('db_lastScope'); localStorage.removeItem('db_lastLegKey'); localStorage.removeItem('db_lastLang'); }catch(e){}
     var tr=q('#ar-tr'); if(tr)tr.innerHTML='';
     var f=q('#ar-fill'); if(f)f.style.width='0';
     var c=q('#ar-cur'); if(c)c.textContent='0:00';
@@ -46363,7 +46760,7 @@ document.addEventListener('DOMContentLoaded', function(){
         var pos=await getPos(); try{ _locNote(pos); }catch(e){} var _bi=_baseInfo(); var lbody={legs:one,pilot:pilotName()||undefined,lang:CUR.lang,localHour:new Date().getHours(),yesterdayRoutes:prevDayRoutes(one)}; if(pos){ lbody.userLat=pos.lat; lbody.userLon=pos.lon; } if(_bi){ lbody.baseIcao=_bi.icao; lbody.baseLat=_bi.lat; lbody.baseLon=_bi.lon; lbody.baseLabel=_bi.label; } var r2=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify(lbody)});
         if(!r2.ok){ var je=await r2.json().catch(function(){return{};}); stat('⚠ '+(je.message||je.error||('Error '+r2.status))); return _done(gen); } var d2=await r2.json(); txt=d2.text||'';
       }
-      if(!txt){ stat('⚠ ARIA no devolvió texto'); return _done(gen); } LAST_TEXT=txt; LAST_SCOPE=SCOPE; LAST_LEGKEY=(SCOPE==='leg'?_curLegKey():''); try{ localStorage.setItem('db_lastText',txt); localStorage.setItem('db_lastScope',SCOPE); localStorage.setItem('db_lastLegKey',LAST_LEGKEY); }catch(e){}
+      if(!txt){ stat('⚠ ARIA no devolvió texto'); return _done(gen); } LAST_TEXT=txt; LAST_SCOPE=SCOPE; LAST_LEGKEY=(SCOPE==='leg'?_curLegKey():''); LAST_LANG=CUR.lang; try{ localStorage.setItem('db_lastText',txt); localStorage.setItem('db_lastScope',SCOPE); localStorage.setItem('db_lastLegKey',LAST_LEGKEY); localStorage.setItem('db_lastLang',LAST_LANG); }catch(e){}
       renderText(txt); showDeckTransport(true); stat('Preparando voz…');
       var ok=await prepareVoice();
       if(ok){ var pb=q('#ar-play'); if(pb){ pb.disabled=false; pb.style.opacity='1'; } var bk=q('#ar-back'); if(bk){ bk.disabled=false; bk.style.opacity='1'; } var sb=q('#ar-stop'); if(sb){ sb.disabled=false; sb.style.opacity='1'; } var rg=q('#ar-regen'); if(rg){ rg.disabled=false; rg.style.opacity='1'; } stat(CUR.lang==='en'?'▶ Ready · plays offline':'▶ Listo · pulsa play (suena sin cobertura)'); showVoiceDock(false); if(_autoPlayNext){ _autoPlayNext=false; setTimeout(function(){ try{ if(audios.length&&!playing) togglePlay(); }catch(e){} }, 120); } }
@@ -46619,7 +47016,13 @@ document.addEventListener('DOMContentLoaded', function(){
     paintScopeNow=paintScope;
     function paintLg(){ R.querySelectorAll('.ar-lg').forEach(function(b){ var on=b.getAttribute('data-lg')===CUR.lang; b.style.background=on?'linear-gradient(135deg,#063a4a,#0aa3c7)':'transparent'; b.style.color=on?'#fff':'var(--ar-tx3)'; }); }
     R.querySelectorAll('.ar-sc').forEach(function(b){ b.onclick=function(){ var nx=b.getAttribute('data-sc'); if(nx===SCOPE)return; SCOPE=nx; try{ localStorage.setItem('db_scope',SCOPE); }catch(e){} if(LAST_TEXT) _dropBrief(); paintScope(); }; });
-    R.querySelectorAll('.ar-lg').forEach(function(b){ b.onclick=function(){ CUR.lang=b.getAttribute('data-lg'); saveCfg('lang',CUR.lang); paintLg(); }; });
+    R.querySelectorAll('.ar-lg').forEach(function(b){ b.onclick=function(){
+      var _nuevo=b.getAttribute('data-lg'); if(_nuevo===CUR.lang){ paintLg(); return; }
+      CUR.lang=_nuevo; saveCfg('lang',CUR.lang); paintLg();
+      /* Cambiar de idioma invalida lo que ya estaba generado: si no, se queda en
+         la cola y suena en el idioma anterior antes que el nuevo (#RM4KZ). */
+      if(LAST_TEXT){ _dropBrief(); stat(CUR.lang==='en'?'Language changed — generate the briefing again.':'Idioma cambiado — vuelve a generar el briefing.'); }
+    }; });
     paintScope(); paintLg();
     q('#ar-gear').onclick=toggleSettings;
     var mut=q('#ar-mute'); if(mut)mut.onclick=function(){ vMuted=!vMuted; mut.textContent=vMuted?'🔇':'🔊'; mut.style.color=vMuted?'var(--ar-dng)':'var(--ar-tx3)'; mut.style.borderColor=vMuted?'var(--ar-dngBd)':'var(--ar-ln)'; try{ if(curAudio)curAudio.volume=vMuted?0:VOL; }catch(e){} try{ if(_va)_va.volume=vMuted?0:VOL; }catch(e){} };
@@ -46652,8 +47055,18 @@ document.addEventListener('DOMContentLoaded', function(){
     // Recupera el texto de una recarga dura si el estado en memoria se perdió. SOLO el botón
     // "Reiniciar conversación" borra LAST_TEXT + localStorage, así que navegar (MAPAS, etc.)
     // nunca pierde el briefing.
-    if(!LAST_TEXT){ try{ var _s=localStorage.getItem('db_lastText'); if(_s){ LAST_TEXT=_s; LAST_SCOPE=localStorage.getItem('db_lastScope')||SCOPE; LAST_LEGKEY=localStorage.getItem('db_lastLegKey')||''; } }catch(e){} }
+    if(!LAST_TEXT){ try{ var _s=localStorage.getItem('db_lastText'); if(_s){ LAST_TEXT=_s; LAST_SCOPE=localStorage.getItem('db_lastScope')||SCOPE; LAST_LEGKEY=localStorage.getItem('db_lastLegKey')||''; LAST_LANG=localStorage.getItem('db_lastLang')||''; } }catch(e){} }
     if(!LAST_TEXT) return;
+    /* ⚠️ El briefing guardado es de UN idioma concreto. Sin esta comprobación, el
+       que quedó en inglés se recuperaba al entrar aunque el piloto hubiera puesto
+       castellano: sonaba primero el viejo en inglés y luego el nuevo en castellano,
+       y no había forma de que sonara solo en castellano porque el texto cacheado
+       sobrevivía a todo menos a "Reiniciar conversación" (#RM4KZ). El idioma es
+       parte de su identidad, igual que el scope y el leg. */
+    /* Sin idioma anotado (briefing guardado por una versión anterior a este
+       arreglo) tampoco se recupera: no sabemos en qué idioma está y adivinar es
+       precisamente lo que causó el fallo. Se pierde UNA vez por dispositivo. */
+    if(LAST_LANG !== CUR.lang){ _dropBrief(); return; }
     // Un briefing de UN sector solo se repinta si sigue siendo el leg elegido en la cinta. Si el
     // piloto cambió de sector, se descarta: ver el briefing del anterior es peor que no ver nada.
     if(LAST_SCOPE==='leg'){ var _ck=_curLegKey(); if(_ck && LAST_LEGKEY && _ck!==LAST_LEGKEY){ _dropBrief(); return; } }
@@ -47108,14 +47521,41 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 
   // ── Gate: solo si el BACKEND dice channel==='beta' (no el build del cliente) ──
+  // El canal lo decide el backend a propósito: el número de versión se llama
+  // "Beta.N" en los dos canales, así que un cliente cacheado no puede fingir que
+  // es beta. Lo que SÍ decide el cliente es a QUÉ backend pregunta
+  // (cafi_backend_url = el origen desde el que se abrió la app), o sea que un
+  // tester que entre por pilotos.aero habla con producción y no ve el botón —
+  // aunque su cuenta sea de beta y su versión sea la buena.
+  //
+  // ⚠️ Este arranque era UN solo fetch sin reintento: si el móvil estaba sin
+  // cobertura en ese instante —despertar de la pantalla, metro, avión— el botón
+  // no salía en toda la sesión y no había forma de saber por qué. Ahora se
+  // reintenta unas cuantas veces y, además, cada vez que la app vuelve a primer
+  // plano, hasta que el backend conteste.
+  var brArrancado = false, brIntentos = 0;
   function boot(){
+    if(brArrancado) return;
     try {
       fetch(brBase()+'/api/version',{ cache:'no-store' })
         .then(function(r){ return r.ok ? r.json() : null; })
-        .then(function(v){ if(v){ SERVER.version=v.version||'?'; SERVER.channel=v.channel||'?'; SERVER.commit=v.commit||'?'; } if(v && v.channel==='beta'){ init(); } })
-        .catch(function(){});
+        .then(function(v){
+          if(v){ SERVER.version=v.version||'?'; SERVER.channel=v.channel||'?'; SERVER.commit=v.commit||'?'; }
+          if(v && v.channel==='beta' && !brArrancado){ brArrancado = true; init(); return; }
+          if(!v) reintentar();          // no contestó: puede ser la red
+        })
+        .catch(reintentar);
     } catch(e){}
   }
+  function reintentar(){
+    if(brArrancado || brIntentos >= 4) return;
+    brIntentos++;
+    setTimeout(boot, brIntentos * 4000);   // 4s, 8s, 12s, 16s
+  }
+  // Volver a la app es el momento más probable de haber recuperado cobertura.
+  document.addEventListener('visibilitychange', function(){
+    if(!document.hidden && !brArrancado){ brIntentos = 0; boot(); }
+  });
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
 </script>

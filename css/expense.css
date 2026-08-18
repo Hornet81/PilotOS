@@ -23,7 +23,40 @@ html.day #scr-pay .pc-tab-btn[data-tab="gastos"].active{
 #pc-tab-gastos .ex-big{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:42px;font-weight:700;
   color:#7EFBFE;text-shadow:0 0 30px rgba(126,251,254,.35);line-height:1.1;margin:6px 0 2px}
 #pc-tab-gastos .ex-sub{font-size:11px;color:rgba(180,220,255,.52)}
-#pc-tab-gastos .ex-tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+/* El tope no es dinero cobrado. Esta línea es la que evita el "leí 128 € y
+   cobré 40": va debajo del número grande, no en letra pequeña al final. */
+#pc-tab-gastos .ex-real{font-size:11.5px;line-height:1.5;color:rgba(180,220,255,.72);
+  margin-top:8px;padding:7px 10px;border-radius:10px;
+  background:rgba(78,230,174,.08);border:1px solid rgba(78,230,174,.28)}
+#pc-tab-gastos .ex-real b{color:#4EE6AE;font-weight:800}
+/* auto-fit: con tres baldosas entran en fila en un móvil de 390 y bajan solas
+   si el sitio no da. */
+#pc-tab-gastos .ex-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));
+  gap:8px;margin-top:12px}
+#pc-tab-gastos .ex-nube{margin-top:10px;font-size:10px;line-height:1.5;color:rgba(180,220,255,.52)}
+#pc-tab-gastos .ex-nube.warn{color:rgba(255,176,103,.9)}
+#pc-tab-gastos .ex-nube.ok{color:rgba(78,230,174,.9)}
+#pc-tab-gastos .ex-nube b{color:rgba(255,176,103,1)}
+#pc-tab-gastos .ex-tile.cash{background:rgba(78,230,174,.1);border-color:rgba(78,230,174,.4)}
+#pc-tab-gastos .ex-tile.cash .n{color:#4EE6AE}
+
+/* ── Tira de meses ──
+   Chips y no desplegable: lo que hay que ver es justamente que existen OTROS
+   meses con dinero dentro. El punto ámbar marca el mes con algo a menos de 20
+   días de caducar. */
+#pc-tab-gastos .ex-meses{display:flex;gap:7px;overflow-x:auto;padding:2px 2px 6px;
+  margin-bottom:10px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+#pc-tab-gastos .ex-meses::-webkit-scrollbar{display:none}
+#pc-tab-gastos .ex-mchip{flex:0 0 auto;padding:7px 11px;border-radius:11px;cursor:pointer;
+  font-size:10px;font-weight:800;letter-spacing:.12em;text-align:center;position:relative;
+  border:1px solid rgba(255,255,255,.14);background:rgba(16,24,40,.34);color:rgba(180,220,255,.62)}
+#pc-tab-gastos .ex-mchip span{display:block;font-family:ui-monospace,monospace;font-size:10.5px;
+  font-weight:700;letter-spacing:0;margin-top:3px;color:rgba(180,220,255,.45)}
+#pc-tab-gastos .ex-mchip.on{background:rgba(126,251,254,.14);border-color:rgba(126,251,254,.5);
+  color:#7EFBFE}
+#pc-tab-gastos .ex-mchip.on span{color:#7EFBFE}
+#pc-tab-gastos .ex-mchip.urge:after{content:"";position:absolute;top:5px;right:6px;width:6px;height:6px;
+  border-radius:50%;background:#FFB067;box-shadow:0 0 6px rgba(255,176,103,.8)}
 #pc-tab-gastos .ex-tile{background:rgba(16,24,40,.3);border:1px solid rgba(255,255,255,.14);
   border-radius:12px;padding:9px 8px;text-align:center}
 #pc-tab-gastos .ex-tile .n{font-family:ui-monospace,monospace;font-size:16px;font-weight:700;color:#F0F8FF}
@@ -55,6 +88,79 @@ html.day #scr-pay .pc-tab-btn[data-tab="gastos"].active{
 #pc-tab-gastos .ex-amt small{display:block;font-size:8.5px;letter-spacing:.1em;
   color:rgba(180,220,255,.52);font-weight:700;font-family:inherit}
 #pc-tab-gastos .ex-day.done .ex-amt{color:#4EE6AE}
+#pc-tab-gastos .ex-right{display:flex;align-items:flex-start;gap:4px}
+/* Papelera igual que la del logbook (.ld-fdel): el mismo icono y la misma
+   opacidad .55 — con .35 el icono se quedaba en 1,07:1 sobre la tarjeta
+   oscura. Discreto está bien en un botón destructivo; invisible no. */
+#pc-tab-gastos .ex-del{background:none;border:none;cursor:pointer;font-size:13px;
+  padding:2px 4px;opacity:.55;transition:opacity .15s;flex-shrink:0;line-height:1}
+#pc-tab-gastos .ex-del:active{opacity:1}
+
+/* ── EL PORQUÉ: barra del día + frases ──
+   El eje va en tiempo real (UTC por dentro, único monótono al cruzar husos)
+   pero SIEMPRE se rotula en hora local: rotularlo en UTC haría pensar que la
+   app calcula mal cuando lo que estaría mal es la pantalla. */
+#pc-tab-gastos .ex-whybar{margin-top:9px;text-align:right}
+#pc-tab-gastos .ex-whyb{font-size:10.5px;font-weight:700;color:rgba(126,251,254,.75);
+  cursor:pointer;border-bottom:1px dotted rgba(126,251,254,.45);padding-bottom:1px}
+#pc-tab-gastos .ex-why{margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.1)}
+
+#pc-tab-gastos .ex-tl{position:relative;height:44px;border-radius:8px;overflow:hidden;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1)}
+#pc-tab-gastos .ex-tl-bands,#pc-tab-gastos .ex-tl-segs{position:absolute;inset:0}
+#pc-tab-gastos .ex-band{position:absolute;top:0;bottom:0;display:flex;align-items:flex-start;
+  justify-content:center;padding-top:2px;font-size:10px;opacity:.28;
+  background:rgba(255,255,255,.07);border-left:1px dashed rgba(255,255,255,.18);
+  border-right:1px dashed rgba(255,255,255,.18)}
+#pc-tab-gastos .ex-band.cat{opacity:.4}
+#pc-tab-gastos .ex-band.on{opacity:1;background:rgba(126,251,254,.16);
+  border-color:rgba(126,251,254,.55);box-shadow:inset 0 0 12px rgba(126,251,254,.25)}
+#pc-tab-gastos .ex-seg{position:absolute;bottom:5px;height:15px;border-radius:4px;
+  font-family:ui-monospace,monospace;font-size:8px;display:flex;align-items:center;
+  justify-content:center;color:rgba(255,255,255,.75);overflow:hidden;white-space:nowrap}
+#pc-tab-gastos .ex-seg.cat{background:rgba(255,255,255,.16)}
+#pc-tab-gastos .ex-seg.self{background:linear-gradient(180deg,#7EFBFE,#22D3EE);color:#00202b;font-weight:700}
+#pc-tab-gastos .ex-seg.ground{opacity:.75;height:10px;bottom:7px}
+#pc-tab-gastos .ex-tl-ax{display:flex;justify-content:space-between;margin-top:4px;
+  font-family:ui-monospace,monospace;font-size:8.5px;color:rgba(180,220,255,.52)}
+
+#pc-tab-gastos .ex-why-row{margin-top:9px;padding:8px 10px;border-radius:10px;
+  background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.09)}
+#pc-tab-gastos .ex-why-row.on{background:rgba(126,251,254,.07);border-color:rgba(126,251,254,.3)}
+#pc-tab-gastos .ex-why-h{font-size:10.5px;color:rgba(180,220,255,.8);margin-bottom:3px}
+#pc-tab-gastos .ex-why-h b{color:#F0F8FF}
+#pc-tab-gastos .ex-why-t{font-size:11px;line-height:1.55;color:rgba(180,220,255,.72)}
+#pc-tab-gastos .ex-why-t b{color:#7EFBFE;font-weight:700}
+#pc-tab-gastos .ex-why-foot{margin-top:10px;font-size:9.5px;line-height:1.5;
+  color:rgba(180,220,255,.45);display:flex;justify-content:space-between;gap:10px;align-items:flex-end}
+#pc-tab-gastos .ex-why-foot b{color:rgba(180,220,255,.7)}
+#pc-tab-gastos .ex-why-bug{flex-shrink:0;color:#FFB067;border-bottom:1px dotted rgba(255,176,103,.5);
+  cursor:pointer;font-weight:700;white-space:nowrap}
+
+/* el porqué en modo día */
+html.day #pc-tab-gastos .ex-whyb{color:#0E7490;border-bottom-color:rgba(14,116,144,.45)}
+html.day #pc-tab-gastos .ex-why{border-top-color:rgba(2,132,199,.2)}
+html.day #pc-tab-gastos .ex-tl{background:#F1F5F9;border-color:rgba(15,23,42,.12)}
+html.day #pc-tab-gastos .ex-band{background:rgba(15,23,42,.06);
+  border-color:rgba(15,23,42,.18);opacity:.5}
+html.day #pc-tab-gastos .ex-band.on{opacity:1;background:rgba(2,132,199,.18);
+  border-color:rgba(2,132,199,.5);box-shadow:none}
+html.day #pc-tab-gastos .ex-seg.cat{background:rgba(15,23,42,.22);color:#F8FAFC}
+html.day #pc-tab-gastos .ex-seg.self{background:linear-gradient(180deg,#0EA5E9,#0369A1);color:#fff}
+html.day #pc-tab-gastos .ex-tl-ax{color:#455E75}
+html.day #pc-tab-gastos .ex-why-row{background:#F8FAFC;border-color:rgba(15,23,42,.1)}
+html.day #pc-tab-gastos .ex-why-row.on{background:#E0F2FE;border-color:rgba(2,132,199,.35)}
+html.day #pc-tab-gastos .ex-why-h{color:#475569} html.day #pc-tab-gastos .ex-why-h b{color:#0F172A}
+html.day #pc-tab-gastos .ex-why-t{color:#455E75} html.day #pc-tab-gastos .ex-why-t b{color:#0E7490}
+html.day #pc-tab-gastos .ex-why-foot{color:#64748B}
+html.day #pc-tab-gastos .ex-why-foot b{color:#475569}
+html.day #pc-tab-gastos .ex-why-bug{color:#B45309;border-bottom-color:rgba(180,83,9,.45)}
+
+/* separador de mes */
+#pc-tab-gastos .ex-mes{display:flex;justify-content:space-between;align-items:baseline;
+  gap:8px;margin:14px 4px 7px;padding-bottom:5px;border-bottom:1px solid rgba(255,255,255,.1)}
+#pc-tab-gastos .ex-mes .m{font-size:11px;font-weight:800;letter-spacing:.14em;color:#7EFBFE}
+#pc-tab-gastos .ex-mes .s{font-family:ui-monospace,monospace;font-size:10.5px;color:rgba(180,220,255,.52)}
 
 #pc-tab-gastos .ex-chip{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.1em;
   padding:2px 7px;border-radius:5px;border:1px solid rgba(255,255,255,.24);
@@ -84,8 +190,49 @@ html.day #scr-pay .pc-tab-btn[data-tab="gastos"].active{
 #pc-tab-gastos .ex-ln{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
   padding:4px 0;font-size:11.5px}
 #pc-tab-gastos .ex-ln .k{color:rgba(180,220,255,.8)}
+#pc-tab-gastos .ex-ln .k b{font-family:ui-monospace,monospace;font-size:10px;font-weight:700;
+  color:rgba(180,220,255,.62);margin-right:2px}
 #pc-tab-gastos .ex-ln .k span{font-family:ui-monospace,monospace;font-size:10px;color:rgba(180,220,255,.52)}
-#pc-tab-gastos .ex-ln .v{font-family:ui-monospace,monospace;font-size:11.5px;color:#F0F8FF;white-space:nowrap}
+#pc-tab-gastos .ex-ln .v{font-family:ui-monospace,monospace;font-size:11.5px;color:#F0F8FF;
+  white-space:nowrap;text-align:right}
+#pc-tab-gastos .ex-ln .v i{display:block;font-style:normal;font-size:9px;letter-spacing:.04em;
+  color:#4EE6AE;margin-top:2px}
+#pc-tab-gastos .ex-ln .v i.no,
+#pc-tab-gastos .ex-ln .v i.over{color:rgba(255,176,103,.85)}
+#pc-tab-gastos .ex-amt em{display:block;font-style:normal;font-family:ui-monospace,monospace;
+  font-size:9.5px;font-weight:700;color:#4EE6AE;margin-top:2px}
+
+/* ── Desglose del mes ──
+   La tarjeta cuenta una nota; esto cuenta el mes: de qué día sale cada euro,
+   qué tope pone el convenio y cuánto ticket llevas en esa línea. */
+#pc-tab-gastos .ex-dsgbar{text-align:right;margin:-3px 4px 8px}
+#pc-tab-gastos .ex-dsgbox{margin:0 0 10px}
+#pc-tab-gastos .ex-dsg{border-radius:12px;padding:9px 11px;
+  background:rgba(16,24,40,.44);border:1px solid rgba(126,251,254,.22)}
+#pc-tab-gastos .ex-dsg-r{display:grid;grid-template-columns:52px 1fr 62px 62px;gap:6px;
+  align-items:baseline;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:11px}
+#pc-tab-gastos .ex-dsg-r:last-of-type{border-bottom:0}
+#pc-tab-gastos .ex-dsg-r .d{font-family:ui-monospace,monospace;font-size:9.5px;
+  color:rgba(180,220,255,.62)}
+#pc-tab-gastos .ex-dsg-r .c{color:rgba(240,248,255,.9);line-height:1.35}
+#pc-tab-gastos .ex-dsg-r .c span{display:block;font-family:ui-monospace,monospace;font-size:9px;
+  color:rgba(180,220,255,.45);margin-top:2px}
+#pc-tab-gastos .ex-dsg-r .t,#pc-tab-gastos .ex-dsg-r .k{font-family:ui-monospace,monospace;
+  font-size:10.5px;text-align:right;white-space:nowrap}
+#pc-tab-gastos .ex-dsg-r .t{color:#F0F8FF}
+#pc-tab-gastos .ex-dsg-r .k{color:#4EE6AE}
+#pc-tab-gastos .ex-dsg-r .k.no,
+#pc-tab-gastos .ex-dsg-r .k.over{color:rgba(255,176,103,.85)}
+#pc-tab-gastos .ex-dsg-r.hd{font-size:8.5px;letter-spacing:.12em;font-weight:800;
+  color:rgba(180,220,255,.45);border-bottom-color:rgba(255,255,255,.12)}
+#pc-tab-gastos .ex-dsg-r.hd .d,#pc-tab-gastos .ex-dsg-r.hd .t,#pc-tab-gastos .ex-dsg-r.hd .k{
+  font-family:inherit;font-size:8.5px;color:rgba(180,220,255,.45)}
+#pc-tab-gastos .ex-dsg-r.tot{border-top:1px solid rgba(255,255,255,.14);border-bottom:0;
+  margin-top:2px;font-weight:700}
+#pc-tab-gastos .ex-dsg-r.tot .d{color:rgba(180,220,255,.8)}
+#pc-tab-gastos .ex-dsg-r.tot .c b{color:#4EE6AE}
+#pc-tab-gastos .ex-dsg-f{margin-top:8px;font-size:9.5px;line-height:1.5;color:rgba(180,220,255,.45)}
+#pc-tab-gastos .ex-dsg-f b{color:rgba(180,220,255,.72)}
 
 .ex-row{display:flex;gap:7px;margin-top:11px}
 .ex-btn{flex:1;text-align:center;padding:10px;border-radius:10px;font-size:11.5px;font-weight:700;
@@ -143,9 +290,14 @@ html.day #scr-pay .pc-tab-btn[data-tab="gastos"].active{
   align-items:center;justify-content:center;font-size:11px;cursor:pointer}
 .ex-th .x{top:-6px;right:-6px;background:rgba(48,13,23,.9);border:1px solid rgba(255,107,129,.55);color:#FF8095}
 .ex-th .dl{bottom:24px;right:-6px;background:rgba(16,24,40,.92);border:1px solid rgba(255,255,255,.24);color:#7EFBFE}
-.ex-add{width:64px;height:80px;border-radius:8px;border:1px dashed rgba(126,251,254,.45);
-  background:rgba(126,251,254,.07);color:#7EFBFE;font-size:22px;display:flex;align-items:center;
-  justify-content:center;cursor:pointer}
+.ex-add{position:relative;width:64px;height:80px;border-radius:8px;border:1px dashed rgba(126,251,254,.45);
+  background:rgba(126,251,254,.07);color:#7EFBFE;font-size:22px;display:flex;flex-direction:column;
+  gap:4px;align-items:center;justify-content:center;cursor:pointer}
+.ex-add .i{font-size:20px;line-height:1}
+.ex-add .l{font-size:9px;letter-spacing:.06em;font-weight:700;opacity:.85}
+/* ✦ = plan Pro (la IA lee el ticket). Antes era el propio glifo del botón; al
+   partirlo en cámara/galería pasa a esquina para no comerse el icono. */
+.ex-add.pro::after{content:'✦';position:absolute;top:3px;right:5px;font-size:9px;opacity:.75}
 .ex-sum{font-family:ui-monospace,monospace;font-size:11px;margin-top:9px;color:rgba(180,220,255,.8);line-height:1.7}
 .ex-sum b{color:#7EFBFE} .ex-sum .over{color:#FFB067} .ex-sum .okc{color:#4EE6AE}
 
@@ -179,37 +331,66 @@ html.day #pc-tab-gastos{
   border-color:rgba(2,132,199,.18);
   box-shadow:0 4px 18px rgba(15,23,42,.10);
 }
+/* ── RELIEVE ──
+   Con sombras al 6% y bordes al 18% todo quedaba plano: azul pálido sobre azul
+   pálido. Aquí las cotas suben de verdad — sombra en dos capas (uno de contacto
+   + un halo azul que separa del fondo), bordes visibles y texto más oscuro. */
 html.day #pc-tab-gastos .ex-hero{
-  background:linear-gradient(180deg,#DCEAFA,#F4F9FE);
-  border-color:rgba(2,132,199,.28)}
-html.day #pc-tab-gastos .ex-big{color:#075985;text-shadow:none}
-html.day #pc-tab-gastos .ex-lbl{color:#0E7490}
+  background:linear-gradient(180deg,#CFE3F8 0%,#EAF3FD 55%,#FFFFFF 100%);
+  border:1.5px solid rgba(2,132,199,.42);
+  box-shadow:0 1px 2px rgba(15,23,42,.10), 0 14px 34px -14px rgba(2,132,199,.55),
+             inset 0 1px 0 rgba(255,255,255,.9)}
+html.day #pc-tab-gastos .ex-big{color:#064E70;text-shadow:0 1px 0 rgba(255,255,255,.85);
+  letter-spacing:-.5px}
+html.day #pc-tab-gastos .ex-lbl{color:#0B6E8A;font-weight:800}
 html.day #pc-tab-gastos .ex-sub,
-html.day #pc-tab-gastos .ex-sect,
-html.day #pc-tab-gastos .ex-tile .l,
-html.day #pc-tab-gastos .ex-empty{color:#455E75}
-html.day #pc-tab-gastos .ex-tile{background:#FFF;border-color:rgba(2,132,199,.16)}
+html.day #pc-tab-gastos .ex-empty{color:#3C5468}
+html.day #pc-tab-gastos .ex-tile .l{color:#3C5468;font-weight:800}
+/* los rótulos de sección con un acento a la izquierda: dan estructura y
+   rompen la monotonía de la lista */
+html.day #pc-tab-gastos .ex-sect{color:#0B6E8A;font-weight:800;
+  border-left:3px solid #0EA5E9;padding-left:8px;margin-left:0}
+html.day #pc-tab-gastos .ex-tile{background:#FFF;border:1.5px solid rgba(2,132,199,.3);
+  box-shadow:0 1px 2px rgba(15,23,42,.07)}
 html.day #pc-tab-gastos .ex-tile .n{color:#0F172A}
-html.day #pc-tab-gastos .ex-tile.ok{background:#ECFDF5;border-color:#6EE7B7}
-html.day #pc-tab-gastos .ex-tile.ok .n{color:#047857}
-html.day #pc-tab-gastos .ex-tile.warn{background:#FFF7ED;border-color:#FDBA74}
-html.day #pc-tab-gastos .ex-tile.warn .n{color:#B45309}
+html.day #pc-tab-gastos .ex-tile.ok{background:#E7FBF3;border-color:#34D399}
+html.day #pc-tab-gastos .ex-tile.ok .n{color:#036B4B}
+html.day #pc-tab-gastos .ex-tile.warn{background:#FFF3E4;border-color:#FB923C}
+html.day #pc-tab-gastos .ex-tile.warn .n{color:#9A3412}
 
-html.day #pc-tab-gastos .ex-new{background:rgba(2,132,199,.07);
-  border-color:rgba(2,132,199,.4);color:#0E7490}
-html.day #pc-tab-gastos .ex-day{background:#FFF;border-color:rgba(2,132,199,.18);
-  box-shadow:0 1px 3px rgba(15,23,42,.06)}
-html.day #pc-tab-gastos .ex-day.done{border-color:rgba(15,23,42,.1)}
-html.day #pc-tab-gastos .ex-dd,
+html.day #pc-tab-gastos .ex-new{background:rgba(2,132,199,.1);
+  border:1.5px dashed rgba(2,132,199,.55);color:#0B6E8A;font-weight:800}
+
+/* la tarjeta despega del fondo: contacto + halo, y el color del tipo se
+   derrama hacia dentro para que la tira no sea una raya suelta */
+html.day #pc-tab-gastos .ex-day{
+  background:linear-gradient(180deg,#FFFFFF,#FBFDFF);
+  border:1.5px solid rgba(2,132,199,.3);
+  box-shadow:0 1px 2px rgba(15,23,42,.09), 0 10px 26px -14px rgba(2,132,199,.5)}
+html.day #pc-tab-gastos .ex-day:before{width:6px;
+  box-shadow:6px 0 14px -6px color-mix(in srgb,var(--tcol) 75%,transparent)}
+html.day #pc-tab-gastos .ex-day.done{border-color:rgba(15,23,42,.14);box-shadow:none}
+html.day #pc-tab-gastos .ex-dd{color:#334155;font-weight:700}
 html.day #pc-tab-gastos .ex-route,
-html.day #pc-tab-gastos .ex-ln .k{color:#475569}
+html.day #pc-tab-gastos .ex-ln .k{color:#3C5468}
 html.day #pc-tab-gastos .ex-ln .k span,
-html.day #pc-tab-gastos .ex-slotlbl{color:#64748B}
-html.day #pc-tab-gastos .ex-title,
-html.day #pc-tab-gastos .ex-ln .v{color:#0F172A}
-html.day #pc-tab-gastos .ex-amt{color:#075985}
-html.day #pc-tab-gastos .ex-amt small{color:#64748B}
+html.day #pc-tab-gastos .ex-slotlbl{color:#52697E}
+html.day #pc-tab-gastos .ex-title{color:#0B1220;font-size:14px}
+html.day #pc-tab-gastos .ex-ln .v{color:#0B1220}
+html.day #pc-tab-gastos .ex-amt{color:#064E70;text-shadow:0 1px 0 rgba(255,255,255,.8)}
+html.day #pc-tab-gastos .ex-amt small{color:#52697E;font-weight:800}
+/* la barra de franjas también estaba plana */
+html.day #pc-tab-gastos .ex-slotbar{background:#EEF4FA;border:1.5px solid rgba(2,132,199,.28);
+  box-shadow:inset 0 1px 3px rgba(15,23,42,.08)}
+html.day #pc-tab-gastos .ex-sl.on{background:linear-gradient(180deg,#7DD3FC,#38BDF8);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6)}
+html.day #pc-tab-gastos .ex-sl.cat{background:rgba(15,23,42,.1)}
+html.day #pc-tab-gastos .ex-sl.vou{background:rgba(139,92,246,.28)}
 html.day #pc-tab-gastos .ex-day.done .ex-amt{color:#047857}
+html.day #pc-tab-gastos .ex-mes{border-bottom-color:rgba(2,132,199,.22)}
+html.day #pc-tab-gastos .ex-mes .m{color:#0E7490}
+html.day #pc-tab-gastos .ex-mes .s{color:#455E75}
+html.day #pc-tab-gastos .ex-del{opacity:.8}
 html.day #pc-tab-gastos .ex-legend{color:#455E75}
 html.day #pc-tab-gastos .ex-legend b{color:#0E7490}
 html.day #pc-tab-gastos .ex-legend i{color:#6D28D9}
@@ -219,6 +400,42 @@ html.day #pc-tab-gastos .ex-sl{border-right-color:rgba(15,23,42,.08)}
 html.day #pc-tab-gastos .ex-sl.on{background:rgba(2,132,199,.2)}
 html.day #pc-tab-gastos .ex-sl.cat{background:rgba(15,23,42,.05)}
 html.day #pc-tab-gastos .ex-sl.vou{background:rgba(139,92,246,.16)}
+/* meses, tres números y desglose en modo día — los verdes y ámbares de la
+   noche pierden contraste sobre blanco, así que bajan de tono */
+html.day #pc-tab-gastos .ex-real{background:#E7FBF3;border-color:#34D399;color:#37506A}
+html.day #pc-tab-gastos .ex-real b{color:#036B4B}
+html.day #pc-tab-gastos .ex-nube{color:#52697E}
+html.day #pc-tab-gastos .ex-nube.warn{color:#9A3412}
+html.day #pc-tab-gastos .ex-nube.ok{color:#036B4B}
+html.day #pc-tab-gastos .ex-tile.cash{background:#E7FBF3;border-color:#34D399}
+html.day #pc-tab-gastos .ex-tile.cash .n{color:#036B4B}
+html.day #pc-tab-gastos .ex-mchip{background:#FFF;border:1.5px solid rgba(2,132,199,.28);color:#3C5468}
+html.day #pc-tab-gastos .ex-mchip span{color:#52697E}
+html.day #pc-tab-gastos .ex-mchip.on{background:#E0F2FE;border-color:#0284C7;color:#0B4A6F}
+html.day #pc-tab-gastos .ex-mchip.on span{color:#0B4A6F}
+html.day #pc-tab-gastos .ex-mchip.urge:after{background:#C2410C;box-shadow:none}
+html.day #pc-tab-gastos .ex-ln .k b{color:#52697E}
+html.day #pc-tab-gastos .ex-ln .v i{color:#036B4B}
+html.day #pc-tab-gastos .ex-ln .v i.no,
+html.day #pc-tab-gastos .ex-ln .v i.over{color:#9A3412}
+html.day #pc-tab-gastos .ex-amt em{color:#036B4B;text-shadow:none}
+html.day #pc-tab-gastos .ex-dsg{background:#FFF;border:1.5px solid rgba(2,132,199,.28)}
+html.day #pc-tab-gastos .ex-dsg-r{border-bottom-color:rgba(15,23,42,.08)}
+html.day #pc-tab-gastos .ex-dsg-r .d{color:#52697E}
+html.day #pc-tab-gastos .ex-dsg-r .c{color:#0B1220}
+html.day #pc-tab-gastos .ex-dsg-r .c span{color:#52697E}
+html.day #pc-tab-gastos .ex-dsg-r .t{color:#0B1220}
+html.day #pc-tab-gastos .ex-dsg-r .k{color:#036B4B}
+html.day #pc-tab-gastos .ex-dsg-r .k.no,
+html.day #pc-tab-gastos .ex-dsg-r .k.over{color:#9A3412}
+html.day #pc-tab-gastos .ex-dsg-r.hd,
+html.day #pc-tab-gastos .ex-dsg-r.hd .d,
+html.day #pc-tab-gastos .ex-dsg-r.hd .t,
+html.day #pc-tab-gastos .ex-dsg-r.hd .k{color:#52697E}
+html.day #pc-tab-gastos .ex-dsg-r.tot .d{color:#334155}
+html.day #pc-tab-gastos .ex-dsg-r.tot .c b{color:#036B4B}
+html.day #pc-tab-gastos .ex-dsg-f{color:#52697E}
+html.day #pc-tab-gastos .ex-dsg-f b{color:#334155}
 /* el color del tipo se oscurece: en claro, el ámbar puro no se lee */
 html.day #pc-tab-gastos .ex-chip.tipo{
   background:color-mix(in srgb,var(--tcol) 20%,#fff);
@@ -228,8 +445,12 @@ html.day #pc-tab-gastos .ex-chip.int{background:#E0F2FE;border-color:#7DD3FC;col
 html.day #pc-tab-gastos .ex-chip.ok{background:#ECFDF5;border-color:#6EE7B7;color:#047857}
 
 /* controles y hoja, también en claro */
-html.day .ex-btn{background:rgba(2,132,199,.09);border-color:rgba(2,132,199,.38);color:#0E7490}
-html.day .ex-btn.ghost{background:#F1F5F9;border-color:rgba(15,23,42,.14);color:#475569}
+/* el botón principal, relleno: en claro un borde suave no se lee como botón */
+html.day .ex-btn{background:linear-gradient(180deg,#0EA5E9,#0284C7);
+  border:1px solid #0369A1;color:#fff;font-weight:800;
+  box-shadow:0 1px 2px rgba(15,23,42,.15),inset 0 1px 0 rgba(255,255,255,.28)}
+html.day .ex-btn.ghost{background:#FFF;border:1.5px solid rgba(15,23,42,.18);color:#334155;
+  box-shadow:0 1px 2px rgba(15,23,42,.06)}
 html.day .ex-btn.solid{background:linear-gradient(180deg,#10B981,#059669);color:#fff}
 html.day .ex-btn.danger{border-color:#FCA5A5;color:#B91C1C;background:#FEF2F2}
 html.day .ex-note{color:#455E75} html.day .ex-note b{color:#B45309}
