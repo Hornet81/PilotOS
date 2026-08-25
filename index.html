@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.560">
+  <meta name="version" content="Beta.584">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.560","builtAt":"2026-08-18T15:27:24Z","commit":"15c1c91","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.584","builtAt":"2026-08-25T10:46:52Z","commit":"5fdcc59","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -3487,6 +3487,55 @@ html.day #ld-panel-mapa.ld-panel{background:#cfe0f0}
   overflow:visible;
   position:relative;
 }
+/* ── El día de HOY en el logbook ──────────────────────────────────────────────
+   Un borde fino no se ve mientras haces scroll: es una línea compitiendo con las
+   tarjetas grandes de debajo. Lo que engancha el ojo es una SUPERFICIE, así que
+   la cabecera del día entera pasa a ser una banda cian con la fecha en oscuro.
+   Mismo lenguaje que la píldora de hoy del roster: que «hoy» se vea igual en las
+   dos pantallas vale más que parecerse a otra app. */
+.ld-fday-group.ld-hoy{
+  border:1px solid rgba(34,211,238,.55);
+  box-shadow:0 0 0 3px rgba(34,211,238,.14),0 10px 30px rgba(8,145,178,.28);
+  padding-top:0;
+}
+.ld-fday-group.ld-hoy .ld-fday-hdr{
+  /* El degradado se oscurecía hacia la DERECHA, que es justo donde viven el block y
+     los sectores: medido en modo día, «BLOCK» y «SECT.» caían a 2,5 de contraste,
+     por debajo de legible. Se recorta el recorrido del degradado para que el extremo
+     derecho siga siendo claro. */
+  background:linear-gradient(90deg,#22D3EE 0%,#06B6D4 100%);
+  margin:0 -10px 10px -10px;padding:10px 14px;border-radius:16px 16px 0 0;
+}
+.ld-fday-group.ld-hoy .ld-fday-date{color:#04222B;font-weight:800}
+.ld-fday-group.ld-hoy .ld-fday-dow{background:rgba(4,34,43,.18)!important;color:#04222B!important;border-color:rgba(4,34,43,.3)!important}
+.ld-fday-group.ld-hoy .ld-fday-sv{color:#04222B!important}
+/* Bajar el alfa sobre cian no da contraste, solo lava el texto. La jerarquía entre
+   el valor y su etiqueta la marcan el tamaño y el grosor, no la transparencia. */
+/* !important porque `html.day .ld-fday-sl` lo lleva y ganaba: en modo día la
+   etiqueta salía en gris pizarra sobre cian, 3,4 de contraste. */
+.ld-fday-group.ld-hoy .ld-fday-sl{color:#04222B!important;opacity:1;font-weight:800}
+.ld-fday-group.ld-hoy .ld-fday-sep{background:rgba(4,34,43,.35)}
+.ld-hoy-pill{
+  font-family:'DM Mono','Space Mono',monospace;font-size:9px;font-weight:800;
+  letter-spacing:1.4px;padding:3px 9px;border-radius:7px;margin-left:2px;
+  background:#04222B;color:#22D3EE;
+}
+/* Cuántos vuelos quedan por rellenar ese día, sin tener que abrir las tarjetas. */
+.ld-pend-chip{
+  font-size:9px;font-weight:800;letter-spacing:.6px;padding:3px 8px;border-radius:7px;
+  background:rgba(245,158,11,.18);color:#B45309;border:1px solid rgba(245,158,11,.55);
+  font-family:'DM Mono','Space Mono',monospace;white-space:nowrap;
+}
+.ld-fday-group.ld-hoy .ld-pend-chip{background:rgba(4,34,43,.22);color:#04222B;border-color:rgba(4,34,43,.35)}
+/* Pulso de la franja «por rellenar». El anterior iba de .65 a 1 sobre 3px en 2s:
+   medido en el navegador funcionaba, pero es un recorrido por debajo del umbral de
+   notarlo. Ahora 6px y de .35 a 1 en 1,2s. */
+@keyframes ld-draft-pulse2{0%,100%{opacity:.35}50%{opacity:1}}
+/* Quien pide menos movimiento en el sistema no recibe parpadeo: se queda encendida
+   del todo, que sigue viéndose por ancho y color. */
+@media (prefers-reduced-motion: reduce){
+  .ld-draft-bar{animation:none!important;opacity:1!important}
+}
 .ld-fday-hdr{
   display:flex;align-items:center;justify-content:space-between;
   padding:11px 4px 10px 4px;
@@ -5237,6 +5286,34 @@ html.day .dh-card-cafi .dh-card-title{color:#fff!important;text-shadow:0 1px 2px
 html.day .dh-card-cafi .dh-card-sub{color:rgba(255,255,255,.7)!important}
 html.day .dh-card-cafi [style*="color:rgba(241,245,249"]{color:rgba(255,255,255,.55)!important}
 html.day .dh-card-cafi [style*="background:rgba(255,255,255,.06)"]{background:rgba(255,255,255,.1)!important;border-color:rgba(255,255,255,.18)!important}
+
+/* ── Píldora de CAFI en el Home ──────────────────────────────────────────────
+   Era un rótulo falso: ponía «Haz una pregunta…» pero no se podía escribir, y
+   tocarlo solo abría CAFI para volver a escribir la pregunta allí. Ahora se
+   escribe aquí y la pregunta viaja con el piloto: al enviar se entra en CAFI y
+   se responde dentro, sin teclearla dos veces.
+   La tarjeta entera es un botón que navega a CAFI, así que la píldora corta la
+   propagación del clic — si no, tocar para escribir te sacaba de la pantalla. */
+#dh-cafi-q{
+  flex:1;min-width:0;background:none;border:none;outline:none;padding:3px 0;
+  color:#F1F5F9;font-family:inherit;font-weight:500;
+  /* 16px A PROPÓSITO: por debajo de eso iOS hace zoom al enfocar un input y el
+     Home entero da un salto. Es la única razón por la que no son los 11px del
+     resto de la tarjeta. */
+  font-size:16px;
+}
+/* El texto de ayuda es corto porque a 16px en una tarjeta estrecha uno largo se
+   corta a media palabra y la tarjeta parece rota. */
+#dh-cafi-q::placeholder{color:rgba(241,245,249,.32);font-weight:400}
+#dh-cafi-go{
+  flex-shrink:0;width:30px;height:30px;border-radius:9px;border:none;padding:0;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  background:rgba(255,255,255,.10);color:rgba(241,245,249,.55);
+  transition:background .15s,color .15s;
+}
+/* Se enciende en cuanto hay algo escrito: dice que ya hay algo que enviar. */
+#dh-cafi-go.on{background:linear-gradient(135deg,#8B5CF6,#C084FC);color:#1B0F45}
+#dh-cafi-go:active{transform:scale(.92)}
 
 /* ── Weather — Cian ── */
 html.day .dh-card-weather{
@@ -8935,7 +9012,7 @@ html.day .fp-ym-st-col.free .fp-ym-st-rng{color:var(--fp-gd)}
       </div>
     </div>
     <div class="gear-divider"></div>
-    <div class="gear-item" onclick="closePilotPanel()">
+    <div class="gear-item" onclick="closePilotPanel();goTo('perfil')">
       <div class="gear-icon" style="background:rgba(34,211,238,.1);border-color:rgba(34,211,238,.2)">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="1.9"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       </div>
@@ -9255,7 +9332,7 @@ html.day .fp-ym-st-col.free .fp-ym-st-rng{color:var(--fp-gd)}
 </svg></div><span class="dh-badge dh-b-live" style="background:linear-gradient(135deg,#8B5CF6,#C084FC);color:#26064A;border:none">Live</span></div>
         <div class="dh-card-title">CAFI</div>
         <div class="dh-card-sub">Preguntas sobre FCOM &amp; FCTM</div>
-        <div style="margin-top:auto;display:flex;align-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:11px;padding:9px 11px;gap:7px;margin-top:40px"><span style="flex:1;font-size:11px;color:rgba(241,245,249,.3)">Haz una pregunta...</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(241,245,249,.3)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div style="margin-top:auto;display:flex;align-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:11px;padding:5px 5px 5px 11px;gap:6px;margin-top:40px" onclick="event.stopPropagation()"><input id="dh-cafi-q" type="text" autocomplete="off" autocapitalize="sentences" enterkeyhint="send" placeholder="Pregunta…" onkeydown="if(event.key==='Enter'){event.preventDefault();dhCafiAsk();}"><button type="button" id="dh-cafi-go" aria-label="Preguntar a CAFI" onclick="event.stopPropagation();dhCafiAsk()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button></div>
       </div>
     </div>
     <!-- Row 2: Meteo + Pay + Fatigue -->
@@ -11062,7 +11139,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
         </div>
         <div class="fg">
           <label class="pc-field-label">Nivel económico</label>
-          <select class="fi" id="pc_nivel"></select>
+          <select class="fi" id="pc_nivel" onchange="pcManualSave()"></select>
         </div>
       </div>
       <div class="fg" style="margin-bottom:12px">
@@ -13652,6 +13729,17 @@ html.day #ec-sync-overlay [style*="background:rgba(8,145,178,.15)"]{
 
 
 <!-- ════════════ DOCUMENTS ════════════ -->
+<div class="screen" id="scr-perfil">
+  <div class="inner-header">
+    <div class="back-btn" onclick="goHome()">&lsaquo; Inicio</div>
+    <div class="ih-title">Mi perfil</div>
+    <div class="ih-right"></div>
+  </div>
+  <div class="scroll-body">
+    <!-- Lo pinta js/profile.js (ppRenderScreen): el index ya son 3,5 MB -->
+    <div id="pp-screen-body"></div>
+  </div>
+</div>
 <div class="screen" id="scr-docs">
   <div class="inner-header">
     <div class="back-btn" onclick="goHome()">‹ Inicio</div>
@@ -13740,7 +13828,7 @@ html.day #ec-sync-overlay [style*="background:rgba(8,145,178,.15)"]{
 <script>
 // ── NAVIGATION ──
 let curScreen='home';
-const screens={home:'scr-home',oes:'scr-oes',cafi:'scr-cafi',pay:'scr-pay',fatigue:'scr-fatigue',skyview:'scr-skyview',career:'scr-career',tools:'scr-tools',descent:'scr-descent',docs:'scr-docs',logbook:'scr-logbook',roster:'scr-roster',upgrade:'scr-upgrade',guide:'scr-guide'};
+const screens={home:'scr-home',oes:'scr-oes',cafi:'scr-cafi',pay:'scr-pay',fatigue:'scr-fatigue',skyview:'scr-skyview',career:'scr-career',tools:'scr-tools',descent:'scr-descent',docs:'scr-docs',logbook:'scr-logbook',roster:'scr-roster',upgrade:'scr-upgrade',guide:'scr-guide',perfil:'scr-perfil'};
 const tabMap={home:'bt-home',oes:'bt-oes',cafi:'bt-cafi',tools:'bt-tools',logbook:'bt-logbook'};
 
 function showScreen(id){
@@ -13814,9 +13902,12 @@ function goTo(key){
   if (sb) sb.scrollTop = 0;
   if (key === 'cafi') { initMic('cafi'); cafiInit(); cafiStartBubble(); setTimeout(cafiWelcomeLock,60); }
   if (key === 'oes')  initMic('oes');
+  if (key !== 'logbook') { try{ ldResetAncla(); }catch(e){} }
   if (key === 'logbook') {
     if (window.ldSwitchTab) window.ldSwitchTab('vuelos');
     if (window._initLD) window._initLD();
+    // Tras el primer pintado: el ancla necesita ldFiltered ya calculado.
+    setTimeout(function(){ try{ ldAnclaHoy(); }catch(e){} }, 220);
     // Activate title color cycle + enhance day group borders if day mode is on
     setTimeout(function(){
       if(document.documentElement.classList.contains('day')){
@@ -13829,10 +13920,12 @@ function goTo(key){
       }
     }, 150);
   }
+  if (key === 'perfil' && typeof ppRenderScreen === 'function') ppRenderScreen();
   if (key === 'upgrade') upgUpdateCards();
   if (key === 'roster' && window.rosterInit) window.rosterInit();
   if (key === 'docs' && typeof renderWallet === 'function') { renderWallet(); if (typeof docCloudPull === 'function') docCloudPull(true); }
   if (key === 'home') {
+    _ldSaludoHome();
     dhUpdateRosterCard();
     if (typeof dhPlayReportFlip === 'function') setTimeout(dhPlayReportFlip, 90);
     setTimeout(function(){
@@ -14735,6 +14828,9 @@ function clearAllUserData(){
   }catch(e){}
   // Resetear estado en memoria para que no se repinte data del usuario anterior
   try{ if(window.RST) RST.entries=[]; }catch(e){}
+  // El perfil y su FOTO: la foto vive en IndexedDB y el barrido de arriba solo toca
+  // localStorage, así que sin esto al piloto nuevo se le pinta la cara del anterior.
+  try{ if(window.PilotProfile) PilotProfile.clear(); }catch(e){}
   try{ if(typeof ldEntries!=='undefined') ldEntries=[]; }catch(e){}
   try{ if(window._lbEntries) window._lbEntries=[]; if(window._lbAll) window._lbAll=[]; }catch(e){}
 }
@@ -14772,16 +14868,25 @@ function _panelShow(id,backdrop){
   p.style.cssText+=';opacity:0;transform:translateY(-8px) scale(0.96);display:block;transition:opacity .18s ease,transform .18s cubic-bezier(.2,.8,.3,1)';
   setTimeout(function(){p.style.opacity='1';p.style.transform='translateY(0) scale(1)';},16);
 }
+/* ¿No queda ningún panel abierto? Entonces el fondo sobra. */
+function _sinPaneles(){
+  var a=document.getElementById('dh-pilot-panel'), g=document.getElementById('dh-gear-panel');
+  return (!a||a.style.display!=='block') && (!g||g.style.display!=='block');
+}
 function _panelHide(id,backdrop){
   var p=document.getElementById(id);
   var bd=document.getElementById(backdrop);
-  if(!p||p.style.display==='none')return;
+  /* ⚠ CALLEJÓN SIN SALIDA. Antes se salía de aquí ANTES de tocar el fondo cuando el
+     panel ya estaba cerrado. Si el fondo se quedaba solo —transparente, a pantalla
+     completa y por encima de todo— la app se veía perfecta y no respondía a un solo
+     toque… y el único gesto para quitarlo, tocar el fondo, llama precisamente a estas
+     dos funciones, que se rendían igual. Sin salida y sin nada que ver en pantalla.
+     Ahora el fondo se reconcilia SIEMPRE: si no hay paneles abiertos, se va. */
+  if(!p||p.style.display==='none'){ if(bd&&_sinPaneles()) bd.style.display='none'; return; }
   p.style.opacity='0';p.style.transform='translateY(-6px) scale(0.97)';
   setTimeout(function(){
     p.style.display='none';
-    var other=id==='dh-pilot-panel'?'dh-gear-panel':'dh-pilot-panel';
-    var op=document.getElementById(other);
-    if(bd&&(!op||op.style.display!=='block'))bd.style.display='none';
+    if(bd&&_sinPaneles())bd.style.display='none';
   },160);
 }
 function openGearPanel(e){if(e)e.stopPropagation();_panelHide('dh-pilot-panel','dh-backdrop');_panelShow('dh-gear-panel','dh-backdrop');}
@@ -15925,6 +16030,38 @@ function getAirline() {
 function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
 function handleKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();cafiSendMessage();}}
 function qs(t){document.getElementById('user-input').value=t;cafiSendMessage();}
+/* ── Preguntar a CAFI desde la tarjeta del Home ───────────────────────────────
+   El piloto escribe en la píldora del Home y al enviar entra en CAFI con la
+   pregunta ya lanzada. Reutiliza qs(), que es exactamente lo que hacen los chips
+   de sugerencia dentro de CAFI: rellenar el campo y enviar. Así hay UNA sola
+   forma de mandar una pregunta y no dos que se puedan desincronizar.
+   goTo('cafi') es síncrono y ya llama a cafiInit(), pero la pantalla necesita un
+   respiro para pintarse antes de meterle el texto; de ahí el pequeño retardo. */
+function dhCafiAsk(){
+  var el = document.getElementById('dh-cafi-q');
+  var q  = el ? String(el.value || '').trim() : '';
+  try{ if(el) el.blur(); }catch(e){}          // cierra el teclado antes de navegar
+  goTo('cafi');
+  // Sin pregunta, esto es simplemente abrir CAFI: es lo que hacía la tarjeta antes.
+  if(!q) return;
+  if(el){ el.value=''; dhCafiGoState(); }     // el Home no se queda con la pregunta vieja
+  setTimeout(function(){
+    try{ qs(q); }catch(e){
+      // Si CAFI no estuviera listo, al menos que la pregunta quede escrita allí
+      // en vez de perderse: el piloto solo tiene que darle a enviar.
+      try{ var ui=document.getElementById('user-input'); if(ui) ui.value=q; }catch(_e){}
+    }
+  }, 120);
+}
+// El botón se enciende solo cuando hay algo que enviar.
+function dhCafiGoState(){
+  var el=document.getElementById('dh-cafi-q'), b=document.getElementById('dh-cafi-go');
+  if(!el||!b) return;
+  if(String(el.value||'').trim()) b.classList.add('on'); else b.classList.remove('on');
+}
+document.addEventListener('input', function(e){
+  if(e.target && e.target.id==='dh-cafi-q') dhCafiGoState();
+});
 
 // Bloquea el arrastre/rebote de la pantalla de bienvenida (avatar) en móvil SOLO si cabe.
 // Si la bienvenida desborda (móvil pequeño), deja el scroll para alcanzar los botones rápidos.
@@ -16627,15 +16764,50 @@ function pcUpdateBonoTarget() {
   }
 }
 
-function pcOnEsp() {
+/* ── Especialidad y nivel elegidos A MANO ─────────────────────────────────────
+   No se guardaban en ninguna parte (#CRP5K). El único sitio donde vivían era el
+   `pilotos_payProfile`, que solo se rellena leyendo una nómina con IA — una
+   función de pago. El piloto que elegía Comandante y Nivel 5 a mano se los
+   encontraba otra vez en el valor por defecto al volver a entrar, y todos los
+   importes calculados con ellos salían del nivel equivocado sin decir nada.
+   Van a su propia clave para no pisar el perfil verificado de la nómina, que
+   sigue mandando sobre esto: lo leído de un documento real vale más que una
+   elección manual. */
+var PC_MANUAL_KEY = 'pilotos_pay_manual';
+function pcManualLoad(){
+  try { return JSON.parse(lsGet(PC_MANUAL_KEY, '{}') || '{}') || {}; } catch(e){ return {}; }
+}
+function pcManualSave(){
+  var esp = (document.getElementById('pc_esp')   || {}).value || '';
+  var niv = (document.getElementById('pc_nivel') || {}).value || '';
+  if (!esp) return;
+  try { lsSet(PC_MANUAL_KEY, JSON.stringify({ esp: esp, nivel: niv })); } catch(e){}
+}
+/* Restaura lo que eligió el piloto. Se llama ANTES que el perfil de la nómina,
+   que si existe lo sobreescribe y además bloquea los campos. */
+function pcManualApply(){
+  var m = pcManualLoad();
+  if (!m || !m.esp) return;
+  var e = document.getElementById('pc_esp'); if (!e) return;
+  e.value = m.esp;
+  pcOnEsp({ conservar: m.nivel });
+}
+/* `conservar`: al RESTAURAR no se puede reponer el nivel por defecto encima del
+   que el piloto tenía. Al cambiar de especialidad a mano sí se repone, porque
+   los niveles de comandante y copiloto no son los mismos. */
+function pcOnEsp(opts) {
   var esp = document.getElementById('pc_esp').value;
   var sel = document.getElementById('pc_nivel');
   var T = CONVENIO[esp];
   sel.innerHTML = T.niveles.map(function(n){
     return '<option value="'+n+'">Nivel '+n+'</option>';
   }).join('');
-  sel.value = (esp==='cmd') ? '3' : '2';
+  var quiere = opts && opts.conservar != null ? String(opts.conservar) : null;
+  var vale = quiere && Array.prototype.some.call(sel.options, function(o){ return o.value === quiere; });
+  sel.value = vale ? quiere : ((esp==='cmd') ? '3' : '2');
   pcUpdateConvBadge();
+  // Un cambio a mano se recuerda; una restauración no necesita reescribir lo mismo.
+  if (!opts || !opts.silencio) pcManualSave();
 }
 
 function pcUpdateConvBadge() {
@@ -16645,11 +16817,14 @@ function pcUpdateConvBadge() {
   if (dt) dt.textContent = 'BOE '+CONVENIO.meta.boe+' · '+CONVENIO.meta.version+' · hasta '+CONVENIO.meta.vigencia_hasta;
 }
 
+/* `silencio`: el arranque solo PINTA la lista de niveles. Sin esto guardaría los
+   valores por defecto encima de la elección del piloto, y como este listener corre
+   antes que ppInit —el que la restaura—, el arreglo se anularía a sí mismo. */
 document.addEventListener('DOMContentLoaded', function(){
-  pcOnEsp();
+  pcOnEsp({ silencio:true });
   pcUpdateConvBadge();
 });
-if (document.readyState !== 'loading') { pcOnEsp(); pcUpdateConvBadge(); }
+if (document.readyState !== 'loading') { pcOnEsp({ silencio:true }); pcUpdateConvBadge(); }
 
 function pcRfChip(el) {
   el.classList.toggle('on');
@@ -16718,7 +16893,9 @@ function pcImportConvenio() {
         }
         CONVENIO = data;
         lsSet('pilotos_convenio', JSON.stringify(CONVENIO));
-        pcOnEsp();
+        // Cambiar de convenio rehace la lista de niveles; el nivel del piloto se
+        // conserva si el convenio nuevo también lo tiene.
+        pcOnEsp({ conservar:(document.getElementById('pc_nivel')||{}).value, silencio:true });
         pcUpdateConvBadge();
         showToast('✅ Convenio actualizado: ' + CONVENIO.meta.nombre + ' (' + CONVENIO.meta.boe + ')');
       } catch(err) {
@@ -17845,7 +18022,8 @@ function ppApplyToForm(p){
   var f = (p && p.fields) || {};
   if (f.especialidad && f.especialidad.value){
     var esp = ppEspToValue(f.especialidad.value);
-    if (esp){ var e = document.getElementById('pc_esp'); if (e){ e.value = esp; pcOnEsp(); } }
+    var _nvNom = (f.nivelEconomico && f.nivelEconomico.value!=null) ? String(f.nivelEconomico.value) : null;
+    if (esp){ var e = document.getElementById('pc_esp'); if (e){ e.value = esp; pcOnEsp({ conservar:_nvNom, silencio:true }); } }
   }
   if (f.nivelEconomico && f.nivelEconomico.value!=null){
     var nv = String(f.nivelEconomico.value), sel = document.getElementById('pc_nivel');
@@ -17922,6 +18100,10 @@ function ppUpdateBanner(){
 }
 
 function ppInit(){
+  // Primero lo que eligió el piloto a mano; luego, si hay nómina leída, ESA manda
+  // y encima bloquea los campos. Así el que nunca ha subido una nómina —que es
+  // función de pago— conserva igualmente su especialidad y su nivel.
+  try { pcManualApply(); } catch(e){}
   var p = ppLoad();
   if (p){ try { ppApplyToForm(p); ppApplyLockUI(p); } catch(e){} }
   ppUpdateBanner();
@@ -19608,6 +19790,32 @@ function ldOpenModal(manual){
       setTimeout(function(){ ldValidateSequence(); ldCheckDelay(); }, 80);
     } catch(e){ /* silencioso */ }
   })();
+  // ── Herencia del día en un vuelo NUEVO (#75DBX) ──────────────────────────
+  // Cuatro tramos seguidos son el mismo avión y la misma tripulación: teclear la
+  // matrícula cuatro veces no tiene sentido. Esto ya existía al completar un leg del
+  // roster (ldEditFlight); faltaba en el vuelo que se añade a mano, que es como los
+  // mete media plantilla. Sólo rellena lo que esté VACÍO — nunca pisa nada escrito,
+  // ni lo que acabe de poner el roster aquí arriba.
+  (function(){
+    try {
+      var _d=(document.getElementById('ld_date')||{}).value;
+      if(!_d) return;
+      var _sibs=(ldEntries||[]).filter(function(x){
+        return x && x.date===_d && (x.reg||x.acType||x.cm1);
+      }).sort(function(a,b){
+        return (b.sched_out||b.std||b.atd||'').localeCompare(a.sched_out||a.std||a.atd||'');
+      });
+      if(!_sibs.length) return;
+      var _base=_sibs[0];   // el ÚLTIMO del día: si cambió de avión a media jornada, manda el de después
+      var _fill=function(fid,val){ var el=document.getElementById(fid); if(el&&!el.value&&val) el.value=val; };
+      _fill('ld_reg', _base.reg);
+      _fill('ld_actype', _base.acType);
+      _fill('ld_engine', _base.engine);
+      _fill('ld_role', _base.role);
+      _fill('ld_cm1', _base.cm1);
+      _fill('ld_cm2', _base.cm2);
+    } catch(_e){ /* silencioso */ }
+  })();
   document.getElementById('ld_modal').classList.add('open');
   document.getElementById('scr-logbook').classList.add('modal-active');
   document.body.style.overflow='hidden';
@@ -19706,7 +19914,7 @@ function ldResetForm(){
   document.getElementById('ld_ldgn').value=0;
   // Rol por defecto del nuevo vuelo = rol DOMINANTE del historial (auto): si
   // llevas muchas horas de comandante, se auto-selecciona comandante (no FO).
-  var _prefRole=_ldDominantRole()||lsGet('ld_pref_role','FO');
+  var _prefRole=(window.ppGet&&ppGet('rol'))||_ldDominantRole()||lsGet('ld_pref_role','FO');
   var _roleSel=document.getElementById('ld_role');
   if(_roleSel) _roleSel.value=_prefRole;
   ['ld_actype','ld_engine','ld_func','ld_rules','ld_optype','ld_cond'].forEach(function(id){
@@ -20462,9 +20670,11 @@ function ldSave(){
   // Sin ruta ni nº de vuelo (una sesión de sim) el id sería sólo la fecha: dos sesiones
   // el mismo día colisionarían y el upsert (id,user_id) se quedaría con una. Al EDITAR se
   // conserva el idSeq que ya tenía, para no cambiarle el id a una entrada existente.
+  // El vuelo TAL COMO ESTABA antes de esta edición (vacío si es uno nuevo). Hace falta
+  // para no perder cosas que el formulario no sabe: el idSeq y la PROCEDENCIA.
+  var _prev=ldEditingId ? (ldEntries.filter(function(x){return x.id===ldEditingId;})[0]||{}) : {};
   var _idSeq='';
   if(!_idbase.flight && !_idbase.dep && !_idbase.arr && !_idbase.std){
-    var _prev=ldEditingId ? (ldEntries.filter(function(x){return x.id===ldEditingId;})[0]||{}) : {};
     _idSeq = _prev.idSeq || ldFreeIdSeq(_idbase);
   }
   if(_idSeq) _idbase.idSeq=_idSeq;
@@ -20486,7 +20696,12 @@ function ldSave(){
     flightType:g('ld_optype'),instr:(function(){var t=g('ld_optype');return /^(SIM|TRI|TRE|LSC|GTI)$/.test(t)?t:'';})(),simType:g('ld_simtype'),trainCenter:g('ld_traincenter'),simSession:g('ld_simsession'),examiner:g('ld_examiner'),
     ldgDay:n('ld_ldgd'),ldgNight:n('ld_ldgn'),night:g('ld_night_inp'),
     cm1:g('ld_cm1'),cm2:g('ld_cm2'),
-    notes:g('ld_notes'),source:(ldImgB64?'MCDU-OCR':(window._ldAdsbImported?'ADSB':'MANUAL')),
+    // La procedencia es del VUELO, no de la última vez que se tocó el formulario. Antes se
+    // reescribía a 'MANUAL' en cada guardado, así que un vuelo sembrado del roster dejaba de
+    // ser ROSTER-DRAFT en cuanto el piloto lo abría y guardaba a medias: perdía el color de
+    // "pendiente" (#3SOQS) y dejaba de heredar matrícula y rol del resto del día (#75DBX).
+    // 'MANUAL' sólo para los que nacen a mano.
+    notes:g('ld_notes'),source:(ldImgB64?'MCDU-OCR':(window._ldAdsbImported?'ADSB':(_prev.source||'MANUAL'))),
     // ── Procedencia por campo de tiempo + estado (modelo Estimado/Confirmado) ──
     source_origin:(function(){
       var fs=window._ldFieldSrc||{};
@@ -20558,6 +20773,79 @@ function ldFmtDay(dateStr){
 // LOGBOOK FILTER SYSTEM
 // ════════════════════════════════════════════════════
 var _ldf = { period:'all', year:'', month:'', role:'all', type:'all' };
+
+/* ── Abrir el logbook en el día de HOY ────────────────────────────────────────
+   La lista va de más nuevo a más viejo y paginada de 30 en 30, así que un piloto
+   que importa el mes entero se abre el logbook en un vuelo FUTURO y tiene que
+   bajar hasta el de hoy, que es el único que va a rellenar (#OQ2VX).
+
+   Tres cosas que hay que respetar o el remedio es peor:
+    · Solo al ENTRAR en frío. Si está buscando, filtrando, o vuelve de editar un
+      vuelo, moverle el scroll es pelearse con él.
+    · «Hoy» no siempre tiene vuelos: quien aterriza a las 02:00 abre el logbook y
+      su vuelo es de ayer. Se cae al día con vuelos más reciente que no sea futuro.
+    · Con 30 por página, hoy puede caer en la página 2. Hay que SALTAR de página
+      antes de hacer scroll; si no, el arreglo funciona en pruebas y falla justo
+      en el piloto que más vuela, que es el que se queja. */
+function ldHoyStr(){
+  var d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function _ldFiltroActivo(){
+  var b=document.getElementById('ld_search');
+  if(b && String(b.value||'').trim()) return true;
+  return !!(_ldf.year || _ldf.month || (_ldf.period&&_ldf.period!=='all')
+         || (_ldf.role&&_ldf.role!=='all'&&_ldf.role!=='all-role')
+         || (_ldf.type&&_ldf.type!=='all'&&_ldf.type!=='all-type'));
+}
+/* Día al que anclar: hoy si tiene vuelos; si no, el más reciente que no sea futuro.
+   Devuelve null si el logbook solo tiene vuelos futuros (nada que rellenar todavía). */
+function ldDiaAncla(lista){
+  var hoy=ldHoyStr(), pasado=null;
+  for(var i=0;i<lista.length;i++){
+    var d=lista[i] && lista[i].date; if(!d) continue;
+    if(d===hoy) return hoy;
+    if(d<hoy && (!pasado || d>pasado)) pasado=d;
+  }
+  return pasado;
+}
+var _ldAnclado=false;                       // una vez por entrada a la pantalla
+function ldResetAncla(){ _ldAnclado=false; }
+function ldAnclaHoy(){
+  try{
+    if(_ldAnclado || _ldFiltroActivo()) return;
+    if(!ldFiltered || !ldFiltered.length) return;
+    var dia=ldDiaAncla(ldFiltered);
+    if(!dia) return;
+    _ldAnclado=true;
+    var idx=-1;
+    for(var i=0;i<ldFiltered.length;i++){ if(ldFiltered[i] && ldFiltered[i].date===dia){ idx=i; break; } }
+    if(idx<0) return;
+    var pag=Math.floor(idx/LD_PER)+1;
+    if(pag!==ldPage){ ldPage=pag; ldRender(); }
+    setTimeout(function(){
+      var el=document.getElementById('ld-hoy-ancla');
+      // Si hoy no tenía vuelos, el ancla es otro día: se busca por su cabecera.
+      if(!el){
+        var grupos=document.querySelectorAll('.ld-fday-group');
+        for(var g=0; g<grupos.length; g++){ if(grupos[g].getAttribute('data-dk')===dia){ el=grupos[g]; break; } }
+      }
+      if(!el) return;
+      /* scrollIntoView alinea con lo alto del contenedor, y ahí vive la barra del mes,
+         que es pegajosa: la banda de HOY quedaba medio tapada por ella. Se desplaza a
+         mano descontando lo que ocupa esa barra. */
+      var sb=document.querySelector('#scr-logbook .scroll-body')||document.getElementById('scroll-body');
+      var mes=document.querySelector('#scr-logbook .ld-fmonth');
+      var alto=mes?Math.round(mes.getBoundingClientRect().height):0;
+      if(sb){
+        var techo=sb.getBoundingClientRect().top+alto+10;
+        sb.scrollTop += (el.getBoundingClientRect().top - techo);
+      } else if(el.scrollIntoView){
+        el.scrollIntoView({ block:'start', behavior:'auto' });
+      }
+    }, 60);
+  }catch(e){}
+}
 
 function ldfOpen(){
   ldfBuildTypes();
@@ -20814,14 +21102,18 @@ function ldRender(){
       var dayDate=(dp[2]||'?')+' '+(MONTHS_ES[parseInt(dp[1]||1)-1]||'?');
 
       // ── Contenedor día (borde de color SOLO arriba) ──
-      html+='<div class="ld-fday-group" style="border-top-color:'+clr.hex+'">'
+      var _esHoy=(dk===ldHoyStr());
+      var _pend=flights.filter(function(x){ return (x.source==='ROSTER-DRAFT')&&!(x.atd||x.aobt); }).length;
+      html+='<div class="ld-fday-group'+(_esHoy?' ld-hoy':'')+'" data-dk="'+dk+'"'+(_esHoy?' id="ld-hoy-ancla"':'')+' style="border-top-color:'+(_esHoy?'transparent':clr.hex)+'">'
         // Cabecera del día
         +'<div class="ld-fday-hdr">'
           +'<div class="ld-fday-left">'
             +'<span class="ld-fday-dow" style="background:rgba('+clr.rgb+',.18);color:'+clr.hex+';border-color:rgba('+clr.rgb+',.4)">'+dow+'</span>'
             +'<span class="ld-fday-date">'+dayDate+'</span>'
+            +(_esHoy?'<span class="ld-hoy-pill">HOY</span>':'')
           +'</div>'
           +'<div class="ld-fday-right">'
+            +(_pend?'<span class="ld-pend-chip">'+_pend+' por rellenar</span>':'')
             +(blockStr
               ?'<div class="ld-fday-stat"><div class="ld-fday-sv" style="color:'+clr.hex+'">'+blockStr+'</div><div class="ld-fday-sl">BLOCK</div></div>'
                 +'<div class="ld-fday-sep"></div>'
@@ -20842,7 +21134,7 @@ function ldRender(){
         var isDraft=(e.source==='ROSTER-DRAFT')&&!(e.atd||e.aobt);
         if(isDraft){
           html+='<div class="ld-fcard ld-fcard-draft" onclick="ldBounceCard(this,\''+e.id+'\')">'
-            +'<div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#F59E0B,#F97316);border-radius:3px 0 0 3px;animation:ld-draft-pulse 2s ease-in-out infinite"></div>'
+            +'<div class="ld-draft-bar" style="position:absolute;left:0;top:0;bottom:0;width:6px;background:linear-gradient(180deg,#FBBF24,#F97316);border-radius:6px 0 0 6px;animation:ld-draft-pulse2 1.2s ease-in-out infinite"></div>'
             +'<div class="ld-fcard-top">'
               +'<div style="flex:1">'
                 +'<div class="ld-fcard-ap">'+(e.dep||'???')+'<span class="ld-far" style="color:#F59E0B">›</span>'+(e.arr||'???')+'</div>'
@@ -22138,6 +22430,28 @@ function _ldExportOpen(fmt){
   }
   ldExportPickRange(fmt);
 }
+/* Antes de exportar, decirle al piloto si su PDF va a salir firmado. Sin esto, firma en el
+   perfil y no tiene forma de saber que ha servido de algo hasta que abre el PDF. */
+function _ldExpFirmaAviso(fmt){
+  var box = document.getElementById('ld-exp-firma');
+  if(!box) return;
+  if(fmt!=='pdf' && fmt!=='jeppesen'){ box.style.display='none'; return; }
+  var f=null; try{ f = window.PilotProfile && PilotProfile.firma && PilotProfile.firma(); }catch(e){}
+  box.style.display='';
+  box.style.cssText='display:flex;align-items:center;gap:10px;margin:2px 0 12px;padding:10px 12px;border-radius:12px;'
+    + (f ? 'background:rgba(16,185,129,.10);border:1px solid rgba(16,185,129,.3)'
+         : 'background:rgba(148,163,184,.10);border:1px solid rgba(148,163,184,.28)');
+  box.innerHTML = f
+    ? '<img src="'+f+'" alt="" style="height:26px;max-width:88px;object-fit:contain;background:#fff;border-radius:5px;padding:2px 4px">'
+      + '<div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600;color:#10B981">Saldrá firmado</div>'
+      + '<div style="font-size:11px;color:rgba(148,163,184,.9)">Con tu firma del perfil</div></div>'
+    : '<div style="font-size:15px">✍️</div>'
+      + '<div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600;color:rgba(203,213,225,.95)">Sin firmar</div>'
+      + '<div style="font-size:11px;color:rgba(148,163,184,.9)">Saldrá con la línea en blanco</div></div>'
+      + '<button onclick="ldExportBack&&ldExportBack();goTo(\'perfil\')" style="font-family:inherit;font-size:11.5px;font-weight:600;'
+      + 'padding:6px 11px;border-radius:9px;border:1px solid rgba(34,211,238,.35);background:rgba(34,211,238,.12);color:#22D3EE;cursor:pointer;white-space:nowrap">Firmar</button>';
+}
+
 function ldExportPickRange(fmt){
   // El backup JSON NO se cobra: el logbook es un documento legal EASA y sacar copia de las
   // horas propias no puede depender del plan. Pro sigue cobrando PDF, CSV y estadísticas.
@@ -22155,6 +22469,7 @@ function ldExportPickRange(fmt){
   if(s1) s1.style.display = 'none';
   if(s2) s2.style.display = '';
   // Confirm button style
+  _ldExpFirmaAviso(fmt);
   var cb = document.getElementById('ld-exp-confirm-btn');
   if(cb) cb.className = 'ld-export-confirm-btn ld-ecb-'+fmt;
   // Populate range labels + counts
@@ -22582,7 +22897,22 @@ function _ldRunExportPDF(entries){
       doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(100,116,139);
       doc.text('I certify that the entries in this log are true.',mg,sy+10);
       doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(30,41,59);
-      doc.text('FIRMA / SIGNATURE: ________________________________________________',mg,sy+17);
+      // Si el piloto ha dejado su firma en el perfil, el logbook sale ya firmado; si no,
+      // la línea se queda en blanco para hacerlo a mano, como hasta ahora.
+      var _firma=null; try{ _firma = window.PilotProfile && PilotProfile.firma && PilotProfile.firma(); }catch(e){}
+      if(_firma){
+        doc.text('FIRMA / SIGNATURE:',mg,sy+17);
+        try{
+          // Alto fijo de 9 mm y ancho por la proporción real del trazo, para que no salga
+          // aplastada. Tope de 62 mm: no puede invadir la fecha de la derecha.
+          var _fp=new Image(); _fp.src=_firma;
+          var _rel=(_fp.width&&_fp.height)?(_fp.width/_fp.height):3.2;
+          var _fh=9, _fw=Math.min(62,Math.max(18,_fh*_rel));
+          doc.addImage(_firma,'PNG',mg+34,sy+9.5,_fw,_fh);
+        }catch(e){}
+      } else {
+        doc.text('FIRMA / SIGNATURE: ________________________________________________',mg,sy+17);
+      }
       doc.text('Fecha / Date: ___________________________',mg,sy+23);
       if(hashHex){
         doc.setFont('helvetica','normal');doc.setFontSize(5);doc.setTextColor(148,163,184);
@@ -22851,7 +23181,21 @@ function _ldRunExportPDF_Jeppesen(entries){
       doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(80,80,80);
       doc.text('I certify that the entries in this log are true.',mg,cy+10);
       doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(20,20,20);
-      doc.text("FIRMA / PILOT\u2019S SIGNATURE: ________________________________________________",mg,cy+17);
+      // Igual que en el PDF EASA: si hay firma guardada en el perfil, el logbook sale ya
+      // firmado. Son DOS exports distintos (EASA y Jeppesen) y los dos tienen su l\u00ednea.
+      var _firmaJ=null; try{ _firmaJ = window.PilotProfile && PilotProfile.firma && PilotProfile.firma(); }catch(e){}
+      if(_firmaJ){
+        doc.text("FIRMA / PILOT\u2019S SIGNATURE:",mg,cy+17);
+        try{
+          // Aqu\u00ed la fecha va a la derecha (mg+152), as\u00ed que la firma no puede pasar de ah\u00ed.
+          var _fpJ=new Image(); _fpJ.src=_firmaJ;
+          var _relJ=(_fpJ.width&&_fpJ.height)?(_fpJ.width/_fpJ.height):3.2;
+          var _fhJ=9, _fwJ=Math.min(88,Math.max(18,_fhJ*_relJ));
+          doc.addImage(_firmaJ,'PNG',mg+50,cy+9.5,_fwJ,_fhJ);
+        }catch(e){}
+      } else {
+        doc.text("FIRMA / PILOT\u2019S SIGNATURE: ________________________________________________",mg,cy+17);
+      }
       doc.text('Fecha / Date: ________________________',mg+152,cy+17);
       if(hashHex){
         doc.setFont('helvetica','normal');doc.setFontSize(5);doc.setTextColor(150,150,150);
@@ -24387,6 +24731,10 @@ function ldParseImportFile(file){
       r.onload=function(ev){ try{
         var data=new Uint8Array(ev.target.result);
         var wb=XLSX.read(data,{type:'array'});
+        // Logbook EASA en Excel (template estándar: fila de números 1..40 + cabeceras
+        // DATE/PLACE/TIME, fechas serial y horas en fracción). Parser propio; si no lo es,
+        // sigue por el CSV genérico de abajo.
+        if(ldTryImportEasaXlsx(wb, file.name)) return;
         var ws=wb.Sheets[wb.SheetNames[0]];
         // Fix broken !ref: compute actual range from all cells present
         var maxR=0, maxC=0;
@@ -24665,6 +25013,103 @@ function ldImportLogTen(text,fname){
   var s=parsed.stats;
   _ldPdfSummary='<div class="ldbal-hint">LogTen Pro · '+s.flights+' vuelos + '+s.sims+' simuladores · '+Object.keys(parsed.acMeta).length+' aviones'+(s.skipped?' · '+s.skipped+' planificados omitidos':'')+'. Los vuelos ya existentes se enriquecen, no se duplican.</div>';
   ldImportProcess(parsed.rows,fname);
+}
+// ══════════════════════════════════════════════════════════════════
+// LOGBOOK EASA en EXCEL — template estándar "EASA Pilot Logbook"
+// ══════════════════════════════════════════════════════════════════
+// Estructura: R0 = números de columna 1..40, R1 = grupos (DEPARTURE/ARRIVAL/AIRCRAFT…),
+// R2 = cabeceras reales (DATE/PLACE/TIME/REGISTRATION…), R3+ = datos. Las FECHAS son serial
+// de Excel y las HORAS/DURACIONES fracción de día. El importador CSV genérico fallaba porque
+// cogía R0 ("1,2,3…") como cabecera. Este parser lee del workbook y emite filas-alias.
+function _exDate(n){
+  if(typeof n==='number' && isFinite(n)){ var d=new Date(Math.round((n-25569)*86400000)); return isNaN(d.getTime())?'':d.toISOString().slice(0,10); }
+  var s=String(n||'').trim(); var m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if(m){ var y=m[3].length===2?('20'+m[3]):m[3]; return y+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0'); }
+  return /^\d{4}-\d{2}-\d{2}/.test(s)?s.slice(0,10):'';
+}
+function _exClock(f){ // fracción de día → HH:MM (hora de reloj)
+  if(typeof f==='number' && isFinite(f)){ var m=Math.round((f%1)*1440); if(m<0)m+=1440; return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+  var s=String(f||'').trim(); return /^\d{1,2}:\d{2}/.test(s)?s.slice(0,5):'';
+}
+function _exDur(f){ // fracción de día → H:MM (duración)
+  if(typeof f==='number' && isFinite(f)){ var m=Math.round(f*1440); return Math.floor(m/60)+':'+String(m%60).padStart(2,'0'); }
+  var s=String(f||'').trim(); return /^(\d{1,3}):(\d{2})$/.test(s)?s:'';
+}
+function _exPos(f){ if(typeof f==='number') return isFinite(f)&&f>0.00001; var m=String(f||'').trim().match(/^(\d{1,3}):(\d{2})$/); return m?((+m[1])*60+(+m[2]))>0:false; }
+function _exNum(v){ var n=parseInt(v,10); return isNaN(n)?0:n; }
+function _exMin(s){ var m=String(s||'').match(/^(\d{1,3}):(\d{2})$/); return m?(+m[1])*60+(+m[2]):0; }
+function _exDummy(reg,model){ return /^(VARIS|SIM-?X|A320FFSD|MODEL ?X)$/i.test(String(reg||'').trim()) || /^MODEL ?X$/i.test(String(model||'').trim()); }
+function ldEasaXlsxToRows(wb){
+  var ws=null;
+  (wb.SheetNames||[]).forEach(function(n){ if(!ws && /logbook/i.test(n)) ws=wb.Sheets[n]; });
+  if(!ws) ws=wb.Sheets[wb.SheetNames[0]];
+  if(!ws) return null;
+  var maxR=0,maxC=0; Object.keys(ws).forEach(function(k){ if(k[0]==='!')return; try{var c=XLSX.utils.decode_cell(k); if(c.r>maxR)maxR=c.r; if(c.c>maxC)maxC=c.c;}catch(e){} });
+  ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:maxR,c:maxC}});
+  var aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+  var hRow=-1;
+  for(var i=0;i<Math.min(8,aoa.length);i++){ var j=aoa[i].map(function(x){return String(x).toUpperCase();}).join('|'); if(/(^|\|)DATE(\||$)/.test(j)&&/REGISTRATION/.test(j)){ hRow=i; break; } }
+  if(hRow<0) return null;   // no es el template EASA
+  var C={date:0,depP:1,depT:2,arrP:3,arrT:4,ac:5,reg:6, mpSE:11,mpME:12, total:13, picName:14,
+         toD:15,toN:16, ldD:17,ldN:18, night:19, ifr:20, fPic:23,fCop:24,fDual:25,fInstr:26, fstd:27, rem:38};
+  var rows=[], simN={}, acMeta={}, stats={flights:0,sims:0,skipped:0,ga:0,airline:0};
+  for(var r=hRow+1;r<=maxR;r++){
+    var row=aoa[r]||[]; var g=function(c){ return row[c]; };
+    var date=_exDate(g(C.date));
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){ stats.skipped++; continue; }
+    var reg=String(g(C.reg)||'').trim(), model=String(g(C.ac)||'').trim();
+    if(_exDummy(reg,model)){ stats.skipped++; continue; }   // fila de ejemplo del template
+    var total=_exDur(g(C.total));
+    var fstd=g(C.fstd);
+    var isSim=_exPos(fstd)||/sim|ffs|fnpt|fstd/i.test(reg+' '+model);
+    var blk=isSim?(_exPos(fstd)?_exDur(fstd):total):total;
+    if(!_exPos(blk)){ stats.skipped++; continue; }   // sin horas → fila vacía/ejemplo → saltar
+    if(_exMin(blk)>18*60 || (_exNum(g(C.ldD))+_exNum(g(C.ldN)))>60){ stats.skipped++; continue; }   // saneamiento
+    var func='',role='FO';
+    if(_exPos(g(C.fInstr))){ func='Instructor'; role='CPT'; }
+    else if(_exPos(g(C.fPic))){ func='PIC'; role='CPT'; }
+    else if(_exPos(g(C.fDual))){ func='Dual'; role='FO'; }
+    else if(_exPos(g(C.fCop))){ func='Copiloto'; role='FO'; }
+    if(isSim){
+      simN[date]=(simN[date]||0)+1;
+      rows.push({ fecha:date, vuelo:'', origen:'', destino:'', idseq:'sim'+simN[date],
+        optype:'SIM', simtype:model, activitytype:'sim', block:blk, tipo:model, ldg_dia:0, ldg_noche:0,
+        notas:String(g(C.rem)||'').trim() });
+      stats.sims++; continue;
+    }
+    var mp=_exPos(g(C.mpSE))||_exPos(g(C.mpME));
+    var activity=mp?'':'ga';
+    if(activity==='ga') stats.ga++; else stats.airline++;
+    var picName=String(g(C.picName)||'').trim(); if(/^self$/i.test(picName)) picName='';
+    var atd=_exClock(g(C.depT));
+    rows.push({
+      fecha:date, vuelo:'', origen:String(g(C.depP)||'').trim(), destino:String(g(C.arrP)||'').trim(),
+      matricula:reg, tipo:model, atd:atd, ata:_exClock(g(C.arrT)),
+      block:blk, nocturno:_exDur(g(C.night)), reglas:_exPos(g(C.ifr))?'IFR':'VFR',
+      ldg_dia:_exNum(g(C.ldD)), ldg_noche:_exNum(g(C.ldN)),
+      rol:role, cm1:picName, pilot_function:func, activitytype:activity,
+      idseq:'ex'+(atd.replace(':','')||('r'+r)),
+      notas:String(g(C.rem)||'').trim()
+    });
+    if(reg) acMeta[reg]={acType:model};
+    stats.flights++;
+  }
+  return { rows:rows, acMeta:acMeta, stats:stats };
+}
+// Intenta importar como logbook EASA-Excel. Devuelve true si lo era (y ya lo procesó).
+function ldTryImportEasaXlsx(wb, fname){
+  var parsed=null; try{ parsed=ldEasaXlsxToRows(wb); }catch(e){ return false; }
+  if(!parsed || !parsed.rows.length) return false;
+  try{
+    var db=ldAcDbLoad();
+    Object.keys(parsed.acMeta).forEach(function(reg){ db[reg]=Object.assign({},db[reg]||{},{acType:parsed.acMeta[reg].acType||''}); });
+    ldAcDbSave(db);
+  }catch(e){}
+  var s=parsed.stats;
+  _ldPendingBalance=null;
+  _ldPdfSummary='<div class="ldbal-hint">Logbook EASA (Excel) · '+s.flights+' vuelos + '+s.sims+' simuladores · '+Object.keys(parsed.acMeta).length+' aviones'+(s.skipped?' · '+s.skipped+' filas de ejemplo/vacías omitidas':'')+'. Los vuelos ya existentes se enriquecen, no se duplican.</div>';
+  ldImportProcess(parsed.rows,fname);
+  return true;
 }
 function ldImportCSV(text,fname){
   if(ldIsLogTen(text)){ ldImportLogTen(text,fname); return; }
@@ -25251,6 +25696,7 @@ document.addEventListener('focusin',function(e){
 
 
 </script>
+<script src="js/profile.js"></script>
 <script src="js/docs.js"></script>
 <script src="js/runways.js"></script>
 <script src="js/oes-figs.js"></script>
@@ -33468,7 +33914,26 @@ function mountBrefProfile(host, leg, compact, onOpen) {
   const REFS = [["barbas", "Barbas"], ["jet", "Jet"], ["tropo", "Tropo"], ["iso0", "Iso-0"], ["perfil", "Perfil"], ["engel", "Engel"]];
   let overlay = "TEMP", refState = { barbas: 1, jet: 1, tropo: 1, iso0: 1, perfil: 1, engel: 0 }, capasOpen = false;
   const lR = {}; REFS.forEach(r => lR[r[0]] = refState[r[0]]);
-  let tHour = 6, selWpt = null, cursorX = null, cursorY = null, profP = 0, playing = false, playAcc = 0, dirty = true, overlayFade = 1, raf = 0, needDraw = true;
+  /* El perfil arranca en la hora del VUELO, no en un desplazamiento fijo. Estaba en 6,
+     o sea «dentro de seis horas»: el corte que veía el piloto no era el de su vuelo, y
+     encima no cuadraba con lo que le contaba ARIA. El deslizador sigue estando para
+     mirar otras horas; lo que cambia es dónde empieza. */
+  const _mbLegMs = (function () {
+    try {
+      const hhmm = String((leg && (leg.std_actual || leg.std_estimated || leg.std)) || "").slice(0, 5);
+      if (!/^\d{1,2}:\d{2}$/.test(hhmm)) return 0;
+      const d = (leg && leg.date) || new Date().toISOString().slice(0, 10);
+      const t = new Date(d + "T" + (hhmm.length === 4 ? "0" + hhmm : hhmm) + ":00Z").getTime();
+      return isFinite(t) ? t : 0;
+    } catch (e) { return 0; }
+  })();
+  // El deslizador va de 0 a 36 h desde ahora; un vuelo ya salido se queda en 0 (ahora).
+  let tHour = (function () {
+    if (!_mbLegMs) return 0;
+    const h = Math.round((_mbLegMs - Date.now()) / 3600e3);
+    return Math.max(0, Math.min(36, h));
+  })();
+  let selWpt = null, cursorX = null, cursorY = null, profP = 0, playing = false, playAcc = 0, dirty = true, overlayFade = 1, raf = 0, needDraw = true;
   const baseTime = new Date();
   const km = fl => fl * 30.48 / 1000, clamp = (v, a, b) => Math.max(a, Math.min(b, v)), ss = (x, a, b) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
   const seaT = (x, t) => 21 + 3 * Math.sin((t / 24) * 2 * Math.PI - 1.2) - 5 * x;
@@ -35216,6 +35681,10 @@ function rstRenderCalendar(){
     // frambuesa propio (sin usar en la app) + icono de calendario con check (blanco).
     DS:   { bg:'#d6457d', bd:'#b83668', tx:'#FFFFFF', gl:'rgba(214,69,125,.5)', desc:'Día sin cambios' }
   };
+  // Tipos de DESCANSO: un día así está LIBRE (no hay jornada propia). Se usa para
+  // decidir si un día invadido de madrugada por el duty anterior enseña SOLO el 1/3
+  // (día libre) o además su propia tira de actividad (guardia, sim, oficina…).
+  var _RST_REST_T = ['off','vacation','f','ef','srof','noff','aoff','nrof','meof','sick'];
   // Lookup de estilo por código: si el código no tiene estilo propio pero es un
   // e-learning (LM*), usa el estilo genérico de formación en tierra (teal + libro)
   // en vez de caer al gris del simulador. Los LM* a veces llegan con su código real
@@ -35481,7 +35950,7 @@ function rstRenderCalendar(){
                   : _emo;
         // Hora de inicio para ordenar la tira (checkin → std → start). null si no hay.
         var _ns = _barMin(e.checkin); if(_ns===null) _ns = _barMin(e.std); if(_ns===null) _ns = _barMin(e.start); if(_ns===null) _ns = 9999;
-        barItems.push({ bg:tc2.bg, tx:tc2.tx, lbl: _icon + (e.code || typeLabels[e.type] || e.type), sortMin:_ns });
+        barItems.push({ bg:tc2.bg, tx:tc2.tx, lbl: _icon + (e.code || typeLabels[e.type] || e.type), sortMin:_ns, rest: _RST_REST_T.indexOf(e.type) > -1 });
       });
       var _g0 = _rstStyle(dayEntries[0].code);
       glowCol = (_g0 || TC[dayEntries[0].type] || TC.other).gl;
@@ -35490,10 +35959,19 @@ function rstRenderCalendar(){
     }
 
     var barTopHTML = '';
-    // El 1/3 (invasión de madrugada del día anterior) SOLO se pinta cuando el día invadido queda
-    // LIBRE (sin jornada propia). Si ese día tiene sus PROPIOS vuelos (empieza una jornada nueva,
+    // Tira de una actividad (color + rótulo). Usada por los dos caminos de abajo.
+    var _barHTML = function(b, h){
+      return '<div style="height:'+h+'px;background:'+b.bg+';display:flex;align-items:center;justify-content:center">'
+        +'<span style="font-size:9px;font-weight:900;color:'+b.tx+';white-space:nowrap;letter-spacing:.2px">'+b.lbl+'</span>'
+        +'</div>';
+    };
+    var _dotsHTML = '<div style="height:9px;display:flex;align-items:center;justify-content:center"><span style="font-size:12px;line-height:1;font-weight:900;color:#64748B;letter-spacing:1.5px">•••</span></div>';
+    // El 1/3 (invasión de madrugada del día anterior) sustituye a la jornada del día SOLO cuando
+    // el día invadido queda LIBRE. Si ese día tiene sus PROPIOS vuelos (empieza una jornada nueva,
     // p.ej. día 12: llega de madrugada + vuela BCN-LCG por la tarde) → se pinta su jornada normal
-    // (report + vuelo), no el 1/3. La cola de madrugada sigue en el detalle del día.
+    // (report + vuelo), no el 1/3. Y si tiene una actividad propia que NO es descanso (guardia,
+    // sim, oficina…) → se pintan LAS DOS: su tira arriba y el 1/3 debajo, porque esa actividad
+    // sigue vigente ese mismo día. La cola de madrugada sigue en el detalle del día.
     var _dayHasOwnFlight = dayEntries.some(function(e){ return e.type==='flight'; });
     if(crossoverArrMin >= 0 && !_dayHasOwnFlight){
       // ── Crossover bar: same height as a normal single-activity bar (20px) ──
@@ -35504,11 +35982,23 @@ function rstRenderCalendar(){
       var xSplit = crossoverArrMin < 480 ? 1 : (crossoverArrMin < 960 ? 2 : 3);
       var _xEmpty = '#48c9b0';
       var _xRed   = '#c0392b';
-      barTopHTML = '<div style="position:absolute;top:0;left:0;right:0;height:20px;display:flex;border-radius:7px 7px 0 0;overflow:hidden;z-index:1">'
+      // Tiras propias del día que se apilan ENCIMA del 1/3 (solo las que no son descanso:
+      // un OFF invadido sigue enseñando únicamente el 1/3, sin la taza).
+      // (barItems es `var` de la función: si este día no tiene entradas propias vale
+      //  lo del día anterior → hay que mirar hasEntry, no fiarse de que esté vacío.)
+      var _own = hasEntry ? barItems.filter(function(b){ return !b.rest; }) : [];
+      var _ownVis = _own.slice(0,1);
+      var _xDots = _own.length > _ownVis.length;
+      var _xh = _ownVis.length ? (_xDots ? 12 : 14) : 20;
+      barTopHTML = '<div style="position:absolute;top:0;left:0;right:0;overflow:hidden;border-radius:7px 7px 0 0;z-index:1">';
+      _ownVis.forEach(function(b){ barTopHTML += _barHTML(b, _xh); });
+      barTopHTML += '<div style="height:'+_xh+'px;display:flex">'
         + '<div style="flex:1;background:'+_xRed+'"></div>'
         + '<div style="flex:1;background:'+(xSplit>=2?_xRed:_xEmpty)+'"></div>'
         + '<div style="flex:1;background:'+(xSplit>=3?_xRed:_xEmpty)+'"></div>'
         + '</div>';
+      if(_xDots) barTopHTML += _dotsHTML;
+      barTopHTML += '</div>';
     } else if(hasEntry){
       // Máximo 2 tiras visibles. Cada tira = una CATEGORÍA distinta (los vuelos del
       // día se funden en UNA sola tira de firma; standby/training/off van aparte).
@@ -35520,12 +36010,8 @@ function rstRenderCalendar(){
       // Height per bar: leave ~18px for the number at bottom
       var bh2 = vis2.length===1 ? 20 : (showDots ? 12 : 14);
       barTopHTML = '<div style="position:absolute;top:0;left:0;right:0;overflow:hidden;border-radius:7px 7px 0 0">';
-      vis2.forEach(function(b){
-        barTopHTML += '<div style="height:'+bh2+'px;background:'+b.bg+';display:flex;align-items:center;justify-content:center">'
-          +'<span style="font-size:9px;font-weight:900;color:'+b.tx+';white-space:nowrap;letter-spacing:.2px">'+b.lbl+'</span>'
-          +'</div>';
-      });
-      if(showDots) barTopHTML += '<div style="height:9px;display:flex;align-items:center;justify-content:center"><span style="font-size:12px;line-height:1;font-weight:900;color:#64748B;letter-spacing:1.5px">•••</span></div>';
+      vis2.forEach(function(b){ barTopHTML += _barHTML(b, bh2); });
+      if(showDots) barTopHTML += _dotsHTML;
       barTopHTML += '</div>';
     }
 
@@ -36019,8 +36505,19 @@ function rstCalcFDP(flights, opts){
   // Use flight date (not today) to determine CEST/CET correctly
   var dutyDate = (first.date && /^\d{4}-\d{2}-\d{2}$/.test(first.date))
     ? new Date(first.date+'T00:00:00Z') : new Date();
-  var month = dutyDate.getUTCMonth()+1; // 1-12
-  var bcnOffset = (month>=4&&month<=10) ? 120 : 60; // CEST=+120, CET=+60
+  /* Desfase REAL de la base ese día. Estaba aproximado por meses —«de abril a
+     octubre +2, el resto +1»—, y el cambio de hora no cae en el día 1: la última
+     semana de marzo y la de octubre la firma se desplazaba una hora, lo que puede
+     cambiar de fila en la tabla y mover el techo hasta 45 minutos. */
+  var bcnOffset = (function(){
+    try{
+      var off = window.NGasto && window.NGasto.tzOffsetMin
+              ? window.NGasto.tzOffsetMin(dutyDate.getTime(), 'Europe/Madrid') : null;
+      if (off === 0 || off) return off;
+    }catch(e){}
+    var month = dutyDate.getUTCMonth()+1;
+    return (month>=4&&month<=10) ? 120 : 60;   // respaldo si no hay Intl
+  })();
   var repLocal = ((reportMin+bcnOffset)%1440+1440)%1440;
   var repLocalMin = repLocal % 1440; // minutes from midnight LT
   // ORO.FTL.205 Table 2 — Maximum daily FDP, acclimatised (GM1 ORO.FTL.205(b)(1))
@@ -36045,6 +36542,117 @@ function rstCalcFDP(flights, opts){
   for(var i=0;i<T.length;i++){
     if(repLocalMin>=T[i][0] && repLocalMin<T[i][1]){ fdpMaxMin=T[i][2][col]; break; }
   }
+  /* ── Reducción por IMAGINARIA · CS FTL.1.225 ────────────────────────────────
+     La imaginaria previa recorta el techo de la tabla, y esto no se aplicaba en
+     absoluto: el FDP máximo salía como si el piloto hubiera empezado el día con la
+     firma. Caso del reporte (24-ago, BCN-LHR-BCN): imaginaria desde las 10:00 LT,
+     presentación a las 17:40 LT, tabla 11:00 → techo real 09:20. La propia app de
+     Vueling da 09:20; PilotOS daba 11:00.
+
+     Las dos reglas, tal cual las recoge el OM-A:
+       · Imaginaria que NO es de aeropuerto — CS FTL.1.225(b)(6) y (b)(7): si acaba
+         dentro de las 6 primeras horas no recorta nada; si acaba después, el máximo
+         se reduce por el tiempo que exceda de esas 6 horas.
+       · Imaginaria DE AEROPUERTO — CS FTL.1.225(a)(2)(i): el exceso se cuenta sobre
+         4 horas, no 6.
+     La imaginaria ACABA cuando el tripulante se presenta (GM1 CS FTL.1.225(b)), o
+     sea en el mismo report que ya calculamos: no hace falta ningún dato nuevo.
+
+     DESCUENTO NOCTURNO — CS FTL.1.225(b)(9): si la imaginaria EMPIEZA entre las 23:00
+     y las 07:00, el tiempo dentro de esa franja no computa para la reducción hasta
+     que Vueling contacta al tripulante. La hora de esa llamada no viene en el roster,
+     pero SÍ se deduce: CS FTL.1.225(b)(10) fija el tiempo de respuesta entre la
+     notificación y la presentación en 75 minutos para tripulación de vuelo. Así que
+     la llamada es «presentación − 75 min», y lo que quede de noche por delante de ese
+     instante no penaliza.
+     El manual permite estirar ese tiempo hasta 90 minutos según dónde descanse la
+     tripulación. Usar 75 sitúa la llamada MÁS TARDE, con lo que se descuenta más
+     noche y el techo sale algo más alto; con 90 saldría hasta 15 minutos más bajo.
+     Se usa el valor normal de vuelo y se deja como constante para poder cambiarlo.
+
+     PENDIENTE, y a conciencia: (b)(8) sube el umbral a 8 h si el FDP se extiende por
+     actividad partida, que no modelamos. */
+  var SBY_UMBRAL_AEROPUERTO = 240, SBY_UMBRAL_GENERAL = 360;
+  var SBY_RESPUESTA_VUELO = 75;              // CS FTL.1.225(b)(10) · cabina serían 60
+  var SBY_NOCHE_INI = 23*60, SBY_NOCHE_FIN = 7*60;
+  var sbyInfo = null;
+  (function(){
+    try{
+      /* Se mira también el DÍA ANTERIOR: una guardia de madrugada empieza la víspera
+         (p.ej. 22:00 del día 24 con firma a las 03:00 del 25) y buscándola solo en el
+         día del vuelo no aparecía nunca — justo el caso en que más recorta. */
+      var lista = [];
+      if (opts && opts.standby) {
+        lista = [].concat(opts.standby);
+      } else if (typeof entriesForDate === 'function' && first.date) {
+        var _ayer = (function(d){ var x=new Date(d+'T12:00:00Z'); x.setUTCDate(x.getUTCDate()-1);
+                                  return x.toISOString().slice(0,10); })(first.date);
+        entriesForDate(first.date).forEach(function(e){ if(e&&e.type==='standby') lista.push(e); });
+        entriesForDate(_ayer).forEach(function(e){ if(e&&e.type==='standby') lista.push(e); });
+      }
+      if(!lista.length) return;
+      /* El desfase sale de la FECHA de la guardia, no de comparar horas. Deducirlo del
+         reloj —«si empieza después de la firma, será de ayer»— convertía una guardia de
+         las 20:00 del mismo día, que es POSTERIOR al vuelo y no pinta nada, en una de
+         19h40 con un recorte inventado de 13h40. */
+      var _diasDe = function(e){
+        try{
+          if(!e.date || !first.date || e.date === first.date) return 0;
+          return Math.round((new Date(e.date+'T12:00:00Z') - new Date(first.date+'T12:00:00Z'))/86400000);
+        }catch(_e){ return 0; }
+      };
+      /* Inicio en minutos desde la medianoche del día del VUELO (negativo si es de la
+         víspera), y la imaginaria acaba en la presentación — GM1 CS FTL.1.225(b). Se
+         descartan las que no encajan: una guardia posterior a la firma no es la de
+         esta jornada, y más de 24 h tampoco. */
+      // Tope de seguridad: ninguna imaginaria del OM-A llega a 16 h (aeropuerto 6,
+      // hotel 12). Algo más largo no es la guardia de esta jornada, y aceptarlo
+      // significaría recortar el techo por un dato que no viene a cuento.
+      var SBY_MAX = 16*60;
+      var cands = [];
+      lista.forEach(function(e){
+        var m = _toMinSafe(e.std_actual || e.std);
+        if(!isFinite(m)) return;
+        var iniRel = m + _diasDe(e)*1440;
+        var d = reportMin - iniRel;
+        if(d > 0 && d <= SBY_MAX) cands.push({ e:e, ini:iniRel, dur:d });
+      });
+      if(!cands.length) return;
+      // La que abre el periodo: la que empieza antes.
+      cands.sort(function(a,b){ return a.ini - b.ini; });
+      var sb = cands[0].e, ini = cands[0].ini, dur_ = cands[0].dur;
+      var cod = String(sb.code || '').toUpperCase();
+      var esAeropuerto = /^ASBY$/.test(cod);        // ← único código tratado como de aeropuerto
+      var umbral = esAeropuerto ? SBY_UMBRAL_AEROPUERTO : SBY_UMBRAL_GENERAL;
+
+      /* Descuento nocturno (b)(9). Se razona en hora LOCAL de aclimatación, que es la
+         misma con la que se elige la fila de la tabla. La franja nocturna se repite
+         cada día, así que se mide el solape del tramo [inicio → llamada] con ella. */
+      var _noc = function(a, b){
+        if(b <= a) return 0;
+        var tot = 0;
+        for(var d = Math.floor(a/1440)-1; d <= Math.floor(b/1440)+1; d++){
+          var ni = d*1440 + SBY_NOCHE_INI, nf = d*1440 + 1440 + SBY_NOCHE_FIN;
+          tot += Math.max(0, Math.min(b, nf) - Math.max(a, ni));
+        }
+        return tot;
+      };
+      var iniLocal = ini + bcnOffset, repLocal2 = reportMin + bcnOffset;
+      var _horaDe = function(m){ return ((m%1440)+1440)%1440; };
+      var empiezaDeNoche = _horaDe(iniLocal) >= SBY_NOCHE_INI || _horaDe(iniLocal) < SBY_NOCHE_FIN;
+      var llamadaLocal = repLocal2 - SBY_RESPUESTA_VUELO;
+      var noPenaliza = empiezaDeNoche
+        ? _noc(iniLocal, Math.max(iniLocal, Math.min(llamadaLocal, repLocal2))) : 0;
+
+      var computable = Math.max(0, dur_ - noPenaliza);
+      var exceso = Math.max(0, computable - umbral);
+      sbyInfo = { code: cod || 'SBY', aeropuerto: esAeropuerto, inicioMin: ini,
+                  duracionMin: dur_, umbralMin: umbral, recorteMin: exceso,
+                  nocheMin: noPenaliza, llamadaMin: empiezaDeNoche ? (llamadaLocal - bcnOffset) : null,
+                  techoTablaMin: fdpMaxMin };
+      fdpMaxMin -= exceso;
+    }catch(e){}
+  })();
   var fmm = function(m){ m=((m%1440)+1440)%1440; return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); };
   var dur = function(m){ var s=m<0?'-':''; m=Math.abs(m); return s+Math.floor(m/60)+'h'+(m%60?' '+String(m%60).padStart(2,'0')+'m':''); };
   var marginMin = fdpMaxMin - fdpMin;
@@ -36172,6 +36780,17 @@ function rstCalcFDP(flights, opts){
     report: fmm(reportMin),
     fdpDur: dur(fdpMin), fdpEnd: fmm(fdpEndMin%1440),
     fdpMax: dur(fdpMaxMin), fdpMaxEnd: fmm((reportMin+fdpMaxMin)%1440),
+    // Para que la ficha pueda explicar de dónde sale el recorte en vez de soltar un
+    // número menor sin motivo aparente.
+    sby: sbyInfo && sbyInfo.recorteMin > 0 ? {
+      code: sbyInfo.code, aeropuerto: sbyInfo.aeropuerto,
+      inicio: fmm(sbyInfo.inicioMin), duracion: dur(sbyInfo.duracionMin),
+      umbral: dur(sbyInfo.umbralMin), recorte: dur(sbyInfo.recorteMin),
+      techoTabla: dur(sbyInfo.techoTablaMin),
+      // Solo cuando el descuento nocturno ha entrado en juego.
+      noche: sbyInfo.nocheMin > 0 ? dur(sbyInfo.nocheMin) : null,
+      llamada: sbyInfo.nocheMin > 0 && sbyInfo.llamadaMin != null ? fmm(sbyInfo.llamadaMin) : null
+    } : null,
     fdpMargin: dur(marginMin), fdpMarginMin: marginMin,
     dpDur:  dur(dpMin),  dpEnd:  fmm((dpEndMin+(_lastPosFlag?0:20))%1440),
     // El máximo que se enseña al lado del DP es el de la tabla ORO.FTL.205, TAL CUAL (12h).
@@ -37453,8 +38072,12 @@ window.rosterSelectDay = function(dateStr){
             +'</div>' : '')
         + '</div>'
         + '<div style="background:linear-gradient(180deg,#0C4A6E 0%,#075985 100%);padding:12px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:62px;gap:5px;border-left:1px solid rgba(255,255,255,.08)">'
-        + (e.acType
-            ? '<span style="font-size:13px;font-weight:900;color:#FFFFFF;letter-spacing:.5px;font-family:\'Space Grotesk\',sans-serif;line-height:1;text-align:center">'+e.acType+'</span>'
+        // El código TAL CUAL lo manda eCrews (320 / 32A / 321 / 32Q): es lo que el
+        // piloto ve en su roster, y traducirlo sobraba — peor aún, mentía, porque 32A
+        // no garantiza un neo (el 19-ago era un EC-OKJ, A320-232 ceo). `acType` sigue
+        // guardando la familia normalizada para el logbook; aquí se enseña el original.
+        + ((e.acTypeCode||e.acType)
+            ? '<span style="font-size:13px;font-weight:900;color:#FFFFFF;letter-spacing:.5px;font-family:\'Space Grotesk\',sans-serif;line-height:1;text-align:center">'+(e.acTypeCode||e.acType)+'</span>'
             : '<span style="font-size:9px;color:rgba(255,255,255,.2)">—</span>')
         + (blockStr
             ? '<span style="font-size:13px;font-weight:800;color:#0F172A;font-family:\'Space Mono\',monospace;line-height:1;text-align:center;background:rgba(255,255,255,.92);border-radius:4px;padding:2px 6px">'+blockStr+'</span>'
@@ -37535,6 +38158,14 @@ window.rosterSelectDay = function(dateStr){
             + '<div id="rst-ftl-maxk" style="font-size:11px;font-weight:700;color:'+warnColor+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;transition:color .25s">FDP Máx</div>'
             + '<div id="rst-ftl-maxv" style="font-size:16px;font-weight:800;color:'+warnColor+';font-family:\'Space Mono\',monospace;transition:color .25s">'+fdp.fdpMax+'</div>'
             + '<div style="font-size:11px;color:#475569;margin-top:1px">'+fdpMaxDisp+' '+tzLabel+' · '+fdp.sectors+' sector'+(fdp.sectors>1?'es':'')+'</div>'
+            /* Un techo recortado por la imaginaria tiene que decir POR QUÉ: si no, el
+               piloto ve un número que no cuadra con la tabla y no sabe si fiarse. */
+            + (fdp.sby ? '<div style="font-size:10px;color:#92400E;margin-top:3px;line-height:1.35">'
+                 + '⏳ ' + fdp.sby.techoTabla + ' de tabla − ' + fdp.sby.recorte
+                 + ' de imaginaria<br><span style="opacity:.8">' + fdp.sby.code + ' desde ' + fdp.sby.inicio
+                 + ' · ' + fdp.sby.duracion + ' hasta la firma, ' + fdp.sby.umbral + ' sin penalizar'
+                 + (fdp.sby.noche ? '<br>🌙 ' + fdp.sby.noche + ' de noche no computan (llamada ~' + fdp.sby.llamada + ')' : '')
+                 + '</span></div>' : '')
             // Margen contra el techo del FDP, siempre visible sin desplegar nada. Se
             // recalcula solo según entran las A del datalink o las L del logbook.
             // Lleva "FDP" en la etiqueta a propósito: el margen de la baldosa de al lado
@@ -40125,7 +40756,7 @@ window.ldRosterImportConfirm = function(){
       // OFF/ON (std/sta) quedan vacíos: son horas reales que pone el piloto.
       sched_out:rStd||'', sched_in:rSta||'', std:'', sta:'',
       block:blockStr, acType:f.acType||'', reg:f.reg||'',
-      role:_ldDominantRole()||lsGet('ld_pref_role')||'FO',
+      role:(window.ppGet&&ppGet('rol'))||_ldDominantRole()||lsGet('ld_pref_role')||'FO',
       rosterEntryId:f.id||null,
       atd:null, ata:null, aobt:null, aibt:null
     });
@@ -40489,7 +41120,7 @@ window.ecResyncMonth = function(month){
     if(res.j.status === 'COMPLETE' && res.j.roster){
       var roster = res.j.roster;
       var parsedAll = _ecParseSchedulerEvents(roster.SchedulerEvents || [], roster.BlockDutyTimes || {},
-                                             { timesIn: ecTimesInModo(roster) });
+                                             { timesIn: ecTimesInModo(roster), report: roster.ScheduleReport || null });
       // El periodo de eCrews DESBORDA al mes siguiente (p.ej. junio llega al 02/07) →
       // quedarnos SOLO con los días del mes pedido (si no, vuelos de julio entran en junio).
       var parsedMonth = parsedAll.filter(function(e){ return e.date && e.date.slice(0,7)===month; });
@@ -40787,7 +41418,10 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
       // caer del filtro (si no, la leg posicional desaparecería del import).
       var legLines = details.split('\n').filter(function(l){
         var t = l.trim();
-        return /^\d{3,4}[A-Z]?\s+-\s+\*?[A-Z]{3}/.test(t) ||      // vuelos: 1234, 303P
+        // El \*? inicial: si eCrews pone el asterisco delante del NÚMERO ("*3509 - IBZ…")
+        // la línea no pasaba el filtro y la leg desaparecía entera del import — perder
+        // el vuelo es peor que no saber que era posicional.
+        return /^\*?\d{3,4}[A-Z]?\s+-\s+\*?[A-Z]{3}/.test(t) ||   // vuelos: 1234, 303P, *3509
                /^TBD\d+/.test(t) ||                                // TBD3519
                // Cualquier código de actividad/guardia metido como leg A→A
                // ("CÓDIGO - AAA (hhmm) - BBB (hhmm)"). Acepta códigos con dígito
@@ -40801,6 +41435,32 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
       // no que todas las legs lo sean (eCrews no marca el deadhead por-leg en este payload).
       // Sólo es fiable cuando hay UNA única leg de vuelo → toda la jornada es posicional.
       // (Antes se marcaban TODAS las legs como posicionales → día 28 salía "todo posicional".)
+      /* ── El * del RESUMEN del evento ────────────────────────────────────────
+         eCrews marca los tramos de pasajero con un asterisco, y no siempre en el
+         mismo sitio. En las líneas de `details` va pegado al aeropuerto y entre
+         paréntesis con las horas ("3509 - *IBZ (A2019) - *BCN (A2128)"): eso ya lo
+         cazaba legHasStar. Pero en el RESUMEN del día viene como ruta suelta
+         ("*IBZ-BCN") o pegado al número ("*3509"), sin paréntesis, y ese formato no
+         lo miraba nadie — el asterisco estaba en el payload y se tiraba.
+
+         Importa justamente cuando más falta hace: la otra vía de deducción es el
+         bloque oficial del día, y eCrews no lo publica para todos los días (medidos
+         159 de 521 vuelos de agosto sin bloque). Sin bloque y sin leer este *, un
+         posicional no tiene forma de detectarse. Caso del reporte: VY3509 IBZ→BCN
+         del 12-ago, que Marc hace de pasajero tras cinco horas y media en tierra.
+
+         Solo AÑADE marcas que eCrews puso explícitamente: si no hay asterisco, esto
+         no toca nada y la deducción por bloque sigue mandando igual que antes. */
+      var _starRutas = {}, _starVuelos = {};
+      try {
+        var _blob = text + '\n' + details;
+        // "*IBZ-BCN" / "*IBZ - *BCN" — ruta marcada, SIN paréntesis (si los lleva es
+        // una línea de details y de esa ya se encarga legHasStar).
+        _blob.replace(/\*([A-Z]{3})\s*[-–—]\s*\*?([A-Z]{3})(?!\s*\()/g,
+          function(_m, a, b){ _starRutas[a + '-' + b] = true; return _m; });
+        // "*3509" — número de vuelo marcado.
+        _blob.replace(/\*(\d{3,4}[A-Z]?)\b/g, function(_m, n){ _starVuelos[n] = true; return _m; });
+      } catch(_e){}
       var isDeadhead = ev.IsDeadhead === true || ev.isDeadhead === true || (ev.type||'').toLowerCase() === 'deadhead';
       var flightLegCount = legLines.filter(function(l){
         return !_isStandbyCode((l.trim().split(/\s+/)[0]||''));
@@ -40812,8 +41472,8 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
         // eCrews marca las legs de POSICIONAMIENTO con un * delante del aeropuerto
         // (p.ej. "3535 - *IBZ (A1852) - *BCN (A1954)"). Detectarlo ANTES de limpiar el
         // * para el parse. Es la marca per-leg fiable (IsDeadhead de evento no lo es).
-        var legHasStar = /\*[A-Z]{3}/.test(line);
-        line = line.replace(/\*([A-Z]{3})/g, '$1');
+        var legHasStar = /\*[A-Z]{3}/.test(line) || /^\*/.test(line);
+        line = line.replace(/^\*/, '').replace(/\*([A-Z]{3})/g, '$1');
         // Match: flightNum - DEP ([A|E]time[⁺¹]) - ARR ([A|E]time[⁺¹])
         // Prefijo: A = real (actual), E = estimada, sin prefijo = programada (S).
         // ⚠ CRÍTICO: aceptar TAMBIÉN 'E' — eCrews mete horas estimadas (p.ej. "(E1001)") y antes
@@ -40890,7 +41550,7 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
             else if(legEstim){ arEntry.std_estimated = tDep; arEntry.sta_estimated = tArr; }
             else { arEntry.std = tDep; arEntry.sta = tArr; }
             if(legCrosses) arEntry.crossesMidnight = true;
-            if(legHasStar) arEntry.isPositioning = true;
+            if(legHasStar || _starRutas[depIATA + '-' + arrIATA] || _starVuelos[fNum]) arEntry.isPositioning = true;
             entries.push(arEntry);
             return;
           }
@@ -40920,9 +41580,11 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
           dutyH:   bdt.Item2 || '',
           source:  'ECREWS'
         };
-        // Posicionamiento: marca * per-leg de eCrews (fiable) o, en su defecto, jornada
-        // deadhead de UNA sola leg (heurística de respaldo cuando no hay *).
-        if(legHasStar || markPositioning) legEntry.isPositioning = true;
+        // Posicionamiento: marca * de eCrews —en la propia leg o en el resumen del
+        // evento, por ruta o por número de vuelo— o, en su defecto, jornada deadhead
+        // de UNA sola leg (heurística de respaldo cuando no hay ningún *).
+        if(legHasStar || markPositioning ||
+           _starRutas[depIATA + '-' + arrIATA] || _starVuelos[fNum]) legEntry.isPositioning = true;
         if(legCrosses) legEntry.crossesMidnight = true;
         // Real (A en cualquiera de las dos) → ambas a *_actual; si no, ambas programadas.
         if(legActual){ legEntry.std_actual = tDep; legEntry.sta_actual = tArr; }
@@ -41106,6 +41768,33 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
     }
   });
 
+  /* ── El informe de eCrews: la marca de posicionamiento que SÍ es fiable ──────────
+     `SchedulerEvents` no dice qué tramo se hace de pasajero (medido: 284 eventos, 0
+     asteriscos), y la deducción por bloque de aquí abajo no puede funcionar cuando
+     eCrews no publica bloque — la MITAD de las cuentas medidas el 19-ago-2026 (7 de
+     15 pilotos, 331 de 665 vuelos de agosto, todo-o-nada por cuenta). A esos pilotos
+     un tramo de pasajero les entraba como vuelo operado, en el logbook y en la nómina.
+
+     El "Personal Crew Schedule Report" sí lo marca por tramo con un `*`, y el proxy
+     ya lo trae en `ScheduleReport` (ecrews-report.js). Aquí se usa para dos cosas:
+       1) TAPAR EL HUECO del bloque → así los pilotos sin BlockDutyTimes recuperan
+          también la deducción por diferencia, que sigue siendo una buena red.
+       2) Marcar el posicionamiento y el tipo de avión (más abajo, DESPUÉS de la
+          deducción, para que el `*` explícito de eCrews mande sobre lo deducido). */
+  var _ecRep = (opts && opts.report) || {};
+  (function(){
+    var dias = Object.keys(_ecRep);
+    if(!dias.length) return;
+    blockDutyTimes = blockDutyTimes || {};
+    dias.forEach(function(d){
+      var r = _ecRep[d];
+      if(!r || !r.block) return;                       // día sin bloque publicado
+      var cur = blockDutyTimes[d];
+      if(cur && cur.Item1) return;                     // el JSON ya lo traía → no se pisa
+      blockDutyTimes[d] = { Item1: r.block, Item2: r.duty || (cur && cur.Item2) || '' };
+    });
+  })();
+
   // ── Post-proceso: inferir POSICIONAMIENTO por bloque (BlockDutyTimes.Item1) ──
   // eCrews NO marca el deadhead por-leg en el JSON crudo (el * solo está en su UI).
   // Pero Item1 (bloque del día) = suma de las legs REALES (las posicionales no computan
@@ -41192,6 +41881,43 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
     });
   })();
 
+  /* ── Y ahora el informe manda ────────────────────────────────────────────────
+     Va DESPUÉS de la deducción a propósito: el `*` es una afirmación explícita de
+     eCrews sobre ESE tramo, y la deducción es aritmética con el total del día. Si
+     se aplicara antes, la rama "todo el día es bloque" (`delete e.isPositioning`)
+     se lo llevaría por delante.
+     Solo AÑADE lo que el informe dice; un día sin informe queda exactamente como
+     estaba. Y el tipo de avión viene de regalo en la misma fila. */
+  (function(){
+    if(!Object.keys(_ecRep).length) return;
+    // "VY2111" → "2111"; el informe lo escribe sin el prefijo de compañía.
+    var _num = function(f){ return String(f||'').replace(/^VY/,'').toUpperCase(); };
+    entries.forEach(function(e){
+      if(e.type!=='flight') return;
+      var r = _ecRep[e.date];
+      if(!r || !r.legs || !r.legs.length) return;
+      var n = _num(e.flightNum);
+      // El número es la clave fuerte (único dentro del día). El par dep-arr solo
+      // desempata cuando el número no casa — p.ej. si el informe lo escribe distinto.
+      var m = null;
+      for(var i=0;i<r.legs.length;i++){ if(n && _num(r.legs[i].num)===n){ m=r.legs[i]; break; } }
+      if(!m) for(var k=0;k<r.legs.length;k++){
+        if(r.legs[k].dep===e.dep && r.legs[k].arr===e.arr){ m=r.legs[k]; break; }
+      }
+      if(!m) return;
+      if(m.positioning) e.isPositioning = true;   // posicional-ok: lo dice eCrews con su *
+      /* El avión va SOLO al roster, y TAL CUAL lo manda eCrews (320 / 32A / 321 / 32Q).
+         Se escribe en `acTypeCode`, NO en `acType`, a propósito: `acType` es el campo
+         del LOGBOOK (export Jeppesen, filtros de flota, ldIsAirliner para SP/MP y
+         SE/ME) y se siembra desde el roster con ldRosterImportConfirm. Y estos códigos
+         no aguantan ahí: no distinguen ceo de neo —el 19-ago decía 32A y el avión era
+         un EC-OKJ, A320-232 ceo— y el mismo avión sale con dos códigos distintos el
+         mismo día (6-ago, EC-JTR: `320` en dos tramos y `32A` en los otros dos).
+         En el logbook manda la MATRÍCULA (ldAcDb/fleet.json), que sí sabe el subtipo. */
+      if(m.acType && !e.acTypeCode) e.acTypeCode = m.acType;
+    });
+  })();
+
   // ── Post-proceso: cruce de medianoche → invasionEnd + overnight_continuation ──
   // Para cada vuelo con crossesMidnight, propaga su llegada al día siguiente como
   // invasionEnd (regla de tercios) y crea una entrada overnight_continuation (habilita
@@ -41243,7 +41969,8 @@ function _ecHandleData(payload){
   var bdt     = payload.BlockDutyTimes  || {};
   var period  = (payload.PeriodStart||'').slice(0,7); // YYYY-MM
 
-  _ecParsedEntries = _ecParseSchedulerEvents(events, bdt, { timesIn: ecTimesInModo(payload) });
+  _ecParsedEntries = _ecParseSchedulerEvents(events, bdt,
+    { timesIn: ecTimesInModo(payload), report: payload.ScheduleReport || null });
 
   var flights  = _ecParsedEntries.filter(function(e){ return e.type==='flight'; });
   var offs     = _ecParsedEntries.filter(function(e){ return e.type==='off'; });
@@ -41381,7 +42108,7 @@ window.ldECrewsConfirm = function(){
           _chg = true;
         }
       }
-      ['blockH','dutyH','checkin','checkout','start','end','times','debrief','arr_time','invasionEnd','delay','dutyCode'].forEach(function(f){
+      ['blockH','dutyH','checkin','checkout','start','end','times','debrief','arr_time','invasionEnd','delay','dutyCode','acType','acTypeCode'].forEach(function(f){
         if(e[f]!==undefined && e[f]!=='' && ex[f]!==e[f]){ ex[f]=e[f]; _chg=true; }
       });
       // Horas de actividades NO-vuelo (standby/off/training) — las de vuelo ya las gestiona el bloque de categoría.
@@ -41423,6 +42150,10 @@ window.ldECrewsConfirm = function(){
       if(e.delay)       entry.delay       = e.delay;
       if(e.dutyCode)    entry.dutyCode    = e.dutyCode;
       if(e.isPositioning) entry.isPositioning = true;
+      // Solo el CÓDIGO de eCrews (320/32A/321/32Q), para pintarlo en la ficha del día.
+      // `acType` (el campo del logbook) NO se toca desde aquí: ver el comentario del
+      // post-proceso del informe en _ecParseSchedulerEvents.
+      if(e.acTypeCode)  entry.acTypeCode  = e.acTypeCode;
       if(e.crossesMidnight) entry.crossesMidnight = true; // cruce de medianoche (tercios + continuación)
     } else {
       entry.code = e.code;
@@ -42436,7 +43167,21 @@ async function cafiDoAuth() { return pagDoAuth(); }
 
 // ── User avatar & session dropdown ──
 // ── Helpers de nombre e iniciales ──
+/* ── Quién es el piloto, para todo lo que se le enseña ────────────────────────
+   El nombre sale del PERFIL si lo ha rellenado, y solo si no, del que trajo la
+   cuenta al registrarse. Antes el menú leía únicamente el de la cuenta, así que
+   cambiar el nombre en el perfil no aparecía por ningún lado (#6ZE7F): quedaban
+   dos nombres a la vez, el nuevo en su ficha y el viejo en el desplegable.
+   Un único resolutor para que iniciales, saludo y ficha no puedan discrepar. */
+function _pilotUser(user) {
+  var u = user || {};
+  var n = '';
+  try { n = (window.PilotProfile && window.PilotProfile.get) ? window.PilotProfile.get('nombre') : ''; } catch (e) {}
+  n = String(n || '').trim();
+  return n ? { name: n, email: u.email, plan: u.plan } : u;
+}
 function _getInitials(user) {
+  user = _pilotUser(user);
   if (!user) return 'CP';
   if (user.name && user.name.trim()) {
     var parts = user.name.trim().split(/\s+/).filter(Boolean);
@@ -42450,34 +43195,81 @@ function _getInitials(user) {
   if (m) return (m[1][0] + m[2][0]).toUpperCase();
   return em.substring(0, 2).toUpperCase() || 'CP';
 }
+/* "Capitán" no puede ser el tratamiento por defecto de todo el mundo: a un primer oficial
+   la app le llamaba comandante y, cambiara lo que cambiara en el perfil, seguía igual —
+   es el #3IFUH de Daniel ("me aparece como comandante y al pulsar primer oficial no hace
+   nada"). Ahora sale del rol del perfil y, si no lo ha tocado, del que deduce el logbook. */
+function _ldTrato(){
+  var rol = '';
+  try { rol = (window.ppGet && ppGet('rol')) || ''; } catch(e){}
+  // Sólo se deduce del logbook si HAY logbook: _ldDominantRole() devuelve 'FO' cuando no
+  // hay vuelos, y a un piloto que acaba de entrar no se le puede cambiar el trato por un
+  // valor por defecto. Sin datos y sin perfil, "Capitán" — exactamente como antes.
+  if (!rol && typeof _ldDominantRole === 'function') {
+    try { if ((window.ldEntries || []).length) rol = _ldDominantRole() || ''; } catch(e){}
+  }
+  return rol === 'FO' ? 'Primer oficial' : 'Capitán';
+}
+
 function _getFirstName(user) {
-  if (!user) return 'Capitán';
+  // El nombre que el piloto haya escrito en SU PERFIL manda sobre lo demás.
+  try {
+    var _pn = (window.ppGet && ppGet('nombre')) || '';
+    if (_pn) return String(_pn).trim().split(/\s+/)[0];
+  } catch(e){}
+  user = _pilotUser(user);
+  if (!user) return _ldTrato();
   if (user.name && user.name.trim()) {
     return user.name.trim().split(/\s+/)[0];
   }
   // email: alexbalcells2000@yahoo.es → Alex
   var em = (user.email || '').split('@')[0];
   var word = em.replace(/[0-9_\-\.].*/g, '').replace(/([a-z])([A-Z]).*/, '$1');
-  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() || 'Capitán';
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() || _ldTrato();
 }
 
 function updateUserAvatar(user) {
   if (!user) return;
+  user = _pilotUser(user);      // el nombre del perfil manda sobre el de la cuenta
   var initials = _getInitials(user);
+
+  // La FOTO del perfil manda sobre las iniciales, y como los cuatro avatares de la app
+  // se pintan aquí, con ponerla en este sitio viaja a todos: cabecera del Home,
+  // desplegable, avatar grande y panel del piloto.
+  var _foto = null;
+  try { _foto = (window.PilotProfile && window.PilotProfile.foto()) || null; } catch (e) {}
+  var _pinta = function (el) {
+    if (!el) return;
+    if (_foto) {
+      // Sin innerHTML si ya está puesta: repintarla en cada render hace parpadear la imagen.
+      var img = el.querySelector('img.pp-ava');
+      if (img) { if (img.getAttribute('src') !== _foto) img.setAttribute('src', _foto); return; }
+      el.textContent = '';
+      img = document.createElement('img');
+      img.className = 'pp-ava';
+      img.alt = '';
+      img.setAttribute('src', _foto);
+      img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;display:block';
+      el.appendChild(img);
+    } else {
+      if (el.querySelector('img.pp-ava')) el.textContent = '';
+      if (el.textContent !== initials) el.textContent = initials;
+    }
+  };
 
   // Círculo home header
   var dhAv = document.getElementById('dh-avatar-el');
-  if (dhAv) dhAv.textContent = initials;
+  _pinta(dhAv);
 
   // Dropdown sb-initials (si existe otro avatar)
   var el = document.getElementById('sb-initials');
-  if (el) el.textContent = initials;
+  _pinta(el);
   var bigAv = document.getElementById('sb-dd-avatar-big');
-  if (bigAv) bigAv.textContent = initials;
+  _pinta(bigAv);
 
   // Pilot panel avatar
   var ppAv = document.getElementById('pp-avatar-el');
-  if (ppAv) ppAv.textContent = initials;
+  _pinta(ppAv);
 
   // Nombre en pilot panel: el nombre COMPLETO si lo hay (es la ficha de la cuenta,
   // no un saludo), y debajo el correo para que no haya duda de en qué sesión estás.
@@ -45134,7 +45926,7 @@ function laShareWrapped() {
     </div>
     <div class="ldi-body">
       <div class="ldi-info">
-        <div class="ldi-info-title">PDF Jeppesen EASA (PilotLog) · LogTen Pro · Swift · FOTO del logbook (lo lee la IA) · o CSV/Excel con estas columnas</div>
+        <div class="ldi-info-title">PDF Jeppesen EASA (PilotLog) · LogTen Pro · Swift · Logbook EASA (Excel) · FOTO del logbook (lo lee la IA) · o CSV/Excel con estas columnas</div>
         <div class="ldi-info-cols">fecha/date · vuelo/flight · origen/dep · destino/arr · matrícula/reg · tipo/actype · atd block · ata block · total block · nocturno/night · ldg_dia · ldg_noche · rol/role · cm1 · cm2 · notas/notes</div>
       </div>
       <div id="ldi_zone" class="ldi-zone"
@@ -45277,6 +46069,9 @@ function laShareWrapped() {
           <div class="ld-range-sep">&#8594;</div>
           <input type="date" id="ld-exp-to" />
         </div>
+        <!-- Aviso de firma: el piloto tiene que ver ANTES de exportar si su PDF saldrá
+             firmado o con la línea en blanco. Lo rellena ldExportPickRange(). -->
+        <div id="ld-exp-firma" style="display:none"></div>
         <button class="ld-export-confirm-btn ld-ecb-pdf" id="ld-exp-confirm-btn" onclick="ldExportConfirm()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           <span id="ld-exp-confirm-txt">Exportar</span>
@@ -46172,10 +46967,10 @@ document.addEventListener('DOMContentLoaded', function(){
 (function(){
   var BACKEND = (function(){ try{ return localStorage.getItem('cafi_backend_url')||'https://api.pilotos.aero'; }catch(e){ return 'https://api.pilotos.aero'; } })();
   function token(){ try{ return localStorage.getItem('cafi_auth_token')||''; }catch(e){ return ''; } }
-  function pilotName(){ try{ return localStorage.getItem('pilot_name')||'Comandante'; }catch(e){ return 'Comandante'; } }
+  function pilotName(){ try{ return (window.ppGet&&ppGet('nombre'))||localStorage.getItem('pilot_name')||'Comandante'; }catch(e){ return 'Comandante'; } }
   function stripZ(s){ return String(s||'').replace(/[^0-9:]/g,''); }
   function getPos(){ return new Promise(function(res){ if(!navigator.geolocation) return res(null); var done=false; function fin(v){ if(done)return; done=true; res(v); } try{ navigator.geolocation.getCurrentPosition(function(p){ fin({lat:p.coords.latitude, lon:p.coords.longitude}); }, function(){ fin(null); }, { timeout:6000, maximumAge:300000 }); }catch(e){ fin(null); } setTimeout(function(){ fin(null); }, 7000); }); }
-  function cfg(){ return { lang: localStorage.getItem('db_lang')||'es', voice: (function(){ var _v=localStorage.getItem('db_voice')||'nova'; return ['nova','shimmer','coral','sage','alloy'].indexOf(_v)>=0?_v:'nova'; })(), rate: parseFloat(localStorage.getItem('db_rate'))||1, vol: localStorage.getItem('db_vol')!=null?parseFloat(localStorage.getItem('db_vol')):1, autoMic: localStorage.getItem('db_autoMic')!=='0' }; }
+  function cfg(){ return { lang: (window.ppGet&&ppGet('idioma'))||localStorage.getItem('db_lang')||'es', voice: (function(){ var _v=localStorage.getItem('db_voice')||'nova'; return ['nova','shimmer','coral','sage','alloy'].indexOf(_v)>=0?_v:'nova'; })(), rate: parseFloat(localStorage.getItem('db_rate'))||1, vol: localStorage.getItem('db_vol')!=null?parseFloat(localStorage.getItem('db_vol')):1, autoMic: localStorage.getItem('db_autoMic')!=='0' }; }
   function saveCfg(k,v){ try{ localStorage.setItem('db_'+k, v); }catch(e){} }
   function seg(a){ return 'flex:1;padding:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;'+(a?'background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff':'background:transparent;color:#9fb3bd'); }
   var VOICES=[['nova','Nova — cercana (por defecto)'],['shimmer','Shimmer — suave'],['coral','Coral — expresiva'],['sage','Sage — serena'],['alloy','Alloy — neutra']];
@@ -46511,6 +47306,18 @@ document.addEventListener('DOMContentLoaded', function(){
   // niveles de presión a lo largo de la ruta → EDR por cizalladura vertical del viento (fl±10).
   // Muestrea a lo largo del perfil de vuelo (ascenso→TOC, crucero a FL, TOD→descenso) y resume
   // por fase. Sustituye la turbulencia SINTÉTICA de fetchTurbulenceProfile. Devuelve texto o null.
+  /* Hora Zulu de salida del sector, en ms. Es el instante para el que hay que mirar la
+     atmósfera: al piloto le da igual cómo esté el aire ahora, va a volar a su hora.
+     Misma fórmula que usa el perfil de MAPAS, para que los dos miren el mismo momento. */
+  function _ariaLegWhenMs(leg){
+    try{
+      var hhmm = String((leg && (leg.std_actual || leg.std_estimated || leg.std)) || '').slice(0,5);
+      if(!/^\d{1,2}:\d{2}$/.test(hhmm)) return 0;
+      var d = (leg && leg.date) || new Date().toISOString().slice(0,10);
+      var t = new Date(d + 'T' + (hhmm.length===4 ? '0'+hhmm : hhmm) + ':00Z').getTime();
+      return isFinite(t) ? t : 0;
+    }catch(e){ return 0; }
+  }
   async function _ariaTurbByPhase(leg){
     try{
       var rc=(typeof window.getRouteCoords==='function')?window.getRouteCoords(leg.dep,leg.arr):null;
@@ -46524,8 +47331,12 @@ document.addEventListener('DOMContentLoaded', function(){
       var d=await fetch(url).then(function(r){return r.ok?r.json():Promise.reject();});
       var arr=Array.isArray(d)?d:[d];
       if(!arr[0]||!arr[0].hourly||!arr[0].hourly.time) return null;
-      var time=arr[0].hourly.time, now=Date.now(), bi=0;
-      for(var ti=0;ti<time.length;ti++){ if(new Date(time[ti]+':00Z').getTime()>=now-1800000){ bi=ti; break; } }
+      /* La hora del VUELO, no la de ahora. Aquí estaba el desajuste del reporte: ARIA
+         describía la atmósfera del momento en que se le preguntaba y el mapa la de otra
+         hora, así que decían cosas distintas de la misma ruta y ninguna de las dos era
+         la del vuelo. */
+      var time=arr[0].hourly.time, objetivo=_ariaLegWhenMs(leg)||Date.now(), bi=0;
+      for(var ti=0;ti<time.length;ti++){ if(new Date(time[ti]+':00Z').getTime()>=objetivo-1800000){ bi=ti; break; } }
       var COLS=arr.map(function(loc){ var h=loc.hourly, prof=[]; for(var kk=0;kk<LV.length;kk++){ var sa=h['wind_speed_'+LV[kk].h+'hPa'], da=h['wind_direction_'+LV[kk].h+'hPa']; if(!sa||sa[bi]==null)continue; var wsp=sa[bi], wa=((da&&da[bi]!=null)?da[bi]:0)*Math.PI/180; prof.push({fl:LV[kk].fl, u:wsp*Math.sin(wa), v:wsp*Math.cos(wa)}); } return prof; });
       if(!COLS.length||COLS.some(function(p){return !p.length;})) return null;
       var CRZ=leg.cruiseFL||340, FLMAX=Math.max(420,Math.ceil((CRZ+50)/20)*20);
@@ -46545,7 +47356,7 @@ document.addEventListener('DOMContentLoaded', function(){
   async function ctxSys(leg,turbData){
     var turb=turbData;
     if((!turb||!turb.length) && leg && window.getRouteCoords && window.fetchTurbulenceProfile){
-      try{ var co=window.getRouteCoords(leg.dep,leg.arr); if(co&&co.length){ turb=await window.fetchTurbulenceProfile(co,leg.cruiseFL); } }catch(e){}
+      try{ var co=window.getRouteCoords(leg.dep,leg.arr); if(co&&co.length){ turb=await window.fetchTurbulenceProfile(co,leg.cruiseFL,_ariaLegWhenMs(leg)); } }catch(e){}
     }
     var winds=null;
     if(leg && window.fetchRouteWinds){ try{ winds=await window.fetchRouteWinds(leg.dep,leg.arr); }catch(e){} }
@@ -46555,6 +47366,11 @@ document.addEventListener('DOMContentLoaded', function(){
     return _base;
   }
   function chatLog(role,text){ var box=q('#ar-chat'); if(!box)return null; var w=document.createElement('div'); w.style.cssText='margin-bottom:9px;display:flex;'+(role==='you'?'justify-content:flex-end':'justify-content:flex-start'); var b=document.createElement('div'); b.style.cssText='max-width:88%;font-size:12px;line-height:1.45;padding:8px 11px;border-radius:13px;'+(role==='you'?'background:linear-gradient(135deg,var(--ar-youA),var(--ar-accT));color:var(--ar-tx1)':'background:var(--ar-bubble);color:var(--ar-tx2);border:1px solid var(--ar-chip2)'); b.textContent=text; w.appendChild(b); box.appendChild(w); try{ updateWelcome(); }catch(e){} try{ b.scrollIntoView({behavior:'smooth',block:'nearest'}); }catch(e){} return b; }
+  /* Temas que necesitan datos EN VIVO (no valen los del briefing ya entregado). */
+  var _RX_VIVO=/turbulenc|\bedr\b|baches|zarande|viento|\bwind\b|\bjet\b|cizalla|shear|engelam|icing|meteo|alternativ|desv[ií]|divert|notam|cerrad|closed|clsd|\bpista\b|\brwy\b|\bils\b|\balt\b/i;
+  /* De qué iba el último turno que sí pidió datos en vivo, para que una respuesta corta
+     («de todos», «sí», «el primero») no se quede sin contexto. Lo limpia _dropBrief. */
+  var _vivoPrev=null;
   function _matchAskedLeg(question, legs, activeLeg){
     if(!question||!legs||!legs.length) return null;
     var t=' '+String(question).toLowerCase().replace(/[\u2192\-]/g,' ')+' ';
@@ -46566,22 +47382,82 @@ document.addEventListener('DOMContentLoaded', function(){
   // NOTAMs REALES filtrados para ARIA (misma fuente que la sección NOTAMs: /api/wx/notam vía
   // fetchLiveNotams). Se queda con CRÍTICOS (sev danger=rojo) e IMPORTANTES (sev warning=ámbar),
   // y filtra por ventana horaria alrededor de la hora Z de salida/llegada + 2h (timeStart/timeEnd).
+  // NOTAMs de UN aeropuerto en la ventana de su hora Z (−30 min / +2 h). Extraído para que
+  // lo compartan la versión de un sector y la de la jornada entera: una sola forma de
+  // filtrar y de redactar, y una sola cosa que arreglar si cambia la fuente.
+  async function _ariaNotamsAp(iata, t){
+    try{
+      if(typeof fetchLiveNotams!=='function') return [];
+      var today=new Date().toISOString().slice(0,10);
+      var s=String(t||'').slice(0,5);
+      var base=/^\d{1,2}:\d{2}$/.test(s)?new Date(today+'T'+s+':00Z'):new Date();
+      var w=[new Date(base.getTime()-30*60000), new Date(base.getTime()+2*3600000)];
+      function inW(n){ var a=n.timeStart?new Date(n.timeStart):null, b=n.timeEnd?new Date(n.timeEnd):null;
+        if(!a&&!b)return true; if(a&&a>w[1])return false; if(b&&b<w[0])return false; return true; }
+      var ic=(window.iataToIcao&&window.iataToIcao(iata))||iata;
+      var list=await fetchLiveNotams(ic);
+      return (list||[]).filter(function(n){ return (n.sev==='danger'||n.sev==='warning')&&inW(n); })
+        .sort(function(a,b){ return (a.sev==='danger'?0:1)-(b.sev==='danger'?0:1); })
+        .map(function(n){ return '['+(n.sev==='danger'?'ROJO/CRÍTICO':'ÁMBAR')+'] '+iata+' '+(n.id||'')+': '+
+          String(n.short||n.title||n.raw||'').replace(/\s+/g,' ').trim().slice(0,150); });
+    }catch(e){ return []; }
+  }
   async function _ariaNotamBlock(leg){
     try{
       if(typeof fetchLiveNotams!=='function') return null;
-      var today=new Date().toISOString().slice(0,10);
-      function win(t){ var s=String(t||'').slice(0,5); var base=/^\d{1,2}:\d{2}$/.test(s)?new Date(today+'T'+s+':00Z'):new Date(); return [new Date(base.getTime()-30*60000), new Date(base.getTime()+2*3600000)]; }
-      function inW(n,w){ var s=n.timeStart?new Date(n.timeStart):null, e=n.timeEnd?new Date(n.timeEnd):null; if(!s&&!e)return true; if(s&&s>w[1])return false; if(e&&e<w[0])return false; return true; }
-      async function forAp(iata,t){ try{ var ic=(window.iataToIcao&&window.iataToIcao(iata))||iata; var list=await fetchLiveNotams(ic); var w=win(t); return (list||[]).filter(function(n){ return (n.sev==='danger'||n.sev==='warning')&&inW(n,w); }).sort(function(a,b){ return (a.sev==='danger'?0:1)-(b.sev==='danger'?0:1); }).map(function(n){ return '['+(n.sev==='danger'?'ROJO/CRÍTICO':'ÁMBAR')+'] '+iata+' '+(n.id||'')+': '+String(n.short||n.title||n.raw||'').replace(/\s+/g,' ').trim().slice(0,150); }); }catch(e){ return []; } }
-      var res=await Promise.all([forAp(leg.dep,leg.std), forAp(leg.arr,leg.sta)]);
+      var res=await Promise.all([_ariaNotamsAp(leg.dep,leg.std), _ariaNotamsAp(leg.arr,leg.sta)]);
       var all=res[0].concat(res[1]);
       if(!all.length) return 'Sin NOTAMs rojos (críticos) ni ámbar (importantes) activos en la ventana salida/llegada (±2h).';
       return all.join(' | ');
     }catch(e){ return null; }
   }
+  /* NOTAMs de TODA la jornada. En el alcance «Hoy · jornada» el piloto que pregunta por
+     NOTAMs quiere los de su día entero, no los de un sector suelto — y cuando responde
+     «de todos» a una repregunta, lo está diciendo con todas las letras. Antes no había
+     forma de dárselos: solo existía la versión de un sector.
+     Se pide UN fetch por AEROPUERTO, no por leg: en una jornada de ida y vuelta los
+     mismos aeropuertos se repiten y pedirlos dos veces solo añade espera. */
+  async function _ariaNotamDia(legs){
+    try{
+      if(typeof fetchLiveNotams!=='function' || !legs || !legs.length) return '';
+      var vistos={}, paradas=[];
+      legs.forEach(function(L){
+        [[L.dep,L.std],[L.arr,L.sta]].forEach(function(p){
+          var ap=p[0]; if(!ap) return; var k=String(ap).toUpperCase();
+          if(vistos[k]) return; vistos[k]=1; paradas.push({ap:ap, t:p[1]});
+        });
+      });
+      if(!paradas.length) return '';
+      var listas=await Promise.all(paradas.map(function(x){ return _ariaNotamsAp(x.ap, x.t); }));
+      var all=[]; listas.forEach(function(l){ all=all.concat(l); });
+      var ruta=paradas.map(function(x){ return x.ap; }).join(', ');
+      if(!all.length){
+        return '\n\nNOTAMs REALES DE TODA LA JORNADA (aeropuertos consultados: '+ruta+'): ninguno rojo '+
+          '(crítico) ni ámbar (importante) activo en las ventanas de salida y llegada (±2h). '+
+          'Dilo así: los has consultado y no hay ninguno relevante. NO digas que no los tienes.';
+      }
+      return '\n\nNOTAMs REALES DE TODA LA JORNADA (rojo=crítico, ámbar=importante; ventana ±2h de cada '+
+        'salida/llegada; aeropuertos consultados: '+ruta+'). Menciona SOLO estos, agrupados por '+
+        'aeropuerto y priorizando los rojos: '+all.join(' | ')+'.';
+    }catch(e){ return ''; }
+  }
   async function _liveSectorBlock(leg){
     var ts='no disponible', ws='no disponible';
-    try{ var _tp=await _ariaTurbByPhase(leg); if(_tp){ ts=_tp; } else { var co=window.getRouteCoords(leg.dep,leg.arr); if(co&&co.length){ var tb=await window.fetchTurbulenceProfile(co, leg.cruiseFL||300); if(tb&&tb.length) ts=tb.map(function(p,i){return 'WP'+(i+1)+':EDR'+p.edr.toFixed(2);}).join(' '); } } }catch(e){}
+    /* Tres intentos antes de rendirse, y el último NO vuelve a la red: si SkyView ya
+       cargó la turbulencia, esos datos están en memoria. Antes se decía «no disponible»
+       —y ARIA contestaba que no podía obtener la información— teniendo el dato al lado,
+       solo porque la petición de ese momento falló. */
+    try{
+      var _tp=await _ariaTurbByPhase(leg);
+      if(_tp){ ts=_tp; }
+      else {
+        var tb=null;
+        try{ var co=window.getRouteCoords(leg.dep,leg.arr);
+             if(co&&co.length) tb=await window.fetchTurbulenceProfile(co, leg.cruiseFL||300, _ariaLegWhenMs(leg)); }catch(_e){}
+        if(!(tb&&tb.length)) tb=((window.__ariaCtx||{}).turbData)||null;   // lo que ya cargó el mapa
+        if(tb&&tb.length) ts=tb.map(function(p,i){return 'WP'+(i+1)+':EDR'+(p.edr!=null?p.edr.toFixed(2):'?');}).join(' ');
+      }
+    }catch(e){}
     try{ var wd=await window.fetchRouteWinds(leg.dep,leg.arr); if(wd&&wd.length) ws=wd.map(function(w){return 'FL'+w.fl+' '+w.dir+'\u00b0/'+w.speed+'kt';}).join(', '); }catch(e){}
     var altw='', nb='';
     try{ var _al=(leg.alts||[]).slice(0,3); if(_al.length && window.fetchLiveMetar){ var ar=await Promise.all(_al.map(function(a){ var ic=(window.iataToIcao&&window.iataToIcao(a.icao))||a.icao; return window.fetchLiveMetar(ic).then(function(m){ return (a.city||a.icao)+' ('+(a.icao||ic)+'): '+((m&&m.raw)||(m&&m.cat)||'sin datos'); }).catch(function(){ return (a.city||a.icao)+': sin datos'; }); })); altw=ar.filter(Boolean).join(' | '); } }catch(e){}
@@ -46596,7 +47472,38 @@ document.addEventListener('DOMContentLoaded', function(){
     var _t2m=function(t){ t=String(t||'').slice(0,5); var mm=t.match(/^(\d{1,2}):(\d{2})$/); return mm?(+mm[1]*60+ +mm[2]):null; };
     var escList=[]; for(var _ei=0;_ei<dayLegs.length-1;_ei++){ var _ea=dayLegs[_ei], _eb=dayLegs[_ei+1]; if(_ea.arr===_eb.dep){ var _esa=_t2m(_ea.sta), _esd=_t2m(_eb.std); if(_esa!=null&&_esd!=null){ var _em=_esd-_esa; if(_em<0)_em+=1440; escList.push(_ea.arr+' '+(_em>=60?(Math.floor(_em/60)+'h '+(_em%60)+'m'):(_em+'m'))+' (entre '+_ea.flight+' y '+_eb.flight+')'); } } }
     var escStr=escList.length?(' ESCALAS del día (tiempo en tierra, calculado de las horas PROGRAMADAS del roster — usa EXACTAMENTE estos valores, no los recalcules): '+escList.join(' · ')+'.'):'';
-    var dayHdr=dayList?('JORNADA COMPLETA DE HOY (TODOS los sectores que vuela el piloto): '+dayList+'.'+escStr+' El piloto VUELA todos estos sectores hoy: NUNCA digas que no hace un sector que esté en esta lista. Si te preguntan por un sector que no está en el briefing de abajo, reconócelo como parte de su jornada y responde lo que puedas; si no tienes su detalle, dilo y ofrece briefarlo. '):''; var askedBlock=''; try{ var _ask=_matchAskedLeg(question,dayLegs,(window.__ariaCtx||{}).leg); var _needLive=/turbulenc|\bedr\b|baches|zarande|viento|\bwind\b|\bjet\b|cizalla|shear|engelam|icing|meteo|alternativ|desv[ií]|divert|notam|cerrad|closed|clsd|\bpista\b|\brwy\b|\bils\b|\balt\b/i.test(String(question)); var _target=_ask||(_needLive?((window.__ariaCtx||{}).leg):null); if(_target)askedBlock=await _liveSectorBlock(_target); }catch(e){}
+    var dayHdr=dayList?('JORNADA COMPLETA DE HOY (TODOS los sectores que vuela el piloto): '+dayList+'.'+escStr+' El piloto VUELA todos estos sectores hoy: NUNCA digas que no hace un sector que esté en esta lista. Si te preguntan por un sector que no está en el briefing de abajo, reconócelo como parte de su jornada y responde lo que puedas; si no tienes su detalle, dilo y ofrece briefarlo. '):'';     var askedBlock='';
+    try{
+      var _q=String(question||'');
+      var _ask=_matchAskedLeg(_q,dayLegs,(window.__ariaCtx||{}).leg);
+      var _needLive=_RX_VIVO.test(_q);
+      var _notam=/notam/i.test(_q);
+      var _todos=/\b(de\s+)?tod[oa]s\b|\ball\b|toda la jornada|todos los sectores|el d[ií]a entero/i.test(_q);
+      /* ── El tema se hereda entre turnos ──────────────────────────────────────
+         El fallo del reporte (#HJRJZ): el piloto pregunta por los NOTAMs, ARIA
+         repregunta de qué sector, y él contesta «De todos». Esa respuesta no lleva
+         ninguna palabra clave, así que _needLive salía false, no se pedía ni un
+         dato en vivo, y ARIA respondía que no tiene los NOTAMs cargados — cuando
+         la conversación iba justamente de eso.
+         Una respuesta CORTA a una pregunta que sí necesitaba datos en vivo sigue
+         hablando de lo mismo: se hereda el tema del turno anterior. */
+      var _corta=_q.trim().split(/\s+/).length<=5;
+      if(!_needLive && _corta && _vivoPrev){ _needLive=true; _notam=_notam||_vivoPrev.notam; }
+      if(!_ask && _corta && _vivoPrev && _vivoPrev.leg) _ask=_vivoPrev.leg;
+      if(_todos) _ask=null;                       // «de todos» anula cualquier sector suelto
+      // Preguntar por NOTAMs sin señalar sector —o diciendo «todos»— es preguntar por la
+      // jornada. Antes eso caía en «sin objetivo» y se quedaba sin datos.
+      var _diaEntero=_notam && (_todos || (!_ask && (LAST_SCOPE==='hoy' || !(window.__ariaCtx||{}).leg)));
+      if(_diaEntero){
+        askedBlock=await _ariaNotamDia(dayLegs);
+      } else {
+        var _target=_ask||(_needLive?((window.__ariaCtx||{}).leg):null);
+        if(_target)askedBlock=await _liveSectorBlock(_target);
+        // «De todos» sobre NOTAMs además de un sector: que no falte la jornada.
+        if(_notam && _todos){ askedBlock+=(await _ariaNotamDia(dayLegs)); }
+      }
+      if(_needLive) _vivoPrev={ notam:_notam, leg:_ask||((window.__ariaCtx||{}).leg)||null };
+    }catch(e){}
     if(LAST_SCOPE==='hoy' && LAST_TEXT){
       return 'Eres ARIA, copiloto del piloto para TODA su jornada. '+dayHdr+askedBlock+'\n\nBRIEFING ENTREGADO:\n'+LAST_TEXT+langLine;
     }
@@ -46691,18 +47598,76 @@ document.addEventListener('DOMContentLoaded', function(){
     try{ curAudio.playbackRate=RATE; curAudio.volume=vMuted?0:VOL; }catch(e){}
     curAudio.ontimeupdate=function(){ var el=curAudio.currentTime||0; var f=q('#ar-fill'); if(f)f.style.width=Math.min(100,el/total*100)+'%'; var c=q('#ar-cur'); if(c)c.textContent=fmt(el); _hiByTime(el); };
     curAudio.onended=function(){ playing=false; var pb=q('#ar-play'); if(pb)pb.textContent='▶'; hi(-1,-1); stat('✓ Fin del briefing'); var f=q('#ar-fill'); if(f)f.style.width='100%'; applyChrome(); autoAsk(); };
-    var pp=curAudio.play(); if(pp&&pp.catch)pp.catch(function(){}); try{ if('mediaSession' in navigator)navigator.mediaSession.playbackState='playing'; }catch(e){} mediaMeta(); mediaPos();
+    var pp=curAudio.play();
+    if(pp&&pp.catch)pp.catch(function(){
+      /* El navegador rechaza play() fuera de un gesto (iOS lo hace con el arranque
+         automático del chip del Home). Tragarse el rechazo dejaba el botón en ⏸ sin
+         que sonara nada. Volvemos a un estado de PAUSA de verdad, para que el
+         siguiente toque reanude en lugar de pausar algo que nunca empezó.
+         `curAudio.paused` filtra el AbortError de un pause()/seek legítimo. */
+      try{ if(!curAudio || !curAudio.paused) return; }catch(_e){ return; }
+      paused=true; _userPaused=false;
+      try{ paintDeck(); }catch(_e){}
+      try{ if('mediaSession' in navigator)navigator.mediaSession.playbackState='paused'; }catch(_e){}
+      try{ stat(CUR.lang==='en'?'▶ Ready · tap play':'▶ Listo · pulsa play'); }catch(_e){}
+    });
+    try{ if('mediaSession' in navigator)navigator.mediaSession.playbackState='playing'; }catch(e){} mediaMeta(); mediaPos();
   }
   function curElapsed(){ return acc+((curAudio&&curAudio.currentTime)||0); }
   function seekToPlay(target){ if(!curAudio||!total)return; _gen++; mediaSetup(); mediaMeta(); var dur=(isFinite(curAudio.duration)&&curAudio.duration>0)?curAudio.duration:total; target=Math.max(0,Math.min(target,dur)); try{ curAudio.currentTime=target; }catch(e){} playing=true; paused=false; var pb=q('#ar-play'); if(pb)pb.textContent='⏸'; var f=q('#ar-fill'); if(f)f.style.width=Math.min(100,target/total*100)+'%'; var c=q('#ar-cur'); if(c)c.textContent=fmt(target); playK(); applyChrome(); }
   function rewind(sec){ if(!audios.length)return; seekToPlay(curElapsed()-sec); }
   function showDeckTransport(on){ var pl=q('#ar-player'),gn=q('#ar-gen'); if(pl)pl.style.display=on?'flex':'none'; if(gn)gn.style.display=on?'none':'block'; }
+  // Fase de la generación en curso: '' parado · 'texto' esperando a ARIA · 'voz' troceando el audio.
+  var _fase='';
+  /* ── ÚNICA fuente de verdad de la botonera ──────────────────────────────────
+     Antes cada camino pintaba su trozo a mano y el estado se RECORDABA en el DOM,
+     así que bastaba un remontaje para dejarlo imposible. Dos fallos reales:
+
+     · SkyView monta este panel desde un ref de React (`el.__am`). Si React
+       sustituye el nodo mientras se generaba la voz —el reloj de la cabecera
+       repinta solo—, buildPanel borraba todo y restoreState pintaba «Generar de
+       nuevo para oírlo» porque aún no había audio. Al terminar la voz, el código
+       habilitaba los botones pero YA NO volvía a mostrar el reproductor: quedaba
+       el aviso «Listo · pulsa play» junto a un botón que decía justo lo contrario
+       y ningún play. Salir de ARIA y volver lo arreglaba (otro restoreState, ya
+       con audio), que es exactamente lo que describía el piloto.
+
+     · El icono ⏸ se quedaba del briefing anterior: generate() reseteaba
+       playing/paused/audios pero no el botón, así que el briefing nuevo nacía
+       mostrando pausa sin estar sonando.
+
+     Deduciéndolo todo del estado cada vez, y consultando el DOM en el momento,
+     un remontaje deja de importar: se repinta y ya está. */
+  function paintDeck(){
+    var listo = audios.length>0 && total>0;
+    // El reproductor también se ve mientras se trocea la voz: el texto ya está en
+    // pantalla y los mandos aparecen apagados con el «Generando voz 3/11…».
+    showDeckTransport(listo || _fase==='voz');
+    var pb=q('#ar-play');
+    if(pb){ pb.disabled=!listo; pb.style.opacity=listo?'1':'.5';
+            pb.textContent=(playing&&!paused)?'⏸':'▶'; }
+    ['#ar-back','#ar-regen','#ar-stop'].forEach(function(sel){
+      var b=q(sel); if(b){ b.disabled=!listo; b.style.opacity=listo?'1':'.5'; } });
+    var gen=q('#ar-gen');
+    if(gen){
+      var en=(CUR.lang==='en');
+      if(_fase){ gen.disabled=true; gen.style.opacity='.6'; gen.textContent=(en?'Generating…':'Generando…'); }
+      else {
+        gen.disabled=false; gen.style.opacity='1';
+        gen.textContent = listo    ? (en?'▶ Regenerate':'▶ Generar de nuevo')
+                        : LAST_TEXT? (en?'▶ Regenerate to listen':'▶ Generar de nuevo para oírlo')
+                                   : (en?'▶ Generate briefing':'▶ Generar briefing');
+      }
+    }
+    var tot=q('#ar-tot'); if(tot&&total)tot.textContent=fmt(total);
+  }
   function updateWelcome(){ var w=q('#ar-welcome'); if(!w)return; var tr=q('#ar-tr'), ch=q('#ar-chat'); var hasBrief=(tr&&tr.children.length)||audios.length||LAST_TEXT; var hasChat=ch&&ch.children.length; w.style.display=(hasBrief||hasChat)?'none':'flex'; }
   // Tira el briefing en pantalla (texto + audio ya preparado) dejando intacta la conversación.
   // Se usa cuando cambia el LEG o el alcance: un briefing de otro sector no puede quedarse
   // pintado ni sonando, que es justo lo que hacía creer que ARIA ignoraba el leg elegido.
   function _dropBrief(){
     _gen++;
+    _vivoPrev=null;   // el tema de la conversación anterior ya no aplica a este briefing
     try{ if(curAudio)curAudio.pause(); }catch(e){}
     try{ for(var i=0;i<audios.length;i++){ try{audios[i].a.pause();}catch(e){} } }catch(e){}
     try{ if(_va){ _va.pause(); _va.onended=null; } }catch(e){}
@@ -46734,11 +47699,11 @@ document.addEventListener('DOMContentLoaded', function(){
     // la posición: se rechazaba y el micro acababa pidiéndose al final). Así ambos permisos
     // (micro y luego posición) se conceden por delante, antes de conducir.
     try{ primeMic(); }catch(e){}
-    var gen=q('#ar-gen'); if(gen){ gen.disabled=true; gen.style.opacity='.6'; gen.textContent=(CUR.lang==='en'?'Generating…':'Generando…'); }
-    try{ if(curAudio)curAudio.pause(); }catch(e){} playing=false; paused=false; k=0; acc=0; audios=[];
+    try{ if(curAudio)curAudio.pause(); }catch(e){} playing=false; paused=false; k=0; acc=0; audios=[]; total=0;
+    _fase='texto'; paintDeck();
     var f=q('#ar-fill'); if(f)f.style.width='0'; var c0=q('#ar-cur'); if(c0)c0.textContent='0:00'; var tr=q('#ar-tr'); if(tr)tr.innerHTML='';
     var pl=q('#ar-player'); if(pl)pl.style.display='none'; hideVoiceDock();
-    var tk=token(); if(!tk){ stat('Inicia sesión para generar el briefing.'); return _done(gen); }
+    var tk=token(); if(!tk){ stat('Inicia sesión para generar el briefing.'); return _done(); }
     // Al generar: refresca en 2º plano la turbulencia del leg activo (para que ARIA tenga la
     // última versión sin tener que visitar antes el Perfil de ruta). No bloquea el briefing.
     try{ var _plLeg=(SCOPE==='hoy'?(gatherLegs()[0]):(window.__ariaCtx||{}).leg); if(_plLeg && window.getRouteCoords && window.fetchTurbulenceProfile){ var _plco=window.getRouteCoords(_plLeg.dep,_plLeg.arr); if(_plco&&_plco.length>1){ window.fetchTurbulenceProfile(_plco,_plLeg.cruiseFL||300).then(function(tb){ if(tb&&tb.length){ window.__ariaCtx=window.__ariaCtx||{}; window.__ariaCtx.turbData=tb; if(!window.__ariaCtx.leg)window.__ariaCtx.leg=_plLeg; } }).catch(function(){}); } } }catch(e){}
@@ -46746,28 +47711,31 @@ document.addEventListener('DOMContentLoaded', function(){
       var txt='';
       if(SCOPE==='hoy'){
         var legs=gatherLegs();
-        if(!legs.length){ stat(CUR.lang==='en'?'No active flight detected right now.':'No se detecta ningún vuelo activo ahora mismo.'); return _done(gen); }
+        if(!legs.length){ stat(CUR.lang==='en'?'No active flight detected right now.':'No se detecta ningún vuelo activo ahora mismo.'); return _done(); }
         stat(CUR.lang==='en'?'Generating briefing with ARIA…':'Generando briefing con ARIA…');
         var pos=await getPos(); try{ _locNote(pos); }catch(e){} var _bi=_baseInfo(); var body={legs:legs,pilot:pilotName()||undefined,lang:CUR.lang,localHour:new Date().getHours(),yesterdayRoutes:prevDayRoutes(legs)}; if(pos){ body.userLat=pos.lat; body.userLon=pos.lon; } if(_bi){ body.baseIcao=_bi.icao; body.baseLat=_bi.lat; body.baseLon=_bi.lon; body.baseLabel=_bi.label; }
         var r=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify(body)});
-        if(!r.ok){ var j=await r.json().catch(function(){return{};}); stat('⚠ '+(j.message||j.error||('Error '+r.status))); return _done(gen); }
+        if(!r.ok){ var j=await r.json().catch(function(){return{};}); stat('⚠ '+(j.message||j.error||('Error '+r.status))); return _done(); }
         var d=await r.json(); txt=d.text||'';
       } else {
         var ctx=window.__ariaCtx||{}; var leg=ctx.leg;
-        if(!leg){ stat('No hay vuelo activo en SkyView.'); return _done(gen); }
+        if(!leg){ stat('No hay vuelo activo en SkyView.'); return _done(); }
         stat(CUR.lang==='en'?'Generating briefing with ARIA…':'Generando briefing con ARIA…');
         var all=gatherLegs(); var one=all.filter(function(L){ return L.flight===leg.flight && L.dep===leg.dep && L.arr===leg.arr; }); if(!one.length){ var di=(window.iataToIcao&&window.iataToIcao(leg.dep))||leg.dep, ai=(window.iataToIcao&&window.iataToIcao(leg.arr))||leg.arr; one=[{flight:leg.flight,dep:leg.dep,arr:leg.arr,depIcao:di,arrIcao:ai,positioning:!!(leg.positioning||leg.isPositioning||(leg.dep&&String(leg.dep).charAt(0)==='*')),std:stripZ(leg.std),sta:stripZ(leg.sta),acType:leg.acType,arrMs:leg._arrMs,depMs:leg._depMs}]; } else { one=[one[0]]; }
         var pos=await getPos(); try{ _locNote(pos); }catch(e){} var _bi=_baseInfo(); var lbody={legs:one,pilot:pilotName()||undefined,lang:CUR.lang,localHour:new Date().getHours(),yesterdayRoutes:prevDayRoutes(one)}; if(pos){ lbody.userLat=pos.lat; lbody.userLon=pos.lon; } if(_bi){ lbody.baseIcao=_bi.icao; lbody.baseLat=_bi.lat; lbody.baseLon=_bi.lon; lbody.baseLabel=_bi.label; } var r2=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify(lbody)});
-        if(!r2.ok){ var je=await r2.json().catch(function(){return{};}); stat('⚠ '+(je.message||je.error||('Error '+r2.status))); return _done(gen); } var d2=await r2.json(); txt=d2.text||'';
+        if(!r2.ok){ var je=await r2.json().catch(function(){return{};}); stat('⚠ '+(je.message||je.error||('Error '+r2.status))); return _done(); } var d2=await r2.json(); txt=d2.text||'';
       }
-      if(!txt){ stat('⚠ ARIA no devolvió texto'); return _done(gen); } LAST_TEXT=txt; LAST_SCOPE=SCOPE; LAST_LEGKEY=(SCOPE==='leg'?_curLegKey():''); LAST_LANG=CUR.lang; try{ localStorage.setItem('db_lastText',txt); localStorage.setItem('db_lastScope',SCOPE); localStorage.setItem('db_lastLegKey',LAST_LEGKEY); localStorage.setItem('db_lastLang',LAST_LANG); }catch(e){}
-      renderText(txt); showDeckTransport(true); stat('Preparando voz…');
+      if(!txt){ stat('⚠ ARIA no devolvió texto'); return _done(); } LAST_TEXT=txt; LAST_SCOPE=SCOPE; LAST_LEGKEY=(SCOPE==='leg'?_curLegKey():''); LAST_LANG=CUR.lang; try{ localStorage.setItem('db_lastText',txt); localStorage.setItem('db_lastScope',SCOPE); localStorage.setItem('db_lastLegKey',LAST_LEGKEY); localStorage.setItem('db_lastLang',LAST_LANG); }catch(e){}
+      renderText(txt); _fase='voz'; paintDeck(); stat('Preparando voz…');
       var ok=await prepareVoice();
-      if(ok){ var pb=q('#ar-play'); if(pb){ pb.disabled=false; pb.style.opacity='1'; } var bk=q('#ar-back'); if(bk){ bk.disabled=false; bk.style.opacity='1'; } var sb=q('#ar-stop'); if(sb){ sb.disabled=false; sb.style.opacity='1'; } var rg=q('#ar-regen'); if(rg){ rg.disabled=false; rg.style.opacity='1'; } stat(CUR.lang==='en'?'▶ Ready · plays offline':'▶ Listo · pulsa play (suena sin cobertura)'); showVoiceDock(false); if(_autoPlayNext){ _autoPlayNext=false; setTimeout(function(){ try{ if(audios.length&&!playing) togglePlay(); }catch(e){} }, 120); } }
+      // paintDeck (y no cuatro asignaciones sueltas) porque el panel puede haberse
+      // remontado mientras se troceaba la voz: hay que repintarlo entero, incluido
+      // el reproductor, no solo habilitar los botones del DOM anterior.
+      if(ok){ _fase=''; paintDeck(); stat(CUR.lang==='en'?'▶ Ready · plays offline':'▶ Listo · pulsa play (suena sin cobertura)'); showVoiceDock(false); if(_autoPlayNext){ _autoPlayNext=false; setTimeout(function(){ try{ if(audios.length&&!playing) togglePlay(); }catch(e){} }, 120); } }
     }catch(e){ stat('⚠ '+(e&&e.message||e)); }
-    _done(gen);
+    _done();
   }
-  function _done(gen){ gen=gen||q('#ar-gen'); if(gen){ gen.disabled=false; gen.style.opacity='1'; gen.textContent=(CUR.lang==='en'?'▶ Regenerate':'▶ Generar de nuevo'); } }
+  function _done(){ _fase=''; paintDeck(); }
 
   var vOn=false,vStream=null,vRec=null,vChunks=[],vAC=null,_va=null,_ac=null,vSpeaking=false,_spk=0,vMuted=false,_emptyTurns=0,_micHeard=false,_convOn=false;
   function ensureMic(){ if(vStream) return Promise.resolve(vStream); if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) return Promise.reject(new Error('NoGUM')); var gum=function(c){ return navigator.mediaDevices.getUserMedia(c); }; var chain=gum({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}).catch(function(e){ if(e&&(e.name==='OverconstrainedError'||e.name==='NotReadableError'||e.name==='TypeError')) return gum({audio:true}); throw e; }).then(function(s){ vStream=s; return s; }); return Promise.race([ chain, new Promise(function(_,rej){ setTimeout(function(){ if(!vStream)rej(new Error('TimeoutMic')); }, 9000); }) ]); }
@@ -47071,21 +48039,14 @@ document.addEventListener('DOMContentLoaded', function(){
     // piloto cambió de sector, se descarta: ver el briefing del anterior es peor que no ver nada.
     if(LAST_SCOPE==='leg'){ var _ck=_curLegKey(); if(_ck && LAST_LEGKEY && _ck!==LAST_LEGKEY){ _dropBrief(); return; } }
     try{ renderText(LAST_TEXT); }catch(e){}
-    var hasAudio = audios.length>0 && total>0;
-    if(hasAudio){
-      try{ showDeckTransport(true); }catch(e){}
-      var pb=q('#ar-play'); if(pb){ pb.disabled=false; pb.style.opacity='1'; pb.textContent=(playing&&!paused)?'⏸':'▶'; }
-      var bk=q('#ar-back'); if(bk){ bk.disabled=false; bk.style.opacity='1'; }
-      var sb=q('#ar-stop'); if(sb){ sb.disabled=false; sb.style.opacity='1'; }
-      var rg=q('#ar-regen'); if(rg){ rg.disabled=false; rg.style.opacity='1'; }
-      var tot=q('#ar-tot'); if(tot)tot.textContent=fmt(total);
+    // La botonera la decide paintDeck a partir del estado — incluido el caso de que
+    // este montaje ocurra a mitad de una generación, en el que dice «Generando…» en
+    // vez de invitar a regenerar algo que ya viene de camino.
+    paintDeck();
+    if(audios.length>0 && total>0){
       var el=curElapsed(); var f=q('#ar-fill'); if(f&&total)f.style.width=Math.min(100,el/total*100)+'%';
       var c=q('#ar-cur'); if(c)c.textContent=fmt(el);
       try{ _hiByTime(curElapsed()); }catch(e){}
-      var gen=q('#ar-gen'); if(gen)gen.textContent=(CUR.lang==='en'?'▶ Regenerate':'▶ Generar de nuevo');
-    } else {
-      // Texto recuperado sin audio (recarga dura): se ve el briefing; para volver a oírlo, regenerar.
-      var gen2=q('#ar-gen'); if(gen2){ gen2.disabled=false; gen2.style.opacity='1'; gen2.textContent=(CUR.lang==='en'?'▶ Regenerate to listen':'▶ Generar de nuevo para oírlo'); }
     }
     try{ updateWelcome(); }catch(e){}
     try{ applyChrome(); }catch(e){}
@@ -47110,7 +48071,10 @@ document.addEventListener('DOMContentLoaded', function(){
     try{ if('mediaSession' in navigator){ navigator.mediaSession.playbackState='none'; navigator.mediaSession.metadata=null; } }catch(e){}
   };
   var _autoPlayNext=false;
-  window.__ariaMount=function(container){ _ariaMounted=true; try{ buildPanel(container); restoreState(); }catch(e){ try{ buildPanel(container); }catch(e2){} } try{ container.addEventListener('click',_ariaChromeTap); }catch(e){} try{ setTimeout(_ariaChromeApply,60); }catch(e){} try{ var _sa=(window.navigator&&window.navigator.standalone===true)||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches); if(!_sa) getPos(); }catch(e){} try{ window.__ariaRunAutoBrief(); }catch(e){} };
+  window.__ariaMount=function(container){ _ariaMounted=true; try{ buildPanel(container); restoreState(); }catch(e){ try{ buildPanel(container); }catch(e2){} }
+    // restoreState se planta si no hay texto todavía; si el remontaje llegó ANTES de que
+    // ARIA respondiera, el panel recién construido tiene que decir «Generando…» igualmente.
+    try{ if(_fase) paintDeck(); }catch(e){} try{ container.addEventListener('click',_ariaChromeTap); }catch(e){} try{ setTimeout(_ariaChromeApply,60); }catch(e){} try{ var _sa=(window.navigator&&window.navigator.standalone===true)||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches); if(!_sa) getPos(); }catch(e){} try{ window.__ariaRunAutoBrief(); }catch(e){} };
   // Consume el encargo del chip del Home. Vive aparte de __ariaMount porque si el piloto ya
   // estaba en la pestaña ARIA el panel NO se remonta y el encargo se quedaba sin ejecutar
   // (el chip no hacía nada), dejando además el alcance forzado colgado para el próximo montaje.
@@ -47435,7 +48399,27 @@ document.addEventListener('DOMContentLoaded', function(){
         ['Pantalla', screen.width+'×'+screen.height+' @'+(devicePixelRatio||1)+'x'],
         ['Zona horaria', Intl.DateTimeFormat().resolvedOptions().timeZone],
         ['Conexión', navigator.onLine?'online':'offline', navigator.onLine?'br-ok':'br-wn'],
-        ['Errores JS', errs?errs+' capturados':'ninguno', errs?'br-wn':'br-ok']
+        ['Errores JS', errs?errs+' capturados':'ninguno', errs?'br-wn':'br-ok'],
+        /* Capas que tapan la pantalla entera EN ESTE MOMENTO. Un reporte de «pulso y no
+           hace nada» sin esto no se puede diagnosticar: la app se ve normal y no hay
+           error de JS que mirar. Se excluye el propio formulario del reporte. */
+        (function(){
+          var capas=[];
+          try{
+            document.querySelectorAll('body *').forEach(function(n){
+              if(n.classList&&n.classList.contains('screen')) return;
+              if(String(n.id||'').indexOf('br-')===0) return;
+              var cs=getComputedStyle(n);
+              if(cs.position!=='fixed'||cs.display==='none'||cs.visibility==='hidden') return;
+              if(parseFloat(cs.opacity)===0||cs.pointerEvents==='none') return;
+              var r=n.getBoundingClientRect();
+              if(r.width<innerWidth-2||r.height<innerHeight-2) return;
+              var q='#'+(n.id||String(n.className||'').split(' ')[0]||n.tagName);
+              if(capas.indexOf(q)<0) capas.push(q);
+            });
+          }catch(e){ return ['Capas encima','(no se pudo mirar)','br-wn']; }
+          return ['Capas encima', capas.length?capas.join(' '):'ninguna', capas.length?'br-wn':'br-ok'];
+        })()
       ];
     }
     function renderTech(){ $('br-techrows').innerHTML = techData().map(function(r){ return '<div class="br-row"><span>'+r[0]+'</span><span class="'+(r[2]||'')+'">'+r[1]+'</span></div>'; }).join(''); }

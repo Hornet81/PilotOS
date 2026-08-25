@@ -72,7 +72,7 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){
    EX.tkSum / EX.tkLine: lo que suman los tickets, por nota y por línea. Es lo
    que convierte el tope del convenio en lo que de verdad vas a cobrar. */
 var EX = { auto: [], manual: [], sent: {}, pend: {}, tkCount: {}, tkSum: {}, tkLine: {},
-           base: BASE_DEFAULT, mes: null, sync: null };
+           base: (window.ppGet&&ppGet('base'))||BASE_DEFAULT, mes: null, sync: null };
 var ARRANCADO = false;
 var K_SENT = 'pilotos_gastos_enviadas', K_MAN = 'pilotos_gastos_manual',
     K_PEND = 'pilotos_gastos_porsubir', K_SYNCAT = 'pilotos_gastos_sync';

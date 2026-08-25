@@ -594,7 +594,7 @@ function packReceipts(noteTicketCount, rules) {
 
 /* ─────────────── export ─────────────── */
 var API = {
-  VY_RULES: VY_RULES, tzFor: tzFor, localToUTC: localToUTC, utcToLocal: utcToLocal,
+  VY_RULES: VY_RULES, tzFor: tzFor, localToUTC: localToUTC, utcToLocal: utcToLocal, tzOffsetMin: tzOffsetMin,
   isSpanishAirport: isSpanishAirport, buildTimeline: buildTimeline,
   slotsInvaded: slotsInvaded, dayScope: dayScope, detectDay: detectDay,
   detectPeriod: detectPeriod, isSpecialCity: isSpecialCity,
