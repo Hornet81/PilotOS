@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.622">
+  <meta name="version" content="Estable.623">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.622","builtAt":"2026-08-27T15:07:05Z","commit":"d12606e","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.623","builtAt":"2026-08-27T15:13:54Z","commit":"ec526c2","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -48099,7 +48099,21 @@ document.addEventListener('DOMContentLoaded', function(){
   // Volumen >100%: la parte <=1 atenua el <audio> (en vivo); la parte >1 sube la ganancia
   // horneada en el PCM (__ariaGain, base x2 al 100%, hasta x4 al 200%). BT-safe (sin Web Audio).
   window.__ariaGain=2.0*Math.max(1,CUR.vol||1);
-  var LAST_TEXT='', LAST_SCOPE='', LAST_LEGKEY='', LAST_LANG='';
+  var LAST_TEXT='', LAST_SCOPE='', LAST_LEGKEY='', LAST_LANG='', LAST_HUELLA='';
+  /* Huella de la JORNADA que narra un briefing: fecha, vuelo y horas de cada tramo,
+     más la versión de la app. El texto cacheado sobrevive a todo menos a «Reiniciar
+     conversación», así que un briefing seguía cantando «35 minutos de escala» después
+     de que le cambiaran el roster al piloto —o de que se corrigiera el cálculo— y no
+     había manera de que dijera otra cosa. Un briefing que narra horas no puede
+     sobrevivir a las horas que narró. */
+  function _briefHuella(){
+    try{
+      var ls=gatherLegs()||[];
+      var v=(window.__PILOTOS_VERSION__||{}).version||'';
+      return v+'::'+ls.map(function(l){ return (l.date||'')+'|'+(l.flight||'')+'|'+(l.std||'')+'|'+(l.sta||''); }).join('~');
+    }catch(e){ return ''; }
+  }
+  try{ window._ariaBriefHuella=_briefHuella; }catch(e){}   // el banco la llama tal cual
   // Firma del leg activo (el de la cinta de SkyView). Sirve para no repintar/reproducir un
   // briefing de OTRO leg cuando el piloto cambia de sector.
   function _legKey(l){ return l?((l.flight||'')+'|'+(l.dep||'')+'|'+(l.arr||'')):''; }
@@ -48583,8 +48597,8 @@ document.addEventListener('DOMContentLoaded', function(){
     try{ for(var i=0;i<audios.length;i++){ try{audios[i].a.pause();}catch(e){} } }catch(e){}
     try{ if(_va){ _va.pause(); _va.onended=null; } }catch(e){}
     audios=[]; curAudio=null; playing=false; paused=false; k=0; acc=0; total=0; durs=[]; SENT=[]; PEL=[]; SEG=[];
-    LAST_TEXT=''; LAST_SCOPE=''; LAST_LEGKEY=''; LAST_LANG='';
-    try{ localStorage.removeItem('db_lastText'); localStorage.removeItem('db_lastScope'); localStorage.removeItem('db_lastLegKey'); localStorage.removeItem('db_lastLang'); }catch(e){}
+    LAST_TEXT=''; LAST_SCOPE=''; LAST_LEGKEY=''; LAST_LANG=''; LAST_HUELLA='';
+    try{ localStorage.removeItem('db_lastText'); localStorage.removeItem('db_lastScope'); localStorage.removeItem('db_lastLegKey'); localStorage.removeItem('db_lastLang'); localStorage.removeItem('db_lastHuella'); }catch(e){}
     var tr=q('#ar-tr'); if(tr)tr.innerHTML='';
     var f=q('#ar-fill'); if(f)f.style.width='0';
     var c=q('#ar-cur'); if(c)c.textContent='0:00';
@@ -48642,7 +48656,7 @@ document.addEventListener('DOMContentLoaded', function(){
         var pos=await getPos(); try{ _locNote(pos); }catch(e){} var _bi=_baseInfo(); var lbody={legs:one,pilot:pilotName()||undefined,lang:CUR.lang,localHour:new Date().getHours(),yesterdayRoutes:prevDayRoutes(one)}; if(pos){ lbody.userLat=pos.lat; lbody.userLon=pos.lon; } if(_bi){ lbody.baseIcao=_bi.icao; lbody.baseLat=_bi.lat; lbody.baseLon=_bi.lon; lbody.baseLabel=_bi.label; } var r2=await fetch(BACKEND+'/api/briefing/drive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify(lbody)});
         if(!r2.ok){ var je=await r2.json().catch(function(){return{};}); stat('⚠ '+(je.message||je.error||('Error '+r2.status))); return _done(); } var d2=await r2.json(); txt=d2.text||'';
       }
-      if(!txt){ stat('⚠ ARIA no devolvió texto'); return _done(); } LAST_TEXT=txt; LAST_SCOPE=SCOPE; LAST_LEGKEY=(SCOPE==='leg'?_curLegKey():''); LAST_LANG=CUR.lang; try{ localStorage.setItem('db_lastText',txt); localStorage.setItem('db_lastScope',SCOPE); localStorage.setItem('db_lastLegKey',LAST_LEGKEY); localStorage.setItem('db_lastLang',LAST_LANG); }catch(e){}
+      if(!txt){ stat('⚠ ARIA no devolvió texto'); return _done(); } LAST_TEXT=txt; LAST_SCOPE=SCOPE; LAST_LEGKEY=(SCOPE==='leg'?_curLegKey():''); LAST_LANG=CUR.lang; LAST_HUELLA=_briefHuella(); try{ localStorage.setItem('db_lastText',txt); localStorage.setItem('db_lastScope',SCOPE); localStorage.setItem('db_lastLegKey',LAST_LEGKEY); localStorage.setItem('db_lastLang',LAST_LANG); localStorage.setItem('db_lastHuella',LAST_HUELLA); }catch(e){}
       renderText(txt); _fase='voz'; paintDeck(); stat('Preparando voz…');
       var ok=await prepareVoice();
       // paintDeck (y no cuatro asignaciones sueltas) porque el panel puede haberse
@@ -48946,7 +48960,7 @@ document.addEventListener('DOMContentLoaded', function(){
     // Recupera el texto de una recarga dura si el estado en memoria se perdió. SOLO el botón
     // "Reiniciar conversación" borra LAST_TEXT + localStorage, así que navegar (MAPAS, etc.)
     // nunca pierde el briefing.
-    if(!LAST_TEXT){ try{ var _s=localStorage.getItem('db_lastText'); if(_s){ LAST_TEXT=_s; LAST_SCOPE=localStorage.getItem('db_lastScope')||SCOPE; LAST_LEGKEY=localStorage.getItem('db_lastLegKey')||''; LAST_LANG=localStorage.getItem('db_lastLang')||''; } }catch(e){} }
+    if(!LAST_TEXT){ try{ var _s=localStorage.getItem('db_lastText'); if(_s){ LAST_TEXT=_s; LAST_SCOPE=localStorage.getItem('db_lastScope')||SCOPE; LAST_LEGKEY=localStorage.getItem('db_lastLegKey')||''; LAST_LANG=localStorage.getItem('db_lastLang')||''; LAST_HUELLA=localStorage.getItem('db_lastHuella')||''; } }catch(e){} }
     if(!LAST_TEXT) return;
     /* ⚠️ El briefing guardado es de UN idioma concreto. Sin esta comprobación, el
        que quedó en inglés se recuperaba al entrar aunque el piloto hubiera puesto
@@ -48958,6 +48972,12 @@ document.addEventListener('DOMContentLoaded', function(){
        arreglo) tampoco se recupera: no sabemos en qué idioma está y adivinar es
        precisamente lo que causó el fallo. Se pierde UNA vez por dispositivo. */
     if(LAST_LANG !== CUR.lang){ _dropBrief(); return; }
+    /* Y si la jornada que narra ya no es la que el piloto tiene delante —le movieron el
+       roster, o cambió la versión que calcula las horas— se descarta igual. Sin huella
+       anotada (briefing de una versión anterior a esto) tampoco se recupera: no sabemos
+       de qué jornada habla. Se pierde UNA vez por dispositivo, como pasó con el idioma. */
+    var _hu=_briefHuella();
+    if(_hu && LAST_HUELLA !== _hu){ _dropBrief(); return; }
     // Un briefing de UN sector solo se repinta si sigue siendo el leg elegido en la cinta. Si el
     // piloto cambió de sector, se descarta: ver el briefing del anterior es peor que no ver nada.
     if(LAST_SCOPE==='leg'){ var _ck=_curLegKey(); if(_ck && LAST_LEGKEY && _ck!==LAST_LEGKEY){ _dropBrief(); return; } }
