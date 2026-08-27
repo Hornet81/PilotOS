@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.620">
+  <meta name="version" content="Estable.621">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.620","builtAt":"2026-08-27T14:20:48Z","commit":"4b41e5b","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.621","builtAt":"2026-08-27T14:29:30Z","commit":"5224c68","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -38260,9 +38260,14 @@ window.rosterSelectDay = function(dateStr){
            bailaba solo según entraban estimadas o reales.
            El respaldo va al revés que en el resto de la app a propósito: si un
            tramo no trae hora programada —eCrews a veces manda «--:--»— se tira de
-           la estimada y, en último caso, de la real, que es mejor que un guion. */
-        var prevSta = prevE.sta || prevE.sta_estimated || prevE.sta_actual;
-        var currStd = e.std || e.std_estimated || e.std_actual;
+           la estimada y, en último caso, de la real, que es mejor que un guion.
+           Y la programada de verdad es `std_scheduled`, la que _rstReconcileSched
+           BLOQUEA en la primera importación: `std` es la hora VIGENTE y una
+           reasignación del roster la reescribe. Leyendo solo `std` la escala volvía
+           a bailar en cuanto a la tripulación le movían el día. Misma precedencia
+           que `_schStd`/`_schSta` de la proyección de retrasos. */
+        var prevSta = prevE.sta_scheduled || prevE.sta || prevE.sta_estimated || prevE.sta_actual;
+        var currStd = e.std_scheduled || e.std || e.std_estimated || e.std_actual;
         if(prevSta && String(prevSta).indexOf(':')>-1 && currStd && String(currStd).indexOf(':')>-1){
           var staM3=parseInt(prevSta.split(':')[0])*60+parseInt(prevSta.split(':')[1]);
           var stdM3=parseInt(currStd.split(':')[0])*60+parseInt(currStd.split(':')[1]);
