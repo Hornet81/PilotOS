@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.623">
+  <meta name="version" content="Estable.624">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.623","builtAt":"2026-08-27T15:13:54Z","commit":"ec526c2","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.624","builtAt":"2026-08-27T15:34:55Z","commit":"50d2962","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -47881,7 +47881,9 @@ document.addEventListener('DOMContentLoaded', function(){
   function pilotName(){ try{ return (window.ppGet&&ppGet('nombre'))||localStorage.getItem('pilot_name')||'Comandante'; }catch(e){ return 'Comandante'; } }
   function stripZ(s){ return String(s||'').replace(/[^0-9:]/g,''); }
   function getPos(){ return new Promise(function(res){ if(!navigator.geolocation) return res(null); var done=false; function fin(v){ if(done)return; done=true; res(v); } try{ navigator.geolocation.getCurrentPosition(function(p){ fin({lat:p.coords.latitude, lon:p.coords.longitude}); }, function(){ fin(null); }, { timeout:6000, maximumAge:300000 }); }catch(e){ fin(null); } setTimeout(function(){ fin(null); }, 7000); }); }
-  function cfg(){ return { lang: (window.ppGet&&ppGet('idioma'))||localStorage.getItem('db_lang')||'es', voice: (function(){ var _v=localStorage.getItem('db_voice')||'nova'; return ['nova','shimmer','coral','sage','alloy'].indexOf(_v)>=0?_v:'nova'; })(), rate: parseFloat(localStorage.getItem('db_rate'))||1, vol: localStorage.getItem('db_vol')!=null?parseFloat(localStorage.getItem('db_vol')):1, autoMic: localStorage.getItem('db_autoMic')!=='0' }; }
+  // Misma resolución que ARIA: la elección EXPLÍCITA del selector ES/EN (db_lang) manda
+  // sobre el idioma del perfil. Al revés, el toggle de ARIA no movía este briefing.
+  function cfg(){ return { lang: localStorage.getItem('db_lang')||(window.ppGet&&ppGet('idioma'))||'es', voice: (function(){ var _v=localStorage.getItem('db_voice')||'nova'; return ['nova','shimmer','coral','sage','alloy'].indexOf(_v)>=0?_v:'nova'; })(), rate: parseFloat(localStorage.getItem('db_rate'))||1, vol: localStorage.getItem('db_vol')!=null?parseFloat(localStorage.getItem('db_vol')):1, autoMic: localStorage.getItem('db_autoMic')!=='0' }; }
   function saveCfg(k,v){ try{ localStorage.setItem('db_'+k, v); }catch(e){} }
   function seg(a){ return 'flex:1;padding:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;'+(a?'background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff':'background:transparent;color:#9fb3bd'); }
   var VOICES=[['nova','Nova — cercana (por defecto)'],['shimmer','Shimmer — suave'],['coral','Coral — expresiva'],['sage','Sage — serena'],['alloy','Alloy — neutra']];
@@ -48085,8 +48087,17 @@ document.addEventListener('DOMContentLoaded', function(){
   function pilotName(){ return lg('pilot_name','') ; }
   var ALLOW=['nova','shimmer','coral','sage','alloy'];
   var VOICES=[['nova','Nova — cercana (por defecto)'],['shimmer','Shimmer — suave'],['coral','Coral — expresiva'],['sage','Sage — serena'],['alloy','Alloy — neutra']];
-  function cfg(){ return { lang:lg('db_lang','en'),
-    voice:(function(){ var v=lg('db_voice','coral'); return ALLOW.indexOf(v)>=0?v:'coral'; })(),
+  /* Idioma y voz salen de la MISMA resolución que el briefing del Home: los dos
+     módulos leen db_lang y db_voice, así que dos defaults distintos son dos apps
+     distintas sobre los mismos ajustes.
+     · idioma: mandaba 'en' por defecto y ARIA saludaba «Good afternoon» a un piloto
+       con el perfil en castellano. Manda la elección EXPLÍCITA del selector ES/EN
+       (db_lang); si no la hay, el idioma del perfil; y sólo entonces castellano.
+     · voz: por defecto era 'coral' mientras su propio desplegable dice «Nova —
+       cercana (por defecto)» y el briefing del Home usaba nova. Se oía una voz que
+       no aparecía elegida en ninguna parte. */
+  function cfg(){ return { lang:(lg('db_lang',null)||(window.ppGet&&ppGet('idioma'))||'es'),
+    voice:(function(){ var v=lg('db_voice','nova'); return ALLOW.indexOf(v)>=0?v:'nova'; })(),
     rate:parseFloat(lg('db_rate','1.10'))||1.10,
     vol:(lg('db_vol',null)!=null?parseFloat(lg('db_vol','1')):1),
     autoMic: lg('db_autoMic','1')!=='0' }; }
