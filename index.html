@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.621">
+  <meta name="version" content="Estable.622">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.621","builtAt":"2026-08-27T14:29:30Z","commit":"5224c68","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.622","builtAt":"2026-08-27T15:07:05Z","commit":"d12606e","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -34695,9 +34695,14 @@ function buildLegsFromRoster() {
     // ARIA/briefing usan la hora PROGRAMADA (scheduled), igual que el roster (bloquea la "S 🔒"
     // y la muestra; coincide con el documento de la compañía). La ESCALA se calcula de estas
     // horas programadas. Solo cae a estimada/actual si faltara la programada.
-    function _pickT(s, e, a) { var arr = [s, e, a]; for (var i = 0; i < arr.length; i++) { var v = arr[i]; if (v != null && v !== '' && v !== 'null') { v = String(v).slice(0, 5); if (/^\d{1,2}:\d{2}$/.test(v)) return v; } } return ''; }
-    function _stdOf(e) { return _pickT(e.std, e.std_estimated, e.std_actual); }
-    function _staOf(e) { return _pickT(e.sta, e.sta_estimated, e.sta_actual); }
+    // La programada de verdad es `std_scheduled`, la que _rstReconcileSched BLOQUEA en
+    // la primera importación del mes y que ninguna actualización posterior reescribe —
+    // es la que el roster enseña en la fila «S 🔒». `std` es la hora VIGENTE: cuando a
+    // la tripulación le reasignan el día pasa a valer la nueva. Leyendo solo `std`, ARIA
+    // cantaba 35 min de escala donde el roster decía 40, con el mismo roster delante.
+    function _pickT() { for (var i = 0; i < arguments.length; i++) { var v = arguments[i]; if (v != null && v !== '' && v !== 'null') { v = String(v).slice(0, 5); if (/^\d{1,2}:\d{2}$/.test(v)) return v; } } return ''; }
+    function _stdOf(e) { return _pickT(e.std_scheduled, e.std, e.std_estimated, e.std_actual); }
+    function _staOf(e) { return _pickT(e.sta_scheduled, e.sta, e.sta_estimated, e.sta_actual); }
     function _legArrMs(e) {
       var std = _stdOf(e) || '00:00';
       var sta = _staOf(e) || std;
