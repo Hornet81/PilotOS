@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.618">
+  <meta name="version" content="Estable.619">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.618","builtAt":"2026-08-27T13:39:13Z","commit":"bbf58a8","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.619","builtAt":"2026-08-27T13:49:01Z","commit":"2dd8109","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -38223,13 +38223,32 @@ window.rosterSelectDay = function(dateStr){
     };
     // Office standby / standby SIEMPRE encima de los legs: primero te sacan de la
     // guardia (OSB) y luego te dan los vuelos. El resto de actividades, debajo.
-    var _isPreAct = function(e){ return e.type==='standby' || e.type==='osb'; };
-    var _preAct  = nonFlights.filter(_isPreAct).sort(_actByTime);
-    var _postAct = nonFlights.filter(function(e){ return !_isPreAct(e); }).sort(_actByTime);
-    _preAct.forEach(function(e){ html += _actBanner(e); });
+    /* ── El día se lee en ORDEN DE RELOJ ──────────────────────────────────────
+       Antes las guardias se pintaban SIEMPRE encima de los tramos, con la idea de
+       que primero te sacan de la imaginaria y luego te dan los vuelos. Se rompe en
+       cuanto el día trae un vuelo de continuación de la noche anterior: el 25-ago
+       salía la imaginaria de las 12:35 y la AAI de las 19:20 por ENCIMA del VY6653
+       que aterrizó a las 00:12. Y con una guardia normal el orden de reloj da lo
+       mismo que la regla vieja —12:35 va antes que un despegue de las 18:29— así
+       que la regla no aportaba nada y sí estorbaba.
+       Cada tramo y cada actividad se marcan con su hora de inicio y se ordenan
+       juntos, de lo más temprano a lo más tardío. */
+    var _horaDeAct = function(e){
+      var t = e.std || e.start || e.checkin;
+      return (t && String(t).indexOf(':')>-1) ? t2m(t) : 9999;
+    };
+    var _horaDeLeg = function(e){
+      var t = e.std_actual || e.std_estimated || e.std;
+      return (t && String(t).indexOf(':')>-1) ? t2m(t) : 9999;
+    };
+    var _piezas = [];   // {t, html} — se ordena al final
+    // Marcas para trocear la salida del bucle de tramos: ese bucle dibuja también
+    // las escalas ENTRE tramos, así que no se puede intercalar dentro sin romperlas.
+    var _legIni = html.length, _legMarcas = [];
 
     // ── Render flights with legs + stopover ──
     flights.forEach(function(e, i){
+      _legMarcas.push(html.length);
       if(i > 0){
         var prevE = flights[i-1];
         var stopovertxt = '—'; var diff3 = 0;
@@ -38413,6 +38432,23 @@ window.rosterSelectDay = function(dateStr){
         + '</div>';
     });
 
+    /* Trocear la salida del bucle: cada tramo con su hora, para poder ordenarlo con
+       las actividades. La escala que precede a un tramo viaja pegada a él, así que
+       una actividad intercalada no parte ningún par. */
+    _legMarcas.push(html.length);
+    var _legsRaw = html.slice(_legIni);
+    html = html.slice(0, _legIni);
+    flights.forEach(function(e, i){
+      _piezas.push({ t: _horaDeLeg(e),
+                     html: _legsRaw.slice(_legMarcas[i] - _legIni, _legMarcas[i+1] - _legIni) });
+    });
+    nonFlights.forEach(function(e){ _piezas.push({ t: _horaDeAct(e), html: _actBanner(e) }); });
+    // `stable`: dos cosas a la misma hora conservan el orden en que llegaron.
+    _piezas.map(function(x, i){ x._i = i; return x; })
+           .sort(function(a, b){ return (a.t - b.t) || (a._i - b._i); })
+           .forEach(function(x){ html += x.html; });
+
+
     // ── FDP / DP panel ──
     // Solo los vuelos cuya JORNADA empieza este día generan caja de límites FTL.
     // Las legs de continuación nocturna (_isMidnightCont) pertenecen a la jornada
@@ -38539,9 +38575,7 @@ window.rosterSelectDay = function(dateStr){
       } catch(fdpErr){ console.warn('FDP panel error:', fdpErr); }
     }
 
-    // ── Resto de actividades (LM, EBT, REU, sim, off…) bajo los legs, por hora ──
-    // El standby/OSB ya se pintó ARRIBA (sobre los legs). Estas van ENCIMA del FTL.
-    _postAct.forEach(function(e){ html += _actBanner(e); });
+    // Las actividades ya se pintaron arriba, en su hora, junto con los tramos.
 
     // La caja de límites FTL del día con vuelos va DEBAJO de las actividades.
     html += _fdpHtml;
