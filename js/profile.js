@@ -21,6 +21,12 @@
     compania: '', base: '', flota: '', empleado: '',
     rol: '',            // CPT | FO  -> manda sobre lo que hoy DEDUCE el logbook
     idioma: '',         // es | en   -> manda sobre ARIA (era el #RM4KZ de Marc)
+    // '' = Zulu (como siempre) | 'local' = la hora del reloj del piloto. SÓLO afecta a
+    // cómo se PINTA el roster: el dato sigue en Z, y el logbook ni se entera (es EASA).
+    husoVista: '',
+    // La zona en la que estaba el piloto al ACTIVAR el modo local. Si luego cambia (viaja),
+    // el roster lo avisa: es la misma hora de vuelo pintada en otro huso.
+    husoRef: '',
     iaContexto: false,  // el piloto decide si CAFI sabe quién es
     tieneFoto: false, tieneFirma: false
   };
@@ -423,6 +429,13 @@
       '#scr-perfil .pp-btn-sm{font-family:inherit;font-size:12px;font-weight:600;padding:6px 12px;border-radius:9px;',
       '  border:1px solid var(--ppLine);background:rgba(127,127,127,.12);color:var(--ppAcc);cursor:pointer}',
       '#scr-perfil .pp-btn-sm.danger{color:#F43F5E;border-color:rgba(244,63,94,.3)}',
+      /* Aviso del huso: ámbar, dentro de la propia tarjeta, sólo cuando está en local */
+      '#scr-perfil .pp-aviso{margin:0 13px 12px;padding:11px 12px;border-radius:12px;',
+      '  background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.32)}',
+      '#scr-perfil .pp-aviso-t{font-size:12.5px;font-weight:700;color:#F59E0B;margin-bottom:5px}',
+      '#scr-perfil .pp-aviso-b{font-size:11.5px;line-height:1.55;color:var(--ppDim)}',
+      '#scr-perfil .pp-aviso-z{font-family:\'Space Mono\',monospace;font-size:11px;color:var(--ppAcc);',
+      '  margin-top:8px;padding-top:7px;border-top:1px solid rgba(245,158,11,.22)}',
       '#scr-perfil .pp-row-firma{border-bottom:none;padding-bottom:4px}',
       '#scr-perfil .pp-ok{color:#10B981;font-size:15px;font-weight:700}',
       /* El recuadro de la firma: grande, con borde discontinuo, como el papel del logbook */
@@ -486,6 +499,31 @@
       var ia = document.getElementById('pp-ia-sub');
       if (ia) ia.textContent = ppContextoIA() || 'Rellena rol, compañía y base';
     } catch (e) {}
+  }
+
+  /* Dónde está anclado el reloj AHORA MISMO. Se enseña junto al aviso porque es lo que
+     convierte "ojo, puede cambiar" en algo comprobable de un vistazo. */
+  function _zonaActual() {
+    var z = '', off = 0;
+    try { z = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+    try { off = -new Date().getTimezoneOffset(); } catch (e) {}
+    var signo = off < 0 ? '-' : '+';
+    var a = Math.abs(off);
+    return {
+      zona: z || 'la de este dispositivo',
+      desfase: 'UTC' + signo + String(Math.floor(a / 60)).padStart(2, '0') + ':' + String(a % 60).padStart(2, '0')
+    };
+  }
+
+  function _avisoHusoHtml() {
+    var z = _zonaActual();
+    return '<div class="pp-aviso">' +
+      '<div class="pp-aviso-t">⚠️ Cambia según dónde estés</div>' +
+      '<div class="pp-aviso-b">Las horas salen del reloj de este dispositivo, así que <b>se adaptan al país en el que estés</b>. ' +
+      'Si pernoctas en Londres, tu roster se verá una hora antes que en España — y el vuelo es el mismo. ' +
+      'Al hablar con la compañía o con otro piloto, usa siempre el zulú.</div>' +
+      '<div class="pp-aviso-z">Ahora mismo: <b>' + _esc(z.zona) + '</b> · ' + z.desfase + '</div>' +
+    '</div>';
   }
 
   function _fila(ico, titulo, sub, campo, ph, ancho) {
@@ -568,6 +606,21 @@
           '<option value="es"' + (PROFILE.idioma === 'es' ? ' selected' : '') + '>Castellano</option>' +
           '<option value="en"' + (PROFILE.idioma === 'en' ? ' selected' : '') + '>English</option>' +
         '</select></div>' +
+      // Sólo cambia cómo se PINTA el roster. El dato sigue en Z, el logbook no se toca
+      // (documento EASA) y ARIA tampoco: te habla en zulú y lo dice en cada hora.
+      '<div class="pp-row"><div class="pp-ico">🕐</div>' +
+        '<div class="pp-lbl"><b>Horas del roster</b><span>' +
+          (PROFILE.husoVista === 'local' ? 'En la hora de este dispositivo' : 'En zulú, como la compañía') +
+        '</span></div>' +
+        '<select class="pp-in" onchange="ppSetHuso(this.value)">' +
+          '<option value=""' + (PROFILE.husoVista !== 'local' ? ' selected' : '') + '>Zulú (Z)</option>' +
+          '<option value="local"' + (PROFILE.husoVista === 'local' ? ' selected' : '') + '>Local (LT)</option>' +
+        '</select></div>' +
+      /* El aviso NO es un detalle: la hora sale del dispositivo, así que el MISMO roster se
+         ve distinto según dónde estés. Un piloto que pernocta en Londres ve una hora y su
+         compañero en Barcelona ve otra, del mismo vuelo. Se dice, y se enseña la zona en la
+         que está anclado AHORA, que es lo que despeja la duda cada vez que lo mira. */
+      (PROFILE.husoVista === 'local' ? _avisoHusoHtml() : '') +
       '<div class="pp-row"><div class="pp-ico">🤖</div>' +
         '<div class="pp-lbl"><b>CAFI sabe quién eres</b><span id="pp-ia-sub">' +
           (ppContextoIA() ? _esc(ppContextoIA()) : 'Rellena rol, compañía y base') + '</span></div>' +
@@ -719,6 +772,20 @@
       if (typeof showToast === 'function') showToast(e.message || 'No se pudo guardar la foto', 'error');
     });
   }
+
+  /* El roster ya sabía pintar en local (RST.useLT + rstFormatTime, con sus sufijos LT/UTC):
+     lo que faltaba era que la elección se RECORDARA — era una variable en memoria y volvía
+     a Z en cada recarga — y poder cambiarla desde aquí. El botón de la cabecera del roster
+     y este selector son ahora la misma preferencia. */
+  function ppSetHuso(v) {
+    var esLocal = (v === 'local');
+    var ref = '';
+    if (esLocal) { try { ref = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {} }
+    ppSave({ husoVista: esLocal ? 'local' : '', husoRef: ref });
+    try { if (typeof window.rstAplicarHuso === 'function') window.rstAplicarHuso(); } catch (e) {}
+    ppRenderScreen();
+  }
+  window.ppSetHuso = ppSetHuso;
 
   window.ppRenderScreen = ppRenderScreen;
   window.ppOnFoto = ppOnFoto;

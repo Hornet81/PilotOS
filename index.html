@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Beta.584">
+  <meta name="version" content="Estable.617">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.584","builtAt":"2026-08-25T10:46:52Z","commit":"8bea7b0","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.617","builtAt":"2026-08-27T13:34:05Z","commit":"b7fe35d","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -13922,10 +13922,24 @@ function goTo(key){
   }
   if (key === 'perfil' && typeof ppRenderScreen === 'function') ppRenderScreen();
   if (key === 'upgrade') upgUpdateCards();
-  if (key === 'roster' && window.rosterInit) window.rosterInit();
+  if (key === 'roster') {
+    // La preferencia de huso vive en el perfil: aplicarla ANTES de pintar, o el roster
+    // se abre en Z aunque el piloto tenga elegido local.
+    try { if (window.rstAplicarHuso) window.rstAplicarHuso(false); } catch(e){}
+    if (window.rosterInit) window.rosterInit();
+  }
   if (key === 'docs' && typeof renderWallet === 'function') { renderWallet(); if (typeof docCloudPull === 'function') docCloudPull(true); }
   if (key === 'home') {
-    _ldSaludoHome();
+    /* `_ldSaludoHome` no existe en ninguna parte: la llamada entró en Beta.585 —
+       probablemente el nombre que tuvo `_ldTrato` antes de renombrarse— y como no
+       está definida, CADA entrada a Inicio lanzaba un ReferenceError y abortaba el
+       resto de goTo: no se refrescaba la tarjeta del roster, no se animaba el chip
+       de reportar y no se bajaba el roster del servidor. El saludo ya lo resuelve
+       _ldTrato() dentro de _getFirstName, así que aquí basta con refrescar lo que
+       lo pinta — y hacerlo sin poder tumbar la navegación. */
+    try { if (typeof _ldSaludoHome === 'function') _ldSaludoHome();
+          else if (typeof updateUserAvatar === 'function') updateUserAvatar(window.currentUser || {}); }
+    catch(e){}
     dhUpdateRosterCard();
     if (typeof dhPlayReportFlip === 'function') setTimeout(dhPlayReportFlip, 90);
     setTimeout(function(){
@@ -35679,7 +35693,14 @@ function rstRenderCalendar(){
     FR:   { bg:'#ec7063', bd:'#d35f55', tx:'#FFFFFF', gl:'rgba(236,112,99,.5)', desc:'Franco' },
     // DS = Day without changes (el piloto pide que NO le cambien ese día). Color
     // frambuesa propio (sin usar en la app) + icono de calendario con check (blanco).
-    DS:   { bg:'#d6457d', bd:'#b83668', tx:'#FFFFFF', gl:'rgba(214,69,125,.5)', desc:'Día sin cambios' }
+    DS:   { bg:'#d6457d', bd:'#b83668', tx:'#FFFFFF', gl:'rgba(214,69,125,.5)', desc:'Día sin cambios' },
+    // AA / AAI = actividad aeroportuaria (nacional e internacional). Color topo: es el
+    // mismo (#826E6A) que usa la app de Vueling para estas tiras, para que el piloto
+    // reconozca la actividad de un vistazo sin tener que leer el código.
+    // NO son imaginaria: son actividad en el aeropuerto y computan ENTERAS para el
+    // acumulado del mes (ORO.FTL.225(b)), no al 25 % del convenio.
+    AA:   { bg:'#826E6A', bd:'#6B5955', tx:'#FFFFFF', gl:'rgba(130,110,106,.5)', desc:'Actividad aeroportuaria' },
+    AAI:  { bg:'#826E6A', bd:'#6B5955', tx:'#FFFFFF', gl:'rgba(130,110,106,.5)', desc:'Actividad aeroportuaria internacional' }
   };
   // Tipos de DESCANSO: un día así está LIBRE (no hay jornada propia). Se usa para
   // decidir si un día invadido de madrugada por el duty anterior enseña SOLO el 1/3
@@ -35693,6 +35714,25 @@ function rstRenderCalendar(){
     if(!code) return null;
     var u = String(code).toUpperCase();
     return RST_CODE_STYLE[u] || (/^LM/.test(u) ? RST_CODE_STYLE.TR : null);
+  };
+  /* ── Cuánto DUTY aporta una actividad que no es un vuelo ──────────────────
+     Esto estaba escrito DOS veces —el total del mes y la tarjeta del día— y las
+     dos leían la ventana de `checkin`/`checkout`, que las guardias de eCrews no
+     traen (vienen en `std`/`sta`). El día 25-ago salía como «6h50 duty completo»
+     en la tarjeta mientras el mes contaba 1h46 por lo mismo. Una sola regla, y
+     las dos preguntan aquí.
+       · imaginaria que NO es de aeropuerto → 25 % de la ventana (convenio),
+         y en hotel standby descontando antes 2 h de movilización.
+       · imaginaria DE AEROPUERTO y actividad aeroportuaria (ASBY/AA/AAI) →
+         ENTERA: ORO.FTL.225(b) la computa al 100 % para el acumulado. */
+  window.rstGuardiaEntera = function(code){ return /^(ASBY|AA|AAI)$/i.test(code||''); };
+  // La ventana de una actividad, venga de eCrews (std/sta), del PDF
+  // (checkin/checkout) o de una actividad de tierra (start/end).
+  window.rstVentanaAct = function(e){
+    if(!e) return null;
+    var s = e.checkin || e.std || e.start, en = e.checkout || e.sta || e.end;
+    if(!s || !en || String(s).indexOf(':')<0 || String(en).indexOf(':')<0) return null;
+    return { ini:String(s), fin:String(en) };
   };
   // Iconos inline (SVG) para las tiras del calendario. fill = color del texto de la
   // tira. La PWA funciona offline → todo embebido, sin assets externos.
@@ -35913,7 +35953,10 @@ function rstRenderCalendar(){
         var _t2m = function(t){ var x = String(t).split(':'); return parseInt(x[0])*60 + parseInt(x[1]); };
         var _cks  = flights.map(function(f){ return f.checkin; }).filter(function(c){ return c && String(c).indexOf(':')>-1; }).map(_t2m);
         var _stds = flights.map(function(f){ return f.std || f.std_actual; }).filter(function(s){ return s && String(s).indexOf(':')>-1; }).map(_t2m);
-        var _fmtM = function(m){ m = ((m%1440)+1440)%1440; return String(Math.floor(m/60)).padStart(2,'0') + ':' + String(m%60).padStart(2,'0'); };
+        // La hora de la tira del calendario sigue la misma preferencia que el resto del
+        // roster: en modo local se pintaba en Z, y era la ÚNICA hora de la pantalla sin
+        // convertir y sin etiqueta — la más peligrosa, porque es la del despertador.
+        var _fmtM = function(m){ if(RST.useLT) m += RST.tzOffset; m = ((m%1440)+1440)%1440; return String(Math.floor(m/60)).padStart(2,'0') + ':' + String(m%60).padStart(2,'0'); };
         var timeStr;
         if(_cks.length){
           timeStr = '✈ ' + _fmtM(Math.min.apply(null, _cks));               // firma real
@@ -36078,7 +36121,12 @@ function rstRenderCalendar(){
 
 // ── Stats ──
 function rstRenderStats(){
-  var flights=0, blockMin=0, standby=0, off=0, dutyDays=0, dutyMin=0;
+  var flights=0, blockMin=0, standby=0, off=0, dutyMin=0;
+  /* Días de actividad: un CONJUNTO de fechas, no un contador. Se incrementaba una vez
+     por entrada, así que un día con dos actividades —el 25-ago: OSB3 + AAI— contaba
+     como dos días. Con el conjunto, un día es un día venga con lo que venga. */
+  var _diasAct = {};
+  var _marcaDia = function(d){ if(d) _diasAct[d] = true; };
   // Bloques de duty de actividad de tierra por fecha (LM, EBT, EVA, training, AAI):
   // fusiona la ventana de TODAS las actividades del día (primer inicio → último fin)
   // en un único duty, que se añade a dutyMin/dutyDays tras el bucle. Evita doble
@@ -36144,24 +36192,32 @@ function rstRenderStats(){
       //   - ADDITIONALLY: 25% of the standby window (checkin → checkout = activation
       //     time) counts as monthly duty credit (appears only in total, not per-day row).
       if(e.type==='standby'){
-        var _sbStart = e.checkin, _sbEnd = e.checkout;
-        if(_sbStart && _sbEnd && _sbStart.indexOf(':')>-1 && _sbEnd.indexOf(':')>-1){
-          var _sbD = t2m(_sbEnd) - t2m(_sbStart);
+        /* La ventana de la guardia NO vive siempre en checkin/checkout: las guardias
+           que llegan de eCrews se guardan en std/sta. Leer solo checkin/checkout hacía
+           que TODAS las de eCrews se cayeran a la rama de abajo y sumaran la ventana
+           ENTERA al duty del mes — una guardia de 12 h sumaba 12 h en vez de 3. En un
+           mes importado de eCrews no se veía porque el total se sobrescribe después con
+           el duty oficial de la compañía; en uno de PDF o metido a mano, sí. */
+        var _sbVen = window.rstVentanaAct(e);
+        var _sbEntera = window.rstGuardiaEntera(e.code);
+        if(_sbEntera){
+          if(_sbVen) _accDuty(e.date, _sbVen.ini, _sbVen.fin);
+        } else if(_sbVen){
+          var _sbD = t2m(_sbVen.fin) - t2m(_sbVen.ini);
           if(_sbD < 0) _sbD += 1440;
           // HSBY: restar 2h de tiempo de movilización (Vueling CBA: las primeras 2h del
           // hotel standby son tiempo de descanso protegido → no computan para el crédito).
-          // Resto de SBY (2SBY, NSBY, ASBY…): ventana completa al 25%.
           var _sbEff = /^HSBY$/i.test(e.code||'') ? Math.max(0, _sbD - 120) : _sbD;
           // 25% credit (non-activated standby)
-          if(_sbEff > 0){ dutyMin += Math.round(_sbEff * 0.25); if(!e.midnightTail) dutyDays++; }
-        } else {
-          // Standby sin checkin/checkout pero con ventana (AAI, actividad
-          // aeroportuaria): cuenta como duty COMPLETO (std→sta), no 25%.
-          _accDuty(e.date, e.std||e.start, e.sta||e.end);
+          // El día solo cuenta como día de actividad si NO hay ya vuelos: una guardia
+          // activada y sus vuelos son UNA jornada, no dos.
+          if(_sbEff > 0){ dutyMin += Math.round(_sbEff * 0.25);
+                          if(!e.midnightTail) _marcaDia(e.date); }
         }
       } else if(e.type==='osb'){
-        var _osbStart = e.checkin, _osbEnd = e.checkout;
-        if(_osbStart && _osbEnd && _osbStart.indexOf(':')>-1 && _osbEnd.indexOf(':')>-1){
+        var _osbVen = window.rstVentanaAct(e);
+        var _osbStart = _osbVen && _osbVen.ini, _osbEnd = _osbVen && _osbVen.fin;
+        if(_osbStart && _osbEnd && String(_osbStart).indexOf(':')>-1 && String(_osbEnd).indexOf(':')>-1){
           var _osbD = t2m(_osbEnd) - t2m(_osbStart);
           if(_osbD < 0) _osbD += 1440;
           // 25% monthly credit for the standby window before activation
@@ -36248,7 +36304,7 @@ function rstRenderStats(){
         // f.checkin is the pilot's sign-on time (plain time without S/A/E prefix in the PDF).
         // Debrief at Vueling is consistently ~20 min after block-in.
         var dutyStart = first.checkin || first.std_actual || first.std;
-        var lastSta   = last.sta_actual || last.sta;
+        var lastSta   = last.sta_actual || last.sta || last.sta_estimated;
         if(dutyStart && lastSta){
           var span = t2m(lastSta) - t2m(dutyStart);
           if(span < 0) span += 1440;
@@ -36261,7 +36317,7 @@ function rstRenderStats(){
         }
       }
     }
-    dutyDays++;
+    _marcaDia(date);
   });
 
   // Add LM training duty: first-session-start → last-session-end per day
@@ -36270,7 +36326,7 @@ function rstRenderStats(){
     var b = _lmBlocks[date];
     var d = t2m(b.end) - t2m(b.start);
     if(d < 0) d += 1440;
-    if(d > 0){ dutyMin += d; dutyDays++; }
+    if(d > 0){ dutyMin += d; _marcaDia(date); }
   });
 
   // ── OVERRIDE duty con el valor OFICIAL de eCrews (Item2) por día ──
@@ -36343,7 +36399,7 @@ function rstRenderStats(){
   if(ss)  ss.textContent  = standby;
   if(so)  so.textContent  = off;
   if(sd)  sd.textContent  = displayDuty  > 0 ? m2h(displayDuty)  : '0h';
-  if(sdd) sdd.textContent = dutyDays;
+  if(sdd) sdd.textContent = Object.keys(_diasAct).length;
 
   // Initial hours: save on first import, show on subsequent updates
   var storageKey = 'pilotOS_roster_initial_h_'+monthKey;
@@ -36403,13 +36459,85 @@ RST.useLT = false;
 RST.tzOffset = 0;
 function rstDetectTZ(){ try { RST.tzOffset = -new Date().getTimezoneOffset(); } catch(e){ RST.tzOffset=0; } }
 
-window.rosterToggleTZ = function(){
+/* Pinta el botón de la cabecera según la preferencia y repinta el roster. Se llama tanto
+   desde el botón como desde el selector del perfil: son la MISMA preferencia. */
+/* Dónde está anclado el reloj y en qué ciudad. La zona IANA es "Europe/Madrid": al piloto
+   se le enseña "Madrid", que es lo que entiende de un vistazo. */
+function _rstZonaActual(){
+  var z='';
+  try{ z = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; }catch(e){}
+  var ciudad = z ? String(z).split('/').pop().replace(/_/g,' ') : '';
+  return { zona:z, ciudad:ciudad };
+}
+
+/* El aviso VIVE EN EL ROSTER, no sólo en el perfil: el que se lee al configurarlo se olvida,
+   y el lío pasa después — mirando el roster desde otro país. Aquí se ve siempre que las horas
+   están en local, y salta en ámbar si el reloj ha cambiado de sitio desde que se activó. */
+function _rstPintaBannerHuso(){
+  var el = document.getElementById('rst-huso-banner');
+  if(!el) return;
+  if(!RST.useLT){ el.style.display='none'; el.innerHTML=''; return; }
+  var z = _rstZonaActual();
+  var ref=''; try{ ref = (window.ppGet && ppGet('husoRef')) || ''; }catch(e){}
+  var movido = ref && z.zona && ref !== z.zona;
+  var refCiudad = ref ? String(ref).split('/').pop().replace(/_/g,' ') : '';
+  /* El gris azulado se lee sobre fondo oscuro y DESAPARECE sobre el claro: medido, 5.8 de
+     contraste de noche y 1.9 de día, cuando el mínimo legible es 4.5. Un aviso que no se
+     lee no es un aviso, así que el color sigue al tema. */
+  var _dia = document.documentElement.classList.contains('day');
+  var cTexto = _dia ? 'rgba(15,23,42,.82)'   : 'rgba(214,224,238,.96)';
+  var cAmbar = _dia ? '#92400E'              : '#FBBF24';
+  /* La CAJA tiene que verse, no sólo el texto de dentro. Con un fondo casi transparente el
+     aviso se disolvía en el azul claro del roster y no parecía un aviso. De día va sólido
+     (como las tarjetas del Wallet) y de noche bien despegado del fondo, los dos con borde
+     marcado y sombra. */
+  var fondo = movido
+    ? (_dia ? '#FEF3C7' : 'rgba(120,74,10,.42)')
+    : (_dia ? '#FFFFFF' : 'rgba(12,74,110,.42)');
+  /* Un aviso sobre fondo del mismo tono se disuelve: la caja sola da 1.1 de contraste. Lo
+     que lo despega es el BORDE (para elementos gráficos hacen falta 3.0) y una barra de
+     color a la izquierda, que es lo que hace que el ojo lo lea como aviso y no como fondo. */
+  var borde = movido
+    ? (_dia ? '#B45309' : '#FBBF24')
+    : (_dia ? '#0369A1' : '#38BDF8');
+  var sombra = _dia ? '0 2px 8px rgba(2,132,199,.16)' : '0 2px 10px rgba(0,0,0,.4)';
+  el.style.display='block';
+  el.style.cssText = 'display:block;margin:10px 14px 0;padding:10px 12px;border-radius:11px;'
+    + 'font-family:\'Space Grotesk\',sans-serif;background:' + fondo
+    + ';border:1.5px solid ' + borde + ';border-left:4px solid ' + borde
+    + ';box-shadow:' + sombra;
+  el.innerHTML = movido
+    ? '<div style="font-size:12.5px;font-weight:700;color:'+cAmbar+';margin-bottom:3px">⚠️ Estás en ' + _esc2(z.ciudad) + '</div>'
+      + '<div style="font-size:11.5px;line-height:1.5;color:'+cTexto+'">Tu roster se ve en hora de <b>' + _esc2(z.ciudad)
+      + '</b>, no de ' + _esc2(refCiudad) + '. Es el mismo vuelo: sólo cambia cómo se pinta. Para hablar con la compañía, usa el zulú.</div>'
+    : '<div style="font-size:11.5px;color:'+cTexto+'">🕐 Horas en <b>hora local de ' + _esc2(z.ciudad)
+      + '</b> · el logbook y ARIA siguen en zulú</div>';
+}
+function _esc2(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+window.rstAplicarHuso = function(repintar){
   rstDetectTZ();
-  RST.useLT = !RST.useLT;
+  try { RST.useLT = (window.ppGet && ppGet('husoVista')) === 'local'; } catch(e){}
   var btn = document.getElementById('rst-tz-toggle');
   if(btn){ btn.textContent=RST.useLT?'LT':'UTC'; btn.style.background=RST.useLT?'#0369A1':'#EFF6FF'; btn.style.color=RST.useLT?'#fff':'#0369A1'; }
-  rstRenderCalendar(); rstRenderFlights();
-  if(RST.editDate) rosterSelectDay(RST.editDate);
+  try { _rstPintaBannerHuso(); } catch(e){}
+  if(repintar !== false){
+    try { rstRenderCalendar(); rstRenderFlights(); } catch(e){}
+    if(RST.editDate) { try { rosterSelectDay(RST.editDate); } catch(e){} }
+  }
+};
+
+window.rosterToggleTZ = function(){
+  // La elección se GUARDA en el perfil. Antes vivía sólo en memoria: elegías LT, cerrabas
+  // la app y al volver estaba otra vez en UTC, sin que nadie lo hubiera cambiado.
+  var aLocal = !RST.useLT;
+  try {
+    var _ref = ''; if (aLocal) { try { _ref = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch(e){} }
+    if (window.PilotProfile) PilotProfile.save({ husoVista: aLocal ? 'local' : '', husoRef: _ref });
+  } catch(e){}
+  RST.useLT = aLocal;
+  window.rstAplicarHuso();
 };
 
 function rstFormatTime(t){
@@ -36492,13 +36620,106 @@ function rstCalcFDP(flights, opts){
   // el vuelo posicional inicial (el duty empieza con la firma del posicional, no se excluye).
   // Fallback: STD del primer leg en orden de servicio − 55 min (estándar FTL si no hay firma).
   var reportMin = _cks.length ? _anchor : (toMin(firstStd)-55+1440)%1440;
-  var fdpEndMin = toMin(lastOperSta); if(fdpEndMin<reportMin) fdpEndMin+=1440;
+
+  /* ── La IMAGINARIA del día, y la firma que no puede caer dentro de ella ───────
+     Se busca aquí, ANTES de calcular nada, porque la firma contamina todo lo que
+     viene después: el FDP, el duty, la fila de la tabla y el propio recorte.
+
+     Caso real (25-ago, BCN-CTA-BCN tras un aviso de guardia): eCrews mandaba
+     report 16:55 mientras el roster traía «OSB3 Imaginaria 12:35 – 19:20» y la
+     app de Vueling daba la presentación a las 19:20. Un piloto NO puede estar
+     firmando para un vuelo mientras sigue de imaginaria en casa: son dos estados
+     que se excluyen. Ese 16:55 es la firma VIEJA del emparejamiento anterior al
+     aviso —Vueling la calcula como STD−55, y la salida programada de entonces
+     eran las 17:50—, que eCrews no actualizó al sacarle de guardia.
+
+     Así que una firma que cae DENTRO de la ventana de imaginaria se corrige al
+     final de esa ventana, que es cuando el tripulante se presenta de verdad
+     (GM1 CS FTL.1.225(b)). Con eso el FDP pasa de 6h48 a 4h19 y el recorte de la
+     guardia —6h45, o sea 45 min sobre las 6 h— aparece: 11h → 10:15, que es lo
+     que dice la compañía.
+
+     POR QUÉ AL FIN DE LA VENTANA Y NO A LA FIRMA VIEJA — esto se dudó y se cerró
+     con datos, así que no hay que volver a abrirlo sin datos nuevos. El despegue
+     REAL de ese día fue a las 18:29, o sea ANTES de la firma corregida (19:20):
+     visto así, la corrección parece imposible. Pero el calendario de la app de
+     Vueling, en Zulu, pone en el día 25 la guardia a las 12:35 y la jornada de
+     vuelo a las 19:20. Y en el día 24 pone 08:00 y 15:40, que son exactamente la
+     guardia y la firma que trae eCrews para ese día. O sea: esa segunda hora del
+     calendario ES la presentación, y Vueling sitúa la del 25 en las 19:20.
+     La incoherencia con el 18:29 es de los datos de la compañía, no del cálculo.
+     Contarlo de la otra forma —dejar la firma en 16:55 y recortar igual por la
+     ventana declarada— daría el mismo techo de 10:15 pero un límite de calzos
+     2h25 más temprano, y no es lo que hace la compañía. */
+  var _sbyDia = (function(){
+    try{
+      var lista = [];
+      if (opts && opts.standby) lista = [].concat(opts.standby);
+      else if (typeof entriesForDate === 'function' && first.date){
+        var _ayer = (function(d){ var x=new Date(d+'T12:00:00Z'); x.setUTCDate(x.getUTCDate()-1);
+                                  return x.toISOString().slice(0,10); })(first.date);
+        entriesForDate(first.date).forEach(function(e){ if(e&&e.type==='standby') lista.push(e); });
+        entriesForDate(_ayer).forEach(function(e){ if(e&&e.type==='standby') lista.push(e); });
+      }
+      if(!lista.length) return null;
+      var _diasDe = function(e){
+        try{ if(!e.date || !first.date || e.date===first.date) return 0;
+             return Math.round((new Date(e.date+'T12:00:00Z') - new Date(first.date+'T12:00:00Z'))/86400000);
+        }catch(_e){ return 0; }
+      };
+      var SBY_MAX = 16*60, cands = [];
+      lista.forEach(function(e){
+        var m = _toMinSafe(e.std_actual || e.std);
+        if(!isFinite(m)) return;
+        var ini = m + _diasDe(e)*1440;
+        // Fin declarado de la guardia, si eCrews lo trae (12:35 – 19:20).
+        var fm = _toMinSafe(e.sta_actual || e.sta), fin = null;
+        if(isFinite(fm) && (e.sta_actual || e.sta)){ fin = fm + _diasDe(e)*1440; if(fin < ini) fin += 1440; }
+        /* Una imaginaria se mide hasta la presentación: el tripulante está disponible
+           desde que empieza hasta que le sacan. La ACTIVIDAD AEROPORTUARIA (AA/AAI)
+           no funciona así — es una tarea con principio y fin propios. La AAI del
+           25-ago dura 19:20–19:25, CINCO MINUTOS; medirla hasta la firma la habría
+           convertido en una guardia de horas y habría recortado el techo del FDP
+           por una actividad que no dio tiempo ni a sentarse. Si no trae fin
+           declarado no hay forma de medirla, y no se cuenta. */
+        var _esActAero = /^(AA|AAI)$/.test(String(e.code||'').toUpperCase());
+        var d = _esActAero ? (fin != null ? fin - ini : -1) : (reportMin - ini);
+        if(d > 0 && d <= SBY_MAX) cands.push({ e:e, ini:ini, fin:fin, dur:d, actAero:_esActAero });
+      });
+      if(!cands.length) return null;
+      cands.sort(function(a,b){ return a.ini - b.ini; });
+      return cands[0];
+    }catch(e){ return null; }
+  })();
+  /* La firma corregida NO puede servir de ancla para los cruces de medianoche.
+     Todas las horas del día se «desenrollan» hacia adelante desde el report: la
+     primera que quede por detrás se manda 24 h más tarde. Si adelantamos el report
+     y un despegue del día queda por detrás de la firma nueva —pasa cuando eCrews
+     trae horas viejas, que es justo el caso que obligó a corregirla— el día entero
+     se iba a mañana. El margen salía en −18h04 y la ficha pintaba «No operable»
+     con unos límites por leg que sí eran correctos: el +1440 se cancelaba al
+     sumarlos, pero no en el margen. Se guarda la firma ORIGINAL y es esa, y solo
+     esa, la que ancla el desenrollado. */
+  var reportAnchorMin = reportMin;
+  if(_sbyDia && !_sbyDia.actAero && _sbyDia.fin != null && reportMin > _sbyDia.ini && reportMin < _sbyDia.fin){
+    reportMin = _sbyDia.fin;            // la firma no puede caer dentro de la guardia
+    _sbyDia.dur = _sbyDia.fin - _sbyDia.ini;
+    _sbyDia.firmaCorregida = true;
+  }
+  var fdpEndMin = toMin(lastOperSta); if(fdpEndMin<reportAnchorMin) fdpEndMin+=1440;
+  // Si la corrección deja la firma DESPUÉS del cierre del FDP, el dato de eCrews no
+  // se sostiene por ningún lado: se deshace en vez de devolver un FDP negativo.
+  if(_sbyDia && _sbyDia.firmaCorregida && fdpEndMin <= reportMin){
+    reportMin = reportAnchorMin;
+    _sbyDia.dur = reportMin - _sbyDia.ini;
+    _sbyDia.firmaCorregida = false;
+  }
   // Una hora malformada ("--:--" pasa el .indexOf(':') de arriba) daba NaN y pintaba
   // toda la caja como "NaNh NaNm". Sin caja es mejor que con basura.
   if(!isFinite(reportMin) || !isFinite(fdpEndMin)) return null;
   var fdpMin = fdpEndMin-reportMin;
   var _lastPosFlag = _isPos(last);
-  var dpEndMin = toMin(lastSta); if(dpEndMin<reportMin) dpEndMin+=1440;
+  var dpEndMin = toMin(lastSta); if(dpEndMin<reportAnchorMin) dpEndMin+=1440;
   // DP = report → fin del último leg (posicional incluido) + 20min debrief si el último NO es posicional.
   var dpMin  = (dpEndMin-reportMin) + (_lastPosFlag ? 0 : 20);
   var sectors = sorted.filter(function(f){ return !_isPos(f); }).length || 1;
@@ -36570,59 +36791,51 @@ function rstCalcFDP(flights, opts){
      noche y el techo sale algo más alto; con 90 saldría hasta 15 minutos más bajo.
      Se usa el valor normal de vuelo y se deja como constante para poder cambiarlo.
 
-     PENDIENTE, y a conciencia: (b)(8) sube el umbral a 8 h si el FDP se extiende por
-     actividad partida, que no modelamos. */
+     LO QUE SIGUE SIN MODELARSE, y se dice a conciencia para no dar por cubierto lo
+     que no lo está:
+       · (b)(8) sube el umbral a 8 h si el FDP se extiende por actividad partida.
+         No hay modelo de actividad partida en el roster, así que se usa el umbral
+         normal — sale un techo MÁS BAJO que el legal, nunca más alto.
+       · MO-A 7.1.7: el 25 % de la imaginaria que no es de aeropuerto cuenta para el
+         acumulado de actividad. Afecta a los totales del mes, no a este techo.
+       · El mapa de códigos: `ASBY`/`AA`/`AAI` son imaginaria DE AEROPUERTO; el resto
+         —`OSBY`, `OSB3`, `HSBY`, `SBY`, `FSBY`, `TSBY`— van como imaginaria de casa. */
   var SBY_UMBRAL_AEROPUERTO = 240, SBY_UMBRAL_GENERAL = 360;
   var SBY_RESPUESTA_VUELO = 75;              // CS FTL.1.225(b)(10) · cabina serían 60
   var SBY_NOCHE_INI = 23*60, SBY_NOCHE_FIN = 7*60;
+  /* Dos límites MÁS del manual que no son la reducción de la tabla y que hasta ahora
+     no se miraban. Ninguno de los dos «recorta»: son techos independientes, y el que
+     manda es el MENOR de todos. Un piloto puede estar dentro del FDP máximo de la
+     tabla y aun así pasarse de estos, y hasta hoy la app lo pintaba en verde.
+       · 18 h de TIEMPO DESPIERTO — combinación de imaginaria y FDP.
+       · 16 h COMBINADAS de imaginaria de aeropuerto + actividad de vuelo asignada
+         (CS FTL.1.225(a)(2)(ii)); solo aplica a la de aeropuerto. */
+  var SBY_DESPIERTO_MAX = 18*60;
+  var SBY_COMBINADO_AEROPUERTO = 16*60;
+  var SBY_DESPIERTO_NOCHE_FIN = 6*60;        // ojo: 06:00, NO las 07:00 de la reducción
+  /* Y la DURACIÓN de la propia guardia también tiene tope. Esto no cambia ningún
+     número —el techo del FDP sale igual— pero es una infracción en sí misma y el
+     piloto tiene que verla: una imaginaria de aeropuerto de 8 h ya está mal antes de
+     que le den un vuelo. Sale del propio roster, sin datos nuevos. */
+  var SBY_MAX_AEROPUERTO = 6*60;             // CS FTL.1.225(a)(1)
+  var SBY_MAX_HOTEL      = 12*60;            // hotel standby
+  var SBY_MAX_GENERAL    = 16*60;            // CS FTL.1.225(b)(1) · resto de imaginarias
   var sbyInfo = null;
   (function(){
     try{
-      /* Se mira también el DÍA ANTERIOR: una guardia de madrugada empieza la víspera
-         (p.ej. 22:00 del día 24 con firma a las 03:00 del 25) y buscándola solo en el
-         día del vuelo no aparecía nunca — justo el caso en que más recorta. */
-      var lista = [];
-      if (opts && opts.standby) {
-        lista = [].concat(opts.standby);
-      } else if (typeof entriesForDate === 'function' && first.date) {
-        var _ayer = (function(d){ var x=new Date(d+'T12:00:00Z'); x.setUTCDate(x.getUTCDate()-1);
-                                  return x.toISOString().slice(0,10); })(first.date);
-        entriesForDate(first.date).forEach(function(e){ if(e&&e.type==='standby') lista.push(e); });
-        entriesForDate(_ayer).forEach(function(e){ if(e&&e.type==='standby') lista.push(e); });
-      }
-      if(!lista.length) return;
-      /* El desfase sale de la FECHA de la guardia, no de comparar horas. Deducirlo del
-         reloj —«si empieza después de la firma, será de ayer»— convertía una guardia de
-         las 20:00 del mismo día, que es POSTERIOR al vuelo y no pinta nada, en una de
-         19h40 con un recorte inventado de 13h40. */
-      var _diasDe = function(e){
-        try{
-          if(!e.date || !first.date || e.date === first.date) return 0;
-          return Math.round((new Date(e.date+'T12:00:00Z') - new Date(first.date+'T12:00:00Z'))/86400000);
-        }catch(_e){ return 0; }
-      };
-      /* Inicio en minutos desde la medianoche del día del VUELO (negativo si es de la
-         víspera), y la imaginaria acaba en la presentación — GM1 CS FTL.1.225(b). Se
-         descartan las que no encajan: una guardia posterior a la firma no es la de
-         esta jornada, y más de 24 h tampoco. */
-      // Tope de seguridad: ninguna imaginaria del OM-A llega a 16 h (aeropuerto 6,
-      // hotel 12). Algo más largo no es la guardia de esta jornada, y aceptarlo
-      // significaría recortar el techo por un dato que no viene a cuento.
-      var SBY_MAX = 16*60;
-      var cands = [];
-      lista.forEach(function(e){
-        var m = _toMinSafe(e.std_actual || e.std);
-        if(!isFinite(m)) return;
-        var iniRel = m + _diasDe(e)*1440;
-        var d = reportMin - iniRel;
-        if(d > 0 && d <= SBY_MAX) cands.push({ e:e, ini:iniRel, dur:d });
-      });
-      if(!cands.length) return;
-      // La que abre el periodo: la que empieza antes.
-      cands.sort(function(a,b){ return a.ini - b.ini; });
-      var sb = cands[0].e, ini = cands[0].ini, dur_ = cands[0].dur;
+      if(!_sbyDia) return;                       // la guardia ya se buscó arriba
+      var sb=_sbyDia.e, ini=_sbyDia.ini, dur_=_sbyDia.dur;
+      if(!(dur_>0)) return;
       var cod = String(sb.code || '').toUpperCase();
-      var esAeropuerto = /^ASBY$/.test(cod);        // ← único código tratado como de aeropuerto
+      // Imaginaria DE AEROPUERTO: umbral de 4 h en vez de 6 y tope de 16 h combinadas.
+      // ASBY es el código propio; AA/AAI (actividad aeroportuaria) son lo mismo con
+      // otro nombre. Todo lo demás —OSBY, OSB3, HSBY (hotel), SBY/FSBY/TSBY— se
+      // considera imaginaria que NO es de aeropuerto, que es lo que dice el manual.
+      var esAeropuerto = /^(ASBY|AA|AAI)$/.test(cod);
+      var esHotel = /^HSBY$/.test(cod);
+      var maxGuardia = esAeropuerto ? SBY_MAX_AEROPUERTO
+                     : esHotel      ? SBY_MAX_HOTEL
+                     :                SBY_MAX_GENERAL;
       var umbral = esAeropuerto ? SBY_UMBRAL_AEROPUERTO : SBY_UMBRAL_GENERAL;
 
       /* Descuento nocturno (b)(9). Se razona en hora LOCAL de aclimatación, que es la
@@ -36646,11 +36859,48 @@ function rstCalcFDP(flights, opts){
 
       var computable = Math.max(0, dur_ - noPenaliza);
       var exceso = Math.max(0, computable - umbral);
+
+      /* ── 18 h de tiempo despierto ──────────────────────────────────────────
+         El reloj arranca al empezar la imaginaria. PERO si empieza entre las 23:00
+         y las 06:00 locales, ese tramo no cuenta: el cálculo se inicia a las 06:00
+         o en la notificación activa, LO QUE RESULTE ANTERIOR. Ojo con el corte —
+         son las 06:00, no las 07:00 de la reducción del FDP: el manual usa dos
+         ventanas distintas y confundirlas da hasta una hora de diferencia. */
+      var _seisLocal = Math.floor(iniLocal/1440)*1440 + SBY_DESPIERTO_NOCHE_FIN;
+      if(_seisLocal < iniLocal) _seisLocal += 1440;
+      var arrancaDeNoche = _horaDe(iniLocal) >= SBY_NOCHE_INI || _horaDe(iniLocal) < SBY_DESPIERTO_NOCHE_FIN;
+      var despiertoIni = ini;
+      if(arrancaDeNoche){
+        var _seisUTC = _seisLocal - bcnOffset;
+        despiertoIni = Math.max(ini, Math.min(_seisUTC, reportMin - SBY_RESPUESTA_VUELO));
+      }
+      // Cuánto FDP cabe todavía sin pasarse de las 18 h desde ese arranque.
+      var techoDespierto = (despiertoIni + SBY_DESPIERTO_MAX) - reportMin;
+
+      /* ── 16 h combinadas · solo imaginaria de AEROPUERTO ── */
+      var techoCombinado = esAeropuerto ? (SBY_COMBINADO_AEROPUERTO - dur_) : null;
+
+      /* El techo final es el MENOR de los que apliquen, y se guarda cuál manda para
+         poder decírselo al piloto: un número más bajo sin explicación no sirve. */
+      var cand = [{ q:'tabla', m: fdpMaxMin - exceso }];
+      cand.push({ q:'18h despierto', m: techoDespierto });
+      if(techoCombinado != null) cand.push({ q:'16h con imaginaria', m: techoCombinado });
+      cand.sort(function(a,b){ return a.m - b.m; });
+      var manda = cand[0];
+
       sbyInfo = { code: cod || 'SBY', aeropuerto: esAeropuerto, inicioMin: ini,
                   duracionMin: dur_, umbralMin: umbral, recorteMin: exceso,
                   nocheMin: noPenaliza, llamadaMin: empiezaDeNoche ? (llamadaLocal - bcnOffset) : null,
-                  techoTablaMin: fdpMaxMin };
-      fdpMaxMin -= exceso;
+                  firmaCorregida: !!_sbyDia.firmaCorregida,
+                  techoTablaMin: fdpMaxMin,
+                  despiertoMin: fdpEndMin - despiertoIni,
+                  despiertoIniMin: despiertoIni,
+                  limita: manda.q,
+                  techoDespiertoMin: techoDespierto,
+                  techoCombinadoMin: techoCombinado,
+                  maxGuardiaMin: maxGuardia,
+                  excedeMaxMin: Math.max(0, dur_ - maxGuardia) };
+      fdpMaxMin = Math.max(0, manda.m);
     }catch(e){}
   })();
   var fmm = function(m){ m=((m%1440)+1440)%1440; return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); };
@@ -36682,7 +36932,7 @@ function rstCalcFDP(flights, opts){
     var _factArr = function(f){ return !!(f.sta_actual||f.ata); };
     // Absolutos en orden de servicio, arrastrando los cruces de medianoche
     var _abs = function(pick){
-      var out=[], prev=reportMin;
+      var out=[], prev=reportAnchorMin;   // la firma ORIGINAL, no la corregida
       for(var i=0;i<sorted.length;i++){
         var v=_toMinSafe(pick(sorted[i]));
         while(v<prev) v+=1440;
@@ -36782,13 +37032,25 @@ function rstCalcFDP(flights, opts){
     fdpMax: dur(fdpMaxMin), fdpMaxEnd: fmm((reportMin+fdpMaxMin)%1440),
     // Para que la ficha pueda explicar de dónde sale el recorte en vez de soltar un
     // número menor sin motivo aparente.
-    sby: sbyInfo && sbyInfo.recorteMin > 0 ? {
+    // Se enseña la nota de la imaginaria si RECORTA… o si el techo lo manda uno de
+    // los otros dos límites de la guardia. Ese segundo caso no recorta nada de la
+    // tabla y aun así baja el máximo: sin la nota el número sale sin explicación.
+    sby: sbyInfo && (sbyInfo.recorteMin > 0 || sbyInfo.limita !== 'tabla' || sbyInfo.excedeMaxMin > 0) ? {
       code: sbyInfo.code, aeropuerto: sbyInfo.aeropuerto,
       inicio: fmm(sbyInfo.inicioMin), duracion: dur(sbyInfo.duracionMin),
       umbral: dur(sbyInfo.umbralMin), recorte: dur(sbyInfo.recorteMin),
       techoTabla: dur(sbyInfo.techoTablaMin),
+      // Qué límite MANDA: 'tabla' es lo normal; los otros dos dicen que el techo no
+      // sale del FDP máximo sino de un límite de la propia guardia.
+      limita: sbyInfo.limita,
+      despierto: dur(sbyInfo.despiertoMin),
       // Solo cuando el descuento nocturno ha entrado en juego.
       noche: sbyInfo.nocheMin > 0 ? dur(sbyInfo.nocheMin) : null,
+      firmaCorregida: !!sbyInfo.firmaCorregida,
+      // La guardia se ha pasado de su propia duración máxima. No toca el techo del
+      // FDP: es una infracción aparte, y se dice aparte.
+      maxGuardia: dur(sbyInfo.maxGuardiaMin),
+      excedeMax: sbyInfo.excedeMaxMin > 0 ? dur(sbyInfo.excedeMaxMin) : null,
       llamada: sbyInfo.nocheMin > 0 && sbyInfo.llamadaMin != null ? fmm(sbyInfo.llamadaMin) : null
     } : null,
     fdpMargin: dur(marginMin), fdpMarginMin: marginMin,
@@ -36801,6 +37063,54 @@ function rstCalcFDP(flights, opts){
     sectors: sectors,
     warn: fdpMin>fdpMaxMin?'exceed':marginMin<20?'near':'ok'
   };
+}
+
+/* Lo que eCrews manda de VERDAD para el día seleccionado, tal cual.
+   Ya no tiene botón en el roster —se quitó a petición— pero se queda accesible:
+   `rstVerCrudoEc('2026-08-25')` desde la consola, o sin argumento para el día
+   seleccionado. El día que un roster no cuadre, esto ahorra rondas de hipótesis
+   sobre el formato: el crudo se sigue guardando en cada import. */
+function rstVerCrudoEc(fecha){
+  var d = fecha || (typeof RST !== 'undefined' && RST.editDate) || '';
+  var evs = [];
+  try { evs = (JSON.parse(localStorage.getItem('pilotOS_ec_raw') || '{}')[d]) || []; } catch(e){}
+  var esc = function(t){ return String(t == null ? '' : t)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+  var cuerpo = evs.length
+    ? evs.map(function(ev, i){
+        return '<div style="margin-bottom:14px">'
+          + '<div style="font-family:\'Space Mono\',monospace;font-size:11px;color:#22d3ee;margin-bottom:4px">evento ' + (i+1)
+          + ' · ' + esc(ev.type) + ' · ' + esc(ev.start) + ' → ' + esc(ev.end) + '</div>'
+          + '<pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-family:\'Space Mono\',monospace;font-size:11px;line-height:1.5;color:#F0FFFE;background:rgba(255,255,255,.05);border-radius:10px;padding:9px 11px">'
+          + 'text:\n' + esc(ev.text || '(vacío)') + '\n\ndetails:\n' + esc(ev.details || '(vacío)')
+          + '</pre></div>';
+      }).join('')
+    : '<div style="font-size:13px;color:#94a3b8">Este día no tiene evento guardado. Sale al importar o actualizar desde eCrews.</div>';
+  var ov = document.createElement('div');
+  ov.setAttribute('data-eccrudo','1');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:600;background:rgba(3,8,18,.9);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);display:flex;align-items:center;justify-content:center;padding:18px';
+  ov.innerHTML = '<div style="width:100%;max-width:460px;max-height:82vh;overflow-y:auto;background:linear-gradient(180deg,#0A1628,#060E1C);border:1.5px solid rgba(8,145,178,.4);border-radius:20px;padding:18px">'
+    + '<div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:800;color:#F0FFFE;margin-bottom:3px">Lo que manda eCrews</div>'
+    + '<div style="font-family:\'Space Mono\',monospace;font-size:11px;color:#22d3ee;margin-bottom:12px">' + esc(d) + '</div>'
+    + cuerpo
+    + '<button onclick="var x=this.closest(\'[data-eccrudo]\'); if(x) x.remove();" style="margin-top:6px;width:100%;padding:12px;border:none;border-radius:12px;background:linear-gradient(135deg,#0891B2,#0369A1);color:#fff;font-family:\'Space Grotesk\',sans-serif;font-size:14px;font-weight:800;cursor:pointer">Cerrar</button>'
+    + '</div>';
+  ov.addEventListener('click', function(e){ if(e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+window.rstVerCrudoEc = rstVerCrudoEc;
+
+/* La firma que hay que ENSEÑAR cuando la imaginaria la ha movido.
+   Vive aquí, fuera de quien la pinta, porque hasta ahora había DOS firmas en la
+   misma pantalla: la chapa grande de «Report Time» cogía el checkin crudo de
+   eCrews y la ficha del FDP usaba la corregida. En el día 25-ago eso salía como
+   16:55 arriba y 19:20 abajo — dos horas distintas para lo mismo, que es la mejor
+   forma de que un piloto deje de fiarse del número. Ahora las dos preguntan aquí. */
+function rstFirmaCorregida(flights){
+  try{
+    var r = rstCalcFDP(flights);
+    return (r && r.sby && r.sby.firmaCorregida && r.report) ? r.report : null;
+  }catch(e){ return null; }
 }
 
 // ── Baldosa «Límite calzos» + desplegable de umbrales ────────────────────────
@@ -37562,7 +37872,9 @@ function rstRenderFatigue(){
       var firstLeg = nextDutyFlights[0] || nextDutyAll[0];
       var repM2 = rstWorkStartMin(firstLeg);
       if(repM2 == null) repM2 = 0;
-      if(ndReport) ndReport.textContent=fmm(repM2)+' UTC';
+      // Esta tarjeta se quedaba SIEMPRE en UTC aunque el piloto tuviera el roster en local:
+      // media pantalla en LT y esta en Z, que es peor que no dar la hora.
+      if(ndReport) ndReport.textContent=rstFormatTime(fmm(repM2))+(RST.useLT?' LT':' UTC');
       if(ndRepSrc) ndRepSrc.textContent=firstLeg.checkin?(firstLeg.debrief?'eCrews':'PDF'):'—';
 
       // FDP estimado. Sin vuelos no hay FDP: en una imaginaria/sim/oficina se enseña la
@@ -37595,8 +37907,9 @@ function rstRenderFatigue(){
           ? ['rgba(8,145,178,.75)','rgba(13,148,136,.75)','rgba(99,102,241,.75)','rgba(124,58,237,.75)']
           : ['rgba(34,211,238,.65)','rgba(20,184,166,.65)','rgba(99,102,241,.65)','rgba(167,139,250,.65)'];
         var legsHTML = nextDutyFlights.map(function(f,idx){
-          var stdDisp = f.std ? f.std.slice(0,5) : (f.std_actual?f.std_actual.slice(0,5):'--:--');
-          var staDisp = f.sta ? f.sta.slice(0,5) : (f.sta_actual?f.sta_actual.slice(0,5):'--:--');
+          // Mismas horas que el resto del roster: si el piloto lo tiene en local, aquí también.
+          var stdDisp = rstFormatTime(f.std ? f.std.slice(0,5) : (f.std_actual?f.std_actual.slice(0,5):'--:--'));
+          var staDisp = rstFormatTime(f.sta ? f.sta.slice(0,5) : (f.sta_actual?f.sta_actual.slice(0,5):'--:--'));
           var isPos = window.isPosLeg(f);   // le faltaba isPositioning (el de eCrews) → sin chip POSICIONAL
           var depDisp = f.dep || '?';
           var lc = legColors[idx % legColors.length];
@@ -37751,6 +38064,13 @@ window.rosterSelectDay = function(dateStr){
         // No report time available — badge hidden below
         reportMin = null; reportStr = null; reportSub = null;
       }
+      // Si la imaginaria movió la firma, la que manda es esa — y se dice de dónde sale.
+      var _firmaSby = rstFirmaCorregida(flightsForReport);
+      if(_firmaSby){
+        reportMin = t2m(_firmaSby);
+        reportStr = _firmaSby;
+        reportSub = 'Firma al fin de la imaginaria';
+      }
       if(!reportStr){ reportBadgeEl.style.display='none'; } else {
       var tzLabel = RST.useLT ? 'LT' : 'UTC';
       if(RST.useLT){ var lm=(reportMin+RST.tzOffset+1440)%1440; reportStr=String(Math.floor(lm/60)).padStart(2,'0')+':'+String(lm%60).padStart(2,'0'); }
@@ -37877,8 +38197,14 @@ window.rosterSelectDay = function(dateStr){
       var hasTime = _t0 && _t0!=='null' && String(_t0).indexOf(':')>-1;
       var hasEnd  = _t1 && _t1!=='null' && String(_t1).indexOf(':')>-1;
       var desc = (_cs2 && _cs2.desc) || _actFullDesc[e.type] || lbl;
-      return '<div style="display:flex;align-items:center;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">'
-        + '<div style="background:'+cfg.bg+';padding:12px 14px;display:flex;align-items:center;justify-content:center;min-width:58px">'
+      /* `stretch`, no `center`: con `center` cada mitad medía solo lo que su propio
+         texto, así que en una descripción de DOS líneas —«Actividad aeroportuaria
+         internacional»— el bloque de color se quedaba corto y centrado, flotando
+         dentro de una tira más alta y lejos de sus esquinas redondeadas: se veía
+         como un rectángulo pegado, no como la punta de la tira. Estirándolo llena
+         el alto y el `overflow:hidden` del contenedor le da la forma. */
+      return '<div style="display:flex;align-items:stretch;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">'
+        + '<div style="background:'+cfg.bg+';padding:12px 14px;display:flex;align-items:center;justify-content:center;min-width:58px;flex:0 0 auto">'
         + '<span style="font-size:13px;font-weight:900;color:'+cfg.tx+';letter-spacing:.5px;white-space:nowrap">'+lbl+'</span>'
         + '</div>'
         + '<div style="flex:1;background:#F8FAFF;border:1px solid rgba(30,58,164,.08);border-left:none;padding:10px 13px;display:flex;align-items:center;justify-content:space-between">'
@@ -38161,11 +38487,28 @@ window.rosterSelectDay = function(dateStr){
             /* Un techo recortado por la imaginaria tiene que decir POR QUÉ: si no, el
                piloto ve un número que no cuadra con la tabla y no sabe si fiarse. */
             + (fdp.sby ? '<div style="font-size:10px;color:#92400E;margin-top:3px;line-height:1.35">'
-                 + '⏳ ' + fdp.sby.techoTabla + ' de tabla − ' + fdp.sby.recorte
-                 + ' de imaginaria<br><span style="opacity:.8">' + fdp.sby.code + ' desde ' + fdp.sby.inicio
+                 /* El techo no siempre sale de la tabla recortada: la guardia trae dos
+                    límites propios —18 h de tiempo despierto y, en aeropuerto, 16 h
+                    combinadas— y manda el MENOR de los tres. Poner «X de tabla − Y de
+                    imaginaria» cuando manda otro sería explicar mal un número correcto. */
+                 + (fdp.sby.limita === 'tabla'
+                      ? '⏳ ' + fdp.sby.techoTabla + ' de tabla − ' + fdp.sby.recorte + ' de imaginaria'
+                      : fdp.sby.limita === '18h despierto'
+                        ? '⏳ manda el tiempo despierto: 18h desde la imaginaria (llevas ' + fdp.sby.despierto + ')'
+                        : '⏳ manda el tope de 16h de imaginaria de aeropuerto + vuelo')
+                 + '<br><span style="opacity:.8">' + fdp.sby.code + ' desde ' + fdp.sby.inicio
                  + ' · ' + fdp.sby.duracion + ' hasta la firma, ' + fdp.sby.umbral + ' sin penalizar'
                  + (fdp.sby.noche ? '<br>🌙 ' + fdp.sby.noche + ' de noche no computan (llamada ~' + fdp.sby.llamada + ')' : '')
-                 + '</span></div>' : '')
+                 /* Si hemos movido la firma, hay que decirlo: el piloto está viendo un
+                    report distinto del que trae eCrews y merece saber por qué. */
+                 + (fdp.sby.firmaCorregida ? '<br>✋ firma ajustada al fin de la imaginaria (eCrews traía una anterior)' : '')
+                 + '</span>'
+                 /* La guardia pasada de su propio máximo va FUERA del span atenuado y
+                    en rojo: no es un detalle del cálculo, es una infracción. */
+                 + (fdp.sby.excedeMax ? '<div style="color:#B91C1C;font-weight:700;margin-top:2px">⚠️ la imaginaria dura '
+                      + fdp.sby.duracion + ' y el máximo de ' + fdp.sby.code + ' son '
+                      + fdp.sby.maxGuardia + ' (' + fdp.sby.excedeMax + ' de más)</div>' : '')
+                 + '</div>' : '')
             // Margen contra el techo del FDP, siempre visible sin desplegar nada. Se
             // recalcula solo según entran las A del datalink o las L del logbook.
             // Lleva "FDP" en la etiqueta a propósito: el margen de la baldosa de al lado
@@ -38228,20 +38571,26 @@ window.rosterSelectDay = function(dateStr){
         if(en && String(en).indexOf(':')>-1 && (_allEnd  ===null || t2m(en)>t2m(_allEnd  ))) _allEnd=en;
       });
       var _winMin = (_allStart!==null && _allEnd!==null) ? (((t2m(_allEnd)-t2m(_allStart))+1440)%1440) : 0;
-      var _stby   = _actEntries.filter(function(e){ return e.checkin && e.checkout && (e.type==='standby'||e.type==='osb'); });
-      var _ground = _actEntries.filter(function(e){ return !(e.checkin && e.checkout && (e.type==='standby'||e.type==='osb')); });
+      // Al 25 % solo la imaginaria que NO es de aeropuerto. La de aeropuerto y la
+      // actividad aeroportuaria van con el resto: cuentan enteras. Misma regla que
+      // el total del mes — antes esta tarjeta pedía checkin/checkout, que las
+      // guardias de eCrews no traen, y las contaba enteras: «6h50 duty completo».
+      var _es25 = function(e){ return (e.type==='standby'||e.type==='osb') && !window.rstGuardiaEntera(e.code); };
+      var _stby   = _actEntries.filter(_es25);
+      var _ground = _actEntries.filter(function(e){ return !_es25(e); });
       var _dp = 0;
       _stby.forEach(function(e){
-        var w=(((t2m(e.checkout)-t2m(e.checkin))+1440)%1440);
+        var v=window.rstVentanaAct(e); if(!v) return;
+        var w=(((t2m(v.fin)-t2m(v.ini))+1440)%1440);
         var eff=/^HSBY$/i.test(e.code||'') ? Math.max(0,w-120) : w;
         _dp += Math.round(eff*0.25);
       });
       if(_ground.length){
         var _gS=null,_gE=null;
         _ground.forEach(function(e){
-          var s=e.std||e.start, en=e.sta||e.end;
-          if(s  && String(s ).indexOf(':')>-1 && (_gS===null||t2m(s )<t2m(_gS))) _gS=s;
-          if(en && String(en).indexOf(':')>-1 && (_gE===null||t2m(en)>t2m(_gE))) _gE=en;
+          var v=window.rstVentanaAct(e); if(!v) return;
+          if(_gS===null||t2m(v.ini)<t2m(_gS)) _gS=v.ini;
+          if(_gE===null||t2m(v.fin)>t2m(_gE)) _gE=v.fin;
         });
         if(_gS!==null && _gE!==null) _dp += (((t2m(_gE)-t2m(_gS))+1440)%1440);
       }
@@ -41229,6 +41578,34 @@ function ecTimesInModo(payload){
 
 function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
   var entries = [];
+  /* ── Guardar el evento CRUDO de cada día ────────────────────────────────────
+     Va AQUÍ, en el parser, y no en el flujo de import: por esta función pasan
+     todos los caminos —conectar, importar y el «actualizar» del roster—, y en el
+     flujo de import solo pasaba uno. Existe porque el payload se parseaba y se
+     tiraba: cuando un día no cuadraba, la única salida era probar hipótesis sobre
+     el formato a ciegas. Se guarda lo justo para reconocer un formato (tipo,
+     ventana, título y desglose recortados), nada que no esté ya en el roster.
+     Fusiona por mes: actualizar agosto no borra el crudo de septiembre. */
+  try{
+    var _crudo = {};
+    try { _crudo = JSON.parse(localStorage.getItem('pilotOS_ec_raw') || '{}') || {}; }catch(_e){ _crudo = {}; }
+    var _meses = {};
+    (events||[]).forEach(function(ev){
+      var d = String(ev && ev.start || '').slice(0,10);
+      if(d) _meses[d.slice(0,7)] = true;
+    });
+    Object.keys(_crudo).forEach(function(d){ if(_meses[d.slice(0,7)]) delete _crudo[d]; });
+    (events||[]).forEach(function(ev){
+      var d = String(ev && ev.start || '').slice(0,10);
+      if(!d) return;
+      (_crudo[d] = _crudo[d] || []).push({
+        type: ev.type || '', start: ev.start || '', end: ev.end || '',
+        text: String(ev.text || '').slice(0, 600),
+        details: String(ev.details || '').slice(0, 1200)
+      });
+    });
+    localStorage.setItem('pilotOS_ec_raw', JSON.stringify(_crudo));
+  }catch(e){}
   var RST_ICAO_TO_IATA = window.RST_ICAO_IATA || {};
   /* ¿En qué huso viene lo que estamos parseando? 'local' → hay que convertir a
      UTC; cualquier otra cosa → ya viene en Zulu y no se toca nada. Lo decide
@@ -41335,6 +41712,156 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
     var ms = _ecLocalMs(fecha, hhmm, _ecTz(iata));
     return ms == null ? hhmm : _ecMsToHHMM(ms);
   }
+  /* Vueling eCrews → PilotOS (códigos completos Vueling).
+     Vive al principio de la función y no dentro de la rama de tierra: es una tabla
+     constante, y desde fuera hace falta para saber si una palabra del título es un
+     código de actividad de verdad o una palabra de la descripción. */
+  var EC_MAP = {
+    // ── STANDBY ──────────────────────────────────────────────────
+    'ASBY': {type:'standby', code:'ASBY'},  // Airport standby
+    'OSBY': {type:'standby', code:'OSBY'},  // Off standby — sacado de guardia
+    'OSB3': {type:'standby', code:'OSB3'},  // Off standby bloque 3 días
+    'HSBY': {type:'standby', code:'HSBY'},  // Hotel standby
+    // OJO con el código que se guarda: `rstCalcFDP` decide por él si la guardia
+    // es DE AEROPUERTO, y eso cambia el umbral que no penaliza (4 h en aeropuerto,
+    // 6 h en casa) y activa el tope de 16 h combinadas. Estas tres son guardias
+    // EN CASA y salían marcadas como ASBY: el techo del FDP se recortaba 2 h antes
+    // de lo que toca. El propio comentario ya decía «home standby» al lado.
+    'SBY':  {type:'standby', code:'SBY'},   // Home standby genérico — EN CASA
+    'FSBY': {type:'standby', code:'FSBY'},  // 5 stand-by in a row — EN CASA
+    'TSBY': {type:'standby', code:'TSBY'},  // Junior standby — EN CASA
+    // Estas dos se dejan como aeropuerto a propósito: «stand-by cnx» no dice dónde
+    // se espera, y equivocarse hacia casa sube el techo del FDP. Ante la duda, el
+    // número que sale es el más restrictivo, no el más cómodo.
+    'XSBY': {type:'standby', code:'ASBY'},  // Stand-by cnx antes 12LT
+    'ZSBY': {type:'standby', code:'ASBY'},  // Stand-by cnx partir 12LT
+    // Actividad aeroportuaria. Se guardaban como ASBY, así que se perdía el código
+    // real: el roster las pintaba como una imaginaria más y el detalle del día
+    // decía «Imaginaria» donde eCrews dice «Actividad aeroportuaria». Ahora
+    // conservan su código y tienen estilo propio en RST_CODE_STYLE.
+    'AA':   {type:'standby', code:'AA'},   // Actividad aeroportuaria (nacional)
+    'AAI':  {type:'standby', code:'AAI'},  // Actividad aeroportuaria internacional
+
+    // ── DÍAS LIBRES / DESCANSO ───────────────────────────────────
+    'OFF':  {type:'off', code:'OFF'},
+    'ROFF': {type:'off', code:'ROFF'},      // Día libre solicitado
+    'VOFF': {type:'off', code:'OFF'},       // Off en bloque vacacional
+    '>OFF': {type:'off', code:'OFF'},       // Post-flight rest/day off
+    'REST': {type:'off', code:'OFF'},       // Día de descanso compensable
+    'XSOF': {type:'off', code:'OFF'},       // Libre Navidad sin prioridad
+    'CDOF': {type:'off', code:'OFF'},       // Libre recuperado mes siguiente
+    'NOFF': {type:'off', code:'NOFF'},      // Descanso no compensable
+    'LOFF': {type:'off', code:'OFF'},       // Día off en línea
+    'DOFF': {type:'off', code:'OFF'},       // Día off en destacamento
+    'AOFF': {type:'off', code:'OFF'},       // Día libre anual
+    'PAOF': {type:'off', code:'OFF'},       // AOFF pendiente
+    'DCOF': {type:'off', code:'OFF'},       // Día cedido devuelto
+    'SOFF': {type:'off', code:'OFF'},       // Office staff ROFF
+    'HIGH': {type:'off', code:'OFF'},       // High hours — DO NOT USE
+    'XOF1': {type:'off', code:'OFF'},       // Libre Navidad prioridad 1
+    'XOF2': {type:'off', code:'OFF'},       // Libre Navidad prioridad 2
+    'XOF3': {type:'off', code:'OFF'},       // Libre Navidad prioridad 3
+    'DIA LIBRE': {type:'off', code:'OFF'},
+
+    // ── DÍAS LIBRES SUBASTA ──────────────────────────────────────
+    'NROF': {type:'off', code:'NROF'},      // ROFF no ganado en subasta
+    'SROF': {type:'off', code:'SROF'},      // ROFF ganado en subasta
+    'FR':   {type:'f', code:'FR'},          // Servicio de franco (coral, no OFF)
+    'F2':   {type:'f', code:'F2'},          // Franco (coral, no OFF)
+    'F':    {type:'f', code:'F'},           // Franco
+    'DS':   {type:'off', code:'DS'},        // Day without changes — el piloto pide día sin cambios
+
+    // ── VACACIONES ───────────────────────────────────────────────
+    'VAC':  {type:'off', code:'VAC'},       // Vacaciones forzosas
+    'RVAC': {type:'off', code:'VAC'},       // Vacaciones voluntarias
+    'PVAC': {type:'off', code:'VAC'},       // Vacaciones pendientes
+    'AL':   {type:'off', code:'AL'},        // Annual leave
+
+    // ── PERMISOS / AUSENCIAS ─────────────────────────────────────
+    'BOD':  {type:'off', code:'OFF'},       // Permiso boda
+    'EMB':  {type:'off', code:'OFF'},       // Embarazo
+    'LAC':  {type:'off', code:'OFF'},       // Lactancia
+    'ELAT': {type:'off', code:'ELAT'},      // Días de lactancia (block) — lila + biberón
+    'MAT':  {type:'off', code:'MAT'},       // Permiso maternidad
+    'PAT':  {type:'off', code:'PAT'},       // Permiso paternidad
+    'MUD':  {type:'off', code:'OFF'},       // Permiso por mudanza
+    'PER':  {type:'off', code:'OFF'},       // Permiso no retribuido
+    'RPER': {type:'off', code:'OFF'},       // Permiso retribuido
+    'PT':   {type:'off', code:'OFF'},       // Part time crew (off duty days)
+    'FZ':   {type:'off', code:'OFF'},       // Cambio forzoso
+    'FALT': {type:'off', code:'OFF'},       // Falta (día de sanción)
+    'NQ':   {type:'off', code:'OFF'},       // Not qualified
+    'RSV':  {type:'off', code:'OFF'},       // Pre-roster period
+    'NAVL': {type:'off', code:'OFF'},       // Not available for duty
+    'IERT': {type:'off', code:'OFF'},       // Invaded ERTE/FERT/CIGS
+    'INC':  {type:'off', code:'OFF'},       // Incidencias
+
+    // ── ENFERMEDAD ───────────────────────────────────────────────
+    // type:'sick' (naranja), NO 'off' (verde): un sick tiene color propio.
+    'SICK': {type:'sick', code:'SICK'},     // Enfermedad
+    'SICD': {type:'sick', code:'SICK'},     // Sick from duty
+    'LSIC': {type:'sick', code:'SICK'},     // Enfermedad en línea
+    'DSIC': {type:'sick', code:'SICK'},     // Enfermedad en destacamento
+    'ERSK': {type:'sick', code:'SICK'},     // Sick on ERTE day
+
+    // ── VACUNACIÓN / MÉDICO ──────────────────────────────────────
+    'VCCN': {type:'off', code:'OFF'},       // Vaccination
+    'VCC':  {type:'off', code:'OFF'},       // Repetición vacunas
+    'RVCC': {type:'off', code:'OFF'},       // Revacunación
+
+    // ── NO SHOW ──────────────────────────────────────────────────
+    'N/S':  {type:'off', code:'N/S'},       // No show
+
+    // ── FORMACIÓN / TRAINING ─────────────────────────────────────
+    'EBT':  {type:'ebt', code:'EBT'},       // Evidence-Based Training (simulador)
+    'EVA':  {type:'eva', code:'EVA'},       // Evaluación en simulador
+    'SIM':  {type:'training', code:'SIM'},  // Simulator practice
+    'LPC':  {type:'training', code:'SIM'},  // License proficiency check
+    'OPC':  {type:'training', code:'SIM'},  // Operating proficiency check
+    'ART':  {type:'training', code:'ART'},  // Annual recurrent training
+    'TRT':  {type:'training', code:'TRT'},  // Triannual recurrent training (gorro)
+    'SBTO': {type:'training', code:'SBTO'}, // Scenario Based Training - Operator (simulador)
+    'REUT': {type:'training', code:'REUT'}, // Reunión/formación recurrente instructor
+    'FOS':  {type:'training', code:'FOS'},  // Flight Operations — clase teórica instructor
+    'SPAR': {type:'training', code:'SPAR'}, // Sparring
+    'RFSV': {type:'training', code:'SIM'},  // Covid extraordinary refresher
+    'RFSM': {type:'training', code:'SIM'},  // Refresher course
+    'LM2S': {type:'training', code:'TR'},   // E-learning: fatigue training
+    'LMEF': {type:'training', code:'TR'},   // E-learning: EFB refresh
+    'LMSS': {type:'training', code:'TR'},   // E-learning: special courses
+    'LMSC': {type:'training', code:'TR'},   // E-learning: CBT
+    'LMSD': {type:'training', code:'TR'},   // E-learning: LVO
+    'LMAF': {type:'training', code:'LMAF'}, // E-learning (genérico)
+    'LPRL': {type:'training', code:'TR'},   // E-learning: prev. riesgos laborales
+    'IET':  {type:'training', code:'TR'},   // Instructor en tierra
+    'CUR':  {type:'training', code:'TR'},   // Curso
+    'MED':  {type:'training', code:'TR'},   // Medical check
+    'ASEP': {type:'training', code:'TR'},   // Reconocimiento médico Asepeyo
+    'DANG': {type:'training', code:'TR'},   // Dangerous goods
+    'RFT':  {type:'training', code:'TR'},   // Reserved for training
+    'MTG':  {type:'training', code:'REU'},  // Meeting
+    'REU':  {type:'training', code:'REU'},  // Reunión
+    'E':    {type:'training', code:'TR'},   // Actividad corporativa
+    'OFIT': {type:'training', code:'TR'},   // Office for training dept
+    'GRM':  {type:'training', code:'TR'},   // Grooming
+    'OFIC': {type:'training', code:'TR'},   // Oficina
+    'SIND': {type:'training', code:'TR'},   // Horas sindicales
+    'TR':   {type:'training', code:'TR'},   // Training genérico
+    'GRND': {type:'training', code:'TR'},   // Ground training
+
+    // ── TRABAJO / POSICIONAMIENTO (día de trabajo, no volando) ───
+    'POS':  {type:'flight', code:'POS', isPositioning:true},   // Posicionamiento
+    'PTA':  {type:'flight', code:'PTA', isPositioning:true},   // Pilot taxiing airplanes
+    'TEC':  {type:'flight', code:'TEC', isPositioning:true},   // Test flight
+    'FLT':  {type:'flight', code:'FLT', isPositioning:false},  // Flight duty (uploaded)
+  };
+
+  // ¿Es un código de actividad de los que conocemos? Se usa para no tomar por
+  // actividad una palabra suelta de la descripción del evento.
+  function _ecCodigoConocido(c){
+    c = (c||'').toUpperCase();
+    return !!EC_MAP[c] || _isStandbyCode(c) || /^LM/.test(c);
+  }
   function _ecFallbackMap(c){
     c = (c||'').toUpperCase();
     if(/^LM/.test(c)) return { type:'training', code:'TR' };
@@ -41343,6 +41870,88 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
     if(/^(V?RVAC|VAC|PVAC|AL)$/.test(c)) return { type:'off', code:'VAC' };
     if(/^S?ICK$|SIC/.test(c)) return { type:'off', code:'SICK' };
     return { type:'off', code:c };
+  }
+
+  /* ── Las actividades del día, leídas del DESGLOSE de `details` ───────────────
+     Formato real, confirmado con el payload del 25-ago:
+         OSB3
+         Reporting time : 1920
+         OSB3 - BCN  (1235) - BCN  (1920)
+         AAI  - BCN  (1920) - BCN  (1925)
+         Debriefing time : 1925
+     Una línea por actividad y CADA UNA CON SUS HORAS. La rama de guardia leía este
+     desglose solo para sacar el primer CÓDIGO y luego usaba la ventana del evento
+     entero: de ahí «OSB3 12:35 – 19:25», con la imaginaria cinco minutos más larga
+     de lo que fue y la AAI desaparecida del roster.
+     El código empieza por LETRA a propósito: así una leg de vuelo (que empieza por
+     dígito) nunca se cuela como actividad. */
+  function _ecActsDeDetails(det, fecha){
+    var out = [];
+    String(det||'').split('\n').forEach(function(l){
+      var m = String(l).trim().match(/^([A-Z][A-Z0-9]{1,5})\s+-\s+\*?([A-Z]{3})\s+\(([AES]?)(\d{4})(⁺¹|\+1)?\)\s+-\s+\*?([A-Z]{3})\s+\(([AES]?)(\d{4})(⁺¹|\+1)?\)/);
+      if(!m) return;
+      var dep = RST_ICAO_TO_IATA[m[2]] || m[2], arr = RST_ICAO_TO_IATA[m[6]] || m[6];
+      var t0 = m[4].slice(0,2)+':'+m[4].slice(2), t1 = m[8].slice(0,2)+':'+m[8].slice(2);
+      var d0 = fecha, n0 = !!m[5], n1 = !!m[9];
+      // `details` se renderiza en el huso del selector «Times in».
+      if(EC_LOCAL){ var u = _ecLegUTC(d0, t0, n0, t1, n1, dep, arr); if(u){ d0=u.date; t0=u.std; t1=u.sta; } }
+      /* El aeropuerto se guarda, no se tira. El Art. 15.18 decide la dieta —nacional
+         o internacional— según DÓNDE se hace la actividad, y hasta ahora la entrada
+         de tierra no llevaba lugar ninguno: el backend no tenía con qué decidir y
+         daba nacional siempre. El desglose lo trae, así que basta con no perderlo. */
+      out.push({ code:m[1].toUpperCase(), date:d0, std:t0, sta:t1, dep:dep, arr:arr });
+    });
+    return out;
+  }
+  // Un código de actividad → su tipo. EC_MAP manda; el resto lo resuelve el fallback
+  // (guardias, Franco, vacaciones, baja, e-learning).
+  function _ecMapCode(c){
+    c = String(c||'').toUpperCase();
+    return EC_MAP[c] || _ecFallbackMap(c);
+  }
+
+  /* ── Las VARIAS actividades de un mismo día ──────────────────────────────────
+     El título de un evento de tierra viene como «HHMM \n CÓDIGO \n descripción»
+     (formato real, documentado arriba: "1800\nHSBY\nHotel standby"). Cuando el día
+     tiene DOS actividades el patrón se repite:
+         1235 / OSB3 / Out standby for a 3 SBY block
+         1920 / AAI  / Actividad aeroportuaria internacional
+     `_extractCode` devuelve solo la primera y la ventana del evento abarca las dos:
+     por eso el 25-ago salía «OSB3 12:35 – 19:25» y la AAI desaparecía del roster.
+     Cada actividad acaba donde empieza la siguiente y la última en el fin del
+     evento, que reconstruye exactamente lo que enseña la app de la compañía.
+
+     Vive FUERA de las ramas a propósito: el mismo día puede llegar como evento de
+     tierra o como evento de vuelo sin legs —según lo que hubiera antes en ese día—
+     y las dos ramas colapsaban igual. Arreglar una sola dejaba el fallo vivo por
+     el otro camino, que es exactamente lo que pasó. */
+  function _ecActsDelTitulo(txt, ini, fin){
+    var actos = [], hPend = null;
+    String(txt||'').split('\n').forEach(function(l){
+      var t = String(l).trim();
+      if(!t) return;
+      if(/^\d{3,4}$/.test(t)){ hPend = ('0'+t).slice(-4); return; }        // 935 → 0935
+      var mh = t.match(/^(\d{1,2})[:.](\d{2})$/);
+      if(mh){ hPend = ('0'+mh[1]).slice(-2)+mh[2]; return; }
+      var c = t.split(/\s+/)[0].toUpperCase().replace(/[^A-Z0-9/]/g,'');
+      // Tiene que PARECER un código y además ser uno conocido: si no, cualquier
+      // palabra en mayúsculas de la descripción se convertiría en una actividad.
+      if(!/^[A-Z][A-Z0-9/]{0,5}$/.test(c)) return;
+      if(!_ecCodigoConocido(c)) return;
+      if(actos.length && actos[actos.length-1].code === c) return;
+      actos.push({ code:c, ini:hPend });
+      hPend = null;
+    });
+    if(actos.length < 2) return [];
+    var out = [];
+    for(var i=0;i<actos.length;i++){
+      var a = actos[i].ini, b = (i+1<actos.length) ? actos[i+1].ini : null;
+      if(!a && i===0 && ini) a = String(ini).replace(':','');
+      if(!b && i===actos.length-1 && fin) b = String(fin).replace(':','');
+      if(!a || !b) return [];                       // incompleto → no inventar horas
+      out.push({ code:actos[i].code, std:a.slice(0,2)+':'+a.slice(2), sta:b.slice(0,2)+':'+b.slice(2) });
+    }
+    return out;
   }
 
   events.forEach(function(ev){
@@ -41383,6 +41992,21 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
       var sbCode = _sbDetCode || _extractCode(text);
       var sbStart = (ev.start||'').slice(11,16);
       var sbEnd   = (ev.end||'').slice(11,16);
+
+      /* El desglose no trae UNA actividad: trae las que tenga el día, cada una con
+         sus horas. Sacar solo el primer código y taparlo con la ventana del evento
+         perdía la segunda entera — el caso del 25-ago, «OSB3 12:35 – 19:25» donde
+         la compañía enseña OSB3 hasta 19:20 y AAI de 19:20 a 19:25. */
+      var _sbActs = _ecActsDeDetails(details, date);
+      if(_sbActs.length){
+        _sbActs.forEach(function(a){
+          var _m = _ecMapCode(a.code);
+          entries.push({ date:a.date, type:_m.type, code:_m.code || a.code,
+                         std:a.std, sta:a.sta, dep:a.dep, arr:a.arr, source:'ECREWS' });
+        });
+        return;
+      }
+      // Sin desglose utilizable, la entrada única de siempre.
 
       // Franco: eCrews lo entrega como type "Standby" (F/F2/FR/EF) pero NO es una guardia →
       // type 'f' (coral, sin icono de reloj), no 'standby'.
@@ -41596,14 +42220,27 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
       // día como type "Default"/"Flight" sin legs → antes se descartaba y el día salía EN BLANCO.
       // Crear su entrada de actividad a partir del código para que se pinte (F → coral).
       if(!legLines.length){
+        var _gs0=(ev.start||'').slice(11,16), _gn0=(ev.end||'').slice(11,16);
+        /* Un día que eCrews sigue mandando como evento de VUELO pero que ya no tiene
+           tramos —le quitaron los vuelos y le dejaron la guardia— también puede traer
+           VARIAS actividades en el título. Aquí colapsaba igual que en la rama de
+           tierra: una entrada con el código de la primera y la ventana de todas.
+           Arreglar solo la rama de tierra dejaba el fallo vivo por este camino. */
+        var _multi0 = _ecActsDelTitulo(text, _gs0, _gn0);
+        if(_multi0.length){
+          _multi0.forEach(function(a){
+            var _m = _ecFallbackMap(a.code);
+            entries.push({ date:date, type:_m.type, code:_m.code, std:a.std, sta:a.sta, source:'ECREWS' });
+          });
+        } else {
         var _gc0 = _extractCode(text);
         if(_gc0){
           var _gm0 = _ecFallbackMap(_gc0);
           var _ge0 = { date:date, type:_gm0.type, code:_gm0.code, source:'ECREWS' };
-          var _gs0=(ev.start||'').slice(11,16), _gn0=(ev.end||'').slice(11,16);
 
           if(_gs0) _ge0.std=_gs0; if(_gn0) _ge0.sta=_gn0;
           entries.push(_ge0);
+        }
         }
       }
       return;
@@ -41619,137 +42256,41 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
       var gEnd   = (ev.end||'').slice(11,16);
 
 
-      // Vueling eCrews → PilotOS  (códigos completos Vueling)
-      var EC_MAP = {
-        // ── STANDBY ──────────────────────────────────────────────────
-        'ASBY': {type:'standby', code:'ASBY'},  // Airport standby
-        'OSBY': {type:'standby', code:'OSBY'},  // Off standby — sacado de guardia
-        'OSB3': {type:'standby', code:'OSB3'},  // Off standby bloque 3 días
-        'HSBY': {type:'standby', code:'HSBY'},  // Hotel standby
-        'SBY':  {type:'standby', code:'ASBY'},  // Home standby genérico
-        'FSBY': {type:'standby', code:'ASBY'},  // 5 stand-by in a row
-        'XSBY': {type:'standby', code:'ASBY'},  // Stand-by cnx antes 12LT
-        'ZSBY': {type:'standby', code:'ASBY'},  // Stand-by cnx partir 12LT
-        'TSBY': {type:'standby', code:'ASBY'},  // Junior standby
-        'AA':   {type:'standby', code:'ASBY'},  // Actividad aeroportuaria
-        'AAI':  {type:'standby', code:'ASBY'},  // Actividad aeroportuaria internacional
 
-        // ── DÍAS LIBRES / DESCANSO ───────────────────────────────────
-        'OFF':  {type:'off', code:'OFF'},
-        'ROFF': {type:'off', code:'ROFF'},      // Día libre solicitado
-        'VOFF': {type:'off', code:'OFF'},       // Off en bloque vacacional
-        '>OFF': {type:'off', code:'OFF'},       // Post-flight rest/day off
-        'REST': {type:'off', code:'OFF'},       // Día de descanso compensable
-        'XSOF': {type:'off', code:'OFF'},       // Libre Navidad sin prioridad
-        'CDOF': {type:'off', code:'OFF'},       // Libre recuperado mes siguiente
-        'NOFF': {type:'off', code:'NOFF'},      // Descanso no compensable
-        'LOFF': {type:'off', code:'OFF'},       // Día off en línea
-        'DOFF': {type:'off', code:'OFF'},       // Día off en destacamento
-        'AOFF': {type:'off', code:'OFF'},       // Día libre anual
-        'PAOF': {type:'off', code:'OFF'},       // AOFF pendiente
-        'DCOF': {type:'off', code:'OFF'},       // Día cedido devuelto
-        'SOFF': {type:'off', code:'OFF'},       // Office staff ROFF
-        'HIGH': {type:'off', code:'OFF'},       // High hours — DO NOT USE
-        'XOF1': {type:'off', code:'OFF'},       // Libre Navidad prioridad 1
-        'XOF2': {type:'off', code:'OFF'},       // Libre Navidad prioridad 2
-        'XOF3': {type:'off', code:'OFF'},       // Libre Navidad prioridad 3
-        'DIA LIBRE': {type:'off', code:'OFF'},
-
-        // ── DÍAS LIBRES SUBASTA ──────────────────────────────────────
-        'NROF': {type:'off', code:'NROF'},      // ROFF no ganado en subasta
-        'SROF': {type:'off', code:'SROF'},      // ROFF ganado en subasta
-        'FR':   {type:'f', code:'FR'},          // Servicio de franco (coral, no OFF)
-        'F2':   {type:'f', code:'F2'},          // Franco (coral, no OFF)
-        'F':    {type:'f', code:'F'},           // Franco
-        'DS':   {type:'off', code:'DS'},        // Day without changes — el piloto pide día sin cambios
-
-        // ── VACACIONES ───────────────────────────────────────────────
-        'VAC':  {type:'off', code:'VAC'},       // Vacaciones forzosas
-        'RVAC': {type:'off', code:'VAC'},       // Vacaciones voluntarias
-        'PVAC': {type:'off', code:'VAC'},       // Vacaciones pendientes
-        'AL':   {type:'off', code:'AL'},        // Annual leave
-
-        // ── PERMISOS / AUSENCIAS ─────────────────────────────────────
-        'BOD':  {type:'off', code:'OFF'},       // Permiso boda
-        'EMB':  {type:'off', code:'OFF'},       // Embarazo
-        'LAC':  {type:'off', code:'OFF'},       // Lactancia
-        'ELAT': {type:'off', code:'ELAT'},      // Días de lactancia (block) — lila + biberón
-        'MAT':  {type:'off', code:'MAT'},       // Permiso maternidad
-        'PAT':  {type:'off', code:'PAT'},       // Permiso paternidad
-        'MUD':  {type:'off', code:'OFF'},       // Permiso por mudanza
-        'PER':  {type:'off', code:'OFF'},       // Permiso no retribuido
-        'RPER': {type:'off', code:'OFF'},       // Permiso retribuido
-        'PT':   {type:'off', code:'OFF'},       // Part time crew (off duty days)
-        'FZ':   {type:'off', code:'OFF'},       // Cambio forzoso
-        'FALT': {type:'off', code:'OFF'},       // Falta (día de sanción)
-        'NQ':   {type:'off', code:'OFF'},       // Not qualified
-        'RSV':  {type:'off', code:'OFF'},       // Pre-roster period
-        'NAVL': {type:'off', code:'OFF'},       // Not available for duty
-        'IERT': {type:'off', code:'OFF'},       // Invaded ERTE/FERT/CIGS
-        'INC':  {type:'off', code:'OFF'},       // Incidencias
-
-        // ── ENFERMEDAD ───────────────────────────────────────────────
-        // type:'sick' (naranja), NO 'off' (verde): un sick tiene color propio.
-        'SICK': {type:'sick', code:'SICK'},     // Enfermedad
-        'SICD': {type:'sick', code:'SICK'},     // Sick from duty
-        'LSIC': {type:'sick', code:'SICK'},     // Enfermedad en línea
-        'DSIC': {type:'sick', code:'SICK'},     // Enfermedad en destacamento
-        'ERSK': {type:'sick', code:'SICK'},     // Sick on ERTE day
-
-        // ── VACUNACIÓN / MÉDICO ──────────────────────────────────────
-        'VCCN': {type:'off', code:'OFF'},       // Vaccination
-        'VCC':  {type:'off', code:'OFF'},       // Repetición vacunas
-        'RVCC': {type:'off', code:'OFF'},       // Revacunación
-
-        // ── NO SHOW ──────────────────────────────────────────────────
-        'N/S':  {type:'off', code:'N/S'},       // No show
-
-        // ── FORMACIÓN / TRAINING ─────────────────────────────────────
-        'EBT':  {type:'ebt', code:'EBT'},       // Evidence-Based Training (simulador)
-        'EVA':  {type:'eva', code:'EVA'},       // Evaluación en simulador
-        'SIM':  {type:'training', code:'SIM'},  // Simulator practice
-        'LPC':  {type:'training', code:'SIM'},  // License proficiency check
-        'OPC':  {type:'training', code:'SIM'},  // Operating proficiency check
-        'ART':  {type:'training', code:'ART'},  // Annual recurrent training
-        'TRT':  {type:'training', code:'TRT'},  // Triannual recurrent training (gorro)
-        'SBTO': {type:'training', code:'SBTO'}, // Scenario Based Training - Operator (simulador)
-        'REUT': {type:'training', code:'REUT'}, // Reunión/formación recurrente instructor
-        'FOS':  {type:'training', code:'FOS'},  // Flight Operations — clase teórica instructor
-        'SPAR': {type:'training', code:'SPAR'}, // Sparring
-        'RFSV': {type:'training', code:'SIM'},  // Covid extraordinary refresher
-        'RFSM': {type:'training', code:'SIM'},  // Refresher course
-        'LM2S': {type:'training', code:'TR'},   // E-learning: fatigue training
-        'LMEF': {type:'training', code:'TR'},   // E-learning: EFB refresh
-        'LMSS': {type:'training', code:'TR'},   // E-learning: special courses
-        'LMSC': {type:'training', code:'TR'},   // E-learning: CBT
-        'LMSD': {type:'training', code:'TR'},   // E-learning: LVO
-        'LMAF': {type:'training', code:'LMAF'}, // E-learning (genérico)
-        'LPRL': {type:'training', code:'TR'},   // E-learning: prev. riesgos laborales
-        'IET':  {type:'training', code:'TR'},   // Instructor en tierra
-        'CUR':  {type:'training', code:'TR'},   // Curso
-        'MED':  {type:'training', code:'TR'},   // Medical check
-        'ASEP': {type:'training', code:'TR'},   // Reconocimiento médico Asepeyo
-        'DANG': {type:'training', code:'TR'},   // Dangerous goods
-        'RFT':  {type:'training', code:'TR'},   // Reserved for training
-        'MTG':  {type:'training', code:'REU'},  // Meeting
-        'REU':  {type:'training', code:'REU'},  // Reunión
-        'E':    {type:'training', code:'TR'},   // Actividad corporativa
-        'OFIT': {type:'training', code:'TR'},   // Office for training dept
-        'GRM':  {type:'training', code:'TR'},   // Grooming
-        'OFIC': {type:'training', code:'TR'},   // Oficina
-        'SIND': {type:'training', code:'TR'},   // Horas sindicales
-        'TR':   {type:'training', code:'TR'},   // Training genérico
-        'GRND': {type:'training', code:'TR'},   // Ground training
-
-        // ── TRABAJO / POSICIONAMIENTO (día de trabajo, no volando) ───
-        'POS':  {type:'flight', code:'POS', isPositioning:true},   // Posicionamiento
-        'PTA':  {type:'flight', code:'PTA', isPositioning:true},   // Pilot taxiing airplanes
-        'TEC':  {type:'flight', code:'TEC', isPositioning:true},   // Test flight
-        'FLT':  {type:'flight', code:'FLT', isPositioning:false},  // Flight duty (uploaded)
-      };
 
       // Fallback robusto para códigos no listados: e-learning (LM*) → training,
       // guardias (*SBY/OSB*) → standby, resto → off conservando la letra real.
+      /* ── Un día de tierra puede traer VARIAS actividades ─────────────────────
+         Hasta aquí esta rama solo miraba el título del evento y su ventana: una
+         entrada por evento y punto. Pero eCrews lista las actividades del día
+         dentro de `details`, una por línea y con el formato de siempre
+         ("OSB3 - BCN (1235) - BCN (1920)"), igual que ya se leen en un día CON
+         vuelos. Sin leerlas aquí, un día de solo tierra colapsaba a una única
+         entrada: el 25-ago salía «OSB3 12:35 – 19:25» —el código de la primera
+         actividad con la ventana de las dos— y la AAI de 19:20 a 19:25
+         desaparecía del roster. Si no hay líneas que valgan, se cae a la entrada
+         única de siempre y no cambia nada. */
+      var gLegs = _ecActsDeDetails(details, date);
+      /* Si `details` no trae desglose, el título puede traer varias actividades.
+         Misma regla que la rama de vuelo sin tramos: una sola función para las dos. */
+      if(!gLegs.length){
+        _ecActsDelTitulo(text, gStart, gEnd).forEach(function(a){
+          gLegs.push({ code:a.code, date:date, std:a.std, sta:a.sta });
+        });
+      }
+      if(gLegs.length){
+        gLegs.forEach(function(g){
+          var _m = EC_MAP[g.code]
+                || (/^LM/.test(g.code) ? {type:'training', code:'TR'}
+                :   _isStandbyCode(g.code) ? {type:'standby', code:g.code}
+                :   {type:'off', code:g.code});
+          var _e = { date:g.date, type:_m.type, code:_m.code, std:g.std, sta:g.sta,
+                     dep:g.dep, arr:g.arr, source:'ECREWS' };
+          if(_m.isPositioning) _e.isPositioning = true;
+          entries.push(_e);
+        });
+        return;
+      }
       var gMap   = EC_MAP[gCode]
                 || (/^LM/.test(gCode) ? {type:'training', code:'TR'}
                 :   _isStandbyCode(gCode) ? {type:'standby', code:gCode}
@@ -41969,6 +42510,13 @@ function _ecHandleData(payload){
   var bdt     = payload.BlockDutyTimes  || {};
   var period  = (payload.PeriodStart||'').slice(0,7); // YYYY-MM
 
+  /* ── Guardar el evento CRUDO de cada día ────────────────────────────────────
+     Dos rondas de arreglos a ciegas sobre el día 25-ago —desglose en `details`,
+     luego el formato del título— porque el payload de eCrews no queda en ninguna
+     parte: se parsea y se tira. Guardar lo poco que hace falta para reconocer un
+     formato (tipo, ventana, título y desglose) cuesta unos kilobytes y convierte
+     «pruebo otra hipótesis» en «mira lo que manda eCrews». Sin datos personales
+     más allá de lo que ya está en el roster, y solo del último import. */
   _ecParsedEntries = _ecParseSchedulerEvents(events, bdt,
     { timesIn: ecTimesInModo(payload), report: payload.ScheduleReport || null });
 
@@ -42171,6 +42719,10 @@ window.ldECrewsConfirm = function(){
       // hora del roster se pierde al guardar (la tira de duty mostraba "Todo el día").
       if(e.checkin)  entry.checkin  = e.checkin;
       if(e.checkout) entry.checkout = e.checkout;
+      // DÓNDE se hace la actividad. El Art. 15.18 decide la dieta —nacional o
+      // internacional— por el lugar, así que sin esto el cálculo no tiene con qué.
+      if(e.dep)      entry.dep      = e.dep;
+      if(e.arr)      entry.arr      = e.arr;
       if(e.start)    entry.start    = e.start;
       if(e.end)      entry.end      = e.end;
       if(e.times)    entry.times    = e.times;
@@ -42226,6 +42778,12 @@ window.ldECrewsConfirm = function(){
   } else {
     showToast('El roster ya estaba actualizado','info');
   }
+
+  /* El roster acaba de cambiar: si el piloto tiene una suscripción de calendario, se
+     le sube el contenido nuevo. Es el único momento en que el roster cambia de
+     verdad, y así su calendario se entera sin volver a exportar nada. En silencio:
+     si falla, no es algo que el piloto haya pedido en este momento. */
+  try{ if(typeof window.rosterRefrescarSub === 'function') window.rosterRefrescarSub(); }catch(_){}
 };
 
 // Quick camera OCR shortcut — opens modal in photo mode and fires camera input
@@ -42279,9 +42837,12 @@ window.goTo = function(key){
 // ════════════════════════════════════════════════
 
 // ── ICS Calendar Export ──
-window.rosterExportICS = function(opts){
+/* GENERA el .ics y ya. La entrega —abrirlo, descargarlo o subirlo como suscripción—
+   va aparte: así el calendario que se suscribe y el que se exporta a mano salen del
+   MISMO generador y no pueden divergir. Devuelve null si no hay nada que exportar. */
+window.rosterBuildICS = function(opts){
   try {
-    if(!RST.entries.length){ if(typeof showToast==='function') showToast('No hay datos en el roster'); return; }
+    if(!RST.entries.length){ if(typeof showToast==='function') showToast('No hay datos en el roster'); return null; }
 
     opts = opts || {};
     var from = opts.from || null, to = opts.to || null;
@@ -42289,7 +42850,7 @@ window.rosterExportICS = function(opts){
     var entries = RST.entries.filter(function(e){
       return (!from || e.date >= from) && (!to || e.date <= to);
     });
-    if(!entries.length){ if(typeof showToast==='function') showToast('No hay actividad en el rango seleccionado'); return; }
+    if(!entries.length){ if(typeof showToast==='function') showToast('No hay actividad en el rango seleccionado'); return null; }
 
     // Color del calendario (hex + nombre CSS3 para la propiedad COLOR de RFC 7986)
     var COLOR_NAMES = {
@@ -42453,24 +43014,134 @@ window.rosterExportICS = function(opts){
 
     lines.push('END:VCALENDAR');
 
-    var icsContent = lines.join('\r\n');
+    return lines.join('\r\n');
+  } catch(ex){
+    if(typeof showToast==='function') showToast('Error al generar el calendario: '+ex.message);
+    return null;
+  }
+};
+
+// ENTREGA el .ics al sistema. En iOS, con un enlace que pulsa el piloto; en el resto,
+// descargando el archivo.
+window.rosterExportICS = function(opts){
+  try {
+    var icsContent = window.rosterBuildICS(opts);
+    if(!icsContent) return;
     var blob = new Blob([icsContent], {type:'text/calendar;charset=utf-8'});
-    var colLbl = { yellow:'amarillo (Vueling)', purple:'morado', blue:'azul', teal:'turquesa', green:'verde', orange:'naranja', red:'rojo' }[calColorName] || calColorName;
     var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent||'') || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
     if(isIOS){
-      // iOS/iPadOS: ABRIR el .ics (no compartir el fichero) → así iOS muestra la pantalla
-      // nativa "Añadir a Calendario", donde SÍ eliges el calendario destino: Apple, o
-      // cualquier cuenta de Google añadida en Ajustes › Calendario. Compartir el fichero
-      // (share sheet) NO ofrece Calendario, por eso se veía el .ics pero no dónde
-      // seleccionarlo. target=_blank abre el preview con "Añadir todo" sin cerrar la PWA.
-      var iurl = URL.createObjectURL(blob);
-      var ia = document.createElement('a');
-      ia.href = iurl; ia.target = '_blank'; ia.rel = 'noopener';
-      ia.style.display = 'none';
-      document.body.appendChild(ia);
-      ia.click();
-      setTimeout(function(){ try{document.body.removeChild(ia);}catch(_){} URL.revokeObjectURL(iurl); }, 15000);
-      if(typeof showToast==='function') showToast('📅 Pulsa "Añadir todo" y elige el calendario. Para que aparezca Google, añade tu cuenta de Google en Ajustes › Calendario. El color "'+colLbl+'" solo se aplica en Apple Calendar.', 'info', 8000);
+      /* Cuatro intentos en este bug (#1BPUV), y cada uno descartó una vía:
+           · `blob:` en pestaña nueva → página en blanco girando.
+           · ventana vacía rellenada al volver del servidor → `about:blank` muerto,
+             el navegador incrustado de la PWA ni navega ni se deja cerrar.
+           · pedir la ruta a api.pilotos.aero → «Cannot GET»: eso es producción, y el
+             código nuevo vive primero en el backend de beta.
+           · navegar por script a la URL del .ics → no pasa nada visible en la PWA.
+
+         Lo que queda, y es lo más fiable en iOS: un ENLACE DE VERDAD que pulsa el
+         piloto. Una navegación nacida de un toque sobre un <a href> es el caso que
+         iOS entrega al gestor del sistema; la navegación por script, no siempre.
+         Así que el trabajo async termina en una tarjeta con el enlace, en vez de
+         intentar navegar solo y dejar al piloto mirando una pantalla que no cambia. */
+      (async function(){
+        var _bajar = function(motivo){
+          try{
+            var furl = URL.createObjectURL(blob);
+            var fa = document.createElement('a');
+            fa.href = furl; fa.download = 'PilotOS_Roster.ics';
+            fa.style.display = 'none';
+            document.body.appendChild(fa); fa.click();
+            setTimeout(function(){ try{document.body.removeChild(fa);}catch(_){} URL.revokeObjectURL(furl); }, 5000);
+          }catch(_){}
+          if(typeof showToast==='function') showToast('No pude preparar el calendario ('+motivo+'). Te he descargado PilotOS_Roster.ics: ábrelo desde Archivos y elige Calendario.', 'error', 8000);
+        };
+        /* La tarjeta NO ofrece «descargar el archivo»: en iOS el atributo `download`
+           se ignora y no existe una carpeta de descargas como en un ordenador. Al
+           tocar el enlace, iOS mira el tipo y se lo pasa a Calendario — o sea, los
+           dos botones acababan en el mismo sitio y la etiqueta del segundo mentía,
+           que es el mismo pecado del toast que se quitó en Beta.610. La descarga
+           sigue existiendo como respaldo AUTOMÁTICO si el servidor falla: ahí sí
+           tiene sentido, porque entonces no hay enlace que ofrecer. */
+        /* La tarjeta de la EXPORTACIÓN. También se elige destino.
+           Apple abre de una vez: un enlace de verdad a nuestro propio origen es lo
+           único que navega dentro de la PWA. Para Google no hay atajo —su app del
+           móvil no importa desde URL— así que se le ofrece lo que SÍ le sirve: la
+           suscripción, que además le deja poner color y se actualiza sola. */
+        var _tarjeta = function(href){
+          var cuerpo =
+              '<div style="display:flex;flex-direction:column;gap:9px">'
+            +   window._calFila({ id:'ics-apple', href:href, ico:window._calICO.apple, destacado:true,
+                                  titulo:'Apple Calendar', sub:'Se abre ahora y eliges el calendario' })
+            +   window._calFila({ id:'ics-google', ico:window._calICO.google, chevron:'⌄',
+                                  titulo:'Google Calendar', sub:'Mejor con una suscripción — te explico' })
+            + '</div>'
+            + '<div id="ics-gpanel" style="display:none;margin-top:10px;padding:14px 15px;border-radius:16px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.09)">'
+            +   '<div style="font-size:12px;color:#94a3b8;line-height:1.6;margin-bottom:11px">'
+            +     'Google no puede importar un archivo desde el móvil. Lo que sí funciona es <b style="color:#cbd5e1">suscribirse</b>: '
+            +     'creas el enlace una vez, lo añades desde el ordenador y a partir de ahí tu roster entra solo — con el color que tú elijas.'
+            +   '</div>'
+            +   '<button id="ics-gsub" style="width:100%;padding:12px;border:1px solid rgba(34,211,238,.32);border-radius:12px;background:rgba(8,145,178,.14);color:#22d3ee;font-family:\'Space Grotesk\',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer">Crear suscripción</button>'
+            + '</div>'
+            + window._calCerrar('ics-cerrar');
+
+          var ov = window._calSheet('📅', 'Calendario listo',
+            'Elige dónde lo quieres. Al añadirlo eliges el calendario destino y los vuelos toman su color.',
+            cuerpo, 'data-icsov');
+
+          ov.querySelector('#ics-cerrar').addEventListener('click', function(){ ov.remove(); });
+          ov.querySelector('#ics-apple').addEventListener('click', function(){ setTimeout(function(){ ov.remove(); }, 1200); });
+          ov.querySelector('#ics-google').addEventListener('click', function(){
+            var d = ov.querySelector('#ics-gpanel');
+            d.style.display = (d.style.display === 'none') ? 'block' : 'none';
+            this.querySelector('.cal-chev').textContent = (d.style.display === 'none') ? '⌄' : '⌃';
+          });
+          ov.querySelector('#ics-gsub').addEventListener('click', async function(){
+            var b = this; b.disabled = true; b.textContent = 'Creando…';
+            try{
+              var r = await window.rosterSuscribirCal();
+              ov.remove();
+              if(r) window.rexTarjetaSub(r.url);
+            }catch(e){
+              b.disabled = false; b.textContent = 'Crear suscripción';
+              if(typeof showToast==='function') showToast('No pude crear la suscripción: ' + e.message, 'error', 6000);
+            }
+          });
+        };
+        try{
+          if(typeof showToast==='function') showToast('\uD83D\uDCC5 Preparando el calendario\u2026', 'info', 2000);
+          var token = (typeof lsGet==='function') ? lsGet('cafi_auth_token','') : '';
+          /* DOS orígenes, y se prueban los dos. `cafi_backend_url` apunta por defecto
+             a api.pilotos.aero, que es PRODUCCIÓN: una ruta recién añadida vive antes
+             en el backend de beta, que es el mismo que sirve esta página. */
+          var _bases = [];
+          try{ if(location.origin && /^https?:/.test(location.origin)) _bases.push(location.origin); }catch(_){}
+          var _cfg = (typeof lsGet==='function') ? lsGet('cafi_backend_url','https://api.pilotos.aero') : 'https://api.pilotos.aero';
+          if(_cfg && _bases.indexOf(_cfg) < 0) _bases.push(_cfg);
+
+          var d = null, base = null, ultimo = 'sin orígenes que probar';
+          for(var _i=0; _i<_bases.length; _i++){
+            try{
+              var ctrl = new AbortController();
+              var mata = setTimeout(function(){ ctrl.abort(); }, 12000);
+              var r = await fetch(_bases[_i] + '/api/ics', {
+                method:'POST',
+                headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + token },
+                body: JSON.stringify({ ics: icsContent }),
+                signal: ctrl.signal
+              });
+              clearTimeout(mata);
+              if(!r.ok){ ultimo = 'el servidor respondió ' + r.status; continue; }
+              var _d = await r.json();
+              if(!_d || !_d.url){ ultimo = 'respuesta sin URL'; continue; }
+              d = _d; base = _bases[_i]; break;
+            }catch(e){ ultimo = (e && e.name === 'AbortError') ? 'no responde' : ((e && e.message) || 'error'); }
+          }
+          if(!d) throw new Error(ultimo);
+          _tarjeta(base + d.url);
+        }catch(err){
+          _bajar((err && err.name === 'AbortError') ? 'no responde' : (err && err.message) || 'error');
+        }
+      })();
     } else {
       var url = URL.createObjectURL(blob);
       var a = document.createElement('a');
@@ -42480,11 +43151,190 @@ window.rosterExportICS = function(opts){
       document.body.appendChild(a);
       a.click();
       setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 5000);
-      if(typeof showToast==='function') showToast('📅 PilotOS_Roster.ics descargado · En Apple Calendar el calendario "PilotOS" usará el color '+colLbl+'. En Google Calendar añádelo desde "Otros calendarios › Importar" y elige el color a mano.', 'info', 6500);
+      if(typeof showToast==='function') showToast('📅 PilotOS_Roster.ics descargado · Ábrelo para añadirlo a tu calendario. En Google Calendar, desde "Otros calendarios › Importar".', 'info', 6000);
     }
   } catch(ex){
     if(typeof showToast==='function') showToast('Error al exportar: '+ex.message);
   }
+};
+
+/* ── Suscripción: el calendario que se pone al día solo ───────────────────────
+   Exportar manda los eventos una vez y se acabó: cada cambio de roster obliga a
+   repetirlo, y el color lo pone el calendario destino porque Google ignora el del
+   .ics. Suscribirse arregla las dos cosas de golpe — el calendario crea su propia
+   entrada «PilotOS», el piloto le pone color UNA vez y vale para todo, y los
+   cambios entran solos.
+   El contenido se sube con el MISMO generador que la exportación normal. */
+/* ── Piezas compartidas de las tarjetas de calendario ─────────────────────────
+   Apple y Google se eligen SIEMPRE, en las dos tarjetas: exportar y suscribirse.
+   Los iconos van en SVG dentro del propio HTML —la app funciona sin red, así que
+   nada de imágenes externas— y son el glifo genérico de cada calendario con sus
+   colores, no su logotipo. */
+window._calICO = {
+  apple: '<svg viewBox="0 0 40 40" width="30" height="30" aria-hidden="true">'
+    + '<rect x="2" y="4" width="36" height="34" rx="8" fill="#FFFFFF"/>'
+    + '<rect x="2" y="4" width="36" height="10" rx="8" fill="#FF3B30"/>'
+    + '<rect x="2" y="10" width="36" height="5" fill="#FF3B30"/>'
+    + '<text x="20" y="32" text-anchor="middle" font-family="-apple-system,Helvetica,Arial" font-size="17" font-weight="700" fill="#1D1D1F">17</text>'
+    + '</svg>',
+  google: '<svg viewBox="0 0 40 40" width="30" height="30" aria-hidden="true">'
+    + '<rect x="4" y="4" width="32" height="32" rx="5" fill="#FFFFFF"/>'
+    + '<path d="M4 9a5 5 0 0 1 5-5h6v6H4z" fill="#4285F4"/>'
+    + '<path d="M36 9a5 5 0 0 0-5-5h-6v6h11z" fill="#EA4335"/>'
+    + '<path d="M4 31a5 5 0 0 0 5 5h6v-6H4z" fill="#34A853"/>'
+    + '<path d="M36 31a5 5 0 0 1-5 5h-6v-6h11z" fill="#FBBC04"/>'
+    + '<text x="20" y="27" text-anchor="middle" font-family="Roboto,Arial" font-size="15" font-weight="700" fill="#4285F4">31</text>'
+    + '</svg>'
+};
+
+/* Una fila de opción. `tag` decide si es un enlace (Apple, que navega de verdad) o
+   un botón (Google, que despliega instrucciones: navegar a otro dominio no funciona
+   dentro de la PWA). */
+window._calFila = function(o){
+  var tag = o.href ? 'a' : 'button';
+  var attrs = o.href ? ('href="' + o.href + '"') : 'type="button"';
+  return '<' + tag + ' id="' + o.id + '" ' + attrs + ' class="cal-opt" '
+    + 'style="display:flex;align-items:center;gap:13px;width:100%;text-align:left;text-decoration:none;'
+    + 'padding:14px 15px;border-radius:16px;cursor:pointer;-webkit-appearance:none;'
+    + 'background:' + (o.destacado ? 'linear-gradient(135deg,rgba(8,145,178,.22),rgba(3,105,161,.14))' : 'rgba(255,255,255,.045)') + ';'
+    + 'border:1px solid ' + (o.destacado ? 'rgba(34,211,238,.42)' : 'rgba(255,255,255,.11)') + ';'
+    + 'transition:transform .12s ease, border-color .18s ease">'
+    + '<span style="width:44px;height:44px;border-radius:13px;background:rgba(255,255,255,.94);display:flex;align-items:center;justify-content:center;flex:0 0 auto;box-shadow:0 2px 10px rgba(0,0,0,.28)">' + o.ico + '</span>'
+    + '<span style="flex:1;min-width:0">'
+    +   '<span style="display:block;font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:800;color:#F0FFFE;letter-spacing:-.2px">' + o.titulo + '</span>'
+    +   '<span style="display:block;font-size:11.5px;color:#94a3b8;line-height:1.4;margin-top:2px">' + o.sub + '</span>'
+    + '</span>'
+    /* La flecha lleva su propia clase: sin ella, `span:last-child` casaba primero con
+       el SUBTÍTULO —es el último hijo de su envoltura— y al desplegar se lo comía. */
+    + '<span class="cal-chev" style="color:' + (o.destacado ? '#22d3ee' : '#475569') + ';font-size:19px;flex:0 0 auto">' + (o.chevron || '›') + '</span>'
+    + '</' + tag + '>';
+};
+
+// Envoltura común: mismo lienzo para las dos tarjetas.
+window._calSheet = function(icono, titulo, sub, cuerpo, attr){
+  var ov = document.createElement('div');
+  ov.setAttribute(attr, '1');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:640;background:rgba(2,6,15,.92);-webkit-backdrop-filter:blur(18px) saturate(120%);backdrop-filter:blur(18px) saturate(120%);display:flex;align-items:center;justify-content:center;padding:18px';
+  ov.innerHTML =
+      '<div style="width:100%;max-width:430px;max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch;'
+    +      'background:linear-gradient(180deg,#0C1A2E 0%,#060E1C 62%);border:1px solid rgba(34,211,238,.24);'
+    +      'border-radius:26px;padding:24px 20px 20px;box-shadow:0 30px 80px rgba(0,0,0,.62), inset 0 1px 0 rgba(255,255,255,.06)">'
+    + '<div style="text-align:center;margin-bottom:18px">'
+    +   '<div style="width:56px;height:56px;margin:0 auto 11px;border-radius:18px;display:flex;align-items:center;justify-content:center;'
+    +        'background:linear-gradient(135deg,rgba(8,145,178,.3),rgba(3,105,161,.16));border:1px solid rgba(34,211,238,.3);font-size:26px">' + icono + '</div>'
+    +   '<div style="font-family:\'Space Grotesk\',sans-serif;font-size:19px;font-weight:800;color:#F0FFFE;letter-spacing:-.4px">' + titulo + '</div>'
+    +   '<div style="font-size:12.5px;color:#8fa3ba;line-height:1.55;margin-top:6px">' + sub + '</div>'
+    + '</div>'
+    + cuerpo
+    + '</div>';
+  ov.addEventListener('click', function(e){ if(e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+  return ov;
+};
+
+// Botón de cerrar, igual en las dos.
+window._calCerrar = function(id){
+  return '<button id="' + id + '" style="margin-top:12px;width:100%;padding:13px;border:none;border-radius:14px;'
+    + 'background:rgba(255,255,255,.06);color:#8fa3ba;font-family:\'Space Grotesk\',sans-serif;font-size:13.5px;font-weight:700;cursor:pointer">Cerrar</button>';
+};
+
+// Bloque de pasos + enlace copiable, que es el único camino real hacia Google.
+window._calPasosGoogle = function(url, id){
+  return '<div id="' + id + '" style="display:none;margin-top:10px;padding:14px 15px;border-radius:16px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.09)">'
+    + '<div style="font-size:12px;color:#94a3b8;line-height:1.6;margin-bottom:11px">'
+    +   'La app de Google Calendar del móvil <b style="color:#cbd5e1">no permite</b> añadir por URL: es una función solo de ordenador. Se hace una vez y luego aparece en el móvil solo.'
+    + '</div>'
+    + '<div style="display:flex;gap:9px;align-items:flex-start;margin-bottom:7px"><span style="font-family:\'Space Mono\',monospace;font-size:11px;color:#22d3ee;font-weight:700;flex:0 0 auto">1</span><span style="font-size:12px;color:#cbd5e1;line-height:1.45">Copia el enlace.</span></div>'
+    + '<div style="display:flex;gap:9px;align-items:flex-start;margin-bottom:7px"><span style="font-family:\'Space Mono\',monospace;font-size:11px;color:#22d3ee;font-weight:700;flex:0 0 auto">2</span><span style="font-size:12px;color:#cbd5e1;line-height:1.45">Abre <b>calendar.google.com</b> en un ordenador.</span></div>'
+    + '<div style="display:flex;gap:9px;align-items:flex-start;margin-bottom:11px"><span style="font-family:\'Space Mono\',monospace;font-size:11px;color:#22d3ee;font-weight:700;flex:0 0 auto">3</span><span style="font-size:12px;color:#cbd5e1;line-height:1.45">Otros calendarios › <b>+</b> › <b>Desde URL</b>, y pega.</span></div>'
+    + '<div style="font-family:\'Space Mono\',monospace;font-size:10px;color:#22d3ee;background:rgba(0,0,0,.32);border-radius:10px;padding:9px 10px;word-break:break-all;line-height:1.5">' + url + '</div>'
+    + '<button id="' + id + '-cp" style="margin-top:9px;width:100%;padding:11px;border:1px solid rgba(34,211,238,.32);border-radius:12px;background:rgba(8,145,178,.14);color:#22d3ee;font-family:\'Space Grotesk\',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer">Copiar enlace</button>'
+    + '</div>';
+};
+
+// Copiar al portapapeles con acuse en el propio botón.
+window._calCopiar = function(btn, url){
+  var ok = function(){ var t = btn.textContent; btn.textContent = '✓ Copiado'; setTimeout(function(){ btn.textContent = t; }, 1800); };
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(ok, function(){});
+    else { var t=document.createElement('textarea'); t.value=url; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); ok(); }
+  }catch(_){}
+};
+
+/* La tarjeta de la SUSCRIPCIÓN. Se elige destino: Apple o Google.
+   Apple es un enlace `webcal://` de verdad —el esquema que iOS y Android entregan al
+   calendario COMO SUSCRIPCIÓN; con https muchos clientes se lo bajan como archivo.
+   Google no puede ser un botón: la PWA no navega a otro dominio, y la app de Google
+   Calendar del móvil ni siquiera tiene «Desde URL». Se despliegan los pasos. */
+window.rexTarjetaSub = function(url){
+  var webcal = String(url).replace(/^https?:/, 'webcal:');
+  var cuerpo =
+      '<div style="display:flex;flex-direction:column;gap:9px">'
+    +   window._calFila({ id:'sub-apple', href:webcal, ico:window._calICO.apple, destacado:true,
+                          titulo:'Apple Calendar', sub:'Un toque y listo, en este dispositivo' })
+    +   window._calFila({ id:'sub-google', ico:window._calICO.google, chevron:'⌄',
+                          titulo:'Google Calendar', sub:'Se añade una vez desde el ordenador' })
+    + '</div>'
+    + window._calPasosGoogle(url, 'sub-pasos')
+    + '<div style="margin-top:14px;padding:11px 13px;border-radius:14px;font-size:11.5px;line-height:1.5;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:#F5B841">'
+    +   'Quien tenga este enlace puede ver tu roster. No lo compartas — y si se te escapa, crea otro desde aquí: el anterior deja de servir.'
+    + '</div>'
+    + window._calCerrar('sub-cerrar');
+
+  var ov = window._calSheet('🔗', 'Suscripción lista',
+    'Se creará un calendario <b style="color:#cbd5e1">PilotOS</b> aparte. Ponle el color que quieras <b style="color:#cbd5e1">una vez</b>: valdrá para todos tus vuelos, y se actualizará solo cuando sincronices.',
+    cuerpo, 'data-subov');
+
+  ov.querySelector('#sub-cerrar').addEventListener('click', function(){ ov.remove(); });
+  ov.querySelector('#sub-apple').addEventListener('click', function(){ setTimeout(function(){ ov.remove(); }, 1200); });
+  ov.querySelector('#sub-google').addEventListener('click', function(){
+    var d = ov.querySelector('#sub-pasos');
+    d.style.display = (d.style.display === 'none') ? 'block' : 'none';
+    this.querySelector('.cal-chev').textContent = (d.style.display === 'none') ? '⌄' : '⌃';
+  });
+  ov.querySelector('#sub-pasos-cp').addEventListener('click', function(){ window._calCopiar(this, url); });
+};
+
+window.rosterSuscribirCal = async function(){
+  var bases = [];
+  try{ if(location.origin && /^https?:/.test(location.origin)) bases.push(location.origin); }catch(_){}
+  var cfg = (typeof lsGet==='function') ? lsGet('cafi_backend_url','https://api.pilotos.aero') : 'https://api.pilotos.aero';
+  if(cfg && bases.indexOf(cfg) < 0) bases.push(cfg);
+  var token = (typeof lsGet==='function') ? lsGet('cafi_auth_token','') : '';
+  // La suscripción lleva el roster ENTERO: es un calendario vivo, no un recorte.
+  var ics = window.rosterBuildICS({});
+  if(!ics) return null;
+  var ultimo = 'sin orígenes que probar';
+  for(var i=0;i<bases.length;i++){
+    try{
+      var ctrl = new AbortController();
+      var mata = setTimeout(function(){ ctrl.abort(); }, 15000);
+      var r = await fetch(bases[i] + '/api/ics/subscribe', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + token },
+        body: JSON.stringify({ ics: ics }),
+        signal: ctrl.signal
+      });
+      clearTimeout(mata);
+      if(!r.ok){ ultimo = 'el servidor respondió ' + r.status; continue; }
+      var d = await r.json();
+      if(!d || !d.url){ ultimo = 'respuesta sin URL'; continue; }
+      try{ lsSet('pilotos_cal_sub', bases[i] + d.url); }catch(_){}
+      return { url: bases[i] + d.url, nueva: !!d.nueva };
+    }catch(e){ ultimo = (e && e.name==='AbortError') ? 'no responde' : ((e && e.message) || 'error'); }
+  }
+  throw new Error(ultimo);
+};
+
+/* Refresca el contenido de la suscripción SI ya existe. Se llama tras sincronizar el
+   roster: es cuando el roster cambia de verdad, y así el calendario del piloto se
+   entera sin que tenga que volver a exportar nada. Silencioso a propósito. */
+window.rosterRefrescarSub = async function(){
+  try{
+    var ya = (typeof lsGet==='function') ? lsGet('pilotos_cal_sub','') : '';
+    if(!ya) return;
+    await window.rosterSuscribirCal();
+  }catch(_){}
 };
 
 // ── Panel de selección previo a exportar (rango + color) ──
@@ -42492,13 +43342,14 @@ window.rosterExportOpen = function(){
   if(!RST.entries.length){ if(typeof showToast==='function') showToast('No hay datos en el roster'); return; }
 
   var MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-  var COLORS = [
-    { hex:'#FFCC00', name:'yellow' },                                  // Vueling
-    { hex:'#7C3AED', name:'purple' }, { hex:'#2563EB', name:'blue' },
-    { hex:'#0D9488', name:'teal' },   { hex:'#16A34A', name:'green' },
-    { hex:'#EA580C', name:'orange' }, { hex:'#DC2626', name:'red' }
-  ];
-  // Estado del panel — por defecto, amarillo Vueling
+  /* SIN selector de color. El .ics lleva su color en la cabecera del CALENDARIO, y
+     eso solo manda cuando el fichero CREA un calendario (una suscripción). Aquí los
+     eventos se importan DENTRO de un calendario que ya existe —el que elige el
+     piloto en la pantalla de iOS o en Google—, y ahí gana siempre el color de ese
+     calendario destino. Confirmado por el tester en Google.
+     El panel lo ofrecía igualmente y avisaba de que «en Google no funciona»: un
+     ajuste que no hace nada más una nota que lo admite. Se queda el amarillo de
+     Vueling en el fichero por si alguna vez se usa como suscripción, sin prometerlo. */
   var state = { mode:'month', color:'#FFCC00', colorName:'yellow' };
 
   // Rango "mes actual" desde la vista del calendario
@@ -42511,21 +43362,13 @@ window.rosterExportOpen = function(){
   var mr = monthRange();
   var monthLbl = MESES[RST.viewMonth] + ' ' + RST.viewYear;
 
-  var swatches = COLORS.map(function(c){
-    var sel = c.hex===state.color;
-    return '<button type="button" class="rex-sw'+(sel?' sel':'')+'" data-hex="'+c.hex+'" data-name="'+c.name+'" '
-      + 'style="width:36px;height:36px;border-radius:50%;border:2px solid '+(sel?'var(--fp-ink)':'transparent')+';'
-      + 'background:'+c.hex+';cursor:pointer;padding:0;-webkit-appearance:none;transition:transform .12s,border-color .12s;'
-      + 'box-shadow:0 0 0 2px rgba(0,0,0,.15) inset"></button>';
-  }).join('');
-
   var ov = document.createElement('div');
   ov.id = 'fp-overlay';
   ov.innerHTML =
     '<div id="fp-sheet">'
     + '<div class="fp-handle"></div>'
     + '<div class="fp-title">📊 Exportar calendario</div>'
-    + '<div class="fp-sub">Elige qué parte del roster exportar y el color del calendario. El archivo .ics se añade a tu calendario del sistema.</div>'
+    + '<div class="fp-sub">Elige qué parte del roster exportar. Al añadirlo eliges el calendario destino, y los vuelos toman el color de ese calendario.</div>'
     + '<div class="fp-scroll">'
     +   '<div class="fp-seclabel">Qué exportar</div>'
     +   '<div class="fp-presets">'
@@ -42538,12 +43381,19 @@ window.rosterExportOpen = function(){
     +     '<div style="color:var(--fp-muted);font-family:\'Space Mono\',monospace">→</div>'
     +     '<input type="date" id="rex-to" title="Hasta" value="'+mr.to+'">'
     +   '</div>'
-    +   '<div class="fp-seclabel">Color del calendario</div>'
-    +   '<div id="rex-swatches" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">'+swatches+'</div>'
-    +   '<div style="margin-top:12px;padding:9px 12px;border-radius:11px;font-size:11px;line-height:1.45;'
-    +        'background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);color:#F59E0B">'
-    +     '⚠️ El color solo se aplica en <b>Apple Calendar</b>. Google Calendar ignora el color del archivo .ics: tendrás que asignarlo a mano tras importar.'
+    +   '<div style="height:1px;background:rgba(255,255,255,.12);margin:20px 0 16px"></div>'
+    +   '<div class="fp-seclabel">O mantenlo al día solo</div>'
+    +   '<div style="font-size:12px;line-height:1.5;color:var(--fp-muted);margin-bottom:10px">'
+    +     'En vez de exportar, tu calendario puede <b>suscribirse</b> al roster: crea un '
+    +     'calendario «PilotOS» aparte, le pones el color que quieras <b>una vez</b> y se '
+    +     'actualiza solo cuando sincronizas.<br>'
+    /* Se dice aquí porque el botón vive debajo de «Qué exportar» y parecía obedecerlo:
+       un tester eligió «Mes» y se encontró con todos los meses en el calendario. La
+       suscripción lleva el roster ENTERO a propósito — es un calendario vivo, y uno
+       recortado a un mes se quedaría vacío al mes siguiente. */
+    +     '<b style="color:var(--fp-ink)">Lleva el roster entero</b>, no el rango de arriba.'
     +   '</div>'
+    +   '<button type="button" class="fp-btn fp-clear" id="rex-sub" style="width:100%">🔗 Suscribir el roster completo</button>'
     + '</div>'
     + '<div class="fp-actions">'
     +   '<button class="fp-btn fp-clear" id="rex-cancel">Cancelar</button>'
@@ -42566,19 +43416,24 @@ window.rosterExportOpen = function(){
       document.getElementById('rex-custom').style.display = (state.mode==='custom') ? 'flex' : 'none';
     });
   });
-  // Selector de color
-  ov.querySelectorAll('.rex-sw').forEach(function(sw){
-    sw.addEventListener('click', function(){
-      ov.querySelectorAll('.rex-sw').forEach(function(s){ s.classList.remove('sel'); s.style.borderColor='transparent'; });
-      sw.classList.add('sel'); sw.style.borderColor='var(--fp-ink)';
-      state.color = sw.dataset.hex; state.colorName = sw.dataset.name;
-    });
-  });
   // Coherencia de fechas en rango personalizado
   (function(){ var f=document.getElementById('rex-from'), t=document.getElementById('rex-to');
     if(f) f.addEventListener('change', function(){ if(f.value && (!t.value || t.value < f.value)) t.value = f.value; }); })();
 
   document.getElementById('rex-cancel').addEventListener('click', rexClose);
+  document.getElementById('rex-sub').addEventListener('click', async function(){
+    var b = this;
+    b.disabled = true; b.textContent = 'Creando…';
+    try{
+      var r = await window.rosterSuscribirCal();
+      if(!r) { b.disabled = false; b.textContent = '🔗 Suscribir el roster completo'; return; }
+      rexClose();
+      rexTarjetaSub(r.url);
+    }catch(e){
+      b.disabled = false; b.textContent = '🔗 Suscribir el roster completo';
+      if(typeof showToast==='function') showToast('No pude crear la suscripción: ' + e.message, 'error', 6000);
+    }
+  });
   document.getElementById('rex-go').addEventListener('click', function(){
     var from=null, to=null;
     if(state.mode==='month'){ var r=monthRange(); from=r.from; to=r.to; }
@@ -43500,6 +44355,9 @@ function pagSignOut() {
     </div>
   </div>
 
+  <!-- Aviso permanente del huso: la hora sale del DISPOSITIVO, así que el mismo roster
+       se ve distinto en Barcelona y en Londres. Lo pinta rstAplicarHuso(). -->
+  <div id="rst-huso-banner" style="display:none"></div>
   <div class="scroll-body" style="overflow-x:hidden">
   <div class="page-content">
 
@@ -47692,13 +48550,19 @@ document.addEventListener('DOMContentLoaded', function(){
   // Pide el permiso de micro DENTRO del gesto de "Generar" (iOS lo exige) y lo suelta al
   // instante. Aquí no suena audio todavía → no degrada el Bluetooth del briefing. Solo la
   // 1ª vez; una vez concedido queda persistido y al terminar el briefing el micro abre solo.
-  function primeMic(){ try{ if(!CUR.autoMic) return; if(lg('db_micok','')==='1') return; if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) return; _dbg('primeMic gUM'); navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){ _dbg('primeMic release'); try{ s.getTracks().forEach(function(t){t.stop();}); }catch(e){} try{ localStorage.setItem('db_micok','1'); }catch(e){} }).catch(function(){}); }catch(e){} }
+  // Devuelve una promesa que resuelve cuando el permiso de micro se ha concedido (o denegado, o
+  // no aplica). Se ESPERA antes de pedir la geolocalizacion para que los dos prompts salgan en
+  // orden (micro -> luego geo) al principio, dentro del gesto de "Generar", y el piloto no tenga
+  // que tocar "permitir" mientras conduce. Timeout de 12s para no colgar el briefing si el piloto
+  // no responde al prompt.
+  function primeMic(){ return new Promise(function(res){ var done=false; function fin(){ if(done)return; done=true; res(); } try{ if(!CUR.autoMic) return fin(); if(lg('db_micok','')==='1') return fin(); if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) return fin(); _dbg('primeMic gUM'); setTimeout(fin,12000); navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){ _dbg('primeMic release'); try{ s.getTracks().forEach(function(t){t.stop();}); }catch(e){} try{ localStorage.setItem('db_micok','1'); }catch(e){} fin(); }).catch(function(){ fin(); }); }catch(e){ fin(); } }); }
+  var _micRetried=false;
   async function generate(){
     // Pide el micro AQUÍ, en el gesto DIRECTO del tap. En iOS getUserMedia solo funciona dentro
     // del gesto y no permite dos prompts de permiso a la vez (por eso no se puede encadenar tras
     // la posición: se rechazaba y el micro acababa pidiéndose al final). Así ambos permisos
     // (micro y luego posición) se conceden por delante, antes de conducir.
-    try{ primeMic(); }catch(e){}
+    try{ await primeMic(); }catch(e){}
     try{ if(curAudio)curAudio.pause(); }catch(e){} playing=false; paused=false; k=0; acc=0; audios=[]; total=0;
     _fase='texto'; paintDeck();
     var f=q('#ar-fill'); if(f)f.style.width='0'; var c0=q('#ar-cur'); if(c0)c0.textContent='0:00'; var tr=q('#ar-tr'); if(tr)tr.innerHTML='';
@@ -47799,7 +48663,7 @@ document.addEventListener('DOMContentLoaded', function(){
   // sondea el estado real del <audio>. Así el micro NUNCA se abre mientras ARIA sigue hablando.
   var _dbgT0=0; function _dbg(m){ try{ if(lg('db_ariadbg','0')!=='1')return; if(!_dbgT0)_dbgT0=Date.now(); chatLog('aria','⟳ '+((Date.now()-_dbgT0)/1000).toFixed(1)+'s · '+m); }catch(e){} }
   function afterAriaQuiet(action){ var quiet=0, waited=0; (function tick(){ var speaking = vSpeaking || (_va && !_va.paused && !_va.ended); quiet = speaking ? 0 : (quiet+140); waited += 140; if(quiet>=1100 || waited>12000){ _dbg('quietFire w='+waited+' q='+quiet); try{ action(); }catch(e){} return; } setTimeout(tick, 140); })(); }
-  function autoAsk(){ _dbg('autoAsk v='+((window.__PILOTOS_VERSION__||{}).version||'?')+' autoMic='+CUR.autoMic); var hidden=false; try{ hidden=document.hidden; }catch(e){} if(vMuted||hidden){ var bye=(CUR.lang==='en'?'That is the full briefing. Have a safe flight.':'Eso es todo el briefing. Buen vuelo.'); chatLog('aria',bye); stat(CUR.lang==='en'?'Open the app to ask by voice':'Abre la app para preguntar por voz'); if(!vMuted){ vSpeak(bye, function(){ vBtn('idle'); }); } return; } var msg=(CUR.lang==='en'?'Would you like me to go deeper on anything, or do you have a question?':'¿Quieres que te profundice en algo o tienes alguna pregunta?'); chatLog('aria',msg); stat(CUR.lang==='en'?'Tap the mic to ask':'Pulsa el micro para preguntar'); speakQ(msg, function(){ if(CUR.autoMic){ /* espera a que la pregunta (y su latencia por Bluetooth) drene del todo antes de abrir el micro; si no, el micro capta la cola de la voz de ARIA y se corta solo */ _convOn=true; stat(CUR.lang==='en'?'One moment…':'Un momento…'); afterAriaQuiet(function(){ if(_convOn&&!vOn&&!vSpeaking) vStart(true); }); } else { vBtn('idle'); } }); }
+  function autoAsk(){ _dbg('autoAsk v='+((window.__PILOTOS_VERSION__||{}).version||'?')+' autoMic='+CUR.autoMic); _micRetried=false; var hidden=false; try{ hidden=document.hidden; }catch(e){} if(vMuted||hidden){ var bye=(CUR.lang==='en'?'That is the full briefing. Have a safe flight.':'Eso es todo el briefing. Buen vuelo.'); chatLog('aria',bye); stat(CUR.lang==='en'?'Open the app to ask by voice':'Abre la app para preguntar por voz'); if(!vMuted){ vSpeak(bye, function(){ vBtn('idle'); }); } return; } var msg=(CUR.lang==='en'?'Would you like me to go deeper on anything, or do you have a question?':'¿Quieres que te profundice en algo o tienes alguna pregunta?'); chatLog('aria',msg); stat(CUR.lang==='en'?'Tap the mic to ask':'Pulsa el micro para preguntar'); speakQ(msg, function(){ if(CUR.autoMic){ /* espera a que la pregunta (y su latencia por Bluetooth) drene del todo antes de abrir el micro; si no, el micro capta la cola de la voz de ARIA y se corta solo */ _convOn=true; stat(CUR.lang==='en'?'One moment…':'Un momento…'); afterAriaQuiet(function(){ if(_convOn&&!vOn&&!vSpeaking) vStart(true); }); } else { vBtn('idle'); } }); }
   function showVoiceDock(){}
   function hideVoiceDock(){}
   function vLog(role,txt){ chatLog(role,txt); }
@@ -47833,7 +48697,10 @@ document.addEventListener('DOMContentLoaded', function(){
       var nm=(e&&e.name)||(e&&e.message)||'error';
       // Apertura AUTOMÁTICA al terminar el briefing: si iOS la bloquea (necesita un gesto o
       // el permiso aún no está), no alarmamos — solo invitamos a tocar el micro una vez.
-      if(auto){ stat(CUR.lang==='en'?'Tap the mic to ask':'Pulsa el micro para preguntar'); vBtn('idle'); return; }
+      // Abrir el micro en el coche puede fallar la 1a vez si el Bluetooth aun esta conmutando de
+      // A2DP a HFP (NotReadable/Timeout). En modo auto reintentamos UNA vez tras ~1s (ya asentado)
+      // antes de rendirnos e invitar a tocar el micro.
+      if(auto){ if(!_micRetried){ _micRetried=true; _dbg('mic auto retry'); setTimeout(function(){ if(_convOn&&!vOn&&!vSpeaking)vStart(true); },1000); return; } stat(CUR.lang==='en'?'Tap the mic to ask':'Pulsa el micro para preguntar'); vBtn('idle'); return; }
       var m;
       if(nm==='NotAllowedError'||nm==='SecurityError'){ m=(CUR.lang==='en'?'Microphone permission denied. Allow it in Settings → PilotOS → Microphone (or open the site in Safari).':'Permiso de micrófono denegado. Actívalo en Ajustes → PilotOS → Micrófono (o abre la web en Safari).'); }
       else if(nm==='NotFoundError'){ m=(CUR.lang==='en'?'No microphone found.':'No se encuentra ningún micrófono.'); }
@@ -47845,9 +48712,12 @@ document.addEventListener('DOMContentLoaded', function(){
     if(!_s){ stat(CUR.lang==='en'?'No microphone.':'Sin micrófono.'); vBtn('idle'); return; }
     try{ localStorage.setItem('db_micok','1'); }catch(e){}
     _dbg('MIC OPEN');
-    vOn=true; _convOn=true; _emptyTurns=0; _micHeard=false;
-    stat(CUR.lang==='en'?'● Listening… speak':'● Escuchando… habla'); vBtn('listen'); beep();
-    setTimeout(function(){ if(vOn)vTurn(); },380);
+    vOn=true; _convOn=true; _emptyTurns=0; _micHeard=false; _micRetried=false;
+    stat(CUR.lang==='en'?'● Listening… speak':'● Escuchando… habla'); vBtn('listen');
+    // Abrir el micro conmuta el Bluetooth del coche de musica (A2DP) a manos-libres (HFP); ese
+    // salto dura ~medio segundo y se traga el beep si suena antes. Beep DESPUES del salto, y la
+    // grabacion arranca DESPUES del beep (si no, el VAD tomaria el propio beep por voz).
+    setTimeout(function(){ if(vOn){ beep(); setTimeout(function(){ if(vOn)vTurn(); },300); } },480);
   }
   function releaseMic(){ try{ if(vStream)vStream.getTracks().forEach(function(t){t.stop();}); }catch(e){} vStream=null; try{ if(vAC)vAC.close(); }catch(e){} vAC=null; try{ if(_ac&&_ac.state!=='closed')_ac.close(); }catch(e){} _ac=null; }
   function vStop(){ vOn=false; try{ if(vRec&&vRec.state!=='inactive')vRec.stop(); }catch(e){} releaseMic(); vBtn('idle'); stat(''); }
