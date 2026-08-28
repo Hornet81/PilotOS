@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.624">
+  <meta name="version" content="Estable.625">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.624","builtAt":"2026-08-27T15:34:55Z","commit":"50d2962","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.625","builtAt":"2026-08-28T22:37:41Z","commit":"1430ed0","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -16788,6 +16788,8 @@ function pcUpdateBonoTarget() {
    sigue mandando sobre esto: lo leído de un documento real vale más que una
    elección manual. */
 var PC_MANUAL_KEY = 'pilotos_pay_manual';
+// Sello de la última sincronización con la nube (ver ppCloudPush/ppCloudPull).
+var PP_SYNC_AT = 'pilotos_pay_syncAt';
 function pcManualLoad(){
   try { return JSON.parse(lsGet(PC_MANUAL_KEY, '{}') || '{}') || {}; } catch(e){ return {}; }
 }
@@ -16796,6 +16798,9 @@ function pcManualSave(){
   var niv = (document.getElementById('pc_nivel') || {}).value || '';
   if (!esp) return;
   try { lsSet(PC_MANUAL_KEY, JSON.stringify({ esp: esp, nivel: niv })); } catch(e){}
+  // Elegir Comandante Nivel 5 en el móvil y seguir en Copiloto Nivel 1 en el iPad
+  // es la misma clase de fallo que tenía el perfil de la nómina.
+  try { lsSet(PP_SYNC_AT, new Date().toISOString()); if (window.ppCloudPush) ppCloudPush(); } catch(e){}
 }
 /* Restaura lo que eligió el piloto. Se llama ANTES que el perfil de la nómina,
    que si existe lo sobreescribe y además bloquea los campos. */
@@ -18028,6 +18033,9 @@ function ppConfirm(){
   ppApplyLockUI(p);
   ppUpdateBanner();
   ppCloseModal();
+  // A la nube, para que el iPad no tenga que volver a subir la misma nómina —que
+  // además gasta cupo del plan.
+  try { lsSet(PP_SYNC_AT, new Date().toISOString()); ppCloudPush(); } catch(e){}
   showToast('✅ Perfil guardado · datos fijos bloqueados, IRPF en revisión');
 }
 
@@ -18113,6 +18121,101 @@ function ppUpdateBanner(){
   }
 }
 
+/* ── Datos de nómina EN LA NUBE ───────────────────────────────────────────────
+   Vivían solo en el localStorage del dispositivo donde se subió la nómina. En el
+   segundo dispositivo no había ni datos ni candado: especialidad y nivel salían en
+   su valor por defecto, editables, y TODOS los importes se calculaban con el nivel
+   equivocado sin avisar de nada. Recuperarlos exigía volver a subir la nómina, que
+   gasta una unidad del cupo mensual (Pro: 10/mes).
+
+   Se sincronizan las tres piezas que deciden el dinero y el bloqueo: el perfil
+   leído de la nómina, la especialidad/nivel elegidos a mano y la nómina analizada
+   que usa la pestaña Auditoría. El NÚMERO DE CUENTA no viaja —igual que la licencia
+   y la autoridad del perfil—: no hace falta para calcular nada. El servidor lo
+   vuelve a quitar por su cuenta.
+
+   Gana la copia con `updatedAt` más reciente. No hay fusión campo a campo a
+   propósito: son ajustes que se leen juntos, y media nómina de un sitio con media
+   del otro daría importes que no salen de ninguna de las dos. */
+
+/* La app de beta la sirve el backend de beta, pero `cafi_backend_url` puede seguir
+   apuntando a producción de una instalación antigua: una ruta NUEVA nace rota ahí
+   (ver CLAUDE.md). Se prueba primero el origen que sirve la página. */
+function ppApiBases(){
+  var bases = [];
+  try{ if(location.origin && /^https?:/.test(location.origin)) bases.push(location.origin); }catch(e){}
+  var cfg = lsGet('cafi_backend_url','https://api.pilotos.aero');
+  if(cfg && bases.indexOf(cfg) < 0) bases.push(cfg);
+  return bases;
+}
+function ppSinCuenta(v){
+  if (v === null || typeof v !== 'object') return v;
+  if (Array.isArray(v)) return v.map(ppSinCuenta);
+  var out = {};
+  Object.keys(v).forEach(function(k){
+    if (/^num_?cuenta$/i.test(k) || /^iban$/i.test(k)) return;
+    out[k] = ppSinCuenta(v[k]);
+  });
+  return out;
+}
+function ppCloudPush(){
+  var token = lsGet('cafi_auth_token','');
+  if (!token) return Promise.resolve(false);
+  var cuerpo;
+  try {
+    cuerpo = { pay: ppSinCuenta({
+      payProfile: JSON.parse(lsGet(PP_KEY, 'null') || 'null'),
+      manual:     JSON.parse(lsGet(PC_MANUAL_KEY, 'null') || 'null'),
+      payslip:    JSON.parse(lsGet('pilotos_payslip_last', 'null') || 'null'),
+    }) };
+  } catch(e){ return Promise.resolve(false); }
+  var bases = ppApiBases();
+  return (function intenta(i){
+    if (i >= bases.length) return Promise.resolve(false);
+    return fetch(bases[i] + '/api/pay-profile', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + token },
+      body: JSON.stringify(cuerpo)
+    }).then(function(r){
+      if (!r.ok) return intenta(i+1);
+      return r.json().then(function(j){
+        try { lsSet(PP_SYNC_AT, j.updatedAt || new Date().toISOString()); } catch(e){}
+        return true;
+      });
+    }).catch(function(){ return intenta(i+1); });
+  })(0);
+}
+function ppCloudPull(){
+  var token = lsGet('cafi_auth_token','');
+  if (!token) return Promise.resolve(false);
+  var bases = ppApiBases();
+  return (function intenta(i){
+    if (i >= bases.length) return Promise.resolve(false);
+    return fetch(bases[i] + '/api/pay-profile', { headers: { 'Authorization':'Bearer ' + token } })
+      .then(function(r){ return r.ok ? r.json() : Promise.reject(new Error('http '+r.status)); })
+      .then(function(j){
+        var rem = j && j.pay;
+        if (!rem || !rem.updatedAt) return false;
+        // Lo local manda si es igual o más nuevo: no se pisa lo que se acaba de tocar.
+        var mio = lsGet(PP_SYNC_AT, '');
+        if (mio && mio >= rem.updatedAt) return false;
+        if (rem.payProfile) lsSet(PP_KEY, JSON.stringify(rem.payProfile));
+        if (rem.manual)     lsSet(PC_MANUAL_KEY, JSON.stringify(rem.manual));
+        if (rem.payslip)    lsSet('pilotos_payslip_last', JSON.stringify(rem.payslip));
+        lsSet(PP_SYNC_AT, rem.updatedAt);
+        // Repintar con lo que acaba de bajar: el candado se aplica aquí también, que
+        // era justo lo que faltaba en el segundo dispositivo.
+        try { pcManualApply(); } catch(e){}
+        var p = ppLoad();
+        if (p){ try { ppApplyToForm(p); ppApplyLockUI(p); } catch(e){} }
+        try { ppUpdateBanner(); } catch(e){}
+        return true;
+      })
+      .catch(function(){ return intenta(i+1); });
+  })(0);
+}
+try { window.ppCloudPush = ppCloudPush; window.ppCloudPull = ppCloudPull; } catch(e){}
+
 function ppInit(){
   // Primero lo que eligió el piloto a mano; luego, si hay nómina leída, ESA manda
   // y encima bloquea los campos. Así el que nunca ha subido una nómina —que es
@@ -18121,6 +18224,9 @@ function ppInit(){
   var p = ppLoad();
   if (p){ try { ppApplyToForm(p); ppApplyLockUI(p); } catch(e){} }
   ppUpdateBanner();
+  // Y lo que haya en la nube, que puede venir de otro dispositivo. Va detrás y sin
+  // bloquear: si no hay red, se queda lo local y no se pierde nada.
+  try { ppCloudPull(); } catch(e){}
 }
 
 if (document.readyState !== 'loading') { try { ppInit(); } catch(e){} }
