@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.626">
+  <meta name="version" content="Estable.627">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.626","builtAt":"2026-08-28T22:59:51Z","commit":"6a7b9c3","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.627","builtAt":"2026-08-28T23:03:46Z","commit":"624e79c","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -46869,43 +46869,26 @@ function laRenderHeatGrid() {
 
 // ─── Wrapped ─────────────────────────────────────────────────────
 
-/* ── Del Wrapped al vuelo, en el logbook ──────────────────────────────────────
+/* ── Del Wrapped a la ficha del vuelo ─────────────────────────────────────────
    El «sector más largo» es el único cuadro del Wrapped que señala UN vuelo. Sin
-   forma de abrirlo, el piloto ve «4h 05m» y tiene que ir a buscarlo a mano por la
-   lista.
-   Lo difícil no es cambiar de pestaña: es que el vuelo puede estar filtrado fuera
-   o en otra página. Por eso se limpian los filtros y la búsqueda antes de calcular
-   en qué página cae — si no, se salta a una página donde ese vuelo no está y no
-   pasa nada, que es peor que no tener el enlace. */
-function laIrAlVuelo(id){
+   forma de abrirlo, el piloto ve «3h 25m» y tiene que ir a buscarlo a mano.
+   Se abre su FICHA encima, no se navega a la lista: la ficha es la misma que sale
+   al tocar el vuelo en el logbook —con horas, tripulación, avión y el botón de
+   editar— y sale sobre un overlay a pantalla completa, así que no hace falta
+   cambiar de pestaña ni desmontar lo que el piloto estaba mirando. Al cerrarla
+   sigue en su Wrapped, que es donde estaba. */
+function laVerVuelo(id){
   if(!id) return;
   try{
-    if(typeof ldSwitchTab==='function') ldSwitchTab('vuelos');
-    var buscador=document.getElementById('ld_search');
-    if(buscador && buscador.value){ buscador.value=''; }
-    if(typeof ldfClear==='function') ldfClear();     // ldfClear ya repinta
-    else if(typeof ldRender==='function') ldRender();
-    var i=-1;
-    (window.ldFiltered||[]).forEach(function(e,k){ if(e && e.id===id) i=k; });
-    if(i<0){                                          // no está ni sin filtros
+    var hay = (window.ldEntries||[]).some(function(e){ return e && e.id===id; });
+    if(!hay || typeof ldShowCard!=='function'){
       if(typeof showToast==='function') showToast('Ese vuelo ya no está en el logbook');
       return;
     }
-    var pag=Math.floor(i/LD_PER)+1;
-    if(pag!==ldPage && typeof ldGoPage==='function') ldGoPage(pag);
-    // El repintado es síncrono, pero el cambio de pestaña anima: se espera un
-    // frame para que la tarjeta esté ya colocada donde hay que desplazarse.
-    setTimeout(function(){
-      var el=document.querySelector('#ld_cards [data-sel-id="'+id+'"]');
-      if(!el) return;
-      try{ el.scrollIntoView({behavior:'smooth', block:'center'}); }catch(e){ el.scrollIntoView(); }
-      // Y se abre la ficha, que es lo que se quería ver.
-      if(typeof ldBounceCard==='function') ldBounceCard(el, id);
-      else if(typeof ldShowCard==='function') ldShowCard(id);
-    }, 120);
+    ldShowCard(id);
   }catch(e){}
 }
-try{ window.laIrAlVuelo=laIrAlVuelo; }catch(e){}
+try{ window.laVerVuelo=laVerVuelo; }catch(e){}
 
 function laRenderWrapped() {
   var entries=(window.ldEntries||[]).filter(function(e){ return e&&e.type!=='__ac_db__'; });
@@ -46973,7 +46956,7 @@ function laRenderWrapped() {
   var gridEl=_e('la-wr-grid');
   if(gridEl) gridEl.innerHTML=gridItems.map(function(it){
     return '<div class="la-wrapped-item'+(it.ir?' la-wr-ir':'')+'"'+
-      (it.ir?' onclick="laIrAlVuelo(\''+it.ir+'\')" title="Ver este vuelo en el logbook"':'')+'>'+
+      (it.ir?' onclick="laVerVuelo(\''+it.ir+'\')" title="Ver la ficha de este vuelo"':'')+'>'+
       '<div class="la-wrapped-item-val" style="color:'+VC[it.c]+'">'+it.val+'</div>'+
       '<div class="la-wrapped-item-lbl">'+it.lbl+(it.ir?' ›':'')+'</div>'+
       (it.sub?'<div class="la-wrapped-item-sub">'+it.sub+'</div>':'')+'</div>';
