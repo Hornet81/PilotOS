@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.627">
+  <meta name="version" content="Estable.628">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.627","builtAt":"2026-08-28T23:03:46Z","commit":"624e79c","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.628","builtAt":"2026-08-28T23:22:33Z","commit":"2982f9f","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -17277,6 +17277,56 @@ document.addEventListener('click', function(e){
   if(mp && !mp.contains(e.target)) pcMpClose();
 });
 
+/* ── Traer los datos del mes, sin poder quedarse colgado ──────────────────────
+   `fetch` NO tiene tiempo límite. Si la petición se queda a medias —cobertura que
+   va y viene, un portal cautivo del wifi del hotel, la conexión que muere entre
+   el TLS y la respuesta— la promesa no se resuelve NUNCA: ni cumple ni falla. Y
+   como el botón solo se restaura en el `finally`, se quedaba en «⏳ Cargando…»
+   para siempre, sin error, sin datos y sin manera de volver a intentarlo. Eso es
+   lo que reportó el piloto: «se queda cargando mucho rato y no pasa nada».
+   Ahora cada intento lleva su corte y hay un segundo origen al que acudir. */
+var PC_IMPORT_TIMEOUT = 25000;
+function pcOrigenes(){
+  var bases = [];
+  // Primero el configurado: en producción es el bueno y así no se gasta una
+  // petición de más. El origen que sirve la página va detrás, como red — en beta
+  // ES el backend de beta (ver CLAUDE.md).
+  var cfg = lsGet('cafi_backend_url','https://api.pilotos.aero');
+  if (cfg) bases.push(cfg);
+  try { if (location.origin && /^https?:/.test(location.origin) && bases.indexOf(location.origin) < 0) bases.push(location.origin); } catch(e){}
+  return bases;
+}
+async function pcPaycheckFetch(month, source, token){
+  var bases = pcOrigenes(), ultimo = null;
+  for (var i = 0; i < bases.length; i++){
+    var ctrl = new AbortController();
+    var corta = setTimeout(function(){ ctrl.abort(); }, PC_IMPORT_TIMEOUT);
+    try {
+      var r = await fetch(bases[i] + '/api/paycheck?month=' + encodeURIComponent(month) +
+                          '&source=' + encodeURIComponent(source),
+                          { headers: { 'Authorization': 'Bearer ' + token }, signal: ctrl.signal });
+      clearTimeout(corta);
+      // Un problema de sesión no se arregla probando otro origen: es el mismo
+      // token. Se corta aquí para decirlo en vez de repetir y tardar el doble.
+      if (r.status === 401 || r.status === 403) throw new Error('Tu sesión ha caducado — vuelve a entrar en CAFI');
+      var data = await r.json().catch(function(){ return {}; });
+      if (!r.ok){
+        // 4xx es una respuesta de verdad: el otro origen diría lo mismo.
+        if (r.status < 500) throw new Error(data.error || ('Error ' + r.status));
+        ultimo = new Error(data.error || ('Error ' + r.status)); continue;
+      }
+      return data;
+    } catch(e){
+      clearTimeout(corta);
+      if (e && /sesión|Error 4/.test(e.message||'')) throw e;
+      ultimo = (e && e.name === 'AbortError')
+        ? new Error('El servidor no respondió en ' + Math.round(PC_IMPORT_TIMEOUT/1000) + ' s')
+        : e;
+    }
+  }
+  throw ultimo || new Error('No se pudo contactar con el servidor');
+}
+
 async function pcImportFromLogbook(month, opts) {
   opts = opts || {};
   var token = ''; try { token = lsGet('cafi_auth_token',''); } catch(e) {}
@@ -17290,21 +17340,27 @@ async function pcImportFromLogbook(month, opts) {
   // Fuente: 'roster' (programado, meses pasados en Nómina) o 'logbook' (real, mes en curso en Acumulado)
   var source = opts.source || 'logbook';
 
+  // Un segundo toque mientras el primero sigue en el aire no lanza otra petición:
+  // la segunda terminaba antes, restauraba el botón y dejaba a la primera pintando
+  // encima. Se ignora y ya.
+  if (window._pcImportando) return;
+  window._pcImportando = true;
+
   var btn = document.getElementById('pc-import-btn');
   var btnAcum = document.getElementById('pc-import-btn-acum');
   if (btn) { btn.textContent = '⏳ Cargando...'; btn.disabled = true; }
   if (btnAcum) { btnAcum.textContent = '⏳ Cargando...'; btnAcum.disabled = true; }
-  var pcTkImported = false;
+  var pcTkImported = false, pcFallo = null;
 
   try {
-    var r = await fetch(ldBackendUrl() + '/api/paycheck?month=' + month + '&source=' + source, {
-      headers: { 'Authorization': 'Bearer ' + token }
-    });
-    var data = await r.json();
-    if (!r.ok) throw new Error(data.error || 'Error del servidor');
+    var data = await pcPaycheckFetch(month, source, token);
 
     if (data.status === 'empty') {
-      showToast('No hay datos (logbook ni roster) para ' + month, 'error');
+      /* El roster y el logbook que ve este endpoint son los del SERVIDOR. Si el
+         piloto importó su roster en otro dispositivo y aún no ha sincronizado,
+         aquí no hay nada — y decir solo «no hay datos» deja al piloto sin saber
+         qué hacer. */
+      showToast('No hay datos de ' + month + ' en el servidor. Abre el Roster o el Logbook para que se sincronicen y vuelve a importar.', 'error');
       return;
     }
 
@@ -17364,13 +17420,26 @@ async function pcImportFromLogbook(month, opts) {
       pcLoadHistory(data, month);
     }
   } catch(err) {
-    showToast('❌ ' + err.message, 'error');
+    pcFallo = err && err.message ? err.message : 'No se pudo importar';
+    showToast('❌ ' + pcFallo, 'error');
   } finally {
-    if (btn) { btn.innerHTML = '<span>📥</span><span>Importar datos desde PilotOS</span>'; btn.disabled = false; }
+    window._pcImportando = false;
+    /* El fallo se enseña en el PROPIO botón unos segundos, no solo en un toast: el
+       piloto está mirando el botón —es lo que acaba de pulsar— y un toast se le va
+       mientras lee otra cosa. Después vuelve a su estado normal, listo para
+       reintentar. Lo que no puede volver a pasar es quedarse en «Cargando…». */
+    var _normal = '<span>📥</span><span>Importar datos desde PilotOS</span>';
+    if (btn) { btn.innerHTML = pcFallo ? '<span>⚠️</span><span>No se pudo importar — toca para reintentar</span>' : _normal; btn.disabled = false; }
     if (btnAcum) {
-      btnAcum.innerHTML = pcTkImported ? '<span>✓</span><span>Importado</span>' : '<span>📥</span><span>Importar datos desde PilotOS</span>';
+      btnAcum.innerHTML = pcFallo ? '<span>⚠️</span><span>No se pudo importar</span>'
+                        : (pcTkImported ? '<span>✓</span><span>Importado</span>' : _normal);
       btnAcum.disabled = false;
     }
+    if (pcFallo) setTimeout(function(){
+      var b1 = document.getElementById('pc-import-btn'), b2 = document.getElementById('pc-import-btn-acum');
+      if (b1 && /reintentar/.test(b1.innerHTML)) b1.innerHTML = _normal;
+      if (b2 && /No se pudo/.test(b2.innerHTML)) b2.innerHTML = _normal;
+    }, 6000);
   }
 }
 
