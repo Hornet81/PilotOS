@@ -20,8 +20,12 @@ var TIPOS = [
     vouchers:true, win:[-1,0,1] },
   { id:'incident', portal:'Operational incidents', lbl:'Incidencia operativa', col:'#FF8095', ic:'⚠',
     meals:true, iso:true, cap:{nat:23.21,int:29.02}, win:[0,1] },
+  /* El horno va por «Inoperative oven», que es un expense type distinto de la
+     incidencia, pero el portal le pide el MISMO nº de ISO: un horno que no
+     calienta es una incidencia técnica y la tripulación abre su ISO igual. Sin
+     esta marca el campo no salía en la hoja y la nota se presentaba incompleta. */
   { id:'oven',     portal:'Inoperative oven', lbl:'Horno inoperativo', col:'#FF6B1A', ic:'🔥',
-    meals:true, cap:{nat:28.21,int:34.02}, win:[-1,0,1] },
+    meals:true, iso:true, cap:{nat:28.21,int:34.02}, win:[-1,0,1] },
   { id:'second',   portal:'Second Residence', lbl:'2ª residencia', col:'#4EE6AE', ic:'🅿', libre:true, win:[-1,0,1] },
   { id:'medical',  portal:'Medical certificates and licences', lbl:'Médicos y licencias', col:'#7AD6FB', ic:'⚕', libre:true, win:[-1,0,1] },
   { id:'training', portal:'Training', lbl:'Training', col:'#9BDEFF', ic:'🎓', libre:true, win:[-1,0,1] },
@@ -754,7 +758,9 @@ function card(n, isDone){
     '</div></div>'+
     bar + lines + why +
     (!isDone && left<=20 ? '<div class="ex-note">⏳ Te quedan <b>'+left+' días</b> para presentarla.</div>' : '')+
-    (!isDone && n.needsISO ? '<div class="ex-note">Requiere <b>nº de ISO</b> — lo hace la tripulación técnica o de cabina.</div>' : '')+
+    (!isDone && n.needsISO ? (isoDe(n)
+        ? '<div class="ex-note">Nº de ISO <b>'+esc(isoDe(n))+'</b> · <span class="ex-lnk" onclick="event.stopPropagation();exSetIso(\''+n.id+'\')">cambiar</span></div>'
+        : '<div class="ex-note">Requiere <b>nº de ISO</b> — lo hace la tripulación técnica o de cabina. <span class="ex-lnk" onclick="event.stopPropagation();exSetIso(\''+n.id+'\')">Añadirlo</span></div>') : '')+
     (!isDone && !nTk ? '<div class="ex-note">📷 Aún <b>sin tickets</b> — sin ticket adjunto no se aprueba.</div>' : '')+
     '<div class="ex-row">'+
       (isDone
@@ -822,7 +828,15 @@ function drawSheet(){
     h += '<div class="ex-grp">▸ ADD NEW EXPENSE LINE · '+(i+1)+' de '+n.lines.length+'</div>';
     h += cp('DATE *', l.date.split('-').reverse().join('/'));
     h += cp('EXPENSE TYPE', l.subtype);
-    if (n.needsISO) h += cp('ISO NUMBER *', '—  pídeselo a la tripulación', 'iso');
+    /* Con número puesto la fila se comporta como las demás: se toca y se copia
+       para pegarla en el portal. Sin número no hay nada que copiar, así que lo
+       que hace es abrir el campo para escribirlo. */
+    if (n.needsISO) h += isoDe(n)
+      ? cp('ISO NUMBER *', isoDe(n), 'iso', 'toca para copiar · ✎ para cambiarlo') +
+        '<div class="ex-isoed" onclick="exSetIso(\''+n.id+'\')">✎ cambiar el nº de ISO</div>'
+      : '<div class="ex-cp iso vacio" onclick="exSetIso(\''+n.id+'\')">'+
+        '<div><div class="k">ISO NUMBER *</div><div class="v">Tocar para añadirlo</div>'+
+        '<div class="h">te lo da la tripulación técnica o de cabina</div></div><div class="c">✎</div></div>';
     h += cp('COST *', (claim>0?claim:l.cap).toFixed(2).replace('.',','), '',
             claim>0 ? 'suma de tus tickets' : 'tope · aún sin tickets');
 
@@ -833,16 +847,21 @@ function drawSheet(){
         '<div class="a">'+(Number(t.amount)||0).toFixed(2).replace('.',',')+'</div>'+
         '<div class="x" onclick="exDelTk(\''+t.id+'\')">✕</div>'+
         '<div class="dl" onclick="exOutTk(\''+t.id+'\')">↓</div></div>'; }).join('')+
-      /* Dos entradas, no una: con capture="environment" iOS abre la cámara y
-         ya no ofrece la fototeca, así que un ticket ya fotografiado antes no
-         había forma de adjuntarlo (#GA5ST). El de galería va SIN capture —
-         es el atributo el que anula el selector, no el accept. */
-      '<label class="ex-add'+(exIsPro()?' pro':'')+'"><span class="i">📷</span><span class="l">Cámara</span>'+
-        '<input type="file" accept="image/*" capture="environment" style="display:none" '+
-        'onchange="exNewTk(this,\''+key+'\')"></label>'+
-      '<label class="ex-add'+(exIsPro()?' pro':'')+'"><span class="i">🖼</span><span class="l">Galería</span>'+
-        '<input type="file" accept="image/*" style="display:none" '+
-        'onchange="exNewTk(this,\''+key+'\')"></label>'+
+      /* Cámara y galería siguen siendo dos botones —con capture="environment"
+         iOS abre la cámara y ya no ofrece la fototeca, así que un ticket ya
+         fotografiado no había forma de adjuntarlo (#GA5ST)— pero comparten UNA
+         sola entrada de fichero, a la que se le pone o se le quita `capture`
+         antes de abrirla.
+         Antes eran dos <label> con su <input> dentro. Al cerrar el selector de
+         la fototeca tocando FUERA, el primer toque en el otro botón se perdía y
+         había que tocar dos veces para que se abriera la cámara: el toque se iba
+         en devolver el foco al label anterior. Un onclick que llama a .click()
+         se ejecuta en el primer toque, tenga el foco quien lo tenga, y con una
+         única entrada no hay dos elementos peleándose por él. */
+      '<div class="ex-add'+(exIsPro()?' pro':'')+'" onclick="exPickTk(\''+key+'\',1)">'+
+        '<span class="i">📷</span><span class="l">Cámara</span></div>'+
+      '<div class="ex-add'+(exIsPro()?' pro':'')+'" onclick="exPickTk(\''+key+'\',0)">'+
+        '<span class="i">🖼</span><span class="l">Galería</span></div>'+
       '</div><div class="ex-sum">'+
       (tks.length
         ? 'Suma <b>'+suma.toFixed(2).replace('.',',')+' €</b> · tope '+l.cap.toFixed(2).replace('.',',')+' €<br>'+
@@ -854,6 +873,9 @@ function drawSheet(){
         : 'Sin tickets. <b>Sin ticket adjunto no se aprueba.</b>')+
       '</div></div>';
   });
+
+  // La entrada compartida por los botones de Cámara y Galería (ver exPickTk).
+  h += '<input type="file" accept="image/*" id="ex-file" style="display:none">';
 
   h += '<div class="ex-note">El portal admite <b>5 recibos por nota</b> — llevas '+nTk+'.'+
        (nTk>5 ? ' <b>Te pasas: harán falta 2 notas.</b>' : '')+'</div>';
@@ -884,7 +906,46 @@ window.exCopy = function(el, txt){
   el.classList.add('copied'); setTimeout(function(){ el.classList.remove('copied'); }, 1200);
 };
 
+/* ── Nº de ISO ────────────────────────────────────────────────────────────────
+   El portal lo pide como campo obligatorio en «Operational incidents» y en
+   «Inoperative oven». La hoja solo decía «pídeselo a la tripulación» y no había
+   dónde apuntarlo: el piloto lo conseguía a bordo y lo perdía antes de llegar al
+   ordenador. Ahora se guarda EN la nota, así que viaja con ella al otro
+   dispositivo por el mismo camino que todo lo demás (las notas con ISO son
+   siempre manuales, y de las manuales se sincroniza el cuerpo entero).
+   Se guarda tal cual lo teclea la tripulación: los formatos de ISO cambian y
+   validar una forma que no conocemos sería rechazar números buenos. */
+function isoDe(n){ return (n && n.iso) ? String(n.iso) : ''; }
+window.exSetIso = function(id){
+  var n = notaDe(id); if (!n) return;
+  /* Las notas que piden ISO se crean a mano (el motor nunca las deriva: en
+     expense.js `day.incidents` va siempre vacío). Si algún día las derivara,
+     esto avisaría en vez de guardar un número que no se persiste. */
+  if (!n.manual){ alert('Esta nota la genera el roster: el nº de ISO todavía no se puede guardar en ella.'); return; }
+  var v = prompt('Nº de ISO\n\nTe lo da la tripulación técnica o de cabina.\n' +
+                 'Es obligatorio en el portal para esta nota.', isoDe(n));
+  if (v === null) return;                       // canceló: no se toca nada
+  v = String(v).trim().slice(0, 40);
+  if (v) n.iso = v; else delete n.iso;          // vacío = borrarlo
+  saveMan(); syncNota(id); exRender();
+  // La hoja abierta se repinta para que el número salga ya copiable.
+  if (SHEET === id) exOpen(id);
+};
+
 /* ── tickets ── */
+/* Abre la cámara (camara=1) o la fototeca (camara=0) con la MISMA entrada.
+   `capture` es el atributo que decide cuál: puesto, iOS va directo a la cámara;
+   quitado, ofrece el selector con la fototeca. */
+window.exPickTk = function(key, camara){
+  var inp = document.getElementById('ex-file');
+  if (!inp) return;
+  inp.value = '';
+  if (camara) inp.setAttribute('capture', 'environment');
+  else        inp.removeAttribute('capture');
+  inp.onchange = function(){ exNewTk(inp, key); };
+  inp.click();
+};
+
 window.exNewTk = function(input, key){
   var file = input.files && input.files[0]; input.value = '';
   if (!file) return;

@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.625">
+  <meta name="version" content="Estable.626">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.625","builtAt":"2026-08-28T22:37:41Z","commit":"1430ed0","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.626","builtAt":"2026-08-28T22:59:51Z","commit":"6a7b9c3","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -1587,6 +1587,15 @@ html.day #scr-pay .pc-mp-m.sel{color:#1a1000}
 #scr-pay .pca-banner.lag{background:rgba(96,165,250,.09);border-color:rgba(96,165,250,.35)}
 #scr-pay .pca-banner.lag .tx b{color:#7DD3FC}
 #scr-pay .pca-banner.lag .act{background:linear-gradient(135deg,#3B82F6,#60A5FA)}
+#scr-pay .pca-lagnote.bad{color:rgba(252,165,165,.92);background:rgba(185,28,28,.13);border:1px solid rgba(248,113,113,.32);border-radius:10px;padding:9px 11px;margin:-2px 0 14px}
+#scr-pay .pca-lagnote.bad b{color:#FCA5A5}
+#scr-pay .pca-lagnote.ok{color:rgba(134,239,172,.8)}
+#scr-pay .pca-lagnote.ok b{color:#86EFAC}
+#scr-pay .pca-lnk{color:#7DD3FC;font-weight:700;text-decoration:underline;cursor:pointer;white-space:nowrap}
+html.day #scr-pay .pca-lagnote.bad{color:#7F1D1D;background:rgba(185,28,28,.08);border-color:rgba(185,28,28,.28)}
+html.day #scr-pay .pca-lagnote.bad b{color:#B91C1C}
+html.day #scr-pay .pca-lagnote.ok{color:#166534}html.day #scr-pay .pca-lagnote.ok b{color:#047857}
+html.day #scr-pay .pca-lnk{color:#1d6fb8}
 html.day #scr-pay .pca-lagnote{color:#6b5a3a}html.day #scr-pay .pca-lagnote b{color:#1d6fb8}
 html.day #scr-pay .pca-banner.lag{background:#eaf3fd;border-color:rgba(59,130,246,.3)}
 html.day #scr-pay .pca-banner.lag .tx b{color:#1d6fb8}
@@ -6313,6 +6322,11 @@ html.day .la-insight-icon[style*="rgba(239,68,68"]{color:#B91C1C}
 .la-wrapped-item{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:12px 13px}
 .la-wrapped-item-val{font-family:'DM Mono','Space Mono',monospace;font-size:22px;font-weight:400;color:#F8FAFC;line-height:1}
 .la-wrapped-item-lbl{font-size:9px;color:rgba(248,250,252,.72);font-family:'Space Mono',monospace;margin-top:3px}
+.la-wrapped-item-sub{font-size:9px;color:rgba(248,250,252,.45);font-family:'Space Mono',monospace;margin-top:2px;letter-spacing:.5px}
+/* El único cuadro que lleva a algún sitio se distingue de los que no. */
+.la-wrapped-item.la-wr-ir{cursor:pointer;border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.07)}
+.la-wrapped-item.la-wr-ir:active{transform:scale(.98)}
+.la-wrapped-item.la-wr-ir .la-wrapped-item-lbl{color:rgba(245,158,11,.9)}
 .la-wrapped-tags{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:20px}
 .la-wrapped-tag{padding:4px 10px;border-radius:20px;font-size:10px;font-weight:600;font-family:'Space Mono',monospace}
 .la-wrapped-share-btn{
@@ -16950,6 +16964,33 @@ function pcRowTotal(label,importe,cls){
   return '<tr class="'+cls+'"><td class="mono" colspan="4">'+label+'</td><td class="amt">'+pcFmt(importe)+' €</td></tr>';
 }
 
+/* ── El cálculo teórico sobrevive a salir de la pantalla ──────────────────────
+   PC_LAST vivía SOLO en memoria. Calculabas el teórico, ibas a Auditoría y
+   funcionaba; salías del módulo o recargabas y la pestaña volvía a decir «Falta
+   el cálculo teórico» con todo hecho — el mensaje era verdad sobre la memoria y
+   mentira sobre el trabajo del piloto, que tenía que rehacerlo cada vez.
+   Es un objeto derivado (se recalcula entero desde el formulario), así que se
+   guarda solo en el dispositivo: no hace falta subirlo a ninguna parte. */
+var PC_TEO_KEY = 'pilotos_pay_teorico';
+function pcGuardaTeorico(){
+  try { lsSet(PC_TEO_KEY, JSON.stringify(PC_LAST)); } catch(e){}
+}
+function pcCargaTeorico(){
+  try {
+    var v = lsGet(PC_TEO_KEY, null); if (!v) return;
+    var o = JSON.parse(v);
+    if (o && o.fecha) PC_LAST = o;
+  } catch(e){}
+}
+/* Mes anterior en formato YYYY-MM. Las variables de una nómina de mes M salen del
+   roster de M−1, así que es con ESE mes con el que hay que haber calculado. */
+function pcMesAnterior(ym){
+  var m = String(ym||'').match(/^(\d{4})-(\d{2})$/); if (!m) return null;
+  var y = parseInt(m[1],10), mo = parseInt(m[2],10) - 1;
+  if (mo <= 0){ mo = 12; y -= 1; }
+  return y + '-' + String(mo).padStart(2,'0');
+}
+
 var PC_LAST = {};  // store last calculation for export
 
 function pcCalc() {
@@ -17121,8 +17162,13 @@ function pcCalc() {
     dietasExe:dietasExe, totalDev:totalDev, totalDevNeto:totalDevNeto, baseIRPF:baseIRPF,
     retIRPF:retIRPF, irpfEsp:irpfEsp, benefVuelo:benefVuelo, baseSS:baseSS, solidar:solidar,
     ssGral:ssGral, ssDFP:ssDFP, ssMEI:ssMEI, totalSS:totalSS, totalRet:totalRet, liquido:liquido,
-    T:T, SS:SS, D:D, fecha:pcFmtDate()
+    T:T, SS:SS, D:D, fecha:pcFmtDate(),
+    /* Con qué MES de actividad se ha calculado. Sin esto, la Auditoría comparaba
+       la nómina de un mes contra un teórico hecho con las horas de otro y no lo
+       decía: cuadraba o descuadraba por el motivo equivocado. */
+    mesAct: (function(){ var el=document.getElementById('pc_mes_sel'); return (el&&el.value)||null; })()
   };
+  pcGuardaTeorico();
 
   // ── Desglose tabla ──
   var redTag = redu.on ? ' <span style="color:#FBBF24;font-size:9px">(−'+redu.pct+'%)</span>' : '';
@@ -17550,9 +17596,19 @@ function pcAuditRender(){
     return;
   }
   if (!hasTheo){
+    /* Decir QUÉ mes hay que calcular, no «el mes»: las variables de una nómina de
+       agosto salen del roster de julio, y calcular agosto —que es lo que uno hace
+       si nadie se lo dice— da una comparación que descuadra por el motivo
+       equivocado. */
+    var _mesReal = real && real.month ? real.month : null;
+    var _mesNec  = _mesReal ? pcMesAnterior(_mesReal) : null;
+    var _etq     = _mesNec ? pcAuditMonthLabel(_mesNec) : null;
     host.innerHTML = pcAuditEmpty('◈', 'Falta el cálculo teórico',
-      'Ya tengo tu nómina real. Calcula la nómina teórica del mes (con tus horas) para poder compararlas.',
-      [{t:'Ir a la calculadora', a:"pcSwitchTab('nom')", cls:''}]);
+      'Ya tengo tu nómina real' + (_mesReal ? ' de <b>'+ppEsc(pcAuditMonthLabel(_mesReal))+'</b>' : '') + '. ' +
+      (_etq
+        ? 'Calcula la teórica con la actividad de <b>'+ppEsc(_etq)+'</b> — las horas variables de esa nómina son las de ese mes, no las del mes que figura en el papel.'
+        : 'Calcula la nómina teórica del mes (con tus horas) para poder compararlas.'),
+      [{t:(_etq ? 'Calcular '+_etq : 'Ir a la calculadora'), a:"pcSwitchTab('nom')", cls:''}]);
     return;
   }
   if (!hasReal){
@@ -17601,8 +17657,23 @@ function pcRenderCompare(res, real, L){
 
   // ── Nota persistente: desfase de mes de las variables ──
   var prevM = res.month ? pcPrevMonthLabel(res.month) : null;
-  if (prevM){
-    html += '<div class="pca-lagnote"><span>ℹ️</span><span>Las horas variables (vuelo, dietas, nocturnas) de esta nómina corresponden a tu roster de <b>'+ppEsc(prevM)+'</b>. Calcula el teórico con la actividad de '+ppEsc(prevM)+', no la de '+ppEsc(mesTxt)+'.</span></div>';
+  /* El aviso de desfase era SIEMPRE el mismo texto, dijera lo que dijera el
+     cálculo: recordaba qué mes hay que usar pero no miraba cuál se usó. Ahora el
+     teórico viene sellado con su mes (PC_LAST.mesAct), así que se puede decir si
+     la comparación de abajo es válida o si está restando peras de menos.
+     Sin sello —un teórico de antes de este cambio— se mantiene el recordatorio
+     de siempre: no sabemos con qué se calculó y afirmarlo sería inventar. */
+  var _mesNec = res.month ? pcMesAnterior(res.month) : null;
+  var _mesUsa = L && L.mesAct ? String(L.mesAct) : null;
+  if (_mesNec && _mesUsa && _mesUsa !== _mesNec){
+    html += '<div class="pca-lagnote bad"><span>⚠️</span><span>La comparación de abajo <b>no es válida</b>: el teórico está calculado con la actividad de <b>'+
+      ppEsc(pcAuditMonthLabel(_mesUsa))+'</b> y esta nómina paga la de <b>'+ppEsc(pcAuditMonthLabel(_mesNec))+'</b>. '+
+      'Las diferencias en vuelo, dietas y nocturnas son de los dos meses distintos, no de un error de la compañía. '+
+      '<span class="pca-lnk" onclick="pcSwitchTab(\'nom\')">Recalcular con '+ppEsc(pcAuditMonthLabel(_mesNec))+'</span></span></div>';
+  } else if (_mesNec && _mesUsa){
+    html += '<div class="pca-lagnote ok"><span>✓</span><span>Teórico calculado con la actividad de <b>'+ppEsc(pcAuditMonthLabel(_mesUsa))+'</b>, que es la que paga esta nómina.</span></div>';
+  } else if (prevM){
+    html += '<div class="pca-lagnote"><span>ℹ️</span><span>Las horas variables (vuelo, dietas, nocturnas) de esta nómina corresponden a tu roster de <b>'+ppEsc(prevM)+'</b>. Comprueba que el teórico está calculado con la actividad de '+ppEsc(prevM)+', no con la de '+ppEsc(mesTxt)+'.</span></div>';
   }
 
   // ── HERO Δ líquido ──
@@ -18221,6 +18292,9 @@ function ppInit(){
   // y encima bloquea los campos. Así el que nunca ha subido una nómina —que es
   // función de pago— conserva igualmente su especialidad y su nivel.
   try { pcManualApply(); } catch(e){}
+  // El teórico calculado en otra sesión: sin esto la Auditoría decía «Falta el
+  // cálculo teórico» con el cálculo hecho.
+  try { pcCargaTeorico(); } catch(e){}
   var p = ppLoad();
   if (p){ try { ppApplyToForm(p); ppApplyLockUI(p); } catch(e){} }
   ppUpdateBanner();
@@ -45019,6 +45093,12 @@ function ldSwitchTab(name, el) {
 // del primer despegue de cada día— pero calculada también desde el logbook.
 function ldHomeBase(entries){
   var b=''; try{ b=localStorage.getItem('pilotOS_home_base')||''; }catch(e){}
+  /* La base del PERFIL cuenta igual. `pilotOS_home_base` no la escribe nadie salvo
+     el importador de eCrews, así que un piloto que puso su base en Mi Perfil y
+     nunca importó de eCrews se quedaba sin base declarada, y "destino top" le
+     cantaba su propio aeropuerto. Se acepta tal cual la escribe («BCN», «LEBL»)
+     quedándose con el código. */
+  if(!b){ try{ var pb=(window.ppGet&&ppGet('base'))||''; var m=String(pb).toUpperCase().match(/\b[A-Z]{3,4}\b/); if(m) b=m[0]; }catch(e){} }
   if(b) return b.toUpperCase();
   var porDia={}, cnt={};
   (entries||window.ldEntries||[]).forEach(function(e){
@@ -46789,6 +46869,44 @@ function laRenderHeatGrid() {
 
 // ─── Wrapped ─────────────────────────────────────────────────────
 
+/* ── Del Wrapped al vuelo, en el logbook ──────────────────────────────────────
+   El «sector más largo» es el único cuadro del Wrapped que señala UN vuelo. Sin
+   forma de abrirlo, el piloto ve «4h 05m» y tiene que ir a buscarlo a mano por la
+   lista.
+   Lo difícil no es cambiar de pestaña: es que el vuelo puede estar filtrado fuera
+   o en otra página. Por eso se limpian los filtros y la búsqueda antes de calcular
+   en qué página cae — si no, se salta a una página donde ese vuelo no está y no
+   pasa nada, que es peor que no tener el enlace. */
+function laIrAlVuelo(id){
+  if(!id) return;
+  try{
+    if(typeof ldSwitchTab==='function') ldSwitchTab('vuelos');
+    var buscador=document.getElementById('ld_search');
+    if(buscador && buscador.value){ buscador.value=''; }
+    if(typeof ldfClear==='function') ldfClear();     // ldfClear ya repinta
+    else if(typeof ldRender==='function') ldRender();
+    var i=-1;
+    (window.ldFiltered||[]).forEach(function(e,k){ if(e && e.id===id) i=k; });
+    if(i<0){                                          // no está ni sin filtros
+      if(typeof showToast==='function') showToast('Ese vuelo ya no está en el logbook');
+      return;
+    }
+    var pag=Math.floor(i/LD_PER)+1;
+    if(pag!==ldPage && typeof ldGoPage==='function') ldGoPage(pag);
+    // El repintado es síncrono, pero el cambio de pestaña anima: se espera un
+    // frame para que la tarjeta esté ya colocada donde hay que desplazarse.
+    setTimeout(function(){
+      var el=document.querySelector('#ld_cards [data-sel-id="'+id+'"]');
+      if(!el) return;
+      try{ el.scrollIntoView({behavior:'smooth', block:'center'}); }catch(e){ el.scrollIntoView(); }
+      // Y se abre la ficha, que es lo que se quería ver.
+      if(typeof ldBounceCard==='function') ldBounceCard(el, id);
+      else if(typeof ldShowCard==='function') ldShowCard(id);
+    }, 120);
+  }catch(e){}
+}
+try{ window.laIrAlVuelo=laIrAlVuelo; }catch(e){}
+
 function laRenderWrapped() {
   var entries=(window.ldEntries||[]).filter(function(e){ return e&&e.type!=='__ac_db__'; });
   var _e=function(id){ return document.getElementById(id); };
@@ -46815,30 +46933,50 @@ function laRenderWrapped() {
   if(_e('la-wr-h'))    _e('la-wr-h').textContent    = yearH+'h '+String(yearM).padStart(2,'0')+'m';
 
   // Grid 6 items
-  var _hb4=localStorage.getItem('pilotOS_home_base')||'';
+  /* «Destino top» excluye la base: siempre vuelves a ella, así que encabezar el
+     ranking con tu propio aeropuerto no dice nada. Leía a pelo
+     `pilotOS_home_base`, que muchos pilotos no tienen puesta —solo la escribe el
+     importador de eCrews—, y entonces no descartaba nada. Ahora usa el mismo
+     criterio que el panel de Rutas: la base declarada (localStorage o Mi Perfil,
+     vía ldHomeBase) Y la de facto, el aeropuerto por el que más pasas. */
+  var _hb4=(typeof ldHomeBase==='function')?ldHomeBase(entries):(localStorage.getItem('pilotOS_home_base')||'');
+  var _ap4={};
+  entries.forEach(function(e){ if(e.dep)_ap4[e.dep]=(_ap4[e.dep]||0)+1; if(e.arr)_ap4[e.arr]=(_ap4[e.arr]||0)+1; });
+  var _auto4='', _max4=0;
+  Object.keys(_ap4).forEach(function(a){ if(_ap4[a]>_max4){ _max4=_ap4[a]; _auto4=a; } });
+  var _esBase4=function(ap){ return !!ap && (ap===_hb4 || ap===_auto4); };
   var destCnt4={}, regMins4={};
   entries.forEach(function(e){
-    if(e.arr&&e.arr!==_hb4) destCnt4[e.arr]=(destCnt4[e.arr]||0)+1;
+    if(e.arr&&!_esBase4(e.arr)) destCnt4[e.arr]=(destCnt4[e.arr]||0)+1;
     if(e.reg) regMins4[e.reg]=(regMins4[e.reg]||0)+ldT2m(e.block||'');
   });
   var td4=Object.entries(destCnt4).sort(function(a,b){return b[1]-a[1];})[0];
   var tr4=Object.entries(regMins4).sort(function(a,b){return b[1]-a[1];})[0];
   var tc4=Object.entries(crewCnt3).sort(function(a,b){return b[1]-a[1];})[0];
-  var maxBlock4=0;
-  entries.forEach(function(e){ var m=ldT2m(e.block||''); if(m>maxBlock4) maxBlock4=m; });
+  var maxBlock4=0, maxVuelo4=null;
+  entries.forEach(function(e){ var m=ldT2m(e.block||''); if(m>maxBlock4){ maxBlock4=m; maxVuelo4=e; } });
 
   var VC={'cyan':'#22D3EE','purple':'#A78BFA','green':'#34D399','amber':'#F59E0B','':'#F8FAFC'};
+  /* El sector más largo es el único dato del Wrapped que apunta a UN vuelo
+     concreto, así que se puede abrir. Lleva su ruta debajo para que se vea a cuál
+     antes de tocarlo: una cifra suelta («4h 05m») no dice cuál fue. */
   var gridItems=[
     {val:td4?td4[0]:'—',      lbl:'destino top',      c:'cyan'},
     {val:tr4?tr4[0]:'—',      lbl:'avión favorito',   c:'purple'},
     {val:tc4?tc4[0].split(' ')[0]:'—', lbl:'crew buddy', c:'green'},
-    {val:maxBlock4?ldM2s(maxBlock4):'—', lbl:'sector más largo', c:'amber'},
+    {val:maxBlock4?ldM2s(maxBlock4):'—', lbl:'sector más largo', c:'amber',
+     ir:(maxVuelo4&&maxVuelo4.id)||null,
+     sub:maxVuelo4?((maxVuelo4.dep||'?')+'›'+(maxVuelo4.arr||'?')):''},
     {val:airports.size||'—',  lbl:'aeropuertos',      c:''},
     {val:entries.length||'—', lbl:'vuelos totales',   c:''}
   ];
   var gridEl=_e('la-wr-grid');
   if(gridEl) gridEl.innerHTML=gridItems.map(function(it){
-    return '<div class="la-wrapped-item"><div class="la-wrapped-item-val" style="color:'+VC[it.c]+'">'+it.val+'</div><div class="la-wrapped-item-lbl">'+it.lbl+'</div></div>';
+    return '<div class="la-wrapped-item'+(it.ir?' la-wr-ir':'')+'"'+
+      (it.ir?' onclick="laIrAlVuelo(\''+it.ir+'\')" title="Ver este vuelo en el logbook"':'')+'>'+
+      '<div class="la-wrapped-item-val" style="color:'+VC[it.c]+'">'+it.val+'</div>'+
+      '<div class="la-wrapped-item-lbl">'+it.lbl+(it.ir?' ›':'')+'</div>'+
+      (it.sub?'<div class="la-wrapped-item-sub">'+it.sub+'</div>':'')+'</div>';
   }).join('');
 
   // Tags

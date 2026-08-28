@@ -424,7 +424,8 @@ function detectDay(day, opts) {
       title: inc.type === 'oven' ? 'Horno inoperativo'
            : inc.type === 'coffee' ? 'Cafeteras inoperativas' : 'Comida no cargada',
       reason: inc.type === 'oven' ? 'Oven not working' : 'Crew meal not loaded',
-      auto: false, needsISO: kind === 'incident',
+      // El horno pide el mismo nº de ISO que la incidencia: es una avería técnica.
+      auto: false, needsISO: kind === 'incident' || kind === 'oven',
       ticketWindow: inc.type === 'coffee' ? rules.ticketWindow.incident_coffee
                   : inc.type === 'oven'   ? rules.ticketWindow.oven
                   : rules.ticketWindow.incident_meal,
