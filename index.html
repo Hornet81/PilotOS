@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.642">
+  <meta name="version" content="Estable.643">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.642","builtAt":"2026-08-29T17:42:11Z","commit":"4732005","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.643","builtAt":"2026-08-29T17:55:07Z","commit":"3e63c1c","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -1518,6 +1518,7 @@ html.day .doc-sheet-sectlbl{color:#94A3B8}
 #scr-pay .pca-trow .tt{font-family:'Space Mono',monospace;font-size:12px;text-align:right;color:rgba(255,255,255,.68)}
 #scr-pay .pca-mini-h{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;margin:2px 0 10px}
 #scr-pay .pca-mini-h.blue{color:#60A5FA}#scr-pay .pca-mini-h.grey{color:rgba(255,255,255,.68)}
+#scr-pay .pca-mini-h.amber{color:#FBBF24}
 #scr-pay .pca-mini-h .cnt{font-family:'Space Mono',monospace;font-size:10px;background:rgba(255,255,255,.08);border-radius:20px;padding:1px 8px}
 #scr-pay .pca-mini-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px}
 #scr-pay .pca-mini-row .mk{color:rgba(255,255,255,.68)}#scr-pay .pca-mini-row .mk b{color:#fff}
@@ -1556,6 +1557,7 @@ html.day #scr-pay .pca-tol{color:#5b4a2e}
 html.day #scr-pay .pca-dev-h{color:#5b4a2e}
 html.day #scr-pay .pca-note{color:#7a6540}
 html.day #scr-pay .pca-mini-h.grey{color:#5b4a2e}
+html.day #scr-pay .pca-mini-h.amber{color:#92400E}
 html.day #scr-pay .pca-grp{color:#B45309}
 html.day #scr-pay .pca-hero-v{color:#DC2626}
 /* ── Mini-selector de mes tipo calendario ── */
@@ -17898,6 +17900,14 @@ function pcSwitchTab(tab) {
 
 // Cada theo(L) LEE el campo de PC_LAST que suma al total (no re-deriva la
 // fórmula), para cuadrar exacto contra el propio total teórico.
+//
+// `campos` = las casillas del formulario de las que vive ese concepto. Sirve para
+// distinguir dos ceros que hasta ahora se pintaban IGUAL: «el convenio no te debe
+// nada» y «no tengo el dato». Reporte #7M9W7: la nómina pagaba pernoctas,
+// nocturnas y vacaciones, el teórico ponía 0 en las tres porque sus casillas
+// estaban vacías, y la auditoría lo presentaba como 943,35 € de «cobras de más»
+// con desviación del 100 %. Un concepto SIN `campos` es fijo (sale de tarifa y
+// perfil): ahí un 0 sí significa que no corresponde.
 var PAY_COMPARE_MAP = [
   // — Devengos —
   { code:'005',  label:'Salario Base',              theo:function(L){return L.salBase;},               kind:'devengo' },
@@ -17905,27 +17915,27 @@ var PAY_COMPARE_MAP = [
   { code:'050',  label:'Paga Extra Prorrateada',    theo:function(L){return L.pagaExt;},               kind:'devengo' },
   { code:'751',  label:'Plus Patrón Libre',         theo:function(L){return L.plusPat;},               kind:'devengo' },
   // El 2104 cubre el bloque MENOS las nocturnas: esas se pagan en el 2111 a su tarifa.
-  { code:'2104', label:'Plus Horas de Vuelo',       theo:function(L){return (L.hvDiur!=null?L.hvDiur:Math.max(0,L.hvT-L.hvN))*L.T.plusHoraVuelo;}, kind:'devengo' },
-  { code:'2111', label:'Horas nocturnas',           theo:function(L){return L.hvN*L.horaNoct;},        kind:'devengo' },
-  { code:'783',  label:'Plus Horas Posicionales',   theo:function(L){return L.plusPos;},               kind:'devengo' },
-  { code:'225',  label:'Imaginarias',               theo:function(L){return L.plusImag;},              kind:'devengo' },
-  { code:'2043', label:'Invasión día libre',        theo:function(L){return L.plusInv;},               kind:'devengo' },
-  { code:'2098', label:'Dietas Nac. sujetas',       theo:function(L){return L.dNacSuj+(L.invDietaSuj||0);}, kind:'devengo' },
-  { code:'2102', label:'Dietas Nac. exentas',       theo:function(L){return L.dNacExe+(L.invDietaExe||0);}, kind:'devengo' },
-  { code:'2101', label:'Dietas Int. sujetas',       theo:function(L){return L.dIntSuj;},               kind:'devengo' },
-  { code:'2103', label:'Dietas Int. exentas',       theo:function(L){return L.dIntExe;},               kind:'devengo' },
-  { code:'2109', label:'Pernocta int. sujeta',      theo:function(L){return L.dPernSuj;},              kind:'devengo' },
-  { code:'2106', label:'Pernocta int. exenta',      theo:function(L){return L.dPernExe;},              kind:'devengo' },
-  { code:'203',  label:'Pernocta nac. sujeta',      theo:function(L){return L.dPernNatSuj;},           kind:'devengo' },
-  { code:'204',  label:'Pernocta nac. exenta',      theo:function(L){return L.dPernNatExe;},           kind:'devengo' },
-  { code:'226',  label:'Flexiworking',              theo:function(L){return L.plusFlex;},              kind:'devengo' },
-  { code:'2108', label:'Plus Comp.Var.Vacaciones',  theo:function(L){return L.plusVac;},               kind:'devengo' },
+  { code:'2104', label:'Plus Horas de Vuelo',       theo:function(L){return (L.hvDiur!=null?L.hvDiur:Math.max(0,L.hvT-L.hvN))*L.T.plusHoraVuelo;}, kind:'devengo', campos:['pc_hv'] },
+  { code:'2111', label:'Horas nocturnas',           theo:function(L){return L.hvN*L.horaNoct;},        kind:'devengo', campos:['pc_hn'] },
+  { code:'783',  label:'Plus Horas Posicionales',   theo:function(L){return L.plusPos;},               kind:'devengo', campos:['pc_hpos','pc_hpcan'] },
+  { code:'225',  label:'Imaginarias',               theo:function(L){return L.plusImag;},              kind:'devengo', campos:['pc_imag'] },
+  { code:'2043', label:'Invasión día libre',        theo:function(L){return L.plusInv;},               kind:'devengo', campos:['pc_inv_n'] },
+  { code:'2098', label:'Dietas Nac. sujetas',       theo:function(L){return L.dNacSuj+(L.invDietaSuj||0);}, kind:'devengo', campos:['pc_dnat'] },
+  { code:'2102', label:'Dietas Nac. exentas',       theo:function(L){return L.dNacExe+(L.invDietaExe||0);}, kind:'devengo', campos:['pc_dnat'] },
+  { code:'2101', label:'Dietas Int. sujetas',       theo:function(L){return L.dIntSuj;},               kind:'devengo', campos:['pc_dint'] },
+  { code:'2103', label:'Dietas Int. exentas',       theo:function(L){return L.dIntExe;},               kind:'devengo', campos:['pc_dint'] },
+  { code:'2109', label:'Pernocta int. sujeta',      theo:function(L){return L.dPernSuj;},              kind:'devengo', campos:['pc_dpern'] },
+  { code:'2106', label:'Pernocta int. exenta',      theo:function(L){return L.dPernExe;},              kind:'devengo', campos:['pc_dpern'] },
+  { code:'203',  label:'Pernocta nac. sujeta',      theo:function(L){return L.dPernNatSuj;},           kind:'devengo', campos:['pc_dpern_nat'] },
+  { code:'204',  label:'Pernocta nac. exenta',      theo:function(L){return L.dPernNatExe;},           kind:'devengo', campos:['pc_dpern_nat'] },
+  { code:'226',  label:'Flexiworking',              theo:function(L){return L.plusFlex;},              kind:'devengo', campos:['pc_flex'] },
+  { code:'2108', label:'Plus Comp.Var.Vacaciones',  theo:function(L){return L.plusVac;},               kind:'devengo', campos:['pc_vac'] },
   { code:'289',  label:'Paga Trimestral',           theo:function(L){return L.pagaTrim;},              kind:'devengo' },
   { code:'300',  label:'Bolsa Beneficios',          theo:function(L){return L.plusBolsa;},             kind:'devengo' },
   { code:'310',  label:'Bono productividad',        theo:function(L){return L.bonoProd;},              kind:'devengo' },
-  { code:'2114', label:'Formación Online',          theo:function(L){return L.plusFonline;},           kind:'devengo' },
-  { code:'2107', label:'Actividad Oficinas',        theo:function(L){return L.plusOficina;},           kind:'devengo' },
-  { code:'2017', label:'Sparring',                  theo:function(L){return L.plusSparring;},          kind:'devengo' },
+  { code:'2114', label:'Formación Online',          theo:function(L){return L.plusFonline;},           kind:'devengo', campos:['pc_fonline'] },
+  { code:'2107', label:'Actividad Oficinas',        theo:function(L){return L.plusOficina;},           kind:'devengo', campos:['pc_oficina'] },
+  { code:'2017', label:'Sparring',                  theo:function(L){return L.plusSparring;},          kind:'devengo', campos:['pc_sparring'] },
   { code:'411',  label:'TRI',                       theo:function(L){return L.plusTri;},               kind:'devengo' },
   { code:'412',  label:'TRE',                       theo:function(L){return L.plusTre;},               kind:'devengo' },
   { code:'413',  label:'LSC / LCC',                 theo:function(L){return L.plusLsc;},               kind:'devengo' },
@@ -17950,6 +17960,25 @@ function pcAuditGetPayslip(){
   try { var v = lsGet('pilotos_payslip_last', null); return v ? JSON.parse(v) : null; } catch(e){ return null; }
 }
 
+/* ¿Cuáles de estas casillas están vacías? Devuelve sus etiquetas, para poder
+   nombrarlas en pantalla en vez de decir «faltan datos» a secas. Una casilla que
+   no existe en el DOM no se cuenta como vacía: sería acusar de faltar a un dato
+   que ni se pide. */
+function pcCamposVacios(ids){
+  if (!ids || !ids.length) return [];
+  var out = [];
+  ids.forEach(function(id){
+    var el = document.getElementById(id);
+    if (!el) return;
+    if ((parseFloat(el.value) || 0) !== 0) return;
+    var lab = null, fg = el.closest ? el.closest('.fg') : null;
+    if (fg){ var l = fg.querySelector('.pc-field-label'); if (l) lab = l.textContent.trim(); }
+    out.push({ id:id, label: lab || id });
+  });
+  // Si alguna de las casillas SÍ tiene valor, el dato está: no falta nada.
+  return out.length === ids.length ? out : [];
+}
+
 // ── Núcleo determinista: real − teórico ──
 function pcCompare(real, L){
   var TOL_ABS = 1.00, TOL_PCT = 0.02, TOL_PCT_HI = 0.05;
@@ -17970,7 +17999,7 @@ function pcCompare(real, L){
     if (ln.src && !by[code].src) by[code].src = String(ln.src);
   });
 
-  var rows = [], missing = [], used = {};
+  var rows = [], missing = [], sinDato = [], used = {};
   var nOk=0, nWarn=0, nBad=0;
 
   PAY_COMPARE_MAP.forEach(function(m){
@@ -17995,11 +18024,22 @@ function pcCompare(real, L){
     // Anti-falso-positivo: nunca rojo si la lectura OCR es dudosa
     if (status === 'bad' && conf!=null && conf < 0.6) status = 'warn';
 
+    /* ── Dos ceros que no son el mismo cero ──────────────────────────────────
+       Si la nómina PAGA el concepto y el teórico da 0 porque las casillas de las
+       que vive están VACÍAS, eso no es una desviación: es un dato que falta. Se
+       marcaba idéntico a una discrepancia real —rojo, «desviación 100,0 %», y
+       sumando al «cobras de más»— y es lo que llenó de ruido el reporte #7M9W7.
+       Solo aplica a conceptos con `campos`: los fijos salen de tarifa y perfil,
+       ahí un 0 sí quiere decir que no te corresponde. */
+    var faltan = pcCamposVacios(m.campos);
+    if (r && aReal >= 0.005 && aTheo < 0.005 && faltan.length) status = 'nodata';
+
     var row = { code:m.code, label:m.label, kind:m.kind, real:realVal, theo:theo,
                 delta:delta, pct:pct, status:status, present:!!r, confidence:conf,
-                src:(r?r.src:'') };
+                src:(r?r.src:''), faltan:faltan };
     rows.push(row);
     if (status==='miss'){ missing.push(row); }
+    else if (status==='nodata'){ sinDato.push(row); }
     else if (status==='ok'){ nOk++; }
     else if (status==='warn'){ nWarn++; }
     else if (status==='bad'){ nBad++; }
@@ -18022,6 +18062,10 @@ function pcCompare(real, L){
   }).filter(function(e){ return Math.abs(e.value) > 0.005 || e.desc!=='—'; });
 
   // 4) Resumen
+  // Lo que suman los conceptos que la nómina paga y el teórico no ha podido
+  // calcular. Es la parte del Δ que NO es una discrepancia con la compañía.
+  var importeSinDato = Math.round(sinDato.reduce(function(a,x){ return a + Math.abs(x.real); }, 0)*100)/100;
+
   var liqReal = tv(t.liquido), devReal = tv(t.totalDevengado);
   var deltaLiquido = (liqReal!=null) ? Math.round((liqReal - ppNum(L.liquido))*100)/100 : null;
   var deltaDevengos = (devReal!=null) ? Math.round((devReal - ppNum(L.totalDevNeto))*100)/100 : null;
@@ -18058,8 +18102,9 @@ function pcCompare(real, L){
   var lagSignal = (!rateSignal && fxAllOk && varPresent.length >= 3 && (varOff/varPresent.length) >= 0.5);
 
   return {
-    rows: rows, totals: totals, missing: missing, extra: extra,
-    summary: { deltaLiquido:deltaLiquido, deltaDevengos:deltaDevengos, nOk:nOk, nWarn:nWarn, nBad:nBad },
+    rows: rows, totals: totals, missing: missing, extra: extra, sinDato: sinDato,
+    summary: { deltaLiquido:deltaLiquido, deltaDevengos:deltaDevengos, nOk:nOk, nWarn:nWarn, nBad:nBad,
+               nSinDato:sinDato.length, importeSinDato:importeSinDato },
     month: real.month || null,
     irpf: { real:irpfReal, calc:irpfCalc, mismatch:irpfMismatch },
     signals: { rate: rateSignal, lag: lagSignal }
@@ -18185,8 +18230,16 @@ function pcRenderCompare(res, real, L){
   }
 
   // ── HERO Δ líquido ──
+  /* El veredicto no puede hablar de «cobras de más» mientras haya conceptos que
+     la nómina paga y el teórico no ha podido calcular: ese importe está en el Δ
+     sin ser una diferencia con la compañía. Mientras falten datos, la conclusión
+     honesta es que la comparación está incompleta. */
   var verdict;
-  if (dLiq==null) verdict = 'No leí el líquido de la nómina — revisa los conceptos abajo';
+  if (s.nSinDato > 0){
+    verdict = '⏸ Comparación incompleta — faltan ' + s.nSinDato + ' dato' + (s.nSinDato===1?'':'s')
+      + ' que valen ' + pcFmt(s.importeSinDato) + ' € en tu nómina';
+  }
+  else if (dLiq==null) verdict = 'No leí el líquido de la nómina — revisa los conceptos abajo';
   else if (Math.abs(dLiq) < 1) verdict = '✓ Tu nómina cuadra con el convenio';
   else if (dLiq > 0) verdict = '↑ Cobras '+pcFmt(dLiq)+' € más de lo previsto — revisa '+(s.nBad+s.nWarn)+' conceptos';
   else verdict = '⚠ Cobras '+pcFmt(Math.abs(dLiq))+' € menos de lo previsto — revisa '+(s.nBad+s.nWarn)+' conceptos';
@@ -18243,12 +18296,29 @@ function pcRenderCompare(res, real, L){
       + '<button class="act" onclick="pcAuditFixIrpf('+ (res.irpf.real/100) +')">Recalcular</button></div>';
   }
 
+  // ── Faltan datos para poder comparar ──────────────────────────────────────
+  // Va ANTES de la tabla: sin estos números, lo de abajo no es una auditoría de
+  // la nómina sino de un cálculo a medias, y el piloto tiene que saberlo primero.
+  if (res.sinDato && res.sinDato.length){
+    html += '<div class="card-box"><div class="pca-mini-h amber">⏸ Faltan datos para calcularlo <span class="cnt">'+res.sinDato.length+'</span></div>';
+    res.sinDato.forEach(function(r){
+      var cuales = (r.faltan||[]).map(function(f){ return '<b>'+ppEsc(f.label)+'</b>'; }).join(' y ');
+      html += '<div class="pca-mini-row"><span class="mk"><b>'+ppEsc(r.label)+'</b> (cód. '+r.code+')<br>'
+        + '<span style="opacity:.75">tu nómina paga '+pcFmt(r.real)+' € · falta rellenar '+cuales+'</span></span>'
+        + '<span class="mv" style="color:#FBBF24">sin calcular</span></div>';
+    });
+    html += '<div class="pca-note">Estos conceptos <b>no son una discrepancia</b>: la nómina los paga y PilotOS no ha podido calcularlos porque su casilla está vacía. '
+      + 'Suman <b>'+pcFmt(res.summary.importeSinDato)+' €</b> del Δ de arriba. '
+      + 'Rellénalos —o importa el mes— y vuelve a calcular para que la comparación valga. '
+      + '<span class="pca-lnk" onclick="pcSwitchTab(\'nom\')">Ir al formulario</span></div></div>';
+  }
+
   // ── Tabla comparativa ──
   html += '<div class="card-box">';
   html += '<div class="pca-thead"><span>Concepto</span><span class="r">Real</span><span class="r">Teórico</span></div>';
 
   // separar filas visibles (no-ok, no-miss) / ok / miss ya está en missing
-  var visible = res.rows.filter(function(r){ return r.status!=='ok' && r.status!=='miss'; });
+  var visible = res.rows.filter(function(r){ return r.status!=='ok' && r.status!=='miss' && r.status!=='nodata'; });
   var okRows  = res.rows.filter(function(r){ return r.status==='ok'; });
   var missRows= res.missing;
 
