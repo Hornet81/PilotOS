@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.655">
+  <meta name="version" content="Estable.656">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.655","builtAt":"2026-08-29T20:56:19Z","commit":"c51f73e","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.656","builtAt":"2026-08-29T22:32:59Z","commit":"b6779b0","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -17281,6 +17281,8 @@ try { window.pcPintaNoctDetalle = pcPintaNoctDetalle; } catch(e){}
    detecta y el número no tiene forma de explicarse solo. */
 var PC_PERN_DET = [], PC_PERN_BASE = null, PC_PERN_HAY_ROSTER = false, PC_PERN_DESC = [],
     PC_PERN_ORIGEN = null, PC_PERN_DEDUCIDA = null;
+// Mes cuyo roster NO está en el servidor; se enseña en el banner de importación.
+var PC_SIN_ROSTER = null;
 function pcPintaPernDetalle(){
   var el = document.getElementById('pc_pern_det'); if (!el) return;
   if (!PC_PERN_HAY_ROSTER){ el.style.display = 'none'; el.innerHTML = ''; return; }
@@ -17811,6 +17813,7 @@ async function pcImportFromLogbook(month, opts) {
   if (window._pcImportando) return;
   window._pcImportando = true;
 
+  PC_SIN_ROSTER = null;
   var btn = document.getElementById('pc-import-btn');
   var btnAcum = document.getElementById('pc-import-btn-acum');
   if (btn) { btn.textContent = '⏳ Cargando...'; btn.disabled = true; }
@@ -17873,8 +17876,16 @@ async function pcImportFromLogbook(month, opts) {
           if (_ra.ground_days) { setVal('pc_gti', _ra.ground_days);
             try{ if(typeof PC_STATE!=='undefined') PC_STATE.cargo='si'; }catch(_e){}
             var _cw2=document.getElementById('pc_cargos_wrap'); if(_cw2) _cw2.style.display='block'; }
-        } else if (source !== 'roster') {
-          showToast('ℹ️ Importa también el roster de ' + month + ' para e-learnings, posicionales y oficina', 'warning');
+        } else {
+          /* Sin roster de ese mes EN EL SERVIDOR se quedan a cero un montón de
+             cosas a la vez, y hasta ahora eso se decía con un toast que se va
+             solo y que además solo nombraba tres de ellas. El piloto veía
+             guardias, posicionales, vacaciones, pernoctas y nocturnas en cero sin
+             saber por qué, y lo reportaba como «ha dejado de importar».
+             Ojo: el roster puede estar en el MÓVIL y no en el servidor —si la
+             sincronización no llegó—, así que decir «no lo has importado» sería
+             mentir; se dice dónde falta. */
+          PC_SIN_ROSTER = month;
         }
       } catch(_e){}
 
@@ -17887,9 +17898,18 @@ async function pcImportFromLogbook(month, opts) {
       if (dot) dot.style.background = isRoster ? '#A78BFA' : (isConfirmed ? '#22D3EE' : '#F59E0B');
       if (txt){ txt.textContent = isRoster ? 'Del roster' : (isConfirmed ? 'Confirmado' : 'Estimado'); txt.style.color = isRoster ? '#A78BFA' : (isConfirmed ? '#22D3EE' : '#FBBF24'); }
       if (flights) flights.textContent = (data.flights_total||0) + ' vuelos';
-      if (sub) sub.textContent = isRoster
-        ? '⚠️ Horas y dietas tomadas del ROSTER (programado). Si el roster de ese mes no está actualizado, el importe puede variar.'
-        : (isConfirmed ? 'Todos los vuelos tienen AOBT/AIBT — datos confirmados.' : 'Faltan tiempos reales en algunos vuelos — añádelos en el Logbook para confirmar.');
+      if (sub) {
+        var _base = isRoster
+          ? '⚠️ Horas y dietas tomadas del ROSTER (programado). Si el roster de ese mes no está actualizado, el importe puede variar.'
+          : (isConfirmed ? 'Todos los vuelos tienen AOBT/AIBT — datos confirmados.' : 'Faltan tiempos reales en algunos vuelos — añádelos en el Logbook para confirmar.');
+        if (PC_SIN_ROSTER === month){
+          sub.innerHTML = '<b style="color:#FBBF24">El servidor no tiene tu roster de ' + ppEsc(month) + '.</b><br>'
+            + 'Sin él se quedan en cero: <b>guardias e imaginarias</b>, <b>posicionales</b>, '
+            + '<b>actividad de oficina</b>, <b>vacaciones</b>, <b>pernoctas</b> y, si el logbook no trae '
+            + 'las horas de cada vuelo, también las <b>nocturnas</b>. El bloque y las dietas sí salen, del logbook.<br>'
+            + 'Abre el <b>Roster</b> en ese mes para que se sincronice y vuelve a importar.';
+        } else sub.textContent = _base;
+      }
       /* Recalcular en el acto. Antes había que acordarse de pulsar «Calcular
          nómina» después de importar; quien no lo hacía se llevaba la Auditoría
          comparando su nómina contra el teórico de los números viejos. Importar ES
