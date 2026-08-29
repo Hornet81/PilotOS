@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.651">
+  <meta name="version" content="Estable.652">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.651","builtAt":"2026-08-29T19:45:57Z","commit":"e920c78","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.652","builtAt":"2026-08-29T19:53:23Z","commit":"cb10759","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -41037,6 +41037,71 @@ function rstOrdenaTramos(legs){
 try { window.rstOrdenaTramos = rstOrdenaTramos; } catch(e){}
 
 // ── Show/hide calendar UI ──
+/* ── Exportar el roster en JSON ───────────────────────────────────────────────
+   Ya existía importar y no exportar, así que cuando un mes no cuadraba no había
+   forma de mirar los datos que tiene la app: se discutía sobre capturas de
+   pantalla. Esto los saca tal cual están guardados —el mes que se ve, o todos— y
+   los deja en el portapapeles.
+
+   Va SIN datos personales: solo actividad. Ni nombre, ni empleado, ni cuenta;
+   el roster no los lleva, pero se recorta igualmente por si acaso. */
+var RST_EXPORT_FUERA = ['nombre','name','empleado','employee','staffNumber','crewId',
+                        'email','telefono','phone','dni','nif','iban','cuenta'];
+window.rosterExportJSON = function(todos){
+  try {
+    var mes = (RST.viewYear || new Date().getFullYear()) + '-' +
+              String((RST.viewMonth != null ? RST.viewMonth : new Date().getMonth()) + 1).padStart(2,'0');
+    var E = (RST.entries || []).filter(function(e){
+      return todos ? true : (e.date && e.date.slice(0,7) === mes);
+    }).map(function(e){
+      var o = {};
+      Object.keys(e).forEach(function(k){
+        if (RST_EXPORT_FUERA.indexOf(String(k).toLowerCase()) < 0) o[k] = e[k];
+      });
+      return o;
+    }).sort(function(a,b){ return String(a.date||'').localeCompare(String(b.date||'')); });
+
+    var meses = {};
+    E.forEach(function(e){ if(e.date) meses[e.date.slice(0,7)] = (meses[e.date.slice(0,7)]||0)+1; });
+    var txt = JSON.stringify({
+      exportadoDe: 'PilotOS',
+      version: (window.__PILOTOS_VERSION__ && window.__PILOTOS_VERSION__.version) || '?',
+      alcance: todos ? 'todos los meses' : mes,
+      meses: meses,
+      entries: E
+    }, null, 1);
+
+    var ok = function(){
+      showToast('✅ ' + E.length + ' entradas de ' + Object.keys(meses).length +
+                ' mes(es) copiadas — pégalas donde quieras');
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt).then(ok).catch(function(){ rstExportFallback(txt, ok); });
+    } else rstExportFallback(txt, ok);
+  } catch(e){
+    if (typeof showToast === 'function') showToast('❌ No se pudo exportar: ' + e.message);
+  }
+};
+/* Sin permiso de portapapeles —Safari lo niega fuera de un gesto directo— se
+   enseña el texto para copiarlo a mano, que es peor pero no deja al piloto sin
+   nada. */
+function rstExportFallback(txt, ok){
+  var ta = document.createElement('textarea');
+  ta.value = txt;
+  ta.style.cssText = 'position:fixed;left:8px;right:8px;top:60px;bottom:60px;width:auto;z-index:99999;'
+    + 'font-family:monospace;font-size:11px;padding:10px;border-radius:10px';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); ok(); } catch(e){}
+  var cerrar = document.createElement('button');
+  cerrar.textContent = '✕ Cerrar';
+  cerrar.style.cssText = 'position:fixed;right:12px;top:22px;z-index:100000;padding:6px 12px;border-radius:8px;border:none;background:#111;color:#fff';
+  cerrar.onclick = function(){ ta.remove(); cerrar.remove(); };
+  document.body.appendChild(cerrar);
+}
+/* Todos los meses de golpe: mantener pulsado el mismo botón. */
+window.rosterExportJSONTodo = function(){ rosterExportJSON(true); };
+
 window.rosterShowJSONImport = function(){
   var modal = document.getElementById('rst-json-modal');
   if(modal){ modal.style.display='flex'; }
@@ -41344,6 +41409,20 @@ window.rstShowOptionsMenu = function(){
       label:'Vacaciones',
       sub:'Marca tus periodos de vacaciones',
       action:'rosterOpenVacations()'
+    },
+    {
+      icon:'📤',
+      iconBg:'rgba(56,189,248,.55)', iconBgDay:'rgba(2,132,199,.18)',
+      label:'Exportar JSON · este mes',
+      sub:'Copia el mes que ves, para diagnóstico',
+      action:'rosterExportJSON()'
+    },
+    {
+      icon:'🗄️',
+      iconBg:'rgba(56,189,248,.4)', iconBgDay:'rgba(2,132,199,.12)',
+      label:'Exportar JSON · todo',
+      sub:'Todos los meses guardados',
+      action:'rosterExportJSONTodo()'
     },
     { sep: true },
     {
