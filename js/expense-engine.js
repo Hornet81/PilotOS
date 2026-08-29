@@ -160,9 +160,16 @@ function fmtMin(min) {
 
 /* Aeropuerto español — mismo criterio que isSpanishAirport() del backend
    (server.js:842): IATA conocidos + ICAO que empiezan por LE, GC o GE. */
-var ES_IATA = ['BCN','MAD','VLC','SVQ','AGP','PMI','IBZ','MAH','ACE','TFN','TFS','LPA',
-  'FUE','SPC','VIT','BIO','SDR','OVD','SCQ','VGO','LCG','LEI','MJV','RJL','HSK','BJZ',
-  'CQM','REU','GRO','GRX','XRY','MLC','ZAZ','ALC'];
+var ES_IATA = [
+  // Península y Baleares (ICAO LE**)
+  'ALC','LEI','OVD','ODB','BJZ','BCN','BIO','RGS','LCG','GRO','GRX','HSK',
+  'IBZ','XRY','MJV','RMU','MAD','AGP','MAH','PMI','PNA','REU','SLM','EAS',
+  'SDR','SCQ','SVQ','TOJ','VLC','VLL','VGO','VIT','ZAZ','LEN','CQM','RJL','MLC',
+  // Canarias (GC**)
+  'LPA','TFN','TFS','ACE','FUE','SPC','VDE','GMZ',
+  // Ceuta y Melilla (GE**)
+  'MLN',
+];
 function isSpanishAirport(a) {
   a = String(a || '').trim().toUpperCase();
   if (!a) return false;
