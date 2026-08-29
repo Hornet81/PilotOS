@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.654">
+  <meta name="version" content="Estable.655">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.654","builtAt":"2026-08-29T20:50:46Z","commit":"3f1b45b","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.655","builtAt":"2026-08-29T20:56:19Z","commit":"c51f73e","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -1508,6 +1508,16 @@ html.day .doc-sheet-sectlbl{color:#94A3B8}
 #scr-pay .pca-el .body{color:rgba(255,255,255,.68)}
 #scr-pay .pca-el .body em{color:#fff;font-style:normal;font-family:'Space Mono',monospace}
 #scr-pay .pca-oktog{width:100%;text-align:center;font-family:'Space Grotesk',sans-serif;font-size:11.5px;font-weight:600;color:rgba(255,255,255,.68);background:rgba(52,211,153,.06);border:1px dashed rgba(52,211,153,.3);border-radius:12px;padding:9px;cursor:pointer;margin:8px 0}
+/* ── Detalle del cálculo (Acumulado) ── */
+#scr-pay .pc-det-row{display:flex;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.06)}
+#scr-pay .pc-det-row .ic{font-size:15px;width:20px;text-align:center;flex:none}
+#scr-pay .pc-det-row .lbl{flex:1;font-size:12.5px;color:rgba(255,255,255,.82)}
+#scr-pay .pc-det-row .qty{font-family:'Space Mono',monospace;font-size:11.5px;color:#FBBF24;min-width:60px;text-align:right}
+#scr-pay .pc-det-row .eur{font-family:'Space Mono',monospace;font-size:12px;font-weight:600;color:#34D399;min-width:76px;text-align:right}
+#scr-pay .pc-det-vacio{text-align:center;font-size:12px;color:rgba(255,255,255,.4);padding:10px}
+#scr-pay .pc-det-total{display:flex;align-items:center;gap:8px;padding:10px 2px 0;margin-top:4px;border-top:1px solid rgba(245,158,11,.25)}
+#scr-pay .pc-det-total .lbl{flex:1;font-size:12.5px;font-weight:700;color:#FBBF24}
+#scr-pay .pc-det-total .eur{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:#34D399}
 #scr-pay .pca-trow{display:grid;grid-template-columns:1fr 76px 76px;align-items:center;padding:11px 8px 11px 10px;border-radius:10px;margin:5px 0}
 #scr-pay .pca-trow.dev{background:rgba(245,158,11,.09);border:1px solid rgba(245,158,11,.22)}
 #scr-pay .pca-trow.ret{background:rgba(255,107,107,.06);border:1px solid rgba(255,107,107,.18)}
@@ -1560,6 +1570,13 @@ html.day #scr-pay .pca-trow.ret .tv{color:#B3261E !important}
 html.day #scr-pay .pca-trow.net .tv{color:#0a7a55 !important}
 /* Y el desplegable de conceptos correctos, del mismo color de fondo oscuro. */
 html.day #scr-pay .pca-oktog{color:#04543d;background:rgba(5,150,105,.07);border-color:rgba(5,150,105,.45)}
+html.day #scr-pay .pc-det-row{border-bottom-color:rgba(0,0,0,.07)}
+html.day #scr-pay .pc-det-row .lbl{color:#1a1205}
+html.day #scr-pay .pc-det-row .qty{color:#92400E}
+html.day #scr-pay .pc-det-row .eur{color:#04543d}
+html.day #scr-pay .pc-det-vacio{color:#7a6540}
+html.day #scr-pay .pc-det-total .lbl{color:#92400E}
+html.day #scr-pay .pc-det-total .eur{color:#04543d}
 html.day #scr-pay .pca-thead{color:#9a8560;border-color:rgba(245,158,11,.24)}
 html.day #scr-pay .pca-el .body{color:#5b4a2e}html.day #scr-pay .pca-el .body em{color:#1a1205}
 html.day #scr-pay .pca-mini-row .mk{color:#5b4a2e}html.day #scr-pay .pca-mini-row .mk b{color:#1a1205}
@@ -19249,18 +19266,23 @@ function pcRenderTracker(data) {
     ['🎮','Simulador TRE',                 qTre+' ses.',       eurTre],
     ['🎓','Simulador (alumno/formación)',  qForm+' ses.',      eurForm]
   ];
+  /* Colores por CLASE, no en línea. Iban en línea y por eso el modo día no podía
+     tocarlos: el nombre del concepto se quedaba en rgba(255,255,255,.82) sobre
+     crema y no se leía ni uno. Un estilo en línea no lo puede corregir una hoja
+     de estilos sin !important, así que la corrección se hacía imposible de
+     escribir bien; con clases, el tema es el que manda. */
   var body = det.filter(function(d){ return d[3] > 0.005; }).map(function(d){
-    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.06)">'
-      +'<span style="font-size:15px;width:20px;text-align:center;flex:none">'+d[0]+'</span>'
-      +'<span style="flex:1;font-size:12.5px;color:rgba(255,255,255,.82)">'+d[1]+'</span>'
-      +'<span style="font-family:\'Space Mono\',monospace;font-size:11.5px;color:#FBBF24;min-width:60px;text-align:right">'+d[2]+'</span>'
-      +'<span style="font-family:\'Space Mono\',monospace;font-size:12px;font-weight:600;color:#34D399;min-width:76px;text-align:right">€'+_n2(d[3])+'</span>'
+    return '<div class="pc-det-row">'
+      +'<span class="ic">'+d[0]+'</span>'
+      +'<span class="lbl">'+d[1]+'</span>'
+      +'<span class="qty">'+d[2]+'</span>'
+      +'<span class="eur">€'+_n2(d[3])+'</span>'
       +'</div>';
   }).join('');
-  if (!body) body = '<div style="text-align:center;font-size:12px;color:rgba(255,255,255,.4);padding:10px">Aún no hay actividad este mes.</div>';
-  body += '<div style="display:flex;align-items:center;gap:8px;padding:10px 2px 0;margin-top:4px;border-top:1px solid rgba(245,158,11,.25)">'
-    +'<span style="flex:1;font-size:12.5px;font-weight:700;color:#FBBF24">◈ Total devengado (bruto)</span>'
-    +'<span style="font-family:\'Space Mono\',monospace;font-size:13px;font-weight:700;color:#34D399">€'+_n2(total)+'</span></div>';
+  if (!body) body = '<div class="pc-det-vacio">Aún no hay actividad este mes.</div>';
+  body += '<div class="pc-det-total">'
+    +'<span class="lbl">◈ Total devengado (bruto)</span>'
+    +'<span class="eur">€'+_n2(total)+'</span></div>';
   var dbody = document.getElementById('pc-detail-body'); if (dbody) dbody.innerHTML = body;
   var dcard = document.getElementById('pc-detail-card'); if (dcard) dcard.style.display = 'block';
   var dsrc = document.getElementById('pc-detail-src');
