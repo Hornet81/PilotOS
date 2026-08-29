@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.649">
+  <meta name="version" content="Estable.650">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.649","builtAt":"2026-08-29T19:18:57Z","commit":"1ae1368","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.650","builtAt":"2026-08-29T19:38:20Z","commit":"2fb608c","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -38390,6 +38390,14 @@ var RST_IATA_ICAO = (typeof window!=='undefined' && window.IATA_TO_ICAO) ? windo
 var RST_ICAO_IATA = {};
 Object.keys(RST_IATA_ICAO).forEach(function(iata){ RST_ICAO_IATA[RST_IATA_ICAO[iata]] = iata; });
 
+/* ⚠️ RST_IATA_ICAO y su inverso NO son globales: este bloque va dentro de un
+   IIFE. Varios sitios los leían como `window.RST_IATA_ICAO`, que es undefined
+   SIEMPRE, así que el matching IATA↔ICAO que decían hacer no hacía nada — sin
+   error y sin aviso: BCN y LEBL simplemente no eran el mismo aeropuerto. Se
+   publican aquí para que esa forma de leerlos también funcione, y para poder
+   comprobarlos desde un banco. */
+try { window.RST_IATA_ICAO = RST_IATA_ICAO; window.RST_ICAO_IATA = RST_ICAO_IATA; } catch(e){}
+
 // Normaliza cualquier código a IATA (si ya es IATA lo devuelve igual)
 function rstToIata(code) {
   if (!code) return '';
@@ -38994,18 +39002,11 @@ window.rosterSelectDay = function(dateStr){
     // Un leg que sale de madrugada (00:14) tras cruzar medianoche es el ÚLTIMO del duty;
     // ordenar por reloj lo pondría primero. Anclamos al report (checkin más temprano, o
     // STD mínimo) y ordenamos por minutos transcurridos desde el report.
-    var flights    = dayEntries.filter(function(e){ return e.type==='flight'; });
-    (function(){
-      var _ck = flights.map(function(f){ return f.checkin; }).filter(function(c){ return c && c.indexOf(':')>-1; });
-      var _anchor = _ck.length
-        ? Math.min.apply(null, _ck.map(function(c){ return t2m(c); }))
-        : (flights.length ? Math.min.apply(null, flights.map(function(f){ return t2m(f.std_actual||f.std_estimated||f.std||'00:00'); })) : 0);
-      flights.sort(function(a,b){
-        var am = ((t2m(a.std_actual||a.std_estimated||a.std||'00:00')-_anchor)+1440)%1440;
-        var bm = ((t2m(b.std_actual||b.std_estimated||b.std||'00:00')-_anchor)+1440)%1440;
-        return am - bm;
-      });
-    })();
+    /* Una sola función para ordenar la jornada, en vez de una copia por pantalla:
+       esta tenía la suya y se quedó sin el respaldo de cuando NO llega la firma
+       —eCrews no siempre la manda por tramo—, así que el vuelo de las 00:10 volvía
+       a salir el primero. Ver rstOrdenaTramos. */
+    var flights = rstOrdenaTramos(dayEntries.filter(function(e){ return e.type==='flight'; }));
     var nonFlights = dayEntries.filter(function(e){ return e.type!=='flight' && e.type!=='overnight_continuation'; });
 
     // ── Continuación de vuelo nocturno (cruce de medianoche) ──────────────────
@@ -40937,6 +40938,26 @@ async function rosterRunAI(dataUrl, mimeType){
    detrás del ancla es del día siguiente. Es el mismo criterio que ya usaba el
    cálculo de duty, que por eso no se disparaba. Sin todas las horas no se
    reordena: el orden que trae el roster es el de la jornada. */
+function rstCadena(legs){
+  if (!legs || legs.length < 2) return null;
+  var IC = (typeof RST_ICAO_IATA !== 'undefined') ? RST_ICAO_IATA : {};
+  var nm = function(a){ var c = String(a||'').trim().toUpperCase(); return IC[c] || c; };
+  if (legs.some(function(l){ return !l.dep || !l.arr; })) return null;
+  var lleg = {};
+  legs.forEach(function(l){ var k = nm(l.arr); lleg[k] = (lleg[k]||0)+1; });
+  var ini = legs.filter(function(l){ return !lleg[nm(l.dep)]; });
+  if (ini.length !== 1) return null;
+  var out = [], usados = [];
+  var cur = ini[0];
+  while (cur){
+    out.push(cur); usados.push(cur);
+    var cand = legs.filter(function(l){ return usados.indexOf(l) < 0 && nm(l.dep) === nm(cur.arr); });
+    if (cand.length > 1) return null;
+    cur = cand[0] || null;
+  }
+  return out.length === legs.length ? out : null;
+}
+
 function rstOrdenaTramos(legs){
   var L = (legs || []).slice();
   if (L.length < 2) return L;
@@ -40944,8 +40965,22 @@ function rstOrdenaTramos(legs){
     var m = String(t || '').match(/(\d{1,2}):(\d{2})/);
     return m ? (parseInt(m[1],10)*60 + parseInt(m[2],10)) : null;
   };
-  var hora = function(f){ return t2(f.std_actual || f.std || f.std_scheduled || f.std_estimated); };
-  if (L.some(function(f){ return hora(f) == null; })) return L;
+  /* Manda la PROGRAMADA: S → E → A. La real se mueve —un retraso que cruza la
+     medianoche cambiaría el orden aparente de la jornada— y la programada dice en
+     qué orden estaba pensada. Se cae a la real solo si no hay ninguna otra.
+     Se coge la primera que SE PUEDE LEER, no la primera que existe: eCrews manda
+     «--:--» cuando no hay programada, y una cadena de `||` se pararía ahí —es un
+     valor de verdad— dejando el tramo sin hora aunque tuviera la real al lado. */
+  var hora = function(f){
+    var c = [f.std_scheduled, f.std_estimated, f.std, f.std_actual];
+    for (var i = 0; i < c.length; i++){ var v = t2(c[i]); if (v != null) return v; }
+    return null;
+  };
+  /* Sin todas las horas no se puede anclar el día, pero la CADENA sí sabe el
+     orden sin mirar el reloj: donde sale un tramo es donde aterrizó el anterior.
+     Devuelve null si hay ambigüedad —un día que empieza y acaba en el mismo sitio
+     no tiene arranque único—, y entonces se respeta el orden que trae el roster. */
+  if (L.some(function(f){ return hora(f) == null; })) return rstCadena(L) || L;
   /* La FIRMA es el ancla buena. Sin ella se mira el reparto de las salidas:
      ninguna jornada real las reparte a lo largo de 13 h (el FDP máximo, contando
      firma y último tramo), así que un hueco mayor significa que el reloj ha dado
