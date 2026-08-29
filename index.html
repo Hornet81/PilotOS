@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.633">
+  <meta name="version" content="Estable.634">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.633","builtAt":"2026-08-29T07:04:26Z","commit":"320161e","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.634","builtAt":"2026-08-29T07:13:53Z","commit":"9216eca","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -1587,6 +1587,17 @@ html.day #scr-pay .pc-mp-m.sel{color:#1a1000}
 #scr-pay .pca-banner.lag{background:rgba(96,165,250,.09);border-color:rgba(96,165,250,.35)}
 #scr-pay .pca-banner.lag .tx b{color:#7DD3FC}
 #scr-pay .pca-banner.lag .act{background:linear-gradient(135deg,#3B82F6,#60A5FA)}
+#scr-pay .pc-reparto{font-size:10.5px;line-height:1.7;font-family:ui-monospace,'Space Mono',monospace;
+  padding:8px 11px;border-radius:10px;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);color:rgba(255,255,255,.62)}
+#scr-pay .pc-reparto b{color:#FBBF24;font-weight:700}
+#scr-pay .pc-reparto .c{display:inline-block;min-width:34px;color:rgba(255,255,255,.35);font-weight:700}
+#scr-pay .pc-reparto .t{margin-top:4px;padding-top:4px;border-top:1px dashed rgba(245,158,11,.22);color:rgba(255,255,255,.45)}
+#scr-pay .pc-reparto .mal{color:#FCA5A5}
+html.day #scr-pay .pc-reparto{background:rgba(180,83,9,.06);border-color:rgba(180,83,9,.22);color:#6b5a3a}
+html.day #scr-pay .pc-reparto b{color:#B45309}
+html.day #scr-pay .pc-reparto .c{color:#94a3b8}
+html.day #scr-pay .pc-reparto .t{color:#8a7a5a}
+html.day #scr-pay .pc-reparto .mal{color:#B91C1C}
 #scr-pay .pca-lagnote.bad{color:rgba(252,165,165,.92);background:rgba(185,28,28,.13);border:1px solid rgba(248,113,113,.32);border-radius:10px;padding:9px 11px;margin:-2px 0 14px}
 #scr-pay .pca-lagnote.bad b{color:#FCA5A5}
 #scr-pay .pca-lagnote.ok{color:rgba(134,239,172,.8)}
@@ -11283,17 +11294,22 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       <button id="pc-import-btn" onclick="pcImportFromLogbook(null,{tracker:false,form:true,source:'roster'})" style="width:100%;padding:11px 14px;margin-bottom:14px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:12px;color:#FBBF24;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
         <span>📥</span><span>Importar datos desde PilotOS</span>
       </button>
+      <!-- Los dos rótulos son carga estructural, no estilo: las nocturnas SALEN del
+           total de bloque, y quien las teclee como horas aparte se queda con el 2104
+           corto. Por eso el de la derecha dice de dónde salen y el reparto se enseña
+           debajo, en vivo, con los mismos códigos que trae la nómina. -->
       <div class="frow" style="margin-bottom:10px">
         <div class="fg">
-          <label class="pc-field-label">Total horas vuelo (bloque)</label>
-          <input class="fi" type="number" id="pc_hv" value="0" step="0.01" min="0">
+          <label class="pc-field-label">Horas de vuelo del mes (bloque total)</label>
+          <input class="fi" type="number" id="pc_hv" value="0" step="0.01" min="0" oninput="pcPintaReparto()">
         </div>
         <div class="fg">
-          <label class="pc-field-label">De las cuales nocturnas</label>
-          <input class="fi" type="number" id="pc_hn" value="0" step="0.01" min="0">
+          <label class="pc-field-label">De ese total, nocturnas (22:00–06:00)</label>
+          <input class="fi" type="number" id="pc_hn" value="0" step="0.01" min="0" oninput="pcPintaReparto()">
         </div>
       </div>
-      <div class="pc-hint" style="margin-bottom:10px">Nocturna: CPT 44,20 €/h · FO 12,43 €/h (tarifa directa 2026). Van DENTRO del total de bloque: en la nómina se pagan en el 2111 y se restan del 2104.</div>
+      <div class="pc-hint" style="margin-bottom:6px">Las nocturnas van <b>dentro</b> del bloque total, no aparte. La nómina las paga en el <b>2111</b> a su tarifa y las resta del <b>2104</b>.</div>
+      <div id="pc_hv_reparto" class="pc-reparto" style="display:none;margin-bottom:10px"></div>
       <div class="frow" style="margin-bottom:10px">
         <div class="fg">
           <label class="pc-field-label">Horas posicionales</label>
@@ -17016,6 +17032,36 @@ function pcMesAnterior(ym){
 
 var PC_LAST = {};  // store last calculation for export
 
+/* Cómo se reparten las horas entre los dos códigos de la nómina, en vivo bajo los
+   campos. El reparto es lo que el piloto va a comparar con su papel, y verlo mientras
+   teclea es lo que hace evidente que las nocturnas SALEN del bloque: al subirlas, la
+   línea del 2104 baja. Con un rótulo solo, eso hay que deducirlo. */
+function pcPintaReparto(){
+  var el = document.getElementById('pc_hv_reparto'); if (!el) return;
+  var hv = parseFloat((document.getElementById('pc_hv')||{}).value) || 0;
+  var hn = parseFloat((document.getElementById('pc_hn')||{}).value) || 0;
+  if (hv <= 0 && hn <= 0){ el.style.display = 'none'; return; }
+  var esp = (document.getElementById('pc_esp')||{}).value || 'cmd';
+  var T = (window.CONVENIO && CONVENIO[esp]) || null;
+  var rDia = T ? T.plusHoraVuelo : 0;
+  var rNoc = T ? (T.horaNoct || T.plusHoraVuelo * 0.125) : 0;
+  var dia = Math.max(0, hv - hn);
+  var h = function(n){ return n.toFixed(2).replace('.', ','); };
+  var e = function(n){ return n.toFixed(2).replace('.', ',') + ' €'; };
+  el.style.display = 'block';
+  // Más nocturnas que bloque es un error de tecleo, no un caso a calcular.
+  if (hn > hv){
+    el.innerHTML = '<span class="mal">⚠️ Has puesto más horas nocturnas ('+h(hn)+') que de bloque ('+h(hv)+'). '+
+      'Las nocturnas son una PARTE del total, no van aparte.</span>';
+    return;
+  }
+  el.innerHTML =
+    '<div class="l"><span class="c">2104</span> Horas de vuelo <b>'+h(dia)+' h</b> × '+h(rDia)+' = <b>'+e(dia*rDia)+'</b></div>'+
+    (hn > 0 ? '<div class="l"><span class="c">2111</span> Nocturnas <b>'+h(hn)+' h</b> × '+h(rNoc)+' = <b>'+e(hn*rNoc)+'</b></div>' : '')+
+    '<div class="t">'+h(dia)+' + '+h(hn)+' = '+h(hv)+' h de bloque</div>';
+}
+try { window.pcPintaReparto = pcPintaReparto; } catch(e){}
+
 function pcCalc() {
   var esp   = document.getElementById('pc_esp').value;
   var nivel = document.getElementById('pc_nivel').value;
@@ -17470,6 +17516,7 @@ async function pcImportFromLogbook(month, opts) {
          nómina» después de importar; quien no lo hacía se llevaba la Auditoría
          comparando su nómina contra el teórico de los números viejos. Importar ES
          cambiar los números, así que el teórico se rehace aquí mismo. */
+      try { if (typeof pcPintaReparto === 'function') pcPintaReparto(); } catch(_e){}
       try { if (typeof pcCalc === 'function') pcCalc(); } catch(_e){}
       showToast('✅ Datos importados para ' + month + (isRoster?' (roster)':(isConfirmed?' (confirmado)':' (estimado)')));
     }
