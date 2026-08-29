@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.641">
+  <meta name="version" content="Estable.642">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.641","builtAt":"2026-08-29T17:27:43Z","commit":"8117ec8","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.642","builtAt":"2026-08-29T17:42:11Z","commit":"4732005","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -11424,6 +11424,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           <div class="pc-hint">62,69 € sujeta + 91,35 € exenta · Total 154,04 €</div>
         </div>
       </div>
+      <div id="pc_pern_det" class="pc-noct-det" style="display:none;margin-top:10px"></div>
     </div>
 
     <!-- ─ BLOQUE FORMACIÓN ─ -->
@@ -17235,6 +17236,55 @@ function pcPintaNoctDetalle(){
 }
 try { window.pcPintaNoctDetalle = pcPintaNoctDetalle; } catch(e){}
 
+/* ── Desglose de PERNOCTAS ───────────────────────────────────────────────────
+   La casilla de pernoctas sale de una deducción del roster: se mira dónde acabó
+   el último vuelo de cada día y si el día siguiente con vuelo arrancó desde ahí.
+   Es una cadena de suposiciones, y una casilla a 0 no dice cuál de ellas se rompió
+   — que es justo lo que pasó en el reporte #7M9W7: la nómina pagaba dos noches y
+   PilotOS ponía cero, sin más pista que el cero.
+   El backend ya mandaba `pernoc_detail` y `base`; aquí se enseñan. Y se enseña
+   sobre todo la BASE, porque no se lee del perfil: se DEDUCE de dónde sale más
+   veces el primer vuelo del día. Si esa deducción sale mal, ninguna pernocta se
+   detecta y el número no tiene forma de explicarse solo. */
+var PC_PERN_DET = [], PC_PERN_BASE = null, PC_PERN_HAY_ROSTER = false;
+function pcPintaPernDetalle(){
+  var el = document.getElementById('pc_pern_det'); if (!el) return;
+  if (!PC_PERN_HAY_ROSTER){ el.style.display = 'none'; el.innerHTML = ''; return; }
+  var L = PC_PERN_DET || [];
+  var dia = function(iso){
+    try { var d = new Date(iso + 'T00:00:00Z');
+      return String(d.getUTCDate()).padStart(2,'0') + '/' + String(d.getUTCMonth()+1).padStart(2,'0');
+    } catch(e){ return '—'; }
+  };
+  var nN = 0, nI = 0;
+  L.forEach(function(x){ if (x.tipo === 'int') nI += (x.noches||0); else nN += (x.noches||0); });
+
+  var h = '<div class="t">Pernoctas detectadas · ' + nN + ' nacional' + (nN===1?'':'es') +
+          ' · ' + nI + ' internacional' + (nI===1?'':'es') + '</div>';
+  h += '<div class="tz">Base deducida del roster: <b>' + (PC_PERN_BASE || '—') + '</b>' +
+       ' — se toma el aeropuerto del que sale más veces el primer vuelo del día.</div>';
+  if (!L.length){
+    h += '<div class="l">Ninguna noche fuera de base en el roster de este mes. ' +
+         'Si tu nómina paga pernoctas y aquí no sale ninguna, mira primero si la base de arriba es la tuya: ' +
+         'con una base equivocada no se detecta ni una. Una noche a caballo del cambio de mes tampoco se ve, ' +
+         'porque el roster se consulta mes a mes.</div>';
+  } else {
+    h += L.map(function(x){
+      return '<div class="l">' +
+        '<span class="d">' + dia(x.desde) + '→' + dia(x.hasta) + '</span> ' +
+        '<span class="o">' + (x.donde || '—') + '</span> · ' +
+        (x.noches||0) + ' noche' + ((x.noches||0)===1?'':'s') + ' · ' +
+        '<b>' + (x.tipo === 'int' ? 'internacional' : 'nacional') + '</b>' +
+      '</div>';
+    }).join('');
+  }
+  h += '<div class="p">Art. 15.18: la pernocta se devenga por cada noche fuera de base. ' +
+       'Los días intermedios de una estancia larga devengan además su dieta del día.</div>';
+  el.style.display = 'block';
+  el.innerHTML = h;
+}
+try { window.pcPintaPernDetalle = pcPintaPernDetalle; } catch(e){}
+
 /* Fuente de las horas del mes. El roster trae las PROGRAMADAS; el logbook, las
    REALES —calzos que apuntó el piloto— que son las que paga la nómina. Con el mes
    entero en el logbook cuadra mejor: en julio el roster se quedaba 26 minutos corto
@@ -17772,6 +17822,14 @@ async function pcImportFromLogbook(month, opts) {
       // número del campo es un dato sin procedencia y no hay forma de cuadrarlo con
       // la nómina salvo rehaciendo el mes a mano.
       try { PC_NOCHE_SERV = Array.isArray(data.night_services) ? data.night_services : []; } catch(_e){}
+      /* Lo mismo con las pernoctas: sin el detalle, una casilla a 0 es indistinguible
+         de "no tuviste ninguna" y de "la deducción de la base salió mal". */
+      try {
+        PC_PERN_DET  = Array.isArray(data.pernoc_detail) ? data.pernoc_detail : [];
+        PC_PERN_BASE = data.base || null;
+        PC_PERN_HAY_ROSTER = !!data.roster_available;
+      } catch(_e){}
+      try { if (typeof pcPintaPernDetalle === 'function') pcPintaPernDetalle(); } catch(_e){}
       try { if (typeof pcPintaReparto === 'function') pcPintaReparto(); } catch(_e){}
       try { if (typeof pcCalc === 'function') pcCalc(); } catch(_e){}
       showToast('✅ Datos importados para ' + month + (isRoster?' (roster)':(isConfirmed?' (confirmado)':' (estimado)')));
