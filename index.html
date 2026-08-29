@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.650">
+  <meta name="version" content="Estable.651">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.650","builtAt":"2026-08-29T19:38:20Z","commit":"2fb608c","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.651","builtAt":"2026-08-29T19:45:57Z","commit":"e920c78","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -39094,13 +39094,43 @@ window.rosterSelectDay = function(dateStr){
        que la regla no aportaba nada y sí estorbaba.
        Cada tramo y cada actividad se marcan con su hora de inicio y se ordenan
        juntos, de lo más temprano a lo más tardío. */
+    /* Misma prioridad que rstOrdenaTramos: S → E → A, y la primera que SE PUEDE
+       LEER, no la primera que existe («--:--» es un valor de verdad). */
+    var _horaCruda = function(e){
+      var c = [e.std_scheduled, e.std_estimated, e.std, e.std_actual];
+      for (var i = 0; i < c.length; i++){
+        var t = c[i];
+        if (t && String(t).indexOf(':') > -1){ var v = t2m(t); if (v != null && !isNaN(v)) return v; }
+      }
+      return null;
+    };
     var _horaDeAct = function(e){
       var t = e.std || e.start || e.checkin;
       return (t && String(t).indexOf(':')>-1) ? t2m(t) : 9999;
     };
+    /* ⚠️ Aquí se perdía el orden bueno. Los tramos se DIBUJAN ya ordenados —por eso
+       las etiquetas L1/L2/L3 aciertan— pero luego este segundo pase reordena los
+       trozos de HTML para intercalar las actividades del día, y lo hacía con la
+       hora del reloj a pelo: el TUN→BCN de las 00:10 devolvía 10 y se ponía el
+       primero, delante del posicional de las 18:52. La pantalla acababa diciendo
+       L3 · L1 · L2.
+
+       La clave de cada tramo se mide ahora DESDE EL PRIMERO de la jornada, así que
+       nunca da la vuelta y el orden dibujado se respeta. Las actividades siguen
+       yendo por su hora del día: en una jornada que no cruza medianoche las claves
+       coinciden con las de antes y no cambia nada; en una que sí cruza, una
+       actividad de la mañana sigue quedando delante y una de las 23:00 cae entre
+       los tramos, que es donde va. */
+    var _legT0 = null;
+    for (var _lt = 0; _lt < flights.length && _legT0 == null; _lt++){
+      var _tt = _horaCruda(flights[_lt]);
+      if (_tt != null) _legT0 = _tt;
+    }
     var _horaDeLeg = function(e){
-      var t = e.std_actual || e.std_estimated || e.std;
-      return (t && String(t).indexOf(':')>-1) ? t2m(t) : 9999;
+      var m = _horaCruda(e);
+      if (m == null) return 9999;
+      if (_legT0 == null) return m;
+      return _legT0 + (((m - _legT0) + 1440) % 1440);
     };
     var _piezas = [];   // {t, html} — se ordena al final
     // Marcas para trocear la salida del bucle de tramos: ese bucle dibuja también
