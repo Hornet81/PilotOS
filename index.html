@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.639">
+  <meta name="version" content="Estable.640">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.639","builtAt":"2026-08-29T14:20:20Z","commit":"b3f4b1c","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.640","builtAt":"2026-08-29T15:26:21Z","commit":"193c393","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -6625,22 +6625,43 @@ html.day .la-card{
 }
 html.day .la-card-label{color:rgba(34,211,238,.6) !important}
 
-/* Hero cards */
+/* Hero cards — DOS capas, y el orden importa.
+   El degradado de color va DELANTE y acaba en `transparent`; detrás va una base
+   OPACA. Antes era una sola capa que empezaba en rgba(...,.14): a ese lado de la
+   tarjeta se transparentaba y en modo día se veía el fondo claro de la página.
+   Encima quedaban el cian, el verde de "Personas transportadas" y el pie casi
+   blanco — todos elegidos para fondo oscuro. Resultado: la mitad de la tarjeta
+   no se leía (reporte de contraste en Carrera).
+   Las mini-cards de al lado ya eran opacas (.97/.99) y por eso sí se leían; esto
+   pone las hero al mismo criterio. */
 html.day .la-hero-card{
-  background:linear-gradient(140deg,rgba(34,211,238,.14) 0%,rgba(124,58,237,.1) 55%,rgba(5,10,22,.98) 100%) !important;
-  border:1px solid rgba(34,211,238,.28) !important;
+  background:
+    linear-gradient(140deg,rgba(34,211,238,.16) 0%,rgba(124,58,237,.11) 55%,transparent 100%),
+    linear-gradient(145deg,rgba(10,16,36,.985),rgba(5,10,22,.99)) !important;
+  border:1px solid rgba(34,211,238,.34) !important;
   box-shadow:0 0 40px rgba(34,211,238,.1),0 8px 32px rgba(0,0,0,.45),inset 0 1px 0 rgba(34,211,238,.12) !important;
 }
 html.day .la-hero-purple{
-  background:linear-gradient(140deg,rgba(124,58,237,.18) 0%,rgba(167,139,250,.1) 55%,rgba(5,10,22,.98) 100%) !important;
-  border-color:rgba(124,58,237,.4) !important;
+  background:
+    linear-gradient(140deg,rgba(124,58,237,.2) 0%,rgba(167,139,250,.11) 55%,transparent 100%),
+    linear-gradient(145deg,rgba(10,16,36,.985),rgba(5,10,22,.99)) !important;
+  border-color:rgba(124,58,237,.45) !important;
 }
 html.day .la-hero-green{
-  background:linear-gradient(140deg,rgba(16,185,129,.15) 0%,rgba(34,211,238,.08) 55%,rgba(5,10,22,.98) 100%) !important;
-  border-color:rgba(16,185,129,.35) !important;
+  background:
+    linear-gradient(140deg,rgba(16,185,129,.17) 0%,rgba(34,211,238,.09) 55%,transparent 100%),
+    linear-gradient(145deg,rgba(10,16,36,.985),rgba(5,10,22,.99)) !important;
+  border-color:rgba(16,185,129,.42) !important;
 }
-html.day .la-hero-label{color:rgba(34,211,238,.6) !important}
-/* Los valores grandes (big, route, sub-val) se mantienen claros — ya contrastan bien */
+/* La etiqueta subía a .6 sobre un fondo que se aclaraba: sobre base opaca se
+   sube a .82 y se respeta el color de cada tarjeta (verde/morado) en vez de
+   pisarlo todo con cian. */
+html.day .la-hero-label{color:rgba(34,211,238,.82) !important}
+html.day .la-hero-label[style*="16,185,129"]{color:rgba(52,211,153,.9) !important}
+html.day .la-hero-label[style*="167,139,250"]{color:rgba(183,160,255,.9) !important}
+html.day .la-hero-foot{color:rgba(248,250,252,.82) !important}
+/* Los valores grandes (big, route, sub-val) se mantienen claros — sobre la base
+   opaca ya contrastan de sobra. */
 
 /* Stat boxes */
 html.day .la-stat-box{
