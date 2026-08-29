@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.631">
+  <meta name="version" content="Estable.632">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.631","builtAt":"2026-08-29T06:20:56Z","commit":"f2e9133","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.632","builtAt":"2026-08-29T06:44:16Z","commit":"7452155","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -16976,6 +16976,24 @@ function pcRowTotal(label,importe,cls){
    mentira sobre el trabajo del piloto, que tenía que rehacerlo cada vez.
    Es un objeto derivado (se recalcula entero desde el formulario), así que se
    guarda solo en el dispositivo: no hace falta subirlo a ninguna parte. */
+/* Huella de los NÚMEROS con los que se calculó el teórico. Sin ella, la Auditoría
+   compara la nómina real contra un teórico que puede ser de antes de importar —y no
+   lo dice. Es lo que le pasó al piloto: importó julio (53,98 h), la auditoría seguía
+   enseñando un teórico de 2.635,57 € que salía de las 67,08 h de antes, y la fila
+   parecía una desviación de la compañía cuando era su propio cálculo sin refrescar. */
+var PC_CAMPOS = ['pc_esp','pc_nivel','pc_irpf','pc_hv','pc_hn','pc_hpos','pc_hpcan','pc_imag',
+  'pc_flex','pc_vac','pc_dnat','pc_dint','pc_dpern','pc_dpern_nat','pc_fonline','pc_oficina',
+  'pc_sparring','pc_tri','pc_tre','pc_lsc','pc_gti','pc_formacion','pc_jdia','pc_jdia_fest',
+  'pc_benef_vuelo','pc_rf_especie','pc_rf','pc_solidaridad','pc_red_pct','pc_inv_n','pc_bono_horas'];
+function pcHuellaForm(){
+  try {
+    return PC_CAMPOS.map(function(id){
+      var e = document.getElementById(id);
+      return e ? String(e.value == null ? '' : e.value) : '';
+    }).join('|') + '|' + (window.PC_STATE ? (PC_STATE.pat||'') + (PC_STATE.cargo||'') : '');
+  } catch(e){ return ''; }
+}
+
 var PC_TEO_KEY = 'pilotos_pay_teorico';
 function pcGuardaTeorico(){
   try { lsSet(PC_TEO_KEY, JSON.stringify(PC_LAST)); } catch(e){}
@@ -17178,7 +17196,8 @@ function pcCalc() {
     /* Con qué MES de actividad se ha calculado. Sin esto, la Auditoría comparaba
        la nómina de un mes contra un teórico hecho con las horas de otro y no lo
        decía: cuadraba o descuadraba por el motivo equivocado. */
-    mesAct: (function(){ var el=document.getElementById('pc_mes_sel'); return (el&&el.value)||null; })()
+    mesAct: (function(){ var el=document.getElementById('pc_mes_sel'); return (el&&el.value)||null; })(),
+    huella: pcHuellaForm()
   };
   pcGuardaTeorico();
 
@@ -17437,6 +17456,11 @@ async function pcImportFromLogbook(month, opts) {
       if (sub) sub.textContent = isRoster
         ? '⚠️ Horas y dietas tomadas del ROSTER (programado). Si el roster de ese mes no está actualizado, el importe puede variar.'
         : (isConfirmed ? 'Todos los vuelos tienen AOBT/AIBT — datos confirmados.' : 'Faltan tiempos reales en algunos vuelos — añádelos en el Logbook para confirmar.');
+      /* Recalcular en el acto. Antes había que acordarse de pulsar «Calcular
+         nómina» después de importar; quien no lo hacía se llevaba la Auditoría
+         comparando su nómina contra el teórico de los números viejos. Importar ES
+         cambiar los números, así que el teórico se rehace aquí mismo. */
+      try { if (typeof pcCalc === 'function') pcCalc(); } catch(_e){}
       showToast('✅ Datos importados para ' + month + (isRoster?' (roster)':(isConfirmed?' (confirmado)':' (estimado)')));
     }
 
@@ -17759,6 +17783,15 @@ function pcRenderCompare(res, real, L){
      la comparación de abajo es válida o si está restando peras de menos.
      Sin sello —un teórico de antes de este cambio— se mantiene el recordatorio
      de siempre: no sabemos con qué se calculó y afirmarlo sería inventar. */
+  /* Antes que nada: ¿este teórico sale de los números que hay ahora en el
+     formulario? Si se importó o se tecleó algo después de calcular, la comparación
+     de abajo no habla de la nómina del piloto sino de un cálculo viejo. */
+  var _huellaHoy = pcHuellaForm();
+  if (L && L.huella && _huellaHoy && L.huella !== _huellaHoy){
+    html += '<div class="pca-lagnote bad"><span>⚠️</span><span>Los datos del formulario han cambiado desde que se calculó el teórico '+
+      '—una importación, o algo tecleado a mano—, así que la comparación de abajo es contra el cálculo ANTERIOR. '+
+      '<span class="pca-lnk" onclick="pcSwitchTab(\'nom\')">Volver a calcular</span></span></div>';
+  }
   var _mesNec = res.month ? pcMesAnterior(res.month) : null;
   var _mesUsa = L && L.mesAct ? String(L.mesAct) : null;
   if (_mesNec && _mesUsa && _mesUsa !== _mesNec){
