@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.636">
+  <meta name="version" content="Estable.637">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.636","builtAt":"2026-08-29T09:53:59Z","commit":"b74038f","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.637","builtAt":"2026-08-29T10:00:43Z","commit":"0d0aa4a","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -1587,6 +1587,17 @@ html.day #scr-pay .pc-mp-m.sel{color:#1a1000}
 #scr-pay .pca-banner.lag{background:rgba(96,165,250,.09);border-color:rgba(96,165,250,.35)}
 #scr-pay .pca-banner.lag .tx b{color:#7DD3FC}
 #scr-pay .pca-banner.lag .act{background:linear-gradient(135deg,#3B82F6,#60A5FA)}
+#scr-pay .pc-noct-det .g{margin:2px 0 0 10px;padding-left:8px;border-left:2px solid rgba(167,139,250,.22);font-size:9.5px;color:rgba(255,255,255,.5)}
+#scr-pay .pc-noct-det .g.cero{opacity:.55}
+#scr-pay .pc-noct-det .g .v{display:inline-block;min-width:52px;color:rgba(255,255,255,.7);font-weight:700}
+#scr-pay .pc-noct-det .arr{margin-left:6px;font-size:9px;color:#FBBF24}
+#scr-pay .pc-noct-det .cp{margin-top:7px;padding:5px 9px;border-radius:8px;cursor:pointer;text-align:center;
+  font-size:10px;font-weight:700;color:#C4B5FD;background:rgba(124,58,237,.14);border:1px dashed rgba(167,139,250,.35)}
+#scr-pay .pc-noct-det .cp:active{transform:scale(.99)}
+html.day #scr-pay .pc-noct-det .g{color:#5b5470;border-left-color:rgba(124,58,237,.2)}
+html.day #scr-pay .pc-noct-det .g .v{color:#334155}
+html.day #scr-pay .pc-noct-det .arr{color:#B45309}
+html.day #scr-pay .pc-noct-det .cp{color:#6D28D9;background:rgba(124,58,237,.08);border-color:rgba(124,58,237,.3)}
 #scr-pay .pc-noct-det{font-size:10px;line-height:1.6;font-family:ui-monospace,'Space Mono',monospace;
   padding:9px 11px;border-radius:10px;background:rgba(124,58,237,.08);border:1px solid rgba(167,139,250,.24);color:rgba(255,255,255,.58)}
 #scr-pay .pc-noct-det .t{font-weight:700;color:#C4B5FD;margin-bottom:5px;letter-spacing:.3px}
@@ -17080,6 +17091,19 @@ function pcPintaNoctDetalle(){
     h += '<div class="l">Ningún servicio del mes tiene vuelo dentro de la franja nocturna.</div>';
   } else {
     h += conNoche.map(function(x){
+      /* Los tramos, no solo el total del servicio: una diferencia con la nómina se
+         localiza en UN vuelo. Con el agregado no se distingue un sector que sobra de
+         un goteo de minutos por horas programadas que no fueron las reales. */
+      var legs = (x.legs || []).map(function(g){
+        var noc = g.noche_min || 0;
+        return '<div class="g' + (noc ? '' : ' cero') + '">' +
+          '<span class="v">' + (g.vuelo || '—') + '</span> ' +
+          (g.dep || '?') + '→' + (g.arr || '?') + ' ' +
+          hora(g.ini) + '–' + hora(g.fin) + 'Z · ' + hm(g.block_min) +
+          (noc ? ' · <b>noche ' + hm(noc) + '</b>' : ' · sin noche') +
+          ((g.arrastrado_min || 0) > 0 ? '<span class="arr">' + hm(g.arrastrado_min) + ' por la regla de 3 h</span>' : '') +
+        '</div>';
+      }).join('');
       return '<div class="l">' +
         '<span class="d">' + dia(x.desde) + '</span> ' +
         '<span class="o">' + (x.origen || '—') + '</span> ' +
@@ -17088,15 +17112,45 @@ function pcPintaNoctDetalle(){
         'bloque ' + hm(x.block_min) + ' · <b>noche ' + hm(x.noche_min) + '</b>' +
         (x.supera_3h ? '<span class="tres">supera 3 h → arrastra</span>' : '') +
         '<div class="tz">franja 22:00–06:00 de ' + (x.huso || '—') + '</div>' +
+        legs +
       '</div>';
     }).join('');
   }
   h += '<div class="p">Las horas son Zulú; la franja se mide en la hora local del aeropuerto ' +
-       'donde empieza cada servicio (Art. 13.7).</div>';
+       'donde empieza cada servicio (Art. 13.7).</div>' +
+       '<div class="cp" onclick="pcCopiaNoct(this)">⧉ Copiar el desglose</div>';
   el.style.display = 'block';
   el.innerHTML = h;
 }
 try { window.pcPintaNoctDetalle = pcPintaNoctDetalle; } catch(e){}
+
+/* El desglose en texto plano, para pegarlo donde haga falta. Cuando un mes no cuadra
+   con la nómina, esto es lo que hay que poder mandar: sin ello el diagnóstico va a
+   base de capturas y de deducir números a mano. */
+window.pcCopiaNoct = function(el){
+  var L = PC_NOCHE_SERV || [];
+  var hm = function(m){ m = Math.round(m||0); return Math.floor(m/60)+'h'+String(m%60).padStart(2,'0'); };
+  var iso = function(t){ try { return new Date(t).toISOString().slice(0,16).replace('T',' '); } catch(e){ return '?'; } };
+  var out = ['NOCTURNAS POR SERVICIO — todas las horas en Zulú'];
+  var tot = 0;
+  L.forEach(function(x){
+    tot += (x.noche_min||0);
+    out.push('');
+    out.push(iso(x.desde)+' → '+iso(x.hasta)+'  origen '+(x.origen||'?')+'  ('+(x.huso||'?')+')');
+    out.push('  bloque '+hm(x.block_min)+' · noche '+hm(x.noche_min)+(x.supera_3h?'  ⚠ supera 3 h → arrastra':''));
+    (x.legs||[]).forEach(function(g){
+      out.push('   · '+(g.vuelo||'—')+' '+(g.dep||'?')+'→'+(g.arr||'?')+' '+
+        iso(g.ini).slice(11)+'-'+iso(g.fin).slice(11)+
+        ' bloque '+hm(g.block_min)+' noche '+hm(g.noche_min)+
+        ((g.arrastrado_min||0)>0 ? ' (de los cuales '+hm(g.arrastrado_min)+' por la regla de 3 h)' : ''));
+    });
+  });
+  out.push(''); out.push('TOTAL NOCHE: '+hm(tot));
+  var txt = out.join('\n');
+  try { if (navigator.clipboard) navigator.clipboard.writeText(txt); } catch(e){}
+  if (el){ var o = el.textContent; el.textContent = '✓ Copiado'; setTimeout(function(){ el.textContent = o; }, 1500); }
+  return txt;
+};
 
 /* Cómo se reparten las horas entre los dos códigos de la nómina, en vivo bajo los
    campos. El reparto es lo que el piloto va a comparar con su papel, y verlo mientras
