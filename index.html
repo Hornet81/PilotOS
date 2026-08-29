@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.658">
+  <meta name="version" content="Estable.659">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.658","builtAt":"2026-08-29T22:52:21Z","commit":"7fe84c8","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.659","builtAt":"2026-08-29T23:02:30Z","commit":"c277491","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -17825,6 +17825,27 @@ async function pcImportFromLogbook(month, opts) {
   var pcTkImported = false, pcFallo = null;
 
   try {
+    /* ── Antes de pedir nada, asegurarse de que el servidor TIENE el roster ──
+       El roster vive en el dispositivo. Si la sincronización no llegó —falló, se
+       importó sin red, o se cerró la app antes— el endpoint no ve nada y se caen
+       a cero de golpe: guardias, posicionales, oficina, vacaciones, pernoctas y
+       nocturnas. Bloque y dietas siguen saliendo del logbook, y por eso parecía
+       que «unas cosas sí y otras no».
+       Caso real de un tester: su roster de agosto estaba en el móvil —lo exportó
+       entero— y no en el servidor. Subirlo aquí cuesta una petición y quita la
+       clase entera de fallo, en vez de pedirle que abra otra pantalla.
+       rstPushMonth ya sabe no resucitar un mes borrado y encolar si no hay red. */
+    try {
+      if (typeof rstLoad === 'function') rstLoad();
+      var _local = (typeof RST !== 'undefined' && RST.entries) ? RST.entries : [];
+      var _hayLocal = _local.some(function(e){ return e && e.date && e.date.slice(0,7) === month; });
+      if (_hayLocal && typeof window.rstPushMonth === 'function') {
+        if (btn)     btn.textContent     = '⏳ Sincronizando roster...';
+        if (btnAcum) btnAcum.textContent = '⏳ Sincronizando roster...';
+        await window.rstPushMonth(month);
+      }
+    } catch(_e){}
+
     var data = await pcPaycheckFetch(month, source, token);
 
     if (data.status === 'empty') {
