@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.657">
+  <meta name="version" content="Estable.658">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.657","builtAt":"2026-08-29T22:47:02Z","commit":"81c6340","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.658","builtAt":"2026-08-29T22:52:21Z","commit":"7fe84c8","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -1461,6 +1461,10 @@ html.day .doc-sheet-sectlbl{color:#94A3B8}
 #scr-pay .pca-hero-k{font-size:10px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:rgba(255,255,255,.68)}
 #scr-pay .pca-hero-v{font-family:'Space Mono',monospace;font-weight:700;font-size:42px;letter-spacing:-1px;line-height:1.1;margin:6px 0 2px;color:#FF6B6B}
 #scr-pay .pca-hero.pos .pca-hero-v{color:#34D399}
+#scr-pay .pca-hero.pend{background:linear-gradient(150deg,rgba(245,158,11,.16),rgba(245,158,11,.05));border-color:rgba(245,158,11,.4);box-shadow:0 0 26px rgba(245,158,11,.1)}
+#scr-pay .pca-hero.pend .pca-hero-v{color:#FBBF24}
+html.day #scr-pay .pca-hero.pend{background:linear-gradient(150deg,rgba(245,158,11,.1),rgba(245,158,11,.03));border-color:rgba(180,83,9,.3)}
+html.day #scr-pay .pca-hero.pend .pca-hero-v{color:#92400E}
 #scr-pay .pca-hero-sub{font-size:12px;color:rgba(255,255,255,.68);max-width:280px;margin:2px auto 0;line-height:1.4}
 #scr-pay .pca-verdict{margin-top:12px;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;background:rgba(0,0,0,.28);border:1px solid rgba(255,107,107,.3);color:#FFC9C9;padding:7px 14px;border-radius:20px}
 #scr-pay .pca-hero.pos .pca-verdict{border-color:rgba(52,211,153,.3);color:#B9F2DE}
@@ -18340,10 +18344,22 @@ function pcRenderCompare(res, real, L){
   else if (Math.abs(dLiq) < 1) verdict = '✓ Tu nómina cuadra con el convenio';
   else if (dLiq > 0) verdict = '↑ Cobras '+pcFmt(dLiq)+' € más de lo previsto — revisa '+(s.nBad+s.nWarn)+' conceptos';
   else verdict = '⚠ Cobras '+pcFmt(Math.abs(dLiq))+' € menos de lo previsto — revisa '+(s.nBad+s.nWarn)+' conceptos';
-  html += '<div class="pca-hero'+(pos?' pos':'')+'">';
+  /* Mientras falten datos, el número grande NO puede ir en verde. En la captura de
+     un tester salía «+766,33 €» en verde con «faltan 6 datos que valen 1411,27 €»
+     justo debajo: si esos datos entraran, el resultado se daría la vuelta y saldría
+     en NEGATIVO. Pintarlo de color de buena noticia mientras la comparación está a
+     medias es afirmar lo que no se sabe. En ámbar y con un «≈» hasta que se pueda
+     restar de verdad. */
+  var _incompleta = s.nSinDato > 0;
+  html += '<div class="pca-hero'+(pos && !_incompleta ? ' pos' : '')+(_incompleta ? ' pend' : '')+'">';
   html += '<div class="pca-hero-k">Δ Líquido a percibir</div>';
-  html += '<div class="pca-hero-v">'+(dLiq!=null?pcFmtDelta(dLiq):'—')+'</div>';
-  html += '<div class="pca-hero-sub">Diferencia entre tu nómina real y el cálculo del IV Convenio para este mes.</div>';
+  html += '<div class="pca-hero-v">'+(dLiq!=null?((_incompleta?'≈ ':'')+pcFmtDelta(dLiq)):'—')+'</div>';
+  html += '<div class="pca-hero-sub">'
+    + (_incompleta
+        ? ('Provisional: faltan '+pcFmt(s.importeSinDato)+' € que la nómina paga y el teórico no ha podido calcular. '
+           + 'Con esos datos puestos, la diferencia sería otra —y puede cambiar de signo.')
+        : 'Diferencia entre tu nómina real y el cálculo del IV Convenio para este mes.')
+    + '</div>';
   html += '<div class="pca-verdict">'+verdict+'</div>';
   html += '</div>';
 
@@ -18357,8 +18373,10 @@ function pcRenderCompare(res, real, L){
   if (s.deltaDevengos!=null){
     var dd = s.deltaDevengos, ddPos = dd>=0;
     var pctW = Math.min(48, Math.abs(dd) / Math.max(1, Math.abs(ppNum(L.totalDevNeto))) * 100 * 6); // escala visual
-    html += '<div class="pca-dev"><div class="pca-dev-h"><span>Desviación de tu bruto (devengos)</span>'
-      + '<b style="color:'+(ddPos?'#34D399':'#FF6B6B')+'">'+pcFmtDelta(dd)+'</b></div>';
+    var _col = (s.nSinDato > 0) ? '#FBBF24' : (ddPos ? '#34D399' : '#FF6B6B');
+    html += '<div class="pca-dev"><div class="pca-dev-h"><span>Desviación de tu bruto (devengos)'
+      + (s.nSinDato > 0 ? ' <span style="opacity:.8">· provisional</span>' : '') + '</span>'
+      + '<b style="color:'+_col+'">'+(s.nSinDato > 0 ? '≈ ' : '')+pcFmtDelta(dd)+'</b></div>';
     html += '<div class="pca-devbar"><div class="mid"></div>'
       + '<div class="fill" style="'+(ddPos?'left:50%;background:linear-gradient(90deg,#059669,#34D399)':'right:50%;background:linear-gradient(90deg,#EF4444,#FF6B6B)')
       + ';width:'+pctW.toFixed(1)+'%"></div></div></div>';
