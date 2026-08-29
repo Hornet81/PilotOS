@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.629">
+  <meta name="version" content="Estable.630">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.629","builtAt":"2026-08-28T23:40:51Z","commit":"85b414e","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.630","builtAt":"2026-08-29T05:44:15Z","commit":"8a14d94","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -17384,16 +17384,27 @@ async function pcImportFromLogbook(month, opts) {
         var _cw=document.getElementById('pc_cargos_wrap'); if(_cw) _cw.style.display='block';
         document.querySelectorAll('.pc-tog-btn').forEach(function(b){ if((b.getAttribute('onclick')||'').indexOf("'cargo'")>=0){ b.classList.toggle('on', b.getAttribute('data-val')==='si'); } });
       }
+      /* ── Vacaciones (cód. 2108) ───────────────────────────────────────────
+         FUERA del `if (data.roster_available)` a propósito. Ese `if` mira si el
+         SERVIDOR tiene el roster del mes; el roster que el piloto ve está en su
+         dispositivo. Con el mes importado aquí y no sincronizado allí —o subido
+         por una versión que solo mandaba los vuelos— el bloque entero se saltaba
+         y la casilla se quedaba en 0 aunque el calendario enseñara los 11 días.
+         Manda lo local, que es lo que el piloto tiene delante; el servidor queda
+         de respaldo para el dispositivo donde el mes no esté importado. */
+      try {
+        var _ra0 = data.roster_activity || {};
+        var _vac = pcVacFromRoster(month);
+        var _vacN = _vac.hayMes ? _vac.dias : (_ra0.vacation_days||0);
+        setVal('pc_vac', _vacN);
+      } catch(_e){}
+
       try {
         if (data.roster_available) {
           var _ra = data.roster_activity || {};
           setVal('pc_fonline', _ra.elearn_h||0); setVal('pc_hpos', _ra.positional_h||0);
           setVal('pc_oficina', _ra.office_days||0); setVal('pc_sparring', _ra.sparring_h||0);
           setVal('pc_imag', _ra.imaginaria_days||0);   // Art. 13.19: días de bloque que SÍ se pagan
-          // Vacaciones del roster → Plus Comp.Var.Vacaciones (cód. 2108), que se paga
-          // por día. No se importaba: el piloto con 11 días de vacaciones en el mes
-          // veía un 0 y el teórico salía sin ese plus, sin decir que faltaba.
-          setVal('pc_vac', _ra.vacation_days||0);
           if (_ra.ground_days) { setVal('pc_gti', _ra.ground_days);
             try{ if(typeof PC_STATE!=='undefined') PC_STATE.cargo='si'; }catch(_e){}
             var _cw2=document.getElementById('pc_cargos_wrap'); if(_cw2) _cw2.style.display='block'; }
@@ -18422,6 +18433,39 @@ function pcGross(data) {
 
 /* ══ Simulador / cargos del mes, desde el logbook LOCAL (el rol lo sabe `instr`) ══
    Fuente única: la usan la Nómina, el detalle del Acumulado y el widget del Home. */
+/* ── Días de vacaciones del mes, contados en el DISPOSITIVO ───────────────────
+   El plus cód. 2108 se paga por día, así que este número son euros. Contarlo solo
+   en el servidor lo ata a que el roster de ese mes esté sincronizado: si se importó
+   con una versión que solo subía los vuelos, o el push de ese mes se quedó en la
+   cola, en Supabase no hay ningún día de vacaciones y la casilla sale a 0 — sin que
+   nada lo diga, porque el resto del mes (horas, imaginarias) sí está.
+   El roster que el piloto VE está aquí, en localStorage. Se cuenta de él, igual que
+   los simuladores salen del logbook local (pcSimsFromLogbook). El servidor queda de
+   respaldo para el dispositivo que aún no tenga el mes importado.
+   eCrews manda VAC, RVAC y PVAC con type 'off' y el código aparte, así que se mira
+   el CÓDIGO; el patrón fijo las guarda con type 'vacation'. Por objeto-índice, un
+   día con dos líneas cuenta una vez. */
+function pcVacFromRoster(month){
+  var out = { dias: 0, fechas: [], hayMes: false };
+  try {
+    var ent = [];
+    try { ent = JSON.parse(localStorage.getItem('pilotOS_roster') || '[]'); } catch(e){}
+    if ((!ent || !ent.length) && window.RST && Array.isArray(RST.entries)) ent = RST.entries;
+    if (!Array.isArray(ent)) return out;
+    var vistos = {};
+    ent.forEach(function(e){
+      if (!e || !e.date || String(e.date).slice(0,7) !== month) return;
+      out.hayMes = true;
+      var c = String(e.code || '').toUpperCase();
+      if (c === 'VAC' || c === 'RVAC' || c === 'PVAC' || e.type === 'vacation' || e.vacation === true) vistos[e.date] = c || 'VAC';
+    });
+    out.fechas = Object.keys(vistos).sort();
+    out.dias = out.fechas.length;
+  } catch(e){}
+  return out;
+}
+try { window.pcVacFromRoster = pcVacFromRoster; } catch(e){}
+
 function pcSimsFromLogbook(month) {
   var _min = function(t){ var m=String(t||'').match(/^(\d{1,2}):(\d{2})$/); return m?parseInt(m[1])*60+parseInt(m[2]):0; };
   var tri=0,tre=0,lscMin=0,gtiDays={},sim=0;
