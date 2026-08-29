@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.637">
+  <meta name="version" content="Estable.638">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.637","builtAt":"2026-08-29T10:00:43Z","commit":"0d0aa4a","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.638","builtAt":"2026-08-29T13:52:39Z","commit":"7daba33","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -11320,7 +11320,15 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           📅 La nómina paga las variables (vuelo, dietas, nocturnas) del <b style="color:#7DD3FC">mes anterior</b>. Para la nómina de julio, importa <b style="color:#7DD3FC">junio</b>. Por defecto: el mes pasado.
         </div>
       </div>
-      <button id="pc-import-btn" onclick="pcImportFromLogbook(null,{tracker:false,form:true,source:'roster'})" style="width:100%;padding:11px 14px;margin-bottom:14px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:12px;color:#FBBF24;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+      <!-- De dónde salen las horas. El roster son las PROGRAMADAS y es lo que había
+           siempre; el logbook son las REALES, que es lo que paga la nómina. Con el mes
+           entero apuntado, el logbook cuadra mejor: en julio el roster se quedaba 26
+           minutos corto sobre 28 sectores. -->
+      <div class="pc-tog-row" style="display:flex;gap:6px;padding:3px;margin-bottom:8px;background:rgba(255,255,255,.03);border-radius:11px">
+        <button type="button" class="pc-tog-btn on" data-val="roster" onclick="pcTogFuente(this)">Roster · programado</button>
+        <button type="button" class="pc-tog-btn" data-val="logbook" onclick="pcTogFuente(this)">Logbook · real</button>
+      </div>
+      <button id="pc-import-btn" onclick="pcImportFromLogbook(null,{tracker:false,form:true,source:(window.PC_FUENTE||'roster')})" style="width:100%;padding:11px 14px;margin-bottom:14px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:12px;color:#FBBF24;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
         <span>📥</span><span>Importar datos desde PilotOS</span>
       </button>
       <!-- Los dos rótulos son carga estructural, no estilo: las nocturnas SALEN del
@@ -17124,6 +17132,20 @@ function pcPintaNoctDetalle(){
 }
 try { window.pcPintaNoctDetalle = pcPintaNoctDetalle; } catch(e){}
 
+/* Fuente de las horas del mes. El roster trae las PROGRAMADAS; el logbook, las
+   REALES —calzos que apuntó el piloto— que son las que paga la nómina. Con el mes
+   entero en el logbook cuadra mejor: en julio el roster se quedaba 26 minutos corto
+   sobre 28 sectores, y en las nocturnas eso pesa más de lo que parece porque casi
+   todo se juega en el borde de las 22:00. */
+var PC_FUENTE = 'roster';
+window.pcTogFuente = function(btn){
+  btn.closest('.pc-tog-row').querySelectorAll('.pc-tog-btn').forEach(function(b){ b.classList.remove('on'); });
+  btn.classList.add('on');
+  PC_FUENTE = btn.getAttribute('data-val') || 'roster';
+  try { lsSet('pilotos_pay_fuente', PC_FUENTE); } catch(e){}
+};
+try { PC_FUENTE = lsGet('pilotos_pay_fuente', 'roster') || 'roster'; } catch(e){}
+
 /* El desglose en texto plano, para pegarlo donde haga falta. Cuando un mes no cuadra
    con la nómina, esto es lo que hay que poder mandar: sin ello el diagnóstico va a
    base de capturas y de deducir números a mano. */
@@ -17692,7 +17714,14 @@ function pcSwitchTab(tab) {
   if (audit) audit.style.display = (tab === 'audit') ? '' : 'none';
   var btns = document.querySelectorAll('#scr-pay .pc-tab-btn');
   btns.forEach(function(b) { b.classList.toggle('active', b.dataset.tab === tab); });
-  if (tab === 'nom') pcSetDefaultImportMonth();
+  if (tab === 'nom'){
+    pcSetDefaultImportMonth();
+    // Dejar marcada la fuente que el piloto eligió la última vez.
+    try {
+      document.querySelectorAll('.pc-tog-row .pc-tog-btn[data-val="roster"],.pc-tog-row .pc-tog-btn[data-val="logbook"]')
+        .forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-val') === (window.PC_FUENTE||'roster')); });
+    } catch(e){}
+  }
   var gast = document.getElementById('pc-tab-gastos');
   if (gast) gast.style.display = (tab === 'gastos') ? '' : 'none';
   if (tab === 'audit') pcAuditRender();
