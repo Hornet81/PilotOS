@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.644">
+  <meta name="version" content="Estable.645">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.644","builtAt":"2026-08-29T18:03:57Z","commit":"eb069be","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.645","builtAt":"2026-08-29T18:15:03Z","commit":"cf38c6e","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -17248,7 +17248,7 @@ try { window.pcPintaNoctDetalle = pcPintaNoctDetalle; } catch(e){}
    sobre todo la BASE, porque no se lee del perfil: se DEDUCE de dónde sale más
    veces el primer vuelo del día. Si esa deducción sale mal, ninguna pernocta se
    detecta y el número no tiene forma de explicarse solo. */
-var PC_PERN_DET = [], PC_PERN_BASE = null, PC_PERN_HAY_ROSTER = false;
+var PC_PERN_DET = [], PC_PERN_BASE = null, PC_PERN_HAY_ROSTER = false, PC_PERN_DESC = [];
 function pcPintaPernDetalle(){
   var el = document.getElementById('pc_pern_det'); if (!el) return;
   if (!PC_PERN_HAY_ROSTER){ el.style.display = 'none'; el.innerHTML = ''; return; }
@@ -17279,6 +17279,22 @@ function pcPintaPernDetalle(){
         '<b>' + (x.tipo === 'int' ? 'internacional' : 'nacional') + '</b>' +
       '</div>';
     }).join('');
+  }
+  /* Los días que acabaron fuera de base y NO contaron, con el motivo. Sin esto,
+     una noche que la nómina paga y PilotOS no detecta desaparece sin dejar rastro:
+     el piloto ve un número y no tiene con qué discutirlo. */
+  var D = PC_PERN_DESC || [];
+  if (D.length){
+    h += '<div class="t" style="margin-top:9px">Días fuera de base que NO han contado · ' + D.length + '</div>';
+    h += D.map(function(x){
+      var por = (x.motivo === 'sin_siguiente')
+        ? 'no hay ningún día con vuelo después — si volviste ya en el mes siguiente, impórtalo también'
+        : ('el siguiente día con vuelo (' + dia(x.siguiente) + ') salió de <b>' + (x.salioDe || '—') + '</b>, no de ' + (x.donde || '—'));
+      return '<div class="l"><span class="d">' + dia(x.desde) + '</span> ' +
+             '<span class="o">' + (x.donde || '—') + '</span> · ' + por + '</div>';
+    }).join('');
+    h += '<div class="p">Si dormiste fuera alguno de esos días, la pernocta existe y aquí no se ve: ' +
+         'suele ser que el vuelo de vuelta no está en el roster, o que volviste por otros medios.</div>';
   }
   h += '<div class="p">Art. 15.18: la pernocta se devenga por cada noche fuera de base. ' +
        'Los días intermedios de una estancia larga devengan además su dieta del día.</div>';
@@ -17828,6 +17844,7 @@ async function pcImportFromLogbook(month, opts) {
          de "no tuviste ninguna" y de "la deducción de la base salió mal". */
       try {
         PC_PERN_DET  = Array.isArray(data.pernoc_detail) ? data.pernoc_detail : [];
+        PC_PERN_DESC = Array.isArray(data.pernoc_descartadas) ? data.pernoc_descartadas : [];
         PC_PERN_BASE = data.base || null;
         PC_PERN_HAY_ROSTER = !!data.roster_available;
       } catch(_e){}
