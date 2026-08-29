@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.648">
+  <meta name="version" content="Estable.649">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.648","builtAt":"2026-08-29T19:13:04Z","commit":"cd4880d","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.649","builtAt":"2026-08-29T19:18:57Z","commit":"1ae1368","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -40946,9 +40946,26 @@ function rstOrdenaTramos(legs){
   };
   var hora = function(f){ return t2(f.std_actual || f.std || f.std_scheduled || f.std_estimated); };
   if (L.some(function(f){ return hora(f) == null; })) return L;
+  /* La FIRMA es el ancla buena. Sin ella se mira el reparto de las salidas:
+     ninguna jornada real las reparte a lo largo de 13 h (el FDP máximo, contando
+     firma y último tramo), así que un hueco mayor significa que el reloj ha dado
+     la vuelta y se busca el corte que deja la jornada más compacta. Por debajo no
+     se toca: una jornada larga de día (06:00 a 17:00) es real. */
   var cks = L.map(function(f){ return t2(f.checkin); }).filter(function(v){ return v != null; });
-  var ancla = cks.length ? Math.min.apply(null, cks)
-                         : Math.min.apply(null, L.map(hora));
+  var ancla;
+  if (cks.length) ancla = Math.min.apply(null, cks);
+  else {
+    var t = L.map(hora).sort(function(a,b){ return a-b; });
+    var span = t[t.length-1] - t[0];
+    ancla = t[0];
+    if (span > 13*60){
+      var mejor = span;
+      for (var j=1; j<t.length; j++){
+        var sp = (t[j-1] + 1440) - t[j];
+        if (sp < mejor){ mejor = sp; ancla = t[j]; }
+      }
+    }
+  }
   var rel = function(f){ return (((hora(f) - ancla) % 1440) + 1440) % 1440; };
   return L.sort(function(a,b){ return rel(a) - rel(b); });
 }
