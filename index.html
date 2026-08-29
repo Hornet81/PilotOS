@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.634">
+  <meta name="version" content="Estable.635">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.634","builtAt":"2026-08-29T07:13:53Z","commit":"9216eca","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.635","builtAt":"2026-08-29T09:22:02Z","commit":"93f52c5","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -17044,7 +17044,7 @@ function pcPintaReparto(){
   var esp = (document.getElementById('pc_esp')||{}).value || 'cmd';
   var T = (window.CONVENIO && CONVENIO[esp]) || null;
   var rDia = T ? T.plusHoraVuelo : 0;
-  var rNoc = T ? (T.horaNoct || T.plusHoraVuelo * 0.125) : 0;
+  var rNoc = T ? (T.horaNoct || T.plusHoraVuelo * 1.125) : 0;   // ×1,125, ver pcCalc
   var dia = Math.max(0, hv - hn);
   var h = function(n){ return n.toFixed(2).replace('.', ','); };
   var e = function(n){ return n.toFixed(2).replace('.', ',') + ' €'; };
@@ -17131,7 +17131,13 @@ function pcCalc() {
      ya estaba calculado aquí y no lo usaba nadie. El propio texto del formulario ya
      decía «tarifa directa», no suplemento. */
   var hvDiur   = Math.max(0, hvT - hvN);
-  var horaNoct = T.horaNoct || (T.plusHoraVuelo * 0.125);
+  /* La hora nocturna es la de vuelo FACTORIZADA ×1,125 (Art. 15.5.1), no un
+     suplemento: 39,29 × 1,125 = 44,20 para un comandante, 11,05 × 1,125 = 12,43 para
+     un copiloto — que es justo lo que dicen las tablas. El respaldo era ×0,125, o sea
+     el suplemento suelto (4,91 €/h), y desde que las nocturnas se pagan a tarifa
+     directa eso saldría por diez veces menos de lo que toca. Solo salta si a alguna
+     especialidad le faltara la tarifa en tabla, pero es una bomba dormida. */
+  var horaNoct = T.horaNoct || (T.plusHoraVuelo * 1.125);
   var plusHV   = hvDiur * T.plusHoraVuelo + hvN * horaNoct;
   // Horas equivalentes a tarifa de día, solo para enseñar una cifra en el resumen.
   var hvFact   = hvDiur + hvN * (horaNoct / (T.plusHoraVuelo || 1));
