@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.638">
+  <meta name="version" content="Estable.639">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.638","builtAt":"2026-08-29T13:52:39Z","commit":"7daba33","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.639","builtAt":"2026-08-29T14:20:20Z","commit":"b3f4b1c","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -13963,7 +13963,89 @@ function updateTabs(key){
 // El chip del Home es el briefing de COCHE: la jornada entera. Fuerza ese alcance aunque ARIA
 // esté por defecto en el sector seleccionado (window.__ariaAutoBriefScope lo lee __ariaMount).
 function homeAriaBrief(){ try{ window.__ariaAutoBrief=1; window.__ariaAutoBriefScope='hoy'; goTo('skyview'); var _n=0; (function _pt(){ if(window.__skySetTab){ try{ window.__skySetTab('aria'); }catch(e){} setTimeout(function(){ try{ if(window.__ariaAutoBrief && window.__ariaRunAutoBrief) window.__ariaRunAutoBrief(); }catch(e){} }, 350); return; } if(_n++<50) setTimeout(_pt,50); })(); }catch(e){} }
-function goTo(key){
+/* ── El botón ATRÁS de Android ────────────────────────────────────────────────
+   Reporte #Y6WTK: «dándole al botón atrás para volver al menú principal me saca de
+   la app en vez de volver atrás».
+
+   La causa es que `goTo()` cambia de pantalla sin dejar rastro en el historial del
+   navegador: para Android la app entera es UNA sola entrada, así que el primer atrás
+   es el que sale. Ahora cada cambio de pantalla apila una entrada y el atrás la
+   consume, que es lo que cualquiera espera de una app.
+
+   Dos detalles que no son evidentes:
+
+   · La PRIMERA pantalla no apila nada. Si apilara, al llegar a Inicio y pulsar atrás
+     te quedarías dando vueltas dentro de la app sin poder salir nunca — que es el
+     defecto contrario y molesta más.
+
+   · Si hay una hoja o un modal abierto, el atrás lo CIERRA en vez de cambiar de
+     pantalla, y repone la entrada de historial que acaba de gastar. Sin esto, el
+     atrás con la ficha de un vuelo abierta te cambiaba de pantalla dejando la ficha
+     flotando encima. Se cierra la capa MÁS ALTA por z-index, que es la que el piloto
+     tiene delante. */
+/* Arranca sembrada con la pantalla inicial. Si se dejara vacía, la PRIMERA pantalla a
+   la que navegara el piloto ocuparía el fondo de la pila y el atrás desde ahí saldría
+   de la app en vez de volver a Inicio — el mismo defecto que se está arreglando, solo
+   que un paso más adentro. */
+var NAV_PILA = ['home'];
+
+/* Capas con función de cierre propia: hay que llamarla, no basta con ocultarlas,
+   porque además resetean su estado (el scroll del cuerpo, la nota abierta…). */
+var NAV_CAPAS = [
+  { id:'ld_modal',        cerrar:function(){ if(window.ldCloseModal) ldCloseModal(); } },
+  { id:'ld-card-overlay', cerrar:function(){ if(window.ldCloseCard)  ldCloseCard();  } },
+  { id:'ex-sheet',        cerrar:function(){ if(window.exClose)      exClose();      } },
+  { id:'ld-trash-sheet',  cerrar:function(){ if(window.ldCloseTrash) ldCloseTrash(); } },
+];
+/* Y las que se cierran ocultándolas, que es lo que hace su propia X. NO entran aquí
+   el login ni el onboarding: son pantallas de las que no se sale con atrás, y
+   dejarlas cerrar por accidente deja al piloto en una app a medio arrancar. */
+['br-ov','db-ov','doc-sheet','fp-sheet','ec-sync-overlay','ld-otro-modal',
+ 'ld-rst-import-overlay','pp-modal','rst-edit-modal','rst-json-modal',
+ 'rst-options-sheet','sidebar-overlay'].forEach(function(id){
+  NAV_CAPAS.push({ id:id, cerrar:function(){
+    var el = document.getElementById(id); if (el) el.style.display = 'none';
+  }});
+});
+
+function navCapaAbierta(){
+  var mejor = null, zTop = -1;
+  NAV_CAPAS.forEach(function(c){
+    var el = document.getElementById(c.id); if (!el) return;
+    var st; try { st = getComputedStyle(el); } catch(e){ return; }
+    if (!st || st.display === 'none' || st.visibility === 'hidden') return;
+    var z = parseInt(st.zIndex, 10); if (isNaN(z)) z = 0;
+    if (z >= zTop){ zTop = z; mejor = c; }
+  });
+  return mejor;
+}
+function navApila(key){
+  // La pantalla de arranque ocupa el fondo de la pila SIN entrada de historial: es la
+  // que deja salir de la app.
+  if (!NAV_PILA.length){ NAV_PILA.push(key); return; }
+  if (NAV_PILA[NAV_PILA.length - 1] === key) return;
+  NAV_PILA.push(key);
+  try { history.pushState({ pilotos: key }, ''); } catch(e){}
+}
+function navRepone(){ try { history.pushState({ pilotos: 'capa' }, ''); } catch(e){} }
+
+window.addEventListener('popstate', function(){
+  var capa = navCapaAbierta();
+  if (capa){ try { capa.cerrar(); } catch(e){} navRepone(); return; }
+  if (NAV_PILA.length > 1){
+    NAV_PILA.pop();
+    goTo(NAV_PILA[NAV_PILA.length - 1], true);
+  }
+  // Con una sola pantalla en la pila no queda entrada nuestra que consumir: el
+  // siguiente atrás sale de la app, que es lo que toca desde Inicio.
+});
+try { window.navApila = navApila; window.navCapaAbierta = navCapaAbierta; } catch(e){}
+
+
+function goTo(key, _atras){
+  // `_atras` lo pone solo el manejador del botón atrás: navegar hacia atrás no puede
+  // volver a apilar, o el historial no se vaciaría nunca.
+  if (!_atras) { try { navApila(key); } catch(e){} }
   curScreen = key;
   // Cancel RAF loops not needed on inactive screens
   if(key !== 'logbook' && window.LDM && LDM.raf){
