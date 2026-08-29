@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.632">
+  <meta name="version" content="Estable.633">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.632","builtAt":"2026-08-29T06:44:16Z","commit":"7452155","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.633","builtAt":"2026-08-29T07:04:26Z","commit":"320161e","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -11293,7 +11293,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           <input class="fi" type="number" id="pc_hn" value="0" step="0.01" min="0">
         </div>
       </div>
-      <div class="pc-hint" style="margin-bottom:10px">Nocturna: CPT 44,20 €/h · FO 12,43 €/h (tarifa directa 2026)</div>
+      <div class="pc-hint" style="margin-bottom:10px">Nocturna: CPT 44,20 €/h · FO 12,43 €/h (tarifa directa 2026). Van DENTRO del total de bloque: en la nómina se pagan en el 2111 y se restan del 2104.</div>
       <div class="frow" style="margin-bottom:10px">
         <div class="fg">
           <label class="pc-field-label">Horas posicionales</label>
@@ -17073,12 +17073,22 @@ function pcCalc() {
   var bonoRate   = (esp==='cmd' ? 49.11 : 17.80);
   var bonoProd   = bonoExceso * bonoRate;
 
-  // ── Variables vuelo ──
-  // HV: tarifa base para TODOS los bloques + suplemento adicional por hora nocturna (cód 2104+2111)
-  var hvDiur   = hvT - hvN;
+  /* ── Variables vuelo ─────────────────────────────────────────────────────────
+     El 2111 NO es un suplemento que se suma encima del bloque entero: las horas
+     nocturnas se pagan a SU tarifa (44,20 €/h para un comandante) y salen del 2104,
+     que solo cubre las demás. La nómina lo enseña sin lugar a dudas:
+       2104  46,83 h × 39,29 = 1.839,95
+       2111   7,58 h × 44,20 =   335,04
+       46,83 + 7,58 = 54,41 h  ← el bloque del mes
+     Se pagaba el bloque COMPLETO a 39,29 y encima las nocturnas otra vez a 44,20, o
+     sea las nocturnas dos veces: con las 7,58 h del mes, 297,82 € de más. `hvDiur`
+     ya estaba calculado aquí y no lo usaba nadie. El propio texto del formulario ya
+     decía «tarifa directa», no suplemento. */
+  var hvDiur   = Math.max(0, hvT - hvN);
   var horaNoct = T.horaNoct || (T.plusHoraVuelo * 0.125);
-  var plusHV   = hvT * T.plusHoraVuelo + hvN * horaNoct;
-  var hvFact   = hvT + hvN * (horaNoct / (T.plusHoraVuelo || 1));
+  var plusHV   = hvDiur * T.plusHoraVuelo + hvN * horaNoct;
+  // Horas equivalentes a tarifa de día, solo para enseñar una cifra en el resumen.
+  var hvFact   = hvDiur + hvN * (horaNoct / (T.plusHoraVuelo || 1));
   var horaPos  = T.horaPos || (T.plusHoraVuelo * 0.75);
   var plusPos  = (hvPos + hvPCan) * horaPos;
   var precImag = (esp==='cop' && nivel==='6') ? T.imaginaria.nivel6 : (esp==='cop' ? T.imaginaria.normal : T.imaginaria);
@@ -17177,7 +17187,7 @@ function pcCalc() {
     bonoTarget:bonoTarget, bonoExceso:bonoExceso, bonoRate:bonoRate,
     reduOn:redu.on, reduPct:redu.pct, reduFac:reduFac,
     salBase:salBase, pagaExt:pagaExt, primaCom:primaCom, plusPat:plusPat,
-    hvFact:hvFact, plusHV:plusHV, horaNoct:horaNoct,
+    hvDiur:hvDiur, hvFact:hvFact, plusHV:plusHV, horaNoct:horaNoct,
     plusPos:plusPos, horaPos:horaPos, precImag:precImag, plusImag:plusImag,
     pagaTrim:pagaTrim, plusBolsa:plusBolsa,
     flexDays:flexDays, plusFlex:plusFlex, vacDays:vacDays, plusVac:plusVac, vacRate:vacRate,
@@ -17208,8 +17218,8 @@ function pcCalc() {
   if (primaCom>0) rows += pcRow('040','Prima Responsabilidad Cdo'+redTag,'1',primaCom,primaCom,'fixed');
   rows += pcRow('050','Paga Extra Prorrateada'+redTag,'',pagaExt,pagaExt,'fixed');
   if (plusPat>0) rows += pcRow('751','Plus Patrón Libre'+redTag,'',plusPat,plusPat,'fixed');
-  rows += pcRow('2104','Plus Horas de Vuelo',pcFmt(hvT)+' h bloque',T.plusHoraVuelo,hvT*T.plusHoraVuelo,'var');
-  if (hvN>0) rows += pcRow('2111','Horas nocturnas (supl.)',pcFmt(hvN)+' h',horaNoct,hvN*horaNoct,'var');
+  rows += pcRow('2104','Plus Horas de Vuelo',pcFmt(hvDiur)+' h (bloque − nocturnas)',T.plusHoraVuelo,hvDiur*T.plusHoraVuelo,'var');
+  if (hvN>0) rows += pcRow('2111','Horas nocturnas',pcFmt(hvN)+' h',horaNoct,hvN*horaNoct,'var');
   if (hvPos+hvPCan>0) rows += pcRow('783','Plus Horas Posicionales',pcFmt(hvPos+hvPCan)+' h',horaPos,plusPos,'var');
   if (plusImag>0) rows += pcRow('225','Imaginarias',imag+' días',precImag,plusImag,'var');
   if (invN>0) {
@@ -17526,8 +17536,9 @@ var PAY_COMPARE_MAP = [
   { code:'040',  label:'Prima Responsabilidad Cdo', theo:function(L){return L.primaCom;},              kind:'devengo' },
   { code:'050',  label:'Paga Extra Prorrateada',    theo:function(L){return L.pagaExt;},               kind:'devengo' },
   { code:'751',  label:'Plus Patrón Libre',         theo:function(L){return L.plusPat;},               kind:'devengo' },
-  { code:'2104', label:'Plus Horas de Vuelo',       theo:function(L){return L.hvT*L.T.plusHoraVuelo;}, kind:'devengo' }, // bloque puro (plusHV incluiría las nocturnas de 2111 → doble conteo)
-  { code:'2111', label:'Horas nocturnas (supl.)',   theo:function(L){return L.hvN*L.horaNoct;},        kind:'devengo' },
+  // El 2104 cubre el bloque MENOS las nocturnas: esas se pagan en el 2111 a su tarifa.
+  { code:'2104', label:'Plus Horas de Vuelo',       theo:function(L){return (L.hvDiur!=null?L.hvDiur:Math.max(0,L.hvT-L.hvN))*L.T.plusHoraVuelo;}, kind:'devengo' },
+  { code:'2111', label:'Horas nocturnas',           theo:function(L){return L.hvN*L.horaNoct;},        kind:'devengo' },
   { code:'783',  label:'Plus Horas Posicionales',   theo:function(L){return L.plusPos;},               kind:'devengo' },
   { code:'225',  label:'Imaginarias',               theo:function(L){return L.plusImag;},              kind:'devengo' },
   { code:'2043', label:'Invasión día libre',        theo:function(L){return L.plusInv;},               kind:'devengo' },
