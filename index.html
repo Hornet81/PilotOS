@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.659">
+  <meta name="version" content="Estable.660">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.659","builtAt":"2026-08-29T23:02:30Z","commit":"c277491","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.660","builtAt":"2026-08-29T23:11:03Z","commit":"8214a8e","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -50317,6 +50317,46 @@ document.addEventListener('DOMContentLoaded', function(){
     return { entries: win, verdict: verdict };
   }
 
+  /* Qué sabe este dispositivo de su propia sincronización. Sin datos personales:
+     cuántas entradas hay por mes, cuándo se subió cada uno, qué quedó en la cola y
+     a qué backend habla. Es lo que contesta «a mí me va y a él no». */
+  function brEstadoSync(){
+    var R = window.RST || {}, E = R.entries || [];
+    var cuenta = {};
+    E.forEach(function(e){ if(e && e.date){ var m = e.date.slice(0,7); cuenta[m] = (cuenta[m]||0)+1; } });
+    // Ordenados por mes: un reporte se lee de arriba abajo, no se ordena a mano.
+    var porMes = {}, ultima = {};
+    Object.keys(cuenta).sort().forEach(function(m){
+      porMes[m] = cuenta[m];
+      try { ultima[m] = localStorage.getItem('pilotOS_sync_ts_'+m) || null; } catch(e){ ultima[m] = null; }
+    });
+    var pend = [], pendDel = [], borrados = [];
+    try { pend = JSON.parse(localStorage.getItem('pilotOS_sync_pending_v2')||'[]'); } catch(e){}
+    try { pendDel = JSON.parse(localStorage.getItem('pilotOS_roster_del_pending')||'[]'); } catch(e){}
+    try {
+      for (var i = 0; i < localStorage.length; i++){
+        var k = localStorage.key(i);
+        if (k && k.indexOf('pilotOS_deleted_month_') === 0) borrados.push(k.slice(22));
+      }
+    } catch(e){}
+    return {
+      rosterLocalPorMes: porMes,
+      ultimaSubidaPorMes: ultima,
+      mesesPendientesDeSubir: pend,
+      mesesPendientesDeBorrar: pendDel,
+      mesesMarcadosComoBorrados: borrados,
+      backendConfigurado: (function(){ try { return lsGet('cafi_backend_url','https://api.pilotos.aero'); } catch(e){ return null; } })(),
+      origenDeLaPagina: (function(){ try { return location.origin; } catch(e){ return null; } })(),
+      logbookLocal: (window.ldEntries||[]).length,
+      logbookPendiente: (function(){ try { return localStorage.getItem('pilotOS_sync_pending')==='1'; } catch(e){ return null; } })(),
+      enLinea: (function(){ try { return navigator.onLine; } catch(e){ return null; } })()
+    };
+  }
+
+  /* Se publican para poder comprobarlos desde un banco: el bloque de reportes va
+     dentro de un IIFE y desde fuera no se ve nada. */
+  try { window.brEstadoSync = brEstadoSync; } catch(e){}
+
   // ── Estado del módulo activo (mismo criterio que goTo(): la global curScreen) ──
   function brCollectState(){
     var s = (typeof curScreen!=='undefined' && curScreen) || 'home';
@@ -50331,6 +50371,13 @@ document.addEventListener('DOMContentLoaded', function(){
                 selectedEntries:(window.ldEntries||[]).filter(function(e){return e && sel.indexOf(e.id)>=0;}).slice(0,20) };
       } else if(s==='pay'){
         out = { payProfile: JSON.parse(localStorage.getItem('pilotos_payProfile')||'{}') };
+        /* Un reporte de Pay Check casi siempre acaba en la misma pregunta: ¿tenía el
+           SERVIDOR el roster de ese mes? El endpoint solo ve lo sincronizado, y sin
+           roster se caen a cero guardias, posicionales, oficina, vacaciones,
+           pernoctas y nocturnas — mientras bloque y dietas siguen saliendo del
+           logbook. Sin este bloque hubo que deducirlo de tres capturas y de un
+           export pegado a mano. */
+        try { out.sync = brEstadoSync(); } catch(e){ out.sync = '[error: '+e.message+']'; }
       } else if(s==='cafi'){
         var h = (typeof conversationHistory!=='undefined' && conversationHistory) ? conversationHistory : [];
         out = { lastTurns: h.slice(-4) };
@@ -50655,6 +50702,8 @@ document.addEventListener('DOMContentLoaded', function(){
   // no salía en toda la sesión y no había forma de saber por qué. Ahora se
   // reintenta unas cuantas veces y, además, cada vez que la app vuelve a primer
   // plano, hasta que el backend conteste.
+  try { window.brCollectState = brCollectState; } catch(e){}
+
   var brArrancado = false, brIntentos = 0;
   function boot(){
     if(brArrancado) return;
