@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.645">
+  <meta name="version" content="Estable.646">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.645","builtAt":"2026-08-29T18:15:03Z","commit":"cf38c6e","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.646","builtAt":"2026-08-29T18:37:59Z","commit":"0e3615b","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -17248,7 +17248,8 @@ try { window.pcPintaNoctDetalle = pcPintaNoctDetalle; } catch(e){}
    sobre todo la BASE, porque no se lee del perfil: se DEDUCE de dónde sale más
    veces el primer vuelo del día. Si esa deducción sale mal, ninguna pernocta se
    detecta y el número no tiene forma de explicarse solo. */
-var PC_PERN_DET = [], PC_PERN_BASE = null, PC_PERN_HAY_ROSTER = false, PC_PERN_DESC = [];
+var PC_PERN_DET = [], PC_PERN_BASE = null, PC_PERN_HAY_ROSTER = false, PC_PERN_DESC = [],
+    PC_PERN_ORIGEN = null, PC_PERN_DEDUCIDA = null;
 function pcPintaPernDetalle(){
   var el = document.getElementById('pc_pern_det'); if (!el) return;
   if (!PC_PERN_HAY_ROSTER){ el.style.display = 'none'; el.innerHTML = ''; return; }
@@ -17263,12 +17264,18 @@ function pcPintaPernDetalle(){
 
   var h = '<div class="t">Pernoctas detectadas · ' + nN + ' nacional' + (nN===1?'':'es') +
           ' · ' + nI + ' internacional' + (nI===1?'':'es') + '</div>';
-  h += '<div class="tz">Base deducida del roster: <b>' + (PC_PERN_BASE || '—') + '</b>' +
-       ' — se toma el aeropuerto del que sale más veces el primer vuelo del día.</div>';
+  h += (PC_PERN_ORIGEN === 'perfil')
+    ? ('<div class="tz">Base <b>' + (PC_PERN_BASE || '—') + '</b>, la que tienes en tu perfil.' +
+       ((PC_PERN_DEDUCIDA && PC_PERN_DEDUCIDA !== PC_PERN_BASE)
+         ? ' El roster de este mes apunta más bien a <b>' + PC_PERN_DEDUCIDA + '</b> — si estás destacado, cámbiala en el perfil.'
+         : '') + '</div>')
+    : ('<div class="tz">Base <b>' + (PC_PERN_BASE || '—') + '</b>, <b>deducida del roster</b>' +
+       ' — el aeropuerto del que sale más veces el primer vuelo del día. ' +
+       'Ponla en tu perfil (📍 Base) y deja de deducirse.</div>');
   if (!L.length){
     h += '<div class="l">Ninguna noche fuera de base en el roster de este mes. ' +
          'Si tu nómina paga pernoctas y aquí no sale ninguna, mira si la base de arriba es la tuya: ' +
-         'se deduce del propio roster y, con una base equivocada, no se detecta ni una. ' +
+         'con una base equivocada no se detecta ni una. ' +
          'La noche del último día del mes sí se ve, pero necesita que el mes siguiente esté importado.</div>';
   } else {
     h += L.map(function(x){
@@ -17289,7 +17296,10 @@ function pcPintaPernDetalle(){
     h += D.map(function(x){
       var por = (x.motivo === 'sin_siguiente')
         ? 'no hay ningún día con vuelo después — si volviste ya en el mes siguiente, impórtalo también'
-        : ('el siguiente día con vuelo (' + dia(x.siguiente) + ') salió de <b>' + (x.salioDe || '—') + '</b>, no de ' + (x.donde || '—'));
+        : (x.motivo === 'vuelve_a_base')
+          ? ('el siguiente día con vuelo (' + dia(x.siguiente) + ') salió de tu base, así que dormiste en casa')
+          : ('el siguiente día con vuelo (' + dia(x.siguiente) + ') salió de <b>' + (x.salioDe || '—') + '</b>, ' +
+             'que no es ni ' + (x.donde || '—') + ' ni tu base, y hay días de por medio');
       return '<div class="l"><span class="d">' + dia(x.desde) + '</span> ' +
              '<span class="o">' + (x.donde || '—') + '</span> · ' + por + '</div>';
     }).join('');
@@ -17703,14 +17713,27 @@ function pcOrigenes(){
   try { if (location.origin && /^https?:/.test(location.origin) && bases.indexOf(location.origin) < 0) bases.push(location.origin); } catch(e){}
   return bases;
 }
+/* La base que el piloto tiene puesta en su perfil (📍 Base). Vive solo en el
+   dispositivo —localStorage 'pilotos_profile'—, así que si el backend la quiere
+   hay que mandársela. Sin esto el servidor la DEDUCE del roster, y con un mes
+   raro la deducción se va y no detecta ni una pernocta. */
+function pcBasePerfil(){
+  try {
+    var p = JSON.parse(lsGet('pilotos_profile', '{}') || '{}');
+    var b = String(p.base || '').trim().toUpperCase().replace(/[^A-Z]/g, '');
+    return (b.length === 3 || b.length === 4) ? b : '';
+  } catch(e){ return ''; }
+}
+
 async function pcPaycheckFetch(month, source, token){
-  var bases = pcOrigenes(), ultimo = null;
+  var bases = pcOrigenes(), ultimo = null, basePerfil = pcBasePerfil();
   for (var i = 0; i < bases.length; i++){
     var ctrl = new AbortController();
     var corta = setTimeout(function(){ ctrl.abort(); }, PC_IMPORT_TIMEOUT);
     try {
       var r = await fetch(bases[i] + '/api/paycheck?month=' + encodeURIComponent(month) +
-                          '&source=' + encodeURIComponent(source),
+                          '&source=' + encodeURIComponent(source) +
+                          (basePerfil ? '&base=' + encodeURIComponent(basePerfil) : ''),
                           { headers: { 'Authorization': 'Bearer ' + token }, signal: ctrl.signal });
       clearTimeout(corta);
       // Un problema de sesión no se arregla probando otro origen: es el mismo
@@ -17846,6 +17869,8 @@ async function pcImportFromLogbook(month, opts) {
         PC_PERN_DET  = Array.isArray(data.pernoc_detail) ? data.pernoc_detail : [];
         PC_PERN_DESC = Array.isArray(data.pernoc_descartadas) ? data.pernoc_descartadas : [];
         PC_PERN_BASE = data.base || null;
+        PC_PERN_ORIGEN = data.base_origen || null;
+        PC_PERN_DEDUCIDA = data.base_deducida || null;
         PC_PERN_HAY_ROSTER = !!data.roster_available;
       } catch(_e){}
       try { if (typeof pcPintaPernDetalle === 'function') pcPintaPernDetalle(); } catch(_e){}
