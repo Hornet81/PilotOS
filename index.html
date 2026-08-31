@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.660">
+  <meta name="version" content="Estable.661">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.660","builtAt":"2026-08-29T23:11:03Z","commit":"8214a8e","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.661","builtAt":"2026-08-31T11:50:39Z","commit":"1fed37c","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -1736,6 +1736,60 @@ html.day #scr-pay .pca-banner.lag .tx b{color:#1d6fb8}
 #scr-pay .pp-ai-badge{display:inline-flex;align-items:center;gap:3px;font-family:'Space Mono',monospace;font-size:8.5px;font-weight:700;letter-spacing:.05em;padding:2px 6px;border-radius:9px;border:1px solid rgba(255,171,64,.4);background:rgba(255,171,64,.14);color:#ffab40;vertical-align:middle;margin-left:6px;white-space:nowrap}
 #scr-pay .fi.pp-locked{opacity:.9;border-color:rgba(245,158,11,.42)!important;background:rgba(245,158,11,.07)!important;cursor:not-allowed}
 #scr-pay .fi.pp-review{border-color:rgba(252,211,77,.5)!important;box-shadow:0 0 0 2px rgba(252,211,77,.1)!important}
+
+/* ══ CAMPOS TRAÍDOS POR LA IMPORTACIÓN ═══════════════════════════════════════
+   Un número que ha puesto la app y uno que has escrito tú no valen lo mismo, y
+   hasta ahora se veían idénticos. Estos van con el violeta que ya usa el resto de
+   la app para «esto viene del roster», un halo suave y una marca ✦ a la derecha
+   —dibujada en el fondo, porque un <input> no admite ::after—. En cuanto el piloto
+   toca el campo el resalte desaparece: deja de ser un dato importado.
+   La marca va en `background-image`, así que hay que repetir el `background-color`
+   en la misma declaración o se pierde el fondo del campo. */
+#scr-pay .fi.pc-imp{
+  border-color:rgba(167,139,250,.55)!important;
+  /* Casi opaco a propósito. La tarjeta de Pay Check es ámbar oscura, y un velo
+     violeta translúcido componía rgb(88,57,27) — un marrón más claro, no un violeta:
+     el campo se veía «distinto» sin verse violeta. Medido, no supuesto. */
+  background-color:rgba(49,35,92,.88)!important;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 11 11'%3E%3Cpath d='M5.5 0l1.3 3.5L10.4 4.8 6.8 6.1 5.5 9.6 4.2 6.1.6 4.8 4.2 3.5z' fill='%23A78BFA'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 13px center;
+  padding-right:34px;
+  box-shadow:0 0 0 1px rgba(167,139,250,.22), 0 2px 16px rgba(167,139,250,.16);
+}
+#scr-pay select.fi.pc-imp{padding-right:52px;background-position:right 34px center, right 14px center}
+/* El destello de la importación: un solo pase, sin bucle. */
+@keyframes pcImpFlash{
+  0%  {box-shadow:0 0 0 0 rgba(167,139,250,.55), 0 2px 16px rgba(167,139,250,.16)}
+  55% {box-shadow:0 0 0 7px rgba(167,139,250,0),  0 2px 26px rgba(167,139,250,.40)}
+  100%{box-shadow:0 0 0 1px rgba(167,139,250,.22),0 2px 16px rgba(167,139,250,.16)}
+}
+#scr-pay .fi.pc-imp-flash{animation:pcImpFlash .85s cubic-bezier(.22,1,.36,1) both}
+@media (prefers-reduced-motion:reduce){ #scr-pay .fi.pc-imp-flash{animation:none} }
+
+/* Leyenda bajo el botón de importar */
+.pc-imp-leyenda{display:flex;align-items:center;gap:7px;justify-content:center;
+  font-size:11px;color:rgba(255,255,255,.5);margin:-4px 0 12px}
+.pc-imp-leyenda i{width:11px;height:11px;flex:none;border-radius:3px;font-style:normal;
+  background:rgba(167,139,250,.22);box-shadow:inset 0 0 0 1px rgba(167,139,250,.55)}
+
+/* ── Modo día: el violeta puro se lava sobre blanco, así que se oscurece y se
+      apoya más en el borde y en un fondo lila muy tenue. ── */
+html.day #scr-pay .fi.pc-imp{
+  border-color:#7C3AED!important;
+  background-color:#F5F3FF!important;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 11 11'%3E%3Cpath d='M5.5 0l1.3 3.5L10.4 4.8 6.8 6.1 5.5 9.6 4.2 6.1.6 4.8 4.2 3.5z' fill='%236D28D9'/%3E%3C/svg%3E")!important;
+  color:#1A1A1A!important;
+  box-shadow:0 0 0 1px rgba(124,58,237,.30), 0 2px 12px rgba(124,58,237,.14)!important;
+}
+html.day #scr-pay .fi.pc-imp-flash{animation:pcImpFlashDia .85s cubic-bezier(.22,1,.36,1) both}
+@keyframes pcImpFlashDia{
+  0%  {box-shadow:0 0 0 0 rgba(124,58,237,.45), 0 2px 12px rgba(124,58,237,.14)}
+  55% {box-shadow:0 0 0 7px rgba(124,58,237,0),  0 2px 22px rgba(124,58,237,.32)}
+  100%{box-shadow:0 0 0 1px rgba(124,58,237,.30),0 2px 12px rgba(124,58,237,.14)}
+}
+html.day .pc-imp-leyenda{color:#6B7280}
+html.day .pc-imp-leyenda i{background:#EDE9FE;box-shadow:inset 0 0 0 1px #7C3AED}
 /* modal de revisión */
 #pp-modal{position:fixed;inset:0;z-index:9000;display:none;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.7);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
 #pp-modal{align-items:center;padding:14px}
@@ -11389,6 +11443,8 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       <button id="pc-import-btn" onclick="pcImportFromLogbook(null,{tracker:false,form:true,source:(window.PC_FUENTE||'roster')})" style="width:100%;padding:11px 14px;margin-bottom:14px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:12px;color:#FBBF24;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
         <span>📥</span><span>Importar datos desde PilotOS</span>
       </button>
+      <!-- Sin esto el resalte es un adorno que nadie sabe leer. -->
+      <div class="pc-imp-leyenda" id="pc-imp-leyenda" style="display:none"><i></i>Los campos así los ha rellenado la importación · edítalos y dejan de estar marcados</div>
       <!-- Los dos rótulos son carga estructural, no estilo: las nocturnas SALEN del
            total de bloque, y quien las teclee como horas aparte se queda con el 2104
            corto. Por eso el de la derecha dice de dónde salen y el reparto se enseña
@@ -11420,6 +11476,10 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       <div class="fg" style="margin-bottom:10px">
         <label class="pc-field-label">Imaginarias (nº días)</label>
         <input class="fi" type="number" id="pc_imag" value="0" step="1" min="0" max="31">
+        <!-- Cuando el mes trae algún forzoso (día libre trabajado, código FZ del
+             roster) se cobra con este mismo concepto, así que hay que decir de qué
+             está hecho el número o no hay forma de cuadrarlo. -->
+        <div class="pc-hint" id="pc_imag_desglose" style="display:none"></div>
         <div class="pc-hint">Estándar: 144,23 €/día · FO Nivel 6: 72,12 €/día (tablas 2026)</div>
       </div>
       <div class="fg" style="margin-bottom:10px">
@@ -11534,6 +11594,20 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           </div>
         </div>
         <div class="pc-hint">Cada invasión = importe fijo según franja y especialidad (CMD/FO, no depende del nivel) + 1 dieta nacional (67,22 €). No se devuelve el día. Importes 2026 (est. IPC): CMD 86,78 / 240,24 / 547,16 · FO 43,80 / 154,30 / 301,62.</div>
+      </div>
+      <!-- Cambios de servicio en programación (cód. 2081). Aparece en nóminas reales
+           y no había casilla, así que esa línea no se comparaba con nada. -->
+      <div class="pc-sw-row" style="margin-top:4px">
+        <div><div class="pc-sw-label">Cambios de servicio</div><div class="pc-sw-sub">Te movieron el servicio en programación (cód. 2081)</div></div>
+        <label class="pc-switch"><input type="checkbox" id="pc_camb_on"><span class="pc-slider"></span></label>
+      </div>
+      <div id="pc_camb_wrap" style="margin-top:8px;display:none">
+        <div class="fg">
+          <label class="pc-field-label">Nº de cambios del mes</label>
+          <input class="fi" type="number" id="pc_camb_n" value="0" step="1" min="0" max="40">
+          <div class="pc-hint" id="pc_camb_desglose"></div>
+        </div>
+        <div class="pc-hint">Se pone el TOTAL de cambios del mes: los dos primeros no se pagan (Art. 12.9). Del 3.º al 10.º, 49,11 € cada uno; del 11.º en adelante, 73,66 € (Anexo A 2026). Solo cuentan los que no son en ejecución y no los ha pedido el piloto.</div>
       </div>
       <div class="pc-sw-row">
         <div><div class="pc-sw-label">Retribución Flexible</div><div class="pc-sw-sub">Selecciona los productos que tienes activos</div></div>
@@ -17104,6 +17178,10 @@ document.addEventListener('change', function(e){
     if (bw) bw.style.display = e.target.checked ? 'block' : 'none';
     if (e.target.checked) { var bvi = document.getElementById('pc_benef_vuelo'); if (bvi) bvi.focus(); }
   }
+  if (e.target.id === 'pc_camb_on') {
+    var cw = document.getElementById('pc_camb_wrap');
+    if (cw) cw.style.display = e.target.checked ? 'block' : 'none';
+  }
   if (e.target.id === 'pc_inv_on') {
     var iw = document.getElementById('pc_inv_wrap');
     if (iw) iw.style.display = e.target.checked ? 'block' : 'none';
@@ -17554,12 +17632,23 @@ function pcCalc() {
   var invDietaSuj = invN * D.nac.sujeta;   // la dieta nacional de la invasión tributa igual que una dieta nac normal
   var invDietaExe = invN * D.nac.exenta;
 
+  /* Cambios de servicio en programación (cód. 2081). Art. 12.9: los DOS primeros
+     del mes no devengan nada; del 3.º al 10.º van a 49,11 € y del 11.º en adelante
+     a 73,66 € (Anexo A 2026, iguales para CMD y FO — verificado con la nómina de
+     julio de un FO: 1 cambio en el tramo 3-10 × 49,11 €). Se pide el TOTAL del mes
+     y el tramo lo calcula la app, que es lo que el piloto puede saber. */
+  var cambOn    = !!(document.getElementById('pc_camb_on') && document.getElementById('pc_camb_on').checked);
+  var cambN     = cambOn ? (parseInt((document.getElementById('pc_camb_n')||{}).value) || 0) : 0;
+  var cambPag1  = Math.max(0, Math.min(cambN, 10) - 2);   // los del tramo 3-10
+  var cambPag2  = Math.max(0, cambN - 10);                // del 11.º en adelante
+  var plusCamb  = cambPag1 * 49.11 + cambPag2 * 73.66;
+
   // ── Total devengado ──
   var totalDev = salBase + pagaExt + primaCom + plusPat
     + plusHV + plusPos + plusImag + plusFlex + plusVac
     + plusFonline + plusOficina + plusSparring
     + plusTri + plusTre + plusLsc + plusGti + plusForm + plusJdia + plusJdiaF
-    + pagaTrim + plusBolsa + bonoProd + plusInv + invDietaSuj + invDietaExe
+    + pagaTrim + plusBolsa + bonoProd + plusInv + invDietaSuj + invDietaExe + plusCamb
     + dNacSuj + dNacExe + dIntSuj + dIntExe
     + dPernSuj + dPernExe + dPernNatSuj + dPernNatExe;
 
@@ -17614,6 +17703,7 @@ function pcCalc() {
     hLsc:hLsc, plusLsc:plusLsc, dGti:dGti, plusGti:plusGti, nForm:nForm, plusForm:plusForm,
     dJdia:dJdia, plusJdia:plusJdia, dJdiaF:dJdiaF, plusJdiaF:plusJdiaF,
     invOn:invOn, invN:invN, invFranja:invFranja, invRate:invRate, plusInv:plusInv, invDietaSuj:invDietaSuj, invDietaExe:invDietaExe,
+    cambOn:cambOn, cambN:cambN, cambPag1:cambPag1, cambPag2:cambPag2, plusCamb:plusCamb,
     dNacSuj:dNacSuj, dNacExe:dNacExe, dIntSuj:dIntSuj, dIntExe:dIntExe,
     dPernSuj:dPernSuj, dPernExe:dPernExe, dPernNatSuj:dPernNatSuj, dPernNatExe:dPernNatExe,
     dietasExe:dietasExe, totalDev:totalDev, totalDevNeto:totalDevNeto, baseIRPF:baseIRPF,
@@ -17644,6 +17734,11 @@ function pcCalc() {
     rows += pcRow('2043','Invasión día libre ('+_invLbl+')',invN+' días',invRate,plusInv,'var');
     rows += pcRow('2098','Dieta nac. (invasión)',invN+' días',D.nac.sujeta,invDietaSuj,'var');
     rows += pcRow('2102','Dieta nac. exenta (invasión)',invN+' días',D.nac.exenta,invDietaExe,'var');
+  }
+  if (plusCamb > 0) {
+    var _cLbl = cambPag2 > 0 ? (cambPag1 + ' del 3.º-10.º + ' + cambPag2 + ' del 11.º+')
+                             : (cambPag1 + ' pagados de ' + cambN);
+    rows += pcRow('2081','Cambios de servicio', _cLbl, cambPag2 > 0 ? 0 : 49.11, plusCamb, 'var');
   }
   if (plusFlex>0) rows += pcRow('226','Flexiworking',flexDays+' días',T.flexiworking,plusFlex,'var');
   if (plusVac>0)  rows += pcRow('2108','Plus Comp.Var.Vacaciones',vacDays+' días',vacRate,plusVac,'var');
@@ -17857,7 +17952,15 @@ async function pcImportFromLogbook(month, opts) {
       return;
     }
 
-    function setVal(id, val) { var el = document.getElementById(id); if (el) el.value = val; }
+    /* Rellena un campo y lo marca como TRAÍDO POR LA IMPORTACIÓN. Un número puesto
+       por la app y uno escrito a mano no valen lo mismo y hasta ahora se veían
+       igual; el resalte lo separa. El destello es de un solo pase: se quita al
+       acabar para que no se reproduzca cada vez que se re-renderiza. */
+    function setVal(id, val) {
+      var el = document.getElementById(id); if (!el) return;
+      el.value = val;
+      pcMarcaImportado(el);
+    }
 
     // ── Contadores de simulador/cargos desde el logbook LOCAL (rol: campo 'instr') ──
     // Necesarios para el formulario (Nómina), el detalle (Acumulado) y el widget del Home.
@@ -17868,6 +17971,9 @@ async function pcImportFromLogbook(month, opts) {
 
     // ── Rellenar el FORMULARIO (solo pestaña Nómina; opts.form !== false) ──
     if (opts.form !== false) {
+      /* Lo resaltado de la importación anterior deja de serlo: si ahora se importa
+         otro mes, un campo que ya no se rellene se quedaría marcado en falso. */
+      pcLimpiaImportados();
       setVal('pc_hv', data.block_hours||0); setVal('pc_hn', data.night_hours||0);
       setVal('pc_dnat', data.nac_diets||0); setVal('pc_dint', data.int_diets||0);
       setVal('pc_dpern_nat', data.nac_pernoc||0); setVal('pc_dpern', data.int_pernoc||0);
@@ -17898,6 +18004,22 @@ async function pcImportFromLogbook(month, opts) {
           setVal('pc_fonline', _ra.elearn_h||0); setVal('pc_hpos', _ra.positional_h||0);
           setVal('pc_oficina', _ra.office_days||0); setVal('pc_sparring', _ra.sparring_h||0);
           setVal('pc_imag', _ra.imaginaria_days||0);   // Art. 13.19: días de bloque que SÍ se pagan
+          /* Un forzoso (día libre trabajado, código FZ) se cobra con ESTE mismo
+             concepto, así que sin decirlo el número no se puede cuadrar contra la
+             nómina: «4» puede ser 4 guardias o 3 y un forzoso. */
+          try {
+            var _fz = +(_ra.forzoso_days) || 0, _imTot = +(_ra.imaginaria_days) || 0;
+            var _dg = document.getElementById('pc_imag_desglose');
+            if (_dg) {
+              if (_fz > 0) {
+                var _im = Math.max(0, _imTot - _fz);
+                _dg.innerHTML = '✦ <b>' + _im + '</b> imaginaria' + (_im === 1 ? '' : 's') +
+                                ' + <b>' + _fz + '</b> forzoso' + (_fz === 1 ? '' : 's') +
+                                ' <span style="opacity:.7">(día libre trabajado, se paga igual)</span>';
+                _dg.style.display = 'block';
+              } else { _dg.style.display = 'none'; _dg.textContent = ''; }
+            }
+          } catch(_e){}
           if (_ra.ground_days) { setVal('pc_gti', _ra.ground_days);
             try{ if(typeof PC_STATE!=='undefined') PC_STATE.cargo='si'; }catch(_e){}
             var _cw2=document.getElementById('pc_cargos_wrap'); if(_cw2) _cw2.style.display='block'; }
@@ -18030,6 +18152,10 @@ function pcSwitchTab(tab) {
 // estaban vacías, y la auditoría lo presentaba como 943,35 € de «cobras de más»
 // con desviación del 100 %. Un concepto SIN `campos` es fijo (sale de tarifa y
 // perfil): ahí un 0 sí significa que no corresponde.
+/* Códigos del papel que PilotOS llama de otra forma. Vueling paga la invasión de día
+   libre como 2055 y aquí siempre ha sido 2043; sin esto, la línea no se compara. */
+var PAY_CODE_ALIAS = { '2055': '2043' };
+
 var PAY_COMPARE_MAP = [
   // — Devengos —
   { code:'005',  label:'Salario Base',              theo:function(L){return L.salBase;},               kind:'devengo' },
@@ -18041,6 +18167,7 @@ var PAY_COMPARE_MAP = [
   { code:'2111', label:'Horas nocturnas',           theo:function(L){return L.hvN*L.horaNoct;},        kind:'devengo', campos:['pc_hn'] },
   { code:'783',  label:'Plus Horas Posicionales',   theo:function(L){return L.plusPos;},               kind:'devengo', campos:['pc_hpos','pc_hpcan'] },
   { code:'225',  label:'Imaginarias',               theo:function(L){return L.plusImag;},              kind:'devengo', campos:['pc_imag'] },
+  { code:'2081', label:'Cambios de servicio',      theo:function(L){return L.plusCamb;},              kind:'devengo', campos:['pc_camb_n'] },
   { code:'2043', label:'Invasión día libre',        theo:function(L){return L.plusInv;},               kind:'devengo', campos:['pc_inv_n'] },
   { code:'2098', label:'Dietas Nac. sujetas',       theo:function(L){return L.dNacSuj+(L.invDietaSuj||0);}, kind:'devengo', campos:['pc_dnat'] },
   { code:'2102', label:'Dietas Nac. exentas',       theo:function(L){return L.dNacExe+(L.invDietaExe||0);}, kind:'devengo', campos:['pc_dnat'] },
@@ -18109,10 +18236,17 @@ function pcCompare(real, L){
   var lines = (real.lines||[]).concat(real.unknownLines||[]);
   lines.forEach(function(ln){
     var code = (ln.mappedTo!=null && ln.mappedTo!=='') ? String(ln.mappedTo) : null;
-    // Rescate: si no trae mappedTo pero su código del papel ES un concepto conocido
-    // (p.ej. "/SC0" cuota de solidaridad, que el parser viejo dejaba con mappedTo:null),
-    // se agrupa por ese código para que la auditoría lo reconozca sin re-subir la nómina.
-    if (!code && ln.code && PAY_COMPARE_MAP.some(function(m){ return m.code === String(ln.code); })) code = String(ln.code);
+    /* Rescate: si no trae mappedTo pero su código del papel ES un concepto conocido
+       (p.ej. "/SC0" cuota de solidaridad, que el parser viejo dejaba con mappedTo:null),
+       se agrupa por ese código para que la auditoría lo reconozca sin re-subir la nómina.
+       Con alias, porque Vueling y PilotOS no siempre usan el mismo número: la invasión
+       de día libre se paga como 2055 y aquí es 2043. El backend ya lo traduce, pero
+       sólo al ANALIZAR, así que una nómina subida antes se queda con mappedTo:null y
+       esa línea caía en «sin mapear» para siempre — 154,30 € que nadie comparaba. */
+    if (!code && ln.code) {
+      var _cod = PAY_CODE_ALIAS[String(ln.code)] || String(ln.code);
+      if (PAY_COMPARE_MAP.some(function(m){ return m.code === _cod; })) code = _cod;
+    }
     if (!code){ unmapped.push(ln); return; }
     if (!by[code]) by[code] = { dev:0, ded:0, conf:1, src:'' };
     by[code].dev += ppNum(ln.devengo);
@@ -19231,6 +19365,41 @@ function pcResetVsAvg() {
   var foot  = document.getElementById('pc-spark-foot');if (foot)  foot.textContent = 'Calculando tu media…';
 }
 
+/* ══ Marca de «esto lo ha traído la importación» ═══════════════════════════
+   Se pone al rellenar el campo y se cae SOLA en cuanto el piloto lo toca: a
+   partir de ahí el número es suyo, y seguir señalándolo como importado sería
+   mentir. El listener se instala una vez por campo (`_pcImpOn`) para no apilar
+   uno por cada importación. */
+function pcMarcaImportado(el) {
+  if (!el) return;
+  el.classList.add('pc-imp', 'pc-imp-flash');
+  el.setAttribute('title', 'Traído de tu roster / logbook al importar. Puedes cambiarlo.');
+  pcLeyendaImportados();
+  var quitar = function(){ pcQuitaImportado(el); };
+  el.addEventListener('animationend', function(){ el.classList.remove('pc-imp-flash'); }, { once:true });
+  if (!el._pcImpOn) {
+    el.addEventListener('input',  quitar);
+    el.addEventListener('change', quitar);
+    el._pcImpOn = true;
+  }
+}
+/* La leyenda solo tiene sentido si hay algo marcado; si no, sobra. */
+function pcLeyendaImportados() {
+  var l = document.getElementById('pc-imp-leyenda');
+  if (l) l.style.display = document.querySelector('#scr-pay .fi.pc-imp') ? 'flex' : 'none';
+}
+function pcQuitaImportado(el) {
+  if (!el) return;
+  el.classList.remove('pc-imp', 'pc-imp-flash');
+  el.removeAttribute('title');
+  pcLeyendaImportados();
+}
+/* Al cambiar de mes o de fuente, lo de antes deja de ser lo importado. */
+function pcLimpiaImportados() {
+  var n = document.querySelectorAll('#scr-pay .fi.pc-imp');
+  for (var i = 0; i < n.length; i++) pcQuitaImportado(n[i]);
+}
+
 /* ══ Pay Check: Earnings Tracker renderer ══ */
 var pcTkAnimFrom = 0;
 function pcRenderTracker(data) {
@@ -19598,6 +19767,7 @@ function pcExportReport(compare) {
     rows += pr('2098','Dieta nac. (invasión)', L.invN+' días', L.D.nac.sujeta, L.invDietaSuj, 'var');
     rows += pr('2102','Dieta nac. exenta (invasión)', L.invN+' días', L.D.nac.exenta, L.invDietaExe, 'var');
   }
+  if (L.plusCamb > 0) rows += pr('2081','Cambios de servicio', (L.cambPag1 + (L.cambPag2 ? '+' + L.cambPag2 : '')) + ' de ' + L.cambN, L.cambPag2 ? 0 : 49.11, L.plusCamb, 'var');
   if (L.plusFlex > 0) rows += pr('226','Flexiworking', L.flexDays+' días', L.T.flexiworking, L.plusFlex, 'var');
   if (L.dNac > 0) { rows += pr('198','Dietas Nac. sujetas', L.dNac+' días', L.D.nac.sujeta, L.dNacSuj, 'var'); rows += pr('200','Dietas Nac. exentas', L.dNac+' días', L.D.nac.exenta, L.dNacExe, 'var'); }
   if (L.dInt > 0) { rows += pr('199','Dietas Int. sujetas', L.dInt+' días', L.D.int.sujeta, L.dIntSuj, 'var'); rows += pr('201','Dietas Int. exentas', L.dInt+' días', L.D.int.exenta, L.dIntExe, 'var'); }
