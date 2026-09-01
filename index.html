@@ -57,15 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-<<<<<<< HEAD
-  <meta name="version" content="Estable.671">
+  <meta name="version" content="Estable.674">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.671","builtAt":"2026-09-01T09:02:23Z","commit":"46ceafb","channel":"stable"};</script>
-=======
-  <meta name="version" content="Beta.671">
-  <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Beta.671","builtAt":"2026-09-01T09:00:57Z","commit":"e6bfabc","channel":"beta"};</script>
->>>>>>> beta
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.674","builtAt":"2026-09-01T09:27:48Z","commit":"032ec87","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -27323,6 +27317,46 @@ document.addEventListener('focusin',function(e){
 
 </script>
 <script src="js/profile.js"></script>
+<script>
+/* ── EL IDIOMA DE LA APP: una sola puerta ─────────────────────────────────────
+   Había dos ajustes para lo mismo: el selector ES/EN de ARIA (localStorage
+   `db_lang`) y el campo «Idioma» del perfil. Con una precedencia entre ellos, una
+   de las dos pantallas mentía siempre:
+     · perfil primero → el toggle de ARIA no hacía nada (#RM4KZ);
+     · db_lang primero → quien tocó EN una vez elegía «Castellano» en su perfil y
+       ARIA seguía en inglés, sin decir por qué. Y `db_lang` no cae en el barrido
+       de clearAllUserData (sólo borra por prefijos pilotOS_/pilotos_/cafi_/ld_…),
+       así que esa elección sobrevivía hasta al cambio de cuenta.
+   Ahora el idioma vive en el PERFIL y el toggle de ARIA lo escribe ahí. `db_lang`
+   se mantiene como espejo local —para que el briefing siga resolviendo si el
+   módulo del perfil aún no ha cargado— pero ya no es una segunda opinión. */
+(function(){
+  function _db(){ try{ return localStorage.getItem('db_lang')||''; }catch(e){ return ''; } }
+  window.pilotosIdioma = function(){
+    var p=''; try{ p=(window.ppGet&&ppGet('idioma'))||''; }catch(e){}
+    return p || _db() || 'es';
+  };
+  window.pilotosSetIdioma = function(v){
+    v = (v==='en') ? 'en' : 'es';
+    try{ localStorage.setItem('db_lang', v); }catch(e){}   // espejo local
+    try{ if(window.PilotProfile) window.PilotProfile.save({ idioma:v }); }catch(e){}
+    return v;
+  };
+  /* Migración de un solo sentido: el que ya había elegido idioma en ARIA se lo
+     encuentra puesto en su perfil, en vez de perderlo. Sólo si el perfil está
+     vacío — nunca pisa una elección hecha en el perfil. */
+  function _migra(){
+    try{
+      if(!window.ppGet || !window.PilotProfile) return;
+      if(!ppGet('idioma') && _db()) window.PilotProfile.save({ idioma:_db() });
+    }catch(e){}
+  }
+  try{
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', _migra);
+    else _migra();
+  }catch(e){}
+})();
+</script>
 <script src="js/docs.js"></script>
 <script src="js/runways.js"></script>
 <script src="js/oes-figs.js"></script>
@@ -46308,6 +46342,7 @@ function rcambPintaFicha(){
      y luego cambia es peor que no darlo. */
   if (d.provisional) h += '<div class="rcf-prov">Provisional<br>cierra el 1</div>';
   if (d.v0 && d.v0.parcial) h += '<div class="rcf-prov">Base<br>parcial</div>';
+  else if (d.v0 && d.v0.tardia) h += '<div class="rcf-prov">Base +' + d.v0.diasTarde + 'd<br>tras publicar</div>';
   h += '</div>';
 
   (d.computables||[]).forEach(function(c){
@@ -46523,11 +46558,16 @@ function rcambSelloDetalle(){
   }
   var f = new Date(v0.sealedAt);
   var cuando = isNaN(f.getTime()) ? '—' : f.toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric'});
+  /* Tres cosas distintas, y las tres son dinero: una copia tardía no cuenta los
+     cambios que hubo antes de ella, y eso el piloto tiene que poder saberlo. */
+  var nota = v0.parcial
+    ? 'Se selló con el mes YA EMPEZADO, así que no es la programación publicada: los cambios anteriores al sellado no se cuentan.'
+    : (v0.tardia
+        ? 'Se selló ' + v0.diasTarde + ' día' + (v0.diasTarde===1?'':'s') + ' después de la publicación (el roster sale entre el 15 y el 17 del mes anterior). '
+          + 'Si te cambiaron algo en esos días, ese cambio no se cuenta.'
+        : 'Sellada en plazo: es la programación publicada. Contra esta foto se comparan los cambios del Art. 12.9.');
   var txt = 'Programación inicial sellada el ' + cuando + '\n'
-          + v0.n + ' entradas guardadas' + (v0.manual ? ' (sellado a mano)' : '') + '.\n\n'
-          + (v0.parcial
-              ? 'Se selló con el mes YA EMPEZADO, así que puede no ser la programación publicada: los cambios anteriores al sellado no se ven.'
-              : 'Contra esta foto se comparan los cambios del Art. 12.9.');
+          + v0.n + ' entradas guardadas' + (v0.manual ? ' (sellado a mano)' : '') + '.\n\n' + nota;
   if (typeof showToast === 'function' && !rcambEsBeta()) { showToast(txt.split('\n')[0]); return; }
   alert(txt);
 }
@@ -50404,9 +50444,14 @@ document.addEventListener('DOMContentLoaded', function(){
   function pilotName(){ try{ return (window.ppGet&&ppGet('nombre'))||localStorage.getItem('pilot_name')||'Comandante'; }catch(e){ return 'Comandante'; } }
   function stripZ(s){ return String(s||'').replace(/[^0-9:]/g,''); }
   function getPos(){ return new Promise(function(res){ if(!navigator.geolocation) return res(null); var done=false; function fin(v){ if(done)return; done=true; res(v); } try{ navigator.geolocation.getCurrentPosition(function(p){ fin({lat:p.coords.latitude, lon:p.coords.longitude}); }, function(){ fin(null); }, { timeout:6000, maximumAge:300000 }); }catch(e){ fin(null); } setTimeout(function(){ fin(null); }, 7000); }); }
-  // Misma resolución que ARIA: la elección EXPLÍCITA del selector ES/EN (db_lang) manda
-  // sobre el idioma del perfil. Al revés, el toggle de ARIA no movía este briefing.
-  function cfg(){ return { lang: localStorage.getItem('db_lang')||(window.ppGet&&ppGet('idioma'))||'es', voice: (function(){ var _v=localStorage.getItem('db_voice')||'nova'; return ['nova','shimmer','coral','sage','alloy'].indexOf(_v)>=0?_v:'nova'; })(), rate: parseFloat(localStorage.getItem('db_rate'))||1, vol: localStorage.getItem('db_vol')!=null?parseFloat(localStorage.getItem('db_vol')):1, autoMic: localStorage.getItem('db_autoMic')!=='0' }; }
+  /* El idioma es UNO SOLO y vive en el perfil (window.pilotosIdioma / pilotosSetIdioma).
+     Aquí había una precedencia entre dos ajustes —el selector ES/EN de ARIA (db_lang) y
+     el campo del perfil— y ninguna de las dos direcciones salía bien: con el perfil
+     primero, el toggle de ARIA era un botón muerto (#RM4KZ); con db_lang primero, quien
+     hubiera tocado EN una vez elegía «Castellano» en su perfil y no pasaba nada, sin
+     aviso — y db_lang ni siquiera se borra al cambiar de cuenta. Ahora el toggle ESCRIBE
+     el perfil, así que no hay precedencia que discutir: los dos sitios enseñan lo mismo. */
+  function cfg(){ return { lang: window.pilotosIdioma(), voice: (function(){ var _v=localStorage.getItem('db_voice')||'nova'; return ['nova','shimmer','coral','sage','alloy'].indexOf(_v)>=0?_v:'nova'; })(), rate: parseFloat(localStorage.getItem('db_rate'))||1, vol: localStorage.getItem('db_vol')!=null?parseFloat(localStorage.getItem('db_vol')):1, autoMic: localStorage.getItem('db_autoMic')!=='0' }; }
   function saveCfg(k,v){ try{ localStorage.setItem('db_'+k, v); }catch(e){} }
   function seg(a){ return 'flex:1;padding:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;'+(a?'background:linear-gradient(135deg,#063a4a,#0aa3c7);color:#fff':'background:transparent;color:#9fb3bd'); }
   var VOICES=[['nova','Nova — cercana (por defecto)'],['shimmer','Shimmer — suave'],['coral','Coral — expresiva'],['sage','Sage — serena'],['alloy','Alloy — neutra']];
@@ -50471,7 +50516,7 @@ document.addEventListener('DOMContentLoaded', function(){
     var vs=q('#db-vol'); if(vs){ vs.value=VOL; vs.oninput=function(){ VOL=parseFloat(vs.value); saveCfg('vol',VOL); if(vl)vl.textContent=Math.round(VOL*100)+'%'; if(curAudio)curAudio.volume=VOL; }; }
     function paintSeg(g){ var v=CUR[g]; var bs=ov.querySelectorAll('[data-g="'+g+'"]'); for(var i=0;i<bs.length;i++){ bs[i].setAttribute('style', seg(bs[i].getAttribute('data-v')===v)); } }
     var segs=ov.querySelectorAll('[data-g]');
-    for(var i=0;i<segs.length;i++){ (function(b){ b.onclick=function(){ var g=b.getAttribute('data-g'), v=b.getAttribute('data-v'); CUR[g]=v; saveCfg(g,v); paintSeg(g); }; })(segs[i]); }
+    for(var i=0;i<segs.length;i++){ (function(b){ b.onclick=function(){ var g=b.getAttribute('data-g'), v=b.getAttribute('data-v'); CUR[g]=v; if(g==='lang') window.pilotosSetIdioma(v); else saveCfg(g,v); paintSeg(g); }; })(segs[i]); }
     paintSeg('lang');
     var vsel=q('#db-voice'); if(vsel){ vsel.value=CUR.voice; vsel.onchange=function(){ CUR.voice=vsel.value; saveCfg('voice',vsel.value); }; }
     var gen=q('#db-gen'); if(gen)gen.onclick=generate;
@@ -50619,7 +50664,7 @@ document.addEventListener('DOMContentLoaded', function(){
      · voz: por defecto era 'coral' mientras su propio desplegable dice «Nova —
        cercana (por defecto)» y el briefing del Home usaba nova. Se oía una voz que
        no aparecía elegida en ninguna parte. */
-  function cfg(){ return { lang:(lg('db_lang',null)||(window.ppGet&&ppGet('idioma'))||'es'),
+  function cfg(){ return { lang: window.pilotosIdioma(),
     voice:(function(){ var v=lg('db_voice','nova'); return ALLOW.indexOf(v)>=0?v:'nova'; })(),
     rate:parseFloat(lg('db_rate','1.10'))||1.10,
     vol:(lg('db_vol',null)!=null?parseFloat(lg('db_vol','1')):1),
@@ -51457,7 +51502,7 @@ document.addEventListener('DOMContentLoaded', function(){
     R.querySelectorAll('.ar-sc').forEach(function(b){ b.onclick=function(){ var nx=b.getAttribute('data-sc'); if(nx===SCOPE)return; SCOPE=nx; try{ localStorage.setItem('db_scope',SCOPE); }catch(e){} if(LAST_TEXT) _dropBrief(); paintScope(); }; });
     R.querySelectorAll('.ar-lg').forEach(function(b){ b.onclick=function(){
       var _nuevo=b.getAttribute('data-lg'); if(_nuevo===CUR.lang){ paintLg(); return; }
-      CUR.lang=_nuevo; saveCfg('lang',CUR.lang); paintLg();
+      CUR.lang=_nuevo; window.pilotosSetIdioma(CUR.lang); paintLg();
       /* Cambiar de idioma invalida lo que ya estaba generado: si no, se queda en
          la cola y suena en el idioma anterior antes que el nuevo (#RM4KZ). */
       if(LAST_TEXT){ _dropBrief(); stat(CUR.lang==='en'?'Language changed — generate the briefing again.':'Idioma cambiado — vuelve a generar el briefing.'); }

@@ -565,6 +565,37 @@ function autotest(tarifas){
   });
 }
 
+/* ─────────────── La copia inicial: en plazo, tardía o parcial ───────────────
+   Vueling publica la programación del mes entre el día 15 y el 17 del ANTERIOR.
+   Con eso, «sellada» deja de ser un sí/no y pasa a decir algo que vale dinero:
+
+     en plazo → la foto se tomó dentro de la ventana de publicación o antes. Es la
+                programación inicial, y se puede defender como tal.
+     tardía   → se tomó después de la ventana, pero antes de que el mes empezara.
+                Si le cambiaron algo en esos días, ese cambio NO se cuenta: el
+                detector empieza a mirar desde esta foto, no desde la publicada.
+     parcial  → se tomó con el mes ya empezado. No es la inicial en absoluto.
+
+   Es pura a propósito: la fecha entra por parámetro para que el banco pueda
+   recorrer los tres casos, que con el reloj de verdad son inalcanzables el mismo
+   día. */
+var PUBLICACION_DIA_FIN = 17;
+
+function clasificaBase(month, hoyISO){
+  var hoy = String(hoyISO || '').slice(0, 10);
+  var p = String(month || '').split('-').map(Number);
+  if (!hoy || p.length < 2 || !p[0]) return { parcial:false, tardia:false, diasTarde:0 };
+  var prev = (p[1] === 1) ? ((p[0] - 1) + '-12') : (p[0] + '-' + String(p[1] - 1).padStart(2, '0'));
+  var finVentana = prev + '-' + String(PUBLICACION_DIA_FIN).padStart(2, '0');
+  var empezado = hoy >= (month + '-01');
+  var tardia = !empezado && hoy > finVentana;
+  return {
+    parcial: empezado,
+    tardia: tardia,
+    diasTarde: tardia ? Math.round((Date.parse(hoy) - Date.parse(finVentana)) / 86400000) : 0
+  };
+}
+
 /* ─────────────── export ─────────────── */
 var API = {
   REGLAS: REGLAS, TARIFAS_2026: TARIFAS_2026,
@@ -572,7 +603,8 @@ var API = {
   COD_RESERVA: COD_RESERVA, COD_PERSONAL: COD_PERSONAL, COD_FORZOSO: COD_FORZOSO,
   hm: hm, desenrolla: desenrolla, jornadas: jornadas, ventana: ventana,
   detectar: detectar, importeDe: importeDe, hhmm: hhmm,
-  ESCENARIOS: ESCENARIOS, autotest: autotest
+  ESCENARIOS: ESCENARIOS, autotest: autotest,
+  PUBLICACION_DIA_FIN: PUBLICACION_DIA_FIN, clasificaBase: clasificaBase
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = API;
 else root.RstCambios = API;

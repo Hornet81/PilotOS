@@ -20,7 +20,13 @@
     nombre: '', licencia: '', autoridad: '', tipoLicencia: '',
     compania: '', base: '', flota: '', empleado: '',
     rol: '',            // CPT | FO  -> manda sobre lo que hoy DEDUCE el logbook
-    idioma: '',         // es | en   -> manda sobre ARIA (era el #RM4KZ de Marc)
+    idioma: '',         // es | en   -> ES el idioma de la app: el selector ES/EN de
+                        // ARIA escribe AQUÍ (window.pilotosSetIdioma), no un ajuste
+                        // aparte. Hubo las dos precedencias posibles entre este campo
+                        // y `db_lang` y las dos dejaban una pantalla mintiendo: con el
+                        // perfil primero, el selector de ARIA no hacía nada (#RM4KZ de
+                        // Marc); con db_lang primero, elegir «Castellano» aquí no movía
+                        // ARIA. Ahora es un solo ajuste y db_lang es su espejo local.
     // '' = Zulu (como siempre) | 'local' = la hora del reloj del piloto. SÓLO afecta a
     // cómo se PINTA el roster: el dato sigue en Z, y el logbook ni se entera (es EASA).
     husoVista: '',

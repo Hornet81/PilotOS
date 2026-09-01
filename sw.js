@@ -1,11 +1,7 @@
 // PilotOS Service Worker
 // APP_VERSION lo reescribe scripts/stamp-version.js en cada deploy → cambia el
 // nombre del caché → los cachés de versiones viejas se borran al activar.
-<<<<<<< HEAD
-const APP_VERSION = 'Estable.671';
-=======
-const APP_VERSION = 'Beta.671';
->>>>>>> beta
+const APP_VERSION = 'Estable.674';
 
 const STATIC_CACHE  = 'pilotos-static-' + APP_VERSION;
 const FONT_CACHE    = 'pilotos-fonts-'  + APP_VERSION;
