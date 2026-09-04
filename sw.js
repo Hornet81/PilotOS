@@ -1,11 +1,11 @@
 // PilotOS Service Worker
 // APP_VERSION lo reescribe scripts/stamp-version.js en cada deploy → cambia el
 // nombre del caché → los cachés de versiones viejas se borran al activar.
-const APP_VERSION = 'Estable.674';
+const APP_VERSION = 'Estable.712';
 
 const STATIC_CACHE  = 'pilotos-static-' + APP_VERSION;
 const FONT_CACHE    = 'pilotos-fonts-'  + APP_VERSION;
-const CURRENT_CACHES = [STATIC_CACHE, FONT_CACHE];
+const CURRENT_CACHES = [STATIC_CACHE, FONT_CACHE, 'pilotos-api-' + APP_VERSION];
 
 // Todo lo que la app necesita para arrancar y funcionar SIN RED.
 // Incluye las librerías de export (jsPDF/autotable/qrcode → PDF del logbook) y el
@@ -17,6 +17,15 @@ const PRECACHE_URLS = [
   'manifest.json',
   'guide.html',
   'descent-profile.html',
+  // Los motores del convenio y de gastos. Sin ellos el roster ABRE pero no calcula
+  // nada: ni invasión de día libre, ni cambios de programación, ni dietas. Se
+  // cacheaban solos al pedirlos la página, pero solo DESPUÉS de una carga completa
+  // con red — y la primera visita no pasa por el Service Worker.
+  'js/dia-libre.js',
+  'js/roster-changes.js',
+  'js/expense-engine.js',
+  'js/expense.js',
+  'js/profile.js',
   'js/docs.js',
   'js/runways.js',
   'js/oes-figs.js',
@@ -31,8 +40,71 @@ const PRECACHE_URLS = [
   'vendor/xlsx.full.min.js',
   'icon-192.png',
   'icon-512.png',
-  'apple-touch-icon.png'
+  'apple-touch-icon.png',
+  /* Assets propios que la página pide y que NO se cacheaban solos: la primera
+     visita no pasa por el Service Worker (aún no controla la página), así que si el
+     piloto abre la app, la cierra y se va a volar, faltaban. Salían como huecos y
+     como una pantalla de gastos sin estilos. */
+  'css/expense.css',
+  'icons/approach-path.png',
+  'icons/windsock.svg',
+  'cafi-avatar.jpg',
+  'aria.jpg'
 ];
+
+/* Endpoints propios que SÍ pueden servirse de caché cuando no hay red. Son datos
+   de REFERENCIA: cambian poco y sin ellos la pantalla se queda vacía volando.
+   La estrategia es red primero y caché SOLO si la red falla, así que con cobertura
+   nunca se sirve nada viejo.
+
+   Lo que NO entra, y es deliberado: la METEO (`/api/wx/*`, `/api/weather/*`). Un
+   METAR o un TAF viejos presentados como actuales son peligrosos — mejor que la
+   pantalla diga que no hay datos. Tampoco entra nada que escriba (guardar roster,
+   sincronizar logbook, pagos) ni el chat. */
+const API_CACHE = 'pilotos-api-' + APP_VERSION;
+const API_OFFLINE_OK = [
+  '/api/airports',      // ficha de aeropuerto y CCI
+  '/api/delay-codes',   // tabla de códigos de retraso
+  '/api/crew',          // tripulación y perfiles de tripulación
+  '/api/pay-profile',   // el perfil de nómina del piloto
+  '/api/fixed-pattern', // patrón fijo del convenio
+  '/api/user/plan',     // plan de la cuenta: sin él la app se cree caducada
+  '/api/stats-layout'   // cómo tiene el piloto colocada su pantalla de stats
+];
+function esApiOffline(url){
+  try {
+    var p = new URL(url).pathname;
+    for (var i = 0; i < API_OFFLINE_OK.length; i++){
+      if (p === API_OFFLINE_OK[i] || p.indexOf(API_OFFLINE_OK[i] + '/') === 0) return true;
+    }
+  } catch (e) {}
+  return false;
+}
+
+/* Las FUENTES, para que la app no se vea rota sin cobertura. Google sirve el CSS y
+   dentro van las URLs de los .woff2: hay que cachear las dos cosas, y hacerlo en el
+   INSTALL — en la primera visita la página aún no está controlada por el Service
+   Worker, así que sus peticiones no pasan por aquí y no se cachea nada. Eso es lo
+   que hacía que la app abriera offline con las tipografías del sistema. */
+const FONT_CSS = [
+  'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap',
+  'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;700;800&display=swap'
+];
+function precacheFuentes(){
+  return caches.open(FONT_CACHE).then(function(cache){
+    return Promise.all(FONT_CSS.map(function(href){
+      return fetch(href, { mode: 'cors' }).then(function(res){
+        if (!res || res.status !== 200) return;
+        return res.clone().text().then(function(css){
+          cache.put(href, res);
+          // Los .woff2 salen del propio CSS: no hay lista que mantener a mano.
+          var urls = (css.match(/https:\/\/fonts\.gstatic\.com\/[^)'"]+/g) || []);
+          return Promise.all(urls.map(function(u){ return cache.add(u).catch(function(){}); }));
+        });
+      }).catch(function(){});
+    }));
+  });
+}
 
 self.addEventListener('install', function(e) {
   // NO hacer skipWaiting aquí: el SW nuevo se queda EN ESPERA y el frontend
@@ -47,7 +119,7 @@ self.addEventListener('install', function(e) {
       return Promise.all(PRECACHE_URLS.map(function(u) {
         return cache.add(u).catch(function() {});
       }));
-    }).catch(function() {})
+    }).then(precacheFuentes).catch(function() {})
   );
 });
 
@@ -74,7 +146,16 @@ self.addEventListener('fetch', function(e) {
   var req = e.request;
   var url = req.url;
 
-  // /api/* y backend propio — NUNCA cachear: pasar directo a la red.
+  /* Datos de REFERENCIA propios: red primero, y la última respuesta buena si la red
+     falla. Con cobertura no cambia nada —siempre se va a la red— y volando el
+     piloto ve sus datos en vez de una pantalla vacía. La meteo NO entra: un METAR
+     viejo presentado como actual es peor que no tener METAR. */
+  if (req.method === 'GET' && esApiOffline(url)) {
+    e.respondWith(redPrimeroConRespaldo(req));
+    return;
+  }
+
+  // El resto de /api/* y el backend propio — NUNCA cachear: pasar directo a la red.
   // (cachear esto rompería CAFI, logbook, paycheck, /api/version, etc.)
   if (url.indexOf('api.pilotos.aero') !== -1 || /\/api\//.test(url) || url.indexOf('/health') !== -1) {
     return; // sin respondWith → el navegador hace el fetch normal
@@ -191,6 +272,31 @@ function networkFirst(request, cacheName) {
           });
         }
         return offlineResponse();
+      });
+    });
+}
+
+/* Red primero, caché de respaldo. Solo para los endpoints de referencia de arriba.
+   La respuesta servida de caché lleva la cabecera `X-PilotOS-Cache: 1` para que la
+   pantalla pueda decir que ese dato es el último guardado y no el de ahora: un dato
+   viejo que se presenta como fresco es el fallo mudo de siempre. */
+function redPrimeroConRespaldo(request) {
+  return fetch(request)
+    .then(function(response) {
+      if (response && response.status === 200 && response.type !== 'opaque') {
+        var clone = response.clone();
+        caches.open(API_CACHE).then(function(c) { c.put(request, clone); });
+      }
+      return response;
+    })
+    .catch(function() {
+      return caches.match(request).then(function(cached) {
+        if (!cached) throw new Error('offline y sin copia');
+        return cached.blob().then(function(b) {
+          var h = new Headers(cached.headers);
+          h.set('X-PilotOS-Cache', '1');
+          return new Response(b, { status: 200, statusText: 'OK (caché)', headers: h });
+        });
       });
     });
 }

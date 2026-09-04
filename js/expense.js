@@ -235,8 +235,9 @@ function rosterRows(){
   if (!r.length && Array.isArray(window.rstEntries)) r = window.rstEntries;
   return r;
 }
-function construirDias(){
-  var rows = rosterRows(), byDay = {};
+function construirDias(rows){
+  if (!rows) rows = rosterRows();
+  var byDay = {};
   rows.forEach(function(e){
     var d = e.date || (e.raw_data||{}).date; if (!d) return;
     (byDay[d] = byDay[d] || []).push(e);
@@ -296,9 +297,43 @@ function construirDias(){
   }).filter(function(d){ return d.legs.length; });
 }
 
-function detectar(){
-  if (!window.NGasto) { EX.auto = []; return; }
-  var days = construirDias();
+/* ── Firma barata del roster ──────────────────────────────────────────────
+   `detectar()` recorre TODO el histórico y se llamaba en cada `exRender()` —
+   o sea en cada cambio de pestaña, cada nota marcada y cada sincronización—
+   aunque el roster fuera exactamente el mismo. Es el primo hermano de
+   `rdlAsegura` con el logbook: si un dato entra en el cálculo, entra en la
+   clave de caché. Aquí entran las filas del roster y la BASE del piloto.
+   Hash rodante sin construir cadenas: recorrer 2.400 filas cuesta ~1 ms y no
+   deja basura, mientras que la detección completa cuesta cientos. */
+function _mez(h, v){
+  var s = v == null ? '' : String(v);
+  for (var i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return (h * 33) | 0;
+}
+function firmaRoster(rows){
+  var h = 5381 ^ rows.length;
+  for (var i = 0; i < rows.length; i++){
+    var e = rows[i], v = e.raw_data || e;
+    h = _mez(h, e.date || v.date);
+    h = _mez(h, e.entry_type || e.type);
+    h = _mez(h, e.dep); h = _mez(h, e.arr);
+    h = _mez(h, e.std_actual || e.std_estimated || e.std);
+    h = _mez(h, e.sta_actual || e.sta_estimated || e.sta);
+    h = _mez(h, e.flight_number || e.flightNum);
+    h = _mez(h, (e.positioning || v.isPositioning || e.isPositioning) ? 1 : 0);
+    h = _mez(h, v.checkin); h = _mez(h, v.debrief);
+  }
+  return h + '|' + EX.base;
+}
+var _DET_FIRMA = null;
+
+function detectar(rows){
+  if (!window.NGasto) { EX.auto = []; _DET_FIRMA = null; return; }
+  if (!rows) rows = rosterRows();
+  var firma = firmaRoster(rows);
+  if (firma === _DET_FIRMA) return;      // mismo roster, misma base: EX.auto vale
+  _DET_FIRMA = firma;
+  var days = construirDias(rows);
   if (!days.length) { EX.auto = []; return; }
   var res = window.NGasto.detectPeriod(days);
   EX.auto = res.notes.map(function(x, i){
@@ -534,7 +569,8 @@ function exRender(){
   if (!host) return;
   loadLocal();
   arrancar();
-  detectar();
+  var rows = rosterRows();     // una sola lectura: la usan detectar() y el aviso
+  detectar(rows);
 
   var all = todas();
   var pendAll = all.filter(function(n){ return !EX.sent[n.id]; });
@@ -560,7 +596,7 @@ function exRender(){
   var proxFuera = !!(prox && EX.mes !== '*' && proxMes !== EX.mes);
 
   var h = '';
-  if (!rosterRows().length){
+  if (!rows.length){
     /* Sin botón de "importar roster" a propósito: sacaría al piloto de Gastos
        para hacer algo que ya hace por su cuenta en su pantalla. El aviso
        explica qué falta y justo debajo tiene "Nueva nota", que sí se queda aquí. */
@@ -804,9 +840,16 @@ window.exOpen = function(id){
   var el = sheetEl();
   cargarTickets().then(function(){ drawSheet(); el.classList.add('on'); });
 };
+/* Cerrar la hoja llamaba SIEMPRE a contarTickets(), que lee IndexedDB entera y
+   repinta toda la pestaña. Abrir «Nueva nota» y cancelar —o mirar una nota sin
+   tocarla— no cambia ni un ticket: era un repintado completo por cada vez que
+   el piloto asomaba la cabeza. Ahora solo se recuenta si de verdad se ha
+   añadido o borrado alguno. */
+var TK_SUCIO = false;
 window.exClose = function(){
   var s = document.getElementById('ex-sheet'); if (s) s.classList.remove('on');
-  SHEET = null; contarTickets();
+  SHEET = null;
+  if (TK_SUCIO){ TK_SUCIO = false; contarTickets(); }
 };
 
 function drawSheet(){
@@ -965,6 +1008,7 @@ window.exNewTk = function(input, key){
         shop: ia && ia.shop || null, ticket_date: ia && ia.date || null,
         items: ia && ia.items || null, source: ia ? 'ai' : 'manual',
         added: new Date().toISOString() };
+      TK_SUCIO = true;
       return tkPut(rec).then(function(){ return subirTicket(rec, key); })
         .then(cargarTickets).then(drawSheet)
         .catch(function(){ alert('No se pudo guardar el ticket en este navegador.'); });
@@ -993,6 +1037,7 @@ window.exDelTk = function(id){
   if (!confirm('¿Borrar este ticket?')) return;
   var t = null; TICKETS.forEach(function(x){ if (x.id===id) t = x; });
   var nota = t ? String(t.lineKey).split('#')[0] : '';
+  TK_SUCIO = true;
   tkDel(id).catch(function(){}).then(function(){
     marcarPend('t:' + id, 'del', nota);
     exSync();

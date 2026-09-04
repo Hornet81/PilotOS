@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.674">
+  <meta name="version" content="Estable.712">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.674","builtAt":"2026-09-01T09:27:48Z","commit":"032ec87","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.712","builtAt":"2026-09-04T07:46:54Z","commit":"64743a6","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -90,7 +90,7 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   </script>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Share+Tech+Mono&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
 <!-- SheetJS (lector de .xls/.xlsx del importador de logbook) servido desde nuestro
      origen: así lo cachea el service worker y la importación funciona sin cobertura.
      Desde el CDN la respuesta es opaca y NO se puede cachear. -->
@@ -1537,6 +1537,9 @@ html.day #scr-pay .pca-hero.pend .pca-hero-v{color:#92400E}
 #scr-pay .pca-mini-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px}
 #scr-pay .pca-mini-row .mk{color:rgba(255,255,255,.68)}#scr-pay .pca-mini-row .mk b{color:#fff}
 #scr-pay .pca-mini-row .mv{font-family:'Space Mono',monospace;font-size:12px}
+/* Las derivadas van en gris: no son ni un acierto ni un fallo, son un arrastre. */
+#scr-pay .pca-mini-row .mv.deriv{color:rgba(255,255,255,.62);text-align:right;line-height:1.45}
+#scr-pay .pca-mini-row .mv.deriv .sub{font-size:10.5px;opacity:.72}
 #scr-pay .pca-note{font-size:11px;color:rgba(255,255,255,.45);line-height:1.5;margin-top:9px}
 #scr-pay .pca-empty{text-align:center;padding:30px 16px}
 #scr-pay .pca-empty .ico{font-size:38px;margin-bottom:10px}
@@ -1584,6 +1587,10 @@ html.day #scr-pay .pc-det-total .eur{color:#04543d}
 html.day #scr-pay .pca-thead{color:#9a8560;border-color:rgba(245,158,11,.24)}
 html.day #scr-pay .pca-el .body{color:#5b4a2e}html.day #scr-pay .pca-el .body em{color:#1a1205}
 html.day #scr-pay .pca-mini-row .mk{color:#5b4a2e}html.day #scr-pay .pca-mini-row .mk b{color:#1a1205}
+/* En modo día el panel es blanco y el 72 % de opacidad dejaba la línea pequeña
+   en 4,05:1 — por debajo del 4,5:1 de AA a 10,5 px. Va opaca y con su color. */
+html.day #scr-pay .pca-mini-row .mv.deriv{color:#5b4a2e}
+html.day #scr-pay .pca-mini-row .mv.deriv .sub{opacity:1;color:#6b5942}
 html.day #scr-pay .pca-cta.sec{background:#fbf5ea;color:#5b4a2e;border-color:rgba(0,0,0,.08)}
 html.day #scr-pay .pca-banner{background:#fdf4e0}html.day #scr-pay .pca-banner .tx{color:#5b4a2e}
 html.day #scr-pay .pca-empty .t{color:#1a1205}html.day #scr-pay .pca-empty .s{color:#5b4a2e}
@@ -6047,6 +6054,11 @@ html.day .btab-pill svg{color:#FFFFFF!important}
 .rcp-pip{width:9px;height:4px;border-radius:2px;background:#22D3EE}
 .rcp-pip.pay{background:#4ADE80}
 .rcp-chev{font-size:15px;color:rgba(74,222,128,.6);margin-left:2px}
+/* Cuenta hecha en el cliente, todavía sin confirmar por el servidor. Un punto que
+   parpadea flojo: decir «calculando» con un número ya delante sería peor. */
+.rcp-prov{animation:rcpProv 1.1s ease-in-out infinite}
+@keyframes rcpProv{0%,100%{opacity:.25}50%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.rcp-prov{animation:none;opacity:.5}}
 /* Modo prueba */
 #scr-roster .stat-pill.rst-camb-pill.sim{background:rgba(124,58,237,.16) !important;border-color:rgba(167,139,250,.5) !important;box-shadow:0 0 18px rgba(124,58,237,.16) !important}
 #scr-roster .rst-camb-pill.sim .sp-label{color:rgba(196,181,253,.85)}
@@ -6100,6 +6112,92 @@ html.day .btab-pill svg{color:#FFFFFF!important}
 .rst-camb-badge.free{background:#0891B2;box-shadow:0 1px 5px rgba(8,145,178,.55)}
 .rst-camb-badge.off{background:#94A3B8;box-shadow:0 1px 5px rgba(148,163,184,.5)}
 .rst-camb-badge.sim{background:#7C3AED;box-shadow:0 1px 5px rgba(124,58,237,.55)}
+/* Invasión de día libre (Art. 13.23). Reutiliza las clases de los cambios —así el
+   modo día ya está resuelto— y solo cambia el acento: aquí TODAS abonan, así que
+   va en el verde del dinero, con luna para no confundirla con el chip de cambios. */
+.rst-camb-badge.dl{background:#15803D;box-shadow:0 1px 5px rgba(21,128,61,.55);font-size:9px}
+.rdl-luna{font-size:11px;margin-right:3px}
+/* ── La CINTA de invasión de día libre ────────────────────────────────────────
+   Una línea, ancho completo, plegada por defecto. La tarjeta entera abierta
+   ocupaba media pantalla para decir un número, y la tira de pills de arriba ya
+   estaba saturada: ni lo uno ni lo otro. Esto ocupa 52 px, se ve sin buscarlo y
+   se abre al tocarlo. */
+.rdl-cinta{
+  margin:12px 0 0;padding:11px 13px;border-radius:16px;cursor:pointer;
+  display:grid;grid-template-columns:34px minmax(0,1fr) auto 16px;gap:11px;align-items:center;
+  background:linear-gradient(135deg,rgba(21,128,61,.30),rgba(6,78,59,.22));
+  border:1px solid rgba(74,222,128,.42);
+  box-shadow:0 2px 14px rgba(21,128,61,.16),inset 0 1px 0 rgba(255,255,255,.06);
+  -webkit-tap-highlight-color:transparent;
+  transition:transform .16s ease,box-shadow .22s ease,border-color .22s ease;
+}
+.rdl-cinta:active{transform:scale(.988)}
+.rdl-cinta.on{border-color:rgba(74,222,128,.72);box-shadow:0 4px 22px rgba(21,128,61,.26),inset 0 1px 0 rgba(255,255,255,.08)}
+.rdl-cinta.sim{background:linear-gradient(135deg,rgba(124,58,237,.30),rgba(76,29,149,.22));border-color:rgba(167,139,250,.5);box-shadow:0 2px 14px rgba(124,58,237,.18)}
+/* La luna, en su disco. El halo late despacio: es dinero que se puede reclamar y
+   tiene que llamar la atención sin gritar. */
+.rdl-cd{
+  width:34px;height:34px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  font-size:16px;background:rgba(74,222,128,.16);border:1px solid rgba(74,222,128,.34);
+  animation:rdlHalo 3.4s ease-in-out infinite;
+}
+.rdl-cinta.sim .rdl-cd{background:rgba(167,139,250,.16);border-color:rgba(167,139,250,.4)}
+@keyframes rdlHalo{
+  0%,100%{box-shadow:0 0 0 0 rgba(74,222,128,.30)}
+  50%    {box-shadow:0 0 0 6px rgba(74,222,128,0)}
+}
+@media (prefers-reduced-motion:reduce){ .rdl-cd{animation:none} }
+.rdl-ch{font-size:12px;font-weight:800;color:#4ADE80;letter-spacing:.3px;line-height:1.25}
+.rdl-cinta.sim .rdl-ch{color:#C4B5FD}
+.rdl-cs{font-size:10px;color:rgba(226,232,240,.62);font-family:'Space Mono',monospace;margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rdl-cv{font-family:'Space Mono',monospace;font-size:15px;font-weight:700;color:#4ADE80;white-space:nowrap}
+.rdl-cinta.sim .rdl-cv{color:#A78BFA}
+.rdl-cc{font-size:15px;color:rgba(74,222,128,.65);transition:transform .3s cubic-bezier(.4,0,.2,1);justify-self:end}
+.rdl-cinta.on .rdl-cc{transform:rotate(90deg)}
+.rdl-cinta.sim .rdl-cc{color:rgba(167,139,250,.7)}
+/* El panel: se despliega, no aparece de golpe. */
+.rdl-panel{max-height:0;opacity:0;overflow:hidden;
+  transition:max-height .34s cubic-bezier(.4,0,.2,1),opacity .2s ease .04s}
+.rdl-panel.on{max-height:1200px;opacity:1}
+@media (prefers-reduced-motion:reduce){ .rdl-panel{transition:none} }
+html.day .rdl-cinta{background:linear-gradient(135deg,rgba(220,252,231,.96),rgba(240,253,244,.92)) !important;
+  border-color:rgba(21,128,61,.34) !important;box-shadow:0 2px 10px rgba(21,128,61,.10) !important}
+html.day .rdl-cinta.sim{background:linear-gradient(135deg,rgba(237,233,254,.96),rgba(245,243,255,.92)) !important;
+  border-color:rgba(109,40,217,.34) !important}
+html.day .rdl-cd{background:rgba(21,128,61,.10) !important;border-color:rgba(21,128,61,.28) !important;animation:none}
+html.day .rdl-ch{color:#166534 !important}
+html.day .rdl-cinta.sim .rdl-ch{color:#6D28D9 !important}
+html.day .rdl-cs{color:#334155 !important}
+html.day .rdl-cv{color:#166534 !important}
+html.day .rdl-cinta.sim .rdl-cv{color:#6D28D9 !important}
+html.day .rdl-cc{color:rgba(21,128,61,.6) !important}
+.rcd-sub{font-size:10px;color:#64748B;margin:-6px 0 11px;letter-spacing:.2px}
+.rcf-sub{font-size:9.5px;color:rgba(148,163,184,.85);margin-top:2px;letter-spacing:.3px}
+html.day .rcf-sub{color:#475569 !important}
+/* UNA sola paleta, y de día. La tarjeta vive dentro de #rst-day-detail, que es un
+   panel CLARO en los dos modos: con colores de noche —texto claro— quedaba blanco
+   sobre blanco por la noche, que es cuando el resto de la app sí es oscura. Un
+   bloque que no cambia de fondo no puede tener dos paletas.
+   Fondos OPACOS a propósito: sobre un tinte translúcido el contraste depende del
+   panel de debajo y no se puede medir leyendo estilos. */
+.rdl-card{margin-top:10px;padding:11px 12px;border-radius:14px;cursor:pointer;
+  background:#E7F6EC;border:1px solid rgba(21,128,61,.34);
+  display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:10px;align-items:center}
+.rdl-card:active{transform:scale(.985)}
+.rdl-card.sim{background:#EFEBFD;border-color:rgba(109,40,217,.34)}
+.rdl-ic{font-size:17px;text-align:center}
+.rdl-t{font-size:12.5px;font-weight:700;color:#166534;letter-spacing:.2px}
+.rdl-card.sim .rdl-t{color:#6D28D9}
+.rdl-s{font-size:10.5px;color:#334155;margin-top:2px;line-height:1.45}
+.rdl-v{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:#166534;white-space:nowrap}
+.rdl-card.sim .rdl-v{color:#6D28D9}
+.rat-sep{height:1px;background:rgba(255,255,255,.14);margin:16px 0 4px}
+html.day .rat-sep{background:rgba(15,23,42,.14) !important}
+.rdl-hora{font-family:'Space Mono',monospace;font-weight:700}
+.rcd-fix{margin-top:10px;display:flex;align-items:center;gap:8px;font-size:11.5px;color:#334155}
+.rcd-fix input{width:86px;padding:7px 8px;border-radius:9px;border:1px solid rgba(15,23,42,.18);font-family:'Space Mono',monospace;font-size:12px}
+.rcd-fix button{padding:7px 11px;border:none;border-radius:9px;background:#0D9488;color:#fff;font-weight:700;font-size:11.5px;cursor:pointer}
 .rst-cal-dim{opacity:.34;transition:opacity .2s}
 
 /* ── Pop-up del día: inicial contra actual ── */
@@ -6192,7 +6290,10 @@ html.day .rst-sello.err{border-color:rgba(71,85,105,.45) !important;background:r
 /* ── Autotest ── */
 .rst-at-wrap{position:fixed;inset:0;z-index:9998;background:rgba(3,8,18,.8);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);display:flex;align-items:center;justify-content:center;padding:18px}
 .rst-at{width:100%;max-width:430px;max-height:86vh;overflow-y:auto;border-radius:20px;padding:16px 15px;background:linear-gradient(135deg,#0f172a 0%,#0c2340 100%);border:1px solid rgba(167,139,250,.28)}
-.rat-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px;gap:10px}
+.rat-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;gap:10px}
+.rat-lect{font-family:'Space Mono',monospace;font-size:9.5px;line-height:1.5;color:rgba(196,181,253,.85);
+  border:1px solid rgba(167,139,250,.28);border-radius:8px;padding:6px 8px;margin-bottom:11px}
+html.day .rat-lect{color:#4C1D95 !important;border-color:rgba(109,40,217,.35) !important}
 .rat-t{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:rgba(167,139,250,.9)}
 .rat-sc{font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:#4ADE80}
 .rat-sc.bad{color:#F87171}
@@ -6313,6 +6414,27 @@ html.day .rat-foot{color:#334155 !important}
 #rst-leg-edit-sheet .fi::placeholder{color:rgba(254,243,199,.4) !important;}
 #rst-leg-edit-sheet .fi option{background:#0f2b2e;color:#FEF3C7;}
 #rst-leg-edit-sheet select.fi{color:#FEF3C7 !important;}
+/* ── SELECTOR DE TIPO DE DÍA ──────────────────────────────────────────────
+   Los colores salen de RST_TC, la MISMA paleta que pinta el calendario, y el
+   icono de rstIconoActividad, la misma cascada. Antes eran cuadraditos emoji
+   elegidos a ojo y varios mentían: Franco verde cuando en el roster es coral
+   (la distinción es deliberada: un franco es activable la víspera), STBY
+   amarillo cuando es azul marino, SICK rojo cuando es naranja. Un emoji no
+   puede seguir una paleta hex, así que el color va en un chip de verdad. */
+.rst-tipo{position:relative}
+.rst-tipo-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;cursor:pointer}
+.rst-tipo-val{display:flex;align-items:center;gap:9px;min-width:0}
+.rst-tipo-val span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rst-tipo-caret{opacity:.55;font-size:11px;flex:0 0 auto}
+.rst-tipo-lista{margin-top:6px;border-radius:14px;border:1px solid rgba(34,211,238,.20);background:rgba(3,26,32,.97);max-height:262px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.rst-tipo-op{display:flex;align-items:center;gap:9px;padding:9px 12px;width:100%;cursor:pointer;font-family:inherit;font-size:13px;text-align:left;color:rgba(240,255,254,.90);background:none;border:none;border-bottom:1px solid rgba(255,255,255,.05)}
+.rst-tipo-op:last-child{border-bottom:none}
+.rst-tipo-op:active{background:rgba(20,184,166,.16)}
+.rst-tipo-op[aria-selected="true"]{background:rgba(20,184,166,.16);font-weight:700}
+.rst-tipo-chip{flex:0 0 auto;min-width:32px;height:22px;padding:0 7px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;gap:1px;font-size:10px;font-weight:800;letter-spacing:.3px;line-height:1}
+html.day .rst-tipo-lista{background:#FFFFFF !important;border-color:rgba(15,23,42,.14) !important;box-shadow:0 10px 26px rgba(15,23,42,.13)}
+html.day .rst-tipo-op{color:#0A1628 !important;border-bottom-color:rgba(15,23,42,.06) !important}
+html.day .rst-tipo-op[aria-selected="true"]{background:rgba(13,148,136,.12) !important}
 .fg{margin-bottom:14px}
 .fl{font-size:11px;font-weight:600;color:rgba(240,255,254,.75);margin-bottom:6px;display:block;text-transform:uppercase;letter-spacing:.5px}
 .fi-btn{width:100%;padding:13px;font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;background:linear-gradient(135deg,#0d9488,#0891B2);color:#fff;border:none;border-radius:14px;cursor:pointer;transition:opacity .12s;margin-top:4px;box-shadow:0 4px 16px rgba(13,148,136,.35);-webkit-appearance:none}
@@ -6347,64 +6469,228 @@ html.day .rat-foot{color:#334155 !important}
 
 @media(max-width:380px){.frow{grid-template-columns:1fr}}
 
-/* ── UPGRADE PLAN CARDS ── */
-.upg-card {
-  border-radius: 22px;
-  padding: 20px;
-  margin-bottom: 12px;
-  position: relative;
-  -webkit-backdrop-filter: blur(20px);backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  transform: translateY(0) scale(1);
-  transition: transform 0.28s cubic-bezier(.34,1.56,.64,1),
-              box-shadow 0.28s ease,
-              border-color 0.28s ease,
-              background 0.28s ease;
-  will-change: transform;
+/* ── UPGRADE / PLANES ─────────────────────────────────────────────
+   Semántica de color de cabina: el ÁMBAR es CAUTION, así que NO puede
+   marcar el plan recomendado. Queda reservado al badge de ahorro anual.
+     Pro (más popular) → Electric Violet #7C3AED
+     Unlimited         → Avionics Cyan   #22D3EE
+     Ahorro anual      → Warning Amber   #F59E0B  (y sólo ahí)
+   ───────────────────────────────────────────────────────────────── */
+#scr-upgrade{
+  --upg-navy:#0B1020;
+  --upg-white:#F8FAFC;
+  --upg-violet:#7C3AED;
+  --upg-cyan:#22D3EE;
+  --upg-amber:#F59E0B;
 }
-.upg-card:hover {
-  transform: translateY(-6px) scale(1.028);
+/* La pantalla convive con la barra inferior y el notch: el padding del
+   scroll respeta los 4 safe-area-inset. Nada aquí es position:fixed —
+   un fixed dentro de un ancestro con transform revienta en iOS Safari. */
+.upg-body{
+  padding-top:20px;
+  padding-right:calc(16px + env(safe-area-inset-right,0px));
+  padding-bottom:calc(40px + env(safe-area-inset-bottom,0px));
+  padding-left:calc(16px + env(safe-area-inset-left,0px));
 }
-.upg-card-free {
-  background: linear-gradient(135deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%);
-  border: 1px solid rgba(255,255,255,.13);
-  box-shadow: 0 4px 24px rgba(0,0,0,.35),
-              inset 0 1px 0 rgba(255,255,255,.08);
+.upg-wrap{max-width:1120px;margin:0 auto}
+/* El display va AQUÍ, nunca en el atributo style: un display en línea gana al
+   [hidden]{display:none} del navegador y el elemento se vería igualmente. */
+.upg-chip{
+  display:inline-block;margin-bottom:10px;padding:4px 12px;border-radius:999px;
+  background:rgba(248,250,252,.08);border:1px solid rgba(248,250,252,.16);
+  color:rgba(248,250,252,.7);font-family:'Share Tech Mono',monospace;
+  font-size:11px;letter-spacing:.1em;
 }
-.upg-card-free:hover {
-  background: linear-gradient(135deg, rgba(255,255,255,.09) 0%, rgba(255,255,255,.04) 100%);
-  border-color: rgba(255,255,255,.25);
-  box-shadow: 0 16px 48px rgba(0,0,0,.5),
-              0 0 0 1px rgba(255,255,255,.08),
-              inset 0 1px 0 rgba(255,255,255,.12);
+.upg-portal-link{
+  display:inline-block;margin-top:8px;padding:4px;background:none;border:none;
+  color:rgba(248,250,252,.5);font-family:'Space Mono',monospace;font-size:11px;
+  text-decoration:underline;cursor:pointer;
 }
-.upg-card-pro {
-  background: linear-gradient(135deg, rgba(251,146,60,.1) 0%, rgba(251,100,30,.04) 100%);
-  border: 2px solid rgba(251,146,60,.45);
-  box-shadow: 0 4px 28px rgba(251,146,60,.12),
-              inset 0 1px 0 rgba(255,200,100,.07);
+#scr-upgrade [hidden]{display:none!important}
+
+/* ── Toggle Mensual / Anual ── */
+.upg-cycle{
+  display:inline-flex;align-items:center;gap:4px;padding:4px;
+  border-radius:999px;background:rgba(248,250,252,.06);
+  border:1px solid rgba(248,250,252,.12);
 }
-.upg-card-pro:hover {
-  background: linear-gradient(135deg, rgba(251,146,60,.16) 0%, rgba(251,100,30,.08) 100%);
-  border-color: rgba(251,146,60,.75);
-  box-shadow: 0 18px 52px rgba(251,146,60,.28),
-              0 0 40px rgba(251,146,60,.12),
-              0 0 0 1px rgba(251,146,60,.2),
-              inset 0 1px 0 rgba(255,200,100,.12);
+.upg-cycle-btn{
+  appearance:none;-webkit-appearance:none;border:0;background:transparent;
+  color:rgba(248,250,252,.5);font-family:'Share Tech Mono',monospace;
+  font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+  padding:9px 18px;border-radius:999px;cursor:pointer;white-space:nowrap;
+  transition:background .22s ease,color .22s ease;
 }
-.upg-card-unlimited {
-  background: linear-gradient(135deg, rgba(34,211,238,.08) 0%, rgba(14,116,144,.04) 100%);
-  border: 1px solid rgba(34,211,238,.22);
-  box-shadow: 0 4px 24px rgba(34,211,238,.08),
-              inset 0 1px 0 rgba(34,211,238,.06);
+.upg-cycle-btn[aria-pressed="true"]{
+  background:rgba(248,250,252,.13);color:var(--upg-white);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.12);
 }
-.upg-card-unlimited:hover {
-  background: linear-gradient(135deg, rgba(34,211,238,.13) 0%, rgba(14,116,144,.07) 100%);
-  border-color: rgba(34,211,238,.5);
-  box-shadow: 0 18px 52px rgba(34,211,238,.22),
-              0 0 40px rgba(34,211,238,.1),
-              0 0 0 1px rgba(34,211,238,.15),
-              inset 0 1px 0 rgba(34,211,238,.1);
+.upg-save-badge{
+  display:inline-block;margin-left:8px;padding:4px 10px;border-radius:999px;
+  background:rgba(245,158,11,.16);border:1px solid rgba(245,158,11,.42);
+  color:var(--upg-amber);font-family:'Space Mono',monospace;font-weight:700;
+  font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+
+/* ── Rejilla: 3 en paralelo en pantalla ancha, apiladas en móvil ── */
+.upg-grid{display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:22px}
+@media(min-width:900px){
+  .upg-grid{grid-template-columns:repeat(3,1fr);gap:18px;align-items:stretch}
+}
+
+/* ── Tarjeta ── */
+.upg-card{
+  border-radius:22px;padding:20px;position:relative;
+  display:flex;flex-direction:column;
+  -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
+  transform:translateY(0) scale(1);
+  transition:transform .28s cubic-bezier(.34,1.56,.64,1),
+             box-shadow .28s ease, border-color .28s ease, background .28s ease;
+}
+/* hover sólo donde hay puntero de verdad: en táctil se queda pegado */
+@media(hover:hover){ .upg-card:hover{transform:translateY(-6px) scale(1.028)} }
+@media(min-width:900px){ .upg-card{padding:22px 20px} }
+@media(max-width:899px){ .upg-card{padding:17px 16px;border-radius:18px} }
+
+.upg-card-free{
+  background:linear-gradient(135deg,rgba(255,255,255,.06) 0%,rgba(255,255,255,.02) 100%);
+  border:1px solid rgba(255,255,255,.13);
+  box-shadow:0 4px 24px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08);
+}
+@media(hover:hover){ .upg-card-free:hover{
+  background:linear-gradient(135deg,rgba(255,255,255,.09) 0%,rgba(255,255,255,.04) 100%);
+  border-color:rgba(255,255,255,.25);
+  box-shadow:0 16px 48px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.08), inset 0 1px 0 rgba(255,255,255,.12);
+} }
+.upg-card-pro{
+  background:linear-gradient(135deg,rgba(124,58,237,.14) 0%,rgba(76,29,149,.05) 100%);
+  border:2px solid rgba(124,58,237,.5);
+  box-shadow:0 4px 28px rgba(124,58,237,.16), inset 0 1px 0 rgba(196,181,253,.08);
+}
+@media(hover:hover){ .upg-card-pro:hover{
+  background:linear-gradient(135deg,rgba(124,58,237,.2) 0%,rgba(76,29,149,.09) 100%);
+  border-color:rgba(139,92,246,.8);
+  box-shadow:0 18px 52px rgba(124,58,237,.3), 0 0 40px rgba(124,58,237,.14), 0 0 0 1px rgba(124,58,237,.22), inset 0 1px 0 rgba(196,181,253,.14);
+} }
+.upg-card-unlimited{
+  background:linear-gradient(135deg,rgba(34,211,238,.08) 0%,rgba(14,116,144,.04) 100%);
+  border:1px solid rgba(34,211,238,.22);
+  box-shadow:0 4px 24px rgba(34,211,238,.08), inset 0 1px 0 rgba(34,211,238,.06);
+}
+@media(hover:hover){ .upg-card-unlimited:hover{
+  background:linear-gradient(135deg,rgba(34,211,238,.13) 0%,rgba(14,116,144,.07) 100%);
+  border-color:rgba(34,211,238,.5);
+  box-shadow:0 18px 52px rgba(34,211,238,.22), 0 0 40px rgba(34,211,238,.1), 0 0 0 1px rgba(34,211,238,.15), inset 0 1px 0 rgba(34,211,238,.1);
+} }
+
+.upg-pop{
+  position:absolute;top:-10px;left:50%;transform:translateX(-50%);
+  background:linear-gradient(90deg,#7C3AED,#A78BFA);color:#fff;
+  font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.12em;
+  padding:4px 14px;border-radius:20px;white-space:nowrap;
+  box-shadow:0 4px 14px rgba(124,58,237,.45);
+}
+
+/* 1 · nombre + tagline */
+.upg-name{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:700;line-height:1.15}
+.upg-tag{font-family:'Space Mono',monospace;font-size:11.5px;margin-top:3px;opacity:.55}
+
+/* 2 · precio */
+.upg-price{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:12px}
+.upg-price-now{
+  font-family:'Space Mono',monospace;font-weight:700;font-size:30px;line-height:1;
+  font-variant-numeric:tabular-nums;letter-spacing:-.01em;
+}
+.upg-price-was{
+  font-family:'Space Mono',monospace;font-size:14px;font-variant-numeric:tabular-nums;
+  text-decoration:line-through;opacity:.4;
+}
+.upg-price-per{font-family:'Space Mono',monospace;font-size:11px;opacity:.5}
+.upg-price-note{
+  font-family:'Space Mono',monospace;font-size:10.5px;line-height:1.5;
+  font-variant-numeric:tabular-nums;margin-top:5px;min-height:16px;opacity:.75;
+}
+.upg-price-note b{color:var(--upg-amber);font-weight:700}
+
+/* 3 · CTA arriba, antes de las features */
+.upg-cta{
+  width:100%;margin-top:15px;padding:13px;border:none;border-radius:13px;color:#fff;
+  font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;cursor:pointer;
+  transition:opacity .15s ease,filter .15s ease;
+}
+.upg-cta:disabled{cursor:default;opacity:.45}
+@media(hover:hover){ .upg-cta:not(:disabled):hover{filter:brightness(1.1)} }
+.upg-cta-free{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);color:rgba(248,250,252,.9)}
+.upg-cta-pro{background:linear-gradient(135deg,#7C3AED,#6D28D9)}
+.upg-cta-unlimited{background:linear-gradient(135deg,#0891B2,#0E7490)}
+
+/* 4 · bloque destacado: la feature que justifica el plan */
+.upg-hero{
+  margin-top:16px;padding:11px 13px;border-radius:14px;
+  display:flex;flex-direction:column;gap:4px;
+}
+.upg-hero-k{font-family:'Share Tech Mono',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;opacity:.65}
+.upg-hero-v{font-family:'Space Mono',monospace;font-weight:700;font-size:14.5px;font-variant-numeric:tabular-nums;line-height:1.3}
+.upg-card-free      .upg-hero{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)}
+.upg-card-pro       .upg-hero{background:rgba(124,58,237,.16);border:1px solid rgba(124,58,237,.35)}
+.upg-card-unlimited .upg-hero{background:rgba(34,211,238,.1);border:1px solid rgba(34,211,238,.28)}
+
+/* 5 · bullets diferenciadores  ·  6 · lo que NO incluye */
+.upg-feats{display:flex;flex-direction:column;gap:8px;margin-top:14px;font-family:'Space Grotesk',sans-serif;font-size:12.5px;line-height:1.45}
+.upg-feat{display:flex;gap:8px;align-items:flex-start}
+.upg-feat i{font-style:normal;flex:0 0 auto;font-family:'Space Mono',monospace;font-size:11.5px;line-height:1.6}
+.upg-feat b{font-weight:700}
+.upg-nots .upg-feat b{color:rgba(248,250,252,.6)}
+.upg-nots{
+  display:flex;flex-direction:column;gap:7px;margin-top:auto;padding-top:13px;
+  border-top:1px solid rgba(248,250,252,.09);
+  font-family:'Space Grotesk',sans-serif;font-size:12px;line-height:1.4;
+  color:rgba(248,250,252,.32);
+}
+.upg-nots .upg-feat i{color:rgba(248,250,252,.3)}
+
+/* ── Comparativa completa (colapsada) ── */
+.upg-cmp-btn{
+  display:block;width:100%;margin:0 auto 14px;padding:12px;cursor:pointer;
+  background:rgba(248,250,252,.05);border:1px solid rgba(248,250,252,.14);
+  border-radius:13px;color:rgba(248,250,252,.75);
+  font-family:'Share Tech Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+  transition:background .2s ease,border-color .2s ease;
+}
+@media(hover:hover){ .upg-cmp-btn:hover{background:rgba(248,250,252,.09);border-color:rgba(248,250,252,.28)} }
+.upg-cmp-btn .upg-chev{display:inline-block;margin-left:6px;transition:transform .22s ease}
+.upg-cmp-btn[aria-expanded="true"] .upg-chev{transform:rotate(180deg)}
+/* el scroll horizontal vive AQUÍ dentro: el body nunca se desplaza en X */
+.upg-cmp-wrap{
+  overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
+  border:1px solid rgba(248,250,252,.1);border-radius:16px;
+  background:rgba(11,16,32,.55);margin-bottom:20px;
+}
+.upg-cmp{width:100%;min-width:540px;border-collapse:collapse;font-family:'Space Grotesk',sans-serif;font-size:12px}
+.upg-cmp th,.upg-cmp td{padding:9px 12px;text-align:center;border-bottom:1px solid rgba(248,250,252,.07)}
+.upg-cmp th:first-child,.upg-cmp td:first-child{text-align:left;width:44%;color:rgba(248,250,252,.72)}
+.upg-cmp thead th{
+  position:sticky;top:0;z-index:1;background:#0B1020;color:rgba(248,250,252,.88);
+  font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  border-bottom:1px solid rgba(248,250,252,.16);
+}
+.upg-cmp thead th.c-pro{color:#A78BFA}
+.upg-cmp thead th.c-unl{color:#22D3EE}
+.upg-cmp tbody td{font-family:'Space Mono',monospace;font-size:11.5px;font-variant-numeric:tabular-nums;color:rgba(248,250,252,.82)}
+.upg-cmp tbody td:first-child{font-family:'Space Grotesk',sans-serif;font-size:12px}
+.upg-cmp .c-no{color:rgba(248,250,252,.26)}
+.upg-cmp .c-yes{color:#4ADE80}
+.upg-cmp tr.upg-cmp-grp td{
+  background:rgba(248,250,252,.045);padding:7px 12px;
+  font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:rgba(248,250,252,.5);
+}
+.upg-cmp tbody tr:last-child td{border-bottom:none}
+
+/* Respeta la preferencia del sistema: sin animación en el toggle ni en las tarjetas */
+@media(prefers-reduced-motion:reduce){
+  .upg-card,.upg-cycle-btn,.upg-cta,.upg-cmp-btn,.upg-cmp-btn .upg-chev{transition:none}
+  .upg-card:hover{transform:none}
 }
 
 /* ════════════════════════════════════════════════
@@ -11881,22 +12167,27 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
         <div><div class="pc-sw-label">Invasión de día libre</div><div class="pc-sw-sub">La actividad se metió en tu día libre (cód. 2043)</div></div>
         <label class="pc-switch"><input type="checkbox" id="pc_inv_on"><span class="pc-slider"></span></label>
       </div>
+      <!-- Un contador POR FRANJA, no uno solo con un selector: dos invasiones en
+           franjas distintas el mismo mes no se podían ni escribir, y entre la
+           primera franja y la tercera hay 460 € de diferencia para un CMD.
+           Lo rellena el detector desde el roster (Art. 13.23). -->
       <div id="pc_inv_wrap" style="margin-top:8px;display:none">
         <div class="frow">
           <div class="fg">
-            <label class="pc-field-label">Franja de fin de actividad</label>
-            <select class="fi" id="pc_inv_franja">
-              <option value="b1">00:00 – 00:59</option>
-              <option value="b2">01:00 – 01:59</option>
-              <option value="b3">02:00 en adelante</option>
-            </select>
+            <label class="pc-field-label">00:00 – 00:59</label>
+            <input class="fi" type="number" id="pc_inv_b1" value="0" step="1" min="0" max="15">
           </div>
           <div class="fg">
-            <label class="pc-field-label">Nº de invasiones</label>
-            <input class="fi" type="number" id="pc_inv_n" value="0" step="1" min="0" max="10">
+            <label class="pc-field-label">01:00 – 01:59</label>
+            <input class="fi" type="number" id="pc_inv_b2" value="0" step="1" min="0" max="15">
+          </div>
+          <div class="fg">
+            <label class="pc-field-label">02:00 en adelante</label>
+            <input class="fi" type="number" id="pc_inv_b3" value="0" step="1" min="0" max="15">
           </div>
         </div>
-        <div class="pc-hint">Cada invasión = importe fijo según franja y especialidad (CMD/FO, no depende del nivel) + 1 dieta nacional (67,22 €). No se devuelve el día. Importes 2026 (est. IPC): CMD 86,78 / 240,24 / 547,16 · FO 43,80 / 154,30 / 301,62.</div>
+        <div id="pc_inv_desglose" class="pc-hint" style="display:none"></div>
+        <div class="pc-hint">La hora que cuenta es la de <b>fin de actividad</b> —calzos + 20 min— en hora <b>local</b>, y la real, no la programada. Cada invasión = importe de su franja (CMD/FO, no depende del nivel) + 1 dieta nacional (67,22 €). No se devuelve el día. Importes 2026: CMD 86,77 / 240,24 / 547,16 · FO 43,80 / 154,30 / 301,62.</div>
       </div>
       <!-- Cambios de servicio en programación (cód. 2081). Aparece en nóminas reales
            y no había casilla, así que esa línea no se comparaba con nada. -->
@@ -17287,7 +17578,7 @@ var CONVENIO = {
     flexiworking:    771.84,
     compVacaciones:  120.43,
     bolsa_anual:     2796.80,
-    invasionDiaLibre: { b1: 86.78, b2: 240.24, b3: 547.16 }
+    invasionDiaLibre: { b1: 86.77, b2: 240.24, b3: 547.16 }
   },
   cop: {
     niveles: ["1B","1A","1","2","3","4","5","6"],
@@ -17561,7 +17852,8 @@ function pcRowTotal(label,importe,cls){
 var PC_CAMPOS = ['pc_esp','pc_nivel','pc_irpf','pc_hv','pc_hn','pc_hpos','pc_hpcan','pc_imag',
   'pc_flex','pc_vac','pc_dnat','pc_dint','pc_dpern','pc_dpern_nat','pc_fonline','pc_oficina',
   'pc_sparring','pc_tri','pc_tre','pc_lsc','pc_gti','pc_formacion','pc_jdia','pc_jdia_fest',
-  'pc_benef_vuelo','pc_rf_especie','pc_rf','pc_solidaridad','pc_red_pct','pc_inv_n','pc_bono_horas'];
+  'pc_benef_vuelo','pc_rf_especie','pc_rf','pc_solidaridad','pc_red_pct','pc_bono_horas',
+  'pc_inv_b1','pc_inv_b2','pc_inv_b3'];
 function pcHuellaForm(){
   try {
     return PC_CAMPOS.map(function(id){
@@ -17786,6 +18078,96 @@ window.pcCopiaNoct = function(el){
    sellada NO toca nada: la casilla se queda a mano, como estaba, y el desglose lo
    dice. Un 0 automático ahí sería un dato inventado en el sitio donde el piloto
    compara euros. */
+/* ── Invasión de día libre (cód. 2043, Art. 13.23) ──────────────────────────
+   Las etiquetas de las tres franjas, en un solo sitio: las pintan las dos vistas
+   de la nómina y ya estaban copiadas en las dos. */
+var PC_INV_FRANJAS = { b1:'00:00-00:59', b2:'01:00-01:59', b3:'02:00+' };
+function PC_INV_LBL_EACH(porFranja, tabla, fn){
+  ['b1','b2','b3'].forEach(function(k){
+    var n = (porFranja||{})[k] || 0; if (!n) return;
+    var r = (tabla||{})[k] || 0;
+    fn(PC_INV_FRANJAS[k], n, r, Math.round(n * r * 100) / 100);
+  });
+}
+
+/* Se calcula EN LOCAL, con el roster que el piloto tiene delante, igual que las
+   vacaciones (ver pcVacFromRoster): el `roster_available` del backend dice si el
+   SERVIDOR tiene el mes, que es otra pregunta. Y a diferencia de los cambios de
+   programación, esto no necesita la copia inicial: el artículo mide lo EJECUTADO,
+   así que basta el roster de ahora.
+
+   Hace falta el último día del mes ANTERIOR: una invasión del día 1 la produce la
+   jornada del 31. */
+function pcInvDesdeRoster(month){
+  var out = { hayMes:false, r:null };
+  try{
+    if (typeof DiaLibre === 'undefined' || !month) return out;
+    var ent = [];
+    try { ent = JSON.parse(localStorage.getItem('pilotOS_roster') || '[]'); } catch(e){}
+    if ((!ent || !ent.length) && window.RST && Array.isArray(RST.entries)) ent = RST.entries;
+    if (!Array.isArray(ent) || !ent.length) return out;
+    var p = month.split('-');
+    var previo = new Date(Date.UTC(+p[0], +p[1]-1, 1) - 86400000).toISOString().slice(0,10);
+    var trozo = ent.filter(function(e){
+      return e && e.date && (String(e.date).slice(0,7) === month || e.date === previo);
+    });
+    if (!trozo.some(function(e){ return String(e.date).slice(0,7) === month; })) return out;
+    out.hayMes = true;
+    var esp = (document.getElementById('pc_esp')||{}).value || 'cmd';
+    var marcas = {}, correcciones = {};
+    try { marcas = JSON.parse(localStorage.getItem('pilotOS_dl_marcas') || '{}') || {}; }catch(e){}
+    try { correcciones = JSON.parse(localStorage.getItem('pilotOS_dl_correcciones') || '{}') || {}; }catch(e){}
+    var _lb = (typeof rdlLogbook === 'function') ? rdlLogbook() : null;
+    out.r = DiaLibre.detectar({ mes:month, entries:trozo, especialidad:esp,
+                                logbook:_lb,
+                                marcas:marcas, correcciones:correcciones });
+  }catch(e){}
+  return out;
+}
+
+function pcInvAutorrellena(month){
+  var sw = document.getElementById('pc_inv_on'), wrap = document.getElementById('pc_inv_wrap');
+  var des = document.getElementById('pc_inv_desglose');
+  if (!sw || !document.getElementById('pc_inv_b1')) return;
+  /* En modo prueba el mes está tocado: la nómina no puede comerse una simulación.
+     Misma regla que en los cambios de programación. Y el aviso se ABRE: vivía
+     dentro de un bloque plegado, así que con la casilla apagada no se veía nunca
+     y el piloto solo notaba que la nómina «no se había enterado». */
+  if (typeof RCAMB !== 'undefined' && RCAMB.sim){
+    if (des){ des.innerHTML = '🔬 Modo prueba activo en el roster — la nómina no se rellena desde un mes simulado. Sal del modo prueba y vuelve a entrar aquí.'; des.style.display='block'; }
+    if (wrap) wrap.style.display = 'block';
+    return;
+  }
+  var q = pcInvDesdeRoster(month);
+  if (!q.hayMes || !q.r){
+    if (des){ des.innerHTML = '⚠ Este mes no está importado en este dispositivo: los contadores van a mano.'; des.style.display='block'; }
+    return;
+  }
+  var r = q.r;
+  ['b1','b2','b3'].forEach(function(k){
+    var el = document.getElementById('pc_inv_'+k); if (!el) return;
+    el.value = r.porFranja[k] || 0;
+    if (typeof pcMarcaImportado === 'function'){ try{ pcMarcaImportado(el); }catch(e){} }
+  });
+  if (r.n > 0){ sw.checked = true; if (wrap) wrap.style.display = 'block'; }
+  if (des){
+    /* Un importe de 547 € que no dice de qué hora sale no se puede reclamar: cada
+       invasión se enseña con su día, su hora local de fin y de dónde ha salido. */
+    var l = r.invasiones.map(function(i){
+      return '· <b>' + i.date + '</b> — la jornada del ' + i.vispera + ' acabó a las <b>'
+           + i.finLocal + '</b> local (' + i.fuente + ') → ' + PC_INV_FRANJAS[i.franja]
+           + ' · ' + (Math.round(i.importe*100)/100).toFixed(2).replace('.',',') + ' € + dieta'
+           + (i.diaDevuelto ? ' · día devuelto' : '');
+    });
+    r.sinDatos.forEach(function(x){
+      l.push('· <b>' + x.date + '</b> — ' + x.detalle + ': revísalo a mano');
+    });
+    des.innerHTML = l.length ? l.join('<br>')
+      : 'Ningún día libre invadido en este mes según el roster.';
+    des.style.display = 'block';
+  }
+}
+
 function pcCambAutorrellena(c){
   var sw = document.getElementById('pc_camb_on');
   var wrap = document.getElementById('pc_camb_wrap');
@@ -17794,7 +18176,8 @@ function pcCambAutorrellena(c){
   if (!sw || !inp) return;
   // En modo prueba el mes está tocado: la nómina no puede comerse una simulación.
   if (typeof RCAMB !== 'undefined' && RCAMB.sim){
-    if (des){ des.innerHTML = '🔬 Modo prueba activo — la nómina no se rellena desde un mes simulado'; des.style.display='block'; }
+    if (des){ des.innerHTML = '🔬 Modo prueba activo en el roster — la nómina no se rellena desde un mes simulado. Sal del modo prueba y vuelve a entrar aquí.'; des.style.display='block'; }
+    if (wrap) wrap.style.display = 'block';
     return;
   }
   if (!c || !c.disponible){
@@ -17969,11 +18352,15 @@ function pcCalc() {
 
   // ── Invasión de día libre (cód.2043): importe fijo por franja (CMD/FO, NO depende del nivel) + 1 dieta nacional ──
   var invOn     = !!(document.getElementById('pc_inv_on') && document.getElementById('pc_inv_on').checked);
-  var invN      = invOn ? (parseInt((document.getElementById('pc_inv_n')||{}).value) || 0) : 0;
-  var invFranja = (document.getElementById('pc_inv_franja')||{}).value || 'b1';
+  var _invNum   = function(id){ var el = document.getElementById(id); return invOn ? (parseInt(el && el.value) || 0) : 0; };
+  var invPorFranja = { b1:_invNum('pc_inv_b1'), b2:_invNum('pc_inv_b2'), b3:_invNum('pc_inv_b3') };
+  var invN      = invPorFranja.b1 + invPorFranja.b2 + invPorFranja.b3;
   var invTbl    = T.invasionDiaLibre || { b1:0, b2:0, b3:0 };
-  var invRate   = invTbl[invFranja] || 0;
-  var plusInv   = invN * invRate;
+  var plusInv   = Math.round((invPorFranja.b1*(invTbl.b1||0) + invPorFranja.b2*(invTbl.b2||0)
+                            + invPorFranja.b3*(invTbl.b3||0)) * 100) / 100;
+  // Solo para la columna «precio» cuando hay una sola franja; con varias no hay un precio único.
+  var invFranja = invPorFranja.b3 ? 'b3' : (invPorFranja.b2 ? 'b2' : 'b1');
+  var invRate   = invN ? Math.round((plusInv / invN) * 100) / 100 : 0;
   var invDietaSuj = invN * D.nac.sujeta;   // la dieta nacional de la invasión tributa igual que una dieta nac normal
   var invDietaExe = invN * D.nac.exenta;
 
@@ -18048,6 +18435,7 @@ function pcCalc() {
     hLsc:hLsc, plusLsc:plusLsc, dGti:dGti, plusGti:plusGti, nForm:nForm, plusForm:plusForm,
     dJdia:dJdia, plusJdia:plusJdia, dJdiaF:dJdiaF, plusJdiaF:plusJdiaF,
     invOn:invOn, invN:invN, invFranja:invFranja, invRate:invRate, plusInv:plusInv, invDietaSuj:invDietaSuj, invDietaExe:invDietaExe,
+    invPorFranja:invPorFranja, invTbl:invTbl,
     cambOn:cambOn, cambN:cambN, cambPag1:cambPag1, cambPag2:cambPag2, plusCamb:plusCamb,
     dNacSuj:dNacSuj, dNacExe:dNacExe, dIntSuj:dIntSuj, dIntExe:dIntExe,
     dPernSuj:dPernSuj, dPernExe:dPernExe, dPernNatSuj:dPernNatSuj, dPernNatExe:dPernNatExe,
@@ -18075,8 +18463,11 @@ function pcCalc() {
   if (hvPos+hvPCan>0) rows += pcRow('783','Plus Horas Posicionales',pcFmt(hvPos+hvPCan)+' h',horaPos,plusPos,'var');
   if (plusImag>0) rows += pcRow('225','Imaginarias',imag+' días',precImag,plusImag,'var');
   if (invN>0) {
-    var _invLbl = ({b1:'00:00-00:59', b2:'01:00-01:59', b3:'02:00+'})[invFranja] || '';
-    rows += pcRow('2043','Invasión día libre ('+_invLbl+')',invN+' días',invRate,plusInv,'var');
+    /* Una fila POR FRANJA: un 2043 de 2 días a un «precio medio» no se puede
+       cuadrar contra la nómina, que paga cada invasión a su tarifa. */
+    PC_INV_LBL_EACH(invPorFranja, invTbl, function(lbl, n, rate, tot){
+      rows += pcRow('2043','Invasión día libre ('+lbl+')',n+' días',rate,tot,'var');
+    });
     rows += pcRow('2098','Dieta nac. (invasión)',invN+' días',D.nac.sujeta,invDietaSuj,'var');
     rows += pcRow('2102','Dieta nac. exenta (invasión)',invN+' días',D.nac.exenta,invDietaExe,'var');
   }
@@ -18350,6 +18741,11 @@ async function pcImportFromLogbook(month, opts) {
          puso, que es lo que distingue un dato de una suposición. */
       try { pcCambAutorrellena(data.cambios); } catch(_e){}
 
+      /* ── Invasión de día libre (cód. 2043, Art. 13.23) ──────────────────
+         Se calcula aquí mismo con el roster local: no necesita nada del
+         servidor porque el artículo mide lo ejecutado, no lo programado. */
+      try { pcInvAutorrellena(month); } catch(_e){}
+
       try {
         if (data.roster_available) {
           var _ra = data.roster_activity || {};
@@ -18513,6 +18909,21 @@ function pcSwitchTab(tab) {
    libre como 2055 y aquí siempre ha sido 2043; sin esto, la línea no se compara. */
 var PAY_CODE_ALIAS = { '2055': '2043' };
 
+/* El código del PAPEL manda sobre un `mappedTo` viejo.
+   El /402 (ingreso a cuenta del IRPF sobre la retribución en especie) se mandaba a
+   515 hasta Beta.640. Una nómina analizada antes de esa fecha se quedó con esa
+   etiqueta GUARDADA, así que la fila 515 sumaba dos retenciones distintas —el /401
+   y el /402— y como «leído» enseñaba la línea del /401, que dice otra cifra: en una
+   nómina real de agosto salía «real 2.695,60» sobre un leído de «/401 … 2.570,66»,
+   124,94 € que no cuadraban ni se podían explicar. Y de paso el 525 salía «no
+   aparece» teniendo su línea delante.
+   Re-analizar la nómina lo arreglaría, pero el piloto no tiene por qué saber que
+   hay que hacerlo. Aquí la etiqueta se rehace en la lectura, que es donde el dato
+   del papel sigue estando. Solo para los códigos cuyo destino ha cambiado: para
+   todo lo demás manda el `mappedTo`, porque un mismo código de papel (3R**) va a
+   sitios distintos según lo que diga su descripción. */
+var PAY_CODE_REMAP = { '/401': '515', '/402': '525' };
+
 var PAY_COMPARE_MAP = [
   // — Devengos —
   { code:'005',  label:'Salario Base',              theo:function(L){return L.salBase;},               kind:'devengo' },
@@ -18525,7 +18936,7 @@ var PAY_COMPARE_MAP = [
   { code:'783',  label:'Plus Horas Posicionales',   theo:function(L){return L.plusPos;},               kind:'devengo', campos:['pc_hpos','pc_hpcan'] },
   { code:'225',  label:'Imaginarias',               theo:function(L){return L.plusImag;},              kind:'devengo', campos:['pc_imag'] },
   { code:'2081', label:'Cambios de servicio',      theo:function(L){return L.plusCamb;},              kind:'devengo', campos:['pc_camb_n'] },
-  { code:'2043', label:'Invasión día libre',        theo:function(L){return L.plusInv;},               kind:'devengo', campos:['pc_inv_n'] },
+  { code:'2043', label:'Invasión día libre',        theo:function(L){return L.plusInv;},               kind:'devengo', campos:['pc_inv_b1','pc_inv_b2','pc_inv_b3'] },
   { code:'2098', label:'Dietas Nac. sujetas',       theo:function(L){return L.dNacSuj+(L.invDietaSuj||0);}, kind:'devengo', campos:['pc_dnat'] },
   { code:'2102', label:'Dietas Nac. exentas',       theo:function(L){return L.dNacExe+(L.invDietaExe||0);}, kind:'devengo', campos:['pc_dnat'] },
   { code:'2101', label:'Dietas Int. sujetas',       theo:function(L){return L.dIntSuj;},               kind:'devengo', campos:['pc_dint'] },
@@ -18551,8 +18962,17 @@ var PAY_COMPARE_MAP = [
   { code:'421',  label:'Plus Jefe de día festivo',  theo:function(L){return L.plusJdiaF;},             kind:'devengo' },
   // — Descuento y deducciones (valores positivos salvo RF, que va con signo) —
   { code:'510',  label:'Retribución Flexible (dto.)', theo:function(L){return -(L.rfImp||0);},         kind:'descuento' },
-  { code:'515',  label:'Retención IRPF',            theo:function(L){return L.retIRPF;},               kind:'deduccion' },
-  { code:'525',  label:'IRPF en especie',           theo:function(L){return L.irpfEsp;},               kind:'deduccion' },
+  /* DERIVADAS: no son un concepto que la compañía decida, son una base por un
+     tipo. Si el devengado teórico se queda corto, éstas se quedan cortas POR
+     CONSECUENCIA — contarlas como un concepto más a revisar es contar el mismo
+     error dos veces. En la nómina de agosto el 515 salía en rojo por +178,40 €
+     que eran, enteros, el arrastre de los 161,24 € que faltaban arriba.
+     `base` es de dónde sale cada una, para poder enseñar el papel y el teórico
+     uno al lado del otro en vez de un número sin explicación. */
+  { code:'515',  label:'Retención IRPF',            theo:function(L){return L.retIRPF;},               kind:'deduccion',
+    derivado:true, base:function(L){return L.baseIRPF;}, baseLbl:'base de IRPF' },
+  { code:'525',  label:'IRPF en especie',           theo:function(L){return L.irpfEsp;},               kind:'deduccion',
+    derivado:true, base:function(L){return (L.benefVuelo||0)+(L.rfEspecie||0);}, baseLbl:'base en especie' },
   { code:'530',  label:'SS — Cont. Comunes',        theo:function(L){return L.ssGral;},                kind:'deduccion' },
   { code:'535',  label:'SS — Desempleo',            theo:function(L){return L.ssDFP;},                 kind:'deduccion' },
   { code:'537',  label:'SS — Form. Profesional',    theo:function(L){return L.ssMEI;},                 kind:'deduccion' },
@@ -18592,7 +19012,9 @@ function pcCompare(real, L){
   var by = {}, unmapped = [];
   var lines = (real.lines||[]).concat(real.unknownLines||[]);
   lines.forEach(function(ln){
+    var papel = ln.code!=null ? String(ln.code).trim().toUpperCase() : '';
     var code = (ln.mappedTo!=null && ln.mappedTo!=='') ? String(ln.mappedTo) : null;
+    if (papel && PAY_CODE_REMAP[papel]) code = PAY_CODE_REMAP[papel];   // ver PAY_CODE_REMAP
     /* Rescate: si no trae mappedTo pero su código del papel ES un concepto conocido
        (p.ej. "/SC0" cuota de solidaridad, que el parser viejo dejaba con mappedTo:null),
        se agrupa por ese código para que la auditoría lo reconozca sin re-subir la nómina.
@@ -18600,20 +19022,45 @@ function pcCompare(real, L){
        de día libre se paga como 2055 y aquí es 2043. El backend ya lo traduce, pero
        sólo al ANALIZAR, así que una nómina subida antes se queda con mappedTo:null y
        esa línea caía en «sin mapear» para siempre — 154,30 € que nadie comparaba. */
-    if (!code && ln.code) {
-      var _cod = PAY_CODE_ALIAS[String(ln.code)] || String(ln.code);
+    if (!code && papel) {
+      var _cod = PAY_CODE_ALIAS[papel] || papel;
       if (PAY_COMPARE_MAP.some(function(m){ return m.code === _cod; })) code = _cod;
     }
     if (!code){ unmapped.push(ln); return; }
-    if (!by[code]) by[code] = { dev:0, ded:0, conf:1, src:'' };
+    if (!by[code]) by[code] = { dev:0, ded:0, conf:1, src:'', srcs:[], n:0, qty:null, rate:null };
+    by[code].n++;
+    // La base y el tipo que trae la propia línea: sirven para enseñar la cuenta
+    // del papel en las retenciones derivadas.
+    if (by[code].qty  == null && ln.qty  != null && ln.qty  !== '') by[code].qty  = ppNum(ln.qty);
+    if (by[code].rate == null && ln.rate != null && ln.rate !== '') by[code].rate = ppNum(ln.rate);
     by[code].dev += ppNum(ln.devengo);
     by[code].ded += ppNum(ln.deduccion);
     if (ln.confidence!=null) by[code].conf = Math.min(by[code].conf, ppNum(ln.confidence));
-    if (ln.src && !by[code].src) by[code].src = String(ln.src);
+    if (ln.src && by[code].srcs.indexOf(String(ln.src)) < 0) by[code].srcs.push(String(ln.src));
+  });
+  /* Una fila que agrupa VARIAS líneas del papel no puede enseñar solo la primera:
+     el «leído» diría una cifra y la columna «real» otra, que es exactamente lo que
+     no se puede explicar mirando la pantalla. Se enseñan todas, y se dice cuántas. */
+  Object.keys(by).forEach(function(k){
+    var g = by[k], ss = g.srcs;
+    if (!ss.length){ g.src = ''; return; }
+    if (ss.length === 1){ g.src = ss[0]; return; }
+    var muestra = ss.slice(0, 3).join('  +  ') + (ss.length > 3 ? '  + …' : '');
+    g.src = 'suma de ' + ss.length + ' líneas: ' + muestra;
   });
 
-  var rows = [], missing = [], sinDato = [], used = {};
+  var rows = [], missing = [], sinDato = [], derivadas = [], used = {};
   var nOk=0, nWarn=0, nBad=0;
+  /* Lo que cabe DENTRO de la tolerancia también es dinero. El listón es
+     proporcional —max(1 €, 2 % del teórico)—, así que un concepto grande puede
+     desviarse decenas de euros y salir verde: en la nómina de agosto los cuatro
+     rojos explicaban 13 € de los 161,24 € de diferencia y los otros ~148 € vivían
+     repartidos entre los 18 «correctos», cada uno por debajo de su propio 2 %.
+     Los colores no se tocan —subir el «revisa N conceptos» es el ruido que se
+     quitó con el reporte #7M9W7—, pero la suma se DICE. `sumaOk` es la neta (la
+     parte de la diferencia del total que se esconde aquí) y `brutoOk` la de los
+     valores absolutos: si un +50 y un −50 se cancelan, la neta sola mentiría. */
+  var sumaOk = 0, brutoOk = 0;
 
   PAY_COMPARE_MAP.forEach(function(m){
     var theo = 0; try { theo = ppNum(m.theo(L)); } catch(e){ theo = 0; }
@@ -18650,10 +19097,28 @@ function pcCompare(real, L){
     var row = { code:m.code, label:m.label, kind:m.kind, real:realVal, theo:theo,
                 delta:delta, pct:pct, status:status, present:!!r, confidence:conf,
                 src:(r?r.src:''), faltan:faltan };
+
+    /* Una retención derivada sale de la tabla y de los contadores: no es una
+       discrepancia propia. Se enseña aparte con su cuenta, que es lo que de
+       verdad explica el número — y solo si la aritmética del papel CUADRA:
+       enseñar una base que no multiplica bien sería inventarse la explicación. */
+    if (m.derivado){
+      row.derivado = true;
+      row.baseLbl  = m.baseLbl || 'base';
+      try { row.baseTeo = ppNum(m.base(L)); } catch(e){ row.baseTeo = 0; }
+      row.baseReal = null; row.tasa = null;
+      if (r && r.qty != null && r.rate != null && r.qty > 0){
+        var _cuadra = Math.abs(r.qty * r.rate / 100 - realVal);
+        if (_cuadra <= Math.max(0.5, Math.abs(realVal) * 0.01)){ row.baseReal = r.qty; row.tasa = r.rate; }
+      }
+      derivadas.push(row);
+      return;
+    }
+
     rows.push(row);
     if (status==='miss'){ missing.push(row); }
     else if (status==='nodata'){ sinDato.push(row); }
-    else if (status==='ok'){ nOk++; }
+    else if (status==='ok'){ nOk++; sumaOk += delta; brutoOk += aDelta; }
     else if (status==='warn'){ nWarn++; }
     else if (status==='bad'){ nBad++; }
   });
@@ -18716,8 +19181,11 @@ function pcCompare(real, L){
 
   return {
     rows: rows, totals: totals, missing: missing, extra: extra, sinDato: sinDato,
+    derivadas: derivadas,
     summary: { deltaLiquido:deltaLiquido, deltaDevengos:deltaDevengos, nOk:nOk, nWarn:nWarn, nBad:nBad,
-               nSinDato:sinDato.length, importeSinDato:importeSinDato },
+               nSinDato:sinDato.length, importeSinDato:importeSinDato,
+               sumaOk:Math.round(sumaOk*100)/100, brutoOk:Math.round(brutoOk*100)/100,
+               nDerivadas:derivadas.length },
     month: real.month || null,
     irpf: { real:irpfReal, calc:irpfCalc, mismatch:irpfMismatch },
     signals: { rate: rateSignal, lag: lagSignal }
@@ -18735,6 +19203,18 @@ function pcPrevMonthLabel(ym){
 
 // ── Formato con signo ──
 function pcFmtDelta(n){ return (n>0?'+':(n<0?'−':'')) + pcFmt(Math.abs(n)) + ' €'; }
+
+/* «18 conceptos correctos» no dice cuánto dinero hay dentro. Se añade la suma
+   cuando pasa de un euro; y cuando la neta y la bruta se separan —un +50 con un
+   −50 se cancelan y la neta sola diría 0— se enseñan las dos. */
+function pcAuditOkTxt(n, neta, bruto){
+  var base = n + ' conceptos correctos';
+  neta = neta || 0; bruto = bruto || 0;
+  if (bruto < 1) return base;
+  if (Math.abs(Math.abs(neta) - bruto) > Math.max(1, bruto*0.1))
+    return base + ' · ' + pcFmtDelta(neta) + ' netos (' + pcFmt(bruto) + ' € en total)';
+  return base + ' · ' + pcFmtDelta(neta);
+}
 
 // ── Punto de entrada: decide estado vacío o comparación ──
 function pcAuditRender(){
@@ -18788,7 +19268,7 @@ function pcAuditToggleOk(btn){
   var box = document.getElementById('pca-ok-box'); if (!box) return;
   var open = box.style.display === 'block';
   box.style.display = open ? 'none' : 'block';
-  btn.textContent = (open ? 'Ver ' : 'Ocultar ') + btn.dataset.n + ' conceptos correctos ' + (open ? '▾' : '▴');
+  btn.textContent = (open ? 'Ver ' : 'Ocultar ') + (btn.dataset.eur || (btn.dataset.n + ' conceptos correctos')) + ' ' + (open ? '▾' : '▴');
 }
 
 // ── Render de la comparación ──
@@ -18961,7 +19441,10 @@ function pcRenderCompare(res, real, L){
 
   // filas verdes colapsadas
   if (okRows.length){
-    html += '<div class="pca-oktog" data-n="'+okRows.length+'" onclick="pcAuditToggleOk(this)">Ver '+okRows.length+' conceptos correctos ▾</div>';
+    /* La cifra va en el propio desplegable: un «18 correctos» a secas invita a no
+       abrirlo, y es justo donde estaban los 148 € que no cuadraban el total. */
+    var okTxt = pcAuditOkTxt(okRows.length, res.summary.sumaOk, res.summary.brutoOk);
+    html += '<div class="pca-oktog" data-n="'+okRows.length+'" data-eur="'+ppEsc(okTxt)+'" onclick="pcAuditToggleOk(this)">Ver '+okTxt+' ▾</div>';
     html += '<div id="pca-ok-box" style="display:none">';
     okRows.forEach(function(r){ html += pcAuditRowHtml(r); });
     html += '</div>';
@@ -18984,6 +19467,35 @@ function pcRenderCompare(res, real, L){
       html += '<div class="pca-mini-row"><span class="mk"><b>'+ppEsc(r.label)+'</b> (cód. '+r.code+')</span><span class="mv" style="color:#60A5FA">esperado '+pcFmt(r.theo)+' €</span></div>';
     });
     html += '<div class="pca-note">Pluses que el convenio prevé por tu actividad y no aparecen en la nómina. Candidatos a revisar/reclamar.</div></div>';
+  }
+
+  // ── Retenciones derivadas ─────────────────────────────────────────────────
+  /* Van con «sin mapear» porque comparten naturaleza: informativas, nunca una
+     discrepancia. Pero se enseñan SIEMPRE que existan, aunque cuadren: son la
+     mitad del dinero de una nómina y esconderlas sería el otro extremo. */
+  if (res.derivadas && res.derivadas.length){
+    html += '<div class="card-box"><div class="pca-mini-h grey">⚪ Retenciones derivadas <span class="cnt">'+res.derivadas.length+'</span></div>';
+    res.derivadas.forEach(function(r){
+      /* El importe RETENIDO va en grande: es la mitad del dinero de una nómina y
+         una sección que solo enseñe su desviación esconde el número que importa.
+         Debajo, la cuenta del papel contra la base teórica — que es lo que de
+         verdad explica la diferencia. */
+      var cuenta = (r.baseReal != null)
+        ? pcFmt(r.baseReal)+' € × '+pcFmt(r.tasa)+' % · teórica sobre '+pcFmt(r.baseTeo)+' € de '+ppEsc(r.baseLbl)
+        : (r.status==='miss' ? 'no aparece en la nómina' : 'previsto '+pcFmt(r.theo)+' €');
+      html += '<div class="pca-mini-row"><span class="mk"><b>'+ppEsc(r.label)+'</b> (cód. '+r.code+')<br>'
+        + '<span style="opacity:.75">'+cuenta+'</span></span>'
+        + '<span class="mv deriv">'+(r.status==='miss' ? '—' : pcFmt(r.real)+' €')
+        + '<br><span class="sub">'+pcFmtDelta(r.delta)+'</span></span></div>';
+    });
+    var tipoTxt = (res.irpf.real!=null && res.irpf.calc!=null)
+      ? (res.irpf.mismatch
+          ? ' El tipo SÍ se comprueba, y no coincide: <b>'+pcFmt(res.irpf.real)+' %</b> en el papel contra <b>'+pcFmt(res.irpf.calc)+' %</b> en el cálculo — eso sí es una diferencia propia.'
+          : ' El tipo sí se comprueba aparte, y coincide: <b>'+pcFmt(res.irpf.real)+' %</b> en los dos.')
+      : '';
+    html += '<div class="pca-note">El IRPF no es un concepto que la compañía decida: es una <b>base por un tipo</b>. '
+      + 'Si el devengado teórico no cuadra, éstos no cuadran <b>por consecuencia</b> — es el mismo error contado dos veces, '
+      + 'así que <b>no suman al «revisa N conceptos»</b>.' + tipoTxt + '</div></div>';
   }
 
   // ── Sin mapear ──
@@ -19017,7 +19529,8 @@ function pcAuditRowHtml(r){
   h += '<div class="pca-real">'+realCell+'</div>';
   h += '<div class="pca-theo">'+pcFmt(r.theo)+'</div>';
   h += '</div>';
-  h += '<div class="pca-dline"><span class="pca-delta '+deltaCls+'">'+ (r.status==='ok'?('Δ '+pcFmt(Math.abs(r.delta))+' €'):pcFmtDelta(r.delta)) +'</span></div>';
+  // También las verdes van con signo: sin él no se pueden sumar con la vista.
+  h += '<div class="pca-dline"><span class="pca-delta '+deltaCls+'">'+pcFmtDelta(r.delta)+'</span></div>';
   if (expandable){
     h += '<div class="pca-exp"><div class="pca-exp-in">';
     if (r.status==='miss'){
@@ -19175,7 +19688,10 @@ function ppReconcile(d){
   var bIRPF  = t.baseIRPF       ? ppNum(t.baseIRPF.value)       : null;
   var bSS    = t.baseSS         ? ppNum(t.baseSS.value)         : null;
   var irpfPct = (d.profile && d.profile.irpf) ? ppNum(d.profile.irpf.value) : null;
-  function lineByCode(c){ for (var i=0;i<lines.length;i++){ if (String(lines[i].mappedTo||lines[i].code)===c) return lines[i]; } return null; }
+  // Mismo criterio que la auditoría: el código del papel manda sobre un mappedTo viejo.
+  function _mapCod(l){ var p = l.code!=null ? String(l.code).trim().toUpperCase() : '';
+    return (p && PAY_CODE_REMAP[p]) ? PAY_CODE_REMAP[p] : String(l.mappedTo||l.code); }
+  function lineByCode(c){ for (var i=0;i<lines.length;i++){ if (_mapCod(lines[i])===c) return lines[i]; } return null; }
   var l515 = lineByCode('515'), l530 = lineByCode('530'), l535 = lineByCode('535'), l537 = lineByCode('537');
 
   function chk(label, expected, actual, tol){
@@ -20119,8 +20635,9 @@ function pcExportReport(compare) {
   if ((L.hvPos + L.hvPCan) > 0) rows += pr('783','Plus Horas Posicionales', pcFmt(L.hvPos + L.hvPCan)+' h', L.T.plusHoraVuelo*0.75, L.plusPos, 'var');
   if (L.plusImag > 0) rows += pr('225','Imaginarias', L.imag+' días', L.precImag, L.plusImag, 'var');
   if (L.invN > 0) {
-    var _invLblR = ({b1:'00:00-00:59', b2:'01:00-01:59', b3:'02:00+'})[L.invFranja] || '';
-    rows += pr('2043','Invasión día libre ('+_invLblR+')', L.invN+' días', L.invRate, L.plusInv, 'var');
+    PC_INV_LBL_EACH(L.invPorFranja || {}, L.invTbl || {}, function(lbl, n, rate, tot){
+      rows += pr('2043','Invasión día libre ('+lbl+')', n+' días', rate, tot, 'var');
+    });
     rows += pr('2098','Dieta nac. (invasión)', L.invN+' días', L.D.nac.sujeta, L.invDietaSuj, 'var');
     rows += pr('2102','Dieta nac. exenta (invasión)', L.invN+' días', L.D.nac.exenta, L.invDietaExe, 'var');
   }
@@ -20159,6 +20676,13 @@ function pcExportReport(compare) {
         var dTxt = (r.status==='ok') ? ('&Delta; '+pcFmt(Math.abs(r.delta))) : ((r.delta>0?'+':'&minus;')+pcFmt(Math.abs(r.delta)));
         var realTxt = (r.status==='miss') ? '—' : (pcFmt(r.real)+' &euro;');
         var col = _estCol(r.status);
+        /* Una derivada no se reclama —es el arrastre del devengado— pero tampoco
+           puede desaparecer del informe: es la mitad del dinero de la nómina. Va
+           al final, en gris y dicho lo que es. */
+        if (r.derivado){
+          return '<tr><td>'+r.code+'</td><td>'+r.label+'</td><td>'+realTxt+'</td><td>'+pcFmt(r.theo)+' &euro;</td>'
+            + '<td style="color:#64748B;font-weight:700">'+dTxt+' &euro;</td><td style="color:#64748B">Derivado</td></tr>';
+        }
         return '<tr><td>'+r.code+'</td><td>'+r.label+'</td><td>'+realTxt+'</td><td>'+pcFmt(r.theo)+' &euro;</td>'
           + '<td style="color:'+col+';font-weight:700">'+dTxt+' &euro;</td><td style="color:'+col+'">'+_estLbl(r.status)+'</td></tr>';
       }
@@ -20171,6 +20695,7 @@ function pcExportReport(compare) {
       _warn.forEach(function(x){ cmpRows += _cmpRow(x); });
       _r.missing.forEach(function(x){ cmpRows += _cmpRow(x); });
       _ok.forEach(function(x){ cmpRows += _cmpRow(x); });
+      (_r.derivadas||[]).forEach(function(x){ cmpRows += _cmpRow(x); });
       // totales
       function _cmpTot(x, cls){
         var col = (x.delta!=null && Math.abs(x.delta)>=1) ? (x.delta<0?'#B91C1C':'#059669') : '#334155';
@@ -20758,6 +21283,28 @@ function planCanExport(){      return isPro(); }
 function planCanOCR(){         return isPro(); }
 function planCanRoster(){      return isPro(); }
 function planLogbookLimit(){   return isPro() ? Infinity : PLAN_FREE_LOGBOOK_LIMIT; }
+
+// ARIA: el TEXTO del briefing lo tiene también Free (lo lee en pantalla); el
+// AUDIO no. Se pide permiso UNA vez por briefing, antes de trocear: contar cada
+// llamada a /api/tts gastaría el cupo del mes en un solo briefing.
+async function ariaAudioAllowed(){
+  var tk = lsGet('cafi_auth_token','');
+  if(!tk) return { allowed:false, message:'Inicia sesión para la voz' };
+  try{
+    var r = await fetch(lsGet('cafi_backend_url','https://api.pilotos.aero') + '/api/briefing/audio', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + tk }
+    });
+    var d = await r.json().catch(function(){ return {}; });
+    if(r.ok) return { allowed:true, used:d.used, limit:d.limit };
+    return { allowed:false, plan:d.plan, message: d.message || d.error || ('Error ' + r.status) };
+  }catch(e){
+    // Sin cobertura no se bloquea al piloto: si no hay red, /api/tts fallará
+    // igualmente y con su propio mensaje.
+    return { allowed:true, offline:true };
+  }
+}
+window.ariaAudioAllowed = ariaAudioAllowed;
 
 function ldGenId(){
   if(typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
@@ -23774,47 +24321,216 @@ function ldApplyBackup(){
   if(typeof ldBgSync==='function') ldBgSync({delay:600,force:true});
 }
 
-// ── STRIPE UPGRADE ───────────────────────────────────────────────
-async function upgCheckout(priceId) {
+// ── STRIPE UPGRADE / PLANES ──────────────────────────────────────
+// Los importes de aquí son SÓLO presentación. El precio que se cobra lo
+// resuelve Stripe a partir del price_id del par {plan, ciclo}, que vive
+// en el backend (mapa único en server.js). Nunca mandamos un importe.
+var UPG_PRICING = {
+  free: {
+    month: { now:'0€', per:'/mes', note:'Sin tarjeta · para siempre' },
+    year:  { now:'0€', per:'/mes', note:'Sin tarjeta · para siempre' }
+  },
+  pro: {
+    month: { now:'9,99€',  per:'/mes · IVA incl.', note:'facturado cada mes' },
+    year:  { now:'8,25€',  per:'/mes · IVA incl.', was:'9,99€',
+             note:'facturado 99€ al año · <b>ahorras 20,88€</b>' }
+  },
+  unlimited: {
+    month: { now:'19,99€', per:'/mes · IVA incl.', note:'facturado cada mes' },
+    year:  { now:'16,58€', per:'/mes · IVA incl.', was:'19,99€',
+             note:'facturado 199€ al año · <b>ahorras 40,88€</b>' }
+  }
+};
+var UPG_PLANS = ['free','pro','unlimited'];
+var UPG_NAME  = { free:'Free', pro:'Pro', unlimited:'Unlimited' };
+// 'beta' (tester) no es un escalón de precio: rankea como free para que las
+// tarjetas de pago le ofrezcan mejorar, pero se etiqueta aparte.
+var UPG_RANK  = { free:0, beta:0, pro:1, unlimited:2 };
+var upgCycle  = 'month';
+
+function upgSetCycle(cycle) {
+  upgCycle = (cycle === 'year') ? 'year' : 'month';
+  var m = document.getElementById('upg-cyc-month');
+  var y = document.getElementById('upg-cyc-year');
+  if (m) m.setAttribute('aria-pressed', upgCycle === 'month' ? 'true' : 'false');
+  if (y) y.setAttribute('aria-pressed', upgCycle === 'year'  ? 'true' : 'false');
+  upgUpdateCards();
+}
+
+function upgRenderPrices() {
+  UPG_PLANS.forEach(function(p) {
+    var d = UPG_PRICING[p] && UPG_PRICING[p][upgCycle];
+    if (!d) return;
+    var now  = document.getElementById('upg-now-'  + p);
+    var was  = document.getElementById('upg-was-'  + p);
+    var per  = document.getElementById('upg-per-'  + p);
+    var note = document.getElementById('upg-note-' + p);
+    if (now)  now.textContent  = d.now;
+    if (per)  per.textContent  = d.per;
+    if (note) note.innerHTML   = d.note || '';   // literal de esta tabla, sin dato de usuario
+    if (was) {
+      if (d.was) { was.textContent = d.was; was.hidden = false; }
+      else       { was.hidden = true; }
+    }
+  });
+}
+
+// Estado "Plan actual" / "Mejorar a X" / "Bajar a X" según la relación entre
+// el plan del usuario y el de cada tarjeta. El del plan actual va deshabilitado.
+function upgUpdateCards() {
+  upgRenderPrices();
+
+  var plan   = pilotPlan();
+  var cycle  = lsGet('pilotOS_cycle', 'month');   // ciclo de la suscripción viva
+  var isBeta = (plan === 'beta');
+  var paid   = (plan === 'pro' || plan === 'unlimited');
+  var cur    = (UPG_RANK[plan] != null) ? UPG_RANK[plan] : 0;
+
+  var chip = document.getElementById('upg-current-chip');
+  if (chip) {
+    if (isBeta)      { chip.textContent = 'PLAN ACTUAL · BETA (TESTER)'; chip.hidden = false; }
+    else if (paid)   { chip.textContent = 'PLAN ACTUAL · ' + UPG_NAME[plan].toUpperCase() +
+                                          ' ' + (cycle === 'year' ? 'ANUAL' : 'MENSUAL'); chip.hidden = false; }
+    else             { chip.hidden = true; }
+  }
+  var portal = document.getElementById('upg-portal-link');
+  if (portal) portal.hidden = !paid;
+
+  UPG_PLANS.forEach(function(p) {
+    var btn = document.getElementById('upg-btn-' + p);
+    if (!btn) return;
+    var r = UPG_RANK[p], txt, off = false;
+
+    if (isBeta) {
+      if (p === 'free') { txt = 'Plan Beta (tester)'; off = true; }
+      else              { txt = 'Mejorar a ' + UPG_NAME[p] + ' →'; }
+    } else if (r === cur) {
+      // mismo plan pero otro ciclo → dejar cambiar mensual ⇄ anual
+      if (paid && cycle !== upgCycle) txt = (upgCycle === 'year' ? 'Cambiar a anual' : 'Cambiar a mensual');
+      else { txt = 'Plan actual'; off = true; }
+    } else if (r > cur) {
+      txt = 'Mejorar a ' + UPG_NAME[p] + ' →';
+    } else {
+      // bajar a Free = cancelar: eso se hace en el portal de Stripe, no aquí
+      txt = (p === 'free') ? 'Gestionar o cancelar' : 'Bajar a ' + UPG_NAME[p];
+    }
+    btn.textContent = txt;
+    btn.disabled    = off;
+  });
+
+  upgSyncBilling();
+}
+
+// El ciclo vivo (mensual/anual) sólo lo sabe el servidor. Una lectura por
+// sesión al endpoint que ya existe; si difiere de lo guardado, repinta.
+var _upgBillingFetched = false;
+function upgSyncBilling() {
+  if (_upgBillingFetched) return;
   var token = lsGet('cafi_auth_token', '');
-  if (!token) { pagShow(); return; }
+  if (!token) return;
+  _upgBillingFetched = true;
+  fetch(lsGet('cafi_backend_url','https://api.pilotos.aero') + '/api/user/plan', {
+    headers: { 'Authorization': 'Bearer ' + token }
+  }).then(function(r){ return r.json(); }).then(function(d){
+    var changed = false;
+    if (d.plan && d.plan !== lsGet('pilotOS_plan','free')) { lsSet('pilotOS_plan', d.plan); changed = true; }
+    if (d.billing && d.billing.cycle && d.billing.cycle !== lsGet('pilotOS_cycle','month')) {
+      lsSet('pilotOS_cycle', d.billing.cycle); changed = true;
+    }
+    if (changed) upgUpdateCards();
+  }).catch(function(){});
+}
 
-  var btn = priceId.includes('SE4Y')
-    ? document.getElementById('upg-btn-pro')
-    : document.getElementById('upg-btn-unlimited');
+// Comparativa completa: se pliega con el atributo hidden, no con style.display
+function upgToggleCompare() {
+  var btn  = document.getElementById('upg-cmp-btn');
+  var wrap = document.getElementById('upg-cmp-wrap');
+  var lab  = document.getElementById('upg-cmp-label');
+  if (!btn || !wrap) return;
+  var open = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+  wrap.hidden = open;
+  if (lab) lab.textContent = open ? 'Ver comparativa completa' : 'Ocultar comparativa';
+}
+
+function upgPlanAction(plan) {
+  if (!lsGet('cafi_auth_token', '')) { pagShow(); return; }
+  var cur = pilotPlan();
+  if (plan === 'free') return upgPortal();                       // cancelar → portal
+  if (cur === 'pro' || cur === 'unlimited') return upgChangePlan(plan);
+  return upgStartCheckout(plan);
+}
+
+// Alta nueva: Checkout Session de Stripe
+async function upgStartCheckout(plan) {
+  var btn  = document.getElementById('upg-btn-' + plan);
   if (btn) { btn.disabled = true; btn.textContent = 'Redirigiendo…'; }
-
   try {
     var backendUrl = lsGet('cafi_backend_url','https://api.pilotos.aero');
-    var res = await fetch(backendUrl + '/api/stripe/checkout', {
+    var res = await fetch(backendUrl + '/api/billing/checkout', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ priceId: priceId })
+      headers: { 'Content-Type': 'application/json',
+                 'Authorization': 'Bearer ' + lsGet('cafi_auth_token','') },
+      body: JSON.stringify({ plan: plan, cycle: upgCycle })
     });
     var data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Error al crear sesión');
+    if (!res.ok) throw new Error(data.error || data.message || 'Error al crear la sesión de pago');
     window.location.href = data.url;
   } catch(e) {
     showToast('Error: ' + e.message, 'error');
-    if (btn) { btn.disabled = false; btn.textContent = btn.id.includes('pro') ? 'Actualizar a Pro →' : 'Actualizar a Unlimited →'; }
+    upgUpdateCards();
   }
 }
 
-function upgUpdateCards() {
-  var plan = pilotPlan();
-  var freeActive = document.getElementById('upg-free-active');
-  var btnPro = document.getElementById('upg-btn-pro');
-  var btnUnl = document.getElementById('upg-btn-unlimited');
-  if (freeActive) freeActive.style.display = plan === 'free' ? 'block' : 'none';
-  if (btnPro) {
-    if (plan === 'pro') { btnPro.textContent = 'Plan actual'; btnPro.disabled = true; btnPro.style.opacity = '.5'; }
-    else if (plan === 'unlimited') { btnPro.textContent = 'Bajar a Pro'; btnPro.disabled = false; btnPro.style.opacity = '.6'; }
-    else { btnPro.textContent = 'Actualizar a Pro →'; btnPro.disabled = false; btnPro.style.opacity = '1'; }
+// Ya suscrito: se cambia el price_id del item existente (prorrateo). Nunca se
+// cancela y se vuelve a crear — se perdería el historial de la suscripción.
+async function upgChangePlan(plan) {
+  var ciclo = (upgCycle === 'year' ? 'anual' : 'mensual');
+  if (!confirm('¿Cambiar a ' + UPG_NAME[plan] + ' ' + ciclo + '?\n\n' +
+               'Stripe ajustará el importe a prorrata sobre lo que ya has pagado.')) return;
+  var btn = document.getElementById('upg-btn-' + plan);
+  if (btn) { btn.disabled = true; btn.textContent = 'Cambiando…'; }
+  try {
+    var backendUrl = lsGet('cafi_backend_url','https://api.pilotos.aero');
+    var res = await fetch(backendUrl + '/api/billing/change-plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json',
+                 'Authorization': 'Bearer ' + lsGet('cafi_auth_token','') },
+      body: JSON.stringify({ plan: plan, cycle: upgCycle })
+    });
+    var data = await res.json();
+    if (!res.ok) throw new Error(data.error || data.message || 'No se pudo cambiar el plan');
+    lsSet('pilotOS_plan',  data.plan  || plan);
+    lsSet('pilotOS_cycle', data.cycle || upgCycle);
+    showToast('✓ Plan cambiado a ' + UPG_NAME[data.plan || plan] + ' ' + ciclo, 'success');
+    if (typeof sbUpdatePlanBadge === 'function') sbUpdatePlanBadge();
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
   }
-  if (btnUnl) {
-    if (plan === 'unlimited') { btnUnl.textContent = 'Plan actual'; btnUnl.disabled = true; btnUnl.style.opacity = '.5'; }
-    else { btnUnl.textContent = 'Actualizar a Unlimited →'; btnUnl.disabled = false; btnUnl.style.opacity = '1'; }
+  upgUpdateCards();
+}
+
+// Portal de cliente de Stripe: cancelación, tarjeta y facturas. No montamos
+// esas pantallas nosotros.
+async function upgPortal() {
+  if (!lsGet('cafi_auth_token', '')) { pagShow(); return; }
+  try {
+    var backendUrl = lsGet('cafi_backend_url','https://api.pilotos.aero');
+    var res = await fetch(backendUrl + '/api/billing/portal', {
+      headers: { 'Authorization': 'Bearer ' + lsGet('cafi_auth_token','') }
+    });
+    var data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'No se pudo abrir el portal de suscripción');
+    window.location.href = data.url;
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
   }
+}
+
+// Compat: alguna build vieja cacheada puede seguir llamando upgCheckout(priceId).
+function upgCheckout(priceId) {
+  var plan = (priceId && priceId.indexOf('SE4Y') !== -1) ? 'pro' : 'unlimited';
+  return upgPlanAction(plan);
 }
 
 // Detectar retorno de Stripe Checkout
@@ -23823,6 +24539,7 @@ function upgUpdateCards() {
   if (params.get('checkout') === 'success') {
     var plan = params.get('plan') || 'pro';
     lsSet('pilotOS_plan',plan);
+    if (params.get('cycle')) lsSet('pilotOS_cycle', params.get('cycle'));
     showToast('✅ Plan ' + plan.charAt(0).toUpperCase() + plan.slice(1) + ' activado. ¡Bienvenido!', 'success');
     // Limpiar parámetros de la URL
     window.history.replaceState({}, '', window.location.pathname);
@@ -23835,6 +24552,9 @@ function upgUpdateCards() {
           headers: { 'Authorization': 'Bearer ' + token }
         }).then(function(r){ return r.json(); }).then(function(d){
           if (d.plan) { lsSet('pilotOS_plan',d.plan); }
+          // el ciclo manda la tarjeta: sin él, "Cambiar a anual" saldría mal
+          if (d.billing && d.billing.cycle) lsSet('pilotOS_cycle', d.billing.cycle);
+          if (typeof upgUpdateCards === 'function') upgUpdateCards();
         }).catch(function(){});
       }
     }, 2000);
@@ -27366,6 +28086,7 @@ document.addEventListener('focusin',function(e){
 <script src="js/qbank-ag.js"></script>
 <script src="js/qbank-afgen.js"></script>
 <script src="js/roster-changes.js"></script>
+  <script src="js/dia-libre.js"></script>
 <script src="js/expense-engine.js"></script>
 <script src="js/expense.js"></script>
 <script>
@@ -35747,7 +36468,11 @@ function mountBrefProfile(host, leg, compact, onOpen) {
   function genField() { const gf = mkBuf("field"); const x0 = xMin(), x1 = xMax(), y0 = yMin(), y1 = yMax(); if (overlay === "TEMP" || overlay === "WIND") { const fn = overlay === "TEMP" ? (fl, x) => tcol(temp(fl, x, tHour)) : (fl, x) => rampCol(WSCALE, windSpd(fl, x, tHour)); for (let px = x0; px < x1; px += 3) { const x = (px - x0) / (x1 - x0); const grd = gf.createLinearGradient(0, y0, 0, y1); for (let s = 0; s <= 10; s++) { const fl = (1 - s / 10) * FLMAX; grd.addColorStop(s / 10, fn(fl, x)); } gf.fillStyle = grd; gf.fillRect(px, y0, 3.5, y1 - y0); } } else if (overlay === "TURB") { const b = gf.createLinearGradient(0, y0, 0, y1); b.addColorStop(0, "#0c1a30"); b.addColorStop(1, "#0a1426"); gf.fillStyle = b; gf.fillRect(x0, y0, x1 - x0, y1 - y0); for (let px = x0; px < x1; px += 4) { const x = (px - x0) / (x1 - x0); for (let py = y0; py < y1; py += 4) { const fl = (1 - (py - y0) / (y1 - y0)) * FLMAX; const e = edr(fl, x, tHour); if (e > 0.05) { gf.globalAlpha = clamp(0.3 + e * 1.4, 0, 0.95); gf.fillStyle = rampCol(ESCALE, e); gf.fillRect(px, py, 5, 5); } } } gf.globalAlpha = 1; } else { const b = gf.createLinearGradient(0, y0, 0, y1); b.addColorStop(0, "#0d1c35"); b.addColorStop(1, "#0a1426"); gf.fillStyle = b; gf.fillRect(x0, y0, x1 - x0, y1 - y0); for (let px = x0; px < x1; px += 4) { const x = (px - x0) / (x1 - x0); for (let py = y0; py < y1; py += 4) { const fl = (1 - (py - y0) / (y1 - y0)) * FLMAX; const c = cloud(fl, x); if (c > 0.26) { gf.fillStyle = "rgba(220,228,242," + (ss(c, 0.24, 0.85) * 0.5).toFixed(3) + ")"; gf.fillRect(px, py, 5, 5); } } } } }
   function rebuild() { dpr = Math.min(3, window.devicePixelRatio || 1); const rect = cv.getBoundingClientRect(); W = Math.max(1, Math.round(rect.width)) || 320; H = Math.max(1, Math.round(rect.height)) || 300; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.imageSmoothingEnabled = false; const x0 = xMin(), x1 = xMax(), y0 = yMin(), y1 = yMax(); genField(); const gi = mkBuf("ice"); for (let px = x0; px < x1; px += 6) { const x = (px - x0) / (x1 - x0); for (let py = y0; py < y1; py += 6) { const fl = (1 - (py - y0) / (y1 - y0)) * FLMAX; if (icing(fl, x) > 0.4) { gi.strokeStyle = "rgba(95,205,240,.65)"; gi.lineWidth = 1; gi.beginPath(); gi.moveTo(px, py + 6); gi.lineTo(px + 6, py); gi.stroke(); } } } const LEV = [24, 16, 8, 0, -8, -16, -24, -32, -40, -48, -56]; const iso = LEV.map(v => { const pts = []; for (let px = x0; px <= x1; px += 4) { const x = (px - x0) / (x1 - x0); const tmax = temp(0, x, tHour), tmin = temp(FLMAX, x, tHour); if (v > tmax || v < tmin) { pts.push(null); continue; } let lo = 0, hi = FLMAX; for (let i = 0; i < 20; i++) { const m = (lo + hi) / 2; if (temp(m, x, tHour) > v) lo = m; else hi = m; } pts.push({ px: px, py: Y((lo + hi) / 2) }); } return { v: v, pts: pts }; }); const jet = []; let jb = -1, jp = null; for (let px = x0; px <= x1; px += 4) { const x = (px - x0) / (x1 - x0); let bb = -1, bf = CRZ; for (let fl = 240; fl <= FLMAX; fl += 8) { const s = windSpd(fl, x, tHour); if (s > bb) { bb = s; bf = fl; } } jet.push({ px: px, py: Y(bf) }); if (bb > jb) { jb = bb; jp = { px: px, py: Y(bf) }; } } const iso0 = [], tropo = [], prof = [], terr = []; for (let px = x0; px <= x1; px += 4) { const x = (px - x0) / (x1 - x0); iso0.push({ px: px, py: Y(freezeFL(x, tHour)) }); tropo.push({ px: px, py: Y(tropoFL(x)) }); prof.push({ px: px, py: Y(profFL(x)) }); terr.push({ px: px, py: Y(terrFL(x)) }); } const barbs = []; for (let px = x0 + 34; px < x1; px += 66) { const x = (px - x0) / (x1 - x0); for (let fl = 40; fl <= FLMAX - 10; fl += 40) barbs.push({ px: px, py: Y(fl), spd: windSpd(fl, x, tHour), dir: windDir(fl, x) }); } GEO = { iso: iso, jet: jet, jb: jb, jp: jp, iso0: iso0, tropo: tropo, prof: prof, terr: terr, barbs: barbs, clouds: genClouds(), zones: genZones() }; dirty = false; }
   function poly(g, pts) { let st = false; for (let i = 0; i < pts.length; i++) { const p = pts[i]; if (!p) { st = false; continue; } if (!st) { g.moveTo(p.px, p.py); st = true; } else g.lineTo(p.px, p.py); } }
-  function frame() { raf = requestAnimationFrame(frame); if (cv.clientWidth && Math.abs(cv.clientWidth - W) > 1) dirty = true; if (playing) { playAcc++; if (playAcc >= 5) { playAcc = 0; tHour = (tHour + 1) % 37; setTime(tHour, true); } } let animating = playing; REFS.forEach(r => { const k = r[0]; if (Math.abs(refState[k] - lR[k]) > 0.001) animating = true; lR[k] += (refState[k] - lR[k]) * 0.2; if (Math.abs(refState[k] - lR[k]) < 0.004) lR[k] = refState[k]; }); if (overlayFade < 1) { overlayFade = Math.min(1, overlayFade + 0.09); animating = true; } if (profP < 1) { profP = Math.min(1, profP + 0.022); animating = true; } if (!dirty && !needDraw && !animating) return; needDraw = false; if (compact) { dirty = false; drawMini(); return; } if (dirty) rebuild(); const x0 = xMin(), x1 = xMax(), y0 = yMin(), y1 = yMax(); ctx.clearRect(0, 0, W, H); const sky = ctx.createLinearGradient(0, y0, 0, y1); sky.addColorStop(0, "#0c1830"); sky.addColorStop(1, "#0a1426"); ctx.fillStyle = sky; ctx.fillRect(x0, y0, x1 - x0, y1 - y0); ctx.globalAlpha = overlayFade; ctx.drawImage(buf.field, 0, 0, buf.field.width, buf.field.height, 0, 0, W, H); ctx.globalAlpha = 1;
+  /* ⚠️ `cv.clientWidth` AQUÍ era un reflow SÍNCRONO de la página entera, 60 veces
+     por segundo y para siempre. Con 115 backdrop-filter en la página, recalcular
+     el layout es carísimo — y no lo pagaba la meteo: lo pagaba la app entera. El
+     tamaño lo avisa un ResizeObserver, que es para lo que está. */
+  function frame() { raf = requestAnimationFrame(frame); if (playing) { playAcc++; if (playAcc >= 5) { playAcc = 0; tHour = (tHour + 1) % 37; setTime(tHour, true); } } let animating = playing; REFS.forEach(r => { const k = r[0]; if (Math.abs(refState[k] - lR[k]) > 0.001) animating = true; lR[k] += (refState[k] - lR[k]) * 0.2; if (Math.abs(refState[k] - lR[k]) < 0.004) lR[k] = refState[k]; }); if (overlayFade < 1) { overlayFade = Math.min(1, overlayFade + 0.09); animating = true; } if (profP < 1) { profP = Math.min(1, profP + 0.022); animating = true; } if (!dirty && !needDraw && !animating) return; needDraw = false; if (compact) { dirty = false; drawMini(); return; } if (dirty) rebuild(); const x0 = xMin(), x1 = xMax(), y0 = yMin(), y1 = yMax(); ctx.clearRect(0, 0, W, H); const sky = ctx.createLinearGradient(0, y0, 0, y1); sky.addColorStop(0, "#0c1830"); sky.addColorStop(1, "#0a1426"); ctx.fillStyle = sky; ctx.fillRect(x0, y0, x1 - x0, y1 - y0); ctx.globalAlpha = overlayFade; ctx.drawImage(buf.field, 0, 0, buf.field.width, buf.field.height, 0, 0, W, H); ctx.globalAlpha = 1;
     if (overlay === "TEMP") { GEO.iso.forEach(o => { ctx.save(); ctx.globalAlpha = overlayFade * (o.v === 0 ? 0.8 : 0.42); ctx.strokeStyle = o.v === 0 ? "rgba(255,255,255,.8)" : "rgba(8,14,26,.6)"; ctx.lineWidth = o.v === 0 ? 1.3 : 1; ctx.beginPath(); poly(ctx, o.pts); ctx.stroke(); ctx.restore(); let lp = null; for (let i = 0; i < o.pts.length; i++) { if (o.pts[i] && o.pts[i].px >= X(0.17)) { lp = o.pts[i]; break; } } if (lp) { ctx.save(); ctx.globalAlpha = overlayFade * 0.9; ctx.font = "700 9.5px " + MONO; ctx.fillStyle = "rgba(10,16,28,.78)"; ctx.fillRect(lp.px - 9, lp.py - 7, 18, 11); ctx.fillStyle = o.v === 0 ? "#fff" : "rgba(235,242,255,.9)"; ctx.textAlign = "center"; ctx.fillText((o.v > 0 ? "+" : "") + o.v, lp.px, lp.py + 2); ctx.textAlign = "left"; ctx.restore(); } }); }
     if (overlay === "NUBES") { ctx.globalAlpha = overlayFade; GEO.clouds.forEach(o => drawCloud(ctx, o, 1.15)); ctx.globalAlpha = 1; }
     if (overlay === "TURB") { GEO.zones.forEach(z => drawZone(ctx, z, overlayFade)); }
@@ -35804,8 +36529,47 @@ function mountBrefProfile(host, leg, compact, onOpen) {
     for (let i = 0; i < kids.length; i++) { const el = kids[i]; const bp = el.getAttribute && el.getAttribute("data-bp"); const keep = (i === 0) || (i === 1) || bp === "haz"; if (!keep) el.style.display = "none"; }
     const b = document.createElement("button"); b.textContent = "VER PERFIL COMPLETO →"; b.style.cssText = "width:100%;font-family:" + MONO + ";font-size:10px;font-weight:700;letter-spacing:1px;color:" + P.cyan + ";background:rgba(126,251,254,0.10);border:1px solid rgba(126,251,254,0.4);border-radius:10px;padding:9px;cursor:pointer;margin-top:10px"; b.onclick = function () { if (typeof onOpen === "function") onOpen(); }; wrap.appendChild(b);
   }
-  updateSrc(); setTime(tHour); rebuild(); if (compact) compactify(); else applyOrient(); raf = requestAnimationFrame(frame); loadWX();
-  return function cleanup() { try { cancelAnimationFrame(raf); } catch (e) {} window.removeEventListener("resize", onResize); window.removeEventListener("orientationchange", onResize); };
+  updateSrc(); setTime(tHour); rebuild(); if (compact) compactify(); else applyOrient(); loadWX();
+
+  /* ── Un bucle que no se ve no corre ──────────────────────────────────────
+     Este rAF se arrancaba al cargar y NO paraba nunca: 60 frames por segundo
+     desde el arranque de la app, con el canvas en otra pantalla y sin nada que
+     animar. Se medía en la pestaña de Gastos —a tres pantallas de aquí— y era
+     el 44 % del tiempo de abrir la hoja de «Nueva nota». Una pantalla lenta
+     puede ser culpa de otra.
+     Ahora el bucle vive mientras el canvas esté EN PANTALLA y la app en
+     primer plano; al salir se cancela y al volver se reanuda. */
+  var _ro = null, _io = null, _visible = false;
+  function _corre(){ return _visible && !document.hidden; }
+  /* `raf` arranca en 0, no en null, y requestAnimationFrame nunca devuelve 0:
+     con `raf == null` el bucle no habría arrancado NUNCA y la meteo se quedaba
+     en negro. Se compara por veracidad, que es lo que vale para los dos. */
+  function _arranca(){ if (!raf && _corre()) raf = requestAnimationFrame(frame); }
+  function _para(){ if (raf) { try { cancelAnimationFrame(raf); } catch(e){} raf = 0; } }
+  function _revisa(){ if (_corre()) { needDraw = true; _arranca(); } else _para(); }
+
+  /* PARAR el bucle no es lo mismo que no dibujar NUNCA: el primer dibujo hay que
+     darlo siempre. Sin esto, un canvas que nace bajo el pliegue —el resumen de
+     la home lo es— se quedaba en blanco hasta que el piloto bajase, y el mini ni
+     llegaba a dimensionarse (seguía en el 300×150 por defecto). Un frame al
+     montar, y a partir de ahí sí: solo mientras se vea. */
+  needDraw = true; frame(); _para();
+
+  try {
+    _io = new IntersectionObserver(function(es){
+      _visible = es.some(function(e){ return e.isIntersecting; }); _revisa();
+    }, { rootMargin: '300px' });   // arranca justo antes de entrar, no al aparecer
+    _io.observe(cv);
+  } catch(e){ _visible = true; _arranca(); }      // sin soporte, como antes
+  try {
+    _ro = new ResizeObserver(function(){
+      if (cv.clientWidth && Math.abs(cv.clientWidth - W) > 1){ dirty = true; needDraw = true; _arranca(); }
+    });
+    _ro.observe(cv);
+  } catch(e){}
+  document.addEventListener('visibilitychange', _revisa);
+
+  return function cleanup() { _para(); try { _io && _io.disconnect(); } catch (e) {} try { _ro && _ro.disconnect(); } catch (e) {} document.removeEventListener('visibilitychange', _revisa); window.removeEventListener("resize", onResize); window.removeEventListener("orientationchange", onResize); };
 }
 function MapProfile(_refBP) {
   const leg = _refBP.leg, compact = _refBP.compact, onOpen = _refBP.onOpen;
@@ -37177,6 +37941,176 @@ function _rstReconcileSched(){
   }catch(e){}
 }
 try{ window._rstReconcileSched=_rstReconcileSched; }catch(e){}
+/* Cuando el piloto edita un día A MANO, lo que escribe ES la nueva hora
+   programada: el bloqueo de arriba existe para que una ESTIMADA de eCrews no pise
+   la scheduled, no para discutirle al piloto lo que acaba de teclear.
+
+   Sin esto, editar no cambiaba nada a ojos del detector de cambios: la entrada
+   conserva su `std_scheduled` viejo (rosterSaveLegEdit muta la entrada, no la
+   recrea) y el mapa devuelve la hora antigua aunque el número de vuelo cambie.
+   El piloto movía un vuelo dos horas y el chip se quedaba igual, sin un error.
+
+   Se borra la marca del día en los dos sitios —el mapa y las entradas— y el
+   siguiente rstSave la vuelve a fijar con lo que hay escrito ahora. */
+function rstOlvidaSchedDia(dateStr){
+  if(!dateStr) return;
+  try{
+    var K='pilotOS_roster_sched_v2', map={};
+    try{ map=JSON.parse(localStorage.getItem(K)||'{}')||{}; }catch(e){}
+    Object.keys(map).forEach(function(k){ if(k.indexOf(dateStr+'|')===0) delete map[k]; });
+    try{ localStorage.setItem(K, JSON.stringify(map)); }catch(e){}
+  }catch(e){}
+  (RST.entries||[]).forEach(function(e){
+    if(e && e.date===dateStr && e.type==='flight'){ delete e.std_scheduled; delete e.sta_scheduled; }
+  });
+}
+try{ window.rstOlvidaSchedDia=rstOlvidaSchedDia; }catch(e){}
+
+/* ── El candado de una edición a mano NO es para siempre ──────────────────────
+   El mapa de horas programadas existe para que una ESTIMADA de eCrews no pise la
+   scheduled. Cuando el piloto edita a mano, lo tecleado se guarda ahí como si
+   fuera la programada —para que el detector de cambios lo vea— pero eso deja un
+   candado que la compañía ya no puede levantar: se pulsa «actualizar», llegan las
+   horas buenas, y la ficha del día sigue enseñando las de la edición. El piloto lo
+   reporta como «no me ha bajado la última versión», y encima la duración sí se
+   recalcula: dos datos que se contradicen en la misma tarjeta.
+
+   Así que la marca de mano se ANOTA (`man:true`) y una importación de eCrews la
+   levanta: lo que manda la compañía es la programación de verdad. Un candado
+   nacido de una importación genuina sigue intacto, que es para lo que está. */
+var _RST_SCHED_K = 'pilotOS_roster_sched_v2';
+function _rstSchedMapa(){ try{ return JSON.parse(localStorage.getItem(_RST_SCHED_K)||'{}')||{}; }catch(e){ return {}; } }
+function _rstSchedGuarda(m){ try{ localStorage.setItem(_RST_SCHED_K, JSON.stringify(m||{})); }catch(e){} }
+function _rstSchedKey(e){ return (e.date||'')+'|'+(e.flightNum||e.flight||'')+'|'+(e.dep||'')+'|'+(e.arr||''); }
+
+/* Tras guardar una edición: las claves de ese día quedan marcadas como manuales.
+   Va DESPUÉS de rstSave(), que es quien las acaba de escribir con lo tecleado. */
+function rstMarcaSchedManual(dateStr){
+  if(!dateStr) return;
+  var m = _rstSchedMapa(), toca = false;
+  Object.keys(m).forEach(function(k){
+    if(k.indexOf(dateStr+'|')===0 && m[k] && !m[k].man){ m[k].man = true; toca = true; }
+  });
+  if(toca) _rstSchedGuarda(m);
+}
+try{ window.rstMarcaSchedManual=rstMarcaSchedManual; }catch(e){}
+
+/* Qué hace una importación de eCrews con el candado de un vuelo. Dos casos, y los
+   dos son «lo que trae la compañía manda»:
+
+   1. Candado MANUAL → se levanta siempre. Lo puso el piloto editando; la
+      compañía puede pisarlo.
+   2. Candado GENUINO y eCrews trae una S NUEVA → se actualiza. El candado existe
+      para que una ESTIMADA no pise la programada, no para ignorar una
+      REPROGRAMACIÓN: si la compañía vuelve a publicar el vuelo con otra hora
+      programada, ésa es la programada. Con el candado viejo la ficha del día
+      enseñaba la hora antigua con su 🔒 y la duración calculada con la nueva —dos
+      datos que se contradicen— y el piloto lo reporta como «no la actualiza
+      siendo S».
+
+   Si eCrews solo trae una estimada (`e.std` vacío), no se toca nada: eso es
+   exactamente para lo que se hizo el mapa v2. Y la programación INICIAL del mes,
+   que es la que compara el Art. 12.9, no vive aquí sino en la copia v0 sellada:
+   actualizar este candado no la mueve. */
+var _rstSchedLevantados = 0;
+try{ window.rstSchedLevantados = function(){ return _rstSchedLevantados; };
+     window.rstSchedLevantadosReset = function(){ _rstSchedLevantados = 0; }; }catch(e){}
+function rstLevantaSchedManual(e, ex){
+  try{
+    var m = _rstSchedMapa(), k = _rstSchedKey(e), cur = m[k];
+    if(cur && cur.man){
+      delete m[k]; _rstSchedGuarda(m);
+      if(ex){ delete ex.std_scheduled; delete ex.sta_scheduled; }
+      _rstSchedLevantados++;
+      return true;
+    }
+    // Reprogramación: la compañía publica otra hora programada para el mismo vuelo.
+    if(cur && e && e.std && cur.std !== e.std){
+      m[k] = { std: e.std }; if(e.sta) m[k].sta = e.sta;
+      _rstSchedGuarda(m);
+      if(ex){ delete ex.std_scheduled; delete ex.sta_scheduled; }
+      return true;
+    }
+  }catch(err){}
+  return false;
+}
+try{ window.rstLevantaSchedManual=rstLevantaSchedManual; }catch(e){}
+
+/* ── La FIRMA sigue a lo que teclea el piloto ─────────────────────────────────
+   Los editores del roster tocan el vuelo y NO la firma: no hay casilla para
+   ella. Con eso, adelantar un sector una hora dejaba el check-in donde estaba, y
+   como el inicio de la jornada es la primera hora del día —la firma— el detector
+   veía dIni = 0 y no contaba nada. El piloto adelantaba una hora, cambiaba el
+   número de vuelo, y el chip seguía a cero: exactamente el fallo mudo que este
+   proyecto persigue.
+
+   Peor todavía cuando el nuevo despegue cae ANTES de la firma vieja: la firma es
+   el ancla de la ventana, así que ese despegue se coloca 24 h más tarde y salía
+   «el fin se retrasa 17h30» donde había una hora de adelanto.
+
+   Regla: la firma conserva su antelación sobre el PRIMER despegue del día. Si el
+   primer despegue se mueve, la firma se mueve con él. Y el editor del modal, que
+   borra los vuelos del día y los vuelve a crear, no puede llevarse la firma por
+   delante: se restaura antes de desplazarla. */
+function _rstHm(v){ try{ return RstCambios.hm(v); }catch(e){ return null; } }
+function _rstHhmm(m){
+  m = ((Math.round(m) % 1440) + 1440) % 1440;
+  return String(Math.floor(m/60)).padStart(2,'0') + ':' + String(m%60).padStart(2,'0');
+}
+function _rstDiaEntradas(dateStr){
+  return (RST.entries||[]).filter(function(e){ return e && e.date === dateStr; });
+}
+function _rstPrimerStd(dateStr){
+  var m = null;
+  _rstDiaEntradas(dateStr).forEach(function(e){
+    if (e.type !== 'flight') return;
+    var t = _rstHm(e.std_scheduled) ; if (t == null) t = _rstHm(e.std);
+    if (t != null && (m == null || t < m)) m = t;
+  });
+  return m;
+}
+function _rstPrimeraFirma(dateStr){
+  var m = null;
+  _rstDiaEntradas(dateStr).forEach(function(e){
+    var t = _rstHm(e.checkin); if (t == null) t = _rstHm(e.report);
+    if (t != null && (m == null || t < m)) m = t;
+  });
+  return m;
+}
+/* Foto del día ANTES de tocarlo. Se pasa tal cual a rstReanclaFirma. */
+function rstFirmaAntes(dateStr){
+  return { firma: _rstPrimeraFirma(dateStr), std: _rstPrimerStd(dateStr) };
+}
+function rstReanclaFirma(dateStr, antes){
+  if (!dateStr || !antes || antes.firma == null) return;   // sin firma no hay nada que mover
+  var legs = _rstDiaEntradas(dateStr).filter(function(e){ return e.type === 'flight'; });
+  if (!legs.length) return;
+  var stdAhora = _rstPrimerStd(dateStr);
+
+  // 1. Restaurar: el editor del modal recrea los vuelos y la firma se pierde.
+  if (_rstPrimeraFirma(dateStr) == null){
+    var primera = legs[0];
+    legs.forEach(function(e){
+      var t = _rstHm(e.std_scheduled); if (t == null) t = _rstHm(e.std);
+      var p = _rstHm(primera.std_scheduled); if (p == null) p = _rstHm(primera.std);
+      if (t != null && (p == null || t < p)) primera = e;
+    });
+    primera.checkin = _rstHhmm(antes.firma);
+  }
+
+  // 2. Desplazar lo mismo que se haya movido el primer despegue.
+  if (antes.std == null || stdAhora == null) return;
+  var delta = stdAhora - antes.std;
+  if (delta > 720)  delta -= 1440;          // el reloj dio la vuelta, no son 20 h
+  if (delta < -720) delta += 1440;
+  if (!delta) return;
+  _rstDiaEntradas(dateStr).forEach(function(e){
+    if (!e) return;
+    if (_rstHm(e.checkin) != null) e.checkin = _rstHhmm(_rstHm(e.checkin) + delta);
+    if (_rstHm(e.report)  != null) e.report  = _rstHhmm(_rstHm(e.report)  + delta);
+  });
+}
+try{ window.rstFirmaAntes=rstFirmaAntes; window.rstReanclaFirma=rstReanclaFirma; }catch(e){}
 // Línea de horas de un vuelo del roster: SCHEDULED bloqueada 🔒 + (si difiere) la ESTIMADA E
 // debajo, en ámbar. Devuelve el HTML interno del meta (nº de vuelo + horas).
 function _rstTimesLine(f){
@@ -37488,6 +38422,30 @@ function rstRenderCalendar(){
       + '<path fill="'+col+'" d="M453.24,554.29c-.69-2.63-1.4-5.34-2.12-8.19-.62-2.46-1.25-4.88-1.87-7.27-4.59-17.69-8.54-32.95-8.54-55.72,0-26.86,3.53-52.78,6.94-77.85l1.18-8.73c2.47-18.41,4.42-32.96,4.42-42.27v-31.32c0-10.42-3.34-20.31-9.66-28.59l-2.75-3.6,3.21-3.21c8.13-8.15,12.8-20.91,12.8-35.01,0-19.96-9.88-42.19-31.59-43.8l-3.8-.28-1.26-4.51c-.69-2.25-1.48-4.49-2.33-6.66l-.43-1.15c-.88-2.16-1.97-4.53-3.28-7.11-.31-.6-.64-1.21-.97-1.79l-.35-.63c-.85-1.57-1.72-3.09-2.64-4.57-.56-.9-1.13-1.8-1.73-2.69-.91-1.37-1.86-2.71-2.84-4.03l-.41-.55c-.5-.67-1-1.35-1.53-2.01-1.17-1.47-2.41-2.91-3.62-4.25l-.51-.59c-.42-.48-.83-.95-1.27-1.42-1.64-1.73-3.4-3.47-5.24-5.14-.61-.56-1.26-1.11-1.9-1.65l-.65-.56c-1.17-.99-2.35-1.97-3.56-2.91-.96-.74-1.95-1.47-3-2.22-1.18-.84-2.39-1.66-3.86-2.61-.96-.63-1.91-1.24-2.88-1.82-1.4-.84-2.83-1.61-4.22-2.36l-.7-.38c-.84-.46-1.65-.9-2.46-1.29-2.21-1.08-4.27-2-6.31-2.83l-6.37-2.58,4.33-6.13c1.24-1.68,2.42-3.56,3.69-5.87l.54-1c.91-1.79,1.79-3.87,2.55-6.07l.44-1.32c.7-2.17,1.24-4.43,1.65-6.82l.12-.83c.4-2.69.59-5.12.59-7.47,0-8.07-1.88-15.39-5.58-21.74-1.44-2.49-3.17-4.82-5.13-6.92-1.91-2.05-4.06-3.92-6.41-5.56-7.78-5.44-17.56-8.31-28.27-8.31-13.29,0-25.12,4.4-33.31,12.4-4.65,4.54-8.02,10.06-10.03,16.43-1.35,4.27-2.03,8.88-2.03,13.7,0,2.37.19,4.79.61,7.61l.15,1.03c.35,2.05.92,4.33,1.65,6.64l.44,1.33c.73,2.09,1.61,4.14,2.67,6.2l.5.91c1.2,2.21,2.39,4.07,3.87,6.05l4.1,5.5-6.28,2.75c-2.2.89-4.31,1.83-6.47,2.88-.81.4-1.61.82-2.4,1.26l-.7.38c-1.46.78-2.89,1.55-4.31,2.4-.93.56-1.84,1.15-3.07,1.95-1.26.81-2.47,1.64-3.7,2.51-.99.71-1.98,1.44-2.94,2.18-1.22.94-2.4,1.93-3.56,2.91l-.66.56c-.65.55-1.29,1.09-1.9,1.65-1.88,1.72-3.63,3.43-5.26,5.16-.42.44-.82.91-1.23,1.37l-.41.47c-1.32,1.47-2.56,2.91-3.76,4.42-.54.68-1.06,1.39-1.9,2.51-.98,1.33-1.94,2.68-2.84,4.02-.6.9-1.18,1.8-1.76,2.74-.9,1.47-1.76,2.97-2.61,4.52l-.38.69c-.33.59-.65,1.18-.98,1.82-1.32,2.6-2.4,4.97-3.39,7.43l-.2.56c-.91,2.33-1.71,4.61-2.43,6.91l-1.26,4.47-3.79.28c-7.13.53-13.36,3.35-18.5,8.37-8.19,8-13.08,21.24-13.08,35.43,0,14.1,4.67,26.86,12.8,35.01l3.21,3.21-2.75,3.6c-6.32,8.28-9.67,18.17-9.67,28.59v31.32c0,9.3,1.95,23.85,4.42,42.28l1.18,8.7c3.42,25.07,6.95,50.99,6.95,77.87,0,22.79-3.96,38.05-8.54,55.71-.62,2.39-1.25,4.81-1.87,7.28-.7,2.8-1.41,5.47-2.09,8.07-3.7,14.11-6.87,26.21-6.87,42.29,0,24.38,8.34,44.03,24.77,58.4,22.17,19.38,59.06,22.66,109.63,22.66,53,0,90.91-4.23,112.68-25.48,14.41-14.07,21.72-32.77,21.73-55.58,0-16.08-3.17-28.17-6.85-42.17ZM255.77,200.96c.36-.76.71-1.49,1.06-2.18l1.13-2.08c.66-1.21,1.33-2.39,2.06-3.56.42-.69.87-1.38,1.36-2.12.69-1.04,1.43-2.07,2.21-3.12l.34-.47c.46-.62.78-1.05,1.11-1.47.94-1.18,1.9-2.29,2.93-3.43l1.16-1.32c1.55-1.66,2.79-2.85,4.22-4.15.3-.28.64-.56,1.11-.96l.89-.75c.89-.76,1.8-1.52,2.76-2.27.76-.59,1.53-1.15,2.3-1.7.92-.66,1.87-1.3,3.19-2.16.82-.54,1.44-.94,2.08-1.32,1-.6,2.03-1.16,3.24-1.8l1.14-.61c.55-.29.94-.51,1.38-.72,1.57-.77,3.18-1.5,4.8-2.16l1.48-.57c3.68-1.29,6.81-3.24,9.48-5.83h0c4.74-4.63,7.47-11.02,7.47-17.53,0-5.47-1.65-10.45-4.89-14.8l-.55-.65c-.39-.43-.86-1.02-1.39-1.71-.7-.95-1.34-1.97-2.06-3.29l-.21-.36c-.68-1.31-1.16-2.48-1.53-3.51l-.29-.86c-.43-1.33-.74-2.57-.94-3.73l-.12-.83c-.23-1.56-.35-2.99-.35-4.29,0-2.66.35-5.14,1.06-7.37,2.67-8.45,11.07-13.65,22.28-13.65,6.08,0,11.42,1.49,15.46,4.31,1.07.75,2.05,1.6,2.91,2.53.85.91,1.61,1.94,2.26,3.05,1.8,3.08,2.71,6.83,2.71,11.13,0,1.3-.12,2.72-.38,4.47l-.03.24c-.25,1.49-.56,2.77-.94,3.97l-.28.84c-.4,1.15-.83,2.2-1.33,3.22l-.5.92c-.71,1.3-1.36,2.32-2.11,3.33-.45.6-.89,1.15-1.62,1.97l-.57.72c-2.94,3.96-4.57,8.99-4.57,14.38,0,10.42,6.67,19.76,16.59,23.24l1.7.65c1.76.71,3.37,1.44,4.98,2.24.46.22.91.47,1.51.8l.91.49c1.1.59,2.22,1.18,3.3,1.83.61.36,1.21.75,2.14,1.36,1.25.81,2.21,1.46,3.1,2.1.79.56,1.56,1.13,2.34,1.73.94.73,1.86,1.5,2.77,2.27l.94.79c.35.29.7.59,1.08.94,1.39,1.26,2.75,2.59,3.88,3.79l1.52,1.72c.96,1.07,1.92,2.18,2.85,3.35.27.34.56.73.93,1.22l.55.75c.76,1.03,1.51,2.07,2.21,3.12.46.69.91,1.39,1.36,2.11.71,1.15,1.38,2.32,2.02,3.51l.97,1.78c.48.93.87,1.72,1.23,2.5l3.51,7.45h-146.81l3.47-7.44ZM223,232.61c2.09-2.04,4.21-2.47,5.62-2.47h194.13c2.7,0,6.53,1.48,9.44,8.55,1.68,4.07,2.63,9.11,2.63,13.83,0,8.02-2.65,16.2-6.45,19.91-2.09,2.04-4.21,2.47-5.61,2.47h-194.13c-8.24,0-12.07-13.36-12.07-22.38,0-8.02,2.65-16.21,6.45-19.92ZM422.22,638.33c-16.93,16.52-47.6,17.68-96.54,17.68-38.82,0-66.4,1.59-84.32-8.6-18.87-10.73-28.04-27.4-28.04-50.95,0-13.54,2.71-23.81,6.14-36.81l.18-.7c.65-2.46,1.32-5.02,2-7.69l1.75-6.82c4.57-17.69,9.3-35.95,9.3-61.33,0-28.24-3.79-56.11-7.14-80.71l-1.17-8.65c-2.18-16.24-4.24-31.57-4.24-39.5v-31.32c0-7.08,2.81-13.72,7.92-18.71,5.02-4.9,11.67-7.6,18.72-7.6h157.79c7.12,0,13.82,2.75,18.86,7.74,5.02,4.97,7.78,11.57,7.78,18.57v31.32c0,7.87-1.96,22.48-4.22,39.39l-1.17,8.63c-3.36,24.67-7.16,52.57-7.16,80.83,0,25.39,4.72,43.65,9.29,61.31l1.75,6.82c.75,2.95,1.48,5.73,2.19,8.4,3.43,13.02,6.14,23.28,6.14,36.81,0,17.78-5.18,31.48-15.83,41.88ZM266.05,357.54h43.25c5.5,0,9.97-4.35,9.97-9.73s-4.46-9.73-9.97-9.73h-43.25c-5.5,0-9.97,4.36-9.97,9.73s4.46,9.73,9.97,9.73ZM266.05,419.43h43.25c5.5,0,9.97-4.36,9.97-9.73s-4.46-9.73-9.97-9.73h-43.25c-5.5,0-9.97,4.35-9.97,9.73s4.46,9.73,9.97,9.73ZM324.4,461.87h-58.36c-5.5,0-9.97,4.35-9.97,9.73s4.46,9.73,9.97,9.73h58.36c5.5,0,9.97-4.35,9.97-9.73s-4.46-9.73-9.97-9.73ZM309.3,523.75h-43.25c-5.5,0-9.97,4.35-9.97,9.73s4.46,9.73,9.97,9.73h43.25c5.5,0,9.97-4.35,9.97-9.73s-4.46-9.73-9.97-9.73ZM309.3,585.64h-43.25c-5.5,0-9.97,4.35-9.97,9.73s4.46,9.73,9.97,9.73h43.25c5.5,0,9.97-4.36,9.97-9.73s-4.46-9.73-9.97-9.73Z"/>'
       + '</svg>';
   };
+
+  /* QUE ICONO LE TOCA A UNA ACTIVIDAD — un solo sitio.
+     La cascada vivia suelta dentro del bucle que pinta el calendario, asi que
+     cualquier otra pantalla que quisiera el mismo icono tenia que copiarla, y una
+     copia se queda vieja en cuanto se anade un codigo. El orden IMPORTA: los
+     codigos concretos (REU, VAC, LM...) mandan sobre el tipo, porque eCrews da
+     VAC como type off y REU como training. */
+  function rstIconoActividad(type, code, tx, bg, emo){
+    var c = String(code || '').toUpperCase();
+    return (c==='DS') ? _DSCHG_ICON('#FFFFFF')
+         : (c==='ELAT') ? _BOTTLE_ICON(tx)
+         : (c==='REU' || c==='MTG' || c==='REUT') ? _MEET_ICON(tx, bg)
+         : (c==='FOS' || c==='ART' || c==='TRT') ? _GRAD_ICON(tx)
+         : (c==='OFIT') ? _OFFICE_ICON(tx)
+         : (c==='VAC' || c==='RVAC' || c==='PVAC' || type==='vacation') ? _VAC_ICON('#FFFFFF')
+         : (c==='TR' || c==='LMAF' || c.slice(0,2)==='LM') ? _LEARN_ICON(tx)
+         : (type==='off' || type==='srof') ? _REST_ICON(tx)
+         : (type==='standby') ? _STBY_ICON(tx)
+         : (type==='sick')    ? _SICK_ICON(tx)
+         : (type==='ebt' || type==='eva' || type==='training') ? _SIM_ICON(tx)
+         : (emo || '');
+  }
+  try { window.rstIconoActividad = rstIconoActividad; } catch(e){}
+
   var cells = '';
   // Pre-load logbook entries once outside loop (performance fix)
   var _lbEntries = [];
@@ -37629,20 +38587,9 @@ function rstRenderCalendar(){
         // Use e.code when available (shows SPAR, ART, REU, NROF… instead of generic type)
         var typeLabels = {standby:'STBY',osb:'OSB',off:'OFF',vacation:'VAC',f:'F',ef:'EF',srof:'SROF',noff:'NOFF',aoff:'AOFF',nrof:'NROF',meof:'MEOF',ebt:'SIM',eva:'SIM',lm:'LM',training:'TR',sick:'SICK',other:'?'};
         var _emo = _csb ? (_csb.emoji || '') : '';
-        // Icono por tipo: OFF/SROF → taza; STANDBY → reloj; SICK → cruz; resto → emoji de código si lo hay.
+        // Icono por tipo/codigo: una sola cascada, compartida con el selector del editor.
         var _codeU = String(e.code||'').toUpperCase();
-        var _icon = (_codeU==='DS') ? _DSCHG_ICON('#FFFFFF')   // día sin cambios → calendario+check blanco
-                  : (_codeU==='ELAT') ? _BOTTLE_ICON(tc2.tx)   // días de lactancia → biberón
-                  : (_codeU==='REU' || _codeU==='MTG' || _codeU==='REUT') ? _MEET_ICON(tc2.tx, tc2.bg)   // reunión (REUT = reunión training; antes que training)
-                  : (_codeU==='FOS' || _codeU==='ART' || _codeU==='TRT') ? _GRAD_ICON(tc2.tx)  // gorro recurrente (antes que training)
-                  : (_codeU==='OFIT') ? _OFFICE_ICON(tc2.tx)                          // oficina (antes que training)
-                  : (_codeU==='VAC' || _codeU==='RVAC' || _codeU==='PVAC' || e.type==='vacation') ? _VAC_ICON('#FFFFFF')  // sombrilla BLANCA (antes que off: eCrews da VAC como type off)
-                  : (_codeU==='TR' || _codeU==='LMAF' || _codeU.slice(0,2)==='LM') ? _LEARN_ICON(tc2.tx)  // formación en tierra / e-learning → libro (NO gamepad; antes que training)
-                  : (e.type==='off' || e.type==='srof') ? _REST_ICON(tc2.tx)
-                  : (e.type==='standby') ? _STBY_ICON(tc2.tx)
-                  : (e.type==='sick')    ? _SICK_ICON(tc2.tx)
-                  : (e.type==='ebt' || e.type==='eva' || e.type==='training') ? _SIM_ICON(tc2.tx)
-                  : _emo;
+        var _icon = rstIconoActividad(e.type, _codeU, tc2.tx, tc2.bg, _emo);
         // Hora de inicio para ordenar la tira (checkin → std → start). null si no hay.
         var _ns = _barMin(e.checkin); if(_ns===null) _ns = _barMin(e.std); if(_ns===null) _ns = _barMin(e.start); if(_ns===null) _ns = 9999;
         barItems.push({ bg:tc2.bg, tx:tc2.tx, lbl: _icon + (e.code || typeLabels[e.type] || e.type), sortMin:_ns, rest: _RST_REST_T.indexOf(e.type) > -1 });
@@ -39205,7 +40152,15 @@ function rstToIata(code) {
 // Logbook tiene callsign operacional (VY06JB) — son campos distintos.
 // Jerarquía: 1) fecha + ruta + STD   2) fecha + ruta (solo si es único)
 function rstFindLogbookMatch(rosterEntry) {
-  if (!window.ldEntries || !ldEntries.length) return null;
+  /* El logbook se carga aquí si hace falta. Antes se daba por hecho que alguna
+     pantalla ya lo había cargado —la ficha del día lo hace—, pero a esta función
+     la llama ahora también el detector de invasión de día libre, que corre al
+     entrar en el roster y puede hacerlo sin que nadie haya abierto el logbook.
+     Sin esto devolvía null siempre, sin un solo error. */
+  if (!ldEntries || !ldEntries.length) {
+    try { ldEntries = JSON.parse(localStorage.getItem('pilotOS_logbook_v1') || '[]') || []; } catch(ex) {}
+  }
+  if (!ldEntries || !ldEntries.length) return null;
   var rDate = rosterEntry.date;
   // Normalizar a IATA para que BCN==BCN y LEBL==BCN funcionen igual
   var rDep  = rstToIata(rosterEntry.dep);
@@ -39238,6 +40193,12 @@ function rstFindLogbookMatch(rosterEntry) {
   // No asignamos nada — mejor no mostrar que mostrar datos erróneos.
   return null;
 }
+
+/* Se exporta porque lo usa el detector de invasión de día libre (Art. 13.23), que
+   vive fuera de este closure. Reutilizar ESTE emparejador y no escribir otro es
+   deliberado: aquí ya está la normalización IATA↔ICAO, el desempate por STD de dos
+   vuelos con la misma ruta el mismo día, y el «ante la duda, no asignar nada». */
+try{ window.rstFindLogbookMatch = rstFindLogbookMatch; }catch(e){}
 
 // ── ¿Esta entrada del roster es TRABAJO? ─────────────────────────────────────
 // El "Próximo servicio", su cuenta atrás y el DESCANSO miraban sólo type==='flight'.
@@ -40751,8 +41712,25 @@ function rosterRenderActivitiesList(dateStr, entries){
 }
 
 // ── Remove a specific leg by RST.entries index ──
+/* Nombra el tramo con el MISMO numero que el rotulo del editor y la lista: el
+   aviso tiene que hablar del tramo que el piloto esta viendo, no del hueco que
+   ocupa en el array. */
+function _rstNombraTramo(entry){
+  if(!entry) return '';
+  var dia = RST.entries.filter(function(e){ return e.date===entry.date && e.type==='flight'; });
+  var ord = (window.rstOrdenaTramos || function(a){ return a; })(dia);
+  var i = ord.indexOf(entry);
+  var cab = (dia.length > 1 && i >= 0) ? ('LEG ' + (i+1) + ' · ') : '';
+  var ruta = (entry.dep || '?') + '→' + (entry.arr || '?');
+  var hrs  = (entry.std || entry.std_actual || '--:--') + '–' + (entry.sta || entry.sta_actual || '--:--');
+  return cab + (entry.flight || 'Vuelo') + ' · ' + ruta + '  ' + hrs;
+}
+
 window.rosterRemoveLegByIdx = function(idx){
   if(idx < 0 || idx >= RST.entries.length) return;
+  /* Borrar un tramo no se deshace: se va del roster y arrastra el duty, las
+     nocturnas y las dietas del dia. Un aspa de 24px se pulsa sin querer. */
+  if(!confirm('¿Eliminar este vuelo del roster?\n\n' + _rstNombraTramo(RST.entries[idx]))) return;
   var dateStr = RST.entries[idx].date;
   RST.entries.splice(idx, 1);
   rstSave(); rstRenderCalendar(); rstRenderStats(); rstRenderFlights();
@@ -40776,8 +41754,15 @@ window.rosterEditLeg = function(dateStr, idx){
   sheet.id = 'rst-leg-edit-sheet';
   sheet.style.cssText = 'padding:14px;margin-bottom:14px';
 
-  var flights = entriesForDate(dateStr).filter(function(e){ return e.type==='flight'; });
-  var legNum = flights.indexOf(entry) + 1;
+  /* El mismo orden que la lista de abajo. Sin rstOrdenaTramos se numeraba por el
+     orden CRUDO del array —el que trae el roster— y el rotulo cantaba "Leg 1"
+     mientras se editaba el segundo tramo del dia. Numerar dos veces por caminos
+     distintos es pedir que se separen: una sola forma de ordenar la jornada. */
+  var flights = (window.rstOrdenaTramos || function(a){ return a; })(
+    entriesForDate(dateStr).filter(function(e){ return e.type==='flight'; })
+  );
+  var _legIdx = flights.indexOf(entry);
+  var legNum = (_legIdx >= 0 ? _legIdx : 0) + 1;
 
   sheet.innerHTML =
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
@@ -40798,9 +41783,15 @@ window.rosterEditLeg = function(dateStr, idx){
     + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
     + '<div><label style="font-size:10px;color:rgba(251,191,36,.7);font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">STD (UTC)</label>'
-    + '<input id="rle-std" type="time" class="fi" value="'+(entry.std||'')+'" style="font-size:13px;padding:9px 10px;font-family:\'Space Mono\',monospace"></div>'
-    + '<div><label style="font-size:10px;color:rgba(251,191,36,.7);font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">STA (UTC)</label>'
-    + '<input id="rle-sta" type="time" class="fi" value="'+(entry.sta||'')+'" style="font-size:13px;padding:9px 10px;font-family:\'Space Mono\',monospace"></div>'
+    + '<input id="rle-std" type="time" class="fi" value="'+(entry.std||'')+'" oninput="rleAvisaPlus1()" style="font-size:13px;padding:9px 10px;font-family:\'Space Mono\',monospace"></div>'
+    + '<div><label style="font-size:10px;color:rgba(251,191,36,.7);font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">STA (UTC)'
+    /* El aviso de que la llegada es del día siguiente. Un <input type="time"> solo
+       admite una hora, así que el «+1» se DEDUCE de que la llegada sea anterior a
+       la salida —que es lo que ya hace el resto de la app— pero mientras editabas
+       no te lo decía nadie: escribías 00:40, la app lo entendía, y no había forma
+       de saberlo hasta guardar. Se enseña en vivo. */
+    + ' <span id="rle-plus1" style="display:none;background:#0369A1;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:6px;letter-spacing:0">+1 DÍA SIG.</span></label>'
+    + '<input id="rle-sta" type="time" class="fi" value="'+(entry.sta||'')+'" oninput="rleAvisaPlus1()" style="font-size:13px;padding:9px 10px;font-family:\'Space Mono\',monospace"></div>'
     + '</div>'
     + '<div style="margin-bottom:12px"><label style="font-size:10px;color:rgba(251,191,36,.7);font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Tipo Aeronave</label>'
     + '<select id="rle-actype" class="fi" style="font-size:13px;padding:9px 10px;width:100%"><option value="">\u2014 Sin especificar \u2014</option>'
@@ -40811,6 +41802,20 @@ window.rosterEditLeg = function(dateStr, idx){
   // Insert at top of scroll area
   scrollArea.insertBefore(sheet, scrollArea.firstChild);
   sheet.scrollIntoView({behavior:'smooth', block:'nearest'});
+  rleAvisaPlus1();
+};
+
+/* Una llegada anterior a la salida solo puede ser del día siguiente. Es el mismo
+   criterio que usan el detalle del día, el cálculo de jornada y los dos motores
+   del convenio; aquí únicamente se hace VISIBLE mientras se teclea. */
+window.rleAvisaPlus1 = function(){
+  try{
+    var b = document.getElementById('rle-plus1'); if(!b) return;
+    var t = function(v){ var m=/^(\d{1,2}):(\d{2})$/.exec(String(v||'')); return m? (+m[1])*60+(+m[2]) : null; };
+    var std = t((document.getElementById('rle-std')||{}).value);
+    var sta = t((document.getElementById('rle-sta')||{}).value);
+    b.style.display = (std != null && sta != null && sta < std) ? 'inline-block' : 'none';
+  }catch(e){}
 };
 
 // ── Save edited leg ──
@@ -40818,6 +41823,7 @@ window.rosterSaveLegEdit = function(idx, dateStr){
   try {
     var entry = RST.entries[idx];
     if(!entry) return;
+    var _firmaAntes = rstFirmaAntes(dateStr);   // la firma sigue al primer despegue
     var fn  = (document.getElementById('rle-fn') ||{}).value||'';
     var dep = (document.getElementById('rle-dep')||{}).value||'';
     var arr = (document.getElementById('rle-arr')||{}).value||'';
@@ -40827,10 +41833,38 @@ window.rosterSaveLegEdit = function(idx, dateStr){
     entry.flightNum = fn.trim().toUpperCase()||null;
     entry.dep = dep.trim().toUpperCase()||null;
     entry.arr = arr.trim().toUpperCase()||null;
+    /* La hora tecleada manda también sobre la REAL. El Art. 13.23 mide la
+       actividad «en ejecución», así que lee `sta_actual` antes que `sta`: si el
+       piloto mueve el aterrizaje y el actual de eCrews se queda, el detector
+       sigue viendo la hora vieja y la simulación no simula nada. Es el mismo
+       caso que `std_scheduled` con el Art. 12.9, y se resuelve igual —lo que
+       acaba de teclear no se le discute—, pero SOLO si de verdad la ha cambiado:
+       editar el nº de vuelo no puede tirar la hora real de un día ya volado. */
+    if ((std||null) !== (entry.std||null)){ delete entry.std_actual; delete entry.std_estimated; }
+    if ((sta||null) !== (entry.sta||null)){ delete entry.sta_actual; delete entry.sta_estimated; }
     entry.std = std||null;
     entry.sta = sta||null;
+    /* El cruce de medianoche se DEJA ESCRITO. Media app lo deducía de `sta < std`
+       y la otra media leía el flag que solo ponía el import de eCrews, así que un
+       día editado a mano se entendía en unos sitios y en otros no. */
+    var _tm = function(v){ var m=/^(\d{1,2}):(\d{2})$/.exec(String(v||'')); return m? (+m[1])*60+(+m[2]) : null; };
+    var _s0 = _tm(entry.std), _s1 = _tm(entry.sta);
+    if (_s0 != null && _s1 != null && _s1 < _s0) entry.crossesMidnight = true;
+    else delete entry.crossesMidnight;
     entry.acType = acTypeVal||null;
-    rstSave(); rstRenderCalendar(); rstRenderStats(); rstRenderFlights();
+    /* Lo escrito a mano manda sobre la scheduled bloqueada (ver rstOlvidaSchedDia),
+       y se fija AQUÍ, en la propia entrada, además de dejar que el reconcile la
+       vuelva a construir. Si no, la ficha del día puede quedarse enseñando una
+       hora programada vieja junto a una duración calculada con la nueva —dos datos
+       que se contradicen en la misma tarjeta— en cuanto algo se interponga entre
+       la edición y el guardado. */
+    rstOlvidaSchedDia(dateStr);
+    if (entry.std) entry.std_scheduled = entry.std;
+    if (entry.sta) entry.sta_scheduled = entry.sta;
+    // En su propio try: mover la firma no puede impedir que se guarde el vuelo.
+    try { rstReanclaFirma(dateStr, _firmaAntes); } catch(fe){}
+    rstSave();
+    rstMarcaSchedManual(dateStr);   // lo tecleado es tuyo, pero eCrews podrá pisarlo rstRenderCalendar(); rstRenderStats(); rstRenderFlights();
     var sheet = document.getElementById('rst-leg-edit-sheet');
     if(sheet) sheet.remove();
     rosterRenderActivitiesList(dateStr, entriesForDate(dateStr));
@@ -40841,6 +41875,15 @@ window.rosterSaveLegEdit = function(idx, dateStr){
 
 // ── Remove one activity type from a day ──
 window.rosterRemoveActivity = function(dateStr, type){
+  /* Con type=='flight' esto no borra UNA actividad: borra TODOS los vuelos del
+     dia. Decir cuantos son, porque el aspa esta al lado de las demas y no lo
+     parece. */
+  var _afect = RST.entries.filter(function(e){ return e.date===dateStr && e.type===type; });
+  var _tc = (window.RST_TC || {})[type] || {};
+  var _que = (type === 'flight')
+    ? (_afect.length > 1 ? ('los ' + _afect.length + ' vuelos del día') : 'el vuelo del día')
+    : ('la actividad ' + String(_tc.lbl || type).replace(/[^A-Za-zÀ-ÿ]/g, '').toUpperCase());
+  if(!confirm('¿Eliminar ' + _que + '?')) return;
   if(type === 'flight'){
     RST.entries = RST.entries.filter(function(e){ return !(e.date===dateStr && e.type==='flight'); });
   } else {
@@ -40861,7 +41904,79 @@ window.rosterRemoveActivity = function(dateStr, type){
   rosterSelectDay(dateStr);
 };
 
+/* ── SELECTOR DE TIPO DE DÍA ───────────────────────────────────────────────
+   Un <select> nativo no puede pintar un color arbitrario por opción (y en iOS
+   el picker ignora hasta el color del texto), así que los tipos se rotulaban
+   con cuadraditos emoji elegidos a ojo. Varios mentían respecto al roster:
+   Franco salía verde cuando en el calendario es CORAL —la diferencia es
+   deliberada, un franco es activable la víspera—, STBY amarillo cuando es azul
+   marino, SICK rojo cuando es naranja.
+   Ahora el color sale de RST_TC y el icono de rstIconoActividad: las MISMAS
+   dos fuentes que pintan el calendario, así que no pueden separarse.
+   El <select> sigue ahí y sigue siendo quien guarda el valor —lo leen las cinco
+   funciones del editor— sólo que tapado. Si esto fallara, se queda visible y el
+   editor no se queda sin forma de elegir tipo. */
+function _rstTipoChipHtml(valor, rotulo){
+  var TC = window.RST_TC || {};
+  var tc = TC[valor] || TC.other || { bg:'#bdc3c7', bd:'#a8b2b8', tx:'#555' };
+  var ico = '';
+  try { if(window.rstIconoActividad) ico = window.rstIconoActividad(valor, '', tc.tx, tc.bg, '') || ''; } catch(e){ ico = ''; }
+  var txt = String(rotulo || '').replace(/[<>&]/g, '');
+  return '<span class="rst-tipo-chip" style="background:'+tc.bg+';border:1px solid '+tc.bd+';color:'+tc.tx+'">'
+       + ico + '<span>' + txt + '</span></span>';
+}
+window.rstTipoDiaPinta = function(){
+  var sel   = document.getElementById('rst-edit-type');
+  var wrap  = document.getElementById('rst-tipo');
+  var lista = document.getElementById('rst-tipo-lista');
+  var val   = document.getElementById('rst-tipo-val');
+  if(!sel || !wrap || !lista || !val || !window.RST_TC) return;   // sin paleta, select nativo
+  var pinta = function(destino, op){
+    destino.innerHTML = _rstTipoChipHtml(op.value, op.getAttribute('data-chip'));
+    var t = document.createElement('span'); t.textContent = op.textContent; destino.appendChild(t);
+  };
+  lista.innerHTML = '';
+  Array.prototype.forEach.call(sel.options, function(op){
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'rst-tipo-op'; b.setAttribute('role', 'option');
+    b.setAttribute('aria-selected', String(op.value === sel.value));
+    pinta(b, op);
+    b.onclick = function(){ window.rstTipoDiaElige(op.value); };
+    lista.appendChild(b);
+  });
+  var act = sel.options[sel.selectedIndex] || sel.options[0];
+  if(act) pinta(val, act);
+  sel.style.display = 'none'; wrap.style.display = '';
+};
+window.rstTipoDiaToggle = function(abrir){
+  var l = document.getElementById('rst-tipo-lista'), b = document.getElementById('rst-tipo-btn');
+  if(!l || !b) return;
+  var ab = (typeof abrir === 'boolean') ? abrir : l.hidden;
+  l.hidden = !ab; b.setAttribute('aria-expanded', String(ab));
+  if(ab){
+    var s = l.querySelector('[aria-selected="true"]');
+    if(s && s.scrollIntoView){ try { s.scrollIntoView({block:'nearest'}); } catch(e){} }
+  }
+};
+window.rstTipoDiaElige = function(v){
+  var sel = document.getElementById('rst-edit-type'); if(!sel) return;
+  sel.value = v;
+  window.rstTipoDiaToggle(false);
+  /* El change es lo que dispara rosterToggleFlightFields (formulario de vuelo vs
+     de actividad). Se repinta ademas a mano por si aun no hay listener. */
+  try { sel.dispatchEvent(new Event('change')); } catch(e){}
+  try { window.rstTipoDiaPinta(); } catch(e){}
+};
+try {
+  document.addEventListener('click', function(ev){
+    var w = document.getElementById('rst-tipo');
+    if(!w || w.style.display === 'none') return;
+    if(!w.contains(ev.target)) window.rstTipoDiaToggle(false);
+  }, true);
+} catch(e){}
+
 function rosterToggleFlightFields(){
+  try { window.rstTipoDiaPinta(); } catch(e){}   // cualquier via que cambie el tipo pasa por aqui
   try {
     var sel = document.getElementById('rst-edit-type');
     var t = sel ? sel.value : 'off';
@@ -40890,18 +42005,20 @@ function rosterBuildNonFlightBox(t, existing){
   if(noTimeTypes[t]) return;
   var container = document.getElementById('rst-legs-container');
   if(!container || !container.parentNode) return;
-  var labelMap = {
-    standby:'🟡 STBY — Imaginaria',
-    osb:'🔵 OSB — Out of Standby',
-    training:'🎓 SIM — Simulador',
-    sick:'🔴 SICK — Baja médica',
-    lm:'🟫 LM — eLearning'
-  };
+  /* El rotulo sale del <select> + el chip de RST_TC: la MISMA fuente que el
+     selector de arriba. Aqui vivia un tercer mapa de emoji con los mismos
+     errores de color (SICK rojo cuando es naranja, STBY amarillo cuando es azul
+     marino) — tres copias de una paleta son tres oportunidades de que mientan. */
+  var _op = null;
+  try { _op = document.querySelector('#rst-edit-type option[value="' + t + '"]'); } catch(e){}
+  var _rot = _op ? _op.textContent : t;
+  var _chip = (typeof _rstTipoChipHtml === 'function' && _op)
+    ? _rstTipoChipHtml(t, _op.getAttribute('data-chip')) : '';
   var box = document.createElement('div');
   box.id = 'rst-non-flight-times';
   box.style.cssText = 'background:#FFFFFF;border:1px solid rgba(30,58,164,.12);border-radius:14px;padding:14px;box-shadow:0 1px 3px rgba(30,58,164,.05);margin-bottom:12px';
   box.innerHTML =
-    '<div style="font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">'+(labelMap[t]||t)+'</div>'
+    '<div style="font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">'+_chip+'<span style="vertical-align:middle;margin-left:7px">'+_rot+'</span></div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
     +'<div><label style="font-size:10px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Inicio (UTC)</label>'
     +'<input type="time" id="rst-nf-start" class="fi" style="font-size:13px;padding:9px 10px;font-family:\'Space Mono\',monospace"></div>'
@@ -41087,10 +42204,26 @@ window.rosterSaveEdit = function(){
     var dateEl = document.getElementById('rst-edit-date');
     var dateStr = dateEl ? dateEl.value : '';
     if(!dateStr){ if(typeof showToast==='function') showToast('Selecciona una fecha'); return; }
+    var _firmaAntes = rstFirmaAntes(dateStr);   // este editor recrea los vuelos: la firma se restaura y se desplaza
 
     if(type === 'flight'){
       var rows = document.querySelectorAll('#rst-legs-container .rst-leg-row');
       var saved = 0;
+      /* Antes de tocar nada: si no hay ni una fila con datos, no se guarda —y
+         sobre todo NO se borra—. El borrado de los vuelos del día iba ANTES de
+         esta comprobación, así que pulsar «+ Añadir» con la fila en blanco (que es
+         como aparece el formulario) dejaba el día SIN vuelos y salía por el
+         `return` de abajo con un aviso que sonaba inofensivo. Destructivo y mudo. */
+      var hayAlgo = false;
+      rows.forEach(function(row){
+        try{
+          var _fn = (row.querySelector('.rst-leg-fn')||{}).value||'';
+          var _dp = (row.querySelector('.rst-leg-dep')||{}).value||'';
+          var _ar = (row.querySelector('.rst-leg-arr')||{}).value||'';
+          if(_fn.trim() || _dp.trim() || _ar.trim()) hayAlgo = true;
+        }catch(re){}
+      });
+      if(!hayAlgo){ if(typeof showToast==='function') showToast('Añade al menos un vuelo'); return; }
       // Remove existing flights for this day before adding new ones to prevent duplicates
       RST.entries = RST.entries.filter(function(e){ return !(e.date===dateStr && e.type==='flight'); });
       rows.forEach(function(row){
@@ -41112,6 +42245,9 @@ window.rosterSaveEdit = function(){
         } catch(re){}
       });
       if(!saved){ if(typeof showToast==='function') showToast('Añade al menos un vuelo'); return; }
+      // Igual que en la edición de un leg suelto: lo tecleado es la nueva programada.
+      rstOlvidaSchedDia(dateStr);
+      rstReanclaFirma(dateStr, _firmaAntes);
       // Clear leg container for next add
       var container = document.getElementById('rst-legs-container');
       if(container){ container.innerHTML=''; }
@@ -41142,6 +42278,7 @@ window.rosterSaveEdit = function(){
     }
 
     rstSave();
+    rstMarcaSchedManual(dateStr);   // igual que en el editor de un leg suelto
     rstRenderCalendar();
     rstRenderStats();
     rstRenderFlights();
@@ -42237,15 +43374,15 @@ window.rstShowOptionsMenu = function(){
     items.push({
       icon:'🧪',
       iconBg:'rgba(124,58,237,.5)', iconBgDay:'rgba(109,40,217,.18)',
-      label:'Autotest · Art. 12.9',
-      sub:'Los bordes del convenio · no toca tu roster',
+      label:'Autotest de los detectores',
+      sub:'Cambios de programación e invasión OFF',
       action:'rcambAutotest()'
     });
     items.push({
       icon:'🔬',
       iconBg:'rgba(124,58,237,.34)', iconBgDay:'rgba(109,40,217,.12)',
       label: (typeof RCAMB!=='undefined' && RCAMB.sim) ? 'Salir del modo prueba' : 'Modo prueba',
-      sub:  (typeof RCAMB!=='undefined' && RCAMB.sim) ? 'Restaura el mes como estaba' : 'Edita el mes y mira qué detecta',
+      sub:  (typeof RCAMB!=='undefined' && RCAMB.sim) ? 'Restaura el mes como estaba' : 'Edita el mes: cambios y día libre',
       action:(typeof RCAMB!=='undefined' && RCAMB.sim) ? 'rcambSalirPrueba()' : 'rcambModoPrueba()'
     });
   }
@@ -43313,13 +44450,25 @@ function _ecApplyMonthReplace(parsedMonth, month){
 function _ecShowChangeSummary(month, diff){
   var n = diff.added.length + diff.removed.length + diff.changed.length;
   var mlabel = (typeof _ecMonthLabel==='function') ? _ecMonthLabel(month) : month;
-  if(n===0){ if(typeof showToast==='function') showToast('✓ '+mlabel+' ya estaba al día','success'); return; }
+  /* El diff compara lo que trae eCrews con lo guardado, y mira la hora VIGENTE
+     (A → E → S). Pero una sincronización puede cambiar lo que se VE sin que eCrews
+     haya cambiado nada: cuando deshace una hora que el piloto había editado a mano.
+     Si eso no se dice, la pantalla cambia sola y nadie explica por qué — el fallo
+     mudo de siempre, esta vez al revés. */
+  var _rest = 0; try{ _rest = (window.rstSchedLevantados && window.rstSchedLevantados()) || 0; }catch(e){}
+  var _restTxt = _rest ? (_rest===1 ? ' · se ha restaurado 1 hora que habías editado'
+                                    : ' · se han restaurado '+_rest+' horas que habías editado') : '';
+  if(n===0){
+    if(typeof showToast==='function')
+      showToast('✓ '+mlabel+(_rest ? ' sin cambios de la compañía'+_restTxt : ' ya estaba al día'),'success');
+    return;
+  }
   var ov=document.createElement('div');
   ov.setAttribute('data-ecsum','1');
   ov.style.cssText='position:fixed;inset:0;z-index:560;background:rgba(3,8,18,.88);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);display:flex;align-items:center;justify-content:center;padding:20px';
   var card=document.createElement('div');
   card.style.cssText='width:100%;max-width:440px;max-height:80vh;overflow-y:auto;background:linear-gradient(180deg,#0A1628,#060E1C);border:1.5px solid rgba(8,145,178,.4);border-radius:22px;padding:22px 20px';
-  var h='<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="font-size:22px">🔄</div><div><div style="font-family:\'Space Grotesk\',sans-serif;font-size:16px;font-weight:800;color:#F0FFFE">'+mlabel+' actualizado</div><div style="font-family:\'Space Mono\',monospace;font-size:11px;color:#22d3ee">'+n+' cambio'+(n===1?'':'s')+'</div></div></div>';
+  var h='<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="font-size:22px">🔄</div><div><div style="font-family:\'Space Grotesk\',sans-serif;font-size:16px;font-weight:800;color:#F0FFFE">'+mlabel+' actualizado</div><div style="font-family:\'Space Mono\',monospace;font-size:11px;color:#22d3ee">'+n+' cambio'+(n===1?'':'s')+rcambEsc(_restTxt)+'</div></div></div>';
   function row(icon,col,lbl,detail){ return '<div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid rgba(255,255,255,.06)"><span style="font-size:13px">'+icon+'</span><span style="font-family:\'Space Mono\',monospace;font-size:10px;color:'+col+';font-weight:700;min-width:74px">'+lbl+'</span><span style="font-family:\'Space Mono\',monospace;font-size:12px;color:#F0FFFE">'+detail+'</span></div>'; }
   diff.added.forEach(function(e){ h+=row('✈️','#4ADE80','NUEVO','día '+_ecDiffDay(e)+' · '+_ecDiffLabel(e)); });
   diff.changed.forEach(function(c){ h+='<div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid rgba(255,255,255,.06)"><span style="font-size:13px">🕐</span><span style="font-family:\'Space Mono\',monospace;font-size:10px;color:#FCD34D;font-weight:700;min-width:74px">CAMBIO</span><span style="font-family:\'Space Mono\',monospace;font-size:12px;display:flex;align-items:center;gap:7px;flex-wrap:wrap"><span style="color:#F0FFFE">día '+_ecDiffDay(c.n)+' · '+_ecDiffLabel(c.n)+'</span><span style="color:#94a3b8;text-decoration:line-through;opacity:.75">'+_ecDiffTime(c.o)+'</span><span style="color:#4ADE80;font-weight:800;font-size:14px">→</span><span style="color:#4ADE80;font-weight:700">'+_ecDiffTime(c.n)+'</span></span></div>'; });
@@ -44554,6 +45703,8 @@ function _ecHandleData(payload){
 window.ldECrewsConfirm = function(){
   rstLoad();
   var imported = 0, skipped = 0, updated = 0;
+  // Cuántas horas tuyas ha restaurado esta importación (ver el resumen de cambios).
+  try{ if(window.rstSchedLevantadosReset) window.rstSchedLevantadosReset(); }catch(e){}
 
   // ── Reimportar: aplicar cambios SIN borrar nada (seguridad ante pérdida de datos) ──
   // El re-sync directo (ecResyncMonth) hace su propio flujo y marca _ecSuppressImportToast.
@@ -44592,6 +45743,11 @@ window.ldECrewsConfirm = function(){
       if(e.type === 'flight') return r.flightNum === e.flightNum && r.dep === e.dep && r.arr === e.arr;
       return r.code === e.code;
     });
+
+    /* Lo que trae la compañía manda sobre una edición a mano: se levanta el
+       candado manual de este vuelo antes de mezclar, o la ficha del día se queda
+       con la hora que tecleó el piloto por mucho que se pulse «actualizar». */
+    if(e.type === 'flight') rstLevantaSchedManual(e, existingIdx >= 0 ? RST.entries[existingIdx] : null);
 
     if(existingIdx >= 0){
       // Ya existe → SOBRESCRIBE los campos de eCrews cuando difieren (aplica modificaciones) y
@@ -46235,14 +47391,28 @@ async function rcambFetch(ruta, opts){
 async function rcambCargar(mes){
   mes = mes || rcambMesVista();
   if (RCAMB.cargando) return RCAMB.data;
+  if (!ldAuthHeaders()){ RCAMB.data = null; rcambPinta(); return null; }   // sin sesión no hay nada que enseñar
   RCAMB.cargando = true;
   try{
-    /* En modo prueba se pregunta por el mes EDITADO, que no está en el servidor.
-       Si no, al volver a la pantalla el chip enseñaría lo guardado y la
-       simulación parecería no haber hecho nada. */
-    if (RCAMB.sim){ RCAMB.cargando = false; return await rcambSimRecalcula(); }
     var b = (typeof pcBasePerfil==='function') ? pcBasePerfil() : '';
-    var d = await rcambFetch('/api/roster/cambios?month='+mes+(b?'&base='+b:''));
+    var locales = ((typeof RST!=='undefined' && RST.entries) || [])
+                    .filter(function(e){ return e && e.date && e.date.slice(0,7) === mes; });
+    var d;
+    if (locales.length){
+      /* Se evalúa el roster que el piloto TIENE DELANTE, no el que el servidor
+         cree que tiene. Los dos se separan constantemente: editar un día no sube
+         nada, y una sincronización puede no haber llegado. Con la ruta de cálculo
+         —que no guarda— el chip siempre cuadra con el calendario que se está
+         mirando, y de paso el modo prueba deja de ser un caso aparte: el mes
+         editado tampoco está en el servidor, y es el mismo camino.
+         La copia inicial y el motor de pernoctas siguen siendo los del backend. */
+      d = await rcambFetch('/api/roster/cambios/simular', {
+        method:'POST', body: JSON.stringify({ month: mes, entries: locales, base: b })
+      });
+    } else {
+      // Sin roster local del mes: que conteste el servidor con lo que él tenga.
+      d = await rcambFetch('/api/roster/cambios?month='+mes+(b?'&base='+b:''));
+    }
     /* Si NINGÚN origen contestó, eso no es «no hay cambios»: es que no se ha
        podido preguntar. Se guarda como error para que el sello lo diga, en vez de
        desaparecer sin más — que es exactamente el fallo mudo que este proyecto
@@ -46285,7 +47455,8 @@ function rcambPintaChip(){
   el.onclick = rcambToggle;
   el.onkeydown = function(ev){ if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); rcambToggle(); } };
   el.innerHTML = '<div>'
-    + '<div class="sp-label">'+(RCAMB.sim?'Simulado':'Cambios')+' · Art. 12.9</div>'
+    + '<div class="sp-label">'+(RCAMB.sim?'Simulado · cambios':'Cambios de programación')
+    + (d.local ? ' <span class="rcp-prov">·</span>' : '')+'</div>'
     + '<div class="sp-val">'+d.nComputables+'</div>'
     + rcambPips(d)
     + '<div class="rcp-eur">'+d.nAbonan+' abona'+(d.nAbonan===1?'':'n')+' · '+rcambEur(d.importe)+'</div>'
@@ -46333,6 +47504,7 @@ function rcambPintaFicha(){
   if (!RCAMB.abierto || !d || !d.disponible || !d.nComputables){ box.style.display='none'; box.innerHTML=''; return; }
   var h = '<div class="rst-camb-ficha"><div class="rcf-top"><div>'
     + '<div class="rcf-h">Cambios de programación</div>'
+    + '<div class="rcf-sub">Art. 12.9 · cód. 2081 en la nómina</div>'
     + '<div class="rcf-n">'+d.nComputables+'</div>'
     + '<div class="rcf-eur">'+rcambEur(d.importe)+'</div>'
     + '<div class="rcf-split">'+d.nAbonan+' de '+d.nComputables+' abonan</div>'
@@ -46389,9 +47561,22 @@ function rcambTitulo(c){
   if (c.tipo==='pernocta') return 'pernocta nueva';
   if (c.tipo==='imaginaria_sust') return 'imaginaria sustituida';
   if (c.tipo==='imaginaria_pernocta') return 'imaginaria → pernocta';
-  var a = (c.vuelosIni||[]).map(function(v){return v.num;}).filter(Boolean)[0];
-  var b = (c.vuelosAct||[]).map(function(v){return v.num;}).filter(Boolean)[0];
-  return (a&&b) ? (rcambEsc(a)+' → '+rcambEsc(b)) : 'cambio de servicio';
+  /* Cuando el motor cuenta por vuelo, cada cambio ya trae SU par: es lo que hace
+     que un «2» se pueda desglosar delante de la compañía. */
+  if (c.vueloIni || c.vueloAct){
+    if (c.vueloIni && c.vueloAct) return rcambEsc(c.vueloIni)+' → '+rcambEsc(c.vueloAct);
+    return c.vueloAct ? ('vuelo añadido · '+rcambEsc(c.vueloAct)) : ('vuelo quitado · '+rcambEsc(c.vueloIni));
+  }
+  var a = (c.vuelosIni||[]).map(function(v){return v.num;}).filter(Boolean);
+  var b = (c.vuelosAct||[]).map(function(v){return v.num;}).filter(Boolean);
+  var fuera  = a.filter(function(x){ return b.indexOf(x) < 0; });
+  var nuevos = b.filter(function(x){ return a.indexOf(x) < 0; });
+  if (fuera.length === 1 && nuevos.length === 1) return rcambEsc(fuera[0])+' → '+rcambEsc(nuevos[0]);
+  var n = Math.max(fuera.length, nuevos.length);
+  if (n > 1) return n + ' vuelos cambiados';
+  if (nuevos.length === 1) return 'vuelo añadido · ' + rcambEsc(nuevos[0]);
+  if (fuera.length === 1)  return 'vuelo quitado · ' + rcambEsc(fuera[0]);
+  return 'cambio de servicio';
 }
 /* Se publican porque los usa _ecPintaPagables, que vive junto a la hoja de
    sincronización y no comparte ámbito con este bloque. */
@@ -46407,11 +47592,20 @@ function rcambPintaCalendario(){
   var d = RCAMB.data, marcados = {};
   var activo = RCAMB.abierto && d && d.disponible && d.nComputables;
   if (activo){
-    (d.computables||[]).forEach(function(c){ marcados[c.date] = { txt:String(c.ordinal), cls:(c.importe>0?'':'free') }; });
+    /* Con varios cambios el mismo día manda el PRIMERO: el badge es de 18 px y no
+       cabe una lista. El desglose está en la ficha y en el pop-up del día. */
+    (d.computables||[]).forEach(function(c){
+      if (marcados[c.date] && marcados[c.date].orden <= c.ordinal) return;
+      marcados[c.date] = { txt:String(c.ordinal), cls:(c.importe>0?'':'free'), orden:c.ordinal };
+    });
     (d.descartados||[]).forEach(function(x){ if(!marcados[x.date]) marcados[x.date] = { txt:'✕', cls:'off' }; });
   }
   Array.prototype.forEach.call(celdas, function(el){
-    var v = el.querySelector('.rst-camb-badge'); if(v) v.remove();
+    /* `:not(.dl)` — la invasión de día libre marca la misma celda con su propio
+       badge y comparte clase base para heredar el estilo. Sin esto, esta pasada
+       borraba la luna del otro detector: dos detectores pintando el mismo
+       calendario y el último se llevaba por delante al primero. */
+    var v = el.querySelector('.rst-camb-badge:not(.dl)'); if(v) v.remove();
     el.classList.remove('rst-cal-dim');
     if(!activo) return;
     var m = marcados[el.getAttribute('data-date')];
@@ -46435,6 +47629,332 @@ function rcambBusca(date){
   return t || null;
 }
 try { window.rcambEsc = rcambEsc; } catch(e){}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   INVASIÓN DE DÍA LIBRE — la pantalla (Art. 13.23)
+   Se calcula ENTERO en local con public/js/dia-libre.js. A diferencia de los
+   cambios de programación, esto no necesita al servidor para nada: el artículo
+   mide lo EJECUTADO, así que no hay copia inicial que consultar ni ruta que
+   llamar. El roster que el piloto tiene delante es toda la verdad que hace falta.
+
+   El veredicto del piloto y la corrección de la hora de fin viven en localStorage
+   —son suyos, del dispositivo donde edita— y los lee también la nómina.
+   ══════════════════════════════════════════════════════════════════════════ */
+var RDL = { data:null, mes:null, firmaLb:null, abierto:false };
+/* De dónde sale la hora con la que se mide. En pantalla porque un importe de
+   547 € que no aclara si viene de los calzos de verdad, de tu logbook o de una
+   previsión no se reclama igual. */
+var RDL_HORA       = { real:'hora real', logbook:'tu logbook', estimada:'estimada', prevista:'prevista' };
+var RDL_HORA_LARGA = { real:'calzos reales (A)', logbook:'tu logbook (L)', estimada:'estimada (E)', prevista:'aún prevista' };
+
+/* El logbook, para el orden A → L → E. Lo apunta el piloto con los calzos
+   delante, así que es un dato EJECUTADO y va por delante de cualquier previsión.
+
+   Se lee de `pilotOS_logbook_v1`, que es donde lo guarda la app —la ficha del día
+   lee de ahí para pintar su fila L—, y las horas buenas son `atd`/`ata`: `std`/`sta`
+   del formulario son las del roster autorrellenadas. Leer otra clave u otros campos
+   deja el logbook vacío sin un solo error, que es exactamente lo que pasó. */
+function rdlLbEntries(){
+  try {
+    if (!window.ldEntries || !window.ldEntries.length){
+      try { window.ldEntries = JSON.parse(localStorage.getItem('pilotOS_logbook_v1') || '[]') || []; }catch(e){}
+    }
+    return window.ldEntries || [];
+  } catch(e){ return []; }
+}
+/* Se pasa al motor como FUNCIÓN para reutilizar el emparejador de la app:
+   `rstFindLogbookMatch` ya normaliza IATA↔ICAO, desempata dos veces la misma ruta
+   por STD y NO asigna nada cuando hay ambigüedad. Escribir aquí una segunda copia
+   de esas reglas es el fallo de ES_AIRPORTS / ES_IATA otra vez. */
+function rdlLogbook(){
+  rdlLbEntries();
+  return function(leg){
+    try {
+      var lb = (typeof window.rstFindLogbookMatch === 'function') ? window.rstFindLogbookMatch(leg) : null;
+      if (!lb) return null;
+      return { std: lb.atd || lb.std || null, sta: lb.ata || lb.sta || null };
+    } catch(e){ return null; }
+  };
+}
+function rdlLee(k){ try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch(e){ return {}; } }
+function rdlEscribe(k, v){ try { localStorage.setItem(k, JSON.stringify(v||{})); } catch(e){} }
+
+/* El mes en vista, más el último día del ANTERIOR: la invasión del día 1 la
+   produce la jornada del 31, y sin ella el día 1 no se puede juzgar. */
+/* Firma barata del logbook del mes (y de la víspera del día 1). El logbook manda
+   sobre la estimada, así que apuntar un vuelo CAMBIA el resultado — pero guardar
+   en el logbook no emite ningún evento y `rdlAsegura` cachea por mes: el piloto
+   apuntaba el vuelo, volvía al roster y no salía nada. Con la firma en la clave de
+   caché, un apunte nuevo obliga a rehacer la cuenta. */
+function rdlFirmaLogbook(mes, previo){
+  var f = '';
+  try {
+    rdlLbEntries().forEach(function(e){
+      if (!e || !e.date) return;
+      if (String(e.date).slice(0,7) !== mes && e.date !== previo) return;
+      f += e.date + '|' + (e.atd||e.std||'') + '|' + (e.ata||e.sta||'') + '|' + (e.flight||e.flightNum||'') + ';';
+    });
+  } catch(e){}
+  return f;
+}
+
+function rdlCalcula(){
+  try{
+    if (typeof DiaLibre === 'undefined') return null;
+    var mes = rcambMesVista();
+    var p = mes.split('-');
+    var previo = new Date(Date.UTC(+p[0], +p[1]-1, 1) - 86400000).toISOString().slice(0,10);
+    var ent = ((typeof RST!=='undefined' && RST.entries) || []).filter(function(e){
+      return e && e.date && (String(e.date).slice(0,7) === mes || e.date === previo);
+    });
+    RDL.firmaLb = rdlFirmaLogbook(mes, previo);
+    if (!ent.some(function(e){ return String(e.date).slice(0,7) === mes; })) { RDL.mes = mes; RDL.data = null; return null; }
+    var esp = (document.getElementById('pc_esp')||{}).value || 'cmd';
+    RDL.mes  = mes;
+    RDL.data = DiaLibre.detectar({ mes:mes, entries:ent, especialidad:esp,
+                                   logbook:rdlLogbook(),
+                                   marcas:rdlLee('pilotOS_dl_marcas'),
+                                   correcciones:rdlLee('pilotOS_dl_correcciones') });
+    return RDL.data;
+  }catch(e){ RDL.data = null; return null; }
+}
+
+/* NO hay chip. La tira de arriba ya estaba saturada, y una invasión no es un
+   contador mensual: es UN día concreto. Así que se enseña donde está:
+     · el calendario marca ese día, siempre, sin tener que abrir nada;
+     · al tocarlo, una tarjeta en el detalle del día con la hora y el importe;
+     · y la tarjeta abre el pop-up con lo que solo sabe el piloto.
+   El total del mes vive en el Pay Check, que es donde se reclama. */
+function rdlPinta(){
+  try{ rdlPintaFicha(); rdlPintaCalendario(); rdlPintaDia(); }catch(e){}
+}
+window.rdlPinta = rdlPinta;
+
+/* La tarjeta del día seleccionado. Aparece SOLO si ese día está invadido. */
+function rdlPintaDia(){
+  var box = document.getElementById('rst-dl-dia'); if(!box) return;
+  var fecha = (typeof RST !== 'undefined' && RST.editDate) || null;
+  var i = fecha ? rdlBusca(fecha) : null;
+  if (!i){ box.style.display='none'; box.innerHTML=''; return; }
+  var sim = (typeof RCAMB !== 'undefined' && RCAMB.sim);
+  box.innerHTML = '<div class="rdl-card'+(sim?' sim':'')+'" onclick="rdlDia(\''+i.date+'\')">'
+    + '<div class="rdl-ic">🌙</div>'
+    + '<div><div class="rdl-t">'+(sim?'SIMULADO · ':'')+'Invasión de día libre (OFF)</div>'
+    + '<div class="rdl-s">La jornada del '+rcambEsc(i.vispera)+' acabó a las <b>'+i.finLocal
+    + '</b> hora local ('+rcambEsc(RDL_HORA[i.hora] || 'prevista')+') · '
+    + rcambEsc(i.franjaEtiqueta)
+    + (i.diaDevuelto ? ' · día recuperado' : '') + '</div></div>'
+    + '<div class="rdl-v">'+rcambEur(i.importe + i.dietaImporte)+'</div>'
+    + '</div>';
+  box.style.display = 'block';
+}
+
+function rdlToggleCinta(){
+  RDL.abierto = !RDL.abierto;
+  var c = document.querySelector('#rst-dl-ficha .rdl-cinta');
+  var p = document.querySelector('#rst-dl-ficha .rdl-panel');
+  if (c){ c.classList.toggle('on', RDL.abierto); c.setAttribute('aria-expanded', RDL.abierto?'true':'false'); }
+  if (p) p.classList.toggle('on', RDL.abierto);
+}
+window.rdlToggleCinta = rdlToggleCinta;
+
+function rdlPintaFicha(){
+  var box = document.getElementById('rst-dl-ficha'); if(!box) return;
+  var d = RDL.data;
+  /* Una CINTA de una línea, plegada, y detrás el detalle. La tarjeta abierta
+     ocupaba media pantalla para decir un número; un chip más en la tira de arriba
+     tampoco cabía. Así se ve sin buscarlo, cuesta 52 px, y el desglose está a un
+     toque. Se pliega sola al recalcular: el estado no se guarda a propósito —al
+     volver al roster lo que interesa es el número, no la lista—. */
+  if (!d || !d.n){ box.style.display='none'; box.innerHTML=''; RDL.abierto = false; return; }
+  var sim = (typeof RCAMB !== 'undefined' && RCAMB.sim);
+  var dias = d.n === 1 ? '1 día invadido' : d.n + ' días invadidos';
+  var h = '<div class="rdl-cinta'+(sim?' sim':'')+(RDL.abierto?' on':'')+'" role="button" tabindex="0"'
+    + ' aria-expanded="'+(RDL.abierto?'true':'false')+'" aria-controls="rdl-panel"'
+    + ' onclick="rdlToggleCinta()"'
+    + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();rdlToggleCinta();}">'
+    + '<div class="rdl-cd">🌙</div>'
+    + '<div><div class="rdl-ch">'+(sim?'SIMULADO · ':'')+'Invasión de día libre</div>'
+    + '<div class="rdl-cs">'+rcambEsc(dias)+' · '+rcambEur(d.importe)+' + dietas</div></div>'
+    + '<div class="rdl-cv">'+rcambEur(d.total)+'</div>'
+    + '<div class="rdl-cc">›</div>'
+    + '</div>'
+    /* Dentro va SOLO el desglose. El recuento y el total ya los da la cinta, y
+       repetirlos al abrir era media pantalla diciendo dos veces lo mismo. */
+    + '<div class="rdl-panel'+(RDL.abierto?' on':'')+'" id="rdl-panel">'
+    + '<div class="rst-camb-ficha">'
+    + '<div class="rcf-sub" style="margin:0 0 4px">Art. 13.23 · cód. 2043 en la nómina · '
+    + rcambEur(d.importe)+' de plus + '+rcambEur(d.dietas)+' de dietas</div>';
+  d.invasiones.forEach(function(i){
+    h += '<div class="rcf-row" onclick="rdlDia(\'' + i.date + '\')">'
+      + '<div class="rcf-ord pay">'+i.franja.toUpperCase()+'</div>'
+      + '<div><div class="rcf-d">día '+i.date.slice(8)+' · acabó a las <span class="rdl-hora">'+i.finLocal+'</span> local</div>'
+      + '<div class="rcf-w">'+rcambEsc('la jornada del '+i.vispera+' se metió en tu día libre · '+i.franjaEtiqueta
+         + (i.diaDevuelto ? ' · día devuelto' : ''))+'</div></div>'
+      + '<div class="rcf-e">'+rcambEur(i.importe + i.dietaImporte)+'</div>'
+      + '</div>';
+  });
+  /* Un día libre cuya víspera está importada pero sin horas legibles no se puede
+     juzgar, y callarlo sería contar 0 donde puede haber 547 €. */
+  (d.sinDatos||[]).forEach(function(x){
+    h += '<div class="rcf-disc"><div>'
+      + '<div class="rcf-d">día '+x.date.slice(8)+' · sin poder calcular</div>'
+      + '<div class="rcf-w">'+rcambEsc(x.detalle)+'</div></div></div>';
+  });
+  box.innerHTML = h + '</div></div>';
+  box.style.display = 'block';
+}
+
+var _rdlCalT = null;
+function rdlPintaCalendario(){
+  var celdas = document.querySelectorAll('#rst-cal-tbody [data-date]');
+  /* El calendario NO siempre está montado cuando nos toca pintar: `rstRenderCalendar`
+     acaba de devolver pero sus celdas aparecen después, así que marcábamos sobre un
+     calendario vacío y el día invadido no se señalaba nunca. Sin error y sin aviso —
+     el fallo mudo de siempre. Si no hay celdas, se espera a que las haya (con tope,
+     que un intervalo sin final es peor que el fallo). */
+  if(!celdas.length){
+    clearTimeout(_rdlCalT);
+    var intentos = 0;
+    _rdlCalT = setInterval(function(){
+      if (document.querySelectorAll('#rst-cal-tbody [data-date]').length){
+        clearInterval(_rdlCalT); _rdlCalT = null; rdlPintaCalendario();
+      } else if (++intentos > 12){ clearInterval(_rdlCalT); _rdlCalT = null; }
+    }, 150);
+    return;
+  }
+  if (_rdlCalT){ clearInterval(_rdlCalT); _rdlCalT = null; }
+  var d = RDL.data;
+  /* Marca SIEMPRE, sin depender de que haya una ficha abierta: es la única forma
+     de que el piloto se entere de que tiene un día invadido sin ir a buscarlo. */
+  var activo = d && d.n;
+  var marcados = {};
+  if (activo) d.invasiones.forEach(function(i){ marcados[i.date] = i; });
+  Array.prototype.forEach.call(celdas, function(el){
+    var v = el.querySelector('.rst-camb-badge.dl'); if(v) v.remove();
+    if(!activo) return;
+    var m = marcados[el.getAttribute('data-date')];
+    if (m){
+      var b = document.createElement('span');
+      b.className = 'rst-camb-badge dl' + ((typeof RCAMB!=='undefined' && RCAMB.sim) ? ' sim' : '');
+      b.textContent = '🌙';
+      el.appendChild(b);
+    }
+  });
+}
+
+/* ── El pop-up del día ── */
+function rdlBusca(date){
+  var d = RDL.data; if(!d) return null;
+  return (d.invasiones||[]).filter(function(i){ return i.date===date; })[0] || null;
+}
+function rdlDia(date){
+  var i = rdlBusca(date); if(!i) return;
+  var old = document.getElementById('rcd-pop'); if(old) old.remove();
+  var f = new Date(date+'T00:00:00');
+  var lbl = f.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+  lbl = lbl.charAt(0).toUpperCase()+lbl.slice(1);
+  var corr = rdlLee('pilotOS_dl_correcciones')[i.vispera] || null;
+
+  var h = '<div class="rcd"><div class="rcd-h"><div class="rcd-dt">'+rcambEsc(lbl)+'</div>'
+    + '<div class="rcd-verd">DÍA LIBRE INVADIDO</div></div>'
+    + '<div class="rcd-sub">Invasión de día libre · Art. 13.23 del convenio · cód. 2043 en la nómina</div>'
+    + '<div class="rcd-cmp">'
+    +   '<div class="rcd-col ini"><div class="rcd-ch">Tu día libre</div>'
+    +     '<div class="rcd-edge">empieza 00:00</div><div class="rcd-hr"></div>'
+    +     '<div class="rcd-lg">hora local de España</div></div>'
+    +   '<div class="rcd-col act"><div class="rcd-ch">Fin de actividad</div>'
+    +     '<div class="rcd-edge">'+rcambEsc(i.finLocal)+'</div><div class="rcd-hr"></div>'
+    +     '<div class="rcd-lg">'+rcambEsc(i.fuente)+' · '
+    +       rcambEsc(RDL_HORA_LARGA[i.hora] || 'aún prevista')
+    +       '<br>víspera '+rcambEsc(i.vispera)+'</div></div>'
+    + '</div>'
+    + '<div class="rcd-why">'+rcambEsc(i.motivo)+'</div>'
+    + '<div class="rcd-ladder"><span class="rcd-lt">'+rcambEsc(i.franjaEtiqueta)+' + dieta nacional</span>'
+    +   '<span class="rcd-lv">'+rcambEur(i.importe + i.dietaImporte)+'</span></div>';
+
+  /* «No procederá devolución del día libre invadido» — salvo que el avión se
+     quedara fuera de base y el piloto volviera OPERANDO. Eso no está en el roster:
+     solo lo sabe él. La marca devuelve el día y NO toca el dinero, que se cobra
+     igual; por eso la línea dice lo que hace antes de tocarla. */
+  h += '<div class="rcd-mine" onclick="rdlMarcar(\'' + date + '\',' + (i.diaDevuelto?'false':'true') + ')">'
+     + '<span class="rcd-box'+(i.diaDevuelto?' on':'')+'"></span> El avión se quedó fuera de base y volví operando'
+     + '</div>'
+     + '<div class="rcf-w" style="margin-top:4px">Recuperas el día libre. El importe se cobra igual.</div>';
+
+  /* La hora de fin son los calzos + 20 min, «salvo contratiempo en que la compañía
+     alargue la actividad». Eso tampoco está en ningún dato. */
+  h += '<div class="rcd-fix">Fin real (local): '
+     + '<input id="rdl-fix" type="time" value="'+rcambEsc((corr&&corr.fin)||i.finLocal)+'">'
+     + '<button onclick="rdlCorregir(\'' + i.vispera + '\')">Corregir</button></div>';
+  if (corr) h += '<div class="rcf-w" style="margin-top:4px">Corregido por ti · <span onclick="rdlCorregir(\'' + i.vispera + '\',1)" style="text-decoration:underline;cursor:pointer">deshacer</span></div>';
+
+  h += '<button class="rcd-close" onclick="var x=document.getElementById(\'rcd-pop\'); if(x) x.remove();">Cerrar</button></div>';
+  var wrap = document.createElement('div');
+  wrap.id = 'rcd-pop'; wrap.className = 'rcd-wrap'; wrap.innerHTML = h;
+  wrap.addEventListener('click', function(ev){ if(ev.target===wrap) wrap.remove(); });
+  document.body.appendChild(wrap);
+}
+window.rdlDia = rdlDia;
+
+function rdlMarcar(date, devuelto){
+  var m = rdlLee('pilotOS_dl_marcas');
+  if (devuelto) m[date] = { devuelto:true, motivo:'volví operando', at:new Date().toISOString() };
+  else delete m[date];
+  rdlEscribe('pilotOS_dl_marcas', m);
+  rdlCalcula(); rdlPinta();
+  var pop = document.getElementById('rcd-pop'); if(pop){ pop.remove(); rdlDia(date); }
+  if (typeof showToast==='function') showToast(devuelto ? '✓ Día libre recuperado' : 'Marca deshecha');
+}
+window.rdlMarcar = rdlMarcar;
+
+/* La corrección va sobre la VÍSPERA, que es el día cuya actividad se alargó. Si la
+   hora tecleada es de madrugada se entiende del día siguiente: nadie corrige el
+   fin de una jornada a las 02:40 de la mañana anterior. */
+function rdlCorregir(vispera, deshacer){
+  var c = rdlLee('pilotOS_dl_correcciones');
+  if (deshacer) delete c[vispera];
+  else {
+    var v = (document.getElementById('rdl-fix')||{}).value || '';
+    if (!v) return;
+    var min = DiaLibre.hm(v);
+    c[vispera] = { fin:v, diaSiguiente: min != null && min < 12*60, at:new Date().toISOString() };
+  }
+  rdlEscribe('pilotOS_dl_correcciones', c);
+  rdlCalcula(); rdlPinta();
+  var pop = document.getElementById('rcd-pop'); if(pop) pop.remove();
+  if (typeof showToast==='function') showToast(deshacer ? 'Corrección deshecha' : '✓ Hora corregida');
+}
+window.rdlCorregir = rdlCorregir;
+
+/* Igual que rcambAsegura: los render del roster corren UNA vez al arrancar y no
+   vuelven, así que colgarse de ellos a secas deja el chip sin aparecer nunca. */
+function rdlAsegura(){
+  try{
+    var m = rcambMesVista();
+    var p = m.split('-');
+    var previo = new Date(Date.UTC(+p[0], +p[1]-1, 1) - 86400000).toISOString().slice(0,10);
+    // El logbook entra en el cálculo, así que también entra en la clave de caché.
+    if (m === RDL.mes && RDL.data && RDL.firmaLb === rdlFirmaLogbook(m, previo)){ rdlPinta(); return; }
+    rdlCalcula(); rdlPinta();
+  }catch(e){}
+}
+window.rdlAsegura = rdlAsegura;
+(function(){
+  ['rstRenderCalendar','rstRenderStats','rosterSelectDay','rosterNavMonth','rstGoToday'].forEach(function(n){
+    var orig = window[n]; if (typeof orig !== 'function') return;
+    window[n] = function(){
+      var r = orig.apply(this, arguments);
+      try{ setTimeout(function(){ rdlAsegura(); rdlPintaDia(); }, 0); }catch(e){}
+      return r;
+    };
+  });
+  /* Y al guardar: el mismo evento que usan los cambios. Envolver rstSave no vale
+     —el roster vive en un closure y las llamadas internas no pasan por window—. */
+  try { window.addEventListener('pilotos-roster-updated', function(){ RDL.mes = null; rdlAsegura(); }); }catch(e){}
+  try { setTimeout(rdlAsegura, 1200); }catch(e){}
+})();
+
 function rcambHhmm(min){
   if (min==null) return '—';
   var m = ((min%1440)+1440)%1440;
@@ -46474,8 +47994,22 @@ function rcambDia(date){
     + '<div class="rcd-why'+(paga?'':' no')+'">'+rcambEsc(c._descartado ? (c.detalle||rcambCausaTxt(c.causa)) : (c.motivo||''))+'</div>';
 
   if (paga){
-    h += '<div class="rcd-ladder"><span class="rcd-lt">'+c.ordinal+'.'+(c.ordinal===1?'er':'º')+' cambio del mes</span>'
-       + '<span class="rcd-lv">'+rcambEur(c.importe)+'</span></div>';
+    /* Un día puede traer varios cambios (uno por vuelo sustituido). La comparación
+       de arriba es del DÍA, así que la línea del dinero los suma todos y nombra
+       sus ordinales: si no, el pop-up diría 49,11 € y el chip 98,22 €. */
+    var mismos = ((RCAMB.data||{}).computables||[]).filter(function(x){ return x.date === date; });
+    var ords = mismos.map(function(x){ return x.ordinal; });
+    var tot  = mismos.reduce(function(s2, x){ return s2 + (x.importe||0); }, 0);
+    var lbl  = ords.length > 1
+      ? (ords.slice(0,-1).join('.º, ') + '.º y ' + ords[ords.length-1] + '.º cambios del mes')
+      : (c.ordinal + '.' + (c.ordinal===1?'er':'º') + ' cambio del mes');
+    h += '<div class="rcd-ladder"><span class="rcd-lt">'+lbl+'</span>'
+       + '<span class="rcd-lv">'+rcambEur(tot)+'</span></div>';
+    if (ords.length > 1){
+      h += '<div class="rcd-why" style="margin-top:8px">'
+         + mismos.map(function(x){ return '<b>'+x.ordinal+'.º</b> '+rcambEsc(rcambTitulo(x)); }).join(' · ')
+         + '</div>';
+    }
   } else if (c.seria){
     h += '<div class="rcd-ladder"><span class="rcd-lt">si lo devuelves al recuento</span>'
        + '<span class="rcd-lv">'+c.seria.ordinal+'.º · '+rcambEur(c.seria.importe)+'</span></div>';
@@ -46621,15 +48155,12 @@ async function rcambSellar(){
 window.rcambSellar = rcambSellar;
 
 /* ── Autotest ── */
-function rcambAutotest(){
-  var old = document.getElementById('rst-at-pop'); if(old) old.remove();
-  var res = [];
-  try { res = RstCambios.autotest(); }
-  catch(e){ if(typeof showToast==='function') showToast('El motor no cargó: '+e.message); return; }
+/* Un bloque del parte: los que fallan primero, que es lo que hay que leer. */
+function rcambAtBloque(titulo, lectura, res){
   var mal = res.filter(function(x){ return !x.ok; });
-  var h = '<div class="rst-at"><div class="rat-h"><span class="rat-t">🧪 Autotest · Art. 12.9</span>'
-    + '<span class="rat-sc'+(mal.length?' bad':'')+'">'+(res.length-mal.length)+'/'+res.length+'</span></div>';
-  // Los que fallan, primero: es lo que hay que leer.
+  var h = '<div class="rat-h"><span class="rat-t">'+rcambEsc(titulo)+'</span>'
+    + '<span class="rat-sc'+(mal.length?' bad':'')+'">'+(res.length-mal.length)+'/'+res.length+'</span></div>'
+    + '<div class="rat-lect">'+rcambEsc(lectura)+'</div>';
   res.slice().sort(function(a,b){ return (a.ok?1:0)-(b.ok?1:0); }).forEach(function(x){
     h += '<div class="rat-row'+(x.ok?'':' bad')+'">'
       + '<span class="rat-k">'+(x.ok?'✓':'✕')+'</span>'
@@ -46637,10 +48168,50 @@ function rcambAutotest(){
       + '<span class="rat-r">'+rcambEsc(x.ok ? x.obtuvo : ('esperado '+x.espera+' · dio '+x.obtuvo))+'</span>'
       + '</div>';
   });
+  return { html: h, mal: mal.length };
+}
+
+function rcambAutotest(){
+  var old = document.getElementById('rst-at-pop'); if(old) old.remove();
+  var res = [], resDL = [];
+  try { res = RstCambios.autotest(); }
+  catch(e){ if(typeof showToast==='function') showToast('El motor no cargó: '+e.message); return; }
+  /* El de día libre es OTRO motor y puede no estar: si falla, se dice en el parte
+     en vez de dejar el bloque fuera sin explicación. */
+  var errDL = null;
+  try { resDL = DiaLibre.autotest(); } catch(e){ errDL = e.message; }
+
+  /* La lectura ACTIVA de cada artículo, arriba de su bloque. Las constantes se
+     discuten —el texto del 12.9 dice 60 y el sindicato decía 120— así que una
+     captura que no diga con qué reglas se calculó no vale para diagnosticar. */
+  var R = RstCambios.REGLAS;
+  var lectura = (R.umbralEstricto ? '>' : '≥') + R.umbralMin + ' min por lado · '
+    + (R.direccion === 'simetrica' ? 'cualquier diferencia' : 'solo inicio antes / fin después')
+    + (R.exigeCambioVuelo ? ' · exige nº de vuelo' : ' · sin exigir nº de vuelo')
+    + ' · por ' + (R.unidad === 'vuelo' ? 'vuelo' : 'jornada');
+  var b1 = rcambAtBloque('🧪 Cambios de programación', 'Art. 12.9 · ' + lectura, res);
+  var h = '<div class="rst-at">' + b1.html;
+  var mal = b1.mal;
+
+  if (errDL){
+    h += '<div class="rat-row bad"><span class="rat-k">✕</span>'
+       + '<span class="rat-n">El detector de invasión de día libre no cargó</span>'
+       + '<span class="rat-r">'+rcambEsc(errDL)+'</span></div>';
+    mal++;
+  } else {
+    var D = DiaLibre.REGLAS;
+    var lecturaDL = 'calzos + ' + D.postVueloMin + ' min · hora local ' + D.tz
+      + ' · 00:00/01:00/02:00'
+      + (D.cuentaVacaciones ? ' · vacaciones cuentan' : ' · solo francos');
+    var b2 = rcambAtBloque('🌙 Invasión de día libre (OFF)', 'Art. 13.23 · ' + lecturaDL, resDL);
+    h += '<div class="rat-sep"></div>' + b2.html;
+    mal += b2.mal;
+  }
+
   h += '<div class="rat-foot">'
-    + (mal.length
+    + (mal
         ? 'Copia el parte y pégalo en un reporte: dice qué se esperaba y qué salió, que es lo que hace falta para arreglarlo.'
-        : 'Los escenarios corren sobre el motor de verdad, en memoria. No se ha tocado tu roster ni tu nómina.')
+        : 'Los escenarios corren sobre los motores de verdad, en memoria. No se ha tocado tu roster ni tu nómina.')
     + '</div>'
     + '<button class="rcd-close" onclick="var x=document.getElementById(\'rst-at-pop\'); if(x) x.remove();">Cerrar</button></div>';
   var w = document.createElement('div');
@@ -46682,7 +48253,9 @@ function rcambModoPrueba(){
     return;
   }
   rcambPinta();
-  if (typeof showToast==='function') showToast('🔬 Modo prueba · edita un día y mira el chip');
+  // El día libre se calcula en local, así que basta con invalidar su caché de mes.
+  try { RDL.mes = null; rdlAsegura(); } catch(e){}
+  if (typeof showToast==='function') showToast('🔬 Modo prueba · edita un día y mira los chips');
 }
 window.rcambModoPrueba = rcambModoPrueba;
 
@@ -46703,6 +48276,7 @@ function rcambSalirPrueba(silencio){
   try { if (typeof rstRenderCalendar==='function') rstRenderCalendar(); } catch(e){}
   try { if (typeof rstRenderStats==='function') rstRenderStats(); } catch(e){}
   rcambCargar(rcambMesVista());
+  try { RDL.mes = null; rdlAsegura(); } catch(e){}
   if (!silencio && typeof showToast==='function') showToast('✓ Modo prueba cerrado · mes restaurado');
 }
 window.rcambSalirPrueba = rcambSalirPrueba;
@@ -46732,28 +48306,58 @@ window.rcambSalirPrueba = rcambSalirPrueba;
       return push.apply(this, arguments);
     };
   }
-  var save = window.rstSave;
-  if (typeof save === 'function'){
-    window.rstSave = function(){
-      var r = save.apply(this, arguments);
-      if (RCAMB.sim) { try { rcambSimRecalcula(); } catch(e){} }
-      return r;
-    };
-  }
+  /* Para enterarse de que el roster ha cambiado NO se puede envolver rstSave: el
+     código del roster vive dentro de un closure y `window.rstSave = rstSave` es
+     solo una exportación, así que las llamadas internas —que son todas— siguen
+     yendo a la función de dentro y el envoltorio no se entera. Costó un rato:
+     desde una consola parecía funcionar, porque desde fuera sí se llama al
+     envoltorio.
+     Lo que sí atraviesa el closure es el evento que el propio rstSave emite para
+     esto mismo («avisar a quien dependa del roster»). Es la puerta buena. */
+  try { window.addEventListener('pilotos-roster-updated', function(){ rcambTrasEditar(); }); } catch(e){}
 })();
 
-/* En modo prueba el mes editado NO sube —ese es el punto—, así que no se puede
-   preguntar por él: se manda en el cuerpo a la ruta de simulación, que calcula
-   contra la copia inicial de verdad y no guarda nada. El detector que responde es
-   el mismo que en producción; lo único falso es el mes. */
-async function rcambSimRecalcula(){
+/* Rehacer la cuenta EN LOCAL, al instante, con el mismo motor que usa el backend.
+   Para eso viaja `ctx` en cada respuesta: la copia inicial, las pernoctas ya
+   calculadas, las marcas del piloto y las tarifas.
+
+   Existe porque sobre el móvil cada ida y vuelta son uno o dos segundos: el piloto
+   editaba un vuelo, miraba, no veía nada, y al hacer el segundo cambio le
+   aparecía el resultado del primero. Un contador que va uno por detrás es peor que
+   uno lento — parece que la app no se entera.
+
+   Las pernoctas son las de la última respuesta del servidor: ese motor no está en
+   el cliente. Si la edición cambia dónde se duerme, el número se queda un instante
+   corto y la respuesta del servidor lo corrige. */
+function rcambLocal(){
+  var d = RCAMB.data, ctx = d && d.ctx;
+  if (!ctx || !ctx.v0entries || typeof RstCambios === 'undefined') return false;
   var mes = rcambMesVista();
-  var locales = ((typeof RST!=='undefined' && RST.entries) || []).filter(function(e){ return e && e.date && e.date.slice(0,7)===mes; });
-  var d = await rcambFetch('/api/roster/cambios/simular', {
-    method:'POST',
-    body: JSON.stringify({ month: mes, entries: locales, base: (typeof pcBasePerfil==='function')?pcBasePerfil():'' })
-  });
-  if (d){ RCAMB.mes = mes; RCAMB.data = d; rcambPinta(); }
+  if (mes !== RCAMB.mes) return false;
+  var locales = ((typeof RST!=='undefined' && RST.entries) || [])
+                  .filter(function(e){ return e && e.date && e.date.slice(0,7) === mes; });
+  if (!locales.length) return false;
+  try{
+    var r = RstCambios.detectar({
+      mes: mes, inicial: ctx.v0entries, actual: locales,
+      pernoctasIni: ctx.pernoctasIni, pernoctasAct: ctx.pernoctasAct,
+      marcas: ctx.marcas, vistoEn: ctx.vistoEn, tarifas: ctx.tarifas
+    });
+    r.disponible = true; r.v0 = d.v0; r.provisional = d.provisional; r.ctx = ctx;
+    r.local = true;                       // hasta que conteste el servidor
+    RCAMB.data = r; rcambPinta();
+    return true;
+  }catch(e){ return false; }
+}
+
+/* Tras cualquier guardado del roster: primero la cuenta local —instantánea— y
+   detrás la del servidor, que es la que manda. El retardo del servidor sigue
+   existiendo porque una importación llama a rstSave muchas veces seguidas. */
+var _rcambTrasEditarT = null;
+function rcambTrasEditar(){
+  try { rcambLocal(); } catch(e){}
+  clearTimeout(_rcambTrasEditarT);
+  _rcambTrasEditarT = setTimeout(function(){ rcambCargar(rcambMesVista()); }, 300);
 }
 
 /* Carga el mes en vista si hace falta. Barata: no hace nada si ya está el dato.
@@ -46804,102 +48408,186 @@ window.rcambAsegura = rcambAsegura;
     <span class="ih-title" style="color:#fff">Planes</span>
     <span style="width:44px"></span>
   </div>
-  <div class="scroll-body" style="padding:20px 16px 40px">
+  <div class="scroll-body upg-body">
+   <div class="upg-wrap">
 
     <!-- Header -->
     <div style="text-align:center;margin-bottom:28px">
       <div style="display:flex;justify-content:center;margin-bottom:14px">
         <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 830.97 260.12" style="width:160px;height:auto"><defs><style>.ugs0{fill:url(#ugg5)}.ugs1{fill:#3a3bf8}.ugs2{fill:#f6f7fa}.ugs3{fill:#fff}.ugs4{fill:url(#ugg52)}.ugs5{fill:url(#ugg51)}</style><linearGradient id="ugg5" x1="97.59" y1="116.16" x2="97.59" y2="197.36" gradientTransform="translate(0 274.5) scale(1 -1)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#08c6f8"/><stop offset=".08" stop-color="#17aef8"/><stop offset=".24" stop-color="#3286f8"/><stop offset=".4" stop-color="#4666f9"/><stop offset=".55" stop-color="#554ff9"/><stop offset=".7" stop-color="#5e42f9"/><stop offset=".82" stop-color="#613df9"/></linearGradient><linearGradient id="ugg51" x1="735.99" y1="144.06" x2="617.31" y2="144.06" xlink:href="#ugg5"/><linearGradient id="ugg52" x1="800.34" y1="144.61" x2="635.33" y2="144.61" xlink:href="#ugg5"/></defs><path class="ugs1" d="M122.52,144.25H55.29c8.17,18.64,20.31,23.45,30.16,23.45h33.3l3.77-23.45Z"/><path class="ugs2" d="M229.11,89.59h-121.67c3.35-16.33,23.04-26.39,37.9-26.39h125.02c-8.38,41.67-32.04,99.47-113.71,95.07l15.5-22.83c26.81-1.47,47.54-21.99,56.96-45.86Z"/><path class="ugs0" d="M24.09,108.44h147.01l-47.96,72.46c-11.73,19.68-29.74,26.39-46.7,27.64,18.85-28.48,48.58-74.13,48.58-74.13H55.29c-6.49,0-23.45-5.45-31.2-25.97Z"/><path class="ugs3" d="M349.18,100.09c-11.27,0-21.52,4.69-28.86,12.19-7.35,7.5-11.89,17.88-11.89,29.27h0v67.94h12.87v-37.71c7.26,6.94,17.1,11.24,27.89,11.23h.02c11.27,0,21.51-4.69,28.85-12.19,7.35-7.5,11.89-17.88,11.89-29.27,0-11.39-4.54-21.77-11.89-29.27-7.34-7.5-17.59-12.19-28.86-12.19ZM368.85,161.81c-5.08,5.17-11.99,8.33-19.67,8.33-7.68,0-14.59-3.15-19.67-8.33-5.06-5.17-8.2-12.29-8.21-20.22v-.04h0c0-7.96,3.15-15.08,8.21-20.26,5.08-5.17,11.99-8.33,19.67-8.33,7.68,0,14.59,3.15,19.67,8.33,5.07,5.18,8.21,12.31,8.21,20.26,0,7.95-3.15,15.08-8.21,20.26Z"/><path class="ugs3" d="M505.33,100.09c-11.27,0-21.53,4.68-28.86,12.19-7.35,7.49-11.9,17.88-11.89,29.27,0,11.39,4.54,21.77,11.89,29.27,7.34,7.51,17.59,12.2,28.86,12.19h.02c11.27,0,21.51-4.69,28.85-12.19,7.35-7.49,11.89-17.88,11.89-29.27,0-11.39-4.54-21.77-11.89-29.27-7.34-7.51-17.59-12.19-28.86-12.19ZM525,161.81c-5.08,5.17-11.99,8.32-19.67,8.33-7.68,0-14.59-3.15-19.67-8.33-5.07-5.18-8.21-12.31-8.21-20.26,0-7.95,3.15-15.08,8.21-20.26,5.08-5.17,11.99-8.32,19.67-8.33,7.68,0,14.59,3.15,19.67,8.33,5.07,5.18,8.21,12.31,8.21,20.26,0,7.95-3.15,15.08-8.21,20.26Z"/><rect class="ugs3" x="437.55" y="70.79" width="12.87" height="110.28"/><rect class="ugs3" x="404.07" y="101.74" width="12.87" height="79.33"/><circle class="ugs3" cx="409.8" cy="80.22" r="8.86"/><path class="ugs3" d="M589.89,170.29c-3.57-.02-5.83-.91-7.25-2.29-1.41-1.39-2.79-3.91-2.82-9.43v-43.36h20.29v-12.87h-20.29v-21.98h-12.87v21.98h-13.54v12.87h13.54v43.36c-.04,7.71,2.19,14.27,6.72,18.65,4.49,4.36,10.44,5.94,16.12,5.94h.09c3.91,0,7.85-.69,11.74-1.82l-3.6-12.36c-2.96.86-5.77,1.31-8.14,1.3Z"/><path class="ugs5" d="M665.8,77.58c-14.41,0-27.51,5.95-36.91,15.52-9.42,9.55-15.24,22.79-15.24,37.34,0,14.55,5.82,27.78,15.24,37.34,9.4,9.56,22.5,15.52,36.91,15.52h0c14.4,0,27.5-5.95,36.9-15.52,9.42-9.56,15.24-22.79,15.24-37.34,0-14.54-5.82-27.78-15.24-37.34-9.41-9.56-22.5-15.52-36.91-15.52ZM693.54,158.74c-7.14,7.24-16.9,11.67-27.74,11.67-10.84,0-20.6-4.44-27.74-11.67-7.13-7.25-11.54-17.22-11.54-28.31,0-11.09,4.41-21.06,11.54-28.31,7.14-7.24,16.9-11.67,27.74-11.67,10.84,0,20.6,4.44,27.74,11.67,7.13,7.25,11.54,17.22,11.54,28.31,0,11.09-4.41,21.06-11.54,28.31Z"/><path class="ugs4" d="M804.64,139.25c-1.92-3.25-4.56-5.79-7.44-7.71-5.07-3.37-10.84-5.12-16.65-6.57-8.71-2.11-17.75-3.52-24.5-6.24-3.38-1.34-6.12-2.95-8.13-4.89-1.93-1.88-3.31-4.01-4.19-7.13-.05-.46-.07-.9-.07-1.33.05-4.43,2.07-7.86,6.3-10.9,4.21-2.95,10.61-4.9,17.65-4.88,9.78,0,20.53,3.61,28.81,11.9l9.1-9.1c-10.95-10.94-25.04-15.67-37.91-15.67-9.3.02-18.09,2.42-24.99,7.18-6.87,4.68-11.88,12.36-11.83,21.46,0,1.11.07,2.23.22,3.36l.05.39.1.37c1.22,4.83,3.52,8.97,6.5,12.22,5.25,5.72,12.1,8.69,18.89,10.77,10.21,3.05,20.96,4.35,28.25,7.14,3.65,1.36,6.24,2.99,7.78,4.79,1.51,1.83,2.47,3.89,2.52,7.94-.06,5.39-2.27,9.29-6.5,12.54-4.22,3.18-10.64,5.25-17.98,5.23-10.82,0-23.4-4.38-33.74-14.73l-9.1,9.1c12.79,12.79,28.61,18.5,42.84,18.5,9.66-.01,18.7-2.6,25.69-7.8,6.98-5.13,11.72-13.33,11.66-22.85,0-4.94-1.13-9.43-3.34-13.13Z"/></svg>
       </div>
-      <div style="font-size:26px;font-weight:700;color:#fff;line-height:1.2;margin-bottom:8px">Elige tu plan</div>
+      <div style="font-size:26px;font-weight:700;color:#F8FAFC;line-height:1.2;margin-bottom:8px;font-family:'Space Grotesk',sans-serif">Elige tu plan</div>
+      <div id="upg-current-chip" class="upg-chip" hidden></div>
       <div style="font-size:13px;color:rgba(248,250,252,.4);font-family:'Space Mono',monospace">Cancela cuando quieras</div>
     </div>
 
-    <!-- Plan FREE -->
-    <div id="upg-card-free" class="upg-card upg-card-free">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-        <div>
-          <div style="font-size:16px;font-weight:700;color:#fff">Free</div>
-          <div style="font-size:12px;color:rgba(248,250,252,.4);font-family:'Space Mono',monospace;margin-top:2px">Para empezar</div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-size:24px;font-weight:700;color:#fff">0€</div>
-          <div style="font-size:10px;color:rgba(248,250,252,.35);font-family:'Space Mono',monospace">/mes</div>
-        </div>
+    <!-- Toggle Mensual / Anual -->
+    <div style="display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:26px">
+      <div class="upg-cycle" role="group" aria-label="Ciclo de facturación">
+        <button type="button" class="upg-cycle-btn" id="upg-cyc-month" aria-pressed="true"  onclick="upgSetCycle('month')">Mensual</button>
+        <button type="button" class="upg-cycle-btn" id="upg-cyc-year"  aria-pressed="false" onclick="upgSetCycle('year')">Anual</button>
       </div>
-      <div style="display:flex;flex-direction:column;gap:7px;font-size:12px;color:rgba(248,250,252,.55);font-family:'Space Mono',monospace">
-        <div>✓ CAFI — 20 consultas/mes</div>
-        <div>✓ Logbook — 25 vuelos</div>
-        <div>✓ OES — 20 preguntas/sesión</div>
-        <div>✓ SkyView, Fatigue, Career básico</div>
-        <div style="color:rgba(248,250,252,.25)">✕ OCR MCDU · Export · Roster IA · Nómina IA · ARIA</div>
-      </div>
-      <div id="upg-free-active" style="display:none;margin-top:14px;padding:8px;background:rgba(255,255,255,.05);border-radius:10px;text-align:center;font-size:12px;color:rgba(248,250,252,.4);font-family:'Space Mono',monospace">Plan actual</div>
+      <span class="upg-save-badge">−17%</span>
     </div>
 
-    <!-- Plan PRO -->
-    <div id="upg-card-pro" class="upg-card upg-card-pro">
-      <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:linear-gradient(90deg,#F97316,#FB923C);color:#fff;font-size:10px;font-weight:700;padding:3px 14px;border-radius:20px;white-space:nowrap;letter-spacing:.5px">MÁS POPULAR</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-        <div>
-          <div style="font-size:16px;font-weight:700;color:#FB923C">Pro</div>
-          <div style="font-size:12px;color:rgba(251,146,60,.5);font-family:'Space Mono',monospace;margin-top:2px">Para pilotos de línea</div>
+    <div class="upg-grid">
+
+      <!-- ── Plan FREE ── -->
+      <div id="upg-card-free" class="upg-card upg-card-free">
+        <div class="upg-name" style="color:#F8FAFC">Free</div>
+        <div class="upg-tag" style="color:rgba(248,250,252,.45)">Para empezar</div>
+
+        <div class="upg-price">
+          <span class="upg-price-now" id="upg-now-free" style="color:#F8FAFC">0€</span>
+          <span class="upg-price-was" id="upg-was-free" hidden></span>
+          <span class="upg-price-per" id="upg-per-free" style="color:rgba(248,250,252,.45)">/mes</span>
         </div>
-        <div style="text-align:right">
-          <div style="font-size:24px;font-weight:700;color:#FB923C">9,99€</div>
-          <div style="font-size:10px;color:rgba(251,146,60,.5);font-family:'Space Mono',monospace">/mes · IVA incl.</div>
+        <div class="upg-price-note" id="upg-note-free" style="color:rgba(248,250,252,.45)">Sin tarjeta · para siempre</div>
+
+        <button type="button" id="upg-btn-free" class="upg-cta upg-cta-free" onclick="upgPlanAction('free')">Plan actual</button>
+
+        <div class="upg-hero">
+          <div class="upg-hero-k" style="color:rgba(248,250,252,.6)">Incluye</div>
+          <div class="upg-hero-v" style="color:#F8FAFC">CAFI · 20 consultas/mes</div>
+        </div>
+
+        <div class="upg-feats" style="color:rgba(248,250,252,.62)">
+          <div class="upg-feat"><i>✓</i><span>Logbook — 25 vuelos</span></div>
+          <div class="upg-feat"><i>✓</i><span>Import Roster IA — 10/mes</span></div>
+          <div class="upg-feat"><i>✓</i><span>ARIA — 5 briefings/mes, <b>para leer</b></span></div>
+          <div class="upg-feat"><i>✓</i><span>OES — 20 preguntas/sesión · SkyView · Fatigue</span></div>
+        </div>
+
+        <div class="upg-nots">
+          <div class="upg-feat"><i>✗</i><span><b>Escuchar</b> el briefing de ARIA en audio</span></div>
+          <div class="upg-feat"><i>✗</i><span>Nómina IA · Notas de Gasto IA · OCR MCDU</span></div>
+          <div class="upg-feat"><i>✗</i><span>ADS-B · Voz IA (dictado y examinador)</span></div>
+          <div class="upg-feat"><i>✗</i><span>Export · Backup en nube · Estadísticas avanzadas</span></div>
         </div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:7px;font-size:12px;color:rgba(251,146,60,.8);font-family:'Space Mono',monospace;margin-bottom:16px">
-        <div>✓ CAFI — 200 consultas/mes</div>
-        <div>✓ Logbook ilimitado</div>
-        <div>✓ OCR MCDU — 60/mes</div>
-        <div>✓ Import Roster IA — 30/mes</div>
-        <div>✓ Import Nómina IA — 10/mes</div>
-        <div>✓ ARIA — briefing de audio 60/mes</div>
-        <div>✓ Export PDF · CSV · JSON</div>
-        <div>✓ Estadísticas avanzadas</div>
-        <div>✓ Backup nube · Sync multi-dispositivo</div>
-        <div>✓ OES ilimitado</div>
+
+      <!-- ── Plan PRO ── -->
+      <div id="upg-card-pro" class="upg-card upg-card-pro">
+        <div class="upg-pop">MÁS POPULAR</div>
+        <div class="upg-name" style="color:#C4B5FD">Pro</div>
+        <div class="upg-tag" style="color:rgba(196,181,253,.55)">Para pilotos de línea</div>
+
+        <div class="upg-price">
+          <span class="upg-price-now" id="upg-now-pro" style="color:#C4B5FD">9,99€</span>
+          <span class="upg-price-was" id="upg-was-pro" style="color:#C4B5FD" hidden>9,99€</span>
+          <span class="upg-price-per" id="upg-per-pro" style="color:rgba(196,181,253,.55)">/mes · IVA incl.</span>
+        </div>
+        <div class="upg-price-note" id="upg-note-pro" style="color:rgba(196,181,253,.7)"></div>
+
+        <button type="button" id="upg-btn-pro" class="upg-cta upg-cta-pro" onclick="upgPlanAction('pro')">Mejorar a Pro →</button>
+
+        <div class="upg-hero">
+          <div class="upg-hero-k" style="color:rgba(196,181,253,.75)">Lo que te llevas</div>
+          <div class="upg-hero-v" style="color:#DDD6FE">CAFI · 200 consultas/mes</div>
+        </div>
+
+        <div class="upg-feats" style="color:rgba(221,214,254,.85)">
+          <div class="upg-feat"><i>✓</i><span>Logbook ilimitado · Backup en nube y sync</span></div>
+          <div class="upg-feat"><i>✓</i><span>Roster IA 30/mes · Nómina IA 10/mes</span></div>
+          <div class="upg-feat"><i>✓</i><span>ARIA 60/mes · <b>30 en audio</b> · OCR MCDU 60/mes</span></div>
+          <div class="upg-feat"><i>✓</i><span>Notas de Gasto IA 60/mes · ADS-B 30/mes</span></div>
+          <div class="upg-feat"><i>✓</i><span>Voz IA 600/mes · Export · Stats avanzadas</span></div>
+        </div>
+
+        <div class="upg-nots">
+          <div class="upg-feat"><i>✗</i><span>Análisis IA del logbook</span></div>
+          <div class="upg-feat"><i>✗</i><span>Sim Prep — early access</span></div>
+        </div>
       </div>
-      <button id="upg-btn-pro" onclick="upgCheckout('price_1TYkkx2KvMRpp4a22IP5SE4Y')" style="width:100%;padding:13px;background:linear-gradient(135deg,#F97316,#EA6C0A);border:none;border-radius:13px;color:#fff;font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s">
-        Actualizar a Pro →
-      </button>
+
+      <!-- ── Plan UNLIMITED ── -->
+      <div id="upg-card-unlimited" class="upg-card upg-card-unlimited">
+        <div class="upg-name" style="color:#22D3EE">Unlimited</div>
+        <div class="upg-tag" style="color:rgba(34,211,238,.5)">Sin límites</div>
+
+        <div class="upg-price">
+          <span class="upg-price-now" id="upg-now-unlimited" style="color:#22D3EE">19,99€</span>
+          <span class="upg-price-was" id="upg-was-unlimited" style="color:#22D3EE" hidden>19,99€</span>
+          <span class="upg-price-per" id="upg-per-unlimited" style="color:rgba(34,211,238,.5)">/mes · IVA incl.</span>
+        </div>
+        <div class="upg-price-note" id="upg-note-unlimited" style="color:rgba(103,232,249,.75)"></div>
+
+        <button type="button" id="upg-btn-unlimited" class="upg-cta upg-cta-unlimited" onclick="upgPlanAction('unlimited')">Mejorar a Unlimited →</button>
+
+        <div class="upg-hero">
+          <div class="upg-hero-k" style="color:rgba(34,211,238,.75)">Lo que te llevas</div>
+          <div class="upg-hero-v" style="color:#67E8F9">CAFI · consultas ilimitadas</div>
+        </div>
+
+        <div class="upg-feats" style="color:rgba(103,232,249,.85)">
+          <div class="upg-feat"><i>✓</i><span>Todo lo de Pro, sin contadores</span></div>
+          <div class="upg-feat"><i>✓</i><span>Roster · Nómina · ARIA · OCR ilimitados</span></div>
+          <div class="upg-feat"><i>✓</i><span>Notas de Gasto · ADS-B · Voz IA ilimitados</span></div>
+          <div class="upg-feat"><i>✓</i><span>Análisis IA del logbook — 10/mes</span></div>
+          <div class="upg-feat"><i>✓</i><span>Sim Prep — early access</span></div>
+        </div>
+
+        <div class="upg-nots" style="border-top-color:transparent">
+          <div class="upg-feat" style="color:rgba(103,232,249,.5)"><i>·</i><span>No hay nada por encima: es el techo.</span></div>
+        </div>
+      </div>
+
     </div>
 
-    <!-- Plan UNLIMITED -->
-    <div id="upg-card-unlimited" class="upg-card upg-card-unlimited">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-        <div>
-          <div style="font-size:16px;font-weight:700;color:#22D3EE">Unlimited</div>
-          <div style="font-size:12px;color:rgba(34,211,238,.45);font-family:'Space Mono',monospace;margin-top:2px">Sin límites</div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-size:24px;font-weight:700;color:#22D3EE">19,99€</div>
-          <div style="font-size:10px;color:rgba(34,211,238,.45);font-family:'Space Mono',monospace">/mes · IVA incl.</div>
-        </div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:7px;font-size:12px;color:rgba(103,232,249,.7);font-family:'Space Mono',monospace;margin-bottom:16px">
-        <div>✓ Todo de Pro sin límites</div>
-        <div>✓ CAFI ilimitado</div>
-        <div>✓ OCR ilimitado</div>
-        <div>✓ Roster IA ilimitado</div>
-        <div>✓ Nómina IA ilimitada</div>
-        <div>✓ ARIA ilimitada</div>
-        <div>✓ Análisis IA logbook — 10/mes</div>
-        <div>✓ Sim Prep — early access</div>
-      </div>
-      <button id="upg-btn-unlimited" onclick="upgCheckout('price_1TYkln2KvMRpp4a2ScxBeQGJ')" style="width:100%;padding:13px;background:linear-gradient(135deg,#0891B2,#0E7490);border:none;border-radius:13px;color:#fff;font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s">
-        Actualizar a Unlimited →
-      </button>
+    <!-- Comparativa completa (colapsada) -->
+    <button type="button" class="upg-cmp-btn" id="upg-cmp-btn"
+            aria-expanded="false" aria-controls="upg-cmp-wrap" onclick="upgToggleCompare()">
+      <span id="upg-cmp-label">Ver comparativa completa</span><span class="upg-chev" aria-hidden="true">▾</span>
+    </button>
+
+    <div class="upg-cmp-wrap" id="upg-cmp-wrap" hidden>
+      <table class="upg-cmp">
+        <thead>
+          <tr>
+            <th scope="col">Feature</th>
+            <th scope="col">Free</th>
+            <th scope="col" class="c-pro">Pro</th>
+            <th scope="col" class="c-unl">Unlimited</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="upg-cmp-grp"><td colspan="4">IA y automatización</td></tr>
+          <tr><td>CAFI — consultas</td>              <td>20/mes</td>       <td>200/mes</td>  <td>∞</td></tr>
+          <tr><td>Import Roster IA</td>              <td>10/mes</td>       <td>30/mes</td>   <td>∞</td></tr>
+          <tr><td>Import Nómina IA (Pay Check)</td>  <td class="c-no">✗</td> <td>10/mes</td> <td>∞</td></tr>
+          <tr><td>Notas de Gasto IA</td>             <td class="c-no">✗</td> <td>60/mes</td> <td>∞</td></tr>
+          <tr><td>ARIA — briefing (leer)</td>        <td>5/mes</td>          <td>60/mes</td> <td>∞</td></tr>
+          <tr><td>ARIA — briefing en audio</td>      <td class="c-no">✗</td> <td>30/mes</td> <td>∞</td></tr>
+          <tr><td>OCR MCDU</td>                      <td class="c-no">✗</td> <td>60/mes</td> <td>∞</td></tr>
+          <tr><td>ADS-B — tráfico en vivo</td>       <td class="c-no">✗</td> <td>30/mes</td> <td>∞</td></tr>
+          <tr><td>Voz IA — examinador (TTS)</td>     <td class="c-no">✗</td> <td>600/mes</td><td>∞</td></tr>
+          <tr><td>Voz IA — dictado (STT)</td>        <td class="c-no">✗</td> <td>600/mes</td><td>∞</td></tr>
+          <tr><td>Análisis IA del logbook</td>       <td class="c-no">✗</td> <td class="c-no">✗</td> <td>10/mes</td></tr>
+
+          <tr class="upg-cmp-grp"><td colspan="4">Logbook y datos</td></tr>
+          <tr><td>Vuelos en el logbook</td>                  <td>25</td>              <td>∞</td> <td>∞</td></tr>
+          <tr><td>Export PDF · CSV · JSON</td>               <td class="c-no">✗</td>  <td class="c-yes">✓</td> <td class="c-yes">✓</td></tr>
+          <tr><td>Backup en nube · Sync multi-dispositivo</td><td class="c-no">✗</td> <td class="c-yes">✓</td> <td class="c-yes">✓</td></tr>
+          <tr><td>Estadísticas avanzadas</td>                <td class="c-no">✗</td>  <td class="c-yes">✓</td> <td class="c-yes">✓</td></tr>
+
+          <tr class="upg-cmp-grp"><td colspan="4">Herramientas</td></tr>
+          <tr><td>SkyView · Meteo · Brief</td>       <td class="c-yes">✓</td> <td class="c-yes">✓</td> <td class="c-yes">✓</td></tr>
+          <tr><td>Fatigue Check</td>                 <td class="c-yes">✓</td> <td class="c-yes">✓</td> <td class="c-yes">✓</td></tr>
+          <tr><td>Career · Logbook universal</td>    <td class="c-yes">✓</td> <td class="c-yes">✓</td> <td class="c-yes">✓</td></tr>
+          <tr><td>Oral Exam (OES)</td>               <td>20 preg./sesión</td> <td>∞</td> <td>∞</td></tr>
+          <tr><td>Sim Prep</td>                      <td class="c-no">✗</td> <td class="c-no">✗</td> <td>Early access</td></tr>
+        </tbody>
+      </table>
     </div>
 
     <!-- Nota seguridad -->
-    <div style="text-align:center;font-size:11px;color:rgba(248,250,252,.2);font-family:'Space Mono',monospace;line-height:1.6">
+    <div style="text-align:center;font-size:11px;color:rgba(248,250,252,.28);font-family:'Space Mono',monospace;line-height:1.6">
       🔒 Pago seguro con Stripe · Cancela cuando quieras<br>
-      Sin permanencia · Sin compromisos
+      Sin permanencia · Sin compromisos<br>
+      <button type="button" id="upg-portal-link" class="upg-portal-link" hidden onclick="upgPortal()">Gestionar mi suscripción</button>
     </div>
 
+   </div>
   </div>
 </div>
 
@@ -47035,6 +48723,7 @@ window.rcambAsegura = rcambAsegura;
          Las dos vacías hasta que el detector tenga algo que decir. -->
     <div id="rst-sim-bar" style="display:none"></div>
     <div id="rst-camb-ficha" style="display:none"></div>
+    <div id="rst-dl-ficha" style="display:none"></div>
 
     <!-- Action buttons moved to ⋯ options menu in header -->
 
@@ -47097,6 +48786,10 @@ window.rcambAsegura = rcambAsegura;
            explica las letras de las legs, así que tiene que leerse pegada a ellas. -->
       <div id="rst-detail-leyenda"></div>
       <div id="rst-detail-body"></div>
+      <!-- Invasión de día libre (Art. 13.23): la tarjeta del día invadido. Va aquí
+           y no en un chip de la tira de arriba, que ya estaba saturada: la
+           invasión es de UN día concreto, así que se enseña donde está ese día. -->
+      <div id="rst-dl-dia" style="display:none"></div>
       <div id="rst-day-warnings" style="display:none"></div>
     </div>
 
@@ -47183,24 +48876,30 @@ window.rcambAsegura = rcambAsegura;
         <input id="rst-edit-date" type="date" style="display:none">
         <div class="fg">
           <label class="fl">Tipo de día</label>
+          <div class="rst-tipo" id="rst-tipo" style="display:none">
+            <button type="button" id="rst-tipo-btn" class="fi rst-tipo-btn" onclick="rstTipoDiaToggle()" aria-haspopup="listbox" aria-expanded="false">
+              <span class="rst-tipo-val" id="rst-tipo-val"></span><span class="rst-tipo-caret">▾</span>
+            </button>
+            <div class="rst-tipo-lista" id="rst-tipo-lista" role="listbox" hidden></div>
+          </div>
           <select id="rst-edit-type" class="fi" style="cursor:pointer">
-            <option value="flight">✈ Vuelo</option>
-            <option value="standby">🟡 STBY — Imaginaria</option>
-            <option value="osb">🔵 OSB — Out of Standby</option>
-            <option value="off">🟢 OFF — Día libre</option>
-            <option value="f">🟩 F — Franco</option>
-            <option value="ef">🔷 EF — Franco ex turna</option>
-            <option value="srof">🩵 SROF — Libre por subasta</option>
-            <option value="noff">🌿 NOFF — Libre asignado</option>
-            <option value="aoff">🟢 AOFF — Día libre anual</option>
-            <option value="nrof">🟢 NROF — Libre no ganado</option>
-            <option value="meof">🏥 MEOF — Medical Off</option>
-            <option value="lm">🟫 LM — eLearning</option>
-            <option value="training">🎓 SIM — Simulador</option>
-            <option value="ebt">🖥 EBT — Evidence-Based Training</option>
-            <option value="eva">🖥 EVA — Evaluación</option>
-            <option value="sick">🔴 SICK — Baja médica</option>
-            <option value="other">⚪ Otro</option>
+            <option value="flight" data-chip="✈">Vuelo</option>
+            <option value="standby" data-chip="STBY">STBY — Imaginaria</option>
+            <option value="osb" data-chip="OSB">OSB — Out of Standby</option>
+            <option value="off" data-chip="OFF">OFF — Día libre</option>
+            <option value="f" data-chip="F">F — Franco</option>
+            <option value="ef" data-chip="EF">EF — Franco ex turna</option>
+            <option value="srof" data-chip="SROF">SROF — Libre por subasta</option>
+            <option value="noff" data-chip="NOFF">NOFF — Libre asignado</option>
+            <option value="aoff" data-chip="AOFF">AOFF — Día libre anual</option>
+            <option value="nrof" data-chip="NROF">NROF — Libre no ganado</option>
+            <option value="meof" data-chip="MEOF">MEOF — Medical Off</option>
+            <option value="lm" data-chip="LM">LM — eLearning</option>
+            <option value="training" data-chip="SIM">SIM — Simulador</option>
+            <option value="ebt" data-chip="EBT">EBT — Evidence-Based Training</option>
+            <option value="eva" data-chip="EVA">EVA — Evaluación</option>
+            <option value="sick" data-chip="SICK">SICK — Baja médica</option>
+            <option value="other" data-chip="?">Otro</option>
           </select>
         </div>
         <div id="rst-legs-container" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px"></div>
@@ -50559,6 +52258,9 @@ document.addEventListener('DOMContentLoaded', function(){
   function chunk(max){ var out=[]; var segs=SEG.length?SEG:[{from:0,to:SENT.length-1}]; for(var s=0;s<segs.length;s++){ var sg=segs[s],buf='',cf=sg.from; for(var i=sg.from;i<=sg.to;i++){ var st=SENT[i]; if(buf&&(buf.length+1+st.length)>max){ out.push({text:buf,from:cf,to:i-1,gap:false}); buf=st; cf=i; } else buf=buf?buf+' '+st:st; } if(buf)out.push({text:buf,from:cf,to:sg.to,gap:(s<segs.length-1)}); } return out; }
 
   async function prepareVoice(){
+    // Free lee el briefing pero no lo escucha: el texto ya está en pantalla.
+    var _perm=await window.ariaAudioAllowed();
+    if(!_perm.allowed){ status('🔒 '+_perm.message); return false; }
     var chunks=chunk(760); audios=[];
     var tk=token(); if(!tk){ status('⚠ Inicia sesión para la voz'); return false; }
     for(var i=0;i<chunks.length;i++){
@@ -51063,6 +52765,9 @@ document.addEventListener('DOMContentLoaded', function(){
   function _blobDur(blob){ return new Promise(function(res){ var u=URL.createObjectURL(blob); var a=new Audio(); a.preload='metadata'; var done=false; function fin(d){ if(done)return; done=true; try{URL.revokeObjectURL(u);}catch(e){} res(isFinite(d)&&d>0?d:6); } a.onloadedmetadata=function(){ fin(a.duration); }; a.onerror=function(){ fin(6); }; a.src=u; setTimeout(function(){ fin(a.duration); },2500); }); }
   async function ttsArrayBuffer(text){ var r=await fetch(BACKEND+'/api/tts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify({text:text,voice:(CUR.voice||'nova'),lang:CUR.lang})}); if(r.status===429){ var j=await r.json().catch(function(){return{};}); throw new Error(j.message||'Voz no disponible en tu plan'); } if(!r.ok) throw new Error('Error de voz '+r.status); return await r.arrayBuffer(); }
   async function prepareVoice(){
+    // Free lee el briefing pero no lo escucha: el texto ya está en pantalla.
+    var _perm=await window.ariaAudioAllowed();
+    if(!_perm.allowed){ stat('🔒 '+_perm.message); return false; }
     var chunks=chunk(760); _segMap=[]; if(!chunks.length){ return false; }
     // Vía robusta: decodificar cada trozo a PCM y unir en UN solo WAV (una sola cabecera).
     // Concatenar MP3/WAV crudos deja cabeceras internas que el Bluetooth reajusta en cada

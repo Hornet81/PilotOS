@@ -111,13 +111,29 @@ var TZ = {
 var TZ_FALLBACK = 'Europe/Madrid';
 function tzFor(iata) { return TZ[String(iata || '').toUpperCase()] || TZ_FALLBACK; }
 
-/* Offset del huso (en minutos) para un instante UTC dado. */
-function tzOffsetMin(utcMs, tz) {
-  var dtf = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false,
+/* Offset del huso (en minutos) para un instante UTC dado.
+
+   ⚠️ El formateador se CACHEA por huso, y no es un adorno: construir un
+   `Intl.DateTimeFormat` es de lo más caro que hace un motor de JS —carga los
+   datos ICU del huso— y aquí se llamaba una vez por invocación, con
+   `localToUTC` llamando DOS veces por la doble pasada del DST. Detectar los
+   gastos de un histórico de 12 meses tardaba 3,2 s y el de 24, 8,9 s: la
+   pestaña Gastos se quedaba clavada al abrirla y la app entera con ella,
+   porque esto corre en el hilo principal. Con el formateador cacheado el
+   resultado es idéntico —mismo objeto, mismas opciones— y el coste se paga
+   una vez por huso. Los husos son ~50, así que el mapa no crece. */
+var _DTF = {};
+function _dtfDe(tz) {
+  var f = _DTF[tz];
+  if (!f) f = _DTF[tz] = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false,
     year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return f;
+}
+function tzOffsetMin(utcMs, tz) {
+  var parts = _dtfDe(tz).formatToParts(new Date(utcMs));
   var p = {};
-  dtf.formatToParts(new Date(utcMs)).forEach(function (x) { p[x.type] = x.value; });
+  for (var i = 0; i < parts.length; i++) p[parts[i].type] = parts[i].value;
   var asUTC = Date.UTC(+p.year, +p.month - 1, +p.day, (+p.hour) % 24, +p.minute, +p.second);
   return (asUTC - utcMs) / 60000;
 }

@@ -46,14 +46,51 @@
    En un solo sitio y con nombre, para que cambiar la lectura del convenio sea
    tocar una línea y no perseguir números por el archivo. */
 var REGLAS = {
-  // «de MÁS de 60 minutos» — estrictamente mayor. Un `>=` aquí regala un cambio
-  // entero (49,11 €) cada vez que el movimiento cae en 60 clavados.
+  /* CUÁNTO se tiene que mover la jornada, POR CADA LADO: 60 minutos.
+     La «ventana de 120 minutos» que dice el SEPLA son estos 60 por delante MÁS 60
+     por detrás; no es un tercer número. */
   umbralMin: 60,
+
+  /* Y si los 60 clavados cuentan o hacen falta 61. El texto dice «de más 60
+     minutos», que leído al pie de la letra dejaría fuera el movimiento de una hora
+     exacta — y una hora exacta es EL caso típico, porque las reprogramaciones se
+     dan en horas redondas. Se aplica la lectura del piloto: 60 cuenta.
+
+     No es un detalle: con `estricto` la mitad de los cambios reales se caerían por
+     un minuto. */
+  umbralEstricto: false,
+
+  /* La ventana sumando los dos lados. Queda DESACTIVADA porque con 60 no estricto
+     por lado es imposible que aporte nada: si ninguno de los dos lados llega a 60,
+     lo más que pueden sumar entre ambos son 118 minutos, y nunca 120. Se deja el
+     mando por si algún día la lectura cambia a un umbral por lado más alto, donde
+     sí tendría sentido. */
+  ventanaMin: 0,
+
+  /* HACIA DÓNDE cuenta el movimiento.
+       'asimetrica' → solo adelanto del inicio o retraso del fin, que es lo que
+                      dice el texto: cuenta lo que invade el descanso, no lo que
+                      lo devuelve.
+       'simetrica'  → cualquier diferencia, en cualquier dirección.
+     Ojo: esta constante y `umbralMin` mueven el dinero en direcciones OPUESTAS.
+     Subir el umbral quita cambios; pasar a simétrica los añade. */
+  direccion: 'asimetrica',
+
+  /* Si el movimiento de horas basta por sí solo o hace falta ADEMÁS que cambie el
+     número de vuelo. El texto lo exige («simultáneamente»); quitarlo multiplica la
+     cuenta, porque un retraso de programación sin cambiar de vuelo es lo más
+     habitual que hay. */
+  exigeCambioVuelo: true,
   // El 1.º y el 2.º del mes no devengan, pero cuentan para la numeración.
   gratisAlMes: 2,
-  // La unidad de cambio es la JORNADA. Un día que cumple a la vez la regla del
-  // vuelo y la de la pernocta es UN cambio, no dos.
-  unidad: 'jornada'
+  /* La unidad es el VUELO CAMBIADO, no la jornada. Si en un mismo día te
+     sustituyen dos sectores y la jornada se mueve más de 60 min, son DOS cambios.
+     El artículo no define la unidad; esta es la lectura que se aplica —«aquellos
+     cambios que conlleven un cambio de número de vuelo»— y es la favorable al
+     piloto. Lo que NO se cuenta dos veces es el mismo día por dos vías: si la
+     jornada ya cuenta por sus vuelos, la pernocta nueva de ese día no suma otro.
+     Cambiar esta constante NO basta: la expansión está en detectar(). */
+  unidad: 'vuelo'
 };
 
 /* Tarifas del Anexo A. Se pasan por parámetro (el backend las lee de
@@ -163,16 +200,79 @@ function jornadas(entries){
   return dias;
 }
 
-/* Inicio y fin de actividad de una jornada, en minutos desenrollados.
-   Inicio = la firma si la hay; si no, el primer despegue programado. */
+/* El ancla de la jornada: la firma si la hay. Sin firma manda el reparto de los
+   despegues — ninguna jornada real reparte los suyos a lo largo de más de 13 h
+   (FDP máximo), así que un hueco mayor solo puede significar que el reloj dio la
+   vuelta, y el arranque es el despegue que viene DESPUÉS del hueco. Ordenar por
+   la hora del reloj a pelo pondría primero el tramo que sale a las 00:10 cuando
+   es el último de una jornada que empezó a las 18:10. */
+function ancla(d){
+  return d.firma != null ? d.firma : anclaDeSalidas(d);
+}
+
+function anclaDeSalidas(d){
+  var deps = [];
+  d.vuelos.forEach(function(v){ if (v.std != null) deps.push(v.std); });
+  d._seq.forEach(function(p){ if (p[0] != null) deps.push(p[0]); });
+  if (!deps.length){
+    var otras = [];
+    d.vuelos.forEach(function(v){ if (v.sta != null) otras.push(v.sta); });
+    d._seq.forEach(function(p){ if (p[1] != null) otras.push(p[1]); });
+    return otras.length ? Math.min.apply(null, otras) : null;
+  }
+  deps.sort(function(a, b){ return a - b; });
+  var corte = null, mayor = 13 * 60;
+  for (var i = 1; i < deps.length; i++){
+    var g = deps[i] - deps[i - 1];
+    if (g > mayor){ mayor = g; corte = i; }
+  }
+  return corte == null ? deps[0] : deps[corte];
+}
+
+/* Inicio y fin de actividad, en minutos absolutos desde el ancla.
+   Cada hora se coloca en las 24 h que siguen al ancla, en vez de encadenarlas una
+   detrás de otra. La cadena da por hecho que los tramos vienen EN ORDEN, y no
+   siempre vienen: basta con que el piloto edite un vuelo a mano y deje el día
+   descolocado —L1 llegando a las 19:30 y L2 saliendo a las 16:10— para que el
+   reloj dé la vuelta dos veces y el fin salga 28 h más tarde. Anclando, una
+   jornada imposible da un resultado raro pero acotado, no astronómico; y las que
+   cruzan medianoche siguen saliendo bien, que era para lo que estaba la cadena. */
+/* Ninguna jornada legal llega a 16 h: el FDP máximo son 13. Una que pase de ahí
+   solo puede salir de un reloj que ha dado la vuelta donde no debía. */
+var JORNADA_IMPOSIBLE = 16 * 60;
+function extiende(a, horas){
+  var abs = horas.map(function(t){ return a + ((((t - a) % 1440) + 1440) % 1440); });
+  return { inicio: Math.min.apply(null, abs), fin: Math.max.apply(null, abs) };
+}
+
 function ventana(d){
   var crudo = [];
-  if (d.firma != null) crudo.push(d.firma);
-  d.vuelos.forEach(function(v){ crudo.push(v.std); crudo.push(v.sta); });
-  d._seq.forEach(function(p){ crudo.push(p[0]); crudo.push(p[1]); });
-  var abs = desenrolla(crudo).filter(function(v){ return v != null; });
-  d.inicio = abs.length ? abs[0] : null;
-  d.fin    = abs.length ? abs[abs.length - 1] : null;
+  d.vuelos.forEach(function(v){ if (v.std != null) crudo.push(v.std); if (v.sta != null) crudo.push(v.sta); });
+  d._seq.forEach(function(p){ if (p[0] != null) crudo.push(p[0]); if (p[1] != null) crudo.push(p[1]); });
+  var conFirma = d.firma != null ? [d.firma].concat(crudo) : crudo;
+  var a = ancla(d);
+  if (a == null || !conFirma.length){ d.inicio = null; d.fin = null; }
+  else {
+    var r = extiende(a, conFirma);
+    /* Una firma que no es la de este día tira la jornada 24 h hacia delante: pasa
+       en cuanto el piloto adelanta un sector a mano, porque los editores tocan el
+       vuelo y NO el check-in. De ahí salía «el fin se retrasa 17h30» sobre una hora
+       de adelanto. Si anclando en la firma la jornada es imposible y anclando en el
+       primer despegue no lo es, la firma se descarta —de ancla y de la ventana, que
+       si no una firma vieja de las 23:00 se convertiría en el fin del día—.
+       El criterio es el mismo >13 h que ya separa los despegues: no se juzga cuánta
+       antelación es «normal» (un día puede firmar por la mañana y volar por la
+       tarde), solo si el resultado es físicamente imposible. */
+    if (d.firma != null && (r.fin - r.inicio) > JORNADA_IMPOSIBLE){
+      var g = anclaDeSalidas(d);
+      if (g != null && crudo.length){
+        var r2 = extiende(g, crudo);
+        if ((r2.fin - r2.inicio) <= JORNADA_IMPOSIBLE){ d.firma = null; r = r2; }
+      }
+    }
+    d.inicio = r.inicio;
+    d.fin    = r.fin;
+  }
   // Firma de los vuelos del día, para comparar «cambio de número de vuelo».
   d.numeros = d.vuelos.map(function(v){ return v.num; }).filter(Boolean).sort().join(',');
   return d;
@@ -221,10 +321,19 @@ function detectar(opts){
     var dIni = (a.inicio != null && b.inicio != null) ? (b.inicio - a.inicio) : null;
     var dFin = (a.fin    != null && b.fin    != null) ? (b.fin    - a.fin)    : null;
     // «Adelanto del inicio» o «retraso del fin», ambos de MÁS de 60 min.
-    var mueve = (dIni != null && dIni < -REGLAS.umbralMin) ||
-                (dFin != null && dFin >  REGLAS.umbralMin);
+    var mov = movimiento(dIni, dFin);
+    var mueve = !!mov;
     var cambiaVuelo = a.numeros !== b.numeros;
     var pernoctaNueva = !!pAct[fecha] && !pIni[fecha];
+
+    /* Qué vuelos han cambiado. Se emparejan los que se van con los que llegan:
+       dos sectores sustituidos son dos cambios, uno cancelado sin reemplazo es
+       uno. Es lo que decide CUÁNTOS cambios sale ese día. */
+    var numIni = a.vuelos.map(function(v){ return v.num; }).filter(Boolean);
+    var numAct = b.vuelos.map(function(v){ return v.num; }).filter(Boolean);
+    var fuera  = numIni.filter(function(x){ return numAct.indexOf(x) < 0; });
+    var nuevos = numAct.filter(function(x){ return numIni.indexOf(x) < 0; });
+    var nVuelos = Math.max(fuera.length, nuevos.length);
 
     // ── Qué sería, si nada lo excluyera ──
     var cand = null;
@@ -243,11 +352,16 @@ function detectar(opts){
                  motivo:'imaginaria sustituida antes de activarse' + txtMov(dIni, dFin) };
       }
     }
+    /* La regla del vuelo va ANTES que la de la pernocta: es la que cuenta por
+       sectores, así que en un día que cumpla las dos da igual o más. Y así el
+       mismo día no se cuenta dos veces por dos vías distintas. */
+    if (!cand && mueve && (!REGLAS.exigeCambioVuelo || cambiaVuelo)){
+      cand = { tipo:'vuelo_tiempo', unidades: Math.max(1, nVuelos),
+               motivo: (cambiaVuelo ? 'cambia el nº de vuelo y ' : '') + mov.txt
+                     + (pernoctaNueva ? ', y añade pernocta' : '') };
+    }
     if (!cand && pernoctaNueva && !esReserva(a) && !esFranco(a)){
       cand = { tipo:'pernocta', motivo:'pernocta que no estaba en la programación inicial' };
-    }
-    if (!cand && cambiaVuelo && mueve){
-      cand = { tipo:'vuelo_tiempo', motivo:'cambia el nº de vuelo' + txtMov(dIni, dFin) };
     }
     if (!cand) return;                         // no encaja en el artículo: informativo
 
@@ -259,10 +373,21 @@ function detectar(opts){
       firmaIni: a.firma, firmaAct: b.firma
     };
 
-    // ── Excluyentes, en el orden en que manda el artículo ──
-    var ex = excluye(fecha, a, b, cand, marcas, vistoEn);
-    if (ex){ descartados.push(mezcla(base, ex)); return; }
-    computables.push(base);
+    /* Una entrada POR VUELO cambiado, cada una con su sitio en la escalera y su
+       tarifa. Se listan por separado —y con qué vuelo sustituye a cuál— porque un
+       «2» que no se puede desglosar no se puede reclamar. Las demás reglas
+       (pernoctas, imaginarias) siguen siendo una por día: no van por sectores. */
+    var uds = cand.unidades || 1;
+    var ex  = excluye(fecha, a, b, cand, marcas, vistoEn);
+    for (var u = 0; u < uds; u++){
+      var it = mezcla(base, uds > 1 ? { unidad: u + 1, unidades: uds } : {});
+      if (uds > 1 || cand.tipo === 'vuelo_tiempo'){
+        it.vueloIni = fuera[u]  || null;
+        it.vueloAct = nuevos[u] || null;
+      }
+      if (ex) descartados.push(mezcla(it, ex));
+      else    computables.push(it);
+    }
   });
 
   // ── Escalera. El orden es cronológico, y el 1.º y el 2.º cuentan. ──
@@ -295,11 +420,34 @@ function detectar(opts){
 function vacio(fecha){ return { date:fecha, codes:[], tipos:[], vuelos:[], firma:null, _seq:[], inicio:null, fin:null, numeros:'' }; }
 function mezcla(a, b){ var o = {}; Object.keys(a).forEach(function(k){ o[k] = a[k]; }); Object.keys(b).forEach(function(k){ o[k] = b[k]; }); return o; }
 
-function txtMov(dIni, dFin){
-  if (dIni != null && dIni < -REGLAS.umbralMin) return ' y el inicio se adelanta ' + hhmm(-dIni);
-  if (dFin != null && dFin >  REGLAS.umbralMin) return ' y el fin se retrasa ' + hhmm(dFin);
-  return '';
+/* ¿Se ha movido la jornada lo bastante? Un solo sitio para las dos preguntas
+   —cuánto y hacia dónde— para que el veredicto y el texto que lee el piloto no
+   puedan discrepar nunca. Devuelve null si no llega al umbral. */
+function movimiento(dIni, dFin){
+  var U = REGLAS.umbralMin, sim = (REGLAS.direccion === 'simetrica');
+  var llega = function(v){ return REGLAS.umbralEstricto ? (v > U) : (v >= U); };
+  // En asimétrica solo cuenta el movimiento que quita descanso: el inicio hacia
+  // atrás (−dIni) y el fin hacia delante (dFin).
+  var ini = (dIni != null) && llega(sim ? Math.abs(dIni) : -dIni);
+  var fin = (dFin != null) && llega(sim ? Math.abs(dFin) :  dFin);
+  /* La ventana: lo que se corre por delante más lo que se corre por detrás. Solo
+     suman los movimientos que quitan descanso, igual que en la regla de por lado
+     (en simétrica, cualquiera de los dos). */
+  var aIni = (dIni == null) ? 0 : (sim ? Math.abs(dIni) : Math.max(0, -dIni));
+  var aFin = (dFin == null) ? 0 : (sim ? Math.abs(dFin) : Math.max(0,  dFin));
+  var ventana = (REGLAS.ventanaMin > 0) && ((aIni + aFin) >= REGLAS.ventanaMin);
+  if (!ini && !fin && ventana){
+    return { lado:'ventana', delta:(aIni + aFin),
+             txt:'la jornada se corre ' + hhmm(aIni + aFin) + ' entre los dos extremos' };
+  }
+  if (!ini && !fin) return null;
+  // Si se mueven los dos, manda el que más se ha movido: es el que explica el caso.
+  var usaIni = ini && (!fin || Math.abs(dIni) >= Math.abs(dFin));
+  return usaIni
+    ? { lado:'inicio', delta:dIni, txt:'el inicio se ' + (dIni < 0 ? 'adelanta ' : 'retrasa ') + hhmm(Math.abs(dIni)) }
+    : { lado:'fin',    delta:dFin, txt:'el fin se '    + (dFin > 0 ? 'retrasa '  : 'adelanta ') + hhmm(Math.abs(dFin)) };
 }
+function txtMov(dIni, dFin){ var m = movimiento(dIni, dFin); return m ? (' y ' + m.txt) : ''; }
 function hhmm(m){ var h = Math.floor(m / 60), r = m % 60; return h ? (h + 'h' + (r ? String(r).padStart(2,'0') : '')) : (r + ' min'); }
 
 function importeDe(ordinal, tarifas){
@@ -419,37 +567,88 @@ function jornada(date, n1, n2, dst, desplazaFin){
     V(date, n2, 'CDG', 'BCN', mm(590, dst), mm(700, (dst||0) + (desplazaFin||0)))
   ];
 }
+function unLeg(date, num, dst, desplazaFin){
+  var mm = function(base, off){ var t = base + (off || 0); return String(Math.floor(((t%1440)+1440)%1440/60)).padStart(2,'0') + ':' + String(((t%60)+60)%60).padStart(2,'0'); };
+  return [ V(date, num, 'BCN', 'CDG', mm(430, dst), mm(700, (dst||0) + (desplazaFin||0)), mm(370 + (dst||0), 0)) ];
+}
 var ESCENARIOS = [
-  { id:'fin_2h50', nombre:'nº vuelo + fin +2h50', espera:'PAGA', caso:function(){
+  /* Los cuatro del filo van RELATIVOS al umbral configurado, no con minutos
+     cableados: lo que hay que fijar es la regla —«MÁS de U», estrictamente— y que
+     siga valiendo si mañana U deja de ser 120. Con números fijos, cambiar el
+     umbral rompía los escenarios sin que hubiera nada roto. */
+  { id:'fin_holgado', nombre:'nº vuelo + fin muy retrasado', espera:'PAGA', caso:function(){
       return { inicial: jornada('2026-09-14','VY1882','VY1883',0,0),
-               actual:  jornada('2026-09-14','VY2310','VY2311',0,170) }; } },
+               actual:  jornada('2026-09-14','VY2310','VY2311',0,REGLAS.umbralMin + 50) }; } },
 
-  { id:'fin_61', nombre:'nº vuelo + fin +61 min', espera:'PAGA', caso:function(){
+  { id:'fin_umbral_mas1', nombre:'nº vuelo + fin en el umbral +1 min', espera:'PAGA', caso:function(){
       return { inicial: jornada('2026-09-14','VY1882','VY1883',0,0),
-               actual:  jornada('2026-09-14','VY2310','VY2311',0,61) }; } },
+               actual:  jornada('2026-09-14','VY2310','VY2311',0,REGLAS.umbralMin + 1) }; } },
 
-  { id:'fin_60', nombre:'nº vuelo + fin +60 min exactos', espera:'no paga', caso:function(){
+  /* El caso típico: la jornada se mueve una hora clavada. Con la lectura estricta
+     del texto («más de 60») se caería por un minuto; con la del piloto, cuenta. */
+  { id:'fin_umbral', nombre:'nº vuelo + fin justo en el umbral',
+    espera:function(){ return REGLAS.umbralEstricto ? 'no paga' : 'PAGA'; },
+    caso:function(){
       return { inicial: jornada('2026-09-14','VY1882','VY1883',0,0),
-               actual:  jornada('2026-09-14','VY2310','VY2311',0,60) }; } },
+               actual:  jornada('2026-09-14','VY2310','VY2311',0,REGLAS.umbralMin) }; } },
 
-  { id:'fin_45', nombre:'nº vuelo + fin +45 min', espera:'no paga', caso:function(){
+  { id:'fin_umbral_menos1', nombre:'nº vuelo + fin un minuto por debajo', espera:'no paga',
+    caso:function(){
       return { inicial: jornada('2026-09-14','VY1882','VY1883',0,0),
-               actual:  jornada('2026-09-14','VY2310','VY2311',0,45) }; } },
+               actual:  jornada('2026-09-14','VY2310','VY2311',0,REGLAS.umbralMin - 1) }; } },
 
-  { id:'inicio_adelanto', nombre:'nº vuelo + inicio adelantado 1h40', espera:'PAGA', caso:function(){
+  /* La ventana: 60 por delante y 60 por detrás. Ningún lado pasa de 60 por
+     separado, pero la jornada se corre 120 entre los dos extremos y eso cuenta.
+     Es el caso que se escapaba con la regla de por lado a secas. */
+  /* Los tres van RELATIVOS al umbral, como el resto de los del filo: lo que fijan
+     es la regla —el borde cuenta, un minuto por debajo no— y tienen que seguir
+     valiendo si el umbral deja de ser 60. */
+  { id:'ventana_justa', nombre:'el inicio y el fin, los dos justo en el umbral',
+    espera:function(){ return REGLAS.umbralEstricto ? 'no paga' : 'PAGA'; },
+    caso:function(){ var U = REGLAS.umbralMin;
+      return { inicial: unLeg('2026-09-06','VY5000',0,0),
+               actual:  unLeg('2026-09-06','VY6000',-U,2*U) }; } },
+
+  { id:'ventana_corta', nombre:'los dos extremos, sin llegar al umbral ninguno', espera:'no paga',
+    caso:function(){ var U = REGLAS.umbralMin - 10;
+      // Se mueve la jornada entera, pero ningún extremo llega al umbral y el
+      // artículo mide cada uno por separado.
+      return { inicial: unLeg('2026-09-06','VY5000',0,0),
+               actual:  unLeg('2026-09-06','VY6000',-U,2*U) }; } },
+
+  { id:'un_lado_en_el_filo', nombre:'solo el inicio, justo en el umbral',
+    espera:function(){ return REGLAS.umbralEstricto ? 'no paga' : 'PAGA'; },
+    caso:function(){ var U = REGLAS.umbralMin;
+      return { inicial: unLeg('2026-09-06','VY5000',0,0),
+               actual:  unLeg('2026-09-06','VY6000',-U,U) }; } },
+
+  { id:'inicio_adelanto', nombre:'nº vuelo + inicio adelantado de sobra', espera:'PAGA', caso:function(){
       return { inicial: jornada('2026-09-22','VY6501','VY6502',0,0),
-               actual:  jornada('2026-09-22','VY6733','VY6734',-100,0) }; } },
+               actual:  jornada('2026-09-22','VY6733','VY6734',-(REGLAS.umbralMin + 40),0) }; } },
 
-  { id:'inicio_mas_tarde', nombre:'nº vuelo + inicio 3h más tarde, fin igual', espera:'no paga', caso:function(){
-      // El artículo solo nombra el ADELANTO del inicio. Empezar más tarde con el
-      // mismo fin le DEVUELVE descanso al piloto: no hay nada que compensar.
-      return { inicial: [ V('2026-09-05','VY1000','BCN','LIS','07:00','11:00','06:00') ],
-               actual:  [ V('2026-09-05','VY2000','BCN','LIS','10:00','11:00','09:00') ] }; } },
+  { id:'inicio_mas_tarde', nombre:'nº vuelo + inicio más tarde, fin igual',
+    espera: function(){ return REGLAS.direccion === 'simetrica' ? 'PAGA' : 'no paga'; }, caso:function(){
+      /* El texto solo nombra el ADELANTO del inicio: empezar más tarde con el mismo
+         fin le DEVUELVE descanso al piloto. En modo simétrico sí contaría, y por eso
+         lo que se espera aquí depende de la dirección configurada: este escenario es
+         el que enseña de un vistazo qué lectura está puesta. */
+      var t = REGLAS.umbralMin + 60;
+      var hh = function(m){ return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); };
+      return { inicial: [ V('2026-09-05','VY1000','BCN','LIS','07:00', hh(420+t+60), '06:00') ],
+               actual:  [ V('2026-09-05','VY2000','BCN','LIS', hh(420+t), hh(420+t+60), hh(360+t)) ] }; } },
 
-  { id:'mismo_vuelo', nombre:'MISMO nº vuelo + fin +3h', espera:'no paga', caso:function(){
-      // Falta la mitad del «simultáneamente»: sin cambio de número de vuelo, no cuenta.
+  /* Las dos mitades del «simultáneamente», cada una por su lado. El artículo pide
+     cambio de nº de vuelo Y movimiento de horas: con una sola no hay cambio, y
+     éstos son los dos escenarios que lo fijan. El primero es el caso de todos los
+     días —el vuelo que ya tenías y que acaba mucho más tarde—: eso es un retraso,
+     no una reprogramación, y no se paga por este artículo. */
+  { id:'mismo_vuelo', nombre:'mismo nº de vuelo, acaba mucho más tarde', espera:'no paga', caso:function(){
       return { inicial: jornada('2026-09-09','VY1109','VY1110',0,0),
-               actual:  jornada('2026-09-09','VY1109','VY1110',0,180) }; } },
+               actual:  jornada('2026-09-09','VY1109','VY1110',0,REGLAS.umbralMin + 60) }; } },
+
+  { id:'solo_vuelo', nombre:'cambia el nº de vuelo pero las horas no', espera:'no paga', caso:function(){
+      return { inicial: jornada('2026-09-09','VY1109','VY1110',0,0),
+               actual:  jornada('2026-09-09','VY2109','VY2110',0,0) }; } },
 
   { id:'pernocta_nueva', nombre:'pernocta nueva en destino', espera:'PAGA', caso:function(){
       return { inicial: [ V('2026-09-08','VY1200','BCN','CDG','18:00','20:00','17:00'),
@@ -525,14 +724,29 @@ var ESCENARIOS = [
                actual:  jornada('2026-09-11','VY7422','VY7423',-105,0),
                marcas:  { '2026-09-11': { mine:true, motivo:'permuta' } } }; } },
 
+  { id:'dos_vuelos', nombre:'dos sectores cambiados el mismo día', espera:'2',
+    lee:function(r){ return String(r.nComputables); },
+    caso:function(){
+      /* La unidad es el VUELO, no la jornada: dos sectores sustituidos en un día
+         que se mueve más de 60 min son dos cambios, y se listan por separado con
+         qué vuelo sustituye a cuál. */
+      return { inicial: jornada('2026-09-02','VY2472','VY2473',0,0),
+               actual:  jornada('2026-09-02','VY3ITU','VY2YYY',0,170) }; } },
+
+  { id:'un_vuelo_de_dos', nombre:'solo uno de los dos sectores cambia', espera:'1',
+    lee:function(r){ return String(r.nComputables); },
+    caso:function(){
+      return { inicial: jornada('2026-09-02','VY2472','VY2473',0,0),
+               actual:  jornada('2026-09-02','VY2472','VY2YYY',0,170) }; } },
+
   { id:'escalera_12', nombre:'escalera de 12 cambios', espera:'540,20 €',
     lee:function(r){ return r.importe.toFixed(2).replace('.', ',') + ' €'; },
     caso:function(){
       var ini = [], act = [];
       for (var i = 1; i <= 12; i++){
         var d = MES + '-' + String(i).padStart(2, '0');
-        ini = ini.concat(jornada(d, 'VY10' + i, 'VY11' + i, 0, 0));
-        act = act.concat(jornada(d, 'VY20' + i, 'VY21' + i, 0, 170));
+        ini = ini.concat(unLeg(d, 'VY10' + i, 0, 0));
+        act = act.concat(unLeg(d, 'VY20' + i, 0, 170));
       }
       return { inicial: ini, actual: act }; } },
 
@@ -542,8 +756,8 @@ var ESCENARIOS = [
       var ini = [], act = [];
       for (var i = 1; i <= 2; i++){
         var d = MES + '-0' + i;
-        ini = ini.concat(jornada(d, 'VY30' + i, 'VY31' + i, 0, 0));
-        act = act.concat(jornada(d, 'VY40' + i, 'VY41' + i, 0, 170));
+        ini = ini.concat(unLeg(d, 'VY30' + i, 0, 0));
+        act = act.concat(unLeg(d, 'VY40' + i, 0, 170));
       }
       return { inicial: ini, actual: act }; } }
 ];
@@ -560,8 +774,11 @@ function autotest(tarifas){
       var r = detectar(c);
       obtuvo = e.lee ? e.lee(r) : (r.nComputables > 0 ? 'PAGA' : 'no paga');
     } catch (ex){ err = ex.message; obtuvo = 'ERROR'; }
-    return { id:e.id, nombre:e.nombre, espera:e.espera, obtuvo:obtuvo,
-             ok: obtuvo === e.espera, error:err };
+    // `espera` puede ser función: hay escenarios cuyo veredicto correcto depende
+    // de la lectura configurada, y cablearlo haría fallar el banco al cambiarla.
+    var esperado = (typeof e.espera === 'function') ? e.espera() : e.espera;
+    return { id:e.id, nombre:e.nombre, espera:esperado, obtuvo:obtuvo,
+             ok: obtuvo === esperado, error:err };
   });
 }
 
@@ -601,8 +818,8 @@ var API = {
   REGLAS: REGLAS, TARIFAS_2026: TARIFAS_2026,
   COD_FORMACION: COD_FORMACION, COD_FRANCO: COD_FRANCO,
   COD_RESERVA: COD_RESERVA, COD_PERSONAL: COD_PERSONAL, COD_FORZOSO: COD_FORZOSO,
-  hm: hm, desenrolla: desenrolla, jornadas: jornadas, ventana: ventana,
-  detectar: detectar, importeDe: importeDe, hhmm: hhmm,
+  hm: hm, desenrolla: desenrolla, jornadas: jornadas, ventana: ventana, ancla: ancla,
+  detectar: detectar, importeDe: importeDe, hhmm: hhmm, movimiento: movimiento,
   ESCENARIOS: ESCENARIOS, autotest: autotest,
   PUBLICACION_DIA_FIN: PUBLICACION_DIA_FIN, clasificaBase: clasificaBase
 };
