@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.713">
+  <meta name="version" content="Estable.714">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.713","builtAt":"2026-09-04T09:59:31Z","commit":"5c8a198","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.714","builtAt":"2026-09-04T18:27:23Z","commit":"359f363","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -6243,6 +6243,54 @@ html.day .rat-sep{background:rgba(15,23,42,.14) !important}
 
 
 /* ── Sección de pagables en la hoja de sincronización ── */
+/* ── Hoja «mes actualizado» (resumen del resync de eCrews) ──────────────────
+   Los colores estaban EN LÍNEA en el JS que la construye, así que el card se
+   quedaba oscuro en modo día mientras las clases de dentro (.ecp-*) sí seguían
+   al tema: el título del bloque de pagables salía casi negro sobre fondo oscuro
+   y no se leía. Ahora todo va por clase y hay dos paletas de verdad. */
+.ec-sum-ov{position:fixed;inset:0;z-index:560;background:rgba(3,8,18,.88);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  display:flex;align-items:center;justify-content:center;padding:20px}
+.ec-sum-card{width:100%;max-width:440px;max-height:80vh;overflow-y:auto;border-radius:22px;padding:22px 20px;
+  background:linear-gradient(180deg,#0A1628,#060E1C);border:1.5px solid rgba(8,145,178,.4)}
+.ecs-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.ecs-ico-h{font-size:22px}
+.ecs-title{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:800;color:#F0FFFE}
+.ecs-sub{font-family:'Space Mono',monospace;font-size:11px;color:#22D3EE}
+.ecs-row{display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid rgba(255,255,255,.06)}
+.ecs-ico{font-size:13px}
+.ecs-tag{font-family:'Space Mono',monospace;font-size:10px;font-weight:700;min-width:74px}
+.ecs-tag.nuevo{color:#4ADE80}
+.ecs-tag.cambio{color:#FCD34D}
+.ecs-tag.elim{color:#FCA5A5}
+.ecs-det{font-family:'Space Mono',monospace;font-size:12px;color:#F0FFFE}
+.ecs-det-h{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.ecs-que{color:#F0FFFE}
+/* La hora vieja va tachada, y el tachado ya dice que es la vieja: la opacidad
+   encima solo restaba contraste. Se baja el tono en vez de difuminarlo. */
+.ecs-old{color:#94A3B8;text-decoration:line-through}
+.ecs-arr{color:#4ADE80;font-weight:800;font-size:14px}
+.ecs-new{color:#4ADE80;font-weight:700}
+.ecs-ok{margin-top:16px;width:100%;padding:13px;border:none;border-radius:13px;
+  /* El degradado de la marca (#0891B2→#0369A1) deja el blanco en 3,81:1 por su
+     extremo claro, y el rótulo va a 14 px: el listón es 4,5. Se baja un escalón
+     el cian y sigue siendo el mismo botón. */
+  background:linear-gradient(135deg,#0E7490,#075985);color:#fff;
+  font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:800;cursor:pointer}
+/* ── y la de DÍA: card claro, y todo lo de dentro repintado ── */
+html.day .ec-sum-ov{background:rgba(15,23,42,.55)}
+html.day .ec-sum-card{background:linear-gradient(180deg,#FFFFFF,#F4FAFC);border-color:rgba(8,145,178,.38);
+  box-shadow:0 18px 50px rgba(8,47,73,.18)}
+html.day .ecs-title{color:#0A1628}
+html.day .ecs-sub{color:#0E7490}
+html.day .ecs-row{border-top-color:rgba(10,22,40,.10)}
+html.day .ecs-tag.nuevo{color:#15803D}
+html.day .ecs-tag.cambio{color:#B45309}
+html.day .ecs-tag.elim{color:#B91C1C}
+html.day .ecs-det,html.day .ecs-que{color:#0F172A}
+html.day .ecs-old{color:#475569}
+html.day .ecs-arr,html.day .ecs-new{color:#15803D}
+
 .ec-pagables{border:1px solid rgba(74,222,128,.34);background:rgba(74,222,128,.07);border-radius:14px;padding:11px 12px;margin-bottom:12px}
 .ecp-h{font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#4ADE80;margin-bottom:9px}
 .ecp-row{padding:8px 0;border-top:1px solid rgba(74,222,128,.16)}
@@ -6254,7 +6302,9 @@ html.day .rat-sep{background:rgba(15,23,42,.14) !important}
 .ecp-box.on{background:#22C55E;border-color:#22C55E}
 .ecp-box.on::after{content:'✓';position:absolute;inset:0;color:#fff;font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center}
 html.day .ec-pagables{background:rgba(21,128,61,.10) !important;border-color:rgba(21,128,61,.35) !important}
-html.day .ecp-h{color:#15803D !important}
+/* 4,32:1 sobre el verde clarísimo del bloque, a 10 px en versalitas. Mismo
+   escalón que ya se bajó en la tarjeta del día libre por lo mismo. */
+html.day .ecp-h{color:#166534 !important}
 html.day .ecp-l1{color:#0F172A !important}
 html.day .ecp-l2{color:#475569 !important}
 html.day .ecp-cbx{color:#0F172A !important}
@@ -44519,15 +44569,21 @@ function _ecShowChangeSummary(month, diff){
   }
   var ov=document.createElement('div');
   ov.setAttribute('data-ecsum','1');
-  ov.style.cssText='position:fixed;inset:0;z-index:560;background:rgba(3,8,18,.88);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);display:flex;align-items:center;justify-content:center;padding:20px';
+  /* Color por CLASE, no en línea. Con el fondo del card en un `style` y los
+     colores de dentro en clases, el card se quedaba OSCURO en modo día —un
+     atributo style no sabe de temas— mientras `html.day .ecp-l1` pintaba el
+     título casi negro encima: invisible. Es el mismo caso que la tarjeta del
+     día, al revés. Un bloque tiene UNA paleta por tema, y las dos se declaran
+     en la hoja de estilos. */
+  ov.className='ec-sum-ov';
   var card=document.createElement('div');
-  card.style.cssText='width:100%;max-width:440px;max-height:80vh;overflow-y:auto;background:linear-gradient(180deg,#0A1628,#060E1C);border:1.5px solid rgba(8,145,178,.4);border-radius:22px;padding:22px 20px';
-  var h='<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="font-size:22px">🔄</div><div><div style="font-family:\'Space Grotesk\',sans-serif;font-size:16px;font-weight:800;color:#F0FFFE">'+mlabel+' actualizado</div><div style="font-family:\'Space Mono\',monospace;font-size:11px;color:#22d3ee">'+n+' cambio'+(n===1?'':'s')+rcambEsc(_restTxt)+'</div></div></div>';
-  function row(icon,col,lbl,detail){ return '<div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid rgba(255,255,255,.06)"><span style="font-size:13px">'+icon+'</span><span style="font-family:\'Space Mono\',monospace;font-size:10px;color:'+col+';font-weight:700;min-width:74px">'+lbl+'</span><span style="font-family:\'Space Mono\',monospace;font-size:12px;color:#F0FFFE">'+detail+'</span></div>'; }
-  diff.added.forEach(function(e){ h+=row('✈️','#4ADE80','NUEVO','día '+_ecDiffDay(e)+' · '+_ecDiffLabel(e)); });
-  diff.changed.forEach(function(c){ h+='<div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid rgba(255,255,255,.06)"><span style="font-size:13px">🕐</span><span style="font-family:\'Space Mono\',monospace;font-size:10px;color:#FCD34D;font-weight:700;min-width:74px">CAMBIO</span><span style="font-family:\'Space Mono\',monospace;font-size:12px;display:flex;align-items:center;gap:7px;flex-wrap:wrap"><span style="color:#F0FFFE">día '+_ecDiffDay(c.n)+' · '+_ecDiffLabel(c.n)+'</span><span style="color:#94a3b8;text-decoration:line-through;opacity:.75">'+_ecDiffTime(c.o)+'</span><span style="color:#4ADE80;font-weight:800;font-size:14px">→</span><span style="color:#4ADE80;font-weight:700">'+_ecDiffTime(c.n)+'</span></span></div>'; });
-  diff.removed.forEach(function(e){ h+=row('❌','#fca5a5','ELIMINADO','día '+_ecDiffDay(e)+' · '+_ecDiffLabel(e)); });
-  h+='<button onclick="var x=this.closest(\'[data-ecsum]\'); if(x) x.remove();" style="margin-top:16px;width:100%;padding:13px;border:none;border-radius:13px;background:linear-gradient(135deg,#0891B2,#0369A1);color:#fff;font-family:\'Space Grotesk\',sans-serif;font-size:14px;font-weight:800;cursor:pointer">Entendido</button>';
+  card.className='ec-sum-card';
+  var h='<div class="ecs-head"><div class="ecs-ico-h">🔄</div><div><div class="ecs-title">'+mlabel+' actualizado</div><div class="ecs-sub">'+n+' cambio'+(n===1?'':'s')+rcambEsc(_restTxt)+'</div></div></div>';
+  function row(icon,cls,lbl,detail){ return '<div class="ecs-row"><span class="ecs-ico">'+icon+'</span><span class="ecs-tag '+cls+'">'+lbl+'</span><span class="ecs-det">'+detail+'</span></div>'; }
+  diff.added.forEach(function(e){ h+=row('✈️','nuevo','NUEVO','día '+_ecDiffDay(e)+' · '+_ecDiffLabel(e)); });
+  diff.changed.forEach(function(c){ h+='<div class="ecs-row"><span class="ecs-ico">🕐</span><span class="ecs-tag cambio">CAMBIO</span><span class="ecs-det ecs-det-h"><span class="ecs-que">día '+_ecDiffDay(c.n)+' · '+_ecDiffLabel(c.n)+'</span><span class="ecs-old">'+_ecDiffTime(c.o)+'</span><span class="ecs-arr">→</span><span class="ecs-new">'+_ecDiffTime(c.n)+'</span></span></div>'; });
+  diff.removed.forEach(function(e){ h+=row('❌','elim','ELIMINADO','día '+_ecDiffDay(e)+' · '+_ecDiffLabel(e)); });
+  h+='<button class="ecs-ok" onclick="var x=this.closest(\'[data-ecsum]\'); if(x) x.remove();">Entendido</button>';
   card.innerHTML=h; ov.appendChild(card);
   ov.addEventListener('click',function(ev){ if(ev.target===ov) ov.remove(); });
   document.body.appendChild(ov);
