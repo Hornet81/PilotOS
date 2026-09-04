@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.712">
+  <meta name="version" content="Estable.713">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.712","builtAt":"2026-09-04T07:46:54Z","commit":"7492594","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.713","builtAt":"2026-09-04T09:59:31Z","commit":"5c8a198","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -1635,12 +1635,16 @@ html.day #scr-pay .pc-mp-m.sel{color:#1a1000}
 #scr-pay .pc-noct-det .g.cero{opacity:.55}
 #scr-pay .pc-noct-det .g .v{display:inline-block;min-width:52px;color:rgba(255,255,255,.7);font-weight:700}
 #scr-pay .pc-noct-det .arr{margin-left:6px;font-size:9px;color:#FBBF24}
+/* Sector medido con la hora REAL por no tener la programada: no es un aviso de
+   error, es el aviso de que ESOS minutos no se pueden reclamar. Color por CLASE. */
+#scr-pay .pc-noct-est{display:block;margin-top:2px;font-size:9px;color:#FCA5A5}
 #scr-pay .pc-noct-det .cp{margin-top:7px;padding:5px 9px;border-radius:8px;cursor:pointer;text-align:center;
   font-size:10px;font-weight:700;color:#C4B5FD;background:rgba(124,58,237,.14);border:1px dashed rgba(167,139,250,.35)}
 #scr-pay .pc-noct-det .cp:active{transform:scale(.99)}
 html.day #scr-pay .pc-noct-det .g{color:#5b5470;border-left-color:rgba(124,58,237,.2)}
 html.day #scr-pay .pc-noct-det .g .v{color:#334155}
 html.day #scr-pay .pc-noct-det .arr{color:#B45309}
+html.day #scr-pay .pc-noct-est{color:#8f1d1d}
 html.day #scr-pay .pc-noct-det .cp{color:#6D28D9;background:rgba(124,58,237,.08);border-color:rgba(124,58,237,.3)}
 #scr-pay .pc-noct-det{font-size:10px;line-height:1.6;font-family:ui-monospace,'Space Mono',monospace;
   padding:9px 11px;border-radius:10px;background:rgba(124,58,237,.08);border:1px solid rgba(167,139,250,.24);color:rgba(255,255,255,.58)}
@@ -17910,6 +17914,15 @@ function pcPintaNoctDetalle(){
   var conNoche = L.filter(function(x){ return (x.noche_min||0) > 0; });
   var totNoche = L.reduce(function(a,x){ return a + (x.noche_min||0); }, 0);
   var h = '<div class="t">Nocturnas por servicio · total ' + hm(totNoche) + '</div>';
+  var sinProg = 0;
+  L.forEach(function(x){ (x.legs||[]).forEach(function(g){
+    if ((g.noche_min||0) > 0 && g.hora_src === 'real') sinProg += g.noche_min; }); });
+  if (sinProg > 0){
+    h += '<div class="p"><b>' + hm(sinProg) + '</b> de esas horas están medidas con la hora REAL, '
+       + 'porque el roster no guardó la programada de esos sectores. La compañía paga sobre la '
+       + 'PROGRAMADA, así que esa parte no cuadra necesariamente con tu nómina y no conviene '
+       + 'reclamarla. El resto sí sale de la hora programada.</div>';
+  }
   if (!conNoche.length){
     h += '<div class="l">Ningún servicio del mes tiene vuelo dentro de la franja nocturna.</div>';
   } else {
@@ -17925,6 +17938,11 @@ function pcPintaNoctDetalle(){
           hora(g.ini) + '–' + hora(g.fin) + 'Z · ' + hm(g.block_min) +
           (noc ? ' · <b>noche ' + hm(noc) + '</b>' : ' · sin noche') +
           ((g.arrastrado_min || 0) > 0 ? '<span class="arr">' + hm(g.arrastrado_min) + ' por la regla de 3 h</span>' : '') +
+          /* Vueling paga sobre la hora PROGRAMADA (contestación escrita del
+             31-ago-2026). Cuando el roster no la trae, este sector se ha medido
+             con la REAL y sus minutos no son los que paga la compañía: decirlo es
+             la diferencia entre una reclamación que se sostiene y una que no. */
+          (noc && (g.hora_src === 'real') ? '<span class="pc-noct-est">medido con la hora real · falta la programada</span>' : '') +
         '</div>';
       }).join('');
       return '<div class="l">' +
@@ -19048,6 +19066,42 @@ function pcCompare(real, L){
     var muestra = ss.slice(0, 3).join('  +  ') + (ss.length > 3 ? '  + …' : '');
     g.src = 'suma de ' + ss.length + ' líneas: ' + muestra;
   });
+
+  /* ── La base del /402 la pone la NÓMINA, no el convenio ────────────────────
+     El ingreso a cuenta del cód. 525 se calcula sobre la retribución en ESPECIE
+     del mes: beneficios de vuelo (3803) + las 3R** que ponen SUJETO. Nada de eso
+     lo decide el convenio — lo decide cuántos vuelos de standby usó la familia
+     ese mes—, así que el teórico no puede saberlo: sale de dos casillas que el
+     piloto rellenó la última vez que subió una nómina, y se quedan congeladas.
+
+     Caso real (agosto 2026): esas casillas traían las de JULIO —80,96 + 164,59 =
+     245,55— y en agosto los beneficios de vuelo fueron 479,91, o sea base 644,50.
+     La diferencia, 158,04 €, se iba entera al «cobras 168,88 € menos de lo
+     previsto» cuando la diferencia de DEVENGOS —lo único que decide la compañía—
+     eran 9,34 € a favor del piloto. El titular acusaba de 168 € por un dato que
+     la app no tiene forma de conocer.
+
+     Cuando el papel trae su propia base y su tipo y la cuenta CUADRA, se usa esa
+     base. El TIPO se deja el del formulario a propósito: un % distinto sí es una
+     diferencia del piloto con la compañía y tiene que seguir viéndose.
+     Mismo criterio que la cuota de solidaridad, que también se copia del papel. */
+  (function(){
+    var g = by['525']; if (!g) return;
+    var base = g.qty, tasa = g.rate, ret = g.ded;
+    if (base == null || tasa == null || !(base > 0) || !(ret > 0)) return;
+    if (Math.abs(base * tasa / 100 - ret) > Math.max(0.5, ret * 0.01)) return;  // no cuadra → no se toca
+    var baseForm = (L.benefVuelo || 0) + (L.rfEspecie || 0);
+    if (Math.abs(base - baseForm) < 0.005) return;                              // ya coincidían
+    var nuevo  = base * (L.irpf || 0);
+    var ajuste = nuevo - (L.irpfEsp || 0);
+    L = Object.assign({}, L, {
+      irpfEsp:  nuevo,
+      rfEspecie: base - (L.benefVuelo || 0),
+      totalRet: (L.totalRet || 0) + ajuste,
+      liquido:  (L.liquido  || 0) - ajuste,
+      especieDelPapel: { base: base, baseForm: baseForm, ajuste: ajuste }
+    });
+  })();
 
   var rows = [], missing = [], sinDato = [], derivadas = [], used = {};
   var nOk=0, nWarn=0, nBad=0;
