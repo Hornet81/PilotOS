@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.724">
+  <meta name="version" content="Estable.730">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.724","builtAt":"2026-09-05T18:36:45Z","commit":"5fe08ad","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.730","builtAt":"2026-09-05T19:16:51Z","commit":"98fb359","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -1696,6 +1696,57 @@ html.day #scr-pay .pc-reparto .mal{color:#B91C1C}
 #scr-pay .pca-lagnote.ok{color:rgba(134,239,172,.8)}
 #scr-pay .pca-lagnote.ok b{color:#86EFAC}
 #scr-pay .pca-lnk{color:#7DD3FC;font-weight:700;text-decoration:underline;cursor:pointer;white-space:nowrap}
+/* ── Paga trimestral: la cuenta, dibujada ────────────────────────────────────
+   Antes se escupía la fórmula en texto ("1.060,12 € × 1/3 + 963,74 € × 2/3 =
+   995,87 €"), que es exacta pero parece salida de depuración y no se entiende
+   de un vistazo. La barra dice lo mismo sin leer: cada tramo es un nivel, su
+   ancho son los meses, y lo que se pierde por no cumplir una de las dos mitades
+   del art. 15.14 queda en gris dentro de la MISMA barra — así se ve cuánto es. */
+#scr-pay .pc-trimcard{margin-top:10px;padding:13px 14px 12px;border-radius:16px;
+  background:linear-gradient(135deg,rgba(245,158,11,.13),rgba(245,158,11,.05));
+  border:1px solid rgba(245,158,11,.22)}
+#scr-pay .pc-trimcard .top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+#scr-pay .pc-trimcard .tag{font-size:10px;letter-spacing:.09em;text-transform:uppercase;
+  font-weight:800;color:var(--pc-am3);opacity:.95}
+#scr-pay .pc-trimcard .eur{font-size:21px;font-weight:800;color:var(--pc-am2);
+  letter-spacing:-.02em;line-height:1.1;font-variant-numeric:tabular-nums}
+#scr-pay .pc-trimbar{display:flex;gap:3px;height:9px;margin:11px 0 9px}
+#scr-pay .pc-trimbar span{border-radius:99px;min-width:5px;transition:flex-grow .25s ease}
+#scr-pay .pc-trimbar span.n0{background:linear-gradient(90deg,#FCD34D,#FBBF24)}
+#scr-pay .pc-trimbar span.n1{background:linear-gradient(90deg,#F59E0B,#D97706)}
+#scr-pay .pc-trimbar span.n2{background:linear-gradient(90deg,#B45309,#92400E)}
+/* El tramo que NO se cobra tiene que VERSE: con un alfa del 11% quedaba en 1,39:1
+   sobre el ámbar de la tarjeta —invisible, justo lo contrario de lo que hace falta
+   para que el piloto vea cuánto se deja. Medido: .36 lo pone en ~3:1. */
+#scr-pay .pc-trimbar span.off{background:rgba(255,255,255,.36)}
+#scr-pay .pc-trimleg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11px;
+  color:rgba(255,255,255,.62);line-height:1.5}
+#scr-pay .pc-trimleg i{display:inline-block;width:7px;height:7px;border-radius:99px;
+  margin-right:6px;vertical-align:middle}
+#scr-pay .pc-trimleg b{color:rgba(255,255,255,.86);font-weight:700}
+#scr-pay .pc-trimleg .off b{color:rgba(255,255,255,.5);text-decoration:line-through}
+#scr-pay .pc-trimadj{margin-top:11px;width:100%;padding:8px;border-radius:10px;cursor:pointer;
+  background:rgba(245,158,11,.09);border:1px solid rgba(245,158,11,.24);
+  color:var(--pc-am3);font-size:11.5px;font-weight:700;font-family:inherit;
+  letter-spacing:.01em;transition:background .18s ease}
+#scr-pay .pc-trimadj:hover{background:rgba(245,158,11,.17)}
+html.day #scr-pay .pc-trimcard{background:linear-gradient(135deg,#FFF7E6,#FFFDF7);border-color:rgba(245,158,11,.3)}
+html.day #scr-pay .pc-trimcard .tag{color:#B45309}
+html.day #scr-pay .pc-trimcard .eur{color:#92400E}
+/* El modo día necesita su propia rampa: los oros claros del modo noche sobre la
+   tarjeta casi blanca se quedan en ~1,5:1. Y el primer gris neutro que puse tenía
+   3,04:1 contra la tarjeta pero **1,02:1 contra el oro de al lado** — mismo brillo,
+   separados solo por el tono, que es justo lo que no ve un daltónico. Así que el
+   tramo perdido va CLARO y con contorno (se distingue por luminancia, 3,8:1 contra
+   el oro) y los cobrados van oscuros: 4,7:1 y 6,6:1 contra la tarjeta. */
+html.day #scr-pay .pc-trimbar span.n0{background:linear-gradient(90deg,#C2660A,#B45309)}
+html.day #scr-pay .pc-trimbar span.n1{background:linear-gradient(90deg,#92400E,#78350F)}
+html.day #scr-pay .pc-trimbar span.n2{background:linear-gradient(90deg,#5C2A0B,#431E08)}
+html.day #scr-pay .pc-trimbar span.off{background:#E5E0D6;box-shadow:inset 0 0 0 1px rgba(120,80,10,.38)}
+html.day #scr-pay .pc-trimleg{color:#6B7280}
+html.day #scr-pay .pc-trimleg b{color:#3D3D3D}
+html.day #scr-pay .pc-trimleg .off b{color:#9CA3AF}
+html.day #scr-pay .pc-trimadj{background:rgba(245,158,11,.09);border-color:rgba(245,158,11,.34);color:#B45309}
 html.day #scr-pay .pca-lagnote.bad{color:#7F1D1D;background:rgba(185,28,28,.08);border-color:rgba(185,28,28,.28)}
 html.day #scr-pay .pca-lagnote.bad b{color:#B91C1C}
 html.day #scr-pay .pca-lagnote.ok{color:#166534}html.day #scr-pay .pca-lagnote.ok b{color:#047857}
@@ -12259,27 +12310,37 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
         <label class="pc-switch"><input type="checkbox" id="pc_trim"><span class="pc-slider"></span></label>
       </div>
       <!-- Art. 15.14: importe fijo del anexo A por nivel, en dos mitades del 50%.
-           Si el piloto cambió de nivel dentro del trimestre, se prorratea por meses. -->
+           El prorrateo por ascenso a mitad de trimestre lo deduce la app del nivel
+           que trae cada nómina subida; las dos mitades se cobran casi siempre y el
+           objetivo de puntualidad ni siquiera lo sabe el piloto (es de empresa).
+           Así que aquí solo se ve la cuenta, y el ajuste manual va detrás del enlace. -->
       <div id="pc_trim_wrap" style="display:none;margin:8px 0 4px">
-        <label class="pc-field-label">¿Cambiaste de nivel durante el trimestre?</label>
-        <div style="display:flex;gap:8px">
-          <select class="fi" id="pc_trim_nivel_pre" onchange="pcTrimUpdate()" style="flex:1">
-            <option value="">No, mismo nivel todo el trimestre</option>
-          </select>
-          <select class="fi" id="pc_trim_meses_pre" onchange="pcTrimUpdate()" style="width:118px;flex:none">
-            <option value="1">1 mes</option>
-            <option value="2">2 meses</option>
-          </select>
+        <div class="pc-trimcard">
+          <div class="top"><span class="tag" id="pc_trim_tag">Paga trimestral</span><span class="eur" id="pc_trim_eur">—</span></div>
+          <div class="pc-trimbar" id="pc_trim_bar"></div>
+          <div class="pc-trimleg" id="pc_trim_leg"></div>
+          <button type="button" class="pc-trimadj" id="pc_trim_ajuste_lnk" onclick="pcTrimAjuste()">Ajustar cambio de nivel o requisitos</button>
         </div>
-        <div class="pc-sw-row" style="margin-top:8px">
-          <div><div class="pc-sw-label">Objetivo de puntualidad</div><div class="pc-sw-sub">50% de la paga · lo cumple la compañía</div></div>
-          <label class="pc-switch"><input type="checkbox" id="pc_trim_punt" checked onchange="pcTrimUpdate()"><span class="pc-slider"></span></label>
+        <div id="pc_trim_ajuste" style="display:none;margin-top:8px">
+          <label class="pc-field-label">¿Cambiaste de nivel durante el trimestre?</label>
+          <div style="display:flex;gap:8px">
+            <select class="fi" id="pc_trim_nivel_pre" onchange="pcTrimUpdate()" style="flex:1">
+              <option value="">No, mismo nivel todo el trimestre</option>
+            </select>
+            <select class="fi" id="pc_trim_meses_pre" onchange="pcTrimUpdate()" style="width:118px;flex:none">
+              <option value="1">1 mes</option>
+              <option value="2">2 meses</option>
+            </select>
+          </div>
+          <div class="pc-sw-row" style="margin-top:8px">
+            <div><div class="pc-sw-label">Objetivo de puntualidad</div><div class="pc-sw-sub">50% de la paga · lo fija y lo cumple la compañía</div></div>
+            <label class="pc-switch"><input type="checkbox" id="pc_trim_punt" checked onchange="pcTrimUpdate()"><span class="pc-slider"></span></label>
+          </div>
+          <div class="pc-sw-row">
+            <div><div class="pc-sw-label">Sin no-show injustificado</div><div class="pc-sw-sub">50% de la paga · depende de ti</div></div>
+            <label class="pc-switch"><input type="checkbox" id="pc_trim_noshow" checked onchange="pcTrimUpdate()"><span class="pc-slider"></span></label>
+          </div>
         </div>
-        <div class="pc-sw-row">
-          <div><div class="pc-sw-label">Sin no-show injustificado</div><div class="pc-sw-sub">50% de la paga · depende de ti</div></div>
-          <label class="pc-switch"><input type="checkbox" id="pc_trim_noshow" checked onchange="pcTrimUpdate()"><span class="pc-slider"></span></label>
-        </div>
-        <div id="pc_trim_hint" class="pc-hint"></div>
       </div>
       <div class="pc-sw-row">
         <div><div class="pc-sw-label">Bolsa de beneficios</div><div class="pc-sw-sub">CPT: 2.796,80 € / FO: 2.341,39 € (anual÷12)</div></div>
@@ -17807,6 +17868,64 @@ function pcTrimestralImporte(tabla, nivelAct, nivelPre, mesesPre, okPuntualidad,
   return Math.round(bruto * factor * 100) / 100;
 }
 
+/* ── Qué nivel económico tenía el piloto en cada mes ──────────────────────────
+   El nivel sube por antigüedad, y si sube a mitad de trimestre la paga trimestral
+   se reparte (ver pcTrimestralImporte). Preguntárselo al piloto era pedirle un
+   dato que la app ya tiene delante: cada nómina trae en su cabecera la CATEGORÍA
+   PROF del mes que paga. Aquí se apunta, y el historial se construye solo según
+   va subiendo nóminas. Con una sola nómina no hay historial y no se prorratea
+   nada — que es lo correcto: no inventar un ascenso que no consta. */
+var PC_NIVEL_HIST_KEY = 'pilotos_pay_niveles';
+function pcNivelHist(){
+  try { return JSON.parse(lsGet(PC_NIVEL_HIST_KEY, '{}') || '{}') || {}; } catch(e){ return {}; }
+}
+function pcNivelHistApunta(payslip){
+  if (!payslip || !payslip.month) return;
+  var pr = payslip.profile || {};
+  var nivel = pr.nivelEconomico != null ? String(pr.nivelEconomico) : null;
+  if (!nivel) return;
+  var esp = null;
+  try { esp = ppEspToValue(pr.especialidad); } catch(e){}
+  var h = pcNivelHist();
+  h[String(payslip.month).slice(0,7)] = { nivel: nivel, esp: esp || null };
+  try { lsSet(PC_NIVEL_HIST_KEY, JSON.stringify(h)); } catch(e){}
+}
+/* Nivel en el mes `ym`: el último apuntado que no sea posterior. Si no hay ninguno
+   anterior se coge el más antiguo conocido (mejor el nivel de una nómina real que
+   el del formulario, que puede haberse tocado a mano). Sin historial, `nivelAct`. */
+function pcNivelEnMes(ym, espAct, nivelAct){
+  var h = pcNivelHist(), ks = Object.keys(h).filter(function(k){
+    return !espAct || !h[k].esp || h[k].esp === espAct; }).sort();
+  if (!ks.length || !ym) return nivelAct;
+  var prev = null;
+  for (var i = 0; i < ks.length; i++){ if (ks[i] <= ym) prev = ks[i]; else break; }
+  return h[prev || ks[0]].nivel || nivelAct;
+}
+/* Importe del trimestre que cierra en `mesAct`, prorrateado mes a mes con el
+   historial. Devuelve también el desglose, para poder enseñar la cuenta. */
+function pcTrimestralAuto(tabla, mesAct, espAct, nivelAct){
+  var m = /^(\d{4})-(\d{2})$/.exec(String(mesAct || ''));
+  if (!m || !tabla) return null;
+  var y = +m[1], mm = +m[2], meses = [];
+  for (var k = 2; k >= 0; k--){                       // los 3 meses del trimestre
+    var yy = y, n = mm - k;
+    while (n < 1){ n += 12; yy--; }
+    meses.push(yy + '-' + String(n).padStart(2,'0'));
+  }
+  var porNivel = {}, hay = false;
+  meses.forEach(function(ym){
+    var nv = pcNivelEnMes(ym, espAct, nivelAct);
+    if (nv !== nivelAct) hay = true;
+    porNivel[nv] = (porNivel[nv] || 0) + 1;
+  });
+  if (!hay) return null;                              // mismo nivel los 3 meses
+  var imp = 0;
+  Object.keys(porNivel).forEach(function(nv){ imp += (tabla[nv] || tabla[nivelAct] || 0) * porNivel[nv] / 3; });
+  return { importe: Math.round(imp*100)/100, meses: meses, porNivel: porNivel };
+}
+try { window.pcNivelEnMes = pcNivelEnMes; window.pcTrimestralAuto = pcTrimestralAuto;
+      window.pcNivelHistApunta = pcNivelHistApunta; } catch(e){}
+
 /* Coletilla de la fila 289, para que en el desglose se vea POR QUÉ sale ese número
    y no el de tabla — un importe que no está en ninguna tabla y sin explicación es
    exactamente lo que hace dudar de todo el cálculo. */
@@ -17815,20 +17934,32 @@ function pcTrimEtiqueta(det, nivelAct){
   var p = [];
   if (det.nivelPre && det.mesesPre)
     p.push(det.mesesPre + '/3 a Nivel ' + det.nivelPre + ' + ' + (3-det.mesesPre) + '/3 a Nivel ' + (nivelAct||'—'));
+  else if (det.auto)
+    p.push(Object.keys(det.auto).map(function(nv){ return nv + ' × ' + det.auto[nv] + '/3'; }).join(' + '));
   if (det.punt === false)   p.push('sin el 50% de puntualidad');
   if (det.noShow === false) p.push('sin el 50% del no-show');
   return p.length ? ' (' + p.join(' · ') + ')' : '';
 }
 
 /* Lee de la pantalla lo que necesita pcTrimestralImporte. Separado de la función
-   pura para que el banco pueda probar la cuenta sin montar medio DOM. */
+   pura para que el banco pueda probar la cuenta sin montar medio DOM.
+   El cambio de nivel sale del historial de nóminas (pcTrimestralAuto) y solo se
+   pregunta si el piloto abre el ajuste manual: primero lo que consta, y el
+   formulario únicamente cuando lo que consta no le cuadra. */
 function pcTrimestralDeUI(tabla, nivelAct) {
   var v = function(id, def){ var e = document.getElementById(id); return e ? e.value : def; };
   var c = function(id, def){ var e = document.getElementById(id); return e ? e.checked : def; };
-  return pcTrimestralImporte(tabla, nivelAct,
-    v('pc_trim_nivel_pre', '') || null,
-    parseFloat(v('pc_trim_meses_pre', 0)) || 0,
-    c('pc_trim_punt', true), c('pc_trim_noshow', true));
+  var punt = c('pc_trim_punt', true), nosh = c('pc_trim_noshow', true);
+  var pre = v('pc_trim_nivel_pre', '') || null, meses = parseFloat(v('pc_trim_meses_pre', 0)) || 0;
+  if (!pre) {
+    var auto = null;
+    try { auto = pcTrimestralAuto(tabla, v('pc_mes_sel', null), v('pc_esp', null), nivelAct); } catch(e){}
+    if (auto) {
+      var factor = (punt ? 0.5 : 0) + (nosh ? 0.5 : 0);
+      return Math.round(auto.importe * factor * 100) / 100;
+    }
+  }
+  return pcTrimestralImporte(tabla, nivelAct, pre, meses, punt, nosh);
 }
 
 /* Rellena el desplegable de niveles anteriores (los de la especialidad elegida) y
@@ -17851,19 +17982,70 @@ function pcTrimUpdate() {
   }
   var mw = document.getElementById('pc_trim_meses_pre');
   if (mw) mw.style.display = (sel && sel.value) ? '' : 'none';
-  var hint = document.getElementById('pc_trim_hint'); if (!hint) return;
-  var imp = pcTrimestralDeUI(T.trimestral, nivelAct);
+  var barEl = document.getElementById('pc_trim_bar'), legEl = document.getElementById('pc_trim_leg');
+  if (!barEl || !legEl) return;
   var eur = function(x){ return x.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; };
   var pre = sel && sel.value, m = pre ? (parseFloat(mw && mw.value) || 0) : 0;
-  var det = pre
-    ? eur(T.trimestral[pre]) + ' × ' + m + '/3 + ' + eur(T.trimestral[nivelAct]) + ' × ' + (3-m) + '/3'
-    : 'Nivel ' + nivelAct + ' · anexo A';
+
+  /* Los tramos de la barra: un nivel por tramo, ancho = meses de los 3. Sale del
+     ajuste manual si lo hay y, si no, del historial de nóminas. */
+  var tramos;
+  if (pre && m) {
+    tramos = [{ nivel: pre, meses: m }, { nivel: nivelAct, meses: 3 - m }];
+  } else {
+    var auto = null;
+    try { auto = pcTrimestralAuto(T.trimestral, (document.getElementById('pc_mes_sel')||{}).value,
+                                  espEl.value, nivelAct); } catch(e){}
+    tramos = auto
+      ? Object.keys(auto.porNivel).map(function(nv){ return { nivel:nv, meses:auto.porNivel[nv] }; })
+      : [{ nivel: nivelAct, meses: 3 }];
+  }
   var punt = document.getElementById('pc_trim_punt'), nosh = document.getElementById('pc_trim_noshow');
-  var mitades = (punt && !punt.checked ? ' · sin el 50% de puntualidad' : '') +
-                (nosh && !nosh.checked ? ' · sin el 50% del no-show' : '');
-  hint.textContent = det + mitades + '  →  ' + eur(imp);
+  var okP = !punt || punt.checked, okN = !nosh || nosh.checked;
+  var factor = (okP ? 0.5 : 0) + (okN ? 0.5 : 0);
+  var imp = pcTrimestralDeUI(T.trimestral, nivelAct);
+
+  /* La barra entera es el trimestre completo. Lo cobrado se pinta en ámbar,
+     repartido por niveles; lo perdido por una mitad incumplida queda en gris a la
+     derecha, para que se vea CUÁNTO se deja de cobrar y no solo que falta algo. */
+  var html = tramos.map(function(t, i){
+    return '<span class="n' + Math.min(i,2) + '" style="flex:' + (t.meses * factor).toFixed(3) + '"></span>';
+  }).join('');
+  if (factor < 1) html += '<span class="off" style="flex:' + (3 * (1 - factor)).toFixed(3) + '"></span>';
+  barEl.innerHTML = html;
+
+  var COL = ['#FBBF24','#D97706','#92400E'];
+  var leg = tramos.map(function(t, i){
+    var mm = t.meses === 1 ? '1 mes' : t.meses + ' meses';
+    return '<span><i style="background:' + COL[Math.min(i,2)] + '"></i><b>Nivel ' + t.nivel + '</b> · ' +
+           mm + ' · ' + eur(T.trimestral[t.nivel] || 0) + '</span>';
+  });
+  if (!okP) leg.push('<span class="off"><i style="background:rgba(255,255,255,.18)"></i><b>50% de puntualidad</b> · no se devenga</span>');
+  if (!okN) leg.push('<span class="off"><i style="background:rgba(255,255,255,.18)"></i><b>50% por no-show</b> · no se devenga</span>');
+  if (tramos.length > 1 && !(pre && m)) leg.push('<span style="opacity:.72">Tu ascenso, sacado de tus nóminas</span>');
+  legEl.innerHTML = leg.join('');
+
+  var eurEl = document.getElementById('pc_trim_eur'); if (eurEl) eurEl.textContent = eur(imp);
+  var tagEl = document.getElementById('pc_trim_tag');
+  if (tagEl) {
+    var c = null;
+    try { c = pcConceptosDelMes((document.getElementById('pc_mes_sel')||{}).value); } catch(e){}
+    tagEl.textContent = 'Paga trimestral' + (c && c.trimestreQue ? ' · ' + c.trimestreQue : '');
+  }
 }
 try { window.pcTrimUpdate = pcTrimUpdate; } catch(e){}
+
+/* El ajuste manual solo se abre si el piloto lo pide: son datos que casi nunca
+   cambian nada y que en el caso del objetivo de puntualidad ni siquiera conoce. */
+function pcTrimAjuste(){
+  var a = document.getElementById('pc_trim_ajuste'), l = document.getElementById('pc_trim_ajuste_lnk');
+  if (!a) return;
+  var abierto = a.style.display !== 'none';
+  a.style.display = abierto ? 'none' : 'block';
+  if (l) l.textContent = abierto ? 'Ajustar cambio de nivel o requisitos' : 'Listo';
+  if (!abierto) pcTrimUpdate();
+}
+try { window.pcTrimAjuste = pcTrimAjuste; } catch(e){}
 
 /* ── Conceptos que dependen del CALENDARIO, no de lo que uno recuerde ──────────
    La paga trimestral se cobra en la nómina del mes siguiente al cierre del
@@ -17895,15 +18077,30 @@ function pcConceptosDelMes(mesAct) {
 function pcAutoConceptos(mesAct, silencioso) {
   var c = pcConceptosDelMes(mesAct || (document.getElementById('pc_mes_sel')||{}).value);
   if (!c) return null;
-  var puesto = [];
+  var puesto = [], quitado = [];
   var trimEl = document.getElementById('pc_trim');
+  var tw = document.getElementById('pc_trim_wrap');
   if (trimEl && c.trimestral && !trimEl.checked) {
     trimEl.checked = true;
-    var tw = document.getElementById('pc_trim_wrap'); if (tw) tw.style.display = 'block';
-    try { pcTrimUpdate(); } catch(e){}
+    if (tw) tw.style.display = 'block';
     puesto.push('la paga trimestral (' + c.trimestreQue + ')');
   }
+  /* Y se APAGA cuando el mes no la lleva. Dejarla encendida al cambiar de mes le
+     colaba al piloto ~950 € que esa nómina no paga, en silencio y en la dirección
+     mala: el teórico saldría por encima del real y parecería que le deben dinero. */
+  else if (trimEl && !c.trimestral && trimEl.checked) {
+    trimEl.checked = false;
+    if (tw) tw.style.display = 'none';
+    quitado.push('la paga trimestral');
+  }
+  // El mes manda también sobre el trimestre que toca y el reparto por niveles.
+  if (trimEl && trimEl.checked) { try { pcTrimUpdate(); } catch(e){} }
   var bonoEl = document.getElementById('pc_bono_prod');
+  if (bonoEl && !c.bono && bonoEl.checked) {
+    bonoEl.checked = false;
+    var bw0 = document.getElementById('pc_bono_wrap'); if (bw0) bw0.style.display = 'none';
+    quitado.push('el bono de productividad');
+  }
   if (bonoEl && c.bono && !bonoEl.checked) {
     bonoEl.checked = true;
     var bw = document.getElementById('pc_bono_wrap'); if (bw) bw.style.display = 'block';
@@ -17921,9 +18118,13 @@ function pcAutoConceptos(mesAct, silencioso) {
     try { pcUpdateBonoTarget(); } catch(e){}
     puesto.push('el bono de productividad');
   }
-  if (puesto.length && !silencioso) {
-    try { showToast('Activado ' + puesto.join(' y ') + ': la nómina de ' +
-                    pcAuditMonthLabel(c.nomina) + ' lo lleva'); } catch(e){}
+  if ((puesto.length || quitado.length) && !silencioso) {
+    var mes = pcAuditMonthLabel(c.nomina);
+    var txt = puesto.length
+      ? 'Activado ' + puesto.join(' y ') + ': la nómina de ' + mes + ' lo lleva'
+      : 'Quitado ' + quitado.join(' y ') + ': la nómina de ' + mes + ' no lo paga';
+    if (puesto.length && quitado.length) txt += ', y quitado ' + quitado.join(' y ');
+    try { showToast(txt); } catch(e){}
   }
   return c;
 }
@@ -18771,8 +18972,11 @@ function pcCalc() {
     trimDet: !trim ? null : (function(){
       var g = function(id){ var e=document.getElementById(id); return e?e.value:''; };
       var c = function(id){ var e=document.getElementById(id); return e?e.checked:true; };
-      return { nivelPre:g('pc_trim_nivel_pre')||null, mesesPre:parseFloat(g('pc_trim_meses_pre'))||0,
-               punt:c('pc_trim_punt'), noShow:c('pc_trim_noshow') };
+      var pre = g('pc_trim_nivel_pre') || null, auto = null;
+      if (!pre) { try { auto = pcTrimestralAuto(T.trimestral, g('pc_mes_sel'), esp, nivel); } catch(e){} }
+      return { nivelPre:pre, mesesPre:parseFloat(g('pc_trim_meses_pre'))||0,
+               punt:c('pc_trim_punt'), noShow:c('pc_trim_noshow'),
+               auto: auto ? auto.porNivel : null };
     })(),
     /* Con qué MES de actividad se ha calculado. Sin esto, la Auditoría comparaba
        la nómina de un mes contra un teórico hecho con las horas de otro y no lo
@@ -20236,6 +20440,11 @@ function ppConfirm(){
   // Persistir la nómina analizada (líneas + totales) para la pestaña Auditoría,
   // que la compara con el teórico. PP_PENDING es volátil; esto sobrevive a navegar/recargar.
   try { lsSet('pilotos_payslip_last', JSON.stringify(PP_PENDING)); } catch(e){}
+  /* Cada nómina dice en su cabecera («CATEGORÍA PROF») el nivel que tenía el piloto
+     ESE mes. Guardándolo se construye solo el historial que necesita la paga
+     trimestral para prorratearse cuando hay un ascenso a mitad de trimestre — sin
+     preguntarle nada a nadie. Ver pcNivelEnMes(). */
+  try { pcNivelHistApunta(PP_PENDING); } catch(e){}
   ppApplyToForm(p);
   ppApplyLockUI(p);
   ppUpdateBanner();
@@ -24330,7 +24539,7 @@ function ldToggleMenu(){
     +'<div style="height:1px;background:'+divC+';margin:2px 0 4px"></div>'
     +'<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:'+tClr+';padding:8px 22px 2px;font-family:\'Space Mono\',monospace">Gestión</div>'
     +mi('📥',icoB,'Importar','PDF Jeppesen · LogTen · Foto · XLS · CSV','ldShowImport()',lbl,'')
-    +mi('🛫',icoB,'Horas reales de eCrews','Calzos reales · bloque · matrícula','ldECrewsLegsOpen()',lbl,'')
+    +mi('🛫',icoB,'Vuelos de eCrews','Ya volados · matrícula y horas reales','ldECrewsLegsOpen()',lbl,'')
     +mi('☁️',icoB,'Sincronizar nube','Descargar desde Supabase','ldManualPull()',lbl,'ld-menu-sync-btn')
     +mi('🔄',icoB,'Full sync desde cero','Resetea caché y descarga todo','ldResetSync()',lbl,'')
     +mi('⬇️',icoB,'Exportar','PDF · EASA · CSV','ldToggleExport()',lbl,'')
