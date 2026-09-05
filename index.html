@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.730">
+  <meta name="version" content="Estable.732">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.730","builtAt":"2026-09-05T19:16:51Z","commit":"20fe3cd","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.732","builtAt":"2026-09-05T19:19:35Z","commit":"365951d","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -27164,6 +27164,7 @@ function ldUpdateDayBadges(){
 // LOGBOOK IMPORT — XLS / CSV / TXT
 // ════════════════════════════════════════════════════
 var _ldImportData = null;
+var _ldImportFileName = '';   // fichero de origen del import en curso (sella el lote)
 var _ldiProcTimer = null;
 
 function ldShowImport(){
@@ -28207,6 +28208,9 @@ function ldNormalizeRow(r){
   return r;
 }
 function ldImportProcess(rows,fname){
+  // El nombre del fichero viaja hasta el alta para sellar el lote: sin él, una
+  // importación equivocada no se puede identificar después (ver ldImportConfirm).
+  _ldImportFileName = fname || '';
   var mapped=rows.map(ldMapRow).map(ldNormalizeRow).filter(function(r){ return r.date||r.dep||r.arr||r.flight; });
   if(mapped.length===0){
     var keys=rows.length>0?Object.keys(rows[0]).slice(0,5).join(' · '):'(sin filas)';
@@ -28460,9 +28464,29 @@ function ldImportConfirm(){
     return changed;
   }
 
+  // ── Guardarraíl: DECIR EN QUÉ CUENTA se va a escribir ──────────────────────
+  // Un alta masiva en la cuenta equivocada es fácil de no notar y difícil de deshacer.
+  // Pasó de verdad el 10-ago-2026: probando el importador de Pilot Log MCC con el
+  // fichero de otro piloto entraron 1799 vuelos (3173 h) en el logbook REAL, y no se
+  // detectó hasta un mes después. El importador hizo lo que se le pidió; lo que faltaba
+  // era que dijera dónde lo iba a escribir.
+  if(_ldImportData.length>=50){
+    var _cta='';
+    try{ _cta=(JSON.parse(localStorage.getItem('cafi_auth_user')||'{}').email)||''; }catch(_e){}
+    var _aviso='Vas a añadir hasta '+_ldImportData.length+' vuelos'
+      +(_ldImportFileName?'\ndesde "'+_ldImportFileName+'"':'')
+      +'\n\nCuenta: '+(_cta||'(sin sesión — solo en este dispositivo)')
+      +'\n\n¿Es la cuenta correcta?';
+    if(!confirm(_aviso)) return;
+  }
+
   var added=0, skipped=0, updated=0;
   var addedEntries=[];   // sólo las NUEVAS (para avisar si caen dentro del saldo)
   var importedIds=[]; // IDs (re)añadidos → cancelar cualquier borrado pendiente con ese id
+  // Sello del lote: identifica de golpe todo lo que entró en ESTA importación. Sin esto,
+  // deshacer una importación equivocada obliga a reconstruirla a mano desde el saved_at
+  // de la base de datos (que es lo que hubo que hacer el 5-sep-2026).
+  var _lote = { id:'imp_'+Date.now().toString(36), at:new Date().toISOString(), file:_ldImportFileName||'' };
 
   _ldImportData.forEach(function(r){
     var key=(r.date||'')+(r.dep||'')+(r.arr||'')+(r.flight||'')+(r.idSeq||'');
@@ -28498,7 +28522,7 @@ function ldImportConfirm(){
         night:r.night||'',cm1:r.cm1||'',cm2:r.cm2||'',
         pilotFunction:r.pilotFunction||'',activityType:r.activityType||'',
         idSeq:r.idSeq||'',
-        notes:r.notes||'',source:'IMPORT'
+        notes:r.notes||'',source:'IMPORT',importBatch:_lote
       };
       ldEntries.push(e);
       addedEntries.push(e);
@@ -41102,13 +41126,26 @@ function rstRenderFatigue(){
 
       // Legs list
       if(ndLegs){
+        /* ⚠️ MEDIDO, no ajustado a ojo (reporte «en modo noche prácticamente no se
+           pueden leer»). Con la plancha —texto transparente, captura del viewport,
+           píxel de detrás— los dos que de verdad estaban por debajo de AA eran el
+           número de vuelo (cian al 55 % → 3,34:1) y la hora de llegada (blanco al
+           35 % → 2,93:1) sobre el verde de la tarjeta. La ruta (12,99) y la hora de
+           salida (7,49) ya estaban bien: repintarlas «porque parecían flojas» habría
+           sido tocar lo que no fallaba.
+
+           Y midiendo TAMBIÉN el modo día aparecieron LOS MISMOS DOS rótulos por
+           debajo de AA (3,01 y 2,86) — el reporte era de noche, el fallo estaba en
+           los dos temas. Un banco que solo mide el tema del que se quejan arregla
+           media pantalla. `scripts/contraste-proximo-noche-test.js` mide los once
+           rótulos de esta tarjeta en los DOS y no deja bajar de 4,5:1. */
         var _isDay = document.documentElement.classList.contains('day');
         var _legBg      = _isDay ? 'rgba(8,145,178,.07)'       : 'rgba(13,148,166,.08)';
         var _legBd      = _isDay ? 'rgba(13,148,136,.18)'      : 'rgba(34,211,238,.14)';
         var _routeClr   = _isDay ? '#0A1628'                   : '#F0FFFE';
-        var _metaClr    = _isDay ? 'rgba(3,105,161,.70)'       : 'rgba(34,211,238,.55)';
+        var _metaClr    = _isDay ? '#075985'                   : 'rgba(165,243,252,.92)';
         var _stdClr     = _isDay ? '#0369A1'                   : '#22D3EE';
-        var _staClr     = _isDay ? 'rgba(15,23,42,.45)'        : 'rgba(240,255,254,.35)';
+        var _staClr     = _isDay ? 'rgba(15,23,42,.75)'        : 'rgba(240,255,254,.72)';
         var _iconBg     = _isDay ? 'rgba(8,145,178,.12)'       : 'rgba(34,211,238,.15)';
         var legColors   = _isDay
           ? ['rgba(8,145,178,.75)','rgba(13,148,136,.75)','rgba(99,102,241,.75)','rgba(124,58,237,.75)']
