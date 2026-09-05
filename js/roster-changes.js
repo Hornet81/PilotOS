@@ -103,6 +103,13 @@ var COD_FORMACION = ['ART','SIM','LPC','OPC','LFT','EBT','EVA','EVAL','SBTL','SB
                      'TRT','RFSV','RFSM','RFT','CUR','IET'];
 var COD_FRANCO    = ['F','F2','FR','FR2','HFR','RF','OFF','SROF','NOFF','AOFF','NROF',
                      'MEOF','EF','>OFF','PT','PTME','PTM'];
+/* ⚠️ FZ/FZNA NO están aquí, y es deliberado. Hasta Beta.720 el parser los
+   normalizaba a 'OFF' y caían en esta lista sin que nadie lo hubiera escrito, así
+   que un forzoso se excluía del 12.9 por ser «franco». Es al revés: el piloto lo
+   aclaró el 5-sep-2026 — «forzoso solamente quiere decir que te han cambiado o
+   añadido una actividad en un día que YA TRABAJABAS». Un día de servicio no es un
+   franco. `tieneForzoso()` sigue existiendo y hace lo suyo: excluye el cambio por
+   ser EN EJECUCIÓN (Art. 12.6), que es otra cosa y lleva candado. */
 var COD_RESERVA   = ['SBY','STBY','HSBY','XSBY','ZSBY','TSBY','RSBY','ESBY','OSBY',
                      'FSBY','RSF','LSBY','ASBY','NSBY','OASF','1SBY','2SBY','3SBY',
                      '4SBY','5SBY','8SBY','NBY1','NBY2','NBY3','NBY4','NBY5','CSBY',

@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.718">
+  <meta name="version" content="Estable.724">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.718","builtAt":"2026-09-05T16:48:35Z","commit":"7065f46","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.724","builtAt":"2026-09-05T18:36:45Z","commit":"5fe08ad","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -12178,7 +12178,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       <div class="fg" style="margin-bottom:10px">
         <label class="pc-field-label">Imaginarias (nº días)</label>
         <input class="fi" type="number" id="pc_imag" value="0" step="1" min="0" max="31">
-        <!-- Cuando el mes trae algún forzoso (día libre trabajado, código FZ del
+        <!-- Cuando el mes trae algún forzoso (código FZ: actividad cambiada o añadida en un día ya trabajado, del
              roster) se cobra con este mismo concepto, así que hay que decir de qué
              está hecho el número o no hay forma de cuadrarlo. -->
         <div class="pc-hint" id="pc_imag_desglose" style="display:none"></div>
@@ -12255,8 +12255,31 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
     <div class="card-box">
       <div class="pc-sep"><span>Conceptos opcionales</span></div>
       <div class="pc-sw-row">
-        <div><div class="pc-sw-label">Paga trimestral</div><div class="pc-sw-sub">Mes siguiente al fin del trimestre</div></div>
+        <div><div class="pc-sw-label">Paga trimestral</div><div class="pc-sw-sub">Se cobra en enero, abril, julio y octubre</div></div>
         <label class="pc-switch"><input type="checkbox" id="pc_trim"><span class="pc-slider"></span></label>
+      </div>
+      <!-- Art. 15.14: importe fijo del anexo A por nivel, en dos mitades del 50%.
+           Si el piloto cambió de nivel dentro del trimestre, se prorratea por meses. -->
+      <div id="pc_trim_wrap" style="display:none;margin:8px 0 4px">
+        <label class="pc-field-label">¿Cambiaste de nivel durante el trimestre?</label>
+        <div style="display:flex;gap:8px">
+          <select class="fi" id="pc_trim_nivel_pre" onchange="pcTrimUpdate()" style="flex:1">
+            <option value="">No, mismo nivel todo el trimestre</option>
+          </select>
+          <select class="fi" id="pc_trim_meses_pre" onchange="pcTrimUpdate()" style="width:118px;flex:none">
+            <option value="1">1 mes</option>
+            <option value="2">2 meses</option>
+          </select>
+        </div>
+        <div class="pc-sw-row" style="margin-top:8px">
+          <div><div class="pc-sw-label">Objetivo de puntualidad</div><div class="pc-sw-sub">50% de la paga · lo cumple la compañía</div></div>
+          <label class="pc-switch"><input type="checkbox" id="pc_trim_punt" checked onchange="pcTrimUpdate()"><span class="pc-slider"></span></label>
+        </div>
+        <div class="pc-sw-row">
+          <div><div class="pc-sw-label">Sin no-show injustificado</div><div class="pc-sw-sub">50% de la paga · depende de ti</div></div>
+          <label class="pc-switch"><input type="checkbox" id="pc_trim_noshow" checked onchange="pcTrimUpdate()"><span class="pc-slider"></span></label>
+        </div>
+        <div id="pc_trim_hint" class="pc-hint"></div>
       </div>
       <div class="pc-sw-row">
         <div><div class="pc-sw-label">Bolsa de beneficios</div><div class="pc-sw-sub">CPT: 2.796,80 € / FO: 2.341,39 € (anual÷12)</div></div>
@@ -17687,9 +17710,11 @@ var CONVENIO = {
       "1C":1676.59,"1B":1676.59,"1A":1676.59,
       "1":1676.59,"2":1676.59,"3":1676.59,"4":1676.59
     },
+    /* Anexo A («Paga prod. trimestral», columna Trimestral) × 1,029. El 1 estaba en
+       923,84 por truncar: 897,81 × 1,029 = 923,845, y la nómina de abril paga 923,85. */
     trimestral: {
       "1C":1060.12,"1B":1011.93,"1A":963.74,
-      "1":923.84,"2":812.74,"3":959.75,"4":1023.90
+      "1":923.85,"2":812.74,"3":959.75,"4":1023.90
     },
     plusPatronLibre: 511.53,
     plusHoraVuelo:   39.29,
@@ -17755,6 +17780,154 @@ function pcReduInfo() {
   var pct = on ? Math.min(99, Math.max(0, parseFloat((document.getElementById('pc_red_pct')||{}).value) || 0)) : 0;
   return { on: on && pct > 0, pct: pct, factor: 1 - pct / 100 };
 }
+
+/* ── Paga de Productividad Trimestral (art. 15.14) ────────────────────────────
+   «Importe fijo de tablas del anexo A, según nivel económico», que se devenga en
+   DOS MITADES independientes: el 50% si la Compañía cumple su objetivo de
+   puntualidad trimestral (basta con no quedar más de 10 puntos por debajo) y el
+   50% restante si el piloto no ha incurrido en un no-show injustificado. Se abona
+   en la nómina del mes siguiente al último del trimestre.
+
+   El prorrateo por nivel NO está en el artículo, pero la nómina lo demuestra: el
+   2T de Àlex pagó 950,45 €, que no es ningún nivel de la tabla — hasta que se
+   reparte por meses. Subió a 1A el 1 de mayo, así que el trimestre abr-may-jun se
+   pagó un mes al nivel viejo y dos al nuevo:
+       923,85 × 1/3  +  963,74 × 2/3  =  950,44 €   (la nómina dice 950,45)
+   Un céntimo de redondeo. Sin esto el importe parecía variable y no lo es.
+
+   Pura a propósito (no toca el DOM): es la que fija el banco de pruebas. */
+function pcTrimestralImporte(tabla, nivelAct, nivelPre, mesesPre, okPuntualidad, okNoShow) {
+  var act = (tabla && tabla[nivelAct]) || 0;
+  var m   = Math.min(3, Math.max(0, parseFloat(mesesPre) || 0));
+  var pre = (nivelPre && tabla && tabla[nivelPre] != null) ? tabla[nivelPre] : act;
+  if (!nivelPre || !m) m = 0;
+  var bruto  = pre * (m / 3) + act * ((3 - m) / 3);
+  // Las dos mitades son independientes: se puede cobrar el 100%, el 50% o nada.
+  var factor = (okPuntualidad ? 0.5 : 0) + (okNoShow ? 0.5 : 0);
+  return Math.round(bruto * factor * 100) / 100;
+}
+
+/* Coletilla de la fila 289, para que en el desglose se vea POR QUÉ sale ese número
+   y no el de tabla — un importe que no está en ninguna tabla y sin explicación es
+   exactamente lo que hace dudar de todo el cálculo. */
+function pcTrimEtiqueta(det, nivelAct){
+  if (!det) return '';
+  var p = [];
+  if (det.nivelPre && det.mesesPre)
+    p.push(det.mesesPre + '/3 a Nivel ' + det.nivelPre + ' + ' + (3-det.mesesPre) + '/3 a Nivel ' + (nivelAct||'—'));
+  if (det.punt === false)   p.push('sin el 50% de puntualidad');
+  if (det.noShow === false) p.push('sin el 50% del no-show');
+  return p.length ? ' (' + p.join(' · ') + ')' : '';
+}
+
+/* Lee de la pantalla lo que necesita pcTrimestralImporte. Separado de la función
+   pura para que el banco pueda probar la cuenta sin montar medio DOM. */
+function pcTrimestralDeUI(tabla, nivelAct) {
+  var v = function(id, def){ var e = document.getElementById(id); return e ? e.value : def; };
+  var c = function(id, def){ var e = document.getElementById(id); return e ? e.checked : def; };
+  return pcTrimestralImporte(tabla, nivelAct,
+    v('pc_trim_nivel_pre', '') || null,
+    parseFloat(v('pc_trim_meses_pre', 0)) || 0,
+    c('pc_trim_punt', true), c('pc_trim_noshow', true));
+}
+
+/* Rellena el desplegable de niveles anteriores (los de la especialidad elegida) y
+   escribe abajo la cuenta que va a salir, con los importes a la vista. */
+function pcTrimUpdate() {
+  var espEl = document.getElementById('pc_esp'), nivEl = document.getElementById('pc_nivel');
+  if (!espEl || !nivEl) return;
+  var T = CONVENIO[espEl.value]; if (!T || !T.trimestral) return;
+  var nivelAct = nivEl.value;
+  var sel = document.getElementById('pc_trim_nivel_pre');
+  if (sel) {
+    var prev = sel.value;
+    var opts = '<option value="">No, mismo nivel todo el trimestre</option>';
+    (T.niveles || []).forEach(function(n){
+      if (n === nivelAct) return;                       // el nivel de antes no es el de ahora
+      opts += '<option value="'+n+'">Venía de Nivel '+n+'</option>';
+    });
+    sel.innerHTML = opts;
+    if (prev && sel.querySelector('option[value="'+prev+'"]')) sel.value = prev;
+  }
+  var mw = document.getElementById('pc_trim_meses_pre');
+  if (mw) mw.style.display = (sel && sel.value) ? '' : 'none';
+  var hint = document.getElementById('pc_trim_hint'); if (!hint) return;
+  var imp = pcTrimestralDeUI(T.trimestral, nivelAct);
+  var eur = function(x){ return x.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; };
+  var pre = sel && sel.value, m = pre ? (parseFloat(mw && mw.value) || 0) : 0;
+  var det = pre
+    ? eur(T.trimestral[pre]) + ' × ' + m + '/3 + ' + eur(T.trimestral[nivelAct]) + ' × ' + (3-m) + '/3'
+    : 'Nivel ' + nivelAct + ' · anexo A';
+  var punt = document.getElementById('pc_trim_punt'), nosh = document.getElementById('pc_trim_noshow');
+  var mitades = (punt && !punt.checked ? ' · sin el 50% de puntualidad' : '') +
+                (nosh && !nosh.checked ? ' · sin el 50% del no-show' : '');
+  hint.textContent = det + mitades + '  →  ' + eur(imp);
+}
+try { window.pcTrimUpdate = pcTrimUpdate; } catch(e){}
+
+/* ── Conceptos que dependen del CALENDARIO, no de lo que uno recuerde ──────────
+   La paga trimestral se cobra en la nómina del mes siguiente al cierre del
+   trimestre (art. 15.14) y el bono de productividad antes del 28 de febrero
+   (art. 15.15). Son los dos conceptos que el piloto no puede deducir de sus
+   horas: o se acuerda de activarlos, o le faltan cientos de euros en la
+   comparación sin ninguna pista de por qué.
+   Ojo con el desfase: `mesAct` es el mes de ACTIVIDAD, y la nómina que lo paga es
+   la del mes SIGUIENTE. La actividad de diciembre se cobra en la nómina de enero,
+   que es la que lleva el 4T. */
+function pcMesNominaDe(mesAct) {
+  var m = /^(\d{4})-(\d{2})$/.exec(String(mesAct || '')); if (!m) return null;
+  var y = +m[1], mm = +m[2] + 1;
+  if (mm > 12) { mm = 1; y++; }
+  return y + '-' + String(mm).padStart(2, '0');
+}
+function pcConceptosDelMes(mesAct) {
+  var nom = pcMesNominaDe(mesAct); if (!nom) return null;
+  var mm = nom.slice(5, 7);
+  return {
+    nomina: nom,
+    trimestral: ['01','04','07','10'].indexOf(mm) >= 0,
+    trimestreQue: { '01':'4T', '04':'1T', '07':'2T', '10':'3T' }[mm] || null,
+    bono: mm === '02',
+  };
+}
+/* Los activa de verdad en la pantalla. `silencioso` para no molestar cuando lo
+   dispara un cambio de mes en vez de una acción explícita del piloto. */
+function pcAutoConceptos(mesAct, silencioso) {
+  var c = pcConceptosDelMes(mesAct || (document.getElementById('pc_mes_sel')||{}).value);
+  if (!c) return null;
+  var puesto = [];
+  var trimEl = document.getElementById('pc_trim');
+  if (trimEl && c.trimestral && !trimEl.checked) {
+    trimEl.checked = true;
+    var tw = document.getElementById('pc_trim_wrap'); if (tw) tw.style.display = 'block';
+    try { pcTrimUpdate(); } catch(e){}
+    puesto.push('la paga trimestral (' + c.trimestreQue + ')');
+  }
+  var bonoEl = document.getElementById('pc_bono_prod');
+  if (bonoEl && c.bono && !bonoEl.checked) {
+    bonoEl.checked = true;
+    var bw = document.getElementById('pc_bono_wrap'); if (bw) bw.style.display = 'block';
+    /* Las horas del bono son las del AÑO ANTERIOR entero: no salen del mes que se
+       está calculando, así que si la nómina real está subida se cogen de ella —
+       su `qty` es el EXCESO sobre el target, no las horas del año. */
+    try {
+      var real = pcAuditGetPayslip();
+      var ln = real && (real.lines||[]).concat(real.unknownLines||[]).filter(function(x){
+        return String(x.code||'') === '2128' || String(x.mappedTo||'') === '310'; })[0];
+      var hEl = document.getElementById('pc_bono_horas');
+      if (ln && ln.qty != null && hEl && !(parseFloat(hEl.value) > 0))
+        hEl.value = (pcBonoTarget() + ppNum(ln.qty)).toFixed(2);
+    } catch(e){}
+    try { pcUpdateBonoTarget(); } catch(e){}
+    puesto.push('el bono de productividad');
+  }
+  if (puesto.length && !silencioso) {
+    try { showToast('Activado ' + puesto.join(' y ') + ': la nómina de ' +
+                    pcAuditMonthLabel(c.nomina) + ' lo lleva'); } catch(e){}
+  }
+  return c;
+}
+try { window.pcAutoConceptos = pcAutoConceptos; window.pcConceptosDelMes = pcConceptosDelMes; } catch(e){}
 
 // ── Target del bono según reducción (700 h ajustado por % y meses) ──
 function pcBonoTarget() {
@@ -17889,6 +18062,11 @@ document.addEventListener('change', function(e){
     wrap.style.display = e.target.checked ? 'block' : 'none';
     if (e.target.checked) { pcUpdateBonoTarget(); document.getElementById('pc_bono_horas').focus(); }
   }
+  if (e.target.id === 'pc_trim') {
+    var tw = document.getElementById('pc_trim_wrap');
+    if (tw) tw.style.display = e.target.checked ? 'block' : 'none';
+    if (e.target.checked) pcTrimUpdate();
+  }
   if (e.target.id === 'pc_benef_on') {
     var bw = document.getElementById('pc_benef_wrap');
     if (bw) bw.style.display = e.target.checked ? 'block' : 'none';
@@ -17974,12 +18152,20 @@ var PC_CAMPOS = ['pc_esp','pc_nivel','pc_irpf','pc_hv','pc_hn','pc_hpos','pc_hpc
   'pc_flex','pc_vac','pc_dnat','pc_dint','pc_dpern','pc_dpern_nat','pc_fonline','pc_oficina',
   'pc_sparring','pc_tri','pc_tre','pc_lsc','pc_gti','pc_formacion','pc_jdia','pc_jdia_fest',
   'pc_benef_vuelo','pc_rf_especie','pc_rf','pc_solidaridad','pc_red_pct','pc_bono_horas',
-  'pc_inv_b1','pc_inv_b2','pc_inv_b3'];
+  'pc_inv_b1','pc_inv_b2','pc_inv_b3',
+  // Paga trimestral: el prorrateo por cambio de nivel y las dos mitades del art. 15.14
+  // mueven el importe, así que forman parte de los números con los que se calculó.
+  'pc_trim_nivel_pre','pc_trim_meses_pre','pc_trim_punt','pc_trim_noshow'];
 function pcHuellaForm(){
   try {
     return PC_CAMPOS.map(function(id){
       var e = document.getElementById(id);
-      return e ? String(e.value == null ? '' : e.value) : '';
+      if (!e) return '';
+      // Un checkbox tiene `value` fijo ("on") esté marcado o no: sin esto, apagar
+      // una de las dos mitades del trimestral no cambiaría la huella y la auditoría
+      // compararía contra un teórico viejo diciendo que está al día.
+      if (e.type === 'checkbox') return e.checked ? '1' : '0';
+      return String(e.value == null ? '' : e.value);
     }).join('|') + '|' + (window.PC_STATE ? (PC_STATE.pat||'') + (PC_STATE.cargo||'') : '');
   } catch(e){ return ''; }
 }
@@ -18416,7 +18602,9 @@ function pcCalc() {
   var pagaExt  = (T.pagaExtra[nivel] || 0) * reduFac;
   var primaCom = (esp==='cmd') ? (T.primaCom[nivel]||0) * reduFac : 0;
   var plusPat  = (pat==='libre') ? T.plusPatronLibre * reduFac : 0;
-  var pagaTrim = trim ? (T.trimestral[nivel]||0) : 0;
+  // Art. 15.14: fijo por nivel, prorrateado si cambió de nivel dentro del trimestre
+  // y en dos mitades del 50% (puntualidad de la compañía / no-show del piloto).
+  var pagaTrim = trim ? pcTrimestralDeUI(T.trimestral, nivel) : 0;
   var plusBolsa= bolsaOn ? (T.bolsa_anual/12) : 0;
 
   // ── Bono productividad: horas anuales por encima del target (700 h, reducido por jornada) ──
@@ -18578,6 +18766,14 @@ function pcCalc() {
     retIRPF:retIRPF, irpfEsp:irpfEsp, benefVuelo:benefVuelo, rfEspecie:rfEspecie, baseSS:baseSS, solidar:solidar,
     ssGral:ssGral, ssDFP:ssDFP, ssMEI:ssMEI, totalSS:totalSS, totalRet:totalRet, liquido:liquido,
     T:T, SS:SS, D:D, fecha:pcFmtDate(),
+    /* Cómo se ha compuesto la paga trimestral, para poder enseñar la cuenta en el
+       desglose y en la auditoría en vez de un número suelto. */
+    trimDet: !trim ? null : (function(){
+      var g = function(id){ var e=document.getElementById(id); return e?e.value:''; };
+      var c = function(id){ var e=document.getElementById(id); return e?e.checked:true; };
+      return { nivelPre:g('pc_trim_nivel_pre')||null, mesesPre:parseFloat(g('pc_trim_meses_pre'))||0,
+               punt:c('pc_trim_punt'), noShow:c('pc_trim_noshow') };
+    })(),
     /* Con qué MES de actividad se ha calculado. Sin esto, la Auditoría comparaba
        la nómina de un mes contra un teórico hecho con las horas de otro y no lo
        decía: cuadraba o descuadraba por el motivo equivocado. */
@@ -18613,7 +18809,7 @@ function pcCalc() {
   }
   if (plusFlex>0) rows += pcRow('226','Flexiworking',flexDays+' días',T.flexiworking,plusFlex,'var');
   if (plusVac>0)  rows += pcRow('2108','Plus Comp.Var.Vacaciones',vacDays+' días',vacRate,plusVac,'var');
-  if (pagaTrim>0) rows += pcRow('289','Paga Trimestral','',pagaTrim,pagaTrim,'var');
+  if (pagaTrim>0) rows += pcRow('289','Paga Trimestral'+pcTrimEtiqueta(PC_LAST.trimDet,nivel),'',pagaTrim,pagaTrim,'var');
   if (plusBolsa>0) rows += pcRow('300','Bolsa Beneficios (÷12)','',T.bolsa_anual/12,plusBolsa,'var');
   if (bonoProd>0) rows += pcRow('310','Bono productividad (target '+bonoTarget.toLocaleString('es-ES',{maximumFractionDigits:1})+' h)',pcFmt(bonoExceso)+' h × ',bonoRate,bonoProd,'var');
   if (dNac>0) { rows += pcRow('2098','Dietas Nac. sujetas',dNac+' días',D.nac.sujeta,dNacSuj,'var'); rows += pcRow('2102','Dietas Nac. exentas',dNac+' días',D.nac.exenta,dNacExe,'var'); }
@@ -18669,11 +18865,13 @@ function pcSetDefaultImportMonth(){
   var hid=document.getElementById('pc_mes_sel'); if(!hid) return;
   if(!hid.value){ hid.value=pcPrevMonthYM(); }
   var mm=String(hid.value).split('-'); pcMp.y=parseInt(mm[0],10); pcMp.m=parseInt(mm[1],10); pcMp.viewY=pcMp.y;
-  pcMpSync();
+  pcMpSync(true);   // en el arranque se activan igual, pero sin avisar de nada
 }
-function pcMpSync(){
+function pcMpSync(silencioso){
   var hid=document.getElementById('pc_mes_sel'); if(hid) hid.value=pcMp.y+'-'+String(pcMp.m).padStart(2,'0');
   var lbl=document.getElementById('pc_mp_label'); if(lbl) lbl.textContent=PC_MES_ES[pcMp.m-1]+' '+pcMp.y;
+  // El mes manda sobre los conceptos del calendario (trimestral / bono anual).
+  try { pcAutoConceptos(hid ? hid.value : null, !!silencioso); } catch(e){}
   pcMpRender();
 }
 function pcMpRender(){
@@ -18887,7 +19085,8 @@ async function pcImportFromLogbook(month, opts) {
           setVal('pc_fonline', _ra.elearn_h||0); setVal('pc_hpos', _ra.positional_h||0);
           setVal('pc_oficina', _ra.office_days||0); setVal('pc_sparring', _ra.sparring_h||0);
           setVal('pc_imag', _ra.imaginaria_days||0);   // Art. 13.19: días de bloque que SÍ se pagan
-          /* Un forzoso (día libre trabajado, código FZ) se cobra con ESTE mismo
+          /* Un forzoso (código FZ: actividad cambiada o añadida en un día que ya
+             trabajabas) se cobra con ESTE mismo
              concepto, así que sin decirlo el número no se puede cuadrar contra la
              nómina: «4» puede ser 4 guardias o 3 y un forzoso. */
           try {
@@ -19041,8 +19240,24 @@ function pcSwitchTab(tab) {
 // con desviación del 100 %. Un concepto SIN `campos` es fijo (sale de tarifa y
 // perfil): ahí un 0 sí significa que no corresponde.
 /* Códigos del papel que PilotOS llama de otra forma. Vueling paga la invasión de día
-   libre como 2055 y aquí siempre ha sido 2043; sin esto, la línea no se compara. */
-var PAY_CODE_ALIAS = { '2055': '2043' };
+   libre como 2055 y aquí siempre ha sido 2043; sin esto, la línea no se compara.
+
+   La paga trimestral lleva UN CÓDIGO DISTINTO POR TRIMESTRE (2124=1T, 2122=2T,
+   2123=3T, 2118=4T) — no es la misma línea con otra etiqueta. El importador solo
+   conocía el 2122, así que las nóminas de enero (4T) y octubre (3T) caían en «sin
+   mapear» y el trimestre no se comparaba con nada. Y el 2128, el bono anual, no
+   estaba mapeado en absoluto: son 7.577 € en la nómina de febrero, la línea más
+   grande del año, invisible para la auditoría.
+   Van aquí y no solo en el prompt del backend porque así se arreglan también las
+   nóminas YA subidas, sin que el piloto tenga que volver a analizarlas. */
+var PAY_CODE_ALIAS = {
+  '2055': '2043',
+  '2124': '289', '2122': '289', '2123': '289', '2118': '289',   // 1T · 2T · 3T · 4T
+  '2128': '310',                                                 // bono anual de productividad
+};
+/* Los cuatro códigos del trimestre, para reconocer una nómina de atrasos: en una
+   normal solo puede venir uno (art. 15.14, se cobra el mes siguiente al cierre). */
+var PAY_TRIM_CODES = ['2124','2122','2123','2118'];
 
 /* El código del PAPEL manda sobre un `mappedTo` viejo.
    El /402 (ingreso a cuenta del IRPF sobre la retribución en especie) se mandaba a
@@ -19359,8 +19574,26 @@ function pcCompare(real, L){
                nDerivadas:derivadas.length },
     month: real.month || null,
     irpf: { real:irpfReal, calc:irpfCalc, mismatch:irpfMismatch },
-    signals: { rate: rateSignal, lag: lagSignal }
+    signals: { rate: rateSignal, lag: lagSignal, atrasos: pcEsNominaAtrasos(real) }
   };
+}
+
+/* ¿Es una nómina de ATRASOS? No se puede preguntar por el mes —la regularización de
+   convenio cae cuando cae— pero sí por la forma: la paga trimestral se cobra una vez,
+   en el mes siguiente al cierre del trimestre (art. 15.14), así que ver DOS trimestres
+   distintos en el mismo papel solo pasa cuando se están liquidando atrasos.
+   La de marzo-2026 de Àlex traía los cuatro (1T+2T+3T+4T) con importes de 22-25 € y
+   todas las líneas marcadas «R»: comparar eso contra un mes normal descuadra por el
+   motivo equivocado, y era el peor mes del banco (3,13%). */
+function pcEsNominaAtrasos(real){
+  if (!real) return null;
+  var vistos = {};
+  (real.lines||[]).concat(real.unknownLines||[]).forEach(function(ln){
+    var c = String((ln && ln.code) || '').trim().toUpperCase();
+    if (PAY_TRIM_CODES.indexOf(c) >= 0) vistos[c] = true;
+  });
+  var n = Object.keys(vistos).length;
+  return n >= 2 ? { trimestres: n } : null;
 }
 
 // Etiqueta del mes anterior (M−1) a partir de "YYYY-MM"
@@ -19491,6 +19724,12 @@ function pcRenderCompare(res, real, L){
     html += '<div class="pca-lagnote ok"><span>✓</span><span>Teórico calculado con la actividad de <b>'+ppEsc(pcAuditMonthLabel(_mesUsa))+'</b>, que es la que paga esta nómina.</span></div>';
   } else if (prevM){
     html += '<div class="pca-lagnote"><span>ℹ️</span><span>Las horas variables (vuelo, dietas, nocturnas) de esta nómina corresponden a tu roster de <b>'+ppEsc(prevM)+'</b>. Comprueba que el teórico está calculado con la actividad de '+ppEsc(prevM)+', no con la de '+ppEsc(mesTxt)+'.</span></div>';
+  }
+  if (res.signals && res.signals.atrasos){
+    html += '<div class="pca-lagnote bad"><span>⚠️</span><span>Esta nómina es de <b>ATRASOS</b>: trae '+
+      res.signals.atrasos.trimestres+' pagas trimestrales distintas, y solo se cobra una por nómina. '+
+      'Es la regularización de una subida de convenio —paga la <b>diferencia</b> de meses ya cobrados, no la actividad del mes—, '+
+      'así que la comparación de abajo va a descuadrar en casi todo. No es un error de la compañía ni del cálculo.</span></div>';
   }
 
   // ── HERO Δ líquido ──
@@ -20817,7 +21056,7 @@ function pcExportReport(compare) {
   if (L.dNac > 0) { rows += pr('198','Dietas Nac. sujetas', L.dNac+' días', L.D.nac.sujeta, L.dNacSuj, 'var'); rows += pr('200','Dietas Nac. exentas', L.dNac+' días', L.D.nac.exenta, L.dNacExe, 'var'); }
   if (L.dInt > 0) { rows += pr('199','Dietas Int. sujetas', L.dInt+' días', L.D.int.sujeta, L.dIntSuj, 'var'); rows += pr('201','Dietas Int. exentas', L.dInt+' días', L.D.int.exenta, L.dIntExe, 'var'); }
   if (L.dPern > 0) { rows += pr('206','Pernocta int. sujeta', L.dPern+' noches', L.D.pernoc.sujeta, L.dPernSuj, 'var'); rows += pr('207','Pernocta int. exenta', L.dPern+' noches', L.D.pernoc.exenta, L.dPernExe, 'var'); }
-  if (L.pagaTrim > 0) rows += pr('289','Paga Trimestral','', L.pagaTrim, L.pagaTrim, 'var');
+  if (L.pagaTrim > 0) rows += pr('289','Paga Trimestral'+pcTrimEtiqueta(L.trimDet,L.nivel),'', L.pagaTrim, L.pagaTrim, 'var');
   if (L.plusBolsa > 0) rows += pr('300','Bolsa Beneficios (÷12)','', L.T.bolsa_anual/12, L.plusBolsa, 'var');
   if (L.bonoProd > 0) rows += pr('310','Bono productividad (target '+(L.bonoTarget||700).toLocaleString('es-ES',{maximumFractionDigits:1})+' h)',pcFmt(L.bonoExceso||0)+' h &times;',(L.bonoRate||(L.esp==='cmd'?49.11:17.80)), L.bonoProd, 'var');
   if (L.plusFonline > 0)   rows += pr('2114','Formación Online',  pcFmt(L.hFonline)+' h',  12.35, L.plusFonline,  'var');
@@ -24091,6 +24330,7 @@ function ldToggleMenu(){
     +'<div style="height:1px;background:'+divC+';margin:2px 0 4px"></div>'
     +'<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:'+tClr+';padding:8px 22px 2px;font-family:\'Space Mono\',monospace">Gestión</div>'
     +mi('📥',icoB,'Importar','PDF Jeppesen · LogTen · Foto · XLS · CSV','ldShowImport()',lbl,'')
+    +mi('🛫',icoB,'Horas reales de eCrews','Calzos reales · bloque · matrícula','ldECrewsLegsOpen()',lbl,'')
     +mi('☁️',icoB,'Sincronizar nube','Descargar desde Supabase','ldManualPull()',lbl,'ld-menu-sync-btn')
     +mi('🔄',icoB,'Full sync desde cero','Resetea caché y descarga todo','ldResetSync()',lbl,'')
     +mi('⬇️',icoB,'Exportar','PDF · EASA · CSV','ldToggleExport()',lbl,'')
@@ -28275,6 +28515,7 @@ document.addEventListener('focusin',function(e){
 <script src="js/qbank-ag.js"></script>
 <script src="js/qbank-afgen.js"></script>
 <script src="js/roster-changes.js"></script>
+<script src="js/ecrews-legs-import.js"></script>
   <script src="js/dia-libre.js"></script>
 <script src="js/expense-engine.js"></script>
 <script src="js/expense.js"></script>
@@ -38412,7 +38653,16 @@ function rstRenderCalendar(){
     // NO son imaginaria: son actividad en el aeropuerto y computan ENTERAS para el
     // acumulado del mes (ORO.FTL.225(b)), no al 25 % del convenio.
     AA:   { bg:'#826E6A', bd:'#6B5955', tx:'#FFFFFF', gl:'rgba(130,110,106,.5)', desc:'Actividad aeroportuaria' },
-    AAI:  { bg:'#826E6A', bd:'#6B5955', tx:'#FFFFFF', gl:'rgba(130,110,106,.5)', desc:'Actividad aeroportuaria internacional' }
+    AAI:  { bg:'#826E6A', bd:'#6B5955', tx:'#FFFFFF', gl:'rgba(130,110,106,.5)', desc:'Actividad aeroportuaria internacional' },
+    /* FORZOSO (FZ / FZNA, Art. 12.6): un día libre al que la compañía le mete
+       actividad. Sin estilo propio caía al verde turquesa del tipo `off` y la
+       ficha del día decía «Día libre · Todo el día» con los vuelos forzados
+       justo encima — el día que MENOS libre es de todo el mes anunciado como
+       libre. Color propio, vino: no es un descanso (verde), no es un vuelo
+       normal (rojo #c0392b), no es «revísalo» (ámbar) y no es el violeta
+       #7C3AED del modo prueba. Blanco sobre #9D174D = 8,6:1. */
+    FZ:   { bg:'#9D174D', bd:'#831843', tx:'#FFFFFF', gl:'rgba(157,23,77,.5)', desc:'Cambio forzoso' },
+    FZNA: { bg:'#9D174D', bd:'#831843', tx:'#FFFFFF', gl:'rgba(157,23,77,.5)', desc:'Cambio forzoso' }
   };
   // Tipos de DESCANSO: un día así está LIBRE (no hay jornada propia). Se usa para
   // decidir si un día invadido de madrugada por el duty anterior enseña SOLO el 1/3
@@ -40938,6 +41188,22 @@ window.rosterSelectDay = function(dateStr){
       var hasTime = _t0 && _t0!=='null' && String(_t0).indexOf(':')>-1;
       var hasEnd  = _t1 && _t1!=='null' && String(_t1).indexOf(':')>-1;
       var desc = (_cs2 && _cs2.desc) || _actFullDesc[e.type] || lbl;
+      /* Un forzoso es una actividad que te han cambiado o añadido en un día que
+         YA TRABAJABAS. Decir «Todo el día» al lado —que es lo que sale cuando la
+         entrada no trae horas— es la respuesta de un día vacío, y justo encima
+         está el vuelo que lo contradice. Se enseña LO QUE TE HAN PUESTO: los
+         vuelos de ese día, que es el dato por el que se reclama. */
+      var _esFz = /^FZ/.test(String(e.code || '').toUpperCase());
+      var _fzTxt = '';
+      if (_esFz) {
+        try {
+          _fzTxt = flights.map(function (f) {
+            var _n = f.flightNum || f.flight || '';
+            var _r = (f.dep || '') + (f.arr ? '→' + f.arr : '');
+            return (_n + (_r ? ' ' + _r : '')).trim();
+          }).filter(Boolean).join(' · ');
+        } catch (ex) { _fzTxt = ''; }
+      }
       /* `stretch`, no `center`: con `center` cada mitad medía solo lo que su propio
          texto, así que en una descripción de DOS líneas —«Actividad aeroportuaria
          internacional»— el bloque de color se quedaba corto y centrado, flotando
@@ -40950,8 +41216,14 @@ window.rosterSelectDay = function(dateStr){
         + '</div>'
         + '<div style="flex:1;background:#F8FAFF;border:1px solid rgba(30,58,164,.08);border-left:none;padding:10px 13px;display:flex;align-items:center;justify-content:space-between">'
         + '<span style="font-size:12px;font-weight:600;color:#1E3A5F">'+desc+'</span>'
-        + (hasTime||hasEnd
+        + (_fzTxt
+            ? '<span style="font-size:11px;font-weight:700;color:#9D174D;font-family:\'Space Mono\',monospace;text-align:right">'+_fzTxt+'</span>'
+            : hasTime||hasEnd
             ? '<span style="font-size:11px;font-weight:600;color:#475569;font-family:\'Space Mono\',monospace">'+(hasTime?rstFormatTime(_t0):'--:--')+' – '+(hasEnd?rstFormatTime(_t1):'--:--')+'</span>'
+            /* Un forzoso sin vuelos en el roster todavía tampoco es un día vacío:
+               la actividad puede no haber llegado aún. Se dice, en vez de mentir. */
+            : _esFz
+            ? '<span style="font-size:11px;color:#9D174D">Actividad asignada</span>'
             : '<span style="font-size:11px;color:#94A3B8">Todo el día</span>')
         + '</div>'
         + '</div>';
@@ -45025,7 +45297,23 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
     'PER':  {type:'off', code:'OFF'},       // Permiso no retribuido
     'RPER': {type:'off', code:'OFF'},       // Permiso retribuido
     'PT':   {type:'off', code:'OFF'},       // Part time crew (off duty days)
-    'FZ':   {type:'off', code:'OFF'},       // Cambio forzoso
+    /* FORZOSO — NO es un día libre, y esto estuvo mal desde el principio.
+       Aclarado por el piloto (5-sep-2026): «forzoso solamente quiere decir que te
+       han cambiado o añadido una actividad en un día que YA TRABAJABAS». O sea que
+       no hay descanso que marcar: es una MARCA sobre una jornada de servicio.
+
+       Estaba entrando como `type:'off'` con el código normalizado a 'OFF', y eso
+       hacía tres cosas mal a la vez:
+         · la ficha del día pintaba la tira en el verde de los días libres y decía
+           «Día libre · Todo el día» con el vuelo forzado dibujado justo encima;
+         · el día contaba como libre en el Art. 13.23 y como franco en el 12.9,
+           siendo un día de trabajo;
+         · y al perderse el código, `tieneForzoso()` (Art. 12.6) y el `/^FZ/` de
+           `/api/paycheck` —que es QUIEN LO COBRA, como una imaginaria— no podían
+           dispararse nunca. Un forzoso no se pagaba.
+       `type:'other'`: ni descanso ni actividad propia, una marca sobre el día. */
+    'FZ':   {type:'other', code:'FZ'},      // Cambio forzoso (Art. 12.6)
+    'FZNA': {type:'other', code:'FZNA'},    // Cambio forzoso no aceptado
     'FALT': {type:'off', code:'OFF'},       // Falta (día de sanción)
     'NQ':   {type:'off', code:'OFF'},       // Not qualified
     'RSV':  {type:'off', code:'OFF'},       // Pre-roster period

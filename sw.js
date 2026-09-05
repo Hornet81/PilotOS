@@ -1,7 +1,7 @@
 // PilotOS Service Worker
 // APP_VERSION lo reescribe scripts/stamp-version.js en cada deploy → cambia el
 // nombre del caché → los cachés de versiones viejas se borran al activar.
-const APP_VERSION = 'Estable.718';
+const APP_VERSION = 'Estable.724';
 
 const STATIC_CACHE  = 'pilotos-static-' + APP_VERSION;
 const FONT_CACHE    = 'pilotos-fonts-'  + APP_VERSION;
@@ -23,6 +23,12 @@ const PRECACHE_URLS = [
   // con red — y la primera visita no pasa por el Service Worker.
   'js/dia-libre.js',
   'js/roster-changes.js',
+  // Beta.722 lo trajo y se quedó fuera de esta lista: `offline-test` lo cazó al
+  // instante («ningún fichero propio falta sin red» → /js/ecrews-legs-import.js).
+  // Un módulo nuevo en public/js/ que no se añada aquí funciona con cobertura y
+  // desaparece justo cuando el piloto está volando, que es cuando no puede
+  // arreglarlo nadie.
+  'js/ecrews-legs-import.js',
   'js/expense-engine.js',
   'js/expense.js',
   'js/profile.js',

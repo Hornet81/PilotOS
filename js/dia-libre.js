@@ -123,6 +123,11 @@ var COD_DIA_LIBRE = ['OFF','AOFF','SOFF','NOFF','ROFF','VOFF','>OFF','REST','XSO
                         Ojo con `PTA`, que es un posicional y NO entra: la
                         comparación es exacta, no por prefijo. */
                      'PT','PTME','PTM'];
+/* ⚠️ FZ/FZNA (forzoso) NO están en la lista, y no es un olvido. Hasta Beta.720 el
+   parser los normalizaba a 'OFF' y contaban aquí como día libre sin que nadie lo
+   hubiera decidido. Un forzoso es lo contrario: «te han cambiado o añadido una
+   actividad en un día que YA TRABAJABAS» (piloto, 5-sep-2026). No hay día libre
+   que invadir, así que el 13.23 no aplica por ese lado. */
 /* ⚠ Un límite que no se puede arreglar desde aquí: el parser NORMALIZA muchos de
    esos permisos a `code:'OFF'` (BOD, LAC, MUD, PER, EMB, FALT…), así que una vez
    importados son indistinguibles de un día libre de verdad. MAT y PAT sí conservan
