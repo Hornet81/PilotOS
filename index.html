@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.716">
+  <meta name="version" content="Estable.718">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.716","builtAt":"2026-09-05T15:24:59Z","commit":"62b3559","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.718","builtAt":"2026-09-05T16:48:35Z","commit":"7065f46","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -29107,7 +29107,24 @@ const SEV = {
 function buildAISystem(leg, turbData, windData) {
   const turbSummary = turbData ? turbData.map((p, i) => "WP".concat(i + 1, ":EDR").concat(p.edr.toFixed(2))).join(" ") : "datos cargando";
   const windSummary = windData && windData.length ? windData.map(w => "FL".concat(w.fl, " ").concat(w.dir, "\u00b0/").concat(w.speed, "kt")).join(", ") : "datos cargando";
-  return "Eres ARIA (Aviation Route Intelligence Assistant), copiloto IA de PilotOS SkyView.\nLeg: ".concat(leg.flight, " ").concat(leg.dep, "\u2192").concat(leg.arr, " \xB7 STD ").concat(leg.std, " \xB7 STA ").concat(leg.sta, " \xB7 Block ").concat(leg.block, " \xB7 FL").concat(leg.cruiseFL, "\nMETAR DEP: ").concat(leg.metar.raw, " \u2192 ").concat(leg.metar.cat, "\nMETAR ARR: ").concat(leg.metarArr.raw, " \u2192 ").concat(leg.metarArr.cat, "\nRWY DEP: ").concat(leg.rwyDep, " \xB7 RWY ARR: ").concat(leg.rwyArr, "\nAlternates: ").concat(leg.alts.map(a => "".concat(a.icao, "(").concat(a.city, ") RWY").concat(a.rwy, " ").concat(a.cat)).join(" | "), "\nPIREPs: ").concat(leg.pireps.length ? leg.pireps.map(p => "".concat(p.type, " ").concat(p.fl, " ").concat(p.msg, " (").concat(p.ac, " ").concat(p.time, ")")).join(". ") : "Sin PIREPs.", "\nNOTAMs: ").concat((NOTAMS_BY_LEG[leg.num] || []).map(n => "".concat(n.id, ":").concat(n.title)).join(". "), "\nPerfil turbulencia en ruta (cizalladura vertical + SIGMET/AIRMET): ").concat(turbSummary, "\nVientos en ruta (TOC\u2192crucero\u2192descenso, Open-Meteo): ").concat(windSummary, " (crucero \u2248 FL").concat(leg.cruiseFL, ")\nFatiga: ").concat(FATIGUE.level, " (").concat(FATIGUE.score, "/100) \xB7 Descanso ").concat(FATIGUE.hoursRest, "h\nResponde en espa\xF1ol profesional. Para BRIEFING COMPLETO usa estas secciones:\n1.\u2708\uFE0F RESUMEN  2.\uD83C\uDF24 METEOROLOG\xCDA (descifra METARs)  3.\u26A1 TURBULENCIA (interpreta EDR)  4.\u26A0\uFE0F NOTAMs (explica operacionalmente)  5.\uD83D\uDD04 PIREPs  6.\uD83D\uDCA4 FATIGA\xD7CONDICIONES  7.\u2705 RECOMENDACIONES\nM\xE1x 400 palabras briefing completo, 150 palabras otras preguntas.");
+  /* ARIA leía `leg.alts`, que viene vacío casi siempre: preguntarle por los
+     alternativos y que dijera que no tiene el dato mientras la pestaña ALTERNATES
+     los enseñaba al lado. Ahora usa LA MISMA resolución que la pantalla (`_altsDe`)
+     y arrastra la procedencia, porque la ficha CCI de la compañía y una lista de
+     referencia no se pueden citar igual. */
+  var _alt = (typeof window !== 'undefined' && window._altsDe) ? window._altsDe(leg) : { fuente: null, lista: [] };
+  var _altTxt = _alt.lista.length
+    ? _alt.lista.map(function (a) {
+        return a.icao + (a.name ? '(' + a.name + ')' : '')
+             + (a.rwy ? ' RWY' + a.rwy : '')
+             + (a.distNm != null ? ' ' + a.distNm + 'NM' : '')
+             + (a.approach ? ' ' + a.approach : '');
+      }).join(' | ')
+      + (_alt.fuente === 'cci'
+          ? '  [fuente: ficha CCI de ' + (_alt.icao || leg.arr) + ']'
+          : '  [fuente: tabla de referencia, NO la ficha CCI — dilo al citarlos]')
+    : 'NO tengo la ficha de ' + (_alt.icao || leg.arr) + ': no puedo darle los alternativos. Dilo tal cual y remítele al plan de vuelo; NO te los inventes ni los deduzcas por cercanía.';
+  return "Eres ARIA (Aviation Route Intelligence Assistant), copiloto IA de PilotOS SkyView.\nLeg: ".concat(leg.flight, " ").concat(leg.dep, "\u2192").concat(leg.arr, " \xB7 STD ").concat(leg.std, " \xB7 STA ").concat(leg.sta, " \xB7 Block ").concat(leg.block, " \xB7 FL").concat(leg.cruiseFL, "\nMETAR DEP: ").concat(leg.metar.raw, " \u2192 ").concat(leg.metar.cat, "\nMETAR ARR: ").concat(leg.metarArr.raw, " \u2192 ").concat(leg.metarArr.cat, "\nRWY DEP: ").concat(leg.rwyDep, " \xB7 RWY ARR: ").concat(leg.rwyArr, "\nAlternates de ").concat(leg.arr, ": ").concat(_altTxt, "\nPIREPs: ").concat(leg.pireps.length ? leg.pireps.map(p => "".concat(p.type, " ").concat(p.fl, " ").concat(p.msg, " (").concat(p.ac, " ").concat(p.time, ")")).join(". ") : "Sin PIREPs.", "\nNOTAMs: ").concat((NOTAMS_BY_LEG[leg.num] || []).map(n => "".concat(n.id, ":").concat(n.title)).join(". "), "\nPerfil turbulencia en ruta (cizalladura vertical + SIGMET/AIRMET): ").concat(turbSummary, "\nVientos en ruta (TOC\u2192crucero\u2192descenso, Open-Meteo): ").concat(windSummary, " (crucero \u2248 FL").concat(leg.cruiseFL, ")\nFatiga: ").concat(FATIGUE.level, " (").concat(FATIGUE.score, "/100) \xB7 Descanso ").concat(FATIGUE.hoursRest, "h\nResponde en espa\xF1ol profesional. Para BRIEFING COMPLETO usa estas secciones:\n1.\u2708\uFE0F RESUMEN  2.\uD83C\uDF24 METEOROLOG\xCDA (descifra METARs)  3.\u26A1 TURBULENCIA (interpreta EDR)  4.\u26A0\uFE0F NOTAMs (explica operacionalmente)  5.\uD83D\uDD04 PIREPs  6.\uD83D\uDCA4 FATIGA\xD7CONDICIONES  7.\u2705 RECOMENDACIONES\nM\xE1x 400 palabras briefing completo, 150 palabras otras preguntas.");
 }
 try { window.buildAISystem = buildAISystem; window.getRouteCoords = getRouteCoords; window.fetchTurbulenceProfile = fetchTurbulenceProfile; } catch (e) {}
 async function fetchRouteWinds(dep, arr) {
@@ -31792,16 +31809,72 @@ function _bNotamSev(list) {
   for (var j = 0; j < list.length; j++) if (list[j].sev === 'warning') return 'warn';
   return list.length ? 'info' : 'ok';
 }
-/* Los alternativos REALES salen del CCI del destino; `leg.alts` suele venir vacío.
-   Misma cascada que AlternatesSection, o el titular decía "sin alternativos" con 3 dentro. */
-function _bAlts(leg) {
-  var cci = (typeof getCCI === 'function') ? getCCI(_bIcao(leg.arr)) : null;
+/* ════════ ALTERNATIVOS — UNA sola resolución, y dice DE DÓNDE sale ════════
+   Había CUATRO cascadas distintas para la misma pregunta —la cabecera de la
+   pestaña, su contador, `AlternatesSection` y la tira ALTN del panel— y ninguna
+   consultaba lo mismo. Es el fallo de `ES_AIRPORTS` / `ES_IATA` otra vez, pero
+   aquí llegaba más lejos que a una incoherencia:
+
+   · `DEST_ALTS` es la maqueta de la demo BCN-MAD y está indexada por el NÚMERO
+     de tramo, no por el aeropuerto. Con ella dentro, el primer sector del día
+     enseñaba **Sevilla, Vigo y Bilbao** como alternativos de destino —con METARs
+     inventados de la demo, fechados 250820Z— volases a donde volases. Un BCN-FCO
+     de verdad salía con los alternativos de otro vuelo que no existe. Fuera de la
+     cascada: un dato falso presentado como bueno es peor que no tener ninguno.
+   · Y a partir del quinto tramo la maqueta ya no tenía clave, así que la pestaña
+     decía "Sin alternativos cargados". El mismo día, dos respuestas distintas y
+     las dos malas. Eso es lo que reportó el piloto.
+
+   Lo que queda es una cascada honesta y con procedencia, porque no valen lo
+   mismo: la ficha CCI de la compañía es LA fuente (`usual_alternates`, la misma
+   que ya usa el chat de CAFI), y `ALTERNATES_DB` es una tabla de referencia de
+   35 aeropuertos que sirve sin cobertura y cuando la ficha no ha llegado. Nunca
+   se deducen por cercanía: elegir un alternativo es una decisión operativa y
+   una lista inventada firmada por la app es exactamente lo que no puede pasar.
+
+   `fuente` viaja con la lista para que la pantalla y ARIA puedan decir con qué
+   se está hablando. `null` es una respuesta: "no tengo la ficha de este
+   aeropuerto" no es lo mismo que "no tiene alternativos". */
+function _altsDe(leg) {
+  var icao = _bIcao(leg && leg.arr);
+  var cci = (typeof getCCI === 'function') ? getCCI(icao) : null;
   if (cci && cci.usual_alternates && cci.usual_alternates.length) {
-    return { dest: cci.usual_alternates.length, era: 0 };
+    return { fuente: 'cci', icao: icao, lista: cci.usual_alternates.map(function (a) {
+      return { icao: _bIcao(a.icao), name: a.name || '', rwy: a.rwy || '',
+               approach: a.approach || '', distNm: (a.dist_nm != null ? a.dist_nm : null) };
+    }) };
   }
-  var d = (typeof DEST_ALTS !== 'undefined' && DEST_ALTS[leg.num]) || null;
-  if (d) return { dest: (d.destAlts || []).length, era: (d.enRoute || []).length };
-  return { dest: (leg.alts || []).length, era: 0 };
+  var ref = (typeof ALTERNATES_DB !== 'undefined' && ALTERNATES_DB[icao]) || null;
+  if (ref && ref.length) {
+    return { fuente: 'ref', icao: icao, lista: ref.map(function (c) {
+      var ic = _bIcao(c);
+      return { icao: ic, name: (typeof airportName === 'function' ? airportName(ic, '') : ''),
+               rwy: '', approach: '', distNm: null };
+    }) };
+  }
+  /* `leg.alts` NO entra en la cascada, y no es un olvido: el único sitio donde
+     viene relleno es el leg de maqueta de la demo BCN-MAD, con los mismos
+     Sevilla y Vigo —y sus METARs inventados— que acaban de salir por la puerta.
+     Dejarlo aquí sería volver a abrirla por detrás. Un leg real del roster nunca
+     lo trae. */
+  return { fuente: null, icao: icao, lista: [] };
+}
+try { window._altsDe = _altsDe; } catch (e) {}   // el banco compara esto con lo que oye ARIA
+/* Lo que viaja al briefing hablado. Se manda LO QUE ENSEÑA LA PANTALLA en vez de
+   dejar que el backend lo resuelva por su cuenta: dos resoluciones distintas para
+   la misma pregunta es como ARIA acabó diciendo "sin NOTAMs relevantes" de un
+   aeropuerto que la pestaña marcaba en rojo. El backend manda cuando tiene la
+   ficha CCI de verdad (Supabase); esto es lo que ve el piloto. */
+try {
+  window.pilotosAltns = function (arrCode) {
+    var r = _altsDe({ arr: arrCode });
+    return { icao: r.icao, fuente: r.fuente, lista: r.lista };
+  };
+} catch (e) {}
+
+function _bAlts(leg) {
+  var a = _altsDe(leg);
+  return { dest: a.lista.length, era: 0, fuente: a.fuente };
 }
 function _bNotamSevOf(icaos) {
   var worst = 'ok';
@@ -31831,18 +31904,10 @@ function _bNotamHead(icaos) {
   if (!n) return (x ? 'Sin NOTAMs vigentes' + cad : 'Sin NOTAMs cargados');
   return n + ' vigente(s)' + (c ? ' · ' + c + ' crítico(s)' : '') + cad;
 }
-/* Los ICAO de los alternativos: misma cascada que AlternatesSection (CCI del destino) */
+/* Los ICAO de los alternativos — la MISMA resolución que todo lo demás */
 function _bAltIcaos(leg) {
-  var cci = (typeof getCCI === 'function') ? getCCI(_bIcao(leg.arr)) : null;
-  var out = [];
-  if (cci && cci.usual_alternates && cci.usual_alternates.length) {
-    out = cci.usual_alternates.map(function (a) { return _bIcao(a.icao); });
-  } else {
-    var d = (typeof DEST_ALTS !== 'undefined' && DEST_ALTS[leg.num]) || null;
-    var src = d ? (d.destAlts || []).concat(d.enRoute || []) : (leg.alts || []);
-    out = src.map(function (a) { return _bIcao(a.icao || a); });
-  }
-  return out.filter(function (v, i, arr) { return v && arr.indexOf(v) === i; });
+  return _altsDe(leg).lista.map(function (a) { return a.icao; })
+    .filter(function (v, i, arr) { return v && arr.indexOf(v) === i; });
 }
 function _bWindSev(w) {
   var p = (typeof parseMetarWind === 'function') ? parseMetarWind(w || '') : null;
@@ -32224,12 +32289,15 @@ var BRIEF_CATALOG = [
       for (var i = 0; i < a.length; i++) if (_bCatSev(a[i].cat) === 'crit') return 'warn';
       return 'alt';
     },
+    /* Un 0 mudo no se puede discutir: "sin ficha de este aeropuerto" y "este
+       aeropuerto no tiene alternativos" se veían igual, y sólo uno de los dos es
+       cierto. La cabecera dice cuántos y DE DÓNDE salen. */
     head: function (leg) {
-      var n = _bAlts(leg);
-      if (!n.dest && !n.era) return 'Sin alternativos cargados';
-      return n.dest + ' DEST' + (n.era ? ' · ' + n.era + ' ERA' : '');
+      var a = _altsDe(leg);
+      if (!a.lista.length) return 'Sin ficha de ' + (a.icao || 'destino') + ' — sin alternativos';
+      return a.lista.length + ' DEST' + (a.fuente === 'cci' ? ' · CCI' : ' · referencia');
     },
-    badge: function (leg) { var n = _bAlts(leg); return String(n.dest + n.era); },
+    badge: function (leg) { return String(_altsDe(leg).lista.length); },
     // bare: sin la cabecera propia de AlternatesSection — la pone ya la tarjeta
     render: function (leg) { return React.createElement(AlternatesSection, { leg: leg, defaultOpen: true, bare: true }); }
   },
@@ -32810,11 +32878,7 @@ function TabBrief(_ref21) {
         })
       ),
       (function () {
-        var _cci = typeof getCCI === 'function' ? getCCI(_bIcao(leg.arr)) : null;
-        var _da = _cci && _cci.usual_alternates && _cci.usual_alternates.length
-          ? _cci.usual_alternates.map(function (a) { return a.icao; })
-          : (typeof DEST_ALTS !== 'undefined' && DEST_ALTS[leg.num] ? (DEST_ALTS[leg.num].destAlts || []).map(function (a) { return a.icao || a; }) : []);
-        if (!_da.length && typeof ALTERNATES_DB !== 'undefined') _da = ALTERNATES_DB[_bIcao(leg.arr)] || [];
+        var _da = _bAltIcaos(leg);   // la MISMA resolución que la pestaña ALTERNATES
         if (!_da.length) return null;
         return React.createElement('div', {
           style: { marginTop: 8, paddingTop: 7, borderTop: '1px solid rgba(126,251,254,0.12)', display: 'flex', alignItems: 'center', gap: 7 }
@@ -33255,168 +33319,11 @@ const TAFS = {
     }]
   }
 };
-const DEST_ALTS = {
-  1: {
-    destAlts: [{
-      icao: "LEZL",
-      city: "Sevilla",
-      rwy: "28",
-      dist: "400nm",
-      metar: "LEZL 250820Z 28010KT 9999 FEW030 17/08 Q1019 NOSIG",
-      cat: "VMC",
-      notams: ["TWY B parcialmente cerrada"]
-    }, {
-      icao: "LEVX",
-      city: "Vigo",
-      rwy: "01",
-      dist: "510nm",
-      metar: "LEVX 250815Z 01012KT 8000 SCT020 14/09 Q1020 NOSIG",
-      cat: "VMC",
-      notams: []
-    }, {
-      icao: "LEBB",
-      city: "Bilbao",
-      rwy: "30",
-      dist: "490nm",
-      metar: "LEBB 250810Z 30008KT 9999 FEW030 16/09 Q1021 NOSIG",
-      cat: "VMC",
-      notams: []
-    }],
-    enRoute: [{
-      icao: "LEVC",
-      city: "Valencia",
-      rwy: "12",
-      dist: "130nm",
-      metar: "LEVC 250825Z 12006KT 9999 FEW025 19/11 Q1019 NOSIG",
-      cat: "VMC",
-      notams: []
-    }, {
-      icao: "LEAL",
-      city: "Alicante",
-      rwy: "10",
-      dist: "220nm",
-      metar: "LEAL 250820Z 09008KT 9999 FEW020 21/13 Q1017 NOSIG",
-      cat: "VMC",
-      notams: []
-    }]
-  },
-  2: {
-    destAlts: [{
-      icao: "LEIB",
-      city: "Ibiza",
-      rwy: "24",
-      dist: "80nm",
-      metar: "LEIB 250845Z 07012KT 9999 FEW025 21/13 Q1016 NOSIG",
-      cat: "VMC",
-      notams: []
-    }, {
-      icao: "LERS",
-      city: "Reus",
-      rwy: "25",
-      dist: "180nm",
-      metar: "LERS 250840Z 07008KT 9999 FEW030 20/11 Q1018 NOSIG",
-      cat: "VMC",
-      notams: []
-    }, {
-      icao: "LEBL",
-      city: "Barcelona",
-      rwy: "24L",
-      dist: "220nm",
-      metar: "LEBL 250830Z 09008KT 9999 FEW025 SCT080 18/10 Q1018 NOSIG",
-      cat: "VMC",
-      notams: []
-    }],
-    enRoute: [{
-      icao: "LEVC",
-      city: "Valencia",
-      rwy: "12",
-      dist: "90nm",
-      metar: "LEVC 250825Z 12006KT 9999 FEW025 19/11 Q1019 NOSIG",
-      cat: "VMC",
-      notams: []
-    }]
-  },
-  3: {
-    destAlts: [{
-      icao: "LERS",
-      city: "Reus",
-      rwy: "25",
-      dist: "60nm",
-      metar: "LERS 250840Z 07008KT 9999 FEW030 20/11 Q1018 NOSIG",
-      cat: "VMC",
-      notams: []
-    }, {
-      icao: "LEVC",
-      city: "Valencia",
-      rwy: "12",
-      dist: "180nm",
-      metar: "LEVC 250825Z 12006KT 9999 FEW025 19/11 Q1019 NOSIG",
-      cat: "VMC",
-      notams: []
-    }, {
-      icao: "LEBL",
-      city: "Barcelona",
-      rwy: "24L",
-      dist: "0nm",
-      metar: "LEBL 250830Z 09008KT 9999 FEW025 SCT080 18/10 Q1018 NOSIG",
-      cat: "VMC",
-      notams: []
-    }],
-    enRoute: [{
-      icao: "LEPA",
-      city: "Palma",
-      rwy: "06L",
-      dist: "30nm",
-      metar: "LEPA 251130Z 06014KT 9999 FEW020 23/15 Q1015 NOSIG",
-      cat: "VMC",
-      notams: []
-    }]
-  },
-  4: {
-    destAlts: [{
-      icao: "EGKK",
-      city: "Gatwick",
-      rwy: "26L",
-      dist: "28nm",
-      metar: "EGKK 251550Z 26016KT 5000 BKN012 11/07 Q1009 NOSIG",
-      cat: "MVMC",
-      notams: ["ILS RWY 26L UNSERVICEABLE — usar ILS 08R"]
-    }, {
-      icao: "EGGW",
-      city: "Luton",
-      rwy: "07",
-      dist: "35nm",
-      metar: "EGGW 251555Z 07014KT 7000 SCT018 11/07 Q1010 NOSIG",
-      cat: "VMC",
-      notams: []
-    }, {
-      icao: "EGSS",
-      city: "Stansted",
-      rwy: "22",
-      dist: "42nm",
-      metar: "EGSS 251550Z 25015KT 8000 SCT020 11/07 Q1010 NOSIG",
-      cat: "VMC",
-      notams: []
-    }],
-    enRoute: [{
-      icao: "LFPG",
-      city: "Paris CDG",
-      rwy: "27L",
-      dist: "240nm",
-      metar: "LFPG 251530Z 27015KT 9999 SCT025 13/07 Q1012 NOSIG",
-      cat: "VMC",
-      notams: []
-    }, {
-      icao: "EBBR",
-      city: "Bruselas",
-      rwy: "25L",
-      dist: "290nm",
-      metar: "EBBR 251525Z 26012KT 9999 FEW030 12/06 Q1013 NOSIG",
-      cat: "VMC",
-      notams: []
-    }]
-  }
-};
+/* La maqueta `DEST_ALTS` se ha ido: era la demo BCN-MAD indexada por el NÚMERO de
+   tramo, con METARs inventados fechados 250820Z, y estaba enseñándose como los
+   alternativos REALES del vuelo del día (ver la nota de `_altsDe`). No se
+   reintroduce: los alternativos salen de la ficha CCI del destino o de la tabla de
+   referencia, y si no hay ninguna se dice. */
 function TafBlock(_ref24) {
   let icao = _ref24.icao;
   const _useState13 = useState(false),
@@ -33718,7 +33625,9 @@ function AltCard(_ref27) {
     style: { fontSize: 13, fontWeight: 900, color: T.tx1, fontFamily: mono, letterSpacing: 1 }
   }, a.icao), /*#__PURE__*/React.createElement("span", {
     style: { fontSize: 9, color: T.tx2, fontFamily: sans }
-  }, airportName(a.icao, a.city)), /*#__PURE__*/React.createElement("span", {
+  /* airportName() devuelve el CÓDIGO cuando no ha resuelto el nombre, así que la
+     tarjeta salía con "LIML  LIML". Un hueco dice lo mismo sin ruido. */
+  }, (function () { var n = airportName(a.icao, a.city); return (n && n !== a.icao) ? n : ''; })()), /*#__PURE__*/React.createElement("span", {
     style: {
       background: "rgba(" + tc.tint + ",.13)",
       border: "1px solid rgba(" + tc.tint + ",.45)",
@@ -33731,7 +33640,9 @@ function AltCard(_ref27) {
     }
   }, tc.label)), /*#__PURE__*/React.createElement("div", {
     style: { display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap" }
-  }, /*#__PURE__*/React.createElement("span", {
+  /* La ficha de referencia no trae pista ni distancia. Un chip "RWY" vacío y un
+     "✈" suelto son ruido que además parece un dato que se ha perdido. */
+  }, a.rwy ? /*#__PURE__*/React.createElement("span", {
     style: {
       background: cc + "1f",
       border: "1px solid " + cc + "66",
@@ -33742,16 +33653,16 @@ function AltCard(_ref27) {
       fontFamily: mono,
       fontWeight: 700
     }
-  }, "RWY ", a.rwy), /*#__PURE__*/React.createElement("div", {
+  }, "RWY ", a.rwy) : null, /*#__PURE__*/React.createElement("div", {
     style: { display: "flex", alignItems: "center", gap: 3 }
   }, /*#__PURE__*/React.createElement(GlowDot, {
     color: cc,
     size: 5
   }), /*#__PURE__*/React.createElement("span", {
     style: { fontSize: 8, color: cc, fontFamily: mono, fontWeight: 700 }
-  }, catVal || "\u2014")), /*#__PURE__*/React.createElement("span", {
+  }, catVal || "\u2014")), a.dist ? /*#__PURE__*/React.createElement("span", {
     style: { fontSize: 8, color: T.tx2, fontFamily: mono }
-  }, "\u2708 ", a.dist))), /*#__PURE__*/React.createElement("span", {
+  }, "\u2708 ", a.dist) : null)), /*#__PURE__*/React.createElement("span", {
     style: {
       color: T.tx3,
       fontSize: 13,
@@ -33799,15 +33710,16 @@ function AlternatesSection(_ref28) {
     setOpen = _useState18[1];
   const day = useSkyDay();
   const T = SKY_THEME(day);
-  // Alternativos del CCI del destino (si lo tenemos); si no, fallback a DEST_ALTS hardcodeado
-  const _arrCci = (typeof getCCI === 'function') ? getCCI(iataToIcao(leg.arr) || leg.arr) : null;
-  const _hasCci = _arrCci && _arrCci.usual_alternates && _arrCci.usual_alternates.length;
-  const alts = _hasCci ? {
-    destAlts: _arrCci.usual_alternates.map(function (a) {
-      return { icao: a.icao, city: a.name, rwy: a.rwy || "", dist: (a.dist_nm != null ? a.dist_nm + "nm" : ""), approach: a.approach || "", cat: undefined, metar: "", notams: [] };
+  // UNA sola resolución para toda la pantalla (ver _altsDe): ficha CCI del destino,
+  // tabla de referencia si no está, y nada inventado si no hay ninguna de las dos.
+  const _res = _altsDe(leg);
+  const alts = {
+    destAlts: _res.lista.map(function (a) {
+      return { icao: a.icao, city: a.name, rwy: a.rwy || "", dist: (a.distNm != null ? a.distNm + "nm" : ""), approach: a.approach || "", cat: undefined, metar: "", notams: [] };
     }),
     enRoute: []
-  } : (DEST_ALTS[leg.num] || { destAlts: [], enRoute: [] });
+  };
+  const _fuente = _res.fuente;
   const arrIsBad = leg.metarArr.cat === "MVMC" || leg.metarArr.cat === "IMC";
   // Cristal del panel: ÚNICO backdrop-filter de la sección (ver nota en AltCard)
   const glassBlur = "blur(22px) saturate(150%)";
@@ -33960,6 +33872,20 @@ function AlternatesSection(_ref28) {
     style: { color: T.amb, fontWeight: 700 }
   }, leg.metarArr.cat), " en ", leg.arr, ". Se recomiendan m\xEDnimo 2 alternates VMC. Aeropuertos sugeridos abajo."))),
     secLabel("DESTINATION ALTERNATES", alts.destAlts.length, orange1, orange2, oTint, 0),
+    /* De dónde salen. La ficha CCI de la compañía y una tabla de referencia no se
+       pueden reclamar igual, y un vacío tiene que decir POR QUÉ está vacío: hasta
+       ahora "no tengo la ficha de este aeropuerto" y "este aeropuerto no tiene
+       alternativos" se veían exactamente igual. Color por CLASE arriba, aquí
+       tokens del tema — nunca un color en línea que el modo día no pueda seguir. */
+    /*#__PURE__*/React.createElement("div", {
+      style: { fontSize: 9, color: T.tx2, fontFamily: sans, lineHeight: 1.5, marginBottom: 8 }
+    }, _fuente === 'cci'
+        ? "Alternativos habituales de la ficha CCI de " + (_res.icao || leg.arr) + "."
+        : _fuente === 'ref'
+          ? "Lista de referencia: aún no ha llegado la ficha CCI de " + (_res.icao || leg.arr) + ". Contrástalos con el plan de vuelo."
+          : _fuente === 'leg'
+            ? "Alternativos del propio vuelo."
+            : "No tengo la ficha de " + (_res.icao || leg.arr) + ", así que no puedo decirte sus alternativos. Los del plan de vuelo mandan."),
     alts.destAlts.map((a, i) => /*#__PURE__*/React.createElement(AltCard, { key: i, a: a, tier: "dest" })),
     secLabel("ENROUTE ALTERNATE", alts.enRoute.length, amber1, amber2, aTint, 11),
     alts.enRoute.map((a, i) => /*#__PURE__*/React.createElement(AltCard, { key: i, a: a, tier: "enRoute" }))));
@@ -37610,7 +37536,13 @@ function SkyViewPilotOS() {
     const ics = [_depIcao, _arrIcao].filter(Boolean);
     if (!ics.length) return;
     // Resolver nombres de aeropuerto (DEP/ARR + alternates) vía /api/airports/:icao
-    ensureAirportNames(ics.concat((leg.alts || []).map(a => a.icao)), () => setTick(x => x + 1));
+    /* Los nombres de los ALTERNATIVOS también: si no, la tarjeta enseña el código
+       dos veces (o el hueco) porque `airportName` devuelve el código cuando no ha
+       resuelto. `leg.alts` casi siempre viene vacío, así que se piden los que de
+       verdad se van a pintar — los que resuelve `_altsDe`. */
+    var _altIc = [];
+    try { _altIc = (typeof _bAltIcaos === 'function') ? _bAltIcaos(leg) : []; } catch (e) {}
+    ensureAirportNames(ics.concat((leg.alts || []).map(a => a.icao)).concat(_altIc), () => setTick(x => x + 1));
     fetchCCIBatch(ics).then(map => {
       const keys = Object.keys(map || {});
       if (keys.length) { keys.forEach(k => { CCI_BY_ICAO[k] = map[k]; }); setTick(x => x + 1); }
@@ -52879,6 +52811,12 @@ document.addEventListener('DOMContentLoaded', function(){
     var gen=q('#db-gen'); if(gen)gen.onclick=generate;
   }
 
+  /* Los alternativos que viajan con cada sector al briefing hablado: los MISMOS que
+     enseña la pestaña ALTERNATES. Si la pantalla no los tiene, el backend los busca
+     en la ficha CCI de Supabase — pero nunca al revés, y nunca dos criterios. */
+  function _altnsPara(arr){
+    try { return (window.pilotosAltns && window.pilotosAltns(arr)) || null; } catch(e){ return null; }
+  }
   function gatherLegs(){
     var legs = (window.buildLegsFromRoster && window.buildLegsFromRoster()) || [];
     return legs.map(function(l){   // posicional-ok: legs ya normalizadas por buildLegsFromRoster
@@ -52886,7 +52824,8 @@ document.addEventListener('DOMContentLoaded', function(){
       var arrIcao = (window.iataToIcao&&window.iataToIcao(l.arr))||l.arr;
       return { flight:l.flight, dep:l.dep, arr:l.arr, depIcao:depIcao, arrIcao:arrIcao,
                positioning:!!l.positioning,
-               std:stripZ(l.std), sta:stripZ(l.sta), acType:l.acType, arrMs:l._arrMs, depMs:l._depMs };
+               std:stripZ(l.std), sta:stripZ(l.sta), acType:l.acType, arrMs:l._arrMs, depMs:l._depMs,
+               altns:_altnsPara(l.arr) };
     });
   }
 
@@ -53165,7 +53104,8 @@ document.addEventListener('DOMContentLoaded', function(){
   async function _locNote(pos){ if(pos) return; var en=(CUR&&CUR.lang)==='en'; var er=''; try{ er=window.__ariaGeoErr||''; }catch(e){} var code=(String(er).split(':')[0]||''); var msg, tap=_requestLocTap; if(code==='1'){ msg=en?'\ud83d\udccd Location blocked \u2014 tap here to see how to re-enable it':'\ud83d\udccd Ubicaci\u00f3n bloqueada \u2014 toca aqu\u00ed para ver c\u00f3mo reactivarla'; tap=_locHelpSheet; } else if(code==='2'){ msg=en?'\ud83d\udccd No GPS fix \u2014 near a window/outdoors, tap here to retry':'\ud83d\udccd Sin se\u00f1al GPS \u2014 junto a una ventana o al aire libre, toca aqu\u00ed para reintentar'; } else if(code==='3'){ msg=en?'\ud83d\udccd Location timed out \u2014 tap here to try again':'\ud83d\udccd La ubicaci\u00f3n tard\u00f3 demasiado \u2014 toca aqu\u00ed para reintentar'; } else { msg=en?'\ud83d\udccd Tap here to enable location for your drive time to base':'\ud83d\udccd Toca aqu\u00ed para activar la ubicaci\u00f3n y ver el tiempo en coche a la base'; } _locToast(msg, tap); }
   function _baseInfo(){ try{ var b=''; try{ b=localStorage.getItem('pilotOS_home_base')||''; }catch(e){} if(!b){ var lg=gatherLegs(); if(lg&&lg.length) b=lg[0].dep; } if(!b) return null; var ic=(window.iataToIcao&&window.iataToIcao(b))||b; var ap=(window.LD_AIRPORTS&&window.LD_AIRPORTS[ic])||null; if(!ap||ap.lat==null||ap.lon==null) return null; var nm=(window._WX_NAMES&&window._WX_NAMES[ic])||ap.city||ap.name||b; nm=String(nm).replace(/\s*(airport|aeropuerto|intl|international)/ig,'').trim(); return { icao:ic, lat:+ap.lat, lon:+ap.lon, label:'el aeropuerto de '+nm+' ('+b+')' }; }catch(e){ return null; } }
   function prevDayRoutes(legs){ try{ if(!legs||!legs.length||!legs[0].date) return []; var raw=localStorage.getItem('pilotOS_roster'); if(!raw) return []; var ents=JSON.parse(raw); if(!Array.isArray(ents)) return []; var d=new Date(legs[0].date+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()-1); var prev=d.toISOString().slice(0,10); var out=[]; ents.forEach(function(e){ if(e.type==='flight'&&e.dep&&e.arr&&e.date===prev){ out.push(e.dep+'-'+e.arr); } }); return out; }catch(e){ return []; } }
-  function gatherLegs(){ var legs=(window.buildLegsFromRoster&&window.buildLegsFromRoster())||[]; return legs.map(function(l){ var di=(window.iataToIcao&&window.iataToIcao(l.dep))||l.dep; var ai=(window.iataToIcao&&window.iataToIcao(l.arr))||l.arr; return {flight:l.flight,dep:l.dep,arr:l.arr,depIcao:di,arrIcao:ai,positioning:!!l.positioning,std:stripZ(l.std),sta:stripZ(l.sta),acType:l.acType,arrMs:l._arrMs,depMs:l._depMs,date:l.date,cruiseFL:l.cruiseFL}; }); }   // posicional-ok: legs ya normalizadas por buildLegsFromRoster
+  function _altnsPara(arr){ try { return (window.pilotosAltns && window.pilotosAltns(arr)) || null; } catch(e){ return null; } }
+  function gatherLegs(){ var legs=(window.buildLegsFromRoster&&window.buildLegsFromRoster())||[]; return legs.map(function(l){ var di=(window.iataToIcao&&window.iataToIcao(l.dep))||l.dep; var ai=(window.iataToIcao&&window.iataToIcao(l.arr))||l.arr; return {flight:l.flight,dep:l.dep,arr:l.arr,depIcao:di,arrIcao:ai,positioning:!!l.positioning,std:stripZ(l.std),sta:stripZ(l.sta),acType:l.acType,arrMs:l._arrMs,depMs:l._depMs,date:l.date,cruiseFL:l.cruiseFL,altns:_altnsPara(l.arr)}; }); }   // posicional-ok: legs ya normalizadas por buildLegsFromRoster
   // Turbulencia REAL por fase de vuelo. Mismos datos que el PERFIL de MAPAS: Open-Meteo por
   // niveles de presión a lo largo de la ruta → EDR por cizalladura vertical del viento (fl±10).
   // Muestrea a lo largo del perfil de vuelo (ascenso→TOC, crucero a FL, TOD→descenso) y resume
