@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.714">
+  <meta name="version" content="Estable.716">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.714","builtAt":"2026-09-04T18:27:23Z","commit":"359f363","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.716","builtAt":"2026-09-05T15:24:59Z","commit":"62b3559","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -2906,7 +2906,19 @@ select.ld-fi { appearance:none; -webkit-appearance:none; cursor:pointer; }
 #ld-panel-stats{display:none}
 
 /* ══ ROUTE MAP STYLES ══ */
-#ld-map-canvas{display:block;width:100%}
+#ld-map-canvas{display:block;width:100%;cursor:pointer}
+/* El aviso va en PÍLDORA OSCURA en los dos modos, como el indicador de zoom:
+   es lo único que funciona encima del canvas, que en modo día es un mar claro.
+   Con el cian del resto de rótulos de esquina se quedaba en 2:1 y no se leía —
+   y un aviso que no se lee no es un aviso. */
+/* Con la clase DOBLE: `.ld-map-corner` se declara más abajo con la misma
+   especificidad y ganaba ella por orden — el aviso salía con el cian tenue de
+   las esquinas decorativas (1,96:1 de noche) por mucho que se declarara aquí. */
+.ld-map-corner.ld-map-hint{transition:opacity .25s;background:rgba(11,16,32,.82);
+  color:rgba(103,232,249,.95);padding:3px 8px;border-radius:9px}
+html.day .ld-map-corner.ld-map-hint{background:rgba(11,16,32,.82)!important;
+  color:rgba(103,232,249,.95)!important}
+.ld-map-hint.off{opacity:0;pointer-events:none}
 .ld-map-wrap{position:relative;overflow:hidden;background:#060C1A}
 .ld-map-info{
   position:absolute;top:10px;left:10px;right:10px;z-index:5;
@@ -2940,6 +2952,38 @@ select.ld-fi { appearance:none; -webkit-appearance:none; cursor:pointer; }
 .ld-rc-cnt{font-size:10px;color:rgba(248,250,252,.28);font-family:'Space Mono',monospace;margin-top:1px}
 .ld-map-rst{font-size:11px;color:rgba(34,211,238,.6);cursor:pointer;font-family:'Space Mono',monospace}
 .ld-map-rst:active{color:#22D3EE}
+/* ── Conmutador Destinos / Rutas (cabecera del cajón) ── */
+.ld-mseg{display:flex;gap:2px;flex:1;max-width:212px;padding:2px;border-radius:9px;
+  background:rgba(34,211,238,.07);border:1px solid rgba(34,211,238,.14)}
+.ld-mseg button{flex:1;border:0;background:transparent;cursor:pointer;padding:5px 6px;border-radius:7px;
+  font-family:'Space Grotesk',sans-serif;font-size:10.5px;font-weight:700;letter-spacing:.5px;
+  text-transform:uppercase;color:rgba(248,250,252,.45)}
+.ld-mseg button.on{background:rgba(124,58,237,.32);color:#F8FAFC}
+.ld-mseg button .n{font-family:'Space Mono',monospace;font-weight:400;font-size:9.5px;opacity:.7;margin-left:4px}
+/* ── Filas de destino ── */
+.ld-rc-dot.dst{background:#22D3EE;box-shadow:0 0 7px rgba(34,211,238,.8)}
+.ld-rc-dot.base{background:#A78BFA;box-shadow:0 0 7px rgba(167,139,250,.9)}
+.ld-rc-dot.nosit{background:rgba(148,163,184,.5);box-shadow:none}
+.ld-dc-tag{margin-left:7px;padding:1px 6px;border-radius:6px;font-family:'Space Mono',monospace;
+  font-size:9px;letter-spacing:.4px;text-transform:uppercase;
+  background:rgba(124,58,237,.22);color:#C4B5FD}
+.ld-dc-tag.off{background:rgba(251,191,36,.16);color:#FBBF24}
+/* Lo que el mapa no puede pintar, dicho debajo de la lista */
+.ld-map-unplaced{padding:11px 16px 15px;font-family:'Space Mono',monospace;font-size:10.5px;
+  line-height:1.55;color:rgba(248,250,252,.55);border-top:1px solid rgba(34,211,238,.06)}
+.ld-map-unplaced b{color:#FBBF24;font-weight:400}
+/* Conexiones dentro de la ficha de un destino */
+.ld-dc-conex{margin-top:12px}
+.ld-dc-conex-lbl{font-family:'Space Grotesk',sans-serif;font-size:10px;font-weight:700;letter-spacing:.7px;
+  text-transform:uppercase;color:rgba(248,250,252,.4);margin-bottom:6px}
+.ld-dc-conex-row{display:flex;align-items:center;justify-content:space-between;padding:5px 0;
+  border-bottom:1px solid rgba(34,211,238,.05)}
+.ld-dc-conex-row .c{font-family:'DM Mono','Space Mono',monospace;font-size:12px;color:rgba(248,250,252,.86)}
+.ld-dc-conex-row .c .ar{color:#22D3EE;margin:0 4px;font-size:10px}
+.ld-dc-conex-row .n{font-family:'Space Mono',monospace;font-size:11px;color:rgba(248,250,252,.5)}
+.ld-dc-conex-mas{font-family:'Space Mono',monospace;font-size:10px;color:rgba(248,250,252,.35);padding-top:6px}
+.ld-rd-dot.dst{background:#22D3EE;box-shadow:0 0 7px rgba(34,211,238,.8)}
+.ld-rd-dot.base{background:#A78BFA;box-shadow:0 0 7px rgba(167,139,250,.9)}
 .ld-zoom-ind{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);z-index:5;font-family:'Space Mono',monospace;font-size:10px;color:rgba(34,211,238,.4);background:rgba(11,16,32,.7);padding:2px 9px;border-radius:10px;letter-spacing:.3px;pointer-events:none}
 /* ══ MAPA PANEL LAYOUT ══ */
 #ld-panel-mapa.ld-panel{overflow-y:auto;overflow-x:hidden;padding-bottom:calc(80px + env(safe-area-inset-bottom,0px))}
@@ -7628,6 +7672,21 @@ html.day .ld-map-corner{color:rgba(34,211,238,.6) !important}
 html.day .ld-zoom-ind{background:rgba(11,16,32,.75) !important;color:rgba(34,211,238,.7) !important}
 /* Vista global link */
 html.day .ld-map-rst{color:#0891B2 !important}
+/* Conmutador y filas de destino — el cajón es CLARO en modo día, así que la
+   paleta de noche no vale: se declara la de día aquí, no en un atributo style. */
+html.day .ld-mseg{background:rgba(15,23,42,.05) !important;border-color:rgba(15,23,42,.14) !important}
+html.day .ld-mseg button{color:#475569 !important}
+html.day .ld-mseg button.on{background:rgba(124,58,237,.16) !important;color:#0A1628 !important}
+html.day .ld-dc-tag{background:rgba(124,58,237,.14) !important;color:#5B21B6 !important}
+html.day .ld-dc-tag.off{background:rgba(146,64,14,.12) !important;color:#92400E !important}
+html.day .ld-map-unplaced{color:#475569 !important;border-top-color:rgba(15,23,42,.08) !important}
+html.day .ld-map-unplaced b{color:#92400E !important}
+html.day .ld-dc-conex-lbl{color:#475569 !important}
+html.day .ld-dc-conex-row{border-bottom-color:rgba(15,23,42,.07) !important}
+html.day .ld-dc-conex-row .c{color:#0A1628 !important}
+html.day .ld-dc-conex-row .c .ar{color:#0891B2 !important}
+html.day .ld-dc-conex-row .n{color:#475569 !important}
+html.day .ld-dc-conex-mas{color:#64748B !important}
 
 /* ── 5. Selector ROL & FUNCIÓN — sectabs y crew card ── */
 /* Wrap de micro-tabs */
@@ -12877,6 +12936,9 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
         <div class="ld-map-info-col"><div class="ld-map-info-val" id="ld-mi-cnt">--x</div><div class="ld-map-info-lbl">sectores</div></div>
       </div>
       <div class="ld-map-corner" style="top:8px;left:10px">EUR/MED</div>
+      <!-- Un mapa que se toca y no lo dice es un mapa que nadie toca. Desaparece
+           en cuanto el piloto hace su primer zoom: ya no es noticia. -->
+      <div class="ld-map-corner ld-map-hint" id="ld-map-hint" style="top:8px;right:10px">TOCA PARA ACERCAR</div>
       <div class="ld-zoom-ind" id="ld-zoom-ind">1.0×</div>
     </div>
     <!-- Route drawer: always visible, collapsible body -->
@@ -12884,8 +12946,13 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       <div class="ld-drawer-handle" onclick="ldDrawerToggle()">
         <div class="ld-drawer-pill"></div>
         <div class="ld-drawer-hrow">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="2" stroke-linecap="round"><path d="M3 12h18M3 6l6 6-6 6"/></svg>
-          <span style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:rgba(248,250,252,.4);flex:1" id="ld-drawer-title">Rutas frecuentes</span>
+          <!-- Destinos primero: es lo que se ve al entrar. Rutas es lo de siempre. -->
+          <div class="ld-mseg" role="tablist" onclick="event.stopPropagation()">
+            <button type="button" id="ld-mseg-dest" class="on" role="tab" aria-selected="true"
+                    onclick="ldMapSetMode('dest')">Destinos<span class="n">0</span></button>
+            <button type="button" id="ld-mseg-rutas" role="tab" aria-selected="false"
+                    onclick="ldMapSetMode('rutas')">Rutas<span class="n">0</span></button>
+          </div>
           <span class="ld-map-rst" onclick="event.stopPropagation();ldMapReset()">↺ Vista global</span>
           <svg id="ld-drawer-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(34,211,238,.5)" stroke-width="2.5" stroke-linecap="round" style="transition:transform .3s"><polyline points="18 15 12 9 6 15"/></svg>
         </div>
@@ -22663,7 +22730,25 @@ var LD_AIRPORTS = {
   LFKB:{lat:42.5527,lon:9.4837},LFKJ:{lat:41.9236,lon:8.8029},LMML:{lat:35.8575,lon:14.4775},
   BIKF:{lat:63.9850,lon:-22.6056},UKBB:{lat:50.3450,lon:30.8947},LDZA:{lat:45.7429,lon:16.0688},
   LDSP:{lat:43.5389,lon:16.2980},LDDU:{lat:42.5614,lon:18.2682},LYBE:{lat:44.8184,lon:20.3091},
-  LBSF:{lat:42.6967,lon:23.4114}
+  LBSF:{lat:42.6967,lon:23.4114},
+  /* Añadidos al enseñar TODOS los destinos en el mapa: hasta entonces sólo se
+     pintaban las diez rutas más voladas y un aeropuerto sin coordenadas no se
+     notaba. De la red Vueling faltaban 24; los que no estaban aquí ni en
+     LDM.AP desaparecían del mapa sin decir nada. Sirven también al cálculo
+     automático de nocturno, que avisaba «⚠ Sin coords» en estos mismos. */
+  LEVT:{lat:42.8828,lon:-2.7244},LERJ:{lat:42.4595,lon:-2.3222},
+  LEHC:{lat:42.0760,lon:-0.3167},LEBZ:{lat:38.8913,lon:-6.8213},
+  LERL:{lat:38.8564,lon:-3.9700},LEJR:{lat:36.7446,lon:-6.0601},
+  LIMJ:{lat:44.4133,lon:8.8375},EDDV:{lat:52.4611,lon:9.6851},
+  EGGD:{lat:51.3827,lon:-2.7191},EDDN:{lat:49.4987,lon:11.0780},
+  LFSB:{lat:47.5896,lon:7.5299},LFQQ:{lat:50.5619,lon:3.0894},
+  LFBZ:{lat:43.4684,lon:-1.5233},LFLC:{lat:45.7867,lon:3.1692},
+  LFMT:{lat:43.5762,lon:3.9630},LFMP:{lat:42.7404,lon:2.8707},
+  LGMT:{lat:39.0567,lon:26.5983},LGSA:{lat:35.5317,lon:24.1497},
+  DTMB:{lat:35.7580,lon:10.7547},DTTJ:{lat:33.8757,lon:10.7755},
+  HEGN:{lat:27.1783,lon:33.7994},HESH:{lat:27.9773,lon:34.3950},
+  LTAI:{lat:36.8987,lon:30.8005},LYPG:{lat:42.3594,lon:19.2519},
+  LTFM:{lat:41.2753,lon:28.7519},LTBA:{lat:40.9769,lon:28.8146}
 };
 var LD_NIGHT_ANGLE = 96; // 90.833 = geométrico · 96 = crepúsculo civil (-6°, EASA)
 
@@ -28295,6 +28380,11 @@ function iataToIcao(iata) {
   return IATA_TO_ICAO[code] || code;
 }
 try { window.iataToIcao = iataToIcao; } catch(e){}
+/* Y la TABLA, no sólo la función: el mapa del logbook necesita el camino
+   inverso (ICAO→IATA) para no contar dos veces el mismo aeropuerto escrito
+   de las dos formas. Leerla como propiedad de window sin exportarla daba
+   undefined siempre — el caso de RST_IATA_ICAO, que ya costó una ronda. */
+try { window.IATA_TO_ICAO = IATA_TO_ICAO; } catch(e){}
 /* ─── Route coord helpers (fallback via LD_AIRPORTS midpoint) ─── */
 function getRouteMidpoint(dep, arr) {
   var route = ROUTE_COORDS[routeKey(dep, arr)] || [];
@@ -49395,6 +49485,22 @@ var LDM = {
   prog:[], ctx:null, W:0, H:0, dpr:1,
   ROUTES:[], BG:[],
 
+  /* ── Los dos modos del mapa ────────────────────────────────────────────────
+     DESTINOS (el de por defecto) pinta TODOS los aeropuertos del logbook, sin
+     repetir, con la telaraña de sus rutas detrás: la foto de dónde has estado.
+     RUTAS es lo que había antes —las diez más voladas, con su color y su ficha—
+     y sigue entero, sólo que detrás de una pestaña. El modo no se guarda: al
+     entrar en el mapa lo que se quiere ver es el mapa completo. */
+  mode:'dest', DESTS:[], WEB:[], selDest:-1, maxCnt:0,
+  sinSituar:[], fueraMapa:[],
+
+  /* Zoom que hace el piloto tocando el mapa. Se guarda en LON/LAT, no en píxeles
+     de cámara: al replegar el cajón el canvas CRECE, y con él cambia la latitud
+     que cabe (`computeBounds`), así que unas coordenadas de cámara guardadas
+     apuntarían a otro sitio. Guardando el punto del mundo, el encuadre se rehace
+     igual a cualquier altura. */
+  libre:null,
+
   // Extended airport coordinates [lon, lat]
   AP:{
     // Spain
@@ -49472,11 +49578,61 @@ var LDM = {
     'LPMA':'FNC',
   },
 
+  /* ── Coordenadas de un aeropuerto, venga en IATA o en ICAO ────────────────
+     En la app conviven ya TRES tablas de coordenadas y ninguna sola cubre un
+     logbook entero: AP (IATA, la del mapa), LD_AIRPORTS (ICAO, la del cálculo
+     nocturno) y _WX_AIRPORTS. Con el mapa enseñando sólo las diez rutas más
+     voladas eso no se veía; enseñando TODOS los destinos, cada aeropuerto que
+     falte es un destino que desaparece sin un solo error. Se consultan las dos
+     grandes con IATA_TO_ICAO de puente — no una CUARTA copia, que es el fallo
+     de ES_AIRPORTS / ES_IATA — y lo que aun así no se pueda situar se DICE. */
+  _ptC:{},
+  pt:function(code){
+    code=(code+'').toUpperCase().trim(); if(!code) return null;
+    if(this._ptC[code]!==undefined) return this._ptC[code];
+    var iata=this.ICAO2IATA[code]||code, r=null;
+    if(this.AP[iata]) r=this.AP[iata];
+    if(!r){
+      var icao=code.length===4?code:((window.iataToIcao&&window.iataToIcao(iata))||iata);
+      var a=(window.LD_AIRPORTS||{})[icao];
+      if(a&&a.lat!=null&&a.lon!=null) r=[+a.lon,+a.lat];
+    }
+    this._ptC[code]=r; return r;
+  },
+  /* Un mismo aeropuerto escrito de dos formas son DOS destinos en una lista que
+     presume de no repetir. El roster y el logbook conviven en IATA y en ICAO en
+     la misma tabla, así que todo entra por aquí antes de contarse. */
+  _i2a:null,
+  canon:function(code){
+    code=(code+'').toUpperCase().trim(); if(!code) return '';
+    if(this.ICAO2IATA[code]) return this.ICAO2IATA[code];
+    if(code.length===4){
+      if(!this._i2a){
+        this._i2a={};
+        var m=window.IATA_TO_ICAO||{};
+        for(var k in m){ if(!this._i2a[m[k]]) this._i2a[m[k]]=k; }
+      }
+      if(this._i2a[code]) return this._i2a[code];
+    }
+    return code;
+  },
+
   // Projection helpers
   wX:function(lon){return(lon-this.L0)/(this.L1-this.L0)*this.W;},
   wY:function(lat){return(1-(lat-this.A0)/(this.A1-this.A0))*this.H;},
   cX:function(wx){return(wx-this.cam.x)*this.cam.s+this.W/2;},
   cY:function(wy){return(wy-this.cam.y)*this.cam.s+this.H/2;},
+  // Y la vuelta: de píxel de pantalla a lon/lat, para saber dónde ha tocado.
+  iLon:function(px){ return this.L0+((px-this.W/2)/this.cam.s+this.cam.x)/this.W*(this.L1-this.L0); },
+  iLat:function(py){ return this.A0+(1-((py-this.H/2)/this.cam.s+this.cam.y)/this.H)*(this.A1-this.A0); },
+  ZOOM_MAX:6.0,
+  // Centra el mapa en un punto del mundo. Deja constancia de que el encuadre es
+  // del piloto (`libre`) para que un cambio de altura no lo deshaga.
+  centraEn:function(lon,lat,s){
+    s=Math.min(Math.max(s,1.0),this.ZOOM_MAX);
+    this.libre={lon:lon,lat:lat,s:s};
+    this.cam.tx=this.wX(lon); this.cam.ty=this.wY(lat); this.cam.ts=s;
+  },
 
   // Recalcula el rango de latitud según la altura del canvas: la longitud
   // siempre llena el ancho; la latitud usa la MISMA escala (sin distorsión)
@@ -49503,6 +49659,21 @@ var LDM = {
     this.cam.ts=Math.min(Math.max(Math.min(sx,sy),1.0),6.0);
   },
   resetCam:function(){this.cam.tx=this.W/2;this.cam.ty=this.H/2;this.cam.ts=1;},
+  /* Encuadre de TODOS los puntos: un logbook de vuelos por España no tiene por
+     qué verse sobre un mapa de media Europa. Nunca desaleja por debajo de 1 —
+     la proyección es fija (EUR/MED) y por debajo de 1 sólo se ve más mar. */
+  frameAll:function(pts){
+    if(!pts||!pts.length){ this.resetCam(); return; }
+    var minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9,m=this;
+    pts.forEach(function(p){
+      var x=m.wX(p[0]),y=m.wY(p[1]);
+      if(x<minx)minx=x; if(x>maxx)maxx=x; if(y<miny)miny=y; if(y>maxy)maxy=y;
+    });
+    var pad=54;
+    var s=Math.min(this.W/((maxx-minx)+pad),this.H/((maxy-miny)+pad));
+    this.cam.tx=(minx+maxx)/2; this.cam.ty=(miny+maxy)/2;
+    this.cam.ts=Math.min(Math.max(s,1.0),4.0);
+  },
   updateCam:function(){
     var e=0.06;
     this.cam.x+=(this.cam.tx-this.cam.x)*e;
@@ -49771,9 +49942,13 @@ var LDM = {
       ctx.fillStyle=landGrad; ctx.fill();
       ctx.strokeStyle=coastStroke; ctx.lineWidth=.7; ctx.stroke();
     });
+    // ── Modo DESTINOS: la telaraña de rutas y un punto por aeropuerto ──
+    // El fondo (mar, tierra, retícula) ya está pintado arriba: es común a los dos
+    // modos. Lo que cambia es lo que va encima.
+    if(m.mode==='dest'){ m.drawWeb(); m.drawDests(); return; }
     // BG ambient routes
     m.BG.forEach(function(r){
-      var a1=m.AP[r.f],a2=m.AP[r.t]; if(!a1||!a2) return;
+      var a1=m.pt(r.f),a2=m.pt(r.t); if(!a1||!a2) return;
       var p1=[m.cX(m.wX(a1[0])),m.cY(m.wY(a1[1]))],p2=[m.cX(m.wX(a2[0])),m.cY(m.wY(a2[1]))];
       if(Math.max(p1[0],p2[0])<-30||Math.min(p1[0],p2[0])>W+30) return;
       var cp=m.getCP(p1[0],p1[1],p2[0],p2[1]);
@@ -49786,7 +49961,7 @@ var LDM = {
     });
     // Main routes
     m.ROUTES.forEach(function(r,idx){
-      var a1=m.AP[r.f],a2=m.AP[r.t]; if(!a1||!a2) return;
+      var a1=m.pt(r.f),a2=m.pt(r.t); if(!a1||!a2) return;
       var p1=[m.cX(m.wX(a1[0])),m.cY(m.wY(a1[1]))],p2=[m.cX(m.wX(a2[0])),m.cY(m.wY(a2[1]))];
       var pg=m.prog[idx]||0; if(pg<=0) return;
       var isSel=idx===m.selIdx,isOther=m.selIdx>=0&&!isSel;
@@ -49823,7 +49998,7 @@ var LDM = {
     var activeAPs={};
     m.ROUTES.forEach(function(r){activeAPs[r.f]=1;activeAPs[r.t]=1;});
     Object.keys(activeAPs).forEach(function(k){
-      var a=m.AP[k]; if(!a) return;
+      var a=m.pt(k); if(!a) return;
       var px=m.cX(m.wX(a[0])),py=m.cY(m.wY(a[1]));
       if(px<-20||px>W+20||py<-20||py>H+20) return;
       var isSel=m.selIdx>=0&&(m.ROUTES[m.selIdx].f===k||m.ROUTES[m.selIdx].t===k);
@@ -49858,6 +50033,94 @@ var LDM = {
     });
   },
 
+  /* ── Capa 1 del modo destinos: la telaraña ────────────────────────────────
+     Todas las parejas de aeropuertos del logbook, finas y sin color por ruta:
+     aquí lo que se lee es la FORMA de la red, no cada ruta. Al elegir un
+     destino, las suyas se encienden y el resto se apaga. */
+  drawWeb:function(){
+    var ctx=this.ctx,m=this,W=this.W;
+    var day=document.documentElement.classList.contains('day');
+    var sel=m.selDest>=0?m.DESTS[m.selDest]:null;
+    m.WEB.forEach(function(r){
+      var p1=[m.cX(m.wX(r.a[0])),m.cY(m.wY(r.a[1]))],p2=[m.cX(m.wX(r.b[0])),m.cY(m.wY(r.b[1]))];
+      if(Math.max(p1[0],p2[0])<-30||Math.min(p1[0],p2[0])>W+30) return;
+      var toca=!!sel&&(r.f===sel.code||r.t===sel.code);
+      var cp=m.getCP(p1[0],p1[1],p2[0],p2[1]);
+      ctx.save();
+      ctx.globalAlpha=sel?(toca?.95:.06):Math.min(.62,.18+r.cnt*.03);
+      ctx.strokeStyle=toca?(day?'rgba(109,40,217,.95)':'rgba(167,139,250,.95)')
+                          :(day?'rgba(8,145,178,.85)':'rgba(34,211,238,.7)');
+      ctx.lineWidth=toca?1.9:.85;
+      if(toca){ ctx.shadowBlur=10; ctx.shadowColor=day?'rgba(109,40,217,.5)':'rgba(167,139,250,.6)'; }
+      m.drawArc(p1[0],p1[1],cp[0],cp[1],p2[0],p2[1],m.bgProg);
+      ctx.restore();
+    });
+  },
+
+  /* ── Capa 2: un punto por aeropuerto, del tamaño de lo que lo has volado ──
+     El rótulo no puede salir en todos —cuarenta códigos encimados no se leen—:
+     salen la base, el elegido, los ocho más volados y, al acercar, todos. */
+  drawDests:function(){
+    var ctx=this.ctx,m=this,W=this.W,H=this.H;
+    var day=document.documentElement.classList.contains('day');
+    var sel=m.selDest>=0?m.DESTS[m.selDest]:null;
+    var rotulos=[];
+    m.DESTS.forEach(function(d,i){
+      if(!d.xy) return;
+      var px=m.cX(m.wX(d.xy[0])),py=m.cY(m.wY(d.xy[1]));
+      if(px<-24||px>W+24||py<-24||py>H+24) return;
+      var isSel=i===m.selDest, isBase=!!d.base;
+      var vecino=!!sel&&!isSel&&!!sel.adj[d.code];
+      var rel=m.maxCnt?d.cnt/m.maxCnt:0;
+      var sz=isSel?5.2:(isBase?4:2.1+Math.sqrt(rel)*2.4);
+      var alpha=sel?(isSel?1:vecino?.8:.2):1;
+      ctx.save(); ctx.globalAlpha=alpha*Math.max(.15,m.bgProg);
+      var rga=ctx.createRadialGradient(px,py,0,px,py,sz*4);
+      rga.addColorStop(0,isSel||isBase?'rgba(124,58,237,.26)':'rgba(34,211,238,.16)');
+      rga.addColorStop(1,'transparent');
+      ctx.fillStyle=rga; ctx.beginPath(); ctx.arc(px,py,sz*4,0,Math.PI*2); ctx.fill();
+      if(isSel){
+        var pulR=sz*3+Math.sin(m.phase*4)*sz*1.4;
+        ctx.beginPath(); ctx.arc(px,py,pulR,0,Math.PI*2);
+        ctx.strokeStyle='rgba(124,58,237,.35)'; ctx.lineWidth=1; ctx.stroke();
+      }
+      ctx.beginPath(); ctx.arc(px,py,sz,0,Math.PI*2);
+      ctx.fillStyle=isSel?(day?'#6D28D9':'#A78BFA')
+                   :isBase?'rgba(124,58,237,.95)'
+                   :(day?'rgba(8,145,178,.95)':'rgba(34,211,238,.85)');
+      ctx.shadowBlur=isSel?18:isBase?12:6;
+      ctx.shadowColor=isSel||isBase?'rgba(124,58,237,.75)':(day?'rgba(8,145,178,.5)':'rgba(34,211,238,.55)');
+      ctx.fill(); ctx.shadowBlur=0;
+      ctx.restore();
+      var quiere=isSel||isBase||d.rank<8||(m.cam.s>1.9&&m.bgProg>=1);
+      if(quiere&&m.bgProg>.4) rotulos.push({d:d,x:px,y:py,sz:sz,alpha:alpha,
+        sel:isSel,base:isBase,pri:isSel?0:isBase?1:d.rank+2});
+    });
+    /* Los rótulos, DESPUÉS de todos los puntos y sin pisarse: alrededor de la
+       base se amontonan ocho códigos en un dedo de pantalla y lo que se lee no
+       es ninguno. Se pintan por orden de importancia y el que choca con uno ya
+       puesto se calla — mejor un código menos que dos ilegibles. */
+    var puestos=[];
+    rotulos.sort(function(a,b){return a.pri-b.pri;}).forEach(function(r){
+      var neg=r.sel||r.base, fs=r.sel?9:8;
+      var w=r.d.code.length*(fs*.62)+6, h=fs+3;
+      var x=r.x, y=r.y+(r.y>H*.72?-(r.sz+7):r.sz+9);
+      var caja=[x-w/2,y-h,w,h+2];
+      var choca=puestos.some(function(q){
+        return !(caja[0]>q[0]+q[2]||caja[0]+caja[2]<q[0]||caja[1]>q[1]+q[3]||caja[1]+caja[3]<q[1]);
+      });
+      if(choca) return;
+      puestos.push(caja);
+      ctx.save(); ctx.globalAlpha=r.alpha*Math.max(.15,m.bgProg);
+      ctx.font=(neg?'bold ':'')+fs+'px "Space Mono",monospace';
+      ctx.textAlign='center';
+      ctx.fillStyle=r.sel?(day?'#5B21B6':'rgba(200,190,255,.95)')
+                         :(day?'rgba(20,40,70,.88)':'rgba(248,250,252,.72)');
+      ctx.shadowBlur=4; ctx.shadowColor=day?'rgba(255,255,255,.85)':'rgba(0,0,0,.9)';
+      ctx.fillText(r.d.code,x,y); ctx.shadowBlur=0; ctx.restore();
+    });
+  },
+
   loop:function(){
     var m=LDM;
     m.updateCam(); m.phase+=.009;
@@ -49873,14 +50136,11 @@ function ldMapBuildRoutes(){
   var entries=window.ldEntries||[];
   var routeMap={};
   entries.forEach(function(e){
-    if(!e.dep||!e.arr) return;
-    // Normalize: strip whitespace, uppercase, convert ICAO→IATA if needed
-    var dep=(e.dep+'').toUpperCase().trim();
-    var arr=(e.arr+'').toUpperCase().trim();
-    dep=LDM.ICAO2IATA[dep]||dep;
-    arr=LDM.ICAO2IATA[arr]||arr;
-    // Only include airports we have coords for
-    if(!LDM.AP[dep]||!LDM.AP[arr]||dep===arr) return;
+    if(!e||!e.dep||!e.arr||e.type==='__ac_db__') return;
+    // Un mismo aeropuerto en IATA y en ICAO son la misma ruta: canon() antes de agrupar.
+    var dep=LDM.canon(e.dep), arr=LDM.canon(e.arr);
+    // Sólo las que se pueden situar (el resolutor mira las dos tablas de coordenadas)
+    if(!LDM.pt(dep)||!LDM.pt(arr)||dep===arr) return;
     var key=dep<arr?dep+'-'+arr:arr+'-'+dep;
     if(!routeMap[key]) routeMap[key]={f:dep,t:arr,cnt:0,mins:0};
     routeMap[key].cnt++;
@@ -49900,6 +50160,66 @@ function ldMapBuildRoutes(){
   });
 }
 
+/* ── Todos los destinos del logbook, sin repetir ──────────────────────────────
+   La imagen principal del mapa. Cuenta un aeropuerto por cada tramo que sale O
+   llega de él (un vuelo local cuenta una vez, no dos), guarda sus horas de block
+   y con quién está conectado, y —esto es lo que no puede faltar— devuelve APARTE
+   los que no se pueden pintar. Un destino que desaparece del mapa sin decir nada
+   es el mismo 0 mudo de las pernoctas: desde fuera, «no lo has volado» y «no
+   sabemos dónde está» se ven igual. Los sin situar SIGUEN en la lista de abajo.  */
+function ldMapBuildDests(){
+  var entries=window.ldEntries||[];
+  var d={}, pares={}, sin={}, fuera=[];
+  var base='';
+  try{ base=LDM.canon(ldHomeBase(entries)||''); }catch(e){}
+  function anota(code,e,esLlegada,bm){
+    var o=d[code];
+    if(!o) o=d[code]={code:code,cnt:0,mins:0,llegadas:0,salidas:0,ldgDay:0,ldgNight:0,
+                      first:null,last:null,adj:{},xy:LDM.pt(code),base:code===base,rank:0};
+    o.cnt++; if(bm) o.mins+=bm;
+    if(esLlegada){ o.llegadas++; o.ldgDay+=parseInt(e.ldgDay)||0; o.ldgNight+=parseInt(e.ldgNight)||0; }
+    else o.salidas++;
+    if(e.date){ if(!o.first||e.date<o.first) o.first=e.date; if(!o.last||e.date>o.last) o.last=e.date; }
+  }
+  entries.forEach(function(e){
+    if(!e||e.type==='__ac_db__') return;
+    var dep=e.dep?LDM.canon(e.dep):'', arr=e.arr?LDM.canon(e.arr):'';
+    if(!dep&&!arr) return;
+    var bm=ldT2mins(e.block)||0;
+    if(dep){ if(!LDM.pt(dep)) sin[dep]=(sin[dep]||0)+1; anota(dep,e,false,bm); }
+    if(arr&&arr!==dep){ if(!LDM.pt(arr)) sin[arr]=(sin[arr]||0)+1; anota(arr,e,true,bm); }
+    if(dep&&arr&&dep!==arr){
+      d[dep].adj[arr]=(d[dep].adj[arr]||0)+1;
+      d[arr].adj[dep]=(d[arr].adj[dep]||0)+1;
+      var a=LDM.pt(dep), b=LDM.pt(arr);
+      if(a&&b){
+        var k=dep<arr?dep+'-'+arr:arr+'-'+dep;
+        if(!pares[k]) pares[k]={f:dep,t:arr,a:a,b:b,cnt:0};
+        pares[k].cnt++;
+      }
+    }
+  });
+  var lista=Object.keys(d).map(function(k){return d[k];})
+    .sort(function(a,b){ return b.cnt-a.cnt || (a.code<b.code?-1:1); });
+  lista.forEach(function(o,i){
+    o.rank=i;
+    // Situado pero fuera del encuadre EUR/MED: tampoco se ve, y también hay que decirlo.
+    if(o.xy&&(o.xy[0]<LDM.L0||o.xy[0]>LDM.L1||o.xy[1]<LDM.A0||o.xy[1]>LDM.A1)){
+      o.fuera=true; fuera.push(o.code);
+    }
+  });
+  /* El tamaño del punto se mide contra el destino más volado QUE NO ES LA BASE.
+     Con la base dentro no hay escala: se sale por diez a uno y todo lo demás
+     queda del mismo tamaño — que es como estaba y no decía nada. La base tiene
+     su propio tamaño y su propio color, así que no necesita entrar en el reparto. */
+  var refs=lista.filter(function(o){return !o.base&&o.xy;});
+  return { lista:lista,
+           web:Object.keys(pares).map(function(k){return pares[k];}),
+           sinSituar:Object.keys(sin).sort(),
+           fueraMapa:fuera,
+           max:refs.length?refs[0].cnt:(lista.length?lista[0].cnt:0) };
+}
+
 // ── Demo routes (shown when logbook is empty) ─────────────────────────────────
 LDM._DEMO_ROUTES=[
   {f:'BCN',t:'LHR',hrs:'52:30',cnt:28,c1:'rgba(124,58,237,.9)',c2:'rgba(34,211,238,.8)',w:2.2,dot:'#A78BFA'},
@@ -49915,12 +50235,19 @@ LDM._DEMO_ROUTES=[
 // ── Drawer toggle ─────────────────────────────────────────────────────────────
 function ldDrawerToggle(){
   var body=document.getElementById('ld-drawer-body');
+  ldDrawerSet(!(body&&body.classList.contains('ld-drawer-open')));
+}
+
+// Abrir/replegar el cajón a un estado CONCRETO: el zoom del mapa lo repliega y
+// la vista global lo devuelve, y para eso un toggle a ciegas no sirve.
+function ldDrawerSet(abierto){
+  var body=document.getElementById('ld-drawer-body');
   var chev=document.getElementById('ld-drawer-chevron');
   if(!body) return;
-  var isOpen=body.classList.contains('ld-drawer-open');
-  body.classList.toggle('ld-drawer-open',!isOpen);
-  body.classList.toggle('ld-drawer-closed',isOpen);
-  if(chev) chev.style.transform=isOpen?'rotate(180deg)':'rotate(0deg)';
+  if(body.classList.contains('ld-drawer-open')===!!abierto) return;
+  body.classList.toggle('ld-drawer-open',!!abierto);
+  body.classList.toggle('ld-drawer-closed',!abierto);
+  if(chev) chev.style.transform=abierto?'rotate(0deg)':'rotate(180deg)';
   ldMapApplyHeight(); // mapa crece al replegar / vuelve a normal al desplegar
 }
 
@@ -49950,17 +50277,31 @@ function ldMapApplyHeight(){
   if(!wrap||!LDM.ctx||!LDM.W) return;
   var H=ldMapTargetH(LDM.W);
   if(H===LDM.H) return;
+  var Hprev=LDM.H;
   LDM.H=H; LDM.computeBounds();
   var cv=document.getElementById('ld-map-canvas');
   cv.width=LDM.W*LDM.dpr; cv.height=H*LDM.dpr;
   cv.style.width=LDM.W+'px'; cv.style.height=H+'px';
   wrap.style.height=H+'px';
   LDM.ctx=cv.getContext('2d'); LDM.ctx.scale(LDM.dpr,LDM.dpr);
+  /* Si el encuadre es del piloto se CONSERVA. Esta función se llama justo
+     después de replegar el cajón —que es lo que hace el zoom al tocar— y
+     reencuadrar aquí se comía el zoom recién hecho. La cámara actual se corrige
+     por la mitad del alto ganado (wY vale H/2 − (lat−MIDLAT)·perLat, así que un
+     canvas más alto desplaza todo ΔH/2) para que la animación siga en curso en
+     vez de dar un salto. */
+  if(LDM.libre){
+    LDM.cam.y+=(H-Hprev)/2;
+    LDM.cam.tx=LDM.wX(LDM.libre.lon); LDM.cam.ty=LDM.wY(LDM.libre.lat); LDM.cam.ts=LDM.libre.s;
+    return;
+  }
   // Reencuadre inmediato (sin animación brusca por el cambio de proyección)
-  if(LDM.selIdx>=0&&LDM.ROUTES[LDM.selIdx]){
-    var r=LDM.ROUTES[LDM.selIdx],a1=LDM.AP[r.f],a2=LDM.AP[r.t];
+  if(LDM.mode==='dest'&&LDM.selDest>=0&&LDM.DESTS[LDM.selDest]){
+    ldMapEncuadraDest(LDM.DESTS[LDM.selDest]);
+  } else if(LDM.mode!=='dest'&&LDM.selIdx>=0&&LDM.ROUTES[LDM.selIdx]){
+    var r=LDM.ROUTES[LDM.selIdx],a1=LDM.pt(r.f),a2=LDM.pt(r.t);
     if(a1&&a2) LDM.frameTo([a1[0],a1[1],a2[0],a2[1]]);
-  } else { LDM.resetCam(); }
+  } else { ldMapEncuadraTodo(); }
   LDM.cam.x=LDM.cam.tx; LDM.cam.y=LDM.cam.ty; LDM.cam.s=LDM.cam.ts;
 }
 
@@ -49980,7 +50321,8 @@ function ldMapInit(){
   LDM.ctx=cv.getContext('2d');
   LDM.ctx.scale(LDM.dpr,LDM.dpr);
   LDM.cam={x:W/2,y:H/2,s:1,tx:W/2,ty:H/2,ts:1};
-  LDM.bgProg=0; LDM.selIdx=-1; LDM.phase=0;
+  LDM.bgProg=0; LDM.selIdx=-1; LDM.selDest=-1; LDM.phase=0; LDM.libre=null;
+  ldMapWireTap();
 
   // ── Build routes from logbook ──
   // Sin vuelos NO se pintan rutas de ejemplo. El rótulo decía "Rutas de ejemplo", pero
@@ -49995,23 +50337,156 @@ function ldMapInit(){
     return{f:r.t,t:LDM.ROUTES[(i+2)%LDM.ROUTES.length].f,c1:col.c1.replace(/[\d.]+\)$/,'0.22)'),c2:col.c2.replace(/[\d.]+\)$/,'0.15)'),w:.6};
   }).filter(function(r){return LDM.AP[r.f]&&LDM.AP[r.t]&&r.f!==r.t;});
 
-  // Update drawer title
-  var title=document.getElementById('ld-drawer-title');
-  if(title) title.textContent=LDM.ROUTES.length?('Tus rutas ('+LDM.ROUTES.length+')'):'Sin rutas';
+  // ── Destinos: todos los aeropuertos del logbook, sin repetir ──
+  var dst=ldMapBuildDests();
+  LDM.DESTS=dst.lista; LDM.WEB=dst.web; LDM.maxCnt=dst.max;
+  LDM.sinSituar=dst.sinSituar; LDM.fueraMapa=dst.fueraMapa;
 
-  // Build route cards
+  // Sin destinos que situar no hay modo destinos que enseñar: se cae a rutas.
+  if(LDM.mode==='dest'&&!LDM.DESTS.some(function(d){return !!d.xy;})&&LDM.ROUTES.length) LDM.mode='rutas';
+
+  ldMapRenderCards();
+  ldMapEncuadraTodo();
+  LDM.cam.x=LDM.cam.tx; LDM.cam.y=LDM.cam.ty; LDM.cam.s=LDM.cam.ts;
+  if(LDM.raf){ cancelAnimationFrame(LDM.raf); LDM.raf=null; }
+  LDM.loop();
+}
+
+// La vista global de cada modo: en destinos, el encuadre que los mete todos.
+function ldMapEncuadraTodo(){
+  if(LDM.mode!=='dest'){ LDM.resetCam(); return; }
+  LDM.frameAll(LDM.DESTS.filter(function(d){return !!d.xy&&!d.fuera;}).map(function(d){return d.xy;}));
+}
+
+/* ── Tocar el mapa: acercarse a esa zona ──────────────────────────────────────
+   El canvas no tenía NINGÚN manejador: el mapa sólo se movía eligiendo en la
+   lista. Ahora, tocando:
+
+   · sobre un aeropuerto (a menos de HIT_PX) → se elige ese destino, con su
+     ficha, y el cajón se abre para poder leerla;
+   · sobre cualquier otra zona → se acerca hacia ahí y el cajón se repliega, que
+     es lo que le da al mapa el alto que le faltaba.
+
+   Al tope de zoom cada toque sigue recentrando, así que también sirve para
+   moverse por el mapa. La salida es «↺ Vista global», que además devuelve la
+   lista.
+
+   Un toque NO es un arrastre ni un scroll: el panel del mapa se desplaza en
+   vertical y quedarse con el primer dedo que baja rompería ese scroll. Se exige
+   que el dedo no se haya movido (>10 px) y que no se haya entretenido (>600 ms). */
+var LD_MAP_HIT_PX = 15, LD_MAP_ZOOM_PASO = 1.8;
+
+function ldMapTap(px,py){
+  if(!LDM.ctx||!LDM.W) return;
+  // ¿Ha tocado un aeropuerto? (sólo en destinos: en rutas manda la lista)
+  if(LDM.mode==='dest'){
+    var mejor=-1, mejorD=LD_MAP_HIT_PX;
+    LDM.DESTS.forEach(function(d,i){
+      if(!d.xy) return;
+      var dx=LDM.cX(LDM.wX(d.xy[0]))-px, dy=LDM.cY(LDM.wY(d.xy[1]))-py;
+      var dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<mejorD){ mejorD=dist; mejor=i; }
+    });
+    if(mejor>=0){
+      if(LDM.selDest!==mejor) ldDrawerSet(true);   // su ficha hay que poder leerla
+      ldMapSelectDest(mejor);
+      return;
+    }
+  }
+  var lon=LDM.iLon(px), lat=LDM.iLat(py);
+  LDM.centraEn(lon,lat,LDM.cam.ts*LD_MAP_ZOOM_PASO);
+  ldDrawerSet(false);                              // sitio para el mapa
+  var hint=document.getElementById('ld-map-hint');
+  if(hint) hint.classList.add('off');              // ya lo sabe
+}
+
+// Cablea el canvas una sola vez. Un pointerup lejos del pointerdown es un
+// arrastre; uno tardío, un intento de scroll. Ni uno ni otro son un toque.
+function ldMapWireTap(){
+  var cv=document.getElementById('ld-map-canvas');
+  if(!cv||cv.dataset.tap) return;
+  cv.dataset.tap='1';
+  var x0=0,y0=0,t0=0,valido=false;
+  cv.addEventListener('pointerdown',function(e){
+    var r=cv.getBoundingClientRect();
+    x0=e.clientX-r.left; y0=e.clientY-r.top; t0=Date.now(); valido=true;
+  },{passive:true});
+  cv.addEventListener('pointercancel',function(){ valido=false; },{passive:true});
+  cv.addEventListener('pointerup',function(e){
+    if(!valido) return;
+    valido=false;
+    var r=cv.getBoundingClientRect();
+    var x=e.clientX-r.left, y=e.clientY-r.top;
+    if(Math.abs(x-x0)>10||Math.abs(y-y0)>10) return;   // arrastre
+    if(Date.now()-t0>600) return;                       // scroll o pulsación larga
+    ldMapTap(x,y);
+  },{passive:true});
+}
+
+// ── El conmutador de modo ────────────────────────────────────────────────────
+// Cambia lo que se pinta y lo que lista el cajón; no recarga nada del logbook.
+function ldMapSetMode(modo){
+  if(modo!=='dest'&&modo!=='rutas') return;
+  if(LDM.mode===modo) return;
+  LDM.mode=modo;
+  LDM.selIdx=-1; LDM.selDest=-1; LDM.libre=null;
+  var info=document.getElementById('ld-map-info');
+  if(info) info.classList.remove('vis');
+  LDM.bgProg=0;                     // que la capa nueva entre dibujándose
+  ldMapRenderCards();
+  ldMapEncuadraTodo();
+}
+
+// ── El cajón: destinos o rutas, según el modo ────────────────────────────────
+function ldMapRenderCards(){
   var container=document.getElementById('ld-route-cards');
   var noRoutes=document.getElementById('ld-no-routes');
-  // Re-init: volver a la lista de rutas (ocultar ficha de detalle previa)
-  var _det=document.getElementById('ld-route-detail');
-  if(_det){ _det.style.display='none'; _det.innerHTML=''; }
-  if(container){
-    container.style.display='';
-    container.innerHTML='';
-    // El aviso sale siempre que no haya rutas que pintar — no sólo con el logbook vacío:
-    // si hay vuelos pero ninguno con aeropuertos que sepamos situar, el cajón se quedaba
+  var det=document.getElementById('ld-route-detail');
+  if(det){ det.style.display='none'; det.innerHTML=''; }
+  var esDest=LDM.mode==='dest';
+  // Botones del conmutador, con su recuento
+  var bd=document.getElementById('ld-mseg-dest'), br=document.getElementById('ld-mseg-rutas');
+  if(bd){ bd.classList.toggle('on',esDest); bd.setAttribute('aria-selected',esDest?'true':'false');
+          bd.innerHTML='Destinos<span class="n">'+LDM.DESTS.length+'</span>'; }
+  if(br){ br.classList.toggle('on',!esDest); br.setAttribute('aria-selected',!esDest?'true':'false');
+          br.innerHTML='Rutas<span class="n">'+LDM.ROUTES.length+'</span>'; }
+  if(!container) return;
+  container.style.display=''; container.innerHTML='';
+  var vacio=esDest?!LDM.DESTS.length:!LDM.ROUTES.length;
+  if(noRoutes){
+    // El aviso sale siempre que no haya nada que pintar — no sólo con el logbook vacío:
+    // si hay vuelos pero ningún aeropuerto que sepamos situar, el cajón se quedaba
     // en blanco sin explicar nada.
-    if(noRoutes) noRoutes.style.display=LDM.ROUTES.length?'none':'block';
+    noRoutes.textContent=esDest?'Añade vuelos al logbook para ver tus destinos aquí'
+                               :'Añade vuelos al logbook para ver tus rutas aquí';
+    noRoutes.style.display=vacio?'block':'none';
+  }
+  if(esDest){
+    LDM.DESTS.forEach(function(d,i){
+      var c=document.createElement('div');
+      c.className='ld-rc'; c.setAttribute('role','button'); c.setAttribute('data-dest',d.code);
+      var meta=d.cnt+' sector'+(d.cnt!==1?'es':'')
+             +(d.llegadas?' · '+d.llegadas+' llegada'+(d.llegadas!==1?'s':''):'');
+      c.innerHTML='<div class="ld-rc-dot '+(d.base?'base':d.xy&&!d.fuera?'dst':'nosit')+'"></div>'
+        +'<div style="flex:1"><div class="ld-rc-route">'+d.code
+          +(d.base?'<span class="ld-dc-tag">base</span>':'')
+          +(!d.xy?'<span class="ld-dc-tag off">sin situar</span>':d.fuera?'<span class="ld-dc-tag off">fuera del mapa</span>':'')
+          +'</div><div class="ld-rc-meta">'+meta+'</div></div>'
+        +'<div class="ld-rc-right"><div class="ld-rc-hrs">'+(d.mins?_ldM2hhmm(d.mins)+'h':'—')+'</div></div>';
+      c.onclick=function(){ ldMapSelectDest(i); };
+      container.appendChild(c);
+    });
+    // Lo que el mapa no puede pintar, DICHO. Y siguen en la lista de arriba.
+    var av=[];
+    if(LDM.sinSituar.length) av.push('<b>'+LDM.sinSituar.length+'</b> sin coordenadas ('+LDM.sinSituar.join(', ')+')');
+    if(LDM.fueraMapa.length) av.push('<b>'+LDM.fueraMapa.length+'</b> fuera del área EUR/MED ('+LDM.fueraMapa.join(', ')+')');
+    if(av.length){
+      var w=document.createElement('div');
+      w.className='ld-map-unplaced'; w.id='ld-map-unplaced';
+      w.innerHTML='No se pintan en el mapa: '+av.join(' · ')+'. Siguen contando en la lista.';
+      container.appendChild(w);
+    }
+  } else {
     LDM.ROUTES.forEach(function(r,i){
       var d=document.createElement('div');
       d.className='ld-rc'; d.setAttribute('role','button');
@@ -50023,15 +50498,13 @@ function ldMapInit(){
       container.appendChild(d);
     });
   }
-  if(LDM.raf){ cancelAnimationFrame(LDM.raf); LDM.raf=null; }
-  LDM.loop();
 }
 
 function ldMapSelect(idx){
   if(LDM.selIdx===idx){ldMapReset();return;}
-  LDM.selIdx=idx;
+  LDM.selIdx=idx; LDM.libre=null;
   var r=LDM.ROUTES[idx];
-  var a1=LDM.AP[r.f],a2=LDM.AP[r.t];
+  var a1=LDM.pt(r.f),a2=LDM.pt(r.t);
   if(a1&&a2) LDM.frameTo([a1[0],a1[1],a2[0],a2[1]]);
   var info=document.getElementById('ld-map-info');
   if(info){
@@ -50047,7 +50520,9 @@ function ldMapSelect(idx){
 }
 
 function ldMapReset(){
-  LDM.selIdx=-1; LDM.resetCam();
+  LDM.selIdx=-1; LDM.selDest=-1; LDM.libre=null;
+  ldDrawerSet(true);            // la vista global devuelve también la lista
+  ldMapEncuadraTodo();
   var info=document.getElementById('ld-map-info');
   if(info) info.classList.remove('vis');
   document.querySelectorAll('.ld-rc').forEach(function(c){c.classList.remove('sel');});
@@ -50058,10 +50533,83 @@ function ldMapReset(){
   if(cards) cards.style.display='';
 }
 
+// ── Un destino elegido: se encuadra con TODO lo que vuelas desde él ──────────
+// Encuadrar sólo el punto obliga a un zoom fijo que no dice nada; con sus vecinos
+// dentro, la vista contesta a la pregunta que se hace al tocarlo: qué sale de aquí.
+function ldMapEncuadraDest(d){
+  if(!d||!d.xy){ ldMapEncuadraTodo(); return; }
+  var pts=[d.xy];
+  Object.keys(d.adj).forEach(function(k){
+    var o=LDM.DESTS.filter(function(x){return x.code===k;})[0];
+    if(o&&o.xy&&!o.fuera) pts.push(o.xy);
+  });
+  LDM.frameAll(pts);
+}
+
+function ldMapSelectDest(idx){
+  if(LDM.selDest===idx){ ldMapReset(); return; }
+  LDM.selDest=idx; LDM.selIdx=-1; LDM.libre=null;
+  var d=LDM.DESTS[idx]; if(!d) return;
+  ldMapEncuadraDest(d);
+  var info=document.getElementById('ld-map-info');
+  if(info){
+    document.getElementById('ld-mi-route').textContent=d.code;
+    document.getElementById('ld-mi-hrs').textContent=(d.mins?_ldM2hhmm(d.mins):'—')+'h';
+    document.getElementById('ld-mi-cnt').textContent=d.cnt+'×';
+    var dot=document.getElementById('ld-mi-dot');
+    if(dot){ dot.style.background=d.base?'#A78BFA':'#22D3EE'; dot.style.boxShadow='0 0 8px '+(d.base?'#A78BFA':'#22D3EE'); }
+    info.classList.add('vis');
+  }
+  document.querySelectorAll('.ld-rc').forEach(function(c,i){c.classList.toggle('sel',i===idx);});
+  ldRenderDestDetail(d);
+}
+
+// La ficha de un destino. Mismas piezas que la de una ruta (.ld-rd*), para que
+// no haya dos lenguajes distintos dentro del mismo cajón.
+function ldRenderDestDetail(d){
+  var host=document.getElementById('ld-route-detail');
+  var cards=document.getElementById('ld-route-cards');
+  if(!host||!d) return;
+  var tiles=[{v:d.cnt,l:'sectores'}];
+  if(d.mins) tiles.push({v:_ldM2hhmm(d.mins),l:'block total'});
+  var conex=Object.keys(d.adj).length;
+  if(conex) tiles.push({v:conex,l:'conexiones'});
+  if(d.ldgDay||d.ldgNight) tiles.push({v:d.ldgDay+d.ldgNight,l:'aterrizajes'});
+  var tilesHtml=tiles.map(function(tl){
+    return '<div class="ld-rd-tile"><div class="ld-rd-tile-val">'+tl.v+'</div><div class="ld-rd-tile-lbl">'+tl.l+'</div></div>';
+  }).join('');
+  var rows='';
+  rows+='<div class="ld-rd-row"><span class="k">Salidas · llegadas</span><span class="v">'+d.salidas+' · '+d.llegadas+'</span></div>';
+  if(d.ldgDay||d.ldgNight) rows+='<div class="ld-rd-row"><span class="k">Aterrizajes</span><span class="v">'+d.ldgDay+' día · '+d.ldgNight+' noche</span></div>';
+  if(d.first) rows+='<div class="ld-rd-row"><span class="k">Primera vez</span><span class="v">'+d.first+'</span></div>';
+  if(d.last)  rows+='<div class="ld-rd-row"><span class="k">Última vez</span><span class="v">'+d.last+'</span></div>';
+  if(!d.xy)      rows+='<div class="ld-rd-row"><span class="k">En el mapa</span><span class="v">no lo sabemos situar</span></div>';
+  else if(d.fuera) rows+='<div class="ld-rd-row"><span class="k">En el mapa</span><span class="v">fuera del área EUR/MED</span></div>';
+  var conexHtml='';
+  var top=Object.keys(d.adj).sort(function(a,b){return d.adj[b]-d.adj[a]||(a<b?-1:1);}).slice(0,8);
+  if(top.length){
+    conexHtml='<div class="ld-dc-conex"><div class="ld-dc-conex-lbl">Desde aquí vuelas a</div>'
+      +top.map(function(k){
+        return '<div class="ld-dc-conex-row"><span class="c">'+d.code+'<span class="ar">›</span>'+k+'</span>'
+             +'<span class="n">'+d.adj[k]+'×</span></div>';
+      }).join('')
+      +(Object.keys(d.adj).length>top.length?'<div class="ld-dc-conex-mas">y '+(Object.keys(d.adj).length-top.length)+' más</div>':'')
+      +'</div>';
+  }
+  host.innerHTML='<div class="ld-rd">'
+    +'<div class="ld-rd-top"><div class="ld-rd-back" onclick="ldMapReset()">‹ Destinos</div>'
+    +'<div class="ld-rd-title"><span class="ld-rd-dot '+(d.base?'base':'dst')+'"></span>'+d.code+'</div></div>'
+    +'<div class="ld-rd-grid">'+tilesHtml+'</div>'
+    +rows+conexHtml+'</div>';
+  if(cards) cards.style.display='none';
+  host.style.display='block';
+}
+
 // ════════════════════════════════════════════════════════════════
 // ROUTE DETAIL — estadísticas específicas de ruta (drill-in)
 // ════════════════════════════════════════════════════════════════
-function _ldNorm(code){ code=(code+'').toUpperCase().trim(); return LDM.ICAO2IATA[code]||code; }
+// Un solo normalizador para todo el mapa (canon: IATA↔ICAO con la tabla global).
+function _ldNorm(code){ return LDM.canon(code); }
 function _ldM2hhmm(min){ if(min==null||isNaN(min)) return '—'; min=Math.round(min); var h=Math.floor(min/60),m=min%60; return h+':'+(m<10?'0':'')+m; }
 function _ldNum(n){ try{ return Math.round(n).toLocaleString('es-ES'); }catch(e){ return ''+Math.round(n); } }
 function _ldHaversine(a,b){ // [lon,lat] → km
@@ -50113,7 +50661,7 @@ function ldRouteStats(r){
   } else if(blocks.length){ s.blockAvg=s.blockTotal/blocks.length; }
   if(s.lastDate){ var dd=Math.floor((Date.now()-new Date(s.lastDate+'T00:00:00').getTime())/86400000); s.daysSince=dd>=0?dd:null; }
   s.blockSeries.sort(function(a,b){return a.d<b.d?-1:1;});
-  var A=LDM.AP[f],B=LDM.AP[t];
+  var A=LDM.pt(f),B=LDM.pt(t);
   s.legKm=(A&&B)?_ldHaversine(A,B):null;
   s.totalKm=s.legKm!=null?s.legKm*s.sectors:null;
   s.laps=s.totalKm!=null?s.totalKm/40075:null;
