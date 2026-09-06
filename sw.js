@@ -1,7 +1,7 @@
 // PilotOS Service Worker
 // APP_VERSION lo reescribe scripts/stamp-version.js en cada deploy → cambia el
 // nombre del caché → los cachés de versiones viejas se borran al activar.
-const APP_VERSION = 'Estable.732';
+const APP_VERSION = 'Estable.737';
 
 const STATIC_CACHE  = 'pilotos-static-' + APP_VERSION;
 const FONT_CACHE    = 'pilotos-fonts-'  + APP_VERSION;
@@ -29,6 +29,7 @@ const PRECACHE_URLS = [
   // desaparece justo cuando el piloto está volando, que es cuando no puede
   // arreglarlo nadie.
   'js/ecrews-legs-import.js',
+  'js/logbook-import-undo.js',
   'js/expense-engine.js',
   'js/expense.js',
   'js/profile.js',

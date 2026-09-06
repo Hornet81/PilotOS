@@ -34,6 +34,10 @@
   var MONTH = '';
   var ERRORES = [];
   var RANGO = null;       // 'CPT' | 'FO' según la ficha de eCrews (manda sobre la deducción local)
+  var ULTIMA = null;      // último tramo/mes pedido, para el botón de reintentar
+  var ABORT = null;       // AbortController de la petición en curso
+  var CARGANDO = false;   // hay una importación andando (para avisar antes de cerrarla)
+  var NOMBRE = '';        // apellido del piloto según la ficha de eCrews (respaldo)
 
   function api() { return (typeof lsGet === 'function' ? lsGet('cafi_backend_url', 'https://api.pilotos.aero') : 'https://api.pilotos.aero'); }
   function tok() { return localStorage.getItem('cafi_auth_token'); }
@@ -277,43 +281,126 @@
 
   // ── 1) Selector de mes ─────────────────────────────────────────────────────
   window.ldECrewsLegsOpen = function () {
-    LEGS = []; SEL = {}; ERRORES = [];
+    // También el calendario: reabrir la hoja con el tramo de la vez anterior todavía
+    // marcado invita a traer sin querer un periodo que ya no es el que se quiere.
+    LEGS = []; SEL = {}; ERRORES = []; ULTIMA = null; SEL_A = SEL_B = null;
     var o = ov(); o.style.display = 'flex'; document.body.style.overflow = 'hidden';
-    sub('Elige el mes que quieres importar');
+    pintarSelector();
+  };
 
-    var hoy = new Date(), botones = '';
-    for (var i = 0; i < 13; i++) {
-      var d = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() - i, 1));
-      var ym = d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0');
-      botones += '<button onclick="ldECrewsLegsFetch(\'' + ym + '\')" style="width:100%;padding:13px 15px;margin-bottom:8px;background:' + t.accSoft + ';border:1px solid ' + t.accLine + ';border-radius:12px;color:' + t.txt + ';font-family:\'Space Mono\',monospace;font-size:13px;font-weight:700;cursor:pointer;text-align:left;letter-spacing:.5px">' +
-        mesLabel(ym) + (i === 0 ? '<span style="float:right;color:' + t.acc + ';font-size:10px;letter-spacing:1px">MES ACTUAL</span>' : '') + '</button>';
+  // ── Calendario de selección ────────────────────────────────────────────────
+  // Trece botones apilados eran una pared vertical, y sólo servían para meses. Un
+  // calendario de verdad cubre los tres casos con el mismo gesto: pulsar un día,
+  // pulsar otro para el tramo, o el botón de mes entero. Mismo lenguaje visual que
+  // el calendario del roster.
+  var CAL = '';                      // mes visible 'YYYY-MM'
+  var SEL_A = null, SEL_B = null;    // extremos del tramo elegido
+
+  function hoyISO() {
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function mesNombre(ym) {
+    var M = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
+    return M[parseInt(ym.slice(5, 7), 10) - 1] + ' ' + ym.slice(0, 4);
+  }
+  function mueveMes(ym, n) {
+    var d = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + n, 1));
+    return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0');
+  }
+  function diasDe(ym) { return new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).getDate(); }
+  // Lunes = 0, para que la fila sea L M X J V S D como en el roster.
+  function primerHueco(ym) { return (new Date(+ym.slice(0, 4), +ym.slice(5, 7) - 1, 1).getDay() + 6) % 7; }
+
+  window.ldECrewsLegsMes = function (n) { CAL = mueveMes(CAL, n); SEL_A = SEL_B = null; pintarSelector(); };
+
+  window.ldECrewsLegsDia = function (iso) {
+    // 1ª pulsación abre el tramo, la 2ª lo cierra. Si la 2ª cae antes, se empieza de
+    // nuevo: es lo que hace cualquier calendario de reservas.
+    if (!SEL_A || SEL_B) { SEL_A = iso; SEL_B = null; }
+    else if (iso < SEL_A) { SEL_A = iso; SEL_B = null; }
+    else { SEL_B = iso; }
+    pintarSelector();
+  };
+
+  window.ldECrewsLegsTraer = function () {
+    if (!SEL_A) return;
+    window.ldECrewsLegsFetch({ from: SEL_A, to: SEL_B || SEL_A });
+  };
+  window.ldECrewsLegsMesEntero = function () { window.ldECrewsLegsFetch(CAL); };
+
+  function pintarSelector() {
+    if (!CAL) CAL = hoyISO().slice(0, 7);
+    var hoy = hoyISO();
+    var tope = hoy.slice(0, 7);           // no tiene sentido pasar del mes actual
+    var atras = mueveMes(tope, -13);
+    sub('Elige un día, un tramo o el mes entero');
+
+    var n = diasDe(CAL), off = primerHueco(CAL), celdas = '';
+    for (var i = 0; i < off; i++) celdas += '<div></div>';
+    for (var d = 1; d <= n; d++) {
+      var iso = CAL + '-' + String(d).padStart(2, '0');
+      var futuro = iso > hoy;
+      var extremo = (iso === SEL_A) || (iso === SEL_B);
+      var dentro = SEL_A && SEL_B && iso > SEL_A && iso < SEL_B;
+      var bg = extremo ? t.acc : (dentro ? t.cardOn : 'transparent');
+      var col = extremo ? t.checkTxt : (futuro ? t.faint : t.txt);
+      celdas += '<div ' + (futuro ? '' : 'onclick="ldECrewsLegsDia(\'' + iso + '\')"') +
+        ' style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;' +
+        'font-family:\'Space Mono\',monospace;font-size:13px;font-weight:' + (extremo ? '800' : '600') + ';' +
+        'border-radius:' + (dentro ? '0' : '10px') + ';background:' + bg + ';color:' + col + ';' +
+        (futuro ? 'opacity:.3;cursor:default' : 'cursor:pointer') + '">' + d + '</div>';
     }
-    var hoyISO = new Date().toISOString().slice(0, 10);
+
+    var nDias = SEL_A ? (SEL_B ? (Math.round((new Date(SEL_B) - new Date(SEL_A)) / 86400000) + 1) : 1) : 0;
+    function flecha(dir, on) {
+      return '<button ' + (on ? 'onclick="ldECrewsLegsMes(' + dir + ')"' : 'disabled') +
+        ' style="width:34px;height:34px;border-radius:10px;background:' + (on ? t.accSoft : 'transparent') +
+        ';border:1px solid ' + (on ? t.accLine : 'transparent') + ';color:' + (on ? t.acc : t.faint) +
+        ';font-size:17px;line-height:1;cursor:' + (on ? 'pointer' : 'default') + ';opacity:' + (on ? '1' : '.3') + '">' +
+        (dir < 0 ? '‹' : '›') + '</button>';
+    }
+
     body(
-      '<div style="background:' + t.accSoft + ';border:1px solid ' + t.accLine + ';border-radius:12px;padding:12px 14px;margin-bottom:16px">' +
+      '<div style="background:' + t.accSoft + ';border:1px solid ' + t.accLine + ';border-radius:12px;padding:11px 13px;margin-bottom:14px">' +
       '<div style="font-family:\'Space Mono\',monospace;font-size:11px;line-height:1.65;color:' + t.sub + '">' +
       'Trae de eCrews la <b style="color:' + t.acc + '">hora real de calzos</b>, el <b style="color:' + t.acc + '">bloque</b> y la <b style="color:' + t.acc + '">matrícula</b> de cada vuelo.' +
       '</div></div>' +
-      // Un día suelto es lo normal cuando acabas de aterrizar: tarda segundos.
-      '<div style="font-size:10px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:' + t.acc + ';margin:0 0 8px;font-family:\'Space Mono\',monospace;opacity:.85">Un día suelto</div>' +
-      '<div style="display:flex;gap:8px;margin-bottom:8px">' +
-        '<input id="eclg-dia" type="date" value="' + hoyISO + '" max="' + hoyISO + '" style="flex:1;min-width:0;padding:12px;background:' + t.cardOff + ';border:1px solid ' + t.cardLine + ';border-radius:12px;color:' + t.txt + ';font-family:\'Space Mono\',monospace;font-size:13px;-webkit-appearance:none">' +
-        '<button onclick="ldECrewsLegsDia()" style="padding:12px 16px;background:' + t.btnBg + ';border:1.5px solid ' + t.btnLine + ';border-radius:12px;color:' + t.acc + ';font-family:\'Space Grotesk\',sans-serif;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">Traer</button>' +
+
+      '<div style="background:' + t.cardOff + ';border:1px solid ' + t.cardLine + ';border-radius:16px;padding:14px 13px 16px">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">' +
+          flecha(-1, CAL > atras) +
+          '<div style="font-family:\'Space Grotesk\',sans-serif;font-size:14px;font-weight:800;letter-spacing:.5px;color:' + t.txt + '">' + mesNombre(CAL) + '</div>' +
+          flecha(1, CAL < tope) +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:2px">' +
+          ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(function (w) {
+            return '<div style="text-align:center;font-family:\'Space Mono\',monospace;font-size:9.5px;font-weight:700;letter-spacing:.5px;color:' + t.faint + ';padding-bottom:5px">' + w + '</div>';
+          }).join('') +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">' + celdas + '</div>' +
       '</div>' +
-      '<div style="font-family:\'Space Mono\',monospace;font-size:10px;color:' + t.faint + ';margin-bottom:20px">Mucho más rápido que el mes entero.</div>' +
-      '<div style="font-size:10px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:' + t.acc + ';margin:0 0 8px;font-family:\'Space Mono\',monospace;opacity:.85">O un mes completo</div>' +
-      botones
+
+      (nDias
+        ? '<button onclick="ldECrewsLegsTraer()" style="width:100%;margin-top:14px;padding:15px;background:' + t.btnBg + ';border:1.5px solid ' + t.btnLine + ';border-radius:15px;color:' + t.acc + ';font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:700;cursor:pointer">Traer ' + nDias + (nDias === 1 ? ' día' : ' días') + '</button>' +
+          '<div style="font-family:\'Space Mono\',monospace;font-size:10px;color:' + t.faint + ';text-align:center;margin-top:8px">Pulsa otro día para ampliar el tramo.</div>'
+        : '<div style="font-family:\'Space Mono\',monospace;font-size:10.5px;color:' + t.faint + ';text-align:center;margin-top:13px;line-height:1.7">Pulsa un día — y otro más si quieres un tramo.</div>') +
+
+      '<div style="height:1px;background:' + t.cardLine + ';margin:16px 0 14px"></div>' +
+      '<button onclick="ldECrewsLegsMesEntero()" style="width:100%;padding:13px;background:transparent;border:1.5px solid ' + t.accLine + ';border-radius:13px;color:' + t.acc + ';font-family:\'Space Grotesk\',sans-serif;font-size:14px;font-weight:700;cursor:pointer">Traer ' + mesNombre(CAL) + ' entero</button>' +
+      '<div style="font-family:\'Space Mono\',monospace;font-size:10px;color:' + t.faint + ';text-align:center;margin-top:8px">El mes entero tarda cerca de un minuto.</div>'
     );
-  };
+  }
 
-  window.ldECrewsLegsDia = function () {
-    var el = document.getElementById('eclg-dia');
-    var v = el && el.value;
-    if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v)) { toast('Elige una fecha', 'info'); return; }
-    window.ldECrewsLegsFetch(v);
-  };
-
-  window.ldECrewsLegsClose = function () {
+  window.ldECrewsLegsClose = function (forzar) {
+    // Cerrar a media importación tira un minuto de espera a la basura, y es fácil darle
+    // a la X sin querer. Se pregunta, y si dice que sí se aborta la petición DE VERDAD
+    // (sin esto la respuesta llegaba después y repintaba una pantalla ya cerrada).
+    if (CARGANDO && forzar !== true) {
+      if (!confirm('¿Seguro que quieres cancelar la importación?\n\nSe está leyendo eCrews. Si la cancelas tendrás que empezar de nuevo.')) return;
+    }
+    if (ABORT) { try { ABORT.abort(); } catch (e) {} ABORT = null; }
+    CARGANDO = false;
     pararRotador();   // cerrar a media importación no puede dejar el intervalo vivo
     var o = document.getElementById('eclg-overlay');
     if (o) o.style.display = 'none';
@@ -322,45 +409,79 @@
 
   // ── 2) Descarga ────────────────────────────────────────────────────────────
   // ym = 'YYYY-MM' (mes entero) o 'YYYY-MM-DD' (una sola jornada, cuestión de segundos).
-  window.ldECrewsLegsFetch = function (ym) {
-    var esDia = /^\d{4}-\d{2}-\d{2}$/.test(ym);
-    MONTH = ym.slice(0, 7);
-    sub(esDia ? (ym.slice(8, 10) + '/' + ym.slice(5, 7) + '/' + ym.slice(0, 4)) : mesLabel(MONTH));
+  // Acepta 'YYYY-MM' (mes entero) o {from,to} (un día si from===to).
+  window.ldECrewsLegsFetch = function (q) {
+    var tramo = (q && typeof q === 'object') ? q : null;
+    ULTIMA = q;
+    MONTH = (tramo ? tramo.from : q).slice(0, 7);
+    var dm = function (iso) { return iso.slice(8, 10) + '/' + iso.slice(5, 7); };
+    sub(tramo
+      ? (tramo.from === tramo.to ? dm(tramo.from) + '/' + tramo.from.slice(0, 4) : dm(tramo.from) + ' – ' + dm(tramo.to) + '/' + tramo.to.slice(0, 4))
+      : mesLabel(MONTH));
     body(cargadorHTML());
     arrancarRotador();
+    CARGANDO = true;
+
+    // Poder CANCELAR de verdad: sin esto, cerrar la hoja dejaba la petición viva y la
+    // respuesta llegaba después, repintando una pantalla que el piloto ya había cerrado.
+    if (ABORT) { try { ABORT.abort(); } catch (e) {} }
+    ABORT = (typeof AbortController === 'function') ? new AbortController() : null;
 
     fetch(api() + '/api/ecrews/legs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok() },
-      body: JSON.stringify(esDia ? { day: ym } : { month: ym })
+      signal: ABORT ? ABORT.signal : undefined,
+      body: JSON.stringify(tramo ? { from: tramo.from, to: tramo.to } : { month: q })
     })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, s: r.status, j: j }; }); })
       .then(function (res) {
+        CARGANDO = false;
         if (res.j && res.j.status === 'NEEDS_LOGIN') return necesitaLogin();
         if (!res.ok) return error(res.j && (res.j.error || res.j.detail) || ('HTTP ' + res.s));
         LEGS = (res.j && res.j.legs) || [];
         ERRORES = (res.j && res.j.errores) || [];
         RANGO = (res.j && res.j.rango) || null;
+        NOMBRE = (res.j && res.j.nombre) || '';
         // Por defecto se marca lo que aún no está en el logbook y NO es posicionamiento:
         // una leg DHC es un vuelo como pasajero, no horas del piloto.
         SEL = {};
         LEGS.forEach(function (l) { SEL[legKey(l)] = !yaEsta(l) && !l.isPositioning; });
         render();
       })
-      .catch(function (e) { error(e.message); });
+      .catch(function (e) {
+        CARGANDO = false;
+        // Abortar es una decisión del piloto, no un fallo: no se le enseña un error.
+        if (e && e.name === 'AbortError') return;
+        error(e.message);
+      });
   };
 
-  function necesitaLogin() {
+  function necesitaLogin(ym) {
     sub('Sesión de eCrews caducada');
     body(
       '<div style="text-align:center;padding:40px 20px">' +
       '<div style="font-size:32px;margin-bottom:12px">🔐</div>' +
       '<div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:700;color:' + t.txt + ';margin-bottom:8px">Hay que volver a entrar en eCrews</div>' +
-      '<div style="font-family:\'Space Mono\',monospace;font-size:11px;color:' + t.sub + ';line-height:1.7;margin-bottom:20px">Tendrás que aprobar el acceso en el móvil,<br>igual que al sincronizar el roster.</div>' +
-      '<button onclick="ldECrewsLegsClose(); if(typeof ldECrewsSyncOpen===\'function\') ldECrewsSyncOpen();" style="padding:12px 22px;background:' + t.btnBg + ';border:1px solid ' + t.btnLine + ';border-radius:12px;color:' + t.acc + ';font-family:\'Space Grotesk\',sans-serif;font-size:14px;font-weight:700;cursor:pointer">Conectar con eCrews</button>' +
+      '<div style="font-family:\'Space Mono\',monospace;font-size:11px;color:' + t.sub + ';line-height:1.7;margin-bottom:20px">Tendrás que aprobar el acceso en el móvil.<br>Al terminar seguimos con tus vuelos.</div>' +
+      '<button onclick="ldECrewsLegsLogin()" style="padding:12px 22px;background:' + t.btnBg + ';border:1px solid ' + t.btnLine + ';border-radius:12px;color:' + t.acc + ';font-family:\'Space Grotesk\',sans-serif;font-size:14px;font-weight:700;cursor:pointer">Conectar con eCrews</button>' +
       '</div>'
     );
+    PENDIENTE = ym || null;
   }
+
+  // El flujo de login vive en el importador de ROSTER. Si se le entra a pelo, al
+  // terminar sigue hasta su selector de meses y acaba importando el roster — que no
+  // es lo que el piloto pidió desde el logbook. `__ecTrasLogin` le dice que, en
+  // cuanto tenga la sesión, cierre y nos devuelva aquí con el mes que faltaba.
+  window.ldECrewsLegsLogin = function () {
+    var ym = PENDIENTE;
+    window.__ecTrasLogin = function () {
+      window.ldECrewsLegsOpen();
+      if (ym) window.ldECrewsLegsFetch(ym);
+    };
+    window.ldECrewsLegsClose(true);
+    if (typeof ldECrewsSyncOpen === 'function') ldECrewsSyncOpen();
+  };
 
   function error(msg) {
     sub('No se pudo leer');
@@ -375,6 +496,25 @@
 
   // ── 3) Revisión ────────────────────────────────────────────────────────────
   window.ldECrewsLegsToggle = function (k) { SEL[k] = !SEL[k]; render(); };
+
+  // Repetir la última petición tal cual (mes o día): las jornadas que fallaron suelen
+  // ser eCrews yendo lento, no un fallo permanente.
+  window.ldECrewsLegsReintentar = function () { if (ULTIMA) window.ldECrewsLegsFetch(ULTIMA); };
+
+  // El tema puede cambiar (manual o por el automático de día/noche) con la hoja ABIERTA.
+  // Se repinta con la paleta nueva en vez de quedarse en oscuro sobre fondo claro.
+  try {
+    new MutationObserver(function () {
+      var ov = document.getElementById('eclg-overlay');
+      if (!ov || ov.style.display === 'none') return;
+      var nueva = TH();
+      if (nueva.acc === t.acc) return;          // mismo tema, nada que hacer
+      // ov() reconstruye la hoja y actualiza `t`; el ESTADO (legs, selección) no se toca:
+      // llamar aquí a ldECrewsLegsOpen() lo borraría y el piloto perdería su revisión.
+      ov().style.display = 'flex';
+      if (LEGS.length) render(); else pintarSelector();
+    }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+  } catch (e) {}
 
   function render() {
     if (!LEGS.length) {
@@ -392,8 +532,23 @@
 
     var h = '';
     if (ERRORES.length) {
-      h += '<div style="background:' + t.warnBg + ';border:1px solid ' + t.warnLine + ';border-radius:11px;padding:10px 13px;margin-bottom:14px;font-family:\'Space Mono\',monospace;font-size:10.5px;color:' + t.warn + ';line-height:1.6">' +
-        '⚠ ' + ERRORES.length + ' jornada' + (ERRORES.length === 1 ? '' : 's') + ' no se pudo leer. Vuelve a intentarlo o mete esos vuelos a mano.</div>';
+      // Presentar 4 vuelos como si fuera el mes entero cuando han fallado 19 jornadas es
+      // peor que no importar nada: el piloto se queda con un logbook incompleto y creyendo
+      // que está completo. Si falla más de un tercio, el aviso manda sobre el resultado.
+      var grave = ERRORES.length > LEGS.length / 2 || ERRORES.length >= 4;
+      h += '<div style="background:' + t.warnBg + ';border:1.5px solid ' + t.warnLine + ';border-radius:12px;padding:13px 14px;margin-bottom:14px">' +
+        '<div style="font-family:\'Space Grotesk\',sans-serif;font-size:' + (grave ? '14' : '12') + 'px;font-weight:800;color:' + t.warn + ';margin-bottom:6px">' +
+        (grave ? '⚠ Esto está incompleto' : '⚠ Faltan ' + ERRORES.length + ' jornadas') + '</div>' +
+        '<div style="font-family:\'Space Mono\',monospace;font-size:10.5px;color:' + t.warn + ';line-height:1.7">' +
+        'No se pudieron leer <b>' + ERRORES.length + '</b> jornada' + (ERRORES.length === 1 ? '' : 's') + '. ' +
+        (grave ? 'Lo de abajo es solo una parte del periodo — no lo des por bueno.' : 'El resto sí está.') +
+        '</div>' +
+        '<div style="font-family:\'Space Mono\',monospace;font-size:9.5px;color:' + t.faint + ';line-height:1.65;margin-top:8px;word-break:break-word">' +
+        ERRORES.slice(0, 4).map(function (e) { return '· ' + String(e).slice(0, 80); }).join('<br>') +
+        (ERRORES.length > 4 ? '<br>· …y ' + (ERRORES.length - 4) + ' más' : '') +
+        '</div>' +
+        '<button onclick="ldECrewsLegsReintentar()" style="margin-top:11px;width:100%;padding:10px;background:transparent;border:1.5px solid ' + t.warnLine + ';border-radius:10px;color:' + t.warn + ';font-family:\'Space Grotesk\',sans-serif;font-size:13px;font-weight:700;cursor:pointer">↻ Reintentar</button>' +
+        '</div>';
     }
 
     fechas.forEach(function (f) {
@@ -435,6 +590,16 @@
     // historial, devuelve 'FO' por defecto — así que un comandante que estrena la app se
     // anotaba sus vuelos como copiloto justo en la importación que hace para no teclear.
     var rol = RANGO || (typeof _ldDominantRole === 'function' && _ldDominantRole()) || lsGet('ld_pref_role') || 'FO';
+    // Nombre propio para la casilla de tripulación: manda el que el piloto ya tenga
+    // guardado para ESE rol; si no hay, el apellido que da la ficha de eCrews.
+    var yo = '';
+    try { yo = lsGet(rol === 'CPT' ? 'pilotOS_myname_cpt' : 'pilotOS_myname_fo', '') || ''; } catch (e) {}
+    if (!yo) yo = NOMBRE || '';
+    // Y si vino de eCrews y no había nada guardado, se guarda: la próxima vez lo tiene
+    // el resto de la app (alta manual, export EASA, estadísticas de tripulación).
+    if (yo && NOMBRE && yo === NOMBRE) {
+      try { lsSet(rol === 'CPT' ? 'pilotOS_myname_cpt' : 'pilotOS_myname_fo', yo); } catch (e) {}
+    }
     var libres = Infinity;
     if (typeof isPro === 'function' && !isPro() && typeof ldRealEntryCount === 'function') {
       libres = Math.max(0, (window.PLAN_FREE_LOGBOOK_LIMIT || 25) - ldRealEntryCount());
@@ -465,6 +630,11 @@
         block: l.block || '',
         acType: av.acType, engine: av.engine, reg: l.reg || '',
         role: rol,
+        // El piloto se anota A SÍ MISMO en la casilla que le toca: cm1 es el comandante
+        // y cm2 el copiloto. Al compañero no lo sabemos (eCrews no publica tripulación),
+        // pero eso no es motivo para dejar el vuelo sin ningún nombre.
+        cm1: rol === 'CPT' ? yo : '',
+        cm2: rol === 'CPT' ? '' : yo,
         positioning: !!l.isPositioning,
         isPositioning: !!l.isPositioning
       });

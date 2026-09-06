@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.732">
+  <meta name="version" content="Estable.737">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.732","builtAt":"2026-09-05T19:19:35Z","commit":"365951d","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.737","builtAt":"2026-09-06T08:53:41Z","commit":"9e1c8d5","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -17457,7 +17457,10 @@ async function cafiSendMessage() {
     var companyCtx = null;
     try {
       var ap = JSON.parse(lsGet('pilotos_company','{}'));
-      if (ap.companyName) companyCtx = { name: ap.companyName, aircraft: ap.aircraft || 'A320' };
+      /* Sin `|| 'A320'`: si el perfil de la compañía no dice la flota, no se
+         inventa. Un dato supuesto que llega al contexto del chat sale por la boca
+         de ARIA con la misma seguridad que uno real. */
+      if (ap.companyName) companyCtx = { name: ap.companyName, aircraft: ap.aircraft || '' };
     } catch(e) {}
 
     // Aircraft registration: detectar en el mensaje o leer del último guardado
@@ -24510,6 +24513,11 @@ function ldToggleMenu(){
   var manBd=day?'rgba(5,150,105,.22)':'rgba(52,211,153,.3)';
   var manLbl=day?'#065F46':'rgba(110,231,183,1)';
   var manIco=day?'rgba(5,150,105,.15)':'rgba(52,211,153,.2)';
+  // Cabecera de sección del menú (mismo estilo que "Añadir vuelo").
+  function sec(txt){
+    return '<div style="height:1px;background:'+divC+';margin:8px 0 2px"></div>'
+      +'<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:'+tClr+';padding:8px 22px 2px;font-family:\'Space Mono\',monospace">'+txt+'</div>';
+  }
   function mi(icon,ibg,label,sub2,action,lc,id,danger){
     var dl=danger?(day?'#B91C1C':'rgba(252,130,130,1)'):lc;
     var dc=danger?(day?'#B91C1C':'rgba(248,113,113,.5)'):chev;
@@ -24536,15 +24544,21 @@ function ldToggleMenu(){
     +'<div style="font-size:11px;color:'+sub+';font-family:\'Space Mono\',monospace">Entrada de datos manual</div></div>'
     +'<span style="font-size:22px;color:'+chev+'">›</span></button>'
     +'</div>'
-    +'<div style="height:1px;background:'+divC+';margin:2px 0 4px"></div>'
-    +'<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:'+tClr+';padding:8px 22px 2px;font-family:\'Space Mono\',monospace">Gestión</div>'
-    +mi('📥',icoB,'Importar','PDF Jeppesen · LogTen · Foto · XLS · CSV','ldShowImport()',lbl,'')
+    // El menú va agrupado por INTENCIÓN, no por orden de llegada: traer vuelos, nube,
+    // copias y deshacer. Antes era una lista de nueve cosas seguidas bajo "Gestión" y
+    // había que leerlas todas para encontrar la que tocaba. (sec() pone ya su separador.)
+    +sec('Traer vuelos')
+    +mi('📥',icoB,'Importar fichero','Jeppesen · LogTen · MCC · CSV · foto','ldShowImport()',lbl,'')
     +mi('🛫',icoB,'Vuelos de eCrews','Ya volados · matrícula y horas reales','ldECrewsLegsOpen()',lbl,'')
-    +mi('☁️',icoB,'Sincronizar nube','Descargar desde Supabase','ldManualPull()',lbl,'ld-menu-sync-btn')
-    +mi('🔄',icoB,'Full sync desde cero','Resetea caché y descarga todo','ldResetSync()',lbl,'')
-    +mi('⬇️',icoB,'Exportar','PDF · EASA · CSV','ldToggleExport()',lbl,'')
+    +sec('Nube')
+    +mi('☁️',icoB,'Sincronizar','Bajar los cambios del servidor','ldManualPull()',lbl,'ld-menu-sync-btn')
+    +mi('🔄',icoB,'Sincronizar desde cero','Resetea la caché y baja todo','ldResetSync()',lbl,'')
+    +sec('Copias de seguridad')
+    +mi('⬇️',icoB,'Exportar','PDF · EASA · CSV · JSON','ldToggleExport()',lbl,'')
     +mi('💾',icoB,'Restaurar backup','Desde un JSON exportado','ldRestoreBackup()',lbl,'')
-    +mi('♻️',icoB,'Recuperar','Papelera · copias de seguridad','ldOpenTrash()',lbl,'')
+    +sec('Deshacer')
+    +mi('♻️',icoB,'Recuperar vuelos','Papelera · copias del logbook','ldOpenTrash()',lbl,'')
+    +mi('↩️',icoB,'Deshacer una importación','Revierte una tanda entera','ldUndoImportOpen()',lbl,'')
     +'<div style="height:1px;background:'+redD+';margin:8px 0 2px"></div>'
     +mi('🗑',icoB,'Eliminar vuelos','Selección masiva','ldEnterSelectMode()',lbl,'',true)
     +'</div>';
@@ -28749,6 +28763,7 @@ document.addEventListener('focusin',function(e){
 <script src="js/qbank-afgen.js"></script>
 <script src="js/roster-changes.js"></script>
 <script src="js/ecrews-legs-import.js"></script>
+<script src="js/logbook-import-undo.js"></script>
   <script src="js/dia-libre.js"></script>
 <script src="js/expense-engine.js"></script>
 <script src="js/expense.js"></script>
@@ -29986,6 +30001,17 @@ async function fetchLiveMetar(icao) {
   return _openMeteoToMetar(icao, om);
 }
 try { window.fetchLiveMetar = fetchLiveMetar; } catch(e){}
+/* ⚠️ `fetchLiveNotams` NO estaba exportada, y ARIA vive en OTRO bloque <script>: allí
+   `typeof fetchLiveNotams` era 'undefined' SIEMPRE. `_ariaNotamsAp` empieza con un
+   `if(typeof fetchLiveNotams!=='function') return []`, así que devolvía lista vacía sin
+   un solo error — y con ella se quedaban mudos los TRES caminos de NOTAMs del chat:
+   el del sector preguntado, el de la jornada entera (el arreglo del #HJRJZ) y el bloque
+   que se cuelga del briefing. ARIA llevaba desde entonces contestando que no tiene los
+   NOTAMs teniendo la ruta delante.
+   Es el caso de `window.RST_IATA_ICAO` y el de `window.IATA_TO_ICAO`, tercera vez:
+   leer una función sin exportarla da undefined siempre y lo que dice hacerse no se
+   hace, sin error y sin aviso. */
+try { window.fetchLiveNotams = fetchLiveNotams; } catch(e){}
 try { window._WX_NAMES = _WX_NAMES; } catch(e){}
 
 async function fetchLiveTaf(icao) {
@@ -36991,7 +37017,7 @@ function mountBrefProfile(host, leg, compact, onOpen) {
     '<div style="display:flex;align-items:center;gap:7px;padding:0 2px 8px">' +
       '<span style="font-size:12px">✈️</span>' +
       '<div><div data-bp="ttl" style="font-size:8.5px;letter-spacing:2px;color:' + P.cyan + ';font-weight:700;font-family:' + MONO + '">PERFIL RUTA</div>' +
-      '<div style="font-family:' + MONO + ';font-size:11px;color:' + P.white + ';margin-top:1px">' + leg.dep + ' <span style="color:' + P.dim + '">→</span> ' + leg.arr + ' <span style="color:' + P.dimmer + ';font-size:9px">· ' + (leg.flight || '') + ' · FL' + CRZ + ' est · ' + (leg.acType || 'A320') + '</span></div></div>' +
+      '<div style="font-family:' + MONO + ';font-size:11px;color:' + P.white + ';margin-top:1px">' + leg.dep + ' <span style="color:' + P.dim + '">→</span> ' + leg.arr + ' <span style="color:' + P.dimmer + ';font-size:9px">· ' + (leg.flight || '') + ' · FL' + CRZ + ' est' + (leg.acType ? ' · ' + leg.acType : '') + '</span></div></div>' +
       '<div style="flex:1"></div>' +
       '<div style="text-align:right"><span data-bp="src" style="display:inline-block;font-family:' + MONO + ';font-size:6.5px;letter-spacing:0.5px;color:#0a1322;background:' + C.cyan2 + ';padding:2px 6px;border-radius:999px;font-weight:700">CARGANDO…</span>' +
       '<div data-bp="valid" style="font-family:' + MONO + ';font-size:7px;color:' + P.dim + ';margin-top:3px"></div></div></div>' +
@@ -37772,7 +37798,10 @@ function buildLegsFromRoster() {
         _depMs: _legDepMs(e),
         block: '—',
         cruiseFL: estimateCruiseFL({ dep: e.dep, arr: e.arr, std: stdZ, sta: staZ }),
-        acType: e.acType || 'A320',
+        /* ⚠️ NO se rellena con 'A320'. El roster no siempre trae el tipo, y ese
+           respaldo se lo inventaba: la pantalla y ARIA lo decían como un dato.
+           Vacío es la respuesta correcta — quien lo pinte que decida qué enseñar. */
+        acType: e.acType || '',
         rwyDep: null,
         rwyArr: null,
         metar: {
@@ -44976,6 +45005,16 @@ function _ecProxyStartPoll(){
            silencio (siempre UTC) y un roster en local entraba desplazado dos
            horas sin que nadie se enterase hasta mirar un FDP. */
         if(sub) ecPintaHuso(sub, v.roster || {});
+        // Si veníamos del LOGBOOK (importar vuelos de eCrews) y la sesión estaba
+        // caducada, aquí sólo se necesitaba el login: seguir hasta el selector de
+        // meses acababa importando el ROSTER, que no es lo que el piloto pidió.
+        // Se cierra este flujo y se devuelve el control a quien lo mandó.
+        if(window.__ecTrasLogin){
+          var _vuelve = window.__ecTrasLogin; window.__ecTrasLogin = null;
+          ldECrewsSyncClose();
+          setTimeout(function(){ try{ _vuelve(); }catch(_e){} }, 250);
+          return;
+        }
         ecRenderMonths();
         _ecShowState('ec-state-months');
       }
@@ -53725,7 +53764,16 @@ document.addEventListener('DOMContentLoaded', function(){
   // filtrar y de redactar, y una sola cosa que arreglar si cambia la fuente.
   async function _ariaNotamsAp(iata, t){
     try{
-      if(typeof fetchLiveNotams!=='function') return [];
+      /* El orden importa y costó un rojo: PRIMERO la que haya en el ámbito y solo
+         después `window`. `aria-notam-test` extrae estas funciones y le INYECTA su
+         propio `fetchLiveNotams` como parámetro; mirando window primero, la
+         inyección dejaba de verse y el banco se caía entero.
+         Y ese banco enseña justo el límite del truco: pasaba en verde inyectando la
+         función mientras la página real la tenía `undefined`. Por eso el banco nuevo
+         conduce la página de verdad. */
+      var _fln=(typeof fetchLiveNotams==='function') ? fetchLiveNotams
+             : ((typeof window!=='undefined' && window.fetchLiveNotams) || null);
+      if(!_fln) return [];
       var today=new Date().toISOString().slice(0,10);
       var s=String(t||'').slice(0,5);
       var base=/^\d{1,2}:\d{2}$/.test(s)?new Date(today+'T'+s+':00Z'):new Date();
@@ -53733,7 +53781,7 @@ document.addEventListener('DOMContentLoaded', function(){
       function inW(n){ var a=n.timeStart?new Date(n.timeStart):null, b=n.timeEnd?new Date(n.timeEnd):null;
         if(!a&&!b)return true; if(a&&a>w[1])return false; if(b&&b<w[0])return false; return true; }
       var ic=(window.iataToIcao&&window.iataToIcao(iata))||iata;
-      var list=await fetchLiveNotams(ic);
+      var list=await _fln(ic);
       return (list||[]).filter(function(n){ return (n.sev==='danger'||n.sev==='warning')&&inW(n); })
         .sort(function(a,b){ return (a.sev==='danger'?0:1)-(b.sev==='danger'?0:1); })
         .map(function(n){ return '['+(n.sev==='danger'?'ROJO/CRÍTICO':'ÁMBAR')+'] '+iata+' '+(n.id||'')+': '+
@@ -53742,7 +53790,7 @@ document.addEventListener('DOMContentLoaded', function(){
   }
   async function _ariaNotamBlock(leg){
     try{
-      if(typeof fetchLiveNotams!=='function') return null;
+      if(!(typeof fetchLiveNotams==='function' || (typeof window!=='undefined' && window.fetchLiveNotams))) return null;
       var res=await Promise.all([_ariaNotamsAp(leg.dep,leg.std), _ariaNotamsAp(leg.arr,leg.sta)]);
       var all=res[0].concat(res[1]);
       if(!all.length) return 'Sin NOTAMs rojos (críticos) ni ámbar (importantes) activos en la ventana salida/llegada (±2h).';
@@ -53755,9 +53803,42 @@ document.addEventListener('DOMContentLoaded', function(){
      forma de dárselos: solo existía la versión de un sector.
      Se pide UN fetch por AEROPUERTO, no por leg: en una jornada de ida y vuelta los
      mismos aeropuertos se repiten y pedirlos dos veces solo añade espera. */
+  /* TURBULENCIA DE TODA LA JORNADA. Hermano de `_ariaNotamDia`, y existe por el
+     mismo motivo: el piloto pregunta «¿cómo está la turbulencia?» después del
+     briefing del DÍA, no de un sector. Ahí `__ariaCtx.leg` está vacío —no ha
+     entrado en SkyView—, así que no había objetivo, no se pedía ni un dato en
+     vivo y ARIA contestaba que no puede obtener la información… teniendo la ruta
+     del día delante. Es exactamente el fallo #HJRJZ de los NOTAMs, en la otra
+     mitad de la pregunta.
+     Se consultan los sectores OPERADOS (un posicional no lo vuelas) y, si la
+     fuente no contesta para ninguno, se DICE que se ha consultado: «no tengo el
+     dato» y «no lo he mirado» no pueden sonar igual. */
+  async function _ariaTurbDia(legs){
+    try{
+      var ops=(legs||[]).filter(function(L){ return !window.isPosLeg(L); }).slice(0,6);
+      if(!ops.length) return '';
+      var partes=await Promise.all(ops.map(function(L){
+        return _ariaTurbByPhase(L).then(function(t){
+          return t ? (L.dep+'→'+L.arr+' ('+L.flight+'): '+t) : null;
+        }).catch(function(){ return null; });
+      }));
+      var ok=partes.filter(Boolean);
+      var ruta=ops.map(function(L){ return L.dep+'→'+L.arr; }).join(', ');
+      if(!ok.length){
+        return '\n\nTURBULENCIA DE LA JORNADA: se ha consultado la fuente (Open-Meteo) para '+
+          ruta+' y no ha respondido ahora mismo. Dilo así —que lo has intentado y la fuente no '+
+          'contesta—, NO digas que no puedes obtener datos de turbulencia.';
+      }
+      return '\n\nTURBULENCIA REAL POR FASE DE VUELO DE CADA SECTOR DEL DÍA (Open-Meteo; EDR '+
+        '<0.10 nula, 0.10-0.20 ligera, 0.20-0.45 moderada, >0.45 severa). Usa ESTO y descríbela '+
+        'por FASE (ascenso hasta el TOC, crucero indicando dónde, tras el TOD en descenso), NUNCA '+
+        'como "punto 1/punto 2": '+ok.join(' || ')+'.'+
+        (ok.length<ops.length ? ' De los demás sectores la fuente no ha contestado; dilo si te preguntan por ellos.' : '');
+    }catch(e){ return ''; }
+  }
   async function _ariaNotamDia(legs){
     try{
-      if(typeof fetchLiveNotams!=='function' || !legs || !legs.length) return '';
+      if(!(typeof fetchLiveNotams==='function' || (typeof window!=='undefined' && window.fetchLiveNotams)) || !legs || !legs.length) return '';
       var vistos={}, paradas=[];
       legs.forEach(function(L){
         [[L.dep,L.std],[L.arr,L.sta]].forEach(function(p){
@@ -53816,6 +53897,9 @@ document.addEventListener('DOMContentLoaded', function(){
       var _ask=_matchAskedLeg(_q,dayLegs,(window.__ariaCtx||{}).leg);
       var _needLive=_RX_VIVO.test(_q);
       var _notam=/notam/i.test(_q);
+      /* La turbulencia se detecta aparte del resto de «datos en vivo» porque tiene
+         su propia vía para la jornada entera, igual que los NOTAMs. */
+      var _turb=/turbulenc|\bedr\b|baches|zarande|cizalla|shear|movidit/i.test(_q);
       var _todos=/\b(de\s+)?tod[oa]s\b|\ball\b|toda la jornada|todos los sectores|el d[ií]a entero/i.test(_q);
       /* ── El tema se hereda entre turnos ──────────────────────────────────────
          El fallo del reporte (#HJRJZ): el piloto pregunta por los NOTAMs, ARIA
@@ -53826,12 +53910,17 @@ document.addEventListener('DOMContentLoaded', function(){
          Una respuesta CORTA a una pregunta que sí necesitaba datos en vivo sigue
          hablando de lo mismo: se hereda el tema del turno anterior. */
       var _corta=_q.trim().split(/\s+/).length<=5;
-      if(!_needLive && _corta && _vivoPrev){ _needLive=true; _notam=_notam||_vivoPrev.notam; }
+      if(!_needLive && _corta && _vivoPrev){ _needLive=true; _notam=_notam||_vivoPrev.notam; _turb=_turb||_vivoPrev.turb; }
       if(!_ask && _corta && _vivoPrev && _vivoPrev.leg) _ask=_vivoPrev.leg;
       if(_todos) _ask=null;                       // «de todos» anula cualquier sector suelto
       // Preguntar por NOTAMs sin señalar sector —o diciendo «todos»— es preguntar por la
       // jornada. Antes eso caía en «sin objetivo» y se quedaba sin datos.
-      var _diaEntero=_notam && (_todos || (!_ask && (LAST_SCOPE==='hoy' || !(window.__ariaCtx||{}).leg)));
+      var _sinSector = !_ask && (LAST_SCOPE==='hoy' || !(window.__ariaCtx||{}).leg);
+      var _diaEntero=_notam && (_todos || _sinSector);
+      /* Lo mismo para la turbulencia: preguntarla sin señalar sector —o diciendo
+         «de todos»— es preguntarla de la jornada. Antes caía en «sin objetivo» y
+         se quedaba sin un solo dato. */
+      var _turbDia=_turb && (_todos || _sinSector);
       if(_diaEntero){
         askedBlock=await _ariaNotamDia(dayLegs);
       } else {
@@ -53840,7 +53929,8 @@ document.addEventListener('DOMContentLoaded', function(){
         // «De todos» sobre NOTAMs además de un sector: que no falte la jornada.
         if(_notam && _todos){ askedBlock+=(await _ariaNotamDia(dayLegs)); }
       }
-      if(_needLive) _vivoPrev={ notam:_notam, leg:_ask||((window.__ariaCtx||{}).leg)||null };
+      if(_turbDia){ askedBlock+=(await _ariaTurbDia(dayLegs)); }
+      if(_needLive) _vivoPrev={ notam:_notam, turb:_turb, leg:_ask||((window.__ariaCtx||{}).leg)||null };
     }catch(e){}
     if(LAST_SCOPE==='hoy' && LAST_TEXT){
       return 'Eres ARIA, copiloto del piloto para TODA su jornada. '+dayHdr+askedBlock+'\n\nBRIEFING ENTREGADO:\n'+LAST_TEXT+langLine;
@@ -53850,6 +53940,18 @@ document.addEventListener('DOMContentLoaded', function(){
     if(LAST_TEXT && LAST_SCOPE==='leg'){ base = base+'\n\nBRIEFING YA ENTREGADO DEL SECTOR ACTIVO:\n'+LAST_TEXT; }
     return base+langLine;
   }
+  /* Exportado para el banco. `qaContext` vive en este closure y es LA función que
+     arma lo que ARIA lee: probar una copia no probaría nada (es el caso de
+     `rstSave`, ya conocido aquí). El banco conduce ésta, con el mismo estado que
+     deja un briefing de la jornada. */
+  try{
+    window.__ariaQaContext = qaContext;
+    window.__ariaSetScope = function(sc, texto){
+      LAST_SCOPE = sc || 'hoy';
+      LAST_TEXT  = (texto !== undefined) ? texto : (LAST_TEXT || 'Briefing de la jornada ya entregado.');
+    };
+    window.__ariaResetVivo = function(){ _vivoPrev = null; };
+  }catch(e){}
   async function chatSend(text){ text=(text||'').trim(); if(!text)return; var tk=token(); if(!tk){ chatLog('aria','Inicia sesión para usar ARIA.'); return; } chatLog('you',text); var th=chatLog('aria','…'); try{ var sys=await qaContext(text); var r=await fetch(BACKEND+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk},body:JSON.stringify({messages:[{role:'user',content:text+(CUR.lang==='en'?'\n\n(Reply in English.)':'\n\n(Responde en español de España.)')}],logbook_context:sys,scope:'briefing'})}); var j=await r.json(); var ans=(j.content&&j.content.map(function(b){return b.text||'';}).join(''))||(j.message?j.message:'No tengo respuesta.'); ans=ans.replace(/[*#`]/g,''); if(th)th.textContent=ans; try{ if(!vMuted) vSpeak(ans); }catch(e){} }catch(e){ if(th)th.textContent='⚠ Error de conexión.'; } }
 
   var audios=[],curAudio=null,playing=false,paused=false,total=0,acc=0,k=0,durs=[],SENT=[],PEL=[],SEG=[],GAP=850;
@@ -54038,7 +54140,33 @@ document.addEventListener('DOMContentLoaded', function(){
   // orden (micro -> luego geo) al principio, dentro del gesto de "Generar", y el piloto no tenga
   // que tocar "permitir" mientras conduce. Timeout de 12s para no colgar el briefing si el piloto
   // no responde al prompt.
-  function primeMic(){ return new Promise(function(res){ var done=false; function fin(){ if(done)return; done=true; res(); } try{ if(!CUR.autoMic) return fin(); if(lg('db_micok','')==='1') return fin(); if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) return fin(); _dbg('primeMic gUM'); setTimeout(fin,12000); navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){ _dbg('primeMic release'); try{ s.getTracks().forEach(function(t){t.stop();}); }catch(e){} try{ localStorage.setItem('db_micok','1'); }catch(e){} fin(); }).catch(function(){ fin(); }); }catch(e){ fin(); } }); }
+  /* ⚠️ `db_micok` YA NO CORTA. Era una bandera nuestra que decía «esto ya se pidió
+     una vez», y el navegador no la consulta: en la PWA de iOS el permiso se olvida
+     entre lanzamientos, así que a partir del segundo uso `primeMic` se saltaba el
+     prompt, la app se creía con micro… y el permiso acababa pidiéndose al final,
+     cuando el micro se abre solo tras el briefing. Es justo lo que reportó el
+     piloto: «el micro solamente lo solicita después de que termine el briefing».
+     Una bandera propia no puede hablar por el estado del navegador — el mismo caso
+     que `crossesMidnight` heredado o la firma vieja: un valor guardado que
+     contradice la realidad no manda sobre ella.
+     Llamar a `getUserMedia` con el permiso YA concedido no vuelve a preguntar:
+     resuelve en silencio. La bandera no ahorraba un prompt, solo lo escondía.
+     Se sigue anotando (la usa el resto del panel para saber si merece la pena
+     ofrecer la voz), pero no decide.
+     Y sigue teniendo que llamarse DENTRO del gesto del tap: en iOS getUserMedia
+     fuera del gesto se rechaza, y ahí es cuando el micro acaba pidiéndose al final. */
+  function primeMic(){ return new Promise(function(res){ var done=false; function fin(){ if(done)return; done=true; res(); } try{ if(!CUR.autoMic) return fin(); if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) return fin(); _dbg('primeMic gUM'); setTimeout(fin,12000); navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){ _dbg('primeMic release'); try{ s.getTracks().forEach(function(t){t.stop();}); }catch(e){} try{ localStorage.setItem('db_micok','1'); }catch(e){} fin(); }).catch(function(){ fin(); }); }catch(e){ fin(); } }); }
+  /* El permiso se pide al ARRANCAR ARIA, no al terminar el briefing. `generate()` ya
+     lo hace en el tap de «Generar», pero el briefing puede arrancar SOLO
+     (`__ariaRunAutoBrief`) y entonces no hay gesto: en iOS eso se rechaza y el prompt
+     reaparece al final, que es lo que se ve. Con esto, el PRIMER toque en cualquier
+     sitio del panel lo pide. Una sola vez por montaje, y nunca si el piloto ha
+     apagado el micro automático. */
+  var _micPrimed=false;
+  function primeMicEnPrimerToque(){
+    if(_micPrimed) return; _micPrimed=true;
+    try{ primeMic(); }catch(e){}
+  }
   var _micRetried=false;
   async function generate(){
     // Pide el micro AQUÍ, en el gesto DIRECTO del tap. En iOS getUserMedia solo funciona dentro
@@ -54433,7 +54561,7 @@ document.addEventListener('DOMContentLoaded', function(){
   window.__ariaMount=function(container){ _ariaMounted=true; try{ buildPanel(container); restoreState(); }catch(e){ try{ buildPanel(container); }catch(e2){} }
     // restoreState se planta si no hay texto todavía; si el remontaje llegó ANTES de que
     // ARIA respondiera, el panel recién construido tiene que decir «Generando…» igualmente.
-    try{ if(_fase) paintDeck(); }catch(e){} try{ container.addEventListener('click',_ariaChromeTap); }catch(e){} try{ setTimeout(_ariaChromeApply,60); }catch(e){} try{ var _sa=(window.navigator&&window.navigator.standalone===true)||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches); if(!_sa) getPos(); }catch(e){} try{ window.__ariaRunAutoBrief(); }catch(e){} };
+    try{ if(_fase) paintDeck(); }catch(e){} try{ container.addEventListener('click',_ariaChromeTap); }catch(e){} try{ container.addEventListener('click',primeMicEnPrimerToque,{capture:true}); }catch(e){} try{ setTimeout(_ariaChromeApply,60); }catch(e){} try{ var _sa=(window.navigator&&window.navigator.standalone===true)||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches); if(!_sa) getPos(); }catch(e){} try{ window.__ariaRunAutoBrief(); }catch(e){} };
   // Consume el encargo del chip del Home. Vive aparte de __ariaMount porque si el piloto ya
   // estaba en la pestaña ARIA el panel NO se remonta y el encargo se quedaba sin ejecutar
   // (el chip no hacía nada), dejando además el alcance forzado colgado para el próximo montaje.
