@@ -38,6 +38,7 @@
   var ABORT = null;       // AbortController de la petición en curso
   var CARGANDO = false;   // hay una importación andando (para avisar antes de cerrarla)
   var NOMBRE = '';        // apellido del piloto según la ficha de eCrews (respaldo)
+  var SIN_VUELOS = 0;     // guardias/tierra sin nada que traer (informativo, no es fallo)
 
   function api() { return (typeof lsGet === 'function' ? lsGet('cafi_backend_url', 'https://api.pilotos.aero') : 'https://api.pilotos.aero'); }
   function tok() { return localStorage.getItem('cafi_auth_token'); }
@@ -114,6 +115,15 @@
     return M[parseInt(p[1], 10) - 1] + ' ' + p[0];
   }
 
+  /** Lo que el piloto pidió, dicho como lo pidió: un día, un tramo o un mes. */
+  function loQuePedi() {
+    if (!ULTIMA) return mesLabel(MONTH);
+    if (typeof ULTIMA === 'string') return mesLabel(ULTIMA);
+    // Sin preposición: se encaja en frases distintas ("Sin vuelos en X", "X · sin vuelos").
+    var d = function (iso) { return iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4); };
+    return ULTIMA.from === ULTIMA.to ? d(ULTIMA.from) : (d(ULTIMA.from) + ' – ' + d(ULTIMA.to));
+  }
+
   // ── ¿esta leg ya está en el logbook? ───────────────────────────────────────
   // Se compara por fecha + ruta (en ICAO, que es como se guarda) y, si lo hay,
   // por número de vuelo. Sin esto, reimportar un mes duplicaría el logbook.
@@ -164,7 +174,9 @@
     el.style.cssText = 'position:fixed;inset:0;z-index:9999;background:' + t.scrim + ';-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);display:none;align-items:flex-start;justify-content:center;overflow-y:auto;padding:0';
     el.innerHTML =
       '<div style="width:100%;max-width:520px;min-height:100%;background:' + t.sheet + '">' +
-      '<div style="position:sticky;top:0;z-index:2;background:' + t.solid + ';border-bottom:1px solid ' + t.line + ';padding:16px 16px 12px;display:flex;align-items:flex-start;gap:10px">' +
+      // La cabecera pega arriba del todo, así que se le suma la zona segura: sin esto,
+      // en el móvil el reloj y la batería se comen el título y la ✕.
+      '<div style="position:sticky;top:0;z-index:2;background:' + t.solid + ';border-bottom:1px solid ' + t.line + ';padding:calc(16px + env(safe-area-inset-top,0px)) 16px 12px;display:flex;align-items:flex-start;gap:10px">' +
       '<div style="flex:1">' +
       '<div style="font-family:\'Space Grotesk\',sans-serif;font-size:17px;font-weight:800;color:' + t.txt + '">Vuelos de eCrews</div>' +
       '<div id="eclg-sub" style="font-family:\'Space Mono\',monospace;font-size:11px;color:' + t.sub + ';margin-top:3px">Elige el mes que quieres importar</div>' +
@@ -439,7 +451,10 @@
         if (res.j && res.j.status === 'NEEDS_LOGIN') return necesitaLogin();
         if (!res.ok) return error(res.j && (res.j.error || res.j.detail) || ('HTTP ' + res.s));
         LEGS = (res.j && res.j.legs) || [];
+        // Las jornadas SIN VUELOS (guardias, tierra) no son un fallo: no hay nada que
+        // traer. Avisar de ellas asustaba con un mes que en realidad estaba completo.
         ERRORES = (res.j && res.j.errores) || [];
+        SIN_VUELOS = ((res.j && res.j.sinVuelos) || []).length;
         RANGO = (res.j && res.j.rango) || null;
         NOMBRE = (res.j && res.j.nombre) || '';
         // Por defecto se marca lo que aún no está en el logbook y NO es posicionamiento:
@@ -518,9 +533,27 @@
 
   function render() {
     if (!LEGS.length) {
-      sub(mesLabel(MONTH) + ' · sin vuelos');
-      body('<div style="text-align:center;padding:44px 20px"><div style="font-size:30px;margin-bottom:12px">📭</div>' +
-        '<div style="font-family:\'Space Mono\',monospace;font-size:12px;color:' + t.sub + ';line-height:1.7">eCrews no devolvió vuelos para ' + mesLabel(MONTH) + '.</div></div>');
+      // Decir EXACTAMENTE lo que se pidió. Antes ponía siempre el mes, así que pedir un
+      // día suelto y no haber volado ese día se leía como "el mes entero está vacío" —
+      // imposible distinguirlo de un fallo de lectura.
+      sub(loQuePedi() + ' · sin vuelos');
+      var h0 = '<div style="text-align:center;padding:40px 20px"><div style="font-size:30px;margin-bottom:12px">📭</div>' +
+        '<div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:700;color:' + t.txt + ';margin-bottom:10px">Sin vuelos en ' + loQuePedi() + '</div>' +
+        '<div style="font-family:\'Space Mono\',monospace;font-size:11px;color:' + t.sub + ';line-height:1.75">' +
+        (SIN_VUELOS
+          ? 'eCrews sí tenía ' + SIN_VUELOS + ' jornada' + (SIN_VUELOS === 1 ? '' : 's') + ', pero sin vuelos:<br>guardia, tierra o día libre.'
+          : 'eCrews no tiene vuelos anotados ahí.') +
+        '</div></div>';
+      // Los fallos también se enseñan AQUÍ. Antes sólo salían junto a la lista, así que
+      // cuando no había ni un vuelo el motivo se quedaba escondido.
+      if (ERRORES.length) {
+        h0 += '<div style="background:' + t.warnBg + ';border:1px solid ' + t.warnLine + ';border-radius:11px;padding:11px 13px;font-family:\'Space Mono\',monospace;font-size:10.5px;color:' + t.warn + ';line-height:1.7">' +
+          'No es seguro que esté vacío — algo falló al leer:<br>' +
+          ERRORES.slice(0, 3).map(function (e) { return '· ' + String(e).slice(0, 90); }).join('<br>') +
+          '</div>' +
+          '<button onclick="ldECrewsLegsReintentar()" style="width:100%;margin-top:12px;padding:13px;background:transparent;border:1.5px solid ' + t.warnLine + ';border-radius:12px;color:' + t.warn + ';font-family:\'Space Grotesk\',sans-serif;font-size:14px;font-weight:700;cursor:pointer">↻ Reintentar</button>';
+      }
+      body(h0);
       return;
     }
 

@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.737">
+  <meta name="version" content="Estable.754">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.737","builtAt":"2026-09-06T08:53:41Z","commit":"9e1c8d5","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.754","builtAt":"2026-09-07T07:08:32Z","commit":"ffe3f8d","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -3001,8 +3001,40 @@ html.day .ld-map-corner.ld-map-hint{background:rgba(11,16,32,.82)!important;
 .ld-rc-right{text-align:right}
 .ld-rc-hrs{font-family:'DM Mono','Space Mono',monospace;font-size:13px;font-weight:500;color:rgba(248,250,252,.7)}
 .ld-rc-cnt{font-size:10px;color:rgba(248,250,252,.28);font-family:'Space Mono',monospace;margin-top:1px}
-.ld-map-rst{font-size:11px;color:rgba(34,211,238,.6);cursor:pointer;font-family:'Space Mono',monospace}
-.ld-map-rst:active{color:#22D3EE}
+/* El botón del cajón: un aro discreto en vez de un glifo flotando solo.
+   Se le da caja de toque de 30 px — antes era un SVG de 14 px sin más. */
+.ld-drawer-btn{
+  margin-left:auto;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+  width:30px;height:30px;border-radius:50%;cursor:pointer;
+  background:rgba(34,211,238,.06);border:1px solid rgba(34,211,238,.16);
+  color:rgba(34,211,238,.72);transition:background .18s,border-color .18s,color .18s;
+  -webkit-tap-highlight-color:transparent;padding:0
+}
+.ld-drawer-btn:active{background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.4);color:#67E8F9}
+/* En modo día el cajón es casi blanco: el cian claro de noche se queda en un
+   fantasma. Aquí manda el cian OSCURO, que es el que la app ya usa en día. */
+html.day .ld-drawer-btn{background:rgba(8,145,178,.08);border-color:rgba(8,145,178,.32);color:#0E7490}
+html.day .ld-drawer-btn:active{background:rgba(8,145,178,.18);border-color:rgba(8,145,178,.6);color:#075985}
+/* «Vista global», dentro del mapa y simétrica con el filtro de mes. Misma
+   píldora oscura en los dos modos: encima del canvas —mar claro en modo día—
+   es lo único que se lee. */
+.ld-map-fit{
+  position:absolute;bottom:8px;right:10px;z-index:6;
+  display:flex;align-items:center;gap:5px;cursor:pointer;
+  background:rgba(11,16,32,.82);border:1px solid rgba(34,211,238,.34);
+  border-radius:10px;padding:4px 8px;color:rgba(103,232,249,.92);
+  font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.3px;
+  -webkit-tap-highlight-color:transparent;
+  animation:ldFitIn .22s ease both
+}
+/* ⚠ `display:flex` en la clase GANA a `[hidden]{display:none}` del navegador:
+   misma especificidad (una clase contra un atributo) y esta regla va después.
+   El botón quedaba a la vista con `hidden` puesto — `el.hidden` decía true y la
+   pantalla decía que no. Se declara explícitamente. */
+.ld-map-fit[hidden]{display:none}
+.ld-map-fit b{font-weight:400}
+.ld-map-fit:active{border-color:rgba(34,211,238,.7);color:#A5F3FC}
+@keyframes ldFitIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 /* ── Conmutador Destinos / Rutas (cabecera del cajón) ── */
 .ld-mseg{display:flex;gap:2px;flex:1;max-width:212px;padding:2px;border-radius:9px;
   background:rgba(34,211,238,.07);border:1px solid rgba(34,211,238,.14)}
@@ -3035,6 +3067,45 @@ html.day .ld-map-corner.ld-map-hint{background:rgba(11,16,32,.82)!important;
 .ld-dc-conex-mas{font-family:'Space Mono',monospace;font-size:10px;color:rgba(248,250,252,.35);padding-top:6px}
 .ld-rd-dot.dst{background:#22D3EE;box-shadow:0 0 7px rgba(34,211,238,.8)}
 .ld-rd-dot.base{background:#A78BFA;box-shadow:0 0 7px rgba(167,139,250,.9)}
+/* ══ EL FILTRO DE MES: una pastilla DENTRO del mapa ═══════════════════════════
+   No un carril de chips encima. En el teléfono un carril se come ~36 px de alto
+   justo delante del dibujo y, pasados cinco meses, obliga a arrastrar de lado:
+   medio año queda fuera de pantalla sin decirlo. La pastilla flota donde ya
+   flotan el zoom y «TOCA PARA ACERCAR», así que no cuesta ni un píxel de alto.
+
+   Y NO es un icono de capas: las capas prometen superponer cosas y esto es un
+   periodo — un mando que promete lo que no hace es de la familia del avión
+   inventado. Calendario, y con el mes elegido ESCRITO al lado: un icono mudo
+   escondería el estado, y entonces «no volaste ahí» y «tienes agosto puesto» se
+   verían igual.
+
+   Píldora OSCURA en los dos modos, como `.ld-map-hint`: encima del canvas —que
+   en modo día es un mar claro— es lo único que se lee. */
+.ld-map-mes{position:absolute;bottom:8px;left:10px;z-index:6;
+  display:flex;align-items:center;gap:5px;cursor:pointer;
+  background:rgba(11,16,32,.82);border:1px solid rgba(148,180,210,.28);
+  border-radius:10px;padding:4px 8px;color:rgba(226,240,248,.9);
+  font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.3px}
+.ld-map-mes b{font-weight:400;color:#E2F0F8}
+.ld-map-mes i{font-style:normal;font-size:8px;opacity:.7}
+.ld-map-mes:active{border-color:rgba(34,211,238,.6)}
+/* Filtrado ≠ completo: encendida, un mapa recortado no se puede confundir con
+   el entero. Es el «0 mudo» aplicado a un filtro. */
+.ld-map-mes.on{background:rgba(8,74,96,.9);border-color:rgba(34,211,238,.65)}
+.ld-map-mes.on b{color:#BFF3FC}
+.ld-map-meshoja{position:absolute;bottom:40px;left:10px;z-index:7;
+  width:176px;max-height:200px;overflow-y:auto;
+  background:rgba(8,16,32,.97);border:1px solid rgba(148,180,210,.26);
+  border-radius:12px;padding:5px;box-shadow:0 14px 34px rgba(0,0,0,.7);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.ld-map-meshoja .a{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:1.6px;
+  color:rgba(226,240,248,.38);padding:6px 8px 3px}
+.ld-map-meshoja button{display:flex;width:100%;align-items:baseline;justify-content:space-between;
+  gap:8px;border:0;background:transparent;color:rgba(226,240,248,.82);cursor:pointer;
+  border-radius:8px;font-family:'Space Mono',monospace;font-size:10.5px;padding:6px 8px;letter-spacing:.4px}
+.ld-map-meshoja button.on{background:rgba(34,211,238,.16);color:#BFF3FC}
+.ld-map-meshoja button s{text-decoration:none;font-size:8.5px;color:rgba(226,240,248,.42)}
+.ld-map-meshoja button.on s{color:rgba(191,243,252,.65)}
 .ld-zoom-ind{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);z-index:5;font-family:'Space Mono',monospace;font-size:10px;color:rgba(34,211,238,.4);background:rgba(11,16,32,.7);padding:2px 9px;border-radius:10px;letter-spacing:.3px;pointer-events:none}
 /* ══ MAPA PANEL LAYOUT ══ */
 #ld-panel-mapa.ld-panel{overflow-y:auto;overflow-x:hidden;padding-bottom:calc(80px + env(safe-area-inset-bottom,0px))}
@@ -3695,6 +3766,717 @@ html.day .ldm-times-wrap.mcdu-ok .ldm-inp.adsb-fill {
 #ld-panel-vuelos.ld-panel{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 #ld-panel-mapa.ld-panel{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#0B1020;flex-direction:column}
 #ld-panel-stats.ld-panel{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#060A14}
+/* ── La banda de la vuelta al mundo, entre el mapa y la lista ───────────────
+   ⚠ OJO: aquí el fondo SÍ cambia de tema —la banda acompaña al cajón, que es
+   `#0B1020` de noche y casi blanco de día—, así que este bloque tiene DOS
+   paletas y las dos se declaran, texto y canvas. Es lo contrario del caso de
+   `.la-card`, que es oscura en los dos modos y por eso allí sobraba el modo día.
+   El fondo y el dibujo no pueden decidir por separado. */
+.ld-globo-band{
+  display:flex;align-items:center;gap:13px;padding:11px 16px 12px;
+  background:#0B1020;border-top:1px solid rgba(34,211,238,.12)
+}
+.ld-globo{width:84px;height:84px;flex:0 0 auto;display:block}
+.ld-globo-txt{min-width:0}
+.ld-globo-txt > b{display:block;font-size:13.5px;font-weight:600;letter-spacing:-.01em;
+  line-height:1.3;color:#F8FAFC}
+.ld-globo-txt > b b{font-weight:700;color:#7DE9F9}
+.ld-globo-txt span{display:block;font-family:'Space Mono',monospace;font-size:9.5px;
+  color:rgba(248,250,252,.68);letter-spacing:.3px;margin-top:4px;line-height:1.5}
+/* La letra pequeña dice que la cuenta es en línea recta. No es un descargo de
+   responsabilidad: una cifra presentada como «lo que has volado» sin decir que
+   le faltan las SIDs, las STARs y los vectores está afirmando de más.
+   Al 34 % se quedaba en 3,06:1 a 9 px — por debajo de AA. Va al 55 %. */
+.ld-globo-txt em{display:block;font-style:normal;font-family:'Space Mono',monospace;
+  font-size:9px;color:rgba(248,250,252,.55);letter-spacing:.2px;margin-top:3px;line-height:1.45}
+html.day .ld-globo-band{background:rgba(248,252,255,.97);border-top-color:rgba(30,58,164,.12)}
+html.day .ld-globo-txt > b{color:#0F172A}
+html.day .ld-globo-txt > b b{color:#0E7490}
+html.day .ld-globo-txt span{color:rgba(15,23,42,.66)}
+html.day .ld-globo-txt em{color:rgba(15,23,42,.7)}   /* al 58 % se quedaba en 4,26:1 a 9 px */
+/* ══ MAPA PANEL LAYOUT ══ */
+#ld-panel-mapa.ld-panel{overflow-y:auto;overflow-x:hidden;padding-bottom:calc(80px + env(safe-area-inset-bottom,0px))}
+.ld-map-wrap{position:relative;overflow:hidden;background:#060C1A;width:100%}
+/* ══ ROUTE DRAWER ══ */
+.ld-drawer{background:#0B1020;border-top:1px solid rgba(34,211,238,.12)}
+.ld-drawer-handle{padding:8px 16px 4px;cursor:pointer;user-select:none;-webkit-user-select:none;display:flex;flex-direction:column}
+.ld-drawer-handle:active{background:rgba(34,211,238,.04)}
+.ld-drawer-pill{width:36px;height:4px;border-radius:2px;background:rgba(248,250,252,.18);margin:0 auto 0}
+.ld-drawer-hrow{display:flex;align-items:center;gap:8px;margin-top:7px}
+.ld-drawer-body{overflow:hidden;transition:max-height .35s cubic-bezier(.4,0,.2,1)}
+.ld-drawer-body.ld-drawer-closed{max-height:0}
+.ld-drawer-body.ld-drawer-open{max-height:1000px}
+
+/* ══ ROUTE DETAIL (drill-in) ══ */
+.ld-rd{padding:12px 14px 18px;animation:ldRdIn .28s cubic-bezier(.2,.8,.3,1)}
+@keyframes ldRdIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.ld-rd-top{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.ld-rd-back{display:inline-flex;align-items:center;gap:5px;font-family:'Space Mono',monospace;font-size:11px;color:rgba(34,211,238,.85);cursor:pointer;background:rgba(34,211,238,.08);padding:6px 11px;border-radius:9px;border:1px solid rgba(34,211,238,.18);transition:background .15s}
+.ld-rd-back:active{background:rgba(34,211,238,.18)}
+.ld-rd-title{font-family:'DM Mono','Space Mono',monospace;font-size:17px;font-weight:600;color:#F8FAFC;margin-left:auto;display:flex;align-items:center;gap:8px}
+.ld-rd-title .ar{color:#22D3EE;font-size:13px}
+.ld-rd-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.ld-rd-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:4px}
+.ld-rd-tile{background:rgba(255,255,255,.03);border:1px solid rgba(34,211,238,.09);border-radius:11px;padding:10px 6px;text-align:center}
+.ld-rd-tile-val{font-family:'DM Mono','Space Mono',monospace;font-size:16px;font-weight:600;color:#F8FAFC;line-height:1.05}
+.ld-rd-tile-val small{font-size:10px;opacity:.55;font-weight:500}
+.ld-rd-tile-lbl{font-size:8.5px;text-transform:uppercase;letter-spacing:.4px;color:rgba(248,250,252,.4);margin-top:4px;font-family:'Space Mono',monospace}
+.ld-rd-tile.accent{border-color:rgba(124,58,237,.28);background:rgba(124,58,237,.07)}
+.ld-rd-tile.accent .ld-rd-tile-val{color:#A78BFA}
+.ld-rd-row{display:flex;align-items:center;gap:8px;font-family:'Space Mono',monospace;font-size:11px;color:rgba(248,250,252,.62);padding:8px 2px;border-top:1px solid rgba(34,211,238,.06)}
+.ld-rd-row .k{color:rgba(248,250,252,.4);text-transform:uppercase;letter-spacing:.4px;font-size:9px}
+.ld-rd-row .v{margin-left:auto;color:#F8FAFC;font-weight:500}
+.ld-rd-badge{font-size:9px;padding:2px 8px;border-radius:8px;background:rgba(52,211,153,.15);color:#6EE7B7;border:1px solid rgba(52,211,153,.28);font-weight:700}
+.ld-rd-spark{display:flex;align-items:center;gap:9px;padding:9px 2px;border-top:1px solid rgba(34,211,238,.06)}
+.ld-rd-spark svg{flex-shrink:0}
+.ld-rd-spark-txt{font-family:'Space Mono',monospace;font-size:10px;color:rgba(248,250,252,.5);line-height:1.35}
+.ld-rd-spark-txt b{color:#22D3EE;font-weight:700}
+.ld-rd-game{margin-top:11px;background:linear-gradient(135deg,rgba(124,58,237,.14),rgba(34,211,238,.06));border:1px solid rgba(124,58,237,.22);border-radius:13px;padding:11px 13px}
+.ld-rd-game-top{display:flex;align-items:baseline;gap:7px;font-family:'Space Grotesk',sans-serif;flex-wrap:wrap}
+.ld-rd-game-num{font-size:19px;font-weight:800;color:#A78BFA;letter-spacing:-.3px}
+.ld-rd-game-lbl{font-size:11px;color:rgba(248,250,252,.6)}
+.ld-rd-bar{height:6px;border-radius:3px;background:rgba(255,255,255,.08);margin-top:9px;overflow:hidden}
+.ld-rd-bar-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#7C3AED,#22D3EE);transition:width .5s ease}
+.ld-rd-spark .ld-spark-svg polyline{stroke:#22D3EE}
+html.day .ld-rd-spark .ld-spark-svg polyline{stroke:#0891B2 !important}
+/* ── Route detail — MODO DÍA ── */
+html.day .ld-rd-back{background:rgba(8,145,178,.1) !important;color:#0369A1 !important;border-color:rgba(8,145,178,.25) !important}
+html.day .ld-rd-title{color:#0A1628 !important}
+html.day .ld-rd-title .ar{color:#0891B2 !important}
+html.day .ld-rd-tile{background:rgba(15,23,42,.04) !important;border-color:rgba(30,58,164,.12) !important}
+html.day .ld-rd-tile-val{color:#0A1628 !important}
+html.day .ld-rd-tile-lbl{color:#64748B !important}
+html.day .ld-rd-tile.accent{background:rgba(124,58,237,.08) !important;border-color:rgba(124,58,237,.25) !important}
+html.day .ld-rd-tile.accent .ld-rd-tile-val{color:#6D28D9 !important}
+html.day .ld-rd-row{color:#475569 !important;border-top-color:rgba(15,23,42,.08) !important}
+html.day .ld-rd-row .k{color:#64748B !important}
+html.day .ld-rd-row .v{color:#0A1628 !important}
+html.day .ld-rd-spark{border-top-color:rgba(15,23,42,.08) !important}
+html.day .ld-rd-spark-txt{color:#475569 !important}
+html.day .ld-rd-spark-txt b{color:#0891B2 !important}
+html.day .ld-rd-game{background:linear-gradient(135deg,rgba(124,58,237,.1),rgba(8,145,178,.06)) !important;border-color:rgba(124,58,237,.2) !important}
+html.day .ld-rd-game-num{color:#6D28D9 !important}
+html.day .ld-rd-game-lbl{color:#475569 !important}
+html.day .ld-rd-bar{background:rgba(15,23,42,.1) !important}
+/* Fix badge "Reciente" — verde legible en modo día */
+html.day .ld-rd-badge{background:rgba(16,185,129,.16) !important;color:#047857 !important;border-color:rgba(5,150,105,.4) !important}
+
+/* ══ ROUTE DETAIL — Patrón temporal ══ */
+.ld-rd-temp{margin-top:11px;padding-top:11px;border-top:1px solid rgba(34,211,238,.06)}
+.ld-rd-temp-hdr{display:flex;align-items:center;gap:8px}
+.ld-rd-temp-lbl{font-family:'Space Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:rgba(248,250,252,.4)}
+.ld-rd-seg{margin-left:auto;display:flex;background:rgba(255,255,255,.05);border-radius:8px;padding:2px}
+.ld-rd-seg-btn{font-size:10px;padding:3px 10px;border-radius:6px;color:rgba(248,250,252,.4);cursor:pointer;font-family:'Space Mono',monospace;transition:background .15s}
+.ld-rd-seg-btn.on{background:rgba(124,58,237,.35);color:#C4B5FD}
+.ld-rd-temp-ins{display:flex;align-items:center;gap:7px;margin-top:9px;font-size:11px;color:rgba(248,250,252,.72);line-height:1.4}
+.ld-rd-temp-ins b{color:#A78BFA;font-weight:700}
+.ld-rd-temp-ins .ic{font-size:14px;flex-shrink:0}
+.ld-rd-franja{margin-top:11px}
+.ld-rd-franja-lbl{font-family:'Space Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.4px;color:rgba(248,250,252,.35);margin-bottom:1px}
+.ld-bars{display:flex;gap:3px;margin-top:8px}
+.ld-bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
+.ld-bar-col{width:100%;display:flex;align-items:flex-end;height:54px}
+.ld-bar{width:100%;border-radius:3px;background:rgba(34,211,238,.3)}
+.ld-bar.mid{background:rgba(34,211,238,.78)}
+.ld-bar.hi{background:#A78BFA;box-shadow:0 0 7px rgba(167,139,250,.6)}
+.ld-bar-lbl{font-family:'Space Mono',monospace;font-size:8.5px;color:rgba(248,250,252,.35)}
+.ld-bar-lbl.hi{color:#A78BFA}
+/* Patrón temporal — MODO DÍA */
+html.day .ld-rd-temp{border-top-color:rgba(15,23,42,.08) !important}
+html.day .ld-rd-temp-lbl,html.day .ld-rd-franja-lbl{color:#64748B !important}
+html.day .ld-rd-seg{background:rgba(15,23,42,.06) !important}
+html.day .ld-rd-seg-btn{color:#64748B !important}
+html.day .ld-rd-seg-btn.on{background:rgba(124,58,237,.18) !important;color:#6D28D9 !important}
+html.day .ld-rd-temp-ins{color:#475569 !important}
+html.day .ld-rd-temp-ins b{color:#6D28D9 !important}
+html.day .ld-bar{background:rgba(8,145,178,.3) !important}
+html.day .ld-bar.mid{background:rgba(8,145,178,.7) !important}
+html.day .ld-bar.hi{background:#7C3AED !important;box-shadow:0 0 7px rgba(124,58,237,.4) !important}
+html.day .ld-bar-lbl{color:#64748B !important}
+html.day .ld-bar-lbl.hi{color:#6D28D9 !important}
+
+/* ══ HOME CARD LOGBOOK (replace logo with text icon) ══ */
+.ld-home-icon{
+  width:110px;height:110px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:4px;
+  background:linear-gradient(135deg,rgba(11,16,32,.9),rgba(17,24,39,.95));
+  border:1px solid rgba(34,211,238,.2);border-radius:20px;
+  position:relative;overflow:hidden
+}
+.ld-home-icon::before{
+  content:'';position:absolute;top:-20px;left:-20px;width:80px;height:80px;
+  border-radius:50%;background:radial-gradient(circle,rgba(124,58,237,.35),transparent 65%)
+}
+.ld-home-icon::after{
+  content:'';position:absolute;bottom:-15px;right:-15px;width:60px;height:60px;
+  border-radius:50%;background:radial-gradient(circle,rgba(34,211,238,.25),transparent 65%)
+}
+.ld-home-icon-text{
+  font-family:'DM Mono','Space Mono',monospace;font-size:11px;font-weight:500;
+  background:linear-gradient(90deg,#7C3AED,#22D3EE);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  letter-spacing:1.5px;text-transform:uppercase;position:relative;z-index:1
+}
+.ld-home-icon svg{position:relative;z-index:1}
+
+/* ══════════════════════════════════════
+   LOGBOOK MODAL — DARK GLASS PREMIUM (ldm-*)
+   ══════════════════════════════════════ */
+
+/* Overlay */
+#ld_modal.ld-modal-ov {
+  display:none; position:fixed; inset:0; z-index:500;
+  background:rgba(5,10,20,.75);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  align-items:flex-end; justify-content:center;
+}
+#ld_modal.ld-modal-ov.open { display:flex; }
+
+/* Sheet */
+.ldm-sheet {
+  width:100%; max-height:94dvh; max-height:94vh;
+  background:linear-gradient(180deg,#111827 0%,#0B1020 100%);
+  border-radius:28px 28px 0 0;
+  border-top:1px solid rgba(124,58,237,.3);
+  border-left:1px solid rgba(34,211,238,.08);
+  border-right:1px solid rgba(34,211,238,.08);
+  box-shadow:0 -24px 72px rgba(124,58,237,.22),0 -4px 24px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.04);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+
+/* Drag handle */
+.ldm-drag {
+  width:36px; height:4px; background:rgba(255,255,255,.1);
+  border-radius:2px; margin:12px auto 0; flex-shrink:0;
+}
+
+/* Header */
+.ldm-hdr {
+  display:flex; align-items:flex-start; justify-content:space-between;
+  padding:14px 20px 10px; flex-shrink:0;
+  border-bottom:1px solid rgba(34,211,238,.07);
+}
+.ldm-title {
+  font-family:'Space Grotesk',sans-serif; font-size:18px; font-weight:800;
+  letter-spacing:-.3px; color:#F8FAFC; line-height:1.1;
+}
+.ldm-sub {
+  font-family:'Space Mono',monospace; font-size:10px; font-weight:400;
+  color:#22D3EE; letter-spacing:.5px; margin-top:3px; opacity:.75;
+}
+.ldm-close {
+  width:32px; height:32px; border-radius:50%;
+  background:rgba(30,42,58,.9); border:1px solid rgba(34,211,238,.15);
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; color:rgba(248,250,252,.5); flex-shrink:0;
+  transition:all .15s; margin-top:2px;
+}
+.ldm-close:active { background:rgba(124,58,237,.3); color:#F8FAFC; }
+
+/* ADS-B strip — azul claro */
+.ldm-adsb-strip {
+  display:none; align-items:center; gap:8px;
+  margin:6px 20px 0; padding:8px 13px;
+  background:rgba(56,189,248,.08); border:1px solid rgba(56,189,248,.28);
+  border-radius:11px;
+}
+.ldm-adsb-strip-icon { font-size:13px; flex-shrink:0; color:#7dd3fc; }
+.ldm-adsb-strip-text { font-size:11px; color:rgba(125,211,252,.95); font-family:'Space Mono',monospace; flex:1; }
+.ldm-adsb-strip-clear { font-size:10px; color:rgba(125,211,252,.55); cursor:pointer; font-family:'Space Grotesk',sans-serif; }
+html.day .ldm-adsb-strip { background:rgba(2,132,199,.07) !important; border-color:rgba(2,132,199,.28) !important; }
+html.day .ldm-adsb-strip-text { color:#0369A1 !important; }
+html.day .ldm-adsb-strip-icon { color:#0369A1 !important; }
+
+/* OCR strip */
+.ldm-ocr-strip {
+  display:flex; align-items:center; gap:8px;
+  margin:10px 20px 0; padding:9px 13px;
+  background:rgba(34,211,238,.06); border:1px solid rgba(34,211,238,.15);
+  border-radius:11px; flex-shrink:0;
+}
+.ldm-ocr-dot {
+  width:7px; height:7px; border-radius:50%;
+  background:#22D3EE; box-shadow:0 0 7px #22D3EE;
+  animation:ldmBlink 1.4s ease-in-out infinite; flex-shrink:0;
+}
+@keyframes ldmBlink { 0%,100%{opacity:1}50%{opacity:.25} }
+.ldm-ocr-text { font-size:11px; color:rgba(34,211,238,.8); font-family:'Space Mono',monospace; flex:1; }
+.ldm-ocr-btn  { font-size:11px; color:#7C3AED; font-weight:700; cursor:pointer; font-family:'Space Grotesk',sans-serif; white-space:nowrap; }
+
+/* Scrollable body */
+.ldm-body {
+  flex:1; overflow-y:auto; overflow-x:hidden;
+  padding:16px 20px 16px;
+  -webkit-overflow-scrolling:touch;
+}
+.ldm-body::-webkit-scrollbar { display:none; }
+
+/* Section headers */
+.ldm-sec {
+  font-size:10px; font-weight:700; letter-spacing:1.2px;
+  /* 4,35 sobre la tarjeta nueva → 7,59 al 85 %. (En día manda html.day .ldm-sec.) */
+  text-transform:uppercase; color:rgba(34,211,238,.85);
+  margin:18px 0 10px; display:flex; align-items:center; gap:7px;
+}
+.ldm-sec:first-child { margin-top:0; }
+.ldm-sec::after { content:''; flex:1; height:1px; background:linear-gradient(90deg,rgba(34,211,238,.15),transparent); }
+
+/* Grid */
+.ldm-row2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; }
+.ldm-fg   { display:flex; flex-direction:column; gap:4px; }
+
+/* Labels */
+.ldm-lbl {
+  font-size:10px; font-weight:700; letter-spacing:.7px;
+  /* Estaba al 35 % de opacidad: 3,10 de contraste sobre la tarjeta. MATRÍCULA, TIPO, MOTOR,
+     CALL SIGN y POB se leían a medias. Al 72 % son 6,26. (En día manda html.day .ldm-lbl.) */
+  text-transform:uppercase; color:rgba(226,240,252,.72);
+  display:flex; align-items:center; gap:5px;
+}
+
+/* Tags / badges */
+.ldm-tag {
+  font-size:8.5px; padding:1px 6px; border-radius:5px;
+  font-family:'Space Mono',monospace; font-weight:600; letter-spacing:.3px;
+}
+.ldm-tag-ocr  { background:rgba(52,211,153,.1);  color:#34d399; border:1px solid rgba(52,211,153,.22); }
+.ldm-tag-act  { background:rgba(34,211,238,.12); color:#22D3EE; border:1px solid rgba(34,211,238,.3); }
+.ldm-tag-off  { background:rgba(30,42,58,.8);    color:rgba(248,250,252,.4); border:1px solid rgba(34,211,238,.12); }
+.ldm-tag-sched{ background:rgba(245,158,11,.12); color:rgba(245,158,11,.9); border:1px solid rgba(245,158,11,.3); }
+/* ── Mini-tags dinámicas de ORIGEN (aparecen solo tras importar) ── */
+.ldm-tag-src{ display:none; align-items:center; gap:3px; }
+.ldm-tag-src.show{ display:inline-flex; }
+.ldm-tag-src.src-ocr  { background:rgba(52,211,153,.1);  color:#34d399; border:1px solid rgba(52,211,153,.28); }
+.ldm-tag-src.src-adsb { background:rgba(56,189,248,.12); color:#7dd3fc; border:1px solid rgba(56,189,248,.32); }
+.ldm-tag-src.src-prog { background:rgba(245,158,11,.12); color:#fbbf24; border:1px solid rgba(245,158,11,.32); }
+html.day .ldm-tag-src.src-ocr  { background:rgba(5,150,105,.1) !important;  color:#065F46 !important; border-color:rgba(5,150,105,.25) !important; }
+html.day .ldm-tag-src.src-adsb { background:rgba(2,132,199,.1) !important;  color:#0369A1 !important; border-color:rgba(2,132,199,.28) !important; }
+html.day .ldm-tag-src.src-prog { background:rgba(217,119,6,.1) !important;  color:#B45309 !important; border-color:rgba(217,119,6,.28) !important; }
+.ldm-sched-row .ldm-lbl { color:rgba(245,158,11,.85) !important; }
+.ldm-sched-row .ldm-inp { border-color:rgba(245,158,11,.25) !important; color:rgba(245,158,11,.9) !important; }
+.ldm-sched-row .ldm-inp:focus { border-color:rgba(245,158,11,.55) !important; box-shadow:0 0 0 3px rgba(245,158,11,.08) !important; }
+.ldm-sched-row .ldm-inp.seq-error { border-color:rgba(239,68,68,.5) !important; color:#EF4444 !important; box-shadow:0 0 0 2px rgba(239,68,68,.1) !important; }
+.ldm-p1 {
+  font-size:8.5px; padding:1px 5px; border-radius:5px;
+  background:rgba(245,158,11,.15); color:#F59E0B;
+  border:1px solid rgba(245,158,11,.28); font-family:'Space Mono',monospace; font-weight:700;
+}
+/* eCrews (roster real) y ADS-B confirmado por el piloto */
+.ldm-tag-src.src-ecrews { background:rgba(124,58,237,.14); color:#a78bfa; border:1px solid rgba(124,58,237,.34); }
+.ldm-tag-src.src-adsbok { background:rgba(56,189,248,.18); color:#7dd3fc; border:1px solid rgba(56,189,248,.5); }
+html.day .ldm-tag-src.src-ecrews { background:rgba(91,33,182,.1) !important; color:#5B21B6 !important; border-color:rgba(91,33,182,.28) !important; }
+html.day .ldm-tag-src.src-adsbok { background:rgba(2,132,199,.14) !important; color:#0369A1 !important; border-color:rgba(2,132,199,.45) !important; }
+
+/* ════════ POPUP DISCREPANCIA ADS-B vs ROSTER ════════ */
+.dsc-ov{ position:fixed; inset:0; background:rgba(5,8,16,.72); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); z-index:6000; display:none; align-items:flex-end; justify-content:center; }
+.dsc-ov.open{ display:flex; }
+.dsc-sheet{ width:100%; max-width:560px; background:#0B1020; border:1px solid rgba(124,58,237,.35); border-bottom:none; border-radius:20px 20px 0 0; box-shadow:0 -12px 40px rgba(0,0,0,.5); max-height:88vh; display:flex; flex-direction:column; transform:translateY(100%); transition:transform .26s cubic-bezier(.22,1,.36,1); padding-bottom:calc(env(safe-area-inset-bottom) + 72px); }
+.dsc-ov.open .dsc-sheet{ transform:translateY(0); }
+.dsc-head{ padding:18px 20px 12px; border-bottom:1px solid rgba(124,58,237,.18); }
+.dsc-title{ font-family:'Space Grotesk',sans-serif; font-size:15px; font-weight:700; color:#F8FAFC; display:flex; align-items:center; gap:8px; }
+.dsc-title .dsc-dot{ width:8px; height:8px; border-radius:50%; background:#F59E0B; box-shadow:0 0 8px #F59E0B; flex-shrink:0; }
+.dsc-sub{ font-size:11px; color:rgba(248,250,252,.55); margin-top:4px; font-family:'Space Mono',monospace; }
+.dsc-body{ padding:8px 14px 4px; overflow-y:auto; }
+.dsc-row{ border:1px solid rgba(124,58,237,.16); border-radius:14px; padding:11px 12px; margin:9px 2px; background:rgba(49,46,129,.1); }
+.dsc-row.discrepant{ border-color:rgba(245,158,11,.4); background:rgba(245,158,11,.05); }
+.dsc-rowtop{ display:flex; align-items:center; justify-content:space-between; margin-bottom:9px; }
+.dsc-field{ font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:700; color:#F8FAFC; letter-spacing:.5px; }
+.dsc-delta{ font-family:'Space Mono',monospace; font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; background:rgba(148,163,184,.12); color:rgba(248,250,252,.6); }
+.dsc-delta.warn{ background:rgba(245,158,11,.16); color:#F59E0B; border:1px solid rgba(245,158,11,.35); }
+.dsc-opts{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.dsc-opt{ border:1.5px solid rgba(148,163,184,.2); border-radius:11px; padding:9px 10px; cursor:pointer; transition:all .15s; position:relative; user-select:none; }
+.dsc-opt.sel{ border-color:#22D3EE; background:rgba(34,211,238,.08); }
+.dsc-opt.dis{ opacity:.4; cursor:not-allowed; }
+.dsc-opt-lbl{ font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:rgba(248,250,252,.5); display:flex; align-items:center; gap:5px; margin-bottom:4px; }
+.dsc-opt-val{ font-family:'Space Mono',monospace; font-size:17px; font-weight:700; color:#F8FAFC; }
+.dsc-opt-val.empty{ color:rgba(248,250,252,.25); }
+.dsc-badge{ font-size:8px; font-weight:700; padding:1px 5px; border-radius:4px; letter-spacing:.3px; }
+.dsc-b-ae{ background:rgba(124,58,237,.18); color:#a78bfa; }
+.dsc-b-src{ background:rgba(56,189,248,.14); color:#7dd3fc; }
+.dsc-b-hi{ background:rgba(52,211,153,.14); color:#34d399; }
+.dsc-b-mid{ background:rgba(245,158,11,.14); color:#fbbf24; }
+.dsc-b-lo{ background:rgba(148,163,184,.14); color:rgba(248,250,252,.55); }
+.dsc-foot{ padding:12px 16px 14px; display:flex; gap:10px; border-top:1px solid rgba(124,58,237,.18); }
+.dsc-btn{ flex:1; padding:13px; border-radius:13px; font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:700; cursor:pointer; border:none; }
+.dsc-btn-sec{ background:rgba(148,163,184,.12); color:#F8FAFC; border:1px solid rgba(148,163,184,.25); }
+.dsc-btn-pri{ background:linear-gradient(135deg,#7C3AED,#22D3EE); color:#fff; }
+html.day .dsc-sheet{ background:#F8FAFC; border-color:rgba(124,58,237,.25); }
+html.day .dsc-title, html.day .dsc-field, html.day .dsc-opt-val{ color:#0B1020; }
+html.day .dsc-row{ background:rgba(124,58,237,.04); }
+
+/* Inputs */
+.ldm-inp {
+  width:100%; height:48px; min-height:48px; max-height:48px;
+  -webkit-appearance:none; appearance:none;
+  background:rgba(11,16,32,.75) !important;
+  border:1px solid rgba(34,211,238,.15) !important;
+  border-radius:12px !important;
+  color:#F8FAFC !important;
+  font-family:'Space Mono',monospace;
+  font-size:13px; padding:0 14px;
+  outline:none; transition:border-color .2s, box-shadow .2s;
+  box-sizing:border-box; letter-spacing:.2px;
+}
+/* iPad/iOS: el control nativo de time no debe desbordar la caja */
+.ldm-inp[type="time"], .ldm-inp[type="date"]{ -webkit-appearance:none; appearance:none; }
+.ldm-inp[type="time"]::-webkit-date-and-time-value{ text-align:left; margin:0; }
+/* Al 20 % el ejemplo del campo (EC-MXY, VY1234, VLG1234) daba 1,83: no se veía. Al 46 %, 4,13. */
+.ldm-inp::placeholder { color:rgba(226,240,252,.46) !important; font-size:12px; }
+/* El mismo nombre en CM1 y CM2. Color por CLASE, nunca en línea: en línea el
+   modo día no lo puede corregir (ver CLAUDE.md). */
+.ldm-inp.ldm-dup { border-color:rgba(239,68,68,.75) !important; box-shadow:0 0 0 2px rgba(239,68,68,.14) !important; }
+.ldm-dup-aviso { margin-top:7px; font-size:11px; line-height:1.45; font-family:'Space Mono',monospace;
+  color:#FCA5A5; background:rgba(239,68,68,.10); border:1px solid rgba(239,68,68,.28);
+  border-radius:10px; padding:8px 10px; }
+html.day .ldm-inp.ldm-dup { border-color:#B91C1C !important; box-shadow:0 0 0 2px rgba(185,28,28,.16) !important; }
+html.day .ldm-dup-aviso { color:#8f1d1d; background:rgba(239,68,68,.08); border-color:rgba(185,28,28,.35); }
+.ldm-inp:focus {
+  border-color:rgba(124,58,237,.55) !important;
+  background:rgba(20,10,42,.7) !important;
+  box-shadow:0 0 0 3px rgba(124,58,237,.09) !important;
+}
+.ldm-inp-highlight { border-color:rgba(34,211,238,.3) !important; }
+.ldm-inp-highlight:focus { border-color:rgba(34,211,238,.6) !important; }
+.ldm-inp-center { text-align:center; }
+/* Delay field color states */
+.ldm-inp.delay-warn { color:#F59E0B !important; border-color:rgba(245,158,11,.4) !important; font-weight:600; }
+.ldm-inp.delay-err  { color:#F97316 !important; border-color:rgba(249,115,22,.4) !important; font-weight:600; }
+.ldm-inp.seq-error  { color:#EF4444 !important; border-color:rgba(239,68,68,.5)  !important; font-weight:600; box-shadow:0 0 0 2px rgba(239,68,68,.1) !important; }
+/* ─────────────────── DELAY PANEL ─────────────────── */
+@keyframes ldDelayIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+.ldm-delay-wrap { border-radius:16px;animation:ldDelayIn .22s cubic-bezier(.4,0,.2,1); }
+.ldm-delay-hdr {
+  display:flex;align-items:center;gap:10px;padding:11px 14px;
+  background:rgba(249,115,22,.07);border:1px solid rgba(249,115,22,.22);
+  border-radius:16px 16px 0 0;
+}
+.ldm-delay-hdr.cota {
+  background:rgba(245,158,11,.07);border-color:rgba(245,158,11,.22);
+}
+.ldm-delay-min-big {
+  font-family:'DM Mono','Space Mono',monospace;font-size:22px;font-weight:700;
+  color:#F97316;letter-spacing:-1px;line-height:1;
+}
+.ldm-delay-min-big.cota { color:#F59E0B; }
+.ldm-delay-sublbl {
+  font-family:'Space Grotesk',sans-serif;font-size:9px;font-weight:700;
+  letter-spacing:.8px;text-transform:uppercase;color:rgba(248,250,252,.3);
+  margin-top:2px;
+}
+.ldm-cota-pill {
+  font-size:9px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;
+  padding:3px 9px;border-radius:20px;white-space:nowrap;
+  background:rgba(249,115,22,.13);color:rgba(249,115,22,.9);border:1px solid rgba(249,115,22,.25);
+}
+.ldm-cota-pill.in {
+  background:rgba(245,158,11,.13);color:rgba(245,158,11,.9);border-color:rgba(245,158,11,.25);
+}
+.ldm-delay-title-lbl {
+  flex:1;text-align:right;font-family:'Space Grotesk',sans-serif;font-size:10px;
+  font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:rgba(248,250,252,.25);
+}
+.ldm-delay-body {
+  padding:10px 12px 12px;
+  background:rgba(249,115,22,.03);border:1px solid rgba(249,115,22,.14);
+  border-top:none;border-radius:0 0 16px 16px;
+}
+.ldm-delay-body.cota {
+  background:rgba(245,158,11,.03);border-color:rgba(245,158,11,.1);
+}
+.ldm-delay-entry {
+  display:flex;align-items:center;gap:6px;margin-bottom:6px;
+  animation:ldDelayIn .18s ease;
+}
+.ldm-dc-code {
+  width:52px;padding:8px 6px;background:rgba(13,18,35,.85);
+  border:1px solid rgba(248,250,252,.1);border-radius:10px;
+  color:rgba(248,250,252,.95);font-family:'DM Mono','Space Mono',monospace;
+  font-size:13px;font-weight:700;text-align:center;text-transform:uppercase;
+  outline:none;transition:border-color .15s;
+}
+.ldm-dc-code:focus { border-color:rgba(34,211,238,.3);box-shadow:0 0 0 2px rgba(34,211,238,.07); }
+.ldm-dc-code::placeholder { color:rgba(248,250,252,.18); font-weight:400; }
+.ldm-dc-mins {
+  width:52px;padding:8px 6px;background:rgba(13,18,35,.85);
+  border:1px solid rgba(248,250,252,.1);border-radius:10px;
+  color:rgba(248,250,252,.95);font-family:'DM Mono','Space Mono',monospace;
+  font-size:13px;font-weight:600;text-align:center;outline:none;transition:border-color .15s;
+}
+.ldm-dc-mins:focus { border-color:rgba(34,211,238,.3);box-shadow:0 0 0 2px rgba(34,211,238,.07); }
+.ldm-dc-mins::placeholder { color:rgba(248,250,252,.18); }
+.ldm-dc-mins::-webkit-inner-spin-button,.ldm-dc-mins::-webkit-outer-spin-button { -webkit-appearance:none; }
+.ldm-dc-desc {
+  flex:1;padding:8px 10px;background:rgba(13,18,35,.85);
+  border:1px solid rgba(248,250,252,.1);border-radius:10px;
+  color:rgba(248,250,252,.7);font-family:'Space Grotesk',sans-serif;
+  font-size:12px;outline:none;transition:border-color .15s;
+}
+.ldm-dc-desc:focus { border-color:rgba(34,211,238,.3);box-shadow:0 0 0 2px rgba(34,211,238,.07); }
+.ldm-dc-desc::placeholder { color:rgba(248,250,252,.18); }
+.ldm-dc-rm {
+  width:28px;height:28px;flex-shrink:0;border:none;cursor:pointer;
+  background:rgba(239,68,68,.1);border-radius:8px;color:rgba(239,68,68,.55);
+  font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;
+  transition:background .15s,color .15s;
+}
+.ldm-dc-rm:active { background:rgba(239,68,68,.22);color:rgba(239,68,68,.9); }
+.ldm-delay-add {
+  width:100%;margin-top:8px;padding:11px 12px;cursor:pointer;
+  background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.35);
+  border-radius:10px;color:#22D3EE;font-family:'Space Grotesk',sans-serif;
+  font-size:12px;font-weight:700;letter-spacing:.4px;transition:all .15s;
+}
+.ldm-delay-add:active { background:rgba(34,211,238,.18);color:#67e8f9; }
+html.day .ldm-delay-add {
+  background:rgba(8,145,178,.1) !important;border-color:rgba(8,145,178,.4) !important;color:#0369A1 !important;
+}
+.ldm-delay-remain {
+  margin-top:8px;padding:6px 12px;border-radius:10px;text-align:center;
+  font-family:'DM Mono','Space Mono',monospace;font-size:10px;letter-spacing:.3px;
+  transition:all .2s;
+}
+.ldm-delay-remain.pending { background:rgba(239,68,68,.08);color:rgba(239,68,68,.55); }
+.ldm-delay-remain.over    { background:rgba(245,158,11,.08);color:rgba(245,158,11,.6); }
+.ldm-delay-remain.ok      { background:rgba(34,197,94,.07);color:rgba(34,197,94,.6); }
+/* ── Delay code autocomplete dropdown ── */
+.ldc-dropdown {
+  position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:9999;
+  background:rgba(11,16,32,.98);border:1px solid rgba(34,211,238,.18);
+  border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.6);
+  max-height:220px;overflow-y:auto;overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+}
+.ldc-dropdown::-webkit-scrollbar { width:4px; }
+.ldc-dropdown::-webkit-scrollbar-track { background:transparent; }
+.ldc-dropdown::-webkit-scrollbar-thumb { background:rgba(34,211,238,.2);border-radius:4px; }
+.ldc-item {
+  display:flex;align-items:center;gap:8px;padding:8px 11px;cursor:pointer;
+  transition:background .1s;border-bottom:1px solid rgba(248,250,252,.04);
+}
+.ldc-item:last-child { border-bottom:none; }
+.ldc-item:hover,.ldc-item.active { background:rgba(34,211,238,.08); }
+.ldc-code-badge {
+  font-family:'DM Mono','Space Mono',monospace;font-size:13px;font-weight:700;
+  color:#22D3EE;min-width:28px;text-align:center;flex-shrink:0;
+}
+.ldc-item-text { flex:1;min-width:0; }
+.ldc-desc { font-family:'Space Grotesk',sans-serif;font-size:12px;color:rgba(248,250,252,.8);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.ldc-cat {
+  font-family:'Space Grotesk',sans-serif;font-size:9px;font-weight:700;
+  letter-spacing:.6px;text-transform:uppercase;color:rgba(248,250,252,.3);margin-top:1px;
+}
+.ldc-empty {
+  padding:12px 14px;font-family:'Space Grotesk',sans-serif;font-size:12px;
+  color:rgba(248,250,252,.25);text-align:center;
+}
+/* Delay entry wrapper — code+mins row + resolved label below */
+.ldm-delay-entry-wrap { margin-bottom:8px; animation:ldDelayIn .18s ease; }
+.ldm-delay-entry-wrap:last-child { margin-bottom:0; }
+.ldc-resolved {
+  font-family:'Space Grotesk',sans-serif;font-size:10px;
+  color:rgba(248,250,252,.38);padding:2px 2px 0 4px;
+  min-height:14px;line-height:1.3;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;letter-spacing:.1px;
+}
+/* Subcode indent in dropdown */
+.ldc-item-sub { padding-left:22px; background:rgba(248,250,252,.015); }
+.ldc-code-sub { color:rgba(34,211,238,.55) !important; font-size:11px !important; }
+.ldm-sel { appearance:none; -webkit-appearance:none; cursor:pointer; padding-right:10px; }
+/* Date/time input icon color fix on dark bg */
+.ldm-inp[type="date"]::-webkit-calendar-picker-indicator,
+.ldm-inp[type="time"]::-webkit-calendar-picker-indicator { filter:invert(.6); }
+
+/* Route hero — grid layout so both ICAO codes always fit portrait */
+.ldm-route-hero {
+  display:grid;
+  grid-template-columns:1fr auto 1fr;
+  align-items:center;
+  height:62px;
+  background:rgba(11,16,32,.8) !important;
+  border:1px solid rgba(34,211,238,.15);
+  border-radius:16px; overflow:hidden; margin-bottom:10px;
+  transition:border-color .2s;
+  width:100%;
+  box-sizing:border-box;
+}
+.ldm-route-hero:focus-within { border-color:rgba(124,58,237,.5); box-shadow:0 0 0 3px rgba(124,58,237,.08); }
+.ldm-rh-inp {
+  width:100%; height:100%;
+  background:transparent !important; border:none !important;
+  box-shadow:none !important; border-radius:0 !important;
+  padding:0 8px !important;
+  text-align:center; font-family:'Space Mono',monospace;
+  font-size:clamp(16px,5vw,22px); font-weight:500;
+  letter-spacing:1px; outline:none;
+  text-transform:uppercase; min-width:0;
+}
+.ldm-rh-dep  { color:#F8FAFC !important; }
+.ldm-rh-dest { color:#22D3EE !important; }
+.ldm-rh-dep::placeholder  { color:rgba(248,250,252,.25) !important; }
+.ldm-rh-dest::placeholder { color:rgba(34,211,238,.25) !important; }
+.ldm-rh-inp::-webkit-input-placeholder { opacity:.25 }
+.ldm-rh-inp::-moz-placeholder          { opacity:.25 }
+.ldm-rh-arr  {
+  color:rgba(34,211,238,.55); font-size:18px;
+  flex-shrink:0; font-family:'Space Mono',monospace;
+  padding:0 4px; text-align:center;
+}
+
+/* Upload zone */
+.ldm-zone {
+  border:2px dashed rgba(124,58,237,.28); border-radius:16px;
+  padding:28px 16px; text-align:center; cursor:pointer;
+  background:rgba(124,58,237,.04); margin-bottom:14px; transition:all .2s;
+}
+.ldm-zone.drag,.ldm-zone:active { border-color:#22D3EE; background:rgba(34,211,238,.05); }
+.ldm-zone-icon { font-size:34px; margin-bottom:8px; }
+.ldm-zone-lbl  { font-family:'Space Mono',monospace; font-size:14px; font-weight:600; color:#F8FAFC; margin-bottom:4px; }
+.ldm-zone-sub  { font-size:11px; color:rgba(248,250,252,.4); line-height:1.6; }
+.ldm-upload-row { display:flex; justify-content:center; gap:10px; margin-top:14px; }
+.ldm-upload-btn {
+  padding:9px 22px; font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:700;
+  background:linear-gradient(135deg,#7C3AED,#5B21B6);
+  color:#fff; border-radius:12px; cursor:pointer; transition:all .15s;
+  box-shadow:0 4px 12px rgba(124,58,237,.35);
+}
+.ldm-upload-btn-sec {
+  background:rgba(17,24,39,.9); border:1px solid rgba(34,211,238,.2);
+  color:rgba(248,250,252,.7); box-shadow:none;
+}
+.ldm-zone-tags { display:flex; justify-content:center; gap:8px; margin-top:12px; }
+.ldm-ztag {
+  font-family:'Space Mono',monospace; font-size:9px;
+  background:rgba(34,211,238,.08); border:1px solid rgba(34,211,238,.2);
+  color:#22D3EE; padding:3px 10px; border-radius:6px;
+}
+
+/* Footer */
+.ldm-ftr {
+  display:flex; gap:10px; align-items:center;
+  padding:12px 20px 32px; flex-shrink:0;
+  border-top:1px solid rgba(34,211,238,.07);
+  background:rgba(11,16,32,.95);
+}
+.ldm-btn-cancel {
+  height:50px; padding:0 20px;
+  background:rgba(30,42,58,.8); border:1px solid rgba(34,211,238,.15);
+  border-radius:14px; color:rgba(248,250,252,.55);
+  font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:600;
+  cursor:pointer; white-space:nowrap; transition:all .15s; flex-shrink:0;
+}
+.ldm-btn-cancel:active { background:rgba(124,58,237,.12); color:#F8FAFC; }
+.ldm-btn-save {
+  flex:1; height:50px; border:none; border-radius:14px;
+  background:linear-gradient(135deg,#7C3AED,#5B21B6);
+  color:#fff; font-family:'Space Grotesk',sans-serif; font-size:15px; font-weight:800;
+  cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;
+  box-shadow:0 6px 24px rgba(124,58,237,.45),0 0 0 1px rgba(255,255,255,.06);
+  transition:all .2s; letter-spacing:-.1px;
+}
+.ldm-btn-save:active { transform:translateY(1px); box-shadow:0 3px 14px rgba(124,58,237,.3); }
+.ldm-btn-save svg { opacity:.9; }
+
+/* Fix hidden ld_fl and ld_cond so JS still reads them */
+input#ld_fl, input#ld_cond { display:none !important; }
+/* Ensure ld_confirm doesn't break ldSave() */
+#ld_confirm { display:none; }
+
+/* OCR animations compat */
+.ld-ocr.loading,.ld-ocr.ok,.ld-ocr.err { display:flex; }
+/* MCDU green highlight — times section after successful OCR */
+.ldm-times-wrap {
+  border-radius:14px; padding:4px; margin:-4px;
+  transition:background .4s, box-shadow .4s, border-color .4s;
+  border:1px solid transparent;
+}
+.ldm-times-wrap.mcdu-ok {
+  background:rgba(0,255,80,.05) !important;
+  border-color:rgba(0,255,80,.2) !important;
+  box-shadow:0 0 18px rgba(0,255,80,.08), inset 0 0 12px rgba(0,255,80,.04) !important;
+}
+.ldm-times-wrap.mcdu-ok .ldm-inp {
+  background:rgba(0,20,8,.75) !important;
+  border-color:rgba(0,255,80,.22) !important;
+}
+.ldm-times-wrap.mcdu-ok .ldm-inp:focus {
+  border-color:rgba(0,255,80,.5) !important;
+  box-shadow:0 0 0 3px rgba(0,255,80,.08) !important;
+}
+.ldm-times-wrap.mcdu-ok .ldm-inp.af {
+  border-color:rgba(0,255,80,.4) !important;
+  color:#F8FAFC !important;
+}
+/* SCHED OUT/IN NO forman parte del resaltado verde (no vienen de la MCDU) */
+.ldm-times-wrap.mcdu-ok .ldm-sched-row .ldm-inp,
+.ldm-times-wrap.mcdu-ok .ldm-sched-row .ldm-inp.af {
+  background:rgba(255,255,255,.04) !important;
+  border-color:rgba(245,158,11,.25) !important;
+  color:inherit !important;
+}
+.ldm-times-wrap.mcdu-ok .ldm-sched-row .ldm-inp:focus {
+  border-color:rgba(245,158,11,.5) !important;
+  box-shadow:0 0 0 3px rgba(245,158,11,.1) !important;
+}
+/* ── Celdas rellenadas por ADS-B → resaltado AZUL (avionics cyan) ── */
+.adsb-fill,
+.ldm-inp.adsb-fill,
+.ldm-times-wrap.mcdu-ok .ldm-inp.adsb-fill {
+  border-color:rgba(56,189,248,.55) !important;
+  background:rgba(8,47,73,.55) !important;
+  color:#bae6fd !important;
+  box-shadow:inset 0 0 10px rgba(56,189,248,.1) !important;
+}
+.adsb-fill:focus,
+.ldm-inp.adsb-fill:focus {
+  border-color:rgba(56,189,248,.85) !important;
+  box-shadow:0 0 0 3px rgba(56,189,248,.14) !important;
+}
+html.day .adsb-fill,
+html.day .ldm-inp.adsb-fill,
+html.day .ldm-times-wrap.mcdu-ok .ldm-inp.adsb-fill {
+  border-color:rgba(2,132,199,.5) !important;
+  background:rgba(2,132,199,.08) !important;
+  color:#0369A1 !important;
+}
+/* MCDU green label indicator */
+.ldm-mcdu-badge {
+  display:none; font-size:9px; font-family:'Space Mono',monospace;
+  color:rgba(0,255,80,.7); letter-spacing:.4px;
+  background:rgba(0,255,80,.08); border:1px solid rgba(0,255,80,.2);
+  border-radius:5px; padding:1px 7px; margin-left:6px;
+}
+.ldm-times-wrap.mcdu-ok .ldm-mcdu-badge { display:inline; }
+
+/* ══ END LDM MODAL ══ */
+#scr-logbook{display:flex;flex-direction:column;overflow:hidden}
+#ld-panel-vuelos.ld-panel{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#ld-panel-mapa.ld-panel{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#0B1020;flex-direction:column}
+#ld-panel-stats.ld-panel{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#060A14}
+/* ── El globo de la carrera ────────────────────────────────────────────────
+   Colores por CLASE y las DOS paletas declaradas: el canvas lee `html.day` al
+   pintar, y el texto va aquí. Nada en línea — la corrección de modo día sobre
+   un atributo `style` es imposible de escribir bien. */
+.ld-globo-row{display:flex;align-items:center;gap:14px}
+.ld-globo{width:88px;height:88px;flex:0 0 auto;display:block}
+.ld-globo-txt{min-width:0}
+.ld-globo-txt > b{display:block;font-size:14px;font-weight:600;letter-spacing:-.01em;
+  line-height:1.3;color:#F8FAFC}
+.ld-globo-txt > b b{font-weight:700;color:#7DE9F9}
+.ld-globo-txt span{display:block;font-family:'Space Mono',monospace;font-size:9.5px;
+  color:rgba(248,250,252,.68);letter-spacing:.3px;margin-top:4px;line-height:1.5}
+/* La letra pequeña dice que la cuenta es en línea recta. No es un descargo de
+   responsabilidad: una cifra que se presenta como «lo que has volado» sin decir
+   que le faltan las SIDs, las STARs y los vectores está afirmando de más.
+   Al 34 % se quedaba en 3,06:1 a 9 px — por debajo de AA. Va al 55 % (5,9:1). */
+.ld-globo-txt em{display:block;font-style:normal;font-family:'Space Mono',monospace;
+  font-size:9px;color:rgba(248,250,252,.55);letter-spacing:.2px;margin-top:3px;line-height:1.45}
+/* ⚠ NI UN `html.day` AQUÍ, Y ES A PROPÓSITO.
+   `.la-card` es OSCURA en los DOS modos (`html.day .la-card` la deja en azul
+   marino). Un bloque que no cambia de fondo no puede tener dos paletas: con los
+   overrides de día puestos, este texto salía casi negro sobre casi negro —el
+   mismo fallo que la hoja «mes actualizado» del resync, 1,04:1—. Una sola
+   paleta, la de noche, y el canvas del globo va con ella. */
 /* Fondo del panel mapa en modo día — evita franja oscura bajo el mapa */
 html.day #ld-panel-mapa.ld-panel{background:#cfe0f0}
 /* ══ LOGBOOK DARK VUELOS PANEL ══ */
@@ -7722,7 +8504,6 @@ html.day .ld-rc-cnt{color:#64748B !important}
 html.day .ld-map-corner{color:rgba(34,211,238,.6) !important}
 html.day .ld-zoom-ind{background:rgba(11,16,32,.75) !important;color:rgba(34,211,238,.7) !important}
 /* Vista global link */
-html.day .ld-map-rst{color:#0891B2 !important}
 /* Conmutador y filas de destino — el cajón es CLARO en modo día, así que la
    paleta de noche no vale: se declara la de día aquí, no en un atributo style. */
 html.day .ld-mseg{background:rgba(15,23,42,.05) !important;border-color:rgba(15,23,42,.14) !important}
@@ -13024,7 +13805,52 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
            en cuanto el piloto hace su primer zoom: ya no es noticia. -->
       <div class="ld-map-corner ld-map-hint" id="ld-map-hint" style="top:8px;right:10px">TOCA PARA ACERCAR</div>
       <div class="ld-zoom-ind" id="ld-zoom-ind">1.0×</div>
+      <!-- El filtro de mes vive DENTRO del mapa, como el zoom: no roba alto al
+           dibujo. Arranca en TODO, que es lo que el piloto ya tenía. -->
+      <button type="button" class="ld-map-mes" id="ld-map-mes"
+              aria-haspopup="true" aria-expanded="false"
+              onclick="event.stopPropagation();ldMapToggleMeses()">
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+          <rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>
+        </svg>
+        <b id="ld-map-mes-t">TODO</b><i>▾</i>
+      </button>
+      <div class="ld-map-meshoja" id="ld-map-meshoja" hidden></div>
+      <!-- ── VOLVER A LA VISTA GLOBAL ────────────────────────────────────────
+           Es un mando del MAPA, así que vive en el mapa, simétrico con el filtro
+           de mes. Y sólo aparece cuando hay algo a lo que volver: con la vista
+           ya global, un botón de «vista global» es ruido — el mismo criterio que
+           «TOCA PARA ACERCAR», que se va tras el primer zoom.
+           El icono va DIBUJADO (cuatro esquinas de encuadre), no escrito con un
+           `↺`: un glifo lo pinta la fuente del móvil del piloto, no el código. -->
+      <button type="button" class="ld-map-fit" id="ld-map-fit" hidden
+              aria-label="Volver a la vista global"
+              onclick="event.stopPropagation();ldMapReset()">
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor"
+             stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"/>
+        </svg>
+        <b>VISTA GLOBAL</b>
+      </button>
     </div>
+    <!-- ── LA VUELTA AL MUNDO ───────────────────────────────────────────────
+         Va aquí, pegada al mapa y encima de la lista, y no en Stats: es la misma
+         pregunta que el mapa —dónde has estado— contada con un número. Y aquí
+         gana algo que en Stats no podía tener: **sigue al filtro de mes**, así
+         que eligiendo AGO 26 la cifra es la de agosto.
+         El globo se dibuja, no se compra: misma proyección ortográfica sobre
+         costas de dominio público, centrado en TU base, y el avión se para donde
+         te has parado tú — el recorrido ES el dato. -->
+    <div class="ld-globo-band" id="ld-globo-card">
+      <canvas id="ld-globo" class="ld-globo" width="264" height="264" aria-hidden="true"></canvas>
+      <div class="ld-globo-txt">
+        <b id="ld-globo-tit">—</b>
+        <span id="ld-globo-sub">—</span>
+        <em id="ld-globo-nota"></em>
+      </div>
+    </div>
+
     <!-- Route drawer: always visible, collapsible body -->
     <div class="ld-drawer">
       <div class="ld-drawer-handle" onclick="ldDrawerToggle()">
@@ -13035,10 +13861,17 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
             <button type="button" id="ld-mseg-dest" class="on" role="tab" aria-selected="true"
                     onclick="ldMapSetMode('dest')">Destinos<span class="n">0</span></button>
             <button type="button" id="ld-mseg-rutas" role="tab" aria-selected="false"
-                    onclick="ldMapSetMode('rutas')">Rutas<span class="n">0</span></button>
+                    onclick="ldMapSetMode('rutas')">Top rutas<span class="n">0</span></button>
           </div>
-          <span class="ld-map-rst" onclick="event.stopPropagation();ldMapReset()">↺ Vista global</span>
-          <svg id="ld-drawer-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(34,211,238,.5)" stroke-width="2.5" stroke-linecap="round" style="transition:transform .3s"><polyline points="18 15 12 9 6 15"/></svg>
+          <!-- «Vista global» se ha mudado DENTRO del mapa: es un mando del mapa,
+               no del cajón, y aquí competía con el conmutador. Queda un solo
+               botón, redondo y con su aro, en vez de un glifo suelto. -->
+          <button type="button" class="ld-drawer-btn" id="ld-drawer-chevron-btn"
+                  aria-label="Plegar o desplegar la lista" tabindex="-1">
+            <svg id="ld-drawer-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+                 style="transition:transform .3s"><polyline points="18 15 12 9 6 15"/></svg>
+          </button>
         </div>
       </div>
       <div id="ld-drawer-body" class="ld-drawer-body ld-drawer-open">
@@ -16025,6 +16858,10 @@ function toggleDayMode(){
   // vez al cargar, así que al cambiar de modo se quedaba con el color del modo anterior y
   // desaparecía contra el fondo nuevo (azul marino sobre fondo noche: contraste 1.29).
   try{ pilotosRefreshVersionTags(); }catch(e){}
+  // Igual que en pdaSetTheme: el canvas del globo no sigue al tema por CSS.
+  try{ if(window.ldGloboRender) ldGloboRender(); }catch(e){}
+  // Y el mapa: cambia de paleta sin que la cámara se mueva.
+  try{ if(window.LDM) LDM.repinta(); }catch(e){}
 }
 
 /* ════════ MODO DÍA/NOCHE AUTOMÁTICO — orto y ocaso donde está el piloto ════════
@@ -16079,6 +16916,10 @@ function pdaSetTheme(isDay){
   try{ _updateDayLabel(isDay); }catch(e){}
   try{ _ldTitleColorCycle(isDay); }catch(e){}
   try{ pilotosRefreshVersionTags(); }catch(e){}
+  // El globo pinta su paleta DENTRO del canvas: el CSS no la alcanza.
+  try{ if(window.ldGloboRender) ldGloboRender(); }catch(e){}
+  // Y el mapa: cambia de paleta sin que la cámara se mueva.
+  try{ if(window.LDM) LDM.repinta(); }catch(e){}
 }
 function pdaApply(){
   if(!pdaOn()) return;
@@ -22451,6 +23292,11 @@ function ldOpenModal(manual){
     } catch(e){ /* silencioso */ }
   })();
   ldHeredaDelDia();
+  /* Aparte de `ldHeredaDelDia` a propósito: aquélla sale por un `return` cuando el
+     día no tiene hermanos con matrícula o tripulación —un `return` dentro de un
+     `try` sale de la FUNCIÓN, no del bloque—, y la función SÍ tiene algo que decir
+     con el roster cargado aunque no haya nada que heredar. */
+  try { ldSugiereFuncion(); } catch(_e){}
   document.getElementById('ld_modal').classList.add('open');
   document.getElementById('scr-logbook').classList.add('modal-active');
   document.body.style.overflow='hidden';
@@ -22585,6 +23431,12 @@ function ldResetForm(){
      marca como automático para que la herencia del día pueda pisarlo — es la
      razón por la que el motor no se heredaba nunca. */
   var _eng=document.getElementById('ld_engine'); if(_eng) _eng.dataset.auto='1';
+  /* FUNCIÓN: mismo caso que el MOTOR. Su desplegable tampoco tiene opción en
+     blanco, así que tras `selectedIndex=0` se queda un PF que no ha elegido
+     nadie — y `ldPuedeHeredar` lo daría por escrito, dejando la sugerencia del
+     día sin ponerse NUNCA. Va después del bucle porque `ldSueltaHerencia` borra
+     justo esta marca. */
+  var _fnc=document.getElementById('ld_func'); if(_fnc) _fnc.dataset.auto='1';
   ['ld_reg','ld_cm1','ld_cm2'].forEach(function(id){ ldSueltaHerencia(document.getElementById(id)); });
   var _dupAv=document.getElementById('ld_cm_dup'); if(_dupAv) _dupAv.style.display='none';
   ['ld_cm1','ld_cm2'].forEach(function(id){ var el=document.getElementById(id); if(el) el.classList.remove('ldm-dup'); });
@@ -24407,6 +25259,7 @@ ldCloseModal=function(){
 
 // Stats
 function ldStats(){
+  try{ if(window.ldGloboRender) ldGloboRender(); }catch(e){}
   // El simulador NO es tiempo de vuelo (EASA le da columna propia), así que no entra en
   // el total, ni en el nº de vuelos, ni —importante— en el contador de 100h/28 días.
   // Fuera también la pseudo-entrada de la base de aviones, que no es un vuelo.
@@ -24529,7 +25382,11 @@ function ldToggleMenu(){
       +'<div style="font-size:10px;color:'+sub+';font-family:\'Space Mono\',monospace">'+sub2+'</div>'
       +'</div><span style="font-size:20px;color:'+dc+';flex-shrink:0">›</span></button>';
   }
-  overlay.innerHTML='<div id="ld-sheet" style="width:100%;max-width:480px;'+shBg+';border-radius:24px 24px 0 0;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 14px);overflow:hidden;animation:slideUp .28s cubic-bezier(.2,.8,.3,1)">'
+  // La hoja crece con las opciones y ya no cabe en un móvil: sin tope se sale por
+  // ARRIBA y el reloj se come las primeras filas (no hay forma de llegar a ellas,
+  // porque el desbordamiento hacia arriba no se puede desplazar). Con tope + scroll
+  // propio se queda dentro de la zona segura y se recorre con el dedo.
+  overlay.innerHTML='<div id="ld-sheet" style="width:100%;max-width:480px;'+shBg+';border-radius:24px 24px 0 0;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 14px);max-height:calc(100dvh - env(safe-area-inset-top,0px) - 10px);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;animation:slideUp .28s cubic-bezier(.2,.8,.3,1)">'
     +'<div style="width:44px;height:5px;border-radius:3px;background:'+hGrad+';margin:13px auto 4px"></div>'
     +'<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:'+tClr+';padding:12px 22px 8px;font-family:\'Space Mono\',monospace">Añadir vuelo</div>'
     +'<div style="padding:0 16px 10px;display:flex;flex-direction:column;gap:8px">'
@@ -25564,6 +26421,141 @@ function ldHeredaDelDia(){
     ldAvisaMismoNombre();
   } catch(_e){ /* silencioso */ }
 }
+
+/* ── LA FUNCIÓN (PF/PM) DE LOS TRAMOS DEL DÍA ──────────────────────────────────
+   Pedido por el piloto (6-sep-2026): «cuando el piloto en el primer vuelo ponga
+   pilot flying, en el segundo y el tercero se ponga de manera automática pilot
+   monitoring, y en el cuarto, pilot flying. El primero y el último repiten el rol
+   y los dos de en medio es el opuesto.»
+
+   Es el reparto de siempre de una jornada de cuatro: tú vuelas el 1 y el 4, el
+   otro vuela el 2 y el 3. En una de dos, simplemente se alterna.
+
+       tramos   1     2     3     4
+       2        X    ¬X
+       4        X    ¬X    ¬X     X          (X = lo que el piloto puso en el 1.º)
+
+   Cualquier otro número de tramos NO se sugiere: de una jornada de tres el
+   convenio del asiento no dice nada y adivinarlo sería inventar.
+
+   ⚠️ Es una SUGERENCIA, no un candado: entra por `ldPonHeredado`, igual que la
+   matrícula y el rol, así que en cuanto el piloto toca el desplegable deja de
+   pisarse. Un rol equivocado escrito con la firma de la app es peor que un campo
+   vacío — el piloto firma su logbook con esto.
+
+   FLORENCIA Y SAN SEBASTIÁN son la excepción, y no es una manía: son aeropuertos
+   especiales donde vuela el comandante. Confirmado por el piloto: «el comandante
+   es el pilot flying a la ida a Florencia y al despegue de Florencia», y lo mismo
+   con San Sebastián — o sea los DOS tramos que los tocan, el de entrada y el de
+   salida. Así que ahí manda el aeropuerto y no el patrón:
+     · comandante → PF en esos tramos;
+     · copiloto  → no se sugiere nada, lo pone él.
+   Y en el RESTO de tramos de un día que toque uno de esos aeropuertos tampoco se
+   sugiere: si tú vuelas el 1 y el 2, el reparto «1 y 4 contra 2 y 3» ya no se
+   sostiene y el 3.º y el 4.º no se pueden deducir. */
+var LD_APT_ESPECIALES = { FLR:1, LIRQ:1, EAS:1, LESO:1 };   // Florencia · San Sebastián
+function ldEsAptEspecial(c){ return !!LD_APT_ESPECIALES[String(c||'').replace(/^\*/,'').trim().toUpperCase()]; }
+function ldTramoEspecial(t){ return !!t && (ldEsAptEspecial(t.dep) || ldEsAptEspecial(t.arr)); }
+function ldFuncOpuesta(f){ return f==='PF' ? 'PM' : (f==='PM' ? 'PF' : null); }
+
+/* PURA: recibe el día ya montado y devuelve 'PF' | 'PM' | null. No toca el DOM ni
+   `localStorage` a propósito, para que el banco pueda conducir ESTA función y no
+   una copia suya. `null` es una respuesta —«no lo sé»— y no un fallo. */
+function ldFuncionSugerida(dia, claveActual, rol){
+  var L = (dia || []).filter(Boolean);
+  if (L.length < 2) return null;
+  /* El orden NO puede salir del reloj: una jornada que firma a las 18:10 y acaba
+     con un tramo que sale a las 00:10 saldría del revés, y entonces el 4.º recibe
+     el rol del 1.º. Se ordena con la MISMA regla del roster —firma de ancla, y si
+     no el hueco de más de 13 h— en vez de escribir una cuarta copia. */
+  var ord = ((window.rstOrdenaTramos) || function(a){ return a; })(
+    L.map(function(t){ return {
+      std_scheduled: t.std_scheduled || t.sched_out || '',
+      std_estimated: t.std_estimated || '',
+      std:           t.std || '',
+      std_actual:    t.std_actual || t.atd || '',
+      checkin:       t.checkin || '',
+      dep: t.dep, arr: t.arr, __t: t };
+    })
+  ).map(function(x){ return x.__t; });
+
+  var idx = -1;
+  for (var i = 0; i < ord.length; i++) if (ord[i].k === claveActual) idx = i;
+  if (idx < 0) return null;
+
+  if (ldTramoEspecial(ord[idx])) return rol === 'CPT' ? 'PF' : null;
+  if (ord.some(ldTramoEspecial)) return null;
+
+  if (idx === 0) return null;                                   // el 1.º lo elige el piloto
+  if (ord.length !== 2 && ord.length !== 4) return null;
+  var base = ord[0].func;
+  if (base !== 'PF' && base !== 'PM') return null;              // sin 1.º no hay de dónde deducir
+  return (idx === 3) ? base : ldFuncOpuesta(base);
+}
+
+function ldMismaRuta(a, b){
+  var n = (window.rstToIata) || function(c){ return String(c||'').toUpperCase(); };
+  return n(a.dep) === n(b.dep) && n(a.arr) === n(b.arr);
+}
+
+/* El puente con el formulario. Monta el día y pone la sugerencia. */
+function ldSugiereFuncion(){
+  try {
+    var el = document.getElementById('ld_func');
+    if (!el || !ldPuedeHeredar(el)) return;        // el piloto ya la ha tocado: no se pisa
+    var g = function(id){ var e = document.getElementById(id); return e ? String(e.value||'').trim() : ''; };
+    var fecha = g('ld_date'); if (!fecha) return;
+    var rol = g('ld_role').toUpperCase();
+    var CLAVE = '__actual__';
+    var actual = { k: CLAVE, dep: g('ld_dep').toUpperCase(), arr: g('ld_arr').toUpperCase(),
+                   sched_out: g('ld_sched_out'), std: g('ld_std'), atd: g('ld_atd'), func: '' };
+    if (!actual.dep || !actual.arr) return;
+
+    /* El día lo define el ROSTER cuando lo hay. Contando filas del logbook el
+       4.º tramo parece el 2.º mientras no estén escritos los de en medio — y le
+       tocaría el rol contrario. El roster sabe cuántos son desde el principio. */
+    var dia = null;
+    try {
+      if (typeof rstLoad === 'function') rstLoad();
+      var rid  = g('ld_roster_entry_id');
+      var legs = (((window.RST||{}).entries) || []).filter(function(e){
+        return e && e.type === 'flight' && e.date === fecha && e.dep && e.arr;
+      });
+      if (legs.length >= 2){
+        var cand = legs.map(function(l){
+          var esActual = rid ? (String(l.id) === rid) : ldMismaRuta(l, actual);
+          var lb = (!esActual && typeof window.rstFindLogbookMatch === 'function')
+            ? window.rstFindLogbookMatch(l) : null;
+          return { k: esActual ? CLAVE : ('r' + (l.id || (l.dep+l.arr+(l.std||'')))),
+                   dep: l.dep, arr: l.arr, checkin: l.checkin,
+                   std_scheduled: l.std_scheduled, std_estimated: l.std_estimated,
+                   std: l.std, std_actual: l.std_actual,
+                   func: esActual ? '' : ((lb && lb.func) || '') };
+        });
+        /* La misma ruta dos veces el mismo día y sin id del roster: no se sabe
+           cuál de las dos se está tecleando. Antes que sugerir el rol cambiado,
+           nada — es «no asignar ante la duda», como el emparejador del logbook. */
+        if (cand.filter(function(t){ return t.k === CLAVE; }).length === 1) dia = cand;
+      }
+    } catch(_e){ dia = null; }
+
+    if (!dia){
+      dia = (window.ldEntries || []).filter(function(x){
+        return x && x.date === fecha && x.id !== ldEditingId && x.dep && x.arr && x.type !== '__ac_db__';
+      }).map(function(x){
+        return { k: 'l' + x.id, dep: x.dep, arr: x.arr, sched_out: x.sched_out,
+                 std: x.std, std_actual: x.atd, func: x.func };
+      }).concat([actual]);
+    }
+
+    var f = ldFuncionSugerida(dia, CLAVE, rol);
+    if (f) ldPonHeredado('ld_func', f);
+  } catch(_e){ /* silencioso */ }
+}
+try {
+  window.ldFuncionSugerida = ldFuncionSugerida;
+  window.ldSugiereFuncion  = ldSugiereFuncion;
+} catch(e){}
 /* Un solo enganche para todos los campos que hereda: en cuanto el piloto los
    toca dejan de ser herencia. Se instala una vez, sobre el modal entero, para
    no repetir el mismo `onchange` en seis sitios del HTML. */
@@ -25575,7 +26567,15 @@ function ldHeredaDelDia(){
     ['input','change'].forEach(function(ev){
       m.addEventListener(ev, function(e){
         var t=e.target;
-        if(t && /^(ld_reg|ld_actype|ld_engine|ld_role|ld_cm1|ld_cm2)$/.test(t.id||'')) ldSueltaHerencia(t);
+        if(t && /^(ld_reg|ld_actype|ld_engine|ld_role|ld_cm1|ld_cm2|ld_func)$/.test(t.id||'')) ldSueltaHerencia(t);
+        /* La función se deduce de la fecha, la ruta, las horas —que deciden el
+           ORDEN del día— y el rol. Si cambia cualquiera de las cinco hay que
+           rehacerla: el piloto abre el modal con el roster de un día y teclea
+           otro, y la sugerencia se quedaba en la del día anterior. No pisa nada
+           si ya la tocó: `ldSugiereFuncion` sale por `ldPuedeHeredar`. */
+        if(t && /^(ld_date|ld_dep|ld_arr|ld_sched_out|ld_std|ld_atd|ld_role)$/.test(t.id||'')) {
+          try{ ldSugiereFuncion(); }catch(_e){}
+        }
       }, true);
     });
     puesto=true;
@@ -28765,6 +29765,10 @@ document.addEventListener('focusin',function(e){
 <script src="js/ecrews-legs-import.js"></script>
 <script src="js/logbook-import-undo.js"></script>
   <script src="js/dia-libre.js"></script>
+<!-- Costas del mundo para el globo de las estadísticas. Fichero aparte y no
+     dentro de este HTML: son 49 kB de geometría que el navegador cachea una vez
+     y no vuelve a descargar en cada despliegue del index. -->
+<script src="js/coastline.js" defer></script>
 <script src="js/expense-engine.js"></script>
 <script src="js/expense.js"></script>
 <script>
@@ -39136,8 +40140,19 @@ function rstRenderCalendar(){
 
     // ── Sleeps away from base? (uses pre-computed positional state) ─────────────────
     var sleepsAway = _awayDays[dateStr] === true;
+    /* La luna va DIBUJADA, no escrita. Era `&#9789;` (U+263D) a 13 px: la fuente del
+       sistema lo pinta como un trazo HUECO de un pelo de ancho, y sobre el blanco de
+       la celda no se ve — medido, 2,1 % de tinta oscura en su propia caja. El piloto
+       lo reportó tal cual: «la luna debería ser toda negra porque no se ve cuando
+       duermes fuera». `font-weight:900` no engorda un glifo de símbolo, así que no
+       había forma de arreglarlo por CSS: la única marca de que se duerme fuera de base
+       dependía de qué fuente tuviera el dispositivo. Con el trazado propio es sólida
+       en cualquier sistema y no puede volver a adelgazar. La celda es #FFFFFF en los
+       DOS temas (fondo en línea, más abajo), así que el negro vale para los dos. */
     var moonBadge = sleepsAway
-      ? '<div title="Pernocta fuera de base" style="position:absolute;bottom:16px;right:3px;font-size:13px;color:#111;z-index:4;line-height:1;font-weight:900">&#9789;</div>'
+      ? '<div title="Pernocta fuera de base" style="position:absolute;bottom:15px;right:3px;z-index:4;line-height:0">'
+        + '<svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">'
+        + '<path fill="#111" d="M12 3 A9 9 0 1 1 12 21 A18 18 0 0 0 12 3 Z"/></svg></div>'
       : '';
 
     var todayRing = isToday ? 'outline:2.5px solid #0891B2;outline-offset:1px;' : '';
@@ -40837,6 +41852,10 @@ function rstFindLogbookMatch(rosterEntry) {
    deliberado: aquí ya está la normalización IATA↔ICAO, el desempate por STD de dos
    vuelos con la misma ruta el mismo día, y el «ante la duda, no asignar nada». */
 try{ window.rstFindLogbookMatch = rstFindLogbookMatch; }catch(e){}
+/* El normalizador IATA↔ICAO lo necesita ahora también el logbook, que vive en OTRO
+   bloque <script>: sin exportarlo `rstToIata` es `undefined` allí y la comparación de
+   rutas que dice hacerse no hace nada, sin error. Es `window.RST_IATA_ICAO` otra vez. */
+try{ window.rstToIata = rstToIata; }catch(e){}
 
 // ── ¿Esta entrada del roster es TRABAJO? ─────────────────────────────────────
 // El "Próximo servicio", su cuenta atrás y el DESCANSO miraban sólo type==='flight'.
@@ -47900,6 +48919,35 @@ function _getFirstName(user) {
   return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() || _ldTrato();
 }
 
+/* ── El NOMBRE del piloto, uno solo para toda la app ───────────────────────────
+   Devuelve el nombre completo o '' — nunca un relleno. Manda el del PERFIL, que es
+   lo último que el piloto escribió a propósito; después `pilot_name`; y sólo
+   entonces el de la cuenta.
+
+   La última rama COMPARA el nombre de la cuenta con la parte local del correo, y no
+   es una manía: el alta guarda `name: email.split('@')[0]`, así que en una cuenta sin
+   tocar los dos son iguales. Eso NO es un nombre, es un relleno que puso la propia
+   app — y por él ARIA saludaba «hola jkl» teniendo el nombre en el perfil dos
+   pantallas más allá. Sin nombre se devuelve vacío y quien lo use decide qué hacer:
+   el briefing saluda SIN nombre, que es mejor que decirle a alguien un trozo de su
+   dirección de correo con la voz de ARIA.
+
+   ⚠️ Es la ÚNICA resolución y se exporta a `window` a propósito: la usan los DOS
+   briefings, y cada uno vive en su `<script>`. Si aparece una segunda copia,
+   unificarla — es el fallo de `ES_AIRPORTS` / `ES_IATA`. `_getFirstName` es otra
+   cosa: resuelve para la CABECERA, donde sí hay tratamiento por defecto. */
+function pilotosNombrePiloto() {
+  try { var p = (window.ppGet && ppGet('nombre')) || ''; if (String(p).trim()) return String(p).trim(); } catch (e) {}
+  try { var ls = localStorage.getItem('pilot_name') || ''; if (String(ls).trim()) return String(ls).trim(); } catch (e) {}
+  try {
+    var au = JSON.parse(localStorage.getItem('cafi_auth_user') || '{}');
+    var n = String(au.name || '').trim(), loc = String(au.email || '').split('@')[0].trim();
+    if (n && (!loc || n.toLowerCase() !== loc.toLowerCase())) return n;
+  } catch (e) {}
+  return '';
+}
+try { window.pilotosNombrePiloto = pilotosNombrePiloto; } catch (e) {}
+
 function updateUserAvatar(user) {
   if (!user) return;
   user = _pilotUser(user);      // el nombre del perfil manda sobre el de la cuenta
@@ -49997,6 +51045,8 @@ var LDM = {
      y sigue entero, sólo que detrás de una pestaña. El modo no se guarda: al
      entrar en el mapa lo que se quiere ver es el mapa completo. */
   mode:'dest', DESTS:[], WEB:[], selDest:-1, maxCnt:0,
+  mes:'todo',            // filtro de periodo del mapa; no se persiste (ver ldMapEntries)
+  _fitVis:false,         // si la píldora «vista global» está a la vista (ver loop)
   sinSituar:[], fueraMapa:[],
 
   /* Zoom que hace el piloto tocando el mapa. Se guarda en LON/LAT, no en píxeles
@@ -50179,13 +51229,47 @@ var LDM = {
     this.cam.tx=(minx+maxx)/2; this.cam.ty=(miny+maxy)/2;
     this.cam.ts=Math.min(Math.max(s,1.0),4.0);
   },
-  updateCam:function(){
-    var e=0.06;
+  /* ── LA CÁMARA SE MIDE EN SEGUNDOS, NO EN FRAMES ──────────────────────────
+     Era `e=0.06` POR FRAME. A 60 fps la cámara cubre el 95 % del camino en unos
+     50 frames, o sea 0,83 s, y se siente instantánea. A 12 fps ese mismo 0,06
+     por frame tarda **4 segundos** — y a 6 fps, ocho. La animación no iba lenta
+     porque el móvil fuera lento: iba lenta porque su DURACIÓN estaba atada a la
+     velocidad de dibujo. Es el «va un poco lento, no del todo fluido» del
+     reporte, y no se arregla dibujando más rápido.
+     Con `k` = frames de 60 Hz transcurridos, la misma curva dura lo mismo en
+     segundos pase lo que pase; en un móvil lento se ve a saltos, pero llega
+     cuando tiene que llegar. */
+  updateCam:function(k){
+    var e=1-Math.pow(1-0.06, (k===undefined?1:k));
     this.cam.x+=(this.cam.tx-this.cam.x)*e;
     this.cam.y+=(this.cam.ty-this.cam.y)*e;
     this.cam.s+=(this.cam.ts-this.cam.s)*e;
-    var zi=document.getElementById('ld-zoom-ind');
-    if(zi) zi.textContent=this.cam.s.toFixed(1)+'×';
+    /* El rótulo del zoom se escribía en CADA frame: un `textContent` por frame
+       es un recálculo de estilo por frame para no cambiar nada 9 veces de 10. */
+    var txt=this.cam.s.toFixed(1)+'×';
+    if(txt!==this._zTxt){
+      this._zTxt=txt;
+      var zi=document.getElementById('ld-zoom-ind');
+      if(zi) zi.textContent=txt;
+    }
+  },
+  /* ¿Hay algo moviéndose? Si no, no se repinta: en la vista de destinos, quieto,
+     el mapa estaba rehaciendo costas, arcos y puntos 60 veces por segundo para
+     dejarlos exactamente donde estaban. */
+  /* Un repintado a la fuerza. Hace falta porque «nada se mueve» NO significa
+     «lo que hay pintado sigue valiendo»: redimensionar el canvas lo BORRA, y
+     cambiar de tema cambia todos los colores sin mover la cámara. Sin esto, al
+     girar el móvil el mapa se quedaba en blanco — lo cazó el banco del giro, no
+     yo. Es la contrapartida de no repintar por si acaso: hay que decir cuándo
+     sí. */
+  repinta:function(){ this._sucio=true; },
+  _algoSeMueve:function(){
+    var c=this.cam;
+    if(this._sucio){ this._sucio=false; return true; }
+    if(this.bgProg<1) return true;
+    if(Math.abs(c.tx-c.x)>0.05||Math.abs(c.ty-c.y)>0.05||Math.abs(c.ts-c.s)>0.0015) return true;
+    if(this.mode==='dest') return this.selDest>=0;      // sólo late el elegido
+    return true;                                        // en Top rutas los puntos corren siempre
   },
 
   getCP:function(x1,y1,x2,y2){
@@ -50552,6 +51636,19 @@ var LDM = {
       var toca=!!sel&&(r.f===sel.code||r.t===sel.code);
       var cp=m.getCP(p1[0],p1[1],p2[0],p2[1]);
       ctx.save();
+      /* ── AQUÍ NO VA EL PESO DE LA RUTA, Y NO ES CUESTIÓN DE GUSTO ────────────
+         Beta.743 pesó estos arcos por horas de bloque. Medido sobre las dos
+         capturas del piloto —el MISMO mapa, con y sin—: el cian fuerte pasó del
+         6,2 % al 9,1 % de la zona del mapa, y en la banda que rodea la base
+         —donde se amontonan los 253 arcos— del 28,6 % al 43,2 %. La forma de la
+         red dejó de leerse.
+         Y debajo hay un motivo que sobrevive al gusto: cuando 253 arcos se cruzan
+         en abanico sobre la base, la tinta acumulada en un punto NO es el peso de
+         una ruta — es CUÁNTOS arcos pasan por ahí. Es otra magnitud pintada con
+         el mismo canal, y encima justo donde más denso está. El mapa afirmando
+         algo que no sabe, que es el fallo que más veces se repite en este archivo.
+         El peso vive donde SÍ se lee: el tamaño del punto de cada destino, y la
+         pestaña RUTAS, que son diez y van separadas. Aquí se lee la FORMA. */
       ctx.globalAlpha=sel?(toca?.95:.06):Math.min(.62,.18+r.cnt*.03);
       ctx.strokeStyle=toca?(day?'rgba(109,40,217,.95)':'rgba(167,139,250,.95)')
                           :(day?'rgba(8,145,178,.85)':'rgba(34,211,238,.7)');
@@ -50626,19 +51723,167 @@ var LDM = {
     });
   },
 
+  /* ── EL BUCLE NO CORRE CON EL CANVAS OCULTO ───────────────────────────────
+     Medido con el banco del globo: en la pestaña VUELOS del logbook el mapa
+     seguía repintándose **90 frames cada 1,5 s** con su canvas en `display:none`
+     — costas, arcos y puntos, 60 veces por segundo, para nadie. Salir del
+     logbook sí lo paraba, así que no llegaba a ser el desastre del perfil meteo
+     (209 ms por interacción tres pantallas más allá), pero es el mismo patrón y
+     la misma regla: **un bucle de animación que no se ve no corre.**
+     Se para con un `IntersectionObserver` sobre el canvas y con la app en
+     segundo plano; al volver a verse, sigue donde estaba. */
+  _paraSiNoSeVe:function(){
+    var m=LDM, cv=document.getElementById('ld-map-canvas');
+    if(!cv||m._vio) return;
+    var revisa=function(){
+      var ve=m._enVista!==false && document.visibilityState!=='hidden';
+      if(ve){ if(m.raf===null||!m.raf){ m.raf=0; m._ts=0; m.loop(); } }
+      else if(m.raf){ cancelAnimationFrame(m.raf); m.raf=null; }
+    };
+    m._revisaLoop=revisa;
+    if(window.IntersectionObserver){
+      m._vio=new IntersectionObserver(function(es){
+        es.forEach(function(e){ m._enVista=e.isIntersecting; });
+        revisa();
+      },{threshold:0});
+      m._vio.observe(cv);
+    }
+    document.addEventListener('visibilitychange',revisa);
+  },
+
   loop:function(){
     var m=LDM;
-    m.updateCam(); m.phase+=.009;
-    if(m.bgProg<1) m.bgProg=Math.min(1,m.bgProg+.013);
-    m.ROUTES.forEach(function(_,i){if(m.prog[i]<1) m.prog[i]=Math.min(1,m.prog[i]+.014-i*.001);});
-    m.drawFrame();
+    /* `k` = cuántos frames de 60 Hz han pasado de verdad. Todo lo que avanza por
+       frame se multiplica por él, así que en un móvil lento las animaciones se
+       ven a saltos pero duran lo mismo. El tope de 4 evita que volver de un
+       segundo plano dé un salto de golpe. El tope de 10 (≈167 ms) cubre hasta
+       6 fps: por debajo ya no hay animación que salvar, y quien vuelve de segundo
+       plano entra por `_ts=0`, no por aquí. */
+    var ahora=(window.performance&&performance.now)?performance.now():Date.now();
+    var k=m._ts?Math.min(10,(ahora-m._ts)/16.667):1;
+    m._ts=ahora;
+    /* ¿Hay algo a lo que volver? Se mira aquí porque las seis puertas que mueven
+       la cámara (tocar el mapa, elegir destino, elegir ruta, cambiar de modo,
+       filtrar por mes, reset) tendrían que acordarse cada una — y la que se
+       olvidara dejaría el botón mintiendo. Se compara con el estado ANTERIOR y
+       sólo se toca el DOM cuando cambia: escribir por frame sería un reflow por
+       frame, que es lo que ya costó 209 ms en esta app. */
+    var fuera=!!(m.libre||m.selDest>=0||m.selIdx>=0);
+    if(fuera!==m._fitVis){
+      m._fitVis=fuera;
+      var fb=document.getElementById('ld-map-fit');
+      if(fb) fb.hidden=!fuera;
+    }
+    m.updateCam(k); m.phase+=.009*k;
+    if(m.bgProg<1) m.bgProg=Math.min(1,m.bgProg+.013*k);
+    m.ROUTES.forEach(function(_,i){if(m.prog[i]<1) m.prog[i]=Math.min(1,m.prog[i]+(.014-i*.001)*k);});
+    if(m._algoSeMueve()) m.drawFrame();
     m.raf=requestAnimationFrame(function(){if(m.raf!==null)m.loop();});
   }
 };
 
+/* ── EL FILTRO DE MES: una sola puerta a los vuelos del mapa ──────────────────
+   Las DOS vistas —la telaraña de destinos y las diez rutas— tienen que mirar
+   exactamente los mismos vuelos. Si cada una filtrara por su cuenta acabarían
+   diciendo cosas distintas del mismo mes: es el fallo de `ES_AIRPORTS`/`ES_IATA`
+   esperando a repetirse. Aquí se filtra UNA vez, y las dos llaman a esto.
+
+   `LDM.mes` NO se guarda: al volver al mapa lo que se quiere ver es el mapa
+   entero, no el septiembre que se miró la semana pasada. */
+function ldMapEntries(){
+  var todo=window.ldEntries||[];
+  if(!LDM.mes||LDM.mes==='todo') return todo;
+  var pre=LDM.mes+'-';
+  return todo.filter(function(e){ return e&&e.date&&String(e.date).indexOf(pre)===0; });
+}
+
+/* Los meses que existen en el logbook, del más nuevo al más viejo, con sus
+   horas de bloque. Sale del logbook ENTERO, no del filtrado: una lista de meses
+   que se recorta a sí misma al elegir uno sería un callejón sin salida. */
+function ldMapMeses(){
+  var acc={};
+  (window.ldEntries||[]).forEach(function(e){
+    if(!e||!e.date||e.type==='__ac_db__') return;
+    var k=String(e.date).slice(0,7);
+    if(!/^\d{4}-\d{2}$/.test(k)) return;
+    acc[k]=(acc[k]||0)+(ldT2mins(e.block)||0);
+  });
+  var MES=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+  return Object.keys(acc).sort().reverse().map(function(k){
+    var p=k.split('-');
+    return { k:k, anyo:p[0], txt:MES[parseInt(p[1],10)-1]+' '+p[0].slice(2), mins:acc[k] };
+  });
+}
+function ldMapMesTxt(k){
+  if(!k||k==='todo') return 'TODO';
+  var m=ldMapMeses().filter(function(x){return x.k===k;})[0];
+  return m?m.txt:'TODO';
+}
+function _ldMapHm(mins){
+  var h=Math.floor((mins||0)/60), mn=Math.round((mins||0)%60);
+  if(mn===60){h++;mn=0;}
+  return h+':'+(mn<10?'0':'')+mn;
+}
+
+/* La hoja se pinta entera cada vez que se abre: los meses cambian con cada
+   importación y una lista construida al arrancar se quedaría vieja. */
+function ldMapPintaMeses(){
+  var hoja=document.getElementById('ld-map-meshoja'); if(!hoja) return;
+  var ms=ldMapMeses(), total=0;
+  ms.forEach(function(m){ total+=m.mins; });
+  var html='<button type="button" data-mes="todo" class="'+(LDM.mes==='todo'?'on':'')+'">'
+         + '<span>TODO</span><s>'+_ldMapHm(total)+' h</s></button>';
+  var anyo='';
+  ms.forEach(function(m){
+    if(m.anyo!==anyo){ anyo=m.anyo; html+='<div class="a">'+anyo+'</div>'; }
+    html+='<button type="button" data-mes="'+m.k+'" class="'+(LDM.mes===m.k?'on':'')+'">'
+        + '<span>'+m.txt+'</span><s>'+_ldMapHm(m.mins)+' h</s></button>';
+  });
+  hoja.innerHTML=html;
+  var b=document.getElementById('ld-map-mes'), t=document.getElementById('ld-map-mes-t');
+  if(t) t.textContent=ldMapMesTxt(LDM.mes);
+  if(b) b.classList.toggle('on', !!LDM.mes && LDM.mes!=='todo');
+}
+function ldMapToggleMeses(v){
+  var hoja=document.getElementById('ld-map-meshoja'), b=document.getElementById('ld-map-mes');
+  if(!hoja) return;
+  var abre = (v===undefined) ? hoja.hidden : !!v;
+  if(abre) ldMapPintaMeses();
+  hoja.hidden=!abre;
+  if(b) b.setAttribute('aria-expanded', abre?'true':'false');
+}
+/* Elegir mes RECONSTRUYE las dos vistas y vuelve a encuadrar: con el encuadre
+   del mes anterior, un mes de islas se quedaría dibujado a escala de Europa. */
+function ldMapEligeMes(k){
+  if(LDM.mes===k){ ldMapToggleMeses(false); return; }
+  LDM.mes=k;
+  LDM.selIdx=-1; LDM.selDest=-1; LDM.libre=null;
+  var info=document.getElementById('ld-map-info');
+  if(info) info.classList.remove('vis');
+  LDM.ROUTES=ldMapBuildRoutes()||[];
+  LDM.prog=LDM.ROUTES.map(function(){return 0;});
+  var dst=ldMapBuildDests();
+  LDM.DESTS=dst.lista; LDM.WEB=dst.web; LDM.maxCnt=dst.max;
+  LDM.sinSituar=dst.sinSituar; LDM.fueraMapa=dst.fueraMapa;
+  LDM.bgProg=0;                       // que el mes nuevo entre dibujándose
+  ldMapPintaMeses();
+  ldMapToggleMeses(false);
+  ldMapRenderCards();
+  try{ ldGloboRender(true); }catch(e){}   // la banda sigue al mes, y el mundo gira
+  ldMapEncuadraTodo();
+}
+document.addEventListener('click',function(e){
+  var hoja=document.getElementById('ld-map-meshoja');
+  if(!hoja||hoja.hidden) return;
+  var b=e.target&&e.target.closest?e.target.closest('#ld-map-meshoja button'):null;
+  if(b){ ldMapEligeMes(b.getAttribute('data-mes')); return; }
+  if(e.target&&e.target.closest&&e.target.closest('#ld-map-mes')) return;
+  if(!hoja.contains(e.target)) ldMapToggleMeses(false);
+});
+
 // ── Build routes from logbook entries ────────────────────────────────────────
 function ldMapBuildRoutes(){
-  var entries=window.ldEntries||[];
+  var entries=ldMapEntries();
   var routeMap={};
   entries.forEach(function(e){
     if(!e||!e.dep||!e.arr||e.type==='__ac_db__') return;
@@ -50656,11 +51901,32 @@ function ldMapBuildRoutes(){
   });
   var sorted=Object.values(routeMap).sort(function(a,b){return b.cnt-a.cnt;});
   if(sorted.length===0) return null; // no data → use demo
-  return sorted.slice(0,10).map(function(r,i){
+  var top=sorted.slice(0,10);
+  /* ── EL GROSOR DE LAS DIEZ SALE DE LAS HORAS ────────────────────────────────
+     Aquí sí: son diez arcos con su color, separados, y el grosor se lee. En la
+     telaraña de TODOS los destinos no —ahí se amontonan 253 y la tinta acumulada
+     deja de significar el peso de una ruta; ver el comentario de `drawWeb`.
+
+     Lo que había era `1,2 + cnt·0,12` topado en 3,2, que **satura a los 17
+     sectores**: con la red real las diez rutas más voladas van de 44 a 496
+     sectores, así que las DIEZ salían clavadas en 3,2 px. Un canal que dice lo
+     mismo para todos no dice nada — el 0 mudo de las pernoctas, en el grosor.
+
+     Y sale de las HORAS, no del recuento: un BCN–PMI de 45 min no pesa lo que un
+     BCN–ATH de 3 h. La referencia es el máximo de las diez —dentro del top‑10 el
+     reparto es de unos 10 a 1, no los 480 a 1 de la red entera, así que aquí el
+     máximo no aplasta a nadie— y la raíz comprime lo de arriba. Rango 1,2…3,2 px,
+     el mismo de antes, pero ahora variando.
+     Si el logbook no trae bloque (`mins` todo a 0) se cae al recuento: mejor una
+     escala imperfecta que diez arcos idénticos. */
+  var refMin=0; top.forEach(function(r){ if(r.mins>refMin) refMin=r.mins; });
+  var refCnt=0; top.forEach(function(r){ if(r.cnt>refCnt) refCnt=r.cnt; });
+  return top.map(function(r,i){
     var col=LDM.ROUTE_COLORS[i%LDM.ROUTE_COLORS.length];
     var h=Math.floor(r.mins/60), mn=r.mins%60;
     var hrs=r.mins>0?(h+':'+(mn<10?'0':'')+mn):'—';
-    var w=Math.max(1.2,Math.min(3.2,1.2+r.cnt*0.12));
+    var t=refMin?Math.min(1,r.mins/refMin):(refCnt?Math.min(1,r.cnt/refCnt):0);
+    var w=1.2+2.0*Math.sqrt(t);
     return{f:r.f,t:r.t,hrs:hrs,cnt:r.cnt,c1:col.c1,c2:col.c2,w:w,dot:col.dot};
   });
 }
@@ -50673,10 +51939,13 @@ function ldMapBuildRoutes(){
    es el mismo 0 mudo de las pernoctas: desde fuera, «no lo has volado» y «no
    sabemos dónde está» se ven igual. Los sin situar SIGUEN en la lista de abajo.  */
 function ldMapBuildDests(){
-  var entries=window.ldEntries||[];
+  var entries=ldMapEntries();
   var d={}, pares={}, sin={}, fuera=[];
+  /* La BASE sale del logbook ENTERO, nunca del mes filtrado: con un mes de
+     destacamento la deducción diría que tu base es el destacamento. Es el mismo
+     aviso que ya está escrito para las pernoctas. */
   var base='';
-  try{ base=LDM.canon(ldHomeBase(entries)||''); }catch(e){}
+  try{ base=LDM.canon(ldHomeBase(window.ldEntries||[])||''); }catch(e){}
   function anota(code,e,esLlegada,bm){
     var o=d[code];
     if(!o) o=d[code]={code:code,cnt:0,mins:0,llegadas:0,salidas:0,ldgDay:0,ldgNight:0,
@@ -50699,8 +51968,8 @@ function ldMapBuildDests(){
       var a=LDM.pt(dep), b=LDM.pt(arr);
       if(a&&b){
         var k=dep<arr?dep+'-'+arr:arr+'-'+dep;
-        if(!pares[k]) pares[k]={f:dep,t:arr,a:a,b:b,cnt:0};
-        pares[k].cnt++;
+        if(!pares[k]) pares[k]={f:dep,t:arr,a:a,b:b,cnt:0,mins:0};
+        pares[k].cnt++; pares[k].mins+=bm;
       }
     }
   });
@@ -50718,8 +51987,12 @@ function ldMapBuildDests(){
      queda del mismo tamaño — que es como estaba y no decía nada. La base tiene
      su propio tamaño y su propio color, así que no necesita entrar en el reparto. */
   var refs=lista.filter(function(o){return !o.base&&o.xy;});
+  /* Cada pareja se lleva sus minutos de bloque aunque la telaraña se pinte toda
+     igual: los lee la ficha del destino. Lo que NO existe ya es una referencia
+     de grosor para el web — ver el comentario de `drawWeb`. */
+  var web=Object.keys(pares).map(function(k){return pares[k];});
   return { lista:lista,
-           web:Object.keys(pares).map(function(k){return pares[k];}),
+           web:web,
            sinSituar:Object.keys(sin).sort(),
            fueraMapa:fuera,
            max:refs.length?refs[0].cnt:(lista.length?lista[0].cnt:0) };
@@ -50762,7 +52035,6 @@ function ldMapTargetH(W){
   var normal=Math.round(W*0.62);
   var body=document.getElementById('ld-drawer-body');
   var collapsed=body&&body.classList.contains('ld-drawer-closed');
-  if(!collapsed) return normal;
   var wrap=document.getElementById('ld-map-wrap');
   var handle=document.querySelector('.ld-drawer-handle');
   // Medir la barra de navegación fija (respeta el safe-area del dispositivo)
@@ -50772,8 +52044,22 @@ function ldMapTargetH(W){
   var navTop=nav?nav.getBoundingClientRect().top:window.innerHeight;
   var handleH=handle?handle.offsetHeight:40;
   // Mapa + cabecera del cajón llegan justo a la barra inferior → sin franja negra
-  var avail=navTop-wrapTop-handleH-1;
-  return Math.max(normal,Math.round(avail));
+  var avail=Math.round(navTop-wrapTop-handleH-1);
+  if(collapsed) return Math.max(normal,avail);
+  /* ── EN APAISADO, 0,62·ANCHO NO CABE ────────────────────────────────────────
+     Con el cajón abierto la altura salía de una proporción del ANCHO y ya está.
+     En vertical eso da un mapa cómodo; girando el teléfono el ancho se dobla y la
+     proporción pide 533 px de alto sobre una pantalla de 430: el mapa se come la
+     pantalla entera y la lista de destinos se va debajo de la barra de navegación.
+     Es lo de la captura del reporte.
+     La proporción es un DESEO; el techo es la pantalla. Se aplica la MISMA
+     proporción al alto del viewport, así que en vertical no cambia nada (267 px
+     de 860 sigue mandando el ancho) y en apaisado el mapa ocupa lo que puede sin
+     empujar el cajón fuera. Suelo de 180 px para que en una pantalla muy baja el
+     mapa no llegue a desaparecer. */
+  var vp=window.innerHeight||0;
+  var techoVp=vp?Math.round(vp*0.62):normal;
+  return Math.max(180,Math.min(normal,techoVp));
 }
 
 // Reaplica la altura del canvas (al replegar/desplegar) sin reiniciar rutas
@@ -50789,6 +52075,7 @@ function ldMapApplyHeight(){
   cv.style.width=LDM.W+'px'; cv.style.height=H+'px';
   wrap.style.height=H+'px';
   LDM.ctx=cv.getContext('2d'); LDM.ctx.scale(LDM.dpr,LDM.dpr);
+  LDM.repinta();                    // redimensionar el canvas lo deja en blanco
   /* Si el encuadre es del piloto se CONSERVA. Esta función se llama justo
      después de replegar el cajón —que es lo que hace el zoom al tocar— y
      reencuadrar aquí se comía el zoom recién hecho. La cámara actual se corrige
@@ -50810,6 +52097,71 @@ function ldMapApplyHeight(){
   LDM.cam.x=LDM.cam.tx; LDM.cam.y=LDM.cam.ty; LDM.cam.s=LDM.cam.ts;
 }
 
+/* ── AL GIRAR EL MÓVIL, EL MAPA SE REHACE ──────────────────────────────────────
+   `ldMapInit` medía el ancho UNA vez y no volvía a mirarlo, y `ldMapApplyHeight`
+   sólo corrige el ALTO (existe para replegar el cajón). Girando el teléfono el
+   canvas se quedaba con el ancho del retrato: el mapa dibujado en la mitad
+   izquierda y el resto negro. Reportado con captura, 6-sep-2026.
+
+   El aviso lo da un `ResizeObserver`, no un `clientWidth` por frame: leer el
+   ancho en cada frame fuerza un reflow síncrono de la página entera y ya costó
+   209 ms por interacción en esta app.
+
+   Se rehace SÓLO si el ancho cambia de verdad: el observer también salta al
+   plegar el cajón, y ese camino ya lo lleva `ldMapApplyHeight` conservando el
+   zoom del piloto. */
+function ldMapReflow(){
+  var wrap=document.getElementById('ld-map-wrap');
+  if(!wrap||!LDM.ctx) return;
+  var W=wrap.offsetWidth||wrap.clientWidth||0;
+  if(W<10) return;                       // panel oculto: no hay nada que medir
+  if(W===LDM.W){ ldMapApplyHeight(); return; }
+  var H=ldMapTargetH(W);
+  LDM.W=W; LDM.H=H; LDM.computeBounds();
+  var cv=document.getElementById('ld-map-canvas');
+  cv.width=W*LDM.dpr; cv.height=H*LDM.dpr;
+  cv.style.width=W+'px'; cv.style.height=H+'px';
+  wrap.style.height=H+'px';
+  LDM.ctx=cv.getContext('2d'); LDM.ctx.scale(LDM.dpr,LDM.dpr);
+  /* Lo que el piloto estaba mirando se conserva: `LDM.libre` guarda su centro en
+     lon/lat y su escala, así que se recoloca sobre la proyección nueva en vez de
+     saltar a la vista global y perderle el sitio. */
+  if(LDM.libre){
+    LDM.cam.tx=LDM.wX(LDM.libre.lon); LDM.cam.ty=LDM.wY(LDM.libre.lat); LDM.cam.ts=LDM.libre.s;
+  } else if(LDM.mode==='dest'&&LDM.selDest>=0&&LDM.DESTS[LDM.selDest]){
+    ldMapEncuadraDest(LDM.DESTS[LDM.selDest]);
+  } else if(LDM.mode!=='dest'&&LDM.selIdx>=0&&LDM.ROUTES[LDM.selIdx]){
+    var r=LDM.ROUTES[LDM.selIdx],a1=LDM.pt(r.f),a2=LDM.pt(r.t);
+    if(a1&&a2) LDM.frameTo([a1[0],a1[1],a2[0],a2[1]]);
+  } else { ldMapEncuadraTodo(); }
+  LDM.cam.x=LDM.cam.tx; LDM.cam.y=LDM.cam.ty; LDM.cam.s=LDM.cam.ts;
+  ldMapToggleMeses(false);               // la hoja del mes se queda donde no toca
+  LDM.repinta();                         // el canvas nuevo nace BORRADO
+  if(LDM.raf===null||!LDM.raf) LDM.drawFrame();
+}
+window.ldMapReflow=ldMapReflow;
+(function(){
+  var wrap=null, ro=null;
+  function engancha(){
+    wrap=document.getElementById('ld-map-wrap');
+    if(!wrap||ro) return;
+    if(window.ResizeObserver){
+      ro=new ResizeObserver(function(){ try{ ldMapReflow(); }catch(e){} });
+      ro.observe(wrap);
+    }
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',engancha);
+  else engancha();
+  /* `orientationchange` de respaldo: en algunas WebView el ResizeObserver llega
+     ANTES de que el layout se haya reasentado, y entonces mide el ancho viejo. */
+  window.addEventListener('orientationchange',function(){
+    setTimeout(function(){ try{ ldMapReflow(); }catch(e){} },220);
+  });
+  window.addEventListener('resize',function(){
+    setTimeout(function(){ try{ ldMapReflow(); }catch(e){} },120);
+  });
+})();
+
 // ── Map init ──────────────────────────────────────────────────────────────────
 function ldMapInit(){
   var wrap=document.getElementById('ld-map-wrap');
@@ -50818,7 +52170,14 @@ function ldMapInit(){
   if(W<10){ setTimeout(ldMapInit,80); return; } // DOM not ready yet
   var H=ldMapTargetH(W);
   LDM.W=W; LDM.H=H; LDM.computeBounds();
-  LDM.dpr=Math.min(window.devicePixelRatio||1,3);
+  /* Tope de 2 y no de 3. Medido con la red real (98 destinos) a 1/6 de CPU: a
+     dpr 3 el canvas son 1.290×801 = 1,03 M de píxeles por frame, con degradados
+     y arcos encima; bajando a 2 son 0,46 M y el mapa va **un 65 % más rápido**.
+     A 2× en un móvil no se distingue: es un mapa oscuro con halos suaves, no
+     texto fino. Y la tierra es la capa más cara —quitándola se gana un 53 %—,
+     así que lo que se paga aquí son PÍXELES, no geometría: saltarse puntos de
+     costa por debajo de 0,7 px no dio nada medible. */
+  LDM.dpr=Math.min(window.devicePixelRatio||1,2);
   var cv=document.getElementById('ld-map-canvas');
   cv.width=W*LDM.dpr; cv.height=H*LDM.dpr;
   cv.style.width=W+'px'; cv.style.height=H+'px';
@@ -50827,6 +52186,11 @@ function ldMapInit(){
   LDM.ctx.scale(LDM.dpr,LDM.dpr);
   LDM.cam={x:W/2,y:H/2,s:1,tx:W/2,ty:H/2,ts:1};
   LDM.bgProg=0; LDM.selIdx=-1; LDM.selDest=-1; LDM.phase=0; LDM.libre=null;
+  /* El filtro arranca SIEMPRE en TODO. No se guarda a propósito: al entrar en el
+     mapa lo que se quiere ver es el mapa, y así quien no toque nada tiene
+     exactamente la pantalla de antes de que esto existiera. */
+  LDM.mes='todo';
+  ldMapToggleMeses(false);
   ldMapWireTap();
 
   // ── Build routes from logbook ──
@@ -50850,12 +52214,259 @@ function ldMapInit(){
   // Sin destinos que situar no hay modo destinos que enseñar: se cae a rutas.
   if(LDM.mode==='dest'&&!LDM.DESTS.some(function(d){return !!d.xy;})&&LDM.ROUTES.length) LDM.mode='rutas';
 
+  ldMapPintaMeses();
   ldMapRenderCards();
+  try{ ldGloboRender(); }catch(e){}
   ldMapEncuadraTodo();
   LDM.cam.x=LDM.cam.tx; LDM.cam.y=LDM.cam.ty; LDM.cam.s=LDM.cam.ts;
   if(LDM.raf){ cancelAnimationFrame(LDM.raf); LDM.raf=null; }
+  LDM._enVista=true; LDM._ts=0;
   LDM.loop();
+  LDM._paraSiNoSeVe();
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EL GLOBO DE LA CARRERA — la vuelta al mundo del logbook
+   ───────────────────────────────────────────────────────────────────────────
+   Pedido el 6-sep-2026: «una casilla con la distancia recorrida y alguna
+   curiosidad: has volado 12.575 NM, es como si hubieras dado la vuelta al
+   mundo… y un mundo con un efecto que gira».
+
+   Tres decisiones que no son de adorno:
+
+   · **DIBUJADO, no comprado.** Proyección ortográfica sobre `COSTAS_MUNDO`
+     (Natural Earth 110m, dominio público). Ni imagen de stock que licenciar ni
+     una segunda geografía que mantener a mano.
+   · **Gira 900 ms y SE PARA.** No es un `requestAnimationFrame` eterno: uno de
+     esos, con el canvas bajo el pliegue, costó 209 ms por interacción TRES
+     pantallas más allá (ver «Un bucle de animación que no se ve no corre»). Y
+     además un globo girando a ritmo fijo diría lo mismo con 20 h que con 900.
+     Aquí **el recorrido del avión ES el dato**: se para donde te has parado tú.
+   · **Se dibuja UNA vez al montar**, aunque no se vea. Parar el bucle no puede
+     matar el primer dibujo: sin eso, un canvas que nace bajo el pliegue —éste
+     lo es— se queda en blanco. La entrada animada la dispara un
+     `IntersectionObserver` cuando de verdad aparece.
+
+   Y la cifra es HONESTA: ortodrómica entre las coordenadas que la app ya tiene.
+   No es lo realmente recorrido —SIDs, STARs, aerovías y vectores añaden un
+   3-8 %— y la tarjeta lo dice, en vez de inflarlo con un factor inventado. Los
+   sectores cuyos aeropuertos no se pueden situar **no se cuentan y se dicen**:
+   desde fuera, «no lo has volado» y «no sabemos dónde está» se ven igual.
+   ═══════════════════════════════════════════════════════════════════════════ */
+var LDG_VUELTA_NM = 21639;          // una vuelta al ecuador, en millas náuticas
+var LDG_R_NM = 3440.065;            // radio terrestre medio
+var LDG = { raf:0, t0:0, frac:0, lon0:0, ult:null, obs:null };
+
+function ldGloboOrtho(lon, lat, lon0, lat0){
+  var r=Math.PI/180, la=lat*r, lo=(lon-lon0)*r, l0=lat0*r;
+  var cosc=Math.sin(l0)*Math.sin(la)+Math.cos(l0)*Math.cos(la)*Math.cos(lo);
+  if(cosc<0) return null;           // cara oculta del planeta
+  return [Math.cos(la)*Math.sin(lo),
+          Math.cos(l0)*Math.sin(la)-Math.sin(l0)*Math.cos(la)*Math.cos(lo)];
+}
+
+/* Ortodrómica entre dos aeropuertos, con el MISMO resolutor de coordenadas que
+   el mapa (`LDM.pt` mira las dos tablas). Escribir aquí una tercera tabla sería
+   `ES_AIRPORTS` / `ES_IATA` otra vez. */
+function ldGloboNM(){
+  var out={ nm:0, sec:0, sin:0, base:null };
+  if(typeof LDM==='undefined'||!LDM||!LDM.pt) return out;
+  /* Los MISMOS vuelos que el mapa, por la MISMA puerta: la banda vive pegada al
+     mapa, así que con AGO 26 puesto la cifra tiene que ser la de agosto. Un
+     segundo filtro aquí sería el mapa y la cifra contando meses distintos. */
+  var ent=ldMapEntries().filter(function(e){
+    return e && e.dep && e.arr && e.type!=='__ac_db__'
+        && !(typeof ldIsSim==='function' && ldIsSim(e));   // el simulador no recorre nada
+  });
+  var r=Math.PI/180;
+  ent.forEach(function(e){
+    var a=LDM.pt(LDM.canon(e.dep)), b=LDM.pt(LDM.canon(e.arr));
+    if(!a||!b){ out.sin++; return; }
+    if(a[0]===b[0]&&a[1]===b[1]) return;                   // un local no recorre distancia
+    var la1=a[1]*r, la2=b[1]*r, dla=(b[1]-a[1])*r, dlo=(b[0]-a[0])*r;
+    var h=Math.sin(dla/2)*Math.sin(dla/2)
+        + Math.cos(la1)*Math.cos(la2)*Math.sin(dlo/2)*Math.sin(dlo/2);
+    out.nm += 2*LDG_R_NM*Math.asin(Math.min(1,Math.sqrt(h)));
+    out.sec++;
+  });
+  try{
+    var bc=LDM.canon(ldHomeBase(window.ldEntries||[])||'');
+    if(bc) out.base=LDM.pt(bc);
+  }catch(e){}
+  if(!out.base){ for(var i=0;i<ent.length&&!out.base;i++) out.base=LDM.pt(LDM.canon(ent[i].dep)); }
+  return out;
+}
+
+function ldGloboPinta(frac, lon0, lat0){
+  var cv=document.getElementById('ld-globo'); if(!cv) return;
+  var g=cv.getContext('2d'); if(!g) return;
+  /* ⚠ DOS paletas, y hacen falta: la banda acompaña al cajón, que es azul marino
+     de noche y casi blanco de día. Cuando esto vivía en `.la-card` —oscura en
+     los dos modos— sobraba, y ponerla entonces pintaba el texto casi negro sobre
+     casi negro. La regla no es «con o sin modo día»: es que **el fondo y el
+     dibujo se deciden juntos**. */
+  var day=document.documentElement.classList.contains('day');
+  var S=cv.width, C=S/2, R=S*0.335;         // deja aire para la órbita
+  g.clearRect(0,0,S,S);
+
+  /* Océano, con una sombra que le da esfera */
+  var gr=g.createRadialGradient(C-R*0.35,C-R*0.4,R*0.1,C,C,R);
+  if(day){ gr.addColorStop(0,'#D8ECF7'); gr.addColorStop(.65,'#A6CDE3'); gr.addColorStop(1,'#7BACC8'); }
+  else   { gr.addColorStop(0,'#164E63'); gr.addColorStop(.65,'#0E3A4C'); gr.addColorStop(1,'#08222E'); }
+  g.beginPath(); g.arc(C,C,R,0,6.2832); g.fillStyle=gr; g.fill();
+
+  var pt=function(lon,lat){ var q=ldGloboOrtho(lon,lat,lon0,lat0); return q?[C+q[0]*R,C-q[1]*R]:null; };
+  var traza=function(pts){
+    var abierto=false;
+    for(var i=0;i<pts.length;i++){
+      var q=pts[i];
+      if(!q){ abierto=false; continue; }
+      if(!abierto){ g.beginPath(); g.moveTo(q[0],q[1]); abierto=true; }
+      else g.lineTo(q[0],q[1]);
+    }
+    if(abierto) g.stroke();
+  };
+
+  /* Retícula: meridianos y paralelos cada 30° */
+  g.strokeStyle=day?'rgba(30,64,124,.22)':'rgba(148,200,220,.18)'; g.lineWidth=0.9;
+  for(var lo=-180;lo<180;lo+=30){ var mm=[]; for(var la=-90;la<=90;la+=5) mm.push(pt(lo,la)); traza(mm); }
+  for(var la2=-60;la2<=60;la2+=30){ var pp=[]; for(var lo2=-180;lo2<=180;lo2+=5) pp.push(pt(lo2,la2)); traza(pp); }
+
+  /* Costas del mundo. Si el fichero no ha cargado, el planeta se queda con su
+     retícula: un globo sin costas se ve raro, pero no MIENTE. */
+  var CST=(typeof COSTAS_MUNDO!=='undefined'&&COSTAS_MUNDO)||window.COSTAS_MUNDO;
+  if(CST){
+    g.strokeStyle=day?'rgba(15,55,100,.8)':'rgba(180,235,250,.75)';
+    g.lineWidth=1.6; g.lineJoin='round'; g.lineCap='round';
+    for(var k=0;k<CST.length;k++){
+      var L=CST[k], pr=[];
+      for(var j=0;j<L.length;j++) pr.push(pt(L[j][0],L[j][1]));
+      traza(pr);
+    }
+  }
+
+  /* La BASE, si cae en la cara visible. Violeta #A78BFA, el color que la app ya
+     le da en la lista de destinos: inventarle otro es empezar a tener dos apps. */
+  if(LDG.baseXY){
+    var b=pt(LDG.baseXY[0],LDG.baseXY[1]);
+    if(b){
+      g.beginPath(); g.arc(b[0],b[1],R*0.075,0,6.2832);
+      g.fillStyle='rgba(167,139,250,.35)'; g.fill();
+      g.beginPath(); g.arc(b[0],b[1],R*0.044,0,6.2832);
+      g.fillStyle=day?'#6D28D9':'#A78BFA'; g.fill();
+    }
+  }
+
+  /* Borde del planeta */
+  g.beginPath(); g.arc(C,C,R,0,6.2832);
+  g.strokeStyle=day?'rgba(8,145,178,.6)':'rgba(125,233,249,.5)'; g.lineWidth=1.4; g.stroke();
+
+  /* La ÓRBITA: la vuelta entera son 21.639 NM, y el arco es TU fracción */
+  var Ro=R*1.34, gw=S*0.017;
+  g.beginPath(); g.arc(C,C,Ro,0,6.2832);
+  g.strokeStyle=day?'rgba(30,64,124,.18)':'rgba(148,180,210,.18)'; g.lineWidth=gw; g.stroke();
+  if(frac>0){
+    g.beginPath(); g.arc(C,C,Ro,-Math.PI/2,-Math.PI/2+frac*6.2832);
+    g.strokeStyle=day?'#0891B2':'#22D3EE'; g.lineWidth=gw; g.lineCap='round'; g.stroke();
+  }
+  /* El avión, en la punta del recorrido */
+  var an=-Math.PI/2+frac*6.2832, ax=C+Math.cos(an)*Ro, ay=C+Math.sin(an)*Ro;
+  var sz=S*0.028;
+  g.save(); g.translate(ax,ay); g.rotate(an+Math.PI/2);
+  g.beginPath(); g.arc(0,0,sz*1.1,0,6.2832); g.fillStyle=day?'#FFFFFF':'#060C1A'; g.fill();
+  g.beginPath(); g.moveTo(0,-sz); g.lineTo(sz*0.87,sz*0.84); g.lineTo(0,sz*0.44); g.lineTo(-sz*0.87,sz*0.84);
+  g.closePath(); g.fillStyle=day?'#B45309':'#FBBF24'; g.fill();
+  g.restore();
+}
+
+function ldGloboAnima(){
+  if(LDG.raf){ cancelAnimationFrame(LDG.raf); LDG.raf=0; }
+  var reduce=false;
+  try{ reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches; }catch(e){}
+  if(reduce){ ldGloboPinta(LDG.frac,LDG.lon0,LDG.lat0); return; }
+  LDG.t0=0;
+  var paso=function(ts){
+    if(!LDG.t0) LDG.t0=ts;
+    var k=Math.min(1,(ts-LDG.t0)/900), e=1-Math.pow(1-k,3);
+    ldGloboPinta(LDG.frac*e, LDG.lon0-70*(1-e), LDG.lat0);
+    if(k<1) LDG.raf=requestAnimationFrame(paso); else LDG.raf=0;   // ← y aquí SE PARA
+  };
+  LDG.raf=requestAnimationFrame(paso);
+}
+
+/* Calcula, escribe los rótulos y pinta. Lo llama `ldStats` —así que corre con
+   cada guardado y con cada importación— y también los dos caminos del modo
+   día, porque el canvas lleva su paleta dentro y no la puede corregir el CSS. */
+function ldGloboRender(anima){
+  var cv=document.getElementById('ld-globo'); if(!cv) return;
+  var d=ldGloboNM();
+  LDG.baseXY=d.base||null;
+  LDG.lon0=d.base?d.base[0]:0;
+  LDG.lat0=d.base?Math.max(-60,Math.min(60,d.base[1])):25;
+  var v=d.nm/LDG_VUELTA_NM;
+  LDG.frac=v>=1?1:v;
+
+  var tit=document.getElementById('ld-globo-tit');
+  var sub=document.getElementById('ld-globo-sub');
+  var nota=document.getElementById('ld-globo-nota');
+  var miles=function(n){ return Math.round(n).toLocaleString('es-ES'); };
+  if(tit){
+    tit.innerHTML = d.sec===0 ? 'Aún no hay distancia que contar'
+      : (v>=1 ? 'Has dado <b>'+v.toFixed(1).replace('.',',')+' vueltas al mundo</b>'
+              : 'Vas por el <b>'+Math.max(1,Math.round(v*100))+'&nbsp;%</b> de una vuelta al mundo');
+  }
+  if(sub){
+    sub.textContent = d.sec===0
+      ? 'Añade vuelos al logbook con aeropuertos que se puedan situar'
+      : miles(d.nm)+' NM · '+d.sec+' sector'+(d.sec===1?'':'es')
+        +' · el ecuador son '+miles(LDG_VUELTA_NM)+' NM';
+  }
+  if(nota){
+    /* Las dos advertencias que la cifra necesita para poder enseñarse. */
+    var t=[];
+    if(d.sec) t.push('en línea recta: lo volado es un 3–8 % más');
+    if(d.sin) t.push(d.sin+' sector'+(d.sin===1?'':'es')+' sin coordenadas, no cuenta'+(d.sin===1?'':'n'));
+    nota.textContent=t.join(' · ');
+  }
+
+  /* Se dibuja YA, aunque el canvas esté bajo el pliegue: parar el bucle no
+     puede dejarlo en blanco. La entrada animada la dispara el observer. */
+  ldGloboPinta(LDG.frac,LDG.lon0,LDG.lat0);
+
+  if(!LDG.obs && window.IntersectionObserver){
+    LDG.obs=new IntersectionObserver(function(ents){
+      ents.forEach(function(en){
+        LDG.visible=en.isIntersecting;
+        if(!en.isIntersecting) return;
+        /* Sólo se anima si hay algo NUEVO que enseñar: `ldStats` se llama en cada
+           guardado, y reanimar en cada uno sería un tic permanente. */
+        var firma=LDG.frac.toFixed(4)+'|'+document.documentElement.classList.contains('day');
+        if(LDG.ult===firma) return;
+        LDG.ult=firma; ldGloboAnima();
+      });
+    },{threshold:.35});
+    LDG.obs.observe(cv);
+  }
+
+  /* ── AL ELEGIR MES, EL MUNDO VUELVE A GIRAR ──────────────────────────────
+     Pedido el 6-sep-2026. No es adorno: el número cambia de golpe y sin nada que
+     lo acompañe cuesta ver QUÉ ha cambiado — el giro es lo que dice «esto es otra
+     cifra». Va con `anima`, no automático en cada `ldGloboRender`: ésta la llama
+     también cada guardado del logbook, y girar en cada uno sería un tic.
+
+     Y sólo si el canvas se VE: girar bajo el pliegue es gastar por nada. Si no se
+     ve, se borra la firma para que la entrada la reproduzca el observer en cuanto
+     aparezca — así el mes elegido nunca se queda sin su animación. */
+  if(anima){
+    LDG.ult=null;
+    if(LDG.visible!==false) {
+      LDG.ult=LDG.frac.toFixed(4)+'|'+document.documentElement.classList.contains('day');
+      ldGloboAnima();
+    }
+  }
+}
+window.ldGloboRender=ldGloboRender;   // la usa ldStats, que vive en otro bloque <script>
 
 // La vista global de cada modo: en destinos, el encuadre que los mete todos.
 function ldMapEncuadraTodo(){
@@ -50873,8 +52484,8 @@ function ldMapEncuadraTodo(){
      es lo que le da al mapa el alto que le faltaba.
 
    Al tope de zoom cada toque sigue recentrando, así que también sirve para
-   moverse por el mapa. La salida es «↺ Vista global», que además devuelve la
-   lista.
+   moverse por el mapa. La salida es la píldora VISTA GLOBAL, que aparece en el
+   propio mapa en cuanto hay a dónde volver y además devuelve la lista.
 
    Un toque NO es un arrastre ni un scroll: el panel del mapa se desplaza en
    vertical y quedarse con el primer dedo que baja rompería ese scroll. Se exige
@@ -50954,7 +52565,10 @@ function ldMapRenderCards(){
   if(bd){ bd.classList.toggle('on',esDest); bd.setAttribute('aria-selected',esDest?'true':'false');
           bd.innerHTML='Destinos<span class="n">'+LDM.DESTS.length+'</span>'; }
   if(br){ br.classList.toggle('on',!esDest); br.setAttribute('aria-selected',!esDest?'true':'false');
-          br.innerHTML='Rutas<span class="n">'+LDM.ROUTES.length+'</span>'; }
+          /* «Top rutas» y no «Rutas»: son las DIEZ más voladas, no todas las que
+             has hecho, y con el rótulo a secas el número de al lado parecía el
+             total de rutas del logbook. */
+          br.innerHTML='Top rutas<span class="n">'+LDM.ROUTES.length+'</span>'; }
   if(!container) return;
   container.style.display=''; container.innerHTML='';
   var vacio=esDest?!LDM.DESTS.length:!LDM.ROUTES.length;
@@ -53303,7 +54917,8 @@ document.addEventListener('DOMContentLoaded', function(){
 (function(){
   var BACKEND = (function(){ try{ return localStorage.getItem('cafi_backend_url')||'https://api.pilotos.aero'; }catch(e){ return 'https://api.pilotos.aero'; } })();
   function token(){ try{ return localStorage.getItem('cafi_auth_token')||''; }catch(e){ return ''; } }
-  function pilotName(){ try{ return (window.ppGet&&ppGet('nombre'))||localStorage.getItem('pilot_name')||'Comandante'; }catch(e){ return 'Comandante'; } }
+  /* 'Comandante' = «no hay nombre» para el backend, que lo descarta expresamente. */
+  function pilotName(){ try{ return (window.pilotosNombrePiloto&&window.pilotosNombrePiloto())||'Comandante'; }catch(e){ return 'Comandante'; } }
   function stripZ(s){ return String(s||'').replace(/[^0-9:]/g,''); }
   function getPos(){ return new Promise(function(res){ if(!navigator.geolocation) return res(null); var done=false; function fin(v){ if(done)return; done=true; res(v); } try{ navigator.geolocation.getCurrentPosition(function(p){ fin({lat:p.coords.latitude, lon:p.coords.longitude}); }, function(){ fin(null); }, { timeout:6000, maximumAge:300000 }); }catch(e){ fin(null); } setTimeout(function(){ fin(null); }, 7000); }); }
   /* El idioma es UNO SOLO y vive en el perfil (window.pilotosIdioma / pilotosSetIdioma).
@@ -53524,7 +55139,17 @@ document.addEventListener('DOMContentLoaded', function(){
   function lg(k,d){ try{ var v=localStorage.getItem(k); return v!=null?v:d; }catch(e){ return d; } }
   var BACKEND=lg('cafi_backend_url','https://api.pilotos.aero');
   function token(){ return lg('cafi_auth_token',''); }
-  function pilotName(){ return lg('pilot_name','') ; }
+  /* El nombre del saludo lo resuelve `pilotosNombrePiloto` — el ÚNICO sitio donde
+     vive esa cascada (ver su comentario). Antes esto era `lg('pilot_name','')`, una
+     clave que en esta app NO la escribe nadie: se lee en tres sitios y no se guarda
+     en ninguno, así que volvía vacía siempre y el backend caía en el relleno del
+     registro. De ahí el «hola jkl».
+     Vacío es una respuesta: el cliente manda `pilot` ausente y el guion saluda sin
+     nombre. `window.ppGet` está aquí porque lo exporta `profile.js`; `_getFirstName`
+     y `_pilotUser` NO —viven en otro bloque <script>—, y por eso el resolutor se
+     exporta explícitamente. */
+  function pilotName(){ try{ return (window.pilotosNombrePiloto&&window.pilotosNombrePiloto())||''; }catch(e){ return ''; } }
+  try{ window.__ariaPilotName = pilotName; }catch(e){}
   var ALLOW=['nova','shimmer','coral','sage','alloy'];
   var VOICES=[['nova','Nova — cercana (por defecto)'],['shimmer','Shimmer — suave'],['coral','Coral — expresiva'],['sage','Sage — serena'],['alloy','Alloy — neutra']];
   /* Idioma y voz salen de la MISMA resolución que el briefing del Home: los dos

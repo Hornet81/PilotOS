@@ -336,8 +336,23 @@ function detectar(rows){
   var days = construirDias(rows);
   if (!days.length) { EX.auto = []; return; }
   var res = window.NGasto.detectPeriod(days);
-  EX.auto = res.notes.map(function(x, i){
+  /* ── EL ID DE UNA NOTA NO PUEDE DEPENDER DE CUÁNTO HISTORIAL HAYA ──────────
+     Era `kind + '-' + fecha + '-' + i`, con `i` la posición de la nota en la
+     lista de TODO el historial. Medido: la MISMA noche del 3 de agosto sale
+     `voucher-2026-08-03-0` en un aparato con un mes importado y
+     `voucher-2026-08-03-2` en otro con dos. De dos notas compartidas coincidían
+     CERO — y como la marca «ya la pasé» se guarda POR ID, el piloto la marcaba
+     en el móvil y en el ordenador seguía saliendo pendiente. La sincronización
+     funcionaba perfectamente: lo que llegaba era un id que allí no existe.
+     Y en un solo aparato es una bomba dormida: importar un mes viejo renumera
+     todas las notas y se lleva por delante todas las marcas, sin un solo error.
+     Ahora el ordinal es DENTRO de su mismo tipo y fecha, que no depende de nada
+     de fuera del día. */
+  var _ord = {};
+  EX.auto = res.notes.map(function(x){
     var n = x.note, d = null;
+    var _kf = n.kind + '-' + x.date;
+    var i = (_ord[_kf] = (_ord[_kf] || 0) + 1) - 1;
     for (var k=0;k<days.length;k++) if (days[k].date===x.date) d = days[k];
     var rd = null;
     for (var j=0;j<res.days.length;j++) if (res.days[j].date===x.date) rd = res.days[j];
@@ -360,6 +375,43 @@ function detectar(rows){
       legs: (d && d.legs) || []
     };
   });
+}
+
+/* ── RESCATE DE LAS MARCAS YA GUARDADAS ────────────────────────────────────────
+   Arreglar cómo se calcula el id no arregla lo que ya está guardado — es el caso
+   `/401`→515 de la nómina y el `2055`/`2043`, tercera vez. Las marcas «ya la
+   pasé» de antes de este arreglo (y las que sigan bajando del servidor de un
+   aparato sin actualizar) llevan el ordinal viejo y no apuntan a ninguna nota:
+   desde fuera, «no la has mandado» y «la marca se perdió al renumerar» se ven
+   exactamente igual.
+
+   Se mueven SOLO cuando no hay duda: la marca huérfana dice tipo y fecha, y hay
+   EXACTAMENTE UNA nota de ese tipo ese día. Con dos, no se toca — antes que
+   marcar la nota equivocada, nada; la marca dice dinero ya reclamado.
+   La nota rescatada se encola para que el servidor aprenda el id nuevo, o el
+   siguiente aparato volvería a bajar el viejo. */
+function rescatarMarcas(){
+  try {
+    var vivas = {}, porTipoFecha = {};
+    EX.auto.forEach(function(n){
+      vivas[n.id] = 1;
+      var k = n.kind + '-' + n.date;
+      (porTipoFecha[k] = porTipoFecha[k] || []).push(n.id);
+    });
+    (EX.manual || []).forEach(function(m){ if (m && m.id) vivas[m.id] = 1; });
+    var movidas = 0;
+    Object.keys(EX.sent || {}).forEach(function(id){
+      if (vivas[id]) return;
+      var m = String(id).match(/^([a-z]+)-(\d{4}-\d{2}-\d{2})-\d+$/);
+      if (!m) return;                                   // manual ('man-…') o basura: no se toca
+      var cand = porTipoFecha[m[1] + '-' + m[2]] || [];
+      if (cand.length !== 1) return;                    // ante la duda, nada
+      var nuevo = cand[0];
+      if (!EX.sent[nuevo]) { EX.sent[nuevo] = EX.sent[id]; marcarPend('n:' + nuevo, 'up'); movidas++; }
+      delete EX.sent[id];
+    });
+    if (movidas) { saveSent(); EX.syncOtra = true; }
+  } catch(e){ /* silencioso */ }
 }
 
 /* ════════ EL PORQUÉ ════════
@@ -569,8 +621,14 @@ function exRender(){
   if (!host) return;
   loadLocal();
   arrancar();
+  syncSiToca();
   var rows = rosterRows();     // una sola lectura: la usan detectar() y el aviso
   detectar(rows);
+  /* Fuera de `detectar` a propósito: aquélla cachea por FIRMA del roster y se sale
+     por un `return` cuando el mes no ha cambiado — y las marcas sí cambian sin que
+     el roster se mueva, porque llegan del otro aparato. Colgando el rescate de
+     ella, la marca vieja que baja de la nube no se rescataba nunca. */
+  rescatarMarcas();
 
   var all = todas();
   var pendAll = all.filter(function(n){ return !EX.sent[n.id]; });
@@ -1184,6 +1242,10 @@ function bajarYMezclar(){
         else delete EX.sent[rw.id];
       });
       EX.manual = manual; saveMan(); saveSent();
+      /* Las marcas con el ordinal viejo no vienen sólo de este aparato: siguen
+         bajando del servidor mientras el otro no se actualice. Aquí es donde
+         llegan, así que aquí se rescatan también. */
+      try { rescatarMarcas(); } catch(e){}
 
       /* ── Subida de recuperación ──
          Igual que hace el logbook, que empuja todo lo que tiene: lo que existe
@@ -1334,8 +1396,40 @@ function arrancar(){
   if (ARRANCADO) return;
   ARRANCADO = true;      // ANTES de llamar: contarTickets() vuelve a pintar
   contarTickets();
+  _ultSync = Date.now();
   exSync();
 }
+
+/* ── VOLVER A ENTRAR TIENE QUE VOLVER A SINCRONIZAR ────────────────────────────
+   `arrancar()` corre UNA vez por carga de página, así que la única sincronización
+   era la primera. Medido: entrar en Gastos, salir y volver a entrar = CERO
+   llamadas a `/api/expense`. En una PWA que se queda abierta días —que es como se
+   usa esto en el iPad— el piloto marcaba la nota en el móvil y en el ordenador
+   seguía saliendo pendiente hasta recargar la app. Es «los render corren una vez
+   al arrancar y no vuelven», otra vez.
+
+   No sincroniza en CADA pintado: `exRender` corre también al cambiar de mes o al
+   marcar una nota, y cada acción ya dispara su `exSync`. Con el mínimo de por
+   medio, entrar en la pestaña sincroniza y lo demás no hace ruido. El propio
+   `exSync` repinta al terminar, así que el mínimo es además lo que impide que se
+   llame a sí mismo. */
+var SYNC_MIN_MS = 30000;
+var _ultSync = 0;
+function syncSiToca(){
+  if (Date.now() - _ultSync < SYNC_MIN_MS) return;
+  _ultSync = Date.now();
+  exSync();
+}
+/* Y al volver del segundo plano: el otro aparato ha podido marcar algo mientras
+   la app estaba dormida, y ahí no hay ningún render que lo dispare. */
+try {
+  document.addEventListener('visibilitychange', function(){
+    if (document.visibilityState !== 'visible') return;
+    _ultSync = 0;                                   // que la próxima entrada sí sincronice
+    var host = document.getElementById('pc-tab-gastos');
+    if (host && host.style.display !== 'none' && ARRANCADO) syncSiToca();
+  });
+} catch(e){}
 window.exRender = exRender;
 window.exInit = function(){ loadLocal(); ARRANCADO = false; arrancar(); };
 

@@ -648,10 +648,13 @@ function _sheetFieldsHtml(id, d) {
 }
 function docAddOpen() {
   const id = 'cst_' + Date.now().toString(36);
-  docsData[id] = { custom: true, name: 'Nuevo documento', finish: 'gold', icon: 'custom' };
+  docsData[id] = { custom: true, name: 'Nuevo documento', finish: 'gold', icon: 'custom', _ts: Date.now() };
   _loadCustomDocs();
   _docsSaveMeta();
   renderWallet();
+  /* Un documento recién creado también sube: si el piloto lo crea y no llega a
+     rellenar los campos, en el otro aparato no existía. */
+  docCloudPush(id);
   openDocSheet(id);
 }
 function _customEditHtml(id, m) {
@@ -1522,6 +1525,21 @@ function _docAuthToken() { try { return lsGet('cafi_auth_token', ''); } catch (e
 // así evitamos que un 'pilotOS_plan' local caducado/free en el PC bloquee la sync de un usuario Pro.
 function _docCloudOn() { return !!_docAuthToken(); }
 
+/* ⚠ UN 403 DEL PLAN NO PUEDE SER MUDO.
+   `_cloudAllowed` del backend rechaza la subida si el plan no lleva copia en la
+   nube, y aquí la respuesta se tiraba a la basura: el piloto escanea en el iPad,
+   ve «✓ escaneado y guardado», y el documento NO sale del aparato. En el móvil
+   sólo aparecía «Sin documentos en la nube (plan Free o nada subido)», que es un
+   sitio donde ya no se puede hacer nada. Desde fuera, «tu plan no incluye esto» y
+   «la app no se ha enterado» se ven exactamente igual — el 0 mudo de las
+   pernoctas, con dinero de por medio.
+   Se dice UNA vez por sesión: repetirlo en cada documento sería ruido. */
+let _docPlanAvisado = false;
+function _docAvisaPlan() {
+  if (_docPlanAvisado) return;
+  _docPlanAvisado = true;
+  try { showToast('☁ Guardado en este dispositivo. La copia en la nube —y verlo en tus otros dispositivos— es de Pro y Unlimited.'); } catch (e) {}
+}
 function docCloudPush(id) {
   if (!_docCloudOn()) return;
   const d = docsData[id]; if (!d) return;
@@ -1534,7 +1552,10 @@ function docCloudPush(id) {
   const sendFile = !!(localPages.length && !d._cloudFile);
   if (sendFile) { body.pages = pages.map(function (p) { return { b: p.d.split(',')[1], t: p.t || 'image/jpeg' }; }); }
   fetch(ldBackendUrl() + '/api/documents', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, body: JSON.stringify(body) })
-    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (r) {
+      if (r.status === 403) { _docAvisaPlan(); return null; }
+      return r.ok ? r.json() : null;
+    })
     .then(function (j) { if (j && j.ok && sendFile && docsData[id]) { docsData[id]._cloudFile = true; _docsSaveMeta(true); } })
     .catch(function () {});
 }

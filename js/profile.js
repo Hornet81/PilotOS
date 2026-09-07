@@ -184,6 +184,7 @@
               if (!ok) return reject(new Error('no se pudo guardar la foto'));
               _fotoCache = url;
               ppSave({ tieneFoto: true });
+              ppMediaPush('foto', url);
               resolve(url);
             });
           } catch (err) { reject(err); }
@@ -198,6 +199,7 @@
     return _avDel('foto').then(function () {
       _fotoCache = null;
       ppSave({ tieneFoto: false });
+      ppMediaPush('foto', '');
       return true;
     });
   }
@@ -216,6 +218,7 @@
       if (!ok) throw new Error('no se pudo guardar la firma');
       _firmaCache = dataUrl;
       ppSave({ tieneFirma: true });
+      ppMediaPush('firma', dataUrl);
       return dataUrl;
     });
   }
@@ -224,44 +227,174 @@
     return _avDel('firma').then(function () {
       _firmaCache = null;
       ppSave({ tieneFirma: false });
+      ppMediaPush('firma', '');
       return true;
     });
   }
 
-  // ── Nube: se apoya en user_settings, que YA existe (no hace falta tabla nueva).
-  // La licencia y la autoridad NO viajan: se quedan en el dispositivo.
+  /* ══ NUBE ═════════════════════════════════════════════════════════════════
+     Se apoya en `user_settings`, que ya existe (no hace falta tabla nueva).
+
+     ⚠ ESTO ESTABA A MEDIAS Y NO LO DECÍA NADIE. `ppCloudPush` se llamaba en cada
+     guardado y funcionaba; `ppCloudPull` estaba escrita, exportada… **y no la
+     llamaba nadie**. Medido con dos dispositivos: el iPad sube el perfil entero
+     y el móvil no pide `/api/profile` ni al arrancar ni al abrir la pantalla —
+     cero veces. Forzando la función a mano, el perfil aparece completo. O sea:
+     el arreglo estaba escrito y sin enchufar, que desde fuera se ve exactamente
+     igual que si no existiera. Reportado por José Lucas (7-sep-2026).
+
+     Lo que NO viaja, y por qué:
+     · `licencia` y `autoridad` — sensibles, se quedan en el dispositivo.
+     · `tieneFoto` / `tieneFirma` — describen el IndexedDB de ESE aparato. La
+       imagen no sube, así que la bandera llegaba sola y le decía al otro móvil
+       que tenía firma cuando no la tiene. Un dato falso presentado como bueno.
+     ═══════════════════════════════════════════════════════════════════════════ */
+  /* `licencia` y `autoridad` YA VIAJAN (Beta.754). Estaban fuera con el motivo
+     «son del dispositivo», y no lo son: el número de licencia es del piloto, y
+     este mismo backend ya guarda su logbook, su nómina y la foto escaneada de esa
+     misma licencia en Documentos. Lo único que queda local son las dos banderas,
+     porque describen si ESTE aparato tiene ya el archivo descargado. */
+  var PROF_SOLO_LOCAL = { tieneFoto: 1, tieneFirma: 1 };
+  var PROF_SYNC_AT = 'pilotos_profile_sync_at';
+  var _ultPull = 0;
+  function _tok() { try { return (typeof lsGet === 'function') ? lsGet('cafi_auth_token', '') : ''; } catch (e) { return ''; } }
+  function _syncAt() { try { return localStorage.getItem(PROF_SYNC_AT) || ''; } catch (e) { return ''; } }
+  function _setSyncAt(v) { try { if (v) localStorage.setItem(PROF_SYNC_AT, v); } catch (e) {} }
+
+  /* ── LA FOTO Y LA FIRMA TAMBIÉN SON EL PERFIL ─────────────────────────────
+     Viven en IndexedDB porque en localStorage no caben, y de ahí no salían: el
+     piloto firmaba en el iPad y el logbook del móvil seguía saliendo sin firmar.
+     Suben al mismo sitio que los documentos (bucket `pilot-docs`), en su propio
+     endpoint para no colgarse del gate de plan de aquéllos: la firma son 10 KB y
+     sin ella el logbook EASA del segundo aparato no vale.
+     `b64` vacío = BORRADO, para que quitar la foto en un aparato la quite en el
+     otro en vez de que vuelva a bajar sola. */
+  function ppMediaPush(kind, dataUrl) {
+    try {
+      var token = _tok();
+      if (!token || typeof ldBackendUrl !== 'function') return;
+      var b64 = '', tipo = 'image/jpeg';
+      if (dataUrl) {
+        var m = /^data:([^;]+);base64,(.*)$/.exec(String(dataUrl));
+        if (!m) return;
+        tipo = m[1]; b64 = m[2];
+      }
+      fetch(ldBackendUrl() + '/api/profile/media', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ kind: kind, b64: b64, type: tipo })
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
+  /* Y bajarlas. Sólo si NO están ya aquí: son decenas de KB y bajarlas en cada
+     sincronización sería pagar por nada. `at` es el sello del servidor: si la
+     imagen cambió en el otro aparato, vuelve a bajar. */
+  var MEDIA_AT = 'pilotos_profile_media_at';
+  function _mediaAt() { try { return JSON.parse(localStorage.getItem(MEDIA_AT) || '{}'); } catch (e) { return {}; } }
+  function _setMediaAt(o) { try { localStorage.setItem(MEDIA_AT, JSON.stringify(o)); } catch (e) {} }
+  function ppMediaPull(media) {
+    if (!media) return Promise.resolve(false);
+    var sellos = _mediaAt(), pend = [];
+    ['foto', 'firma'].forEach(function (k) {
+      var m = media[k];
+      var tengo = (k === 'foto') ? !!_fotoCache : !!_firmaCache;
+      if (!m || !m.url) {
+        // Borrada en el otro aparato → aquí también.
+        if (tengo && sellos[k]) {
+          pend.push(_avDel(k).then(function () {
+            if (k === 'foto') { _fotoCache = null; ppSave({ tieneFoto: false }); }
+            else { _firmaCache = null; ppSave({ tieneFirma: false }); }
+            delete sellos[k]; _setMediaAt(sellos);
+          }));
+        }
+        return;
+      }
+      if (tengo && sellos[k] === m.at) return;          // ya la tengo, y es la misma
+      pend.push(fetch(m.url).then(function (r) { return r.blob(); }).then(function (bl) {
+        return new Promise(function (res) {
+          var fr = new FileReader();
+          fr.onload = function () { res(fr.result); };
+          fr.onerror = function () { res(null); };
+          fr.readAsDataURL(bl);
+        });
+      }).then(function (durl) {
+        if (!durl) return;
+        return _avPut(k, durl).then(function (ok) {
+          if (!ok) return;
+          if (k === 'foto') { _fotoCache = durl; ppSave({ tieneFoto: true }); }
+          else { _firmaCache = durl; ppSave({ tieneFirma: true }); }
+          sellos[k] = m.at; _setMediaAt(sellos);
+          try { if (typeof window.updateUserAvatar === 'function') window.updateUserAvatar(window.currentUser || {}); } catch (e) {}
+        });
+      }).catch(function () {}));
+    });
+    if (!pend.length) return Promise.resolve(false);
+    return Promise.all(pend).then(function () { return true; });
+  }
+
   function ppCloudPush() {
     try {
-      var token = (typeof lsGet === 'function') ? lsGet('cafi_auth_token', '') : '';
+      var token = _tok();
       if (!token || typeof ldBackendUrl !== 'function') return;
       var envio = {};
       Object.keys(PROFILE).forEach(function (k) {
-        if (k === 'licencia' || k === 'autoridad') return;   // sensibles: solo local
+        if (PROF_SOLO_LOCAL[k]) return;
         envio[k] = PROFILE[k];
       });
       fetch(ldBackendUrl() + '/api/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
         body: JSON.stringify({ profile: envio })
-      }).catch(function () {});
+      }).then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) { if (j && j.updatedAt) _setSyncAt(j.updatedAt); })
+        .catch(function () {});
     } catch (e) {}
   }
 
-  function ppCloudPull() {
+  /* El sello `updatedAt` es lo que permite que el perfil del iPad PISE al del
+     móvil. Rellenando sólo huecos —como estaba— el primero que escribe gana para
+     siempre: cambiar el rol en un aparato no llegaba nunca al otro aunque el pull
+     se llamara. Es el mismo patrón que `/api/pay-profile`, que ya lo hacía bien;
+     escribir aquí un criterio distinto sería tener dos sincronizaciones que no se
+     parecen. */
+  function ppCloudPull(forzar) {
     try {
-      var token = (typeof lsGet === 'function') ? lsGet('cafi_auth_token', '') : '';
+      var token = _tok();
       if (!token || typeof ldBackendUrl !== 'function') return Promise.resolve(null);
+      var ahora = Date.now();
+      if (!forzar && (ahora - _ultPull) < 30000) return Promise.resolve(null);
+      _ultPull = ahora;
       return fetch(ldBackendUrl() + '/api/profile', { headers: { 'Authorization': 'Bearer ' + token } })
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (j) {
           if (!j || !j.profile) return null;
-          // El de la nube no pisa lo que ya haya en este dispositivo si está relleno.
+          var mio = _syncAt();
+          var remoto = j.updatedAt || '';
+          // La nube es más nueva → manda ENTERA. Si no, sólo rellena huecos, que
+          // es lo que hacía antes y no puede quitarle nada a nadie.
+          var pisa = !!remoto && (!mio || remoto > mio);
           var cambios = {};
           Object.keys(j.profile).forEach(function (k) {
-            if (k in PROFILE && !PROFILE[k] && j.profile[k]) cambios[k] = j.profile[k];
+            if (!(k in PROFILE) || PROF_SOLO_LOCAL[k]) return;
+            var v = j.profile[k];
+            if (pisa) { if (PROFILE[k] !== v) cambios[k] = v; }
+            else if (!PROFILE[k] && v) cambios[k] = v;
           });
-          if (Object.keys(cambios).length) ppSave(cambios);
-          return PROFILE;
+          if (Object.keys(cambios).length) {
+            _setSyncAt(remoto);      // antes de guardar: ppSave vuelve a empujar
+            ppSave(cambios);
+            /* Si el piloto está MIRANDO la pantalla del perfil cuando baja algo,
+               hay que repintarla: si no, los campos siguen enseñando lo viejo con
+               lo nuevo ya guardado — dos datos que se contradicen. */
+            try { if (typeof window.ppRenderScreen === 'function' &&
+                      document.getElementById('pp-screen-body')) ppRenderScreen(); } catch (e) {}
+          } else if (remoto) _setSyncAt(remoto);
+          return ppMediaPull(j.media).then(function (hubo) {
+            if (hubo) { try { if (typeof window.ppRenderScreen === 'function' &&
+                          document.getElementById('pp-screen-body')) ppRenderScreen(); } catch (e) {} }
+            return PROFILE;
+          });
         }).catch(function () { return null; });
     } catch (e) { return Promise.resolve(null); }
   }
@@ -544,6 +677,11 @@
     ppCss();
     var cont = document.getElementById('pp-screen-body');
     if (!cont) return;
+    /* Entrar en la pantalla es el momento en que el piloto MIRA su perfil: es
+       cuando tiene que estar al día. `ppCloudPull` lleva su mínimo de 30 s, así
+       que entrar y salir no dispara rondas, y cuando algo baja se repinta sola
+       (el guardián de reentrada está dentro, no aquí). */
+    try { ppCloudPull(); } catch (e) {}
     var u = window.currentUser || {};
     var s = ppStats();
     var foto = ppFoto();
@@ -805,8 +943,23 @@
   window.ppGet = ppGet;
 
   ppLoad();
+  /* Al arrancar se BAJA lo que haya en la nube. Sin esto el perfil sólo subía:
+     el aparato nuevo se quedaba en blanco para siempre. Va detrás de la carga
+     local y sin bloquear — sin red se queda lo de aquí y no se pierde nada. */
+  function _arranca() {
+    try { ppHydrate(); } catch (e) {}
+    try { ppCloudPull(true); } catch (e) {}
+  }
   try {
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { ppHydrate(); });
-    else ppHydrate();
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _arranca);
+    else _arranca();
+  } catch (e) {}
+  /* Y al VOLVER a entrar en la pantalla, y al volver del segundo plano: en una PWA
+     que se queda abierta días —el iPad— la única sincronización sería la del
+     arranque. Es la misma lección que Gastos, con su mínimo de 30 s dentro. */
+  try {
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') ppCloudPull();
+    });
   } catch (e) {}
 })();

@@ -80,7 +80,8 @@
     el.style.cssText = 'position:fixed;inset:0;z-index:9999;background:' + t.scrim + ';-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto';
     el.innerHTML =
       '<div style="width:100%;max-width:520px;min-height:100%;background:' + t.sheet + '">' +
-      '<div style="position:sticky;top:0;z-index:2;background:' + t.solid + ';border-bottom:1px solid ' + t.line + ';padding:16px;display:flex;align-items:flex-start;gap:10px">' +
+      // Zona segura arriba: sin esto el reloj del móvil se come el título y la ✕.
+      '<div style="position:sticky;top:0;z-index:2;background:' + t.solid + ';border-bottom:1px solid ' + t.line + ';padding:calc(16px + env(safe-area-inset-top,0px)) 16px 16px;display:flex;align-items:flex-start;gap:10px">' +
       '<div style="flex:1">' +
       '<div style="font-family:\'Space Grotesk\',sans-serif;font-size:17px;font-weight:800;color:' + t.txt + '">Deshacer una importación</div>' +
       '<div id="ldui-sub" style="font-family:\'Space Mono\',monospace;font-size:11px;color:' + t.sub + ';margin-top:3px"></div>' +
