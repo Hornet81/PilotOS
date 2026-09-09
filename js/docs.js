@@ -90,6 +90,62 @@ function _docfAll() {
     });
   });
 }
+/* ── UNA MINIATURA DE 60 px NO PUEDE SER UN JPEG DE 12 MEGAPÍXELES ──────────
+   «Al abrir la documentación o visualizarla se le bloquea» (José Lucas). Medido
+   con documentos reales —2268×3024, 4,3 MB en disco, **26 MB al decodificarse**—
+   y la CPU a 1/4: abrir la ficha de un documento bloqueaba el hilo **1.492 ms en
+   UNA sola tarea**. La tira de páginas pinta las miniaturas a 60×76 px… con el
+   `data:` de la foto entera, así que el navegador decodifica los 26 MB para
+   enseñar un sello. Dos páginas, 52 MB. En un iPhone eso no es lentitud: es que
+   iOS se lleva la pestaña.
+
+   Cada página se guarda con su `tn`: un JPEG de 240 px y ~12 KB. La foto grande
+   sólo se decodifica cuando el piloto pide AMPLIAR, que es cuando la ha pedido.
+   Se genera en segundo plano y se reguarda: las páginas que ya estén sin `tn`
+   —todas las de antes de esto— la reciben en cuanto se tocan. */
+const DOC_TN_PX = 240;
+function _docMiniatura(dataURL, cb) {
+  if (!dataURL || dataURL.indexOf('data:image/') !== 0) return cb(null);
+  try {
+    const img = new Image();
+    img.onload = function () {
+      try {
+        const sc = Math.min(1, DOC_TN_PX / Math.max(img.width, img.height));
+        const cv = document.createElement('canvas');
+        cv.width = Math.max(1, Math.round(img.width * sc));
+        cv.height = Math.max(1, Math.round(img.height * sc));
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        cb(cv.toDataURL('image/jpeg', 0.7));
+      } catch (e) { cb(null); }
+    };
+    img.onerror = function () { cb(null); };
+    img.src = dataURL;
+  } catch (e) { cb(null); }
+}
+/* De una en una y con respiro: generar seis miniaturas de golpe es el mismo
+   bloqueo con otro nombre. */
+function _docAseguraMiniaturas(id) {
+  const pgs = (docsData[id] || {}).pages;
+  if (!Array.isArray(pgs) || !pgs.length) return;
+  const falta = [];
+  pgs.forEach(function (p, i) { if (p && p.d && !p.tn && (p.t || '').indexOf('image/') === 0) falta.push(i); });
+  if (!falta.length) return;
+  const paso = function () {
+    const i = falta.shift();
+    if (i === undefined) { _docfPut(id, docsData[id].pages); _docsSaveMeta(true); _docRepintaSiAbierto(id); return; }
+    _docMiniatura(pgs[i].d, function (tn) {
+      if (tn) pgs[i].tn = tn;
+      setTimeout(paso, 40);
+    });
+  };
+  setTimeout(paso, 0);
+}
+function _docRepintaSiAbierto(id) {
+  try {
+    const sh = document.getElementById('doc-sheet');
+    if (sh && sh.classList.contains('open') && sh.getAttribute('data-doc') === id) openDocSheet(id);
+  } catch (e) {}
+}
 // Mete unas páginas en el documento en memoria (pages + los campos derivados que usa el render)
 function _docApplyPages(id, pages) {
   if (!docsData[id]) docsData[id] = {};
@@ -723,7 +779,13 @@ function _docPagesStripHtml(id) {
   if (!pages.length) return '';
   const thumbs = pages.map(function (p, i) {
     const isImg = (p.t || '').indexOf('image/') === 0;
-    const inner = isImg ? '<img src="' + p.d + '">' : '<div class="pg-pdf">PDF</div>';
+    /* Mientras no haya miniatura NO se pinta la grande: decodificar 26 MB para
+       un sello de 60 px es exactamente lo que bloqueaba. Va un hueco con el
+       número de página —que no es un hueco mudo: dice que está preparándose— y
+       `_docAseguraMiniaturas` repinta la ficha en cuanto la tiene. */
+    const inner = isImg
+      ? (p.tn ? '<img loading="lazy" decoding="async" src="' + p.tn + '">' : '<div class="pg-pdf">···</div>')
+      : '<div class="pg-pdf">PDF</div>';
     return '<div class="doc-page"><div class="doc-page-thumb" onclick="inspZoom(\'' + id + '\',' + i + ')">' + inner + '<span class="doc-page-num">' + (i + 1) + '</span></div><button class="doc-page-del" onclick="event.stopPropagation();_docRemovePage(\'' + id + '\',' + i + ')">✕</button></div>';
   }).join('');
   return '<div class="doc-pages">' + thumbs + '</div>';
@@ -731,6 +793,14 @@ function _docPagesStripHtml(id) {
 function openDocSheet(id) {
   const ov = document.getElementById('doc-sheet');
   if (!ov) return;
+  /* El que se abre se salta la cola: con los archivos bajando de uno en uno, el
+     piloto puede llegar a su licencia antes que la descarga. */
+  try { ov.setAttribute('data-doc', id); } catch (e) {}
+  /* Las miniaturas se generan AQUÍ y no al descargar: hacerlas para los ocho
+     documentos al entrar mueve el bloqueo a la entrada (medido: 2,2 s → 6,5 s).
+     Se hacen una vez, para el que se abre, y quedan guardadas. */
+  try { _docAseguraMiniaturas(id); } catch (e) {}
+  try { _docAseguraArchivo(id, function (bajado) { if (bajado && ov.classList.contains('open')) openDocSheet(id); }); } catch (e) {}
   const m = DOCS_META[id];
   const d = docsData[id] || {};
   const s = docStatus(id);
@@ -924,7 +994,8 @@ function inspCard(id) {
   if (isImg) {
     // La imagen del documento manda (es lo que enseñas al inspector). Chip de estado si es doc de habilitaciones.
     const chip = isRatDoc ? '<div class="vip-rate-chip">' + docPillLabel(id) + '</div>' : '';
-    back = '<img src="' + d.fileData + '" alt="">' + chip + '<button class="vip-back-btn" onclick="event.stopPropagation();inspZoom(\'' + id + '\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>Ampliar</button>';
+    const _pg0 = (Array.isArray(d.pages) && d.pages[0]) || null;
+    back = '<img decoding="async" src="' + ((_pg0 && _pg0.tn) || d.fileData) + '" alt="">' + chip + '<button class="vip-back-btn" onclick="event.stopPropagation();inspZoom(\'' + id + '\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>Ampliar</button>';
   } else if (isRatDoc) {
     back = '<div class="vip-rates"><div class="vip-rates-h">Habilitaciones</div>' + _ratingsHtml(_effectiveRatings(id))
       + (d.fileData ? '<button class="vip-back-btn" onclick="event.stopPropagation();inspZoom(\'' + id + '\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>Ver original</button>' : '')
@@ -1041,14 +1112,26 @@ function inspZoomRot() { _zoomRot = (_zoomRot + 90) % 360; document.querySelecto
 function inspZoomToggle(el) { el.classList.toggle('big'); el.style.transform = 'rotate(' + _zoomRot + 'deg)' + (el.classList.contains('big') ? ' scale(2.2)' : ''); el.style.cursor = el.classList.contains('big') ? 'zoom-out' : 'zoom-in'; }
 function inspZoomClose() { const ov = document.getElementById('doc-zoom'); if (ov) { ov.classList.remove('open'); ov.innerHTML = ''; } }
 function inspZoom(id, startIdx) {
-  const pages = _docPages(id); if (!pages.length) return;
+  let pages = _docPages(id);
+  if (!pages.length) {
+    /* Y si aún no ha bajado, se DICE y se baja: pulsar «Ampliar» y que no pase
+       nada es el fallo mudo de siempre. */
+    if (_docUrls[id] && _docUrls[id].length) {
+      showToast('Descargando el documento…');
+      _docAseguraArchivo(id, function (bajado) {
+        if (bajado) inspZoom(id, startIdx);
+        else showToast('⚠ No se pudo descargar. Revisa la conexión.');
+      });
+    }
+    return;
+  }
   let ov = document.getElementById('doc-zoom');
   if (!ov) { ov = document.createElement('div'); ov.id = 'doc-zoom'; ov.className = 'zoom-ov'; document.body.appendChild(ov); }
   _zoomRot = 0;
   const body = pages.map(function (p) {
     const isImg = (p.t || '').indexOf('image/') === 0;
     return isImg
-      ? '<img class="zoom-pg" src="' + p.d + '" alt="" style="cursor:zoom-in" onclick="inspZoomToggle(this)">'
+      ? '<img class="zoom-pg" loading="lazy" decoding="async" src="' + p.d + '" alt="" style="cursor:zoom-in" onclick="inspZoomToggle(this)">'
       : '<iframe class="zoom-pg" src="' + p.d + '" style="width:100%;height:82vh;border:0;background:#fff;border-radius:8px"></iframe>';
   }).join('');
   ov.innerHTML =
@@ -1564,6 +1647,82 @@ function docCloudDelete(id) {
   const token = _docAuthToken(); if (!token) return;
   fetch(ldBackendUrl() + '/api/documents/' + encodeURIComponent(id), { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } }).catch(function () {});
 }
+/* ⚠ ENTRAR EN DOCUMENTOS NO PUEDE DESCARGARLO TODO DE GOLPE
+   «En el iPhone, al abrir la documentación o visualizarla, se le bloquea»
+   (José Lucas, 7-sep-2026). Medido con documentos REALES —fotos de 2268×3024,
+   4,3 MB en disco y 26 MB al decodificarse— y la CPU a 1/4: abrir Documentos
+   bloqueaba el hilo principal **2 segundos**. Con ocho documentos de dos páginas
+   son 16 archivos bajándose EN PARALELO, cada uno convertido a base64 (un 33 %
+   más grande) y escrito en IndexedDB, todo a la vez.
+
+   Y lo peor: **la rejilla no enseña ni una imagen**. Sólo usa metadatos —nombre,
+   caducidad, nº de páginas (`_np`)—, así que bajar los dieciséis escaneos para
+   pintar una pantalla que no los usa era trabajo tirado. En un iPhone, además,
+   cada JPEG decodificado son decenas de MB de mapa de bits: eso ya no es lentitud,
+   es que iOS se lleva la pestaña por delante.
+
+   Hoy: la METADATA se aplica y se pinta AL INSTANTE, y los archivos bajan
+   detrás **de uno en uno, cediendo el hilo entre medias**. Se siguen bajando
+   todos —un piloto sin cobertura necesita sus documentos en el aparato, que es
+   para lo que existe esta caché— pero en trozos que el móvil puede digerir.
+   Y el que se ABRE se salta la cola (`_docAseguraArchivo`). */
+let _docBajando = false;
+function _docPagesDeUrls(urls) {
+  return Promise.all(urls.map(function (u) {
+    return fetch(u.url).then(function (resp) { return resp.blob(); }).then(function (blob) {
+      return new Promise(function (resolve) {
+        const fr = new FileReader();
+        fr.onload = function () { resolve({ d: fr.result, t: u.t || 'image/jpeg' }); };
+        fr.onerror = function () { resolve(null); };
+        fr.readAsDataURL(blob);
+      });
+    }).catch(function () { return null; });
+  })).then(function (pgs) { return pgs.filter(Boolean); });
+}
+function _docGuardaPaginas(id, pgs) {
+  if (!pgs.length || !docsData[id]) return false;
+  _docApplyPages(id, pgs);
+  docsData[id]._cloudFile = true;
+  _docfPut(id, pgs);
+  return true;
+}
+/* La cola: un documento por vuelta y un respiro entre uno y otro. Sin el
+   respiro esto es exactamente lo de antes con más pasos. */
+function _docBajaCola(cola, fin) {
+  let n = 0;
+  const paso = function () {
+    const it = cola.shift();
+    if (!it) { _docBajando = false; if (n) { _docsSaveMeta(true); renderWallet(); } if (fin) fin(n); return; }
+    if (_docTiene(it.id)) { setTimeout(paso, 0); return; }   // se ha adelantado por la puerta de al lado
+    _docPagesDeUrls(it.urls).then(function (pgs) {
+      if (_docGuardaPaginas(it.id, pgs)) n++;
+      setTimeout(paso, 60);      // el respiro: el móvil pinta y responde entre archivo y archivo
+    });
+  };
+  _docBajando = true;
+  setTimeout(paso, 0);
+}
+function _docTiene(id) {
+  const cur = docsData[id];
+  return !!(cur && ((Array.isArray(cur.pages) && cur.pages.length && cur.pages.every(function (p) { return _isValidFileData(p.d); })) || _isValidFileData(cur.fileData)));
+}
+/* Bajar AHORA el documento que el piloto acaba de abrir. Sin esto, con la cola a
+   medias pulsaba «Ampliar» y no pasaba nada — el fallo mudo de siempre. */
+const _docUrls = {};
+/* ⚠ El callback dice si se ha BAJADO algo, no si el archivo está. Devolviendo
+   `true` cuando ya estaba, quien lo use para repintar se llama a sí mismo:
+   openDocSheet → asegura → cb(true) → openDocSheet → … El navegador se queda
+   girando; así es como lo encontré, con el banco colgado. */
+function _docAseguraArchivo(id, cb) {
+  if (_docTiene(id)) { if (cb) cb(false); return; }
+  const urls = _docUrls[id];
+  if (!urls || !urls.length) { if (cb) cb(false); return; }
+  _docPagesDeUrls(urls).then(function (pgs) {
+    const ok = _docGuardaPaginas(id, pgs);
+    if (ok) { _docsSaveMeta(true); renderWallet(); }
+    if (cb) cb(ok);
+  });
+}
 function docCloudPull(force, cb) {
   if (!_docCloudOn()) { if (cb) cb({ ok: false, reason: 'noauth' }); return; }
   // Sin esperar a la hidratación creería que no hay copia local y se bajaría todo otra vez.
@@ -1577,35 +1736,30 @@ function docCloudPull(force, cb) {
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (j) {
       if (!j || !j.documents) { if (cb) cb({ ok: false, reason: 'empty' }); return; }
-      let pending = 0, changed = false, filesDl = 0;
-      const docsN = j.documents.length;
-      const done = function () { if (changed) { _loadCustomDocs(); _docsSaveMeta();  renderWallet(); const io = document.getElementById('doc-inspect'); if (io && io.classList.contains('open') && typeof openInspect === 'function') openInspect(); } if (cb) cb({ ok: true, docs: docsN, files: filesDl }); };
+      let changed = false;
+      const docsN = j.documents.length, cola = [];
       j.documents.forEach(function (rd) {
         const id = rd.doc_id, remoteTs = Date.parse(rd.updated_at) || 0;
         const local = docsData[id], localTs = (local && local._ts) || 0;
         const applyMeta = (!local || remoteTs >= localTs);
         if (applyMeta) { docsData[id] = Object.assign({}, local || {}, rd.data || {}, { _cloudFile: true, _ts: remoteTs || localTs }); changed = true; }
-        const cur = docsData[id];
         const remoteUrls = (Array.isArray(rd.file_urls) && rd.file_urls.length) ? rd.file_urls : (rd.file_url ? [{ url: rd.file_url, t: rd.file_type || 'image/jpeg' }] : null);
+        if (remoteUrls) _docUrls[id] = remoteUrls;      // para bajarlo cuando se abra
         // "Tiene archivo local" SOLO si los datos son un data-URL válido (no roto/vacío/URL caducada).
         // Si están rotos, hasLocalFile=false → re-descargamos la copia buena del cloud.
-        const hasLocalFile = cur && ((Array.isArray(cur.pages) && cur.pages.length && cur.pages.every(function (p) { return _isValidFileData(p.d); })) || _isValidFileData(cur.fileData));
+        const hasLocalFile = _docTiene(id);
         // Descarga si no hay archivo local (o está roto), o si la nube es más nueva. (force manual = re-descarga siempre)
-        const needFile = remoteUrls && (!hasLocalFile || (applyMeta && remoteTs > localTs) || (force && !!cb));
-        if (needFile) {
-          pending++;
-          Promise.all(remoteUrls.map(function (u) {
-            return fetch(u.url).then(function (resp) { return resp.blob(); }).then(function (blob) {
-              return new Promise(function (resolve) { const fr = new FileReader(); fr.onload = function () { resolve({ d: fr.result, t: u.t || 'image/jpeg' }); }; fr.onerror = function () { resolve(null); }; fr.readAsDataURL(blob); });
-            }).catch(function () { return null; });
-          })).then(function (pgs) {
-            pgs = pgs.filter(Boolean);
-            if (pgs.length && docsData[id]) { _docApplyPages(id, pgs); docsData[id]._cloudFile = true; changed = true; filesDl++; _docfPut(id, pgs); }
-            pending--; if (pending === 0) done();
-          });
-        }
+        if (remoteUrls && (!hasLocalFile || (applyMeta && remoteTs > localTs) || (force && !!cb))) cola.push({ id: id, urls: remoteUrls });
       });
-      if (pending === 0) done();
+      /* La pantalla se pinta CON LOS METADATOS, sin esperar a un solo archivo: la
+         rejilla no enseña imágenes, así que ya está completa. */
+      if (changed) {
+        _loadCustomDocs(); _docsSaveMeta(); renderWallet();
+        const io = document.getElementById('doc-inspect');
+        if (io && io.classList.contains('open') && typeof openInspect === 'function') openInspect();
+      }
+      if (!cola.length) { if (cb) cb({ ok: true, docs: docsN, files: 0 }); return; }
+      _docBajaCola(cola, function (nDl) { if (cb) cb({ ok: true, docs: docsN, files: nDl }); });
     })
     .catch(function () { if (cb) cb({ ok: false, reason: 'neterr' }); });
 }

@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.754">
+  <meta name="version" content="Estable.788">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.754","builtAt":"2026-09-07T07:08:32Z","commit":"ffe3f8d","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.788","builtAt":"2026-09-09T10:27:55Z","commit":"15bfbe0","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -831,12 +831,20 @@ html:not(.day) #scr-docs .dss-empty{background:rgba(255,255,255,.05);color:rgba(
 .dw-inspect-btn:active{transform:scale(.985)}
 html.insp-lock,html.insp-lock body{overflow:hidden}
 .insp-ov{position:fixed;inset:0;z-index:400;display:none;background:radial-gradient(120% 80% at 50% -12%,rgba(124,58,237,.28),transparent 58%),linear-gradient(180deg,#0A0A15,#050509)}
-.insp-ov.open{display:block}
-.insp-head{display:flex;align-items:center;justify-content:space-between;padding:calc(14px + env(safe-area-inset-top,0px)) 18px 10px}
+/* En COLUMNA, no `block`: la banda de scroll empieza donde ACABA la cabecera.
+   Antes era `position:absolute;top:74px` —un número cableado— mientras la
+   cabecera crece con `env(safe-area-inset-top)`. Sin muesca la cabecera mide 58
+   px y sobraba sitio; en un iPhone con muesca (47 px) mide 105 y la banda de
+   tarjetas arrancaba 31 px DENTRO de ella: la ✕ quedaba debajo y
+   `elementFromPoint` sobre su centro devolvía `.insp-scroll` — no es que no se
+   viera, es que no se podía pulsar. En el escritorio y en el sandbox no pasa
+   nunca, que es justo por lo que llegó como reporte del móvil. */
+.insp-ov.open{display:flex;flex-direction:column}
+.insp-head{display:flex;align-items:center;justify-content:space-between;padding:calc(14px + env(safe-area-inset-top,0px)) 18px 10px;flex-shrink:0;position:relative;z-index:2}
 .insp-title{font-size:15px;font-weight:700;color:#fff;letter-spacing:-.02em;text-align:center}
 .insp-sub{font-size:10px;color:rgba(255,255,255,.42);text-align:center;margin-top:2px}
 .insp-hbtn{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.75);cursor:pointer;font-size:15px;flex-shrink:0}
-.insp-scroll{position:absolute;top:74px;bottom:0;left:0;right:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 22px calc(40px + env(safe-area-inset-bottom,0px));perspective:1500px}
+.insp-scroll{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 22px calc(40px + env(safe-area-inset-bottom,0px));perspective:1500px}
 .insp-stack{position:relative;max-width:400px;margin:0 auto}
 .vip-slot{position:absolute;left:0;right:0;top:0;transition:transform .4s cubic-bezier(.22,.68,.28,1);will-change:transform}
 .vip-card{position:relative;cursor:pointer;transition:transform .12s ease-out;transform-style:preserve-3d;will-change:transform}
@@ -9379,12 +9387,23 @@ html.day #rst-options-sheet{
 html.day #rst-options-sheet .rst-opt-handle-hit{
   background:linear-gradient(180deg,rgba(240,252,255,.99) 60%,rgba(240,252,255,0) 100%);
 }
-/* Rótulo de grupo dentro de la hoja */
+/* Rótulo de grupo dentro de la hoja.
+   El color por defecto es el CIAN del título, no el violeta: en esta app el
+   violeta es el modo prueba y no lo usa nada más —una captura en modo prueba no
+   se puede confundir con una de verdad—. Los grupos normales agrupan por
+   intención (traer, completar, sacar, copias) y no tienen nada de experimental;
+   sólo el bloque de 🧪 Pruebas pide el violeta, y lo pide explícitamente. */
 #rst-options-sheet .rst-opt-grp{
   font-family:'Space Mono',monospace;font-size:9.5px;font-weight:700;letter-spacing:1.2px;
-  text-transform:uppercase;color:rgba(167,139,250,.68);padding:2px 20px 8px;
+  text-transform:uppercase;color:rgba(148,163,184,.92);padding:2px 20px 8px;
 }
-html.day #rst-options-sheet .rst-opt-grp{color:#5B21B6}
+html.day #rst-options-sheet .rst-opt-grp{color:#475569}
+/* Al 68 % de opacidad este rótulo se quedaba en 3,80:1 sobre la hoja de noche
+   —por debajo del 4,5:1 de AA a 9,5 px—, y lo cazó el banco al medirlo en vez
+   de fiarse de que «parece violeta». Sube a violet-300 opaco: sigue siendo
+   inconfundiblemente el color del modo prueba y ahora se lee (9,2:1). */
+#rst-options-sheet .rst-opt-grp.is-beta{color:#C4B5FD}
+html.day #rst-options-sheet .rst-opt-grp.is-beta{color:#5B21B6}
 html.day #rst-options-sheet .rst-opt-handle{
   background:linear-gradient(90deg,rgba(13,148,136,.4),rgba(8,145,178,.4));
 }
@@ -9393,7 +9412,7 @@ html.day #rst-options-sheet .rst-opt-handle{
 #rst-options-sheet .rst-opt-title{
   font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;
   color:rgba(34,211,238,.5);font-family:'Space Mono',monospace;
-  padding:0 22px 12px;
+  padding:0 22px 10px;                /* el primer grupo va justo debajo */
 }
 html.day #rst-options-sheet .rst-opt-title{color:rgba(8,145,178,.55)}
 
@@ -29769,6 +29788,8 @@ document.addEventListener('focusin',function(e){
      dentro de este HTML: son 49 kB de geometría que el navegador cachea una vez
      y no vuelve a descargar en cada despliegue del index. -->
 <script src="js/coastline.js" defer></script>
+<script src="js/relieve.js" defer></script>
+  <script src="js/sigwx.js" defer></script>
 <script src="js/expense-engine.js"></script>
 <script src="js/expense.js"></script>
 <script>
@@ -37628,6 +37649,18 @@ function TabNotam(_ref32) {
 function MapTabBar(_ref35) {
   let active = _ref35.active,
     onChange = _ref35.onChange;
+  /* Esta barra no sabía nada del tema: fondo `rgba(0,8,24,0.95)` cableado y los
+     rótulos con los tokens de NOCHE (C.cyan / C.dimmer). En modo día quedaba una
+     franja NEGRA cruzando una pantalla clara — lo único oscuro de la pantalla, y
+     de otra app. Es la regla de este archivo: un bloque declara SUS DOS paletas.
+     La barra la comparten las seis pestañas de MAPAS, así que esto las arregla
+     todas, no solo SIGWX. */
+  const dayTB = useSkyDay();
+  const tbBg   = dayTB ? "rgba(255,255,255,.94)" : "rgba(0,8,24,0.95)";
+  const tbBd   = dayTB ? "2px solid rgba(15,55,95,.16)" : "2px solid rgba(126,251,254,0.08)";
+  const tbSh   = dayTB ? "0 2px 10px rgba(12,40,75,.10)" : "none";
+  const tbOn   = dayTB ? "#0369A1" : C.cyan;      // 6,4:1 sobre la barra clara
+  const tbOff  = dayTB ? "#54708F" : C.dimmer;    // 4,6:1
   const tabs = [{
     id: "perfil",
     icon: "📈",
@@ -37645,6 +37678,10 @@ function MapTabBar(_ref35) {
     icon: "💨",
     label: "VIENTOS"
   }, {
+    id: "sigwx",
+    icon: "⛰",
+    label: "SIGWX"
+  }, {
     id: "turb",
     icon: "⚡",
     label: "TURB"
@@ -37652,8 +37689,9 @@ function MapTabBar(_ref35) {
   return /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
-      background: "rgba(0,8,24,0.95)",
-      borderBottom: "2px solid rgba(126,251,254,0.08)",
+      background: tbBg,
+      borderBottom: tbBd,
+      boxShadow: tbSh,
       marginBottom: 0
     }
   }, tabs.map(t => {
@@ -37668,7 +37706,7 @@ function MapTabBar(_ref35) {
         border: "none",
         cursor: "pointer",
         position: "relative",
-        borderBottom: act ? "2px solid ".concat(C.cyan) : "2px solid transparent",
+        borderBottom: act ? "2px solid ".concat(tbOn) : "2px solid transparent",
         marginBottom: -2,
         transition: "all 0.15s"
       }
@@ -37679,7 +37717,16 @@ function MapTabBar(_ref35) {
         alignItems: "center",
         gap: 3
       }
-    }, /*#__PURE__*/React.createElement("span", {
+    }, window.MAP_TAB_ICONS && window.MAP_TAB_ICONS[t.id] ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        display: "block",
+        width: 16,
+        height: 16,
+        color: act ? tbOn : tbOff,
+        transition: "color 0.15s"
+      },
+      dangerouslySetInnerHTML: { __html: window.MAP_TAB_ICONS[t.id] }
+    }) : /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 14
       }
@@ -37689,7 +37736,7 @@ function MapTabBar(_ref35) {
         fontFamily: mono,
         fontWeight: 700,
         letterSpacing: "0.5px",
-        color: act ? C.cyan : C.dimmer,
+        color: act ? tbOn : tbOff,
         transition: "color 0.15s"
       }
     }, t.label)), act && /*#__PURE__*/React.createElement("div", {
@@ -37699,7 +37746,7 @@ function MapTabBar(_ref35) {
         left: "20%",
         right: "20%",
         height: 2,
-        background: "linear-gradient(90deg,transparent,".concat(C.cyan, ",transparent)")
+        background: "linear-gradient(90deg,transparent,".concat(tbOn, ",transparent)")
       }
     }));
   }));
@@ -38256,7 +38303,17 @@ function TabMaps(_ref51) {
     leg: leg
   }), mapTab === "wind" && /*#__PURE__*/React.createElement(MapWind, {
     leg: leg
-  }), mapTab === "turb" && /*#__PURE__*/React.createElement(Glass, {
+  }), mapTab === "sigwx" && /*#__PURE__*/React.createElement(SkyPanelSeguro, {
+    nombre: "SIGWX"
+  }, window.MapSigwx ? /*#__PURE__*/React.createElement(window.MapSigwx, {
+    leg: leg
+  }) : /*#__PURE__*/React.createElement(Glass, {
+    style: { padding: "16px" }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { fontFamily: mono, fontSize: 8, letterSpacing: "1.2px", color: C.yellow, marginBottom: 6 }
+  }, "SIGWX NO DISPONIBLE"), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 11, color: C.dim, lineHeight: 1.6 }
+  }, "El módulo de la carta (js/sigwx.js) no se ha cargado. Con el `&&` de antes esta pestaña se quedaba en blanco sin decir nada: «no hay tiempo significativo» y «no ha cargado el módulo» se veían igual."))), mapTab === "turb" && /*#__PURE__*/React.createElement(Glass, {
     style: {
       padding: "14px"
     }
@@ -38264,6 +38321,41 @@ function TabMaps(_ref51) {
     leg: leg
   }))));
 }
+/* ══════════ SkyPanelSeguro — una pestaña que revienta no se lleva la app ══════════
+   Lo que reportó el piloto («al entrar en sigwx no funciona») fue un
+   ReferenceError dentro de MapSigwx: React, ante un throw en el render y sin
+   ninguna frontera de error por encima, desmonta el árbol ENTERO. No se cayó
+   la pestaña — se cayó SkyView completo, y lo que quedó en pantalla fue el
+   degradado de modo día y el botón de Reportar, que viven fuera de React.
+
+   La causa concreta ya está arreglada (los tokens se exportan). Esto es para la
+   siguiente: un panel roto tiene que decir QUÉ ha pasado y dejar el resto de la
+   app en pie. Una pantalla en blanco no se puede ni diagnosticar ni reportar —
+   es el «0 mudo» de este archivo llevado al extremo. */
+class SkyPanelSeguro extends React.Component {
+  constructor(p) { super(p); this.state = { e: null }; }
+  static getDerivedStateFromError(e) { return { e: e }; }
+  componentDidCatch(e) { try { console.error("SkyView · panel " + (this.props.nombre || "?") + ":", e); } catch (_) {} }
+  render() {
+    if (!this.state.e) return this.props.children;
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        borderRadius: 14, padding: "16px 15px",
+        background: "rgba(255,77,109,0.08)", border: "1px solid rgba(255,77,109,0.35)"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: { fontFamily: mono, fontSize: 8, letterSpacing: "1.2px", color: C.red, marginBottom: 6 }
+    }, "ERROR EN " + (this.props.nombre || "ESTE PANEL")), /*#__PURE__*/React.createElement("div", {
+      style: { fontSize: 11.5, color: C.dim, lineHeight: 1.6, marginBottom: 8 }
+    }, "Esta pestaña no ha podido dibujarse. El resto de SkyView sigue funcionando; pega este texto en un reporte:"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontFamily: mono, fontSize: 9.5, color: C.white, lineHeight: 1.5,
+        background: "rgba(0,0,0,.30)", borderRadius: 8, padding: "8px 10px", wordBreak: "break-word"
+      }
+    }, String((this.state.e && (this.state.e.message || this.state.e)) || "error desconocido")));
+  }
+}
+
 function TabAria(_ref52) {
   let leg = _ref52.leg,
     turbData = _ref52.turbData;
@@ -39406,6 +39498,23 @@ function SkyViewPilotOS() {
     }));
   })));
 }
+
+/* ══════════ EXPORTS PARA OTROS BLOQUES <script> ══════════
+   Todo lo de arriba vive DENTRO del IIFE de SkyView («SkyView React Component»),
+   así que desde public/js/sigwx.js —que es otro bloque <script>— no existe.
+   Leer `mono` allí no daba `undefined`: daba **ReferenceError**, y un throw
+   durante el render desmonta el árbol entero de React → la pantalla en blanco
+   que reportó el piloto al entrar en MAPAS › SIGWX. No sólo la pestaña: la app.
+
+   Es window.RST_IATA_ICAO / fetchLiveNotams / rstToIata otra vez, CUARTA. La
+   regla de este archivo sigue siendo la misma: lo que se use desde otro bloque
+   <script> se EXPORTA explícitamente. Y con un nombre propio (SKY_*), no
+   colgando `mono` y `sans` a pelo de window, que son palabras demasiado
+   comunes para ocupar el objeto global. */
+window.SKY_MONO  = mono;
+window.SKY_SANS  = sans;
+window.SKY_THEME = SKY_THEME;
+window.useSkyDay = useSkyDay;
 
 // ══════════ MOUNT POINT ══════════
 window.__mountSkyView = function () {
@@ -44994,8 +45103,17 @@ window.rstShowOptionsMenu = function(){
   var _notifOn = (typeof Notification !== 'undefined' && Notification.permission === 'granted');
   var isDayMode = document.documentElement.classList.contains('day');
 
-  // item def: icon, iconBg (night), iconBgDay, label, sub, action, id, notif, sep, danger
+  /* item def: icon, iconBg (night), iconBgDay, label, sub, action, id, notif, sep,
+     grp, beta, danger.
+
+     El menú va agrupado por INTENCIÓN, no por orden de llegada — igual que el del
+     logbook: traer el roster, completar el mes, sacarlo fuera, copias. Antes eran
+     ocho entradas seguidas bajo un solo título y había que leerlas todas para dar
+     con la que tocaba; «Exportar calendario» caía entre eCrews y las alertas, y
+     los dos exportar JSON quedaban detrás de Vacaciones sin nada que los uniera.
+     Lo destructivo sigue solo al final y en rojo. */
   var items = [
+    { grp:'Traer el roster' },
     {
       icon:'📂',
       iconBg:'rgba(14,165,233,.55)', iconBgDay:'rgba(8,145,178,.18)',
@@ -45010,14 +45128,10 @@ window.rstShowOptionsMenu = function(){
       sub:'Sincronización directa',
       action:'ldECrewsSyncOpen()'
     },
-    {
-      icon:'📊',
-      iconBg:'rgba(99,102,241,.55)', iconBgDay:'rgba(99,102,241,.18)',
-      label:'Exportar calendario',
-      sub:'ICS · Calendario del sistema',
-      action:'rosterExportOpen()'
-    },
-    { notif: true },
+    /* Lo que la compañía NO publica y pone el piloto: sin esto el mes está a
+       medias, y por eso va junto y justo detrás de traerlo. */
+    { sep: true },
+    { grp:'Completar el mes' },
     {
       icon:'🗓️',
       iconBg:'rgba(20,184,166,.55)', iconBgDay:'rgba(13,148,136,.18)',
@@ -45032,6 +45146,20 @@ window.rstShowOptionsMenu = function(){
       sub:'Marca tus periodos de vacaciones',
       action:'rosterOpenVacations()'
     },
+    /* Las dos que sacan el roster del PilotOS y lo meten en el teléfono: el
+       calendario del sistema y el centro de notificaciones. */
+    { sep: true },
+    { grp:'En tu teléfono' },
+    {
+      icon:'📊',
+      iconBg:'rgba(99,102,241,.55)', iconBgDay:'rgba(99,102,241,.18)',
+      label:'Exportar calendario',
+      sub:'ICS · Calendario del sistema',
+      action:'rosterExportOpen()'
+    },
+    { notif: true },
+    { sep: true },
+    { grp:'Copias y diagnóstico' },
     {
       icon:'📤',
       iconBg:'rgba(56,189,248,.55)', iconBgDay:'rgba(2,132,199,.18)',
@@ -45055,7 +45183,7 @@ window.rstShowOptionsMenu = function(){
      vecindario con lo experimental. */
   if (rcambEsBeta()) {
     items.push({ sep: true });
-    items.push({ grp: '🧪 Pruebas · solo beta' });
+    items.push({ grp: '🧪 Pruebas · solo beta', beta: true });
     items.push({
       icon:'🔖',
       iconBg:'rgba(34,197,94,.42)', iconBgDay:'rgba(21,128,61,.18)',
@@ -45093,7 +45221,7 @@ window.rstShowOptionsMenu = function(){
 
   function makeItem(it){
     if(it.sep) return '<div class="rst-opt-sep"></div>';
-    if(it.grp) return '<div class="rst-opt-grp">'+it.grp+'</div>';
+    if(it.grp) return '<div class="rst-opt-grp'+(it.beta?' is-beta':'')+'">'+it.grp+'</div>';
 
     if(it.notif){
       var bg = _notifOn
@@ -51030,6 +51158,40 @@ function ldRenderCarrera(){
 // ══════════════════════════════════════════════════════
 // ROUTE TRACKER — HiDPI Canvas + Live Logbook Routes
 // ══════════════════════════════════════════════════════
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ATLAS_DIA — el SUELO del mapa en modo día: mar, tierra, costa y retícula.
+   ──────────────────────────────────────────────────────────────────────────
+   Lo comparten el mapa del logbook y la carta SIGWX de SkyView. Es UNA tabla a
+   propósito: el SIGWX empezó con su propio suelo (mar `#bcd7ee`, tierra crema)
+   y el piloto lo devolvió dos veces — «muy plano», «el crema es muy feo» —
+   mientras el del logbook llevaba meses gustando. Copiar los valores a mano
+   habría sido `ES_AIRPORTS` / `ES_IATA`: dos mapas de la misma app pintando el
+   mismo mundo de dos formas, y divergiendo a la primera que alguien retoque uno.
+
+   ⚠ La NOCHE **no** está aquí, y no es un olvido: cada mapa tiene la suya y son
+   distintas a propósito (el logbook va a `#060C1A` con tierra azulada; el SIGWX
+   a `#00081c` con `#0c2447`, que es la que el piloto pidió no tocar). Lo que se
+   comparte es el problema que estaba resuelto en un sitio y roto en el otro.
+   ══════════════════════════════════════════════════════════════════════════ */
+window.ATLAS_DIA = {
+  /* Afinado hacia la carta de ruta del iPad (pedido 7-sep-2026, con foto): allí
+     la tierra es CREMA CÁLIDA y el mar un azul pálido desaturado, no el salvia
+     verdoso que había. Sigue siendo UNA tabla, así que el mapa del logbook se
+     mueve con ella — es el mismo mundo y tiene que verse igual en los dos.
+     ⚠ Esta nota decía que el relieve de la carta —el tostado del Atlas, el
+     Rif— no se copiaba «porque son datos de elevación que la app no tiene».
+     Desde Beta.769 SÍ los tiene: `public/js/relieve.js` trae altitud de verdad
+     (teselas terrarium de AWS Terrain Tiles) y la carta SIGWX la pinta encima
+     de esta tierra. Lo que seguía siendo cierto es el porqué: a ojo no se
+     dibuja. El MAPA DEL LOGBOOK no lo usa —es decorativo y no tiene que situar
+     a nadie sobre el terreno—, así que la tabla se queda como está. */
+  mar:    [[0,'#AECBDD'], [.5,'#C9DFEA'], [1,'#A6C4D8']],
+  tierra: [[0,'rgba(247,241,226,.97)'], [.55,'rgba(240,231,208,.97)'], [1,'rgba(231,219,190,.97)']],
+  costa:  'rgba(30,64,124,.34)',
+  malla:  'rgba(30,64,124,.10)'
+};
+
 var LDM = {
   // Projection: Western Europe + Med + Middle East
   L0:-28, L1:82, A0:8, A1:74,
@@ -51472,13 +51634,14 @@ var LDM = {
 
   drawFrame:function(){
     var ctx=this.ctx,W=this.W,H=this.H,m=this;
+    var A=window.ATLAS_DIA;
     // Modo día/noche: sigue el toggle global del Home (html.day)
     var day=document.documentElement.classList.contains('day');
     ctx.clearRect(0,0,W,H);
     if(day){
       // Cielo/mar diurno — degradado claro acorde al logbook en día
       var sky=ctx.createLinearGradient(0,0,0,H);
-      sky.addColorStop(0,'#A7C8E2'); sky.addColorStop(.5,'#C2DCEF'); sky.addColorStop(1,'#9FC1DC');
+      A.mar.forEach(function(p){ sky.addColorStop(p[0],p[1]); });
       ctx.fillStyle=sky;
     } else {
       ctx.fillStyle='#060C1A';
@@ -51493,7 +51656,7 @@ var LDM = {
       ctx.fillStyle=rg1; ctx.fillRect(0,0,W,H);
     }
     // Grid
-    ctx.strokeStyle=day?'rgba(30,64,124,.10)':'rgba(34,211,238,.04)'; ctx.lineWidth=.5;
+    ctx.strokeStyle=day?A.malla:'rgba(34,211,238,.04)'; ctx.lineWidth=.5;
     for(var lon=m.L0;lon<=m.L1;lon+=10){
       var px=m.cX(m.wX(lon)); if(px<-2||px>W+2) continue;
       ctx.beginPath(); ctx.moveTo(px,0); ctx.lineTo(px,H); ctx.stroke();
@@ -51507,15 +51670,13 @@ var LDM = {
     var landGrad=ctx.createLinearGradient(0,0,0,H);
     if(day){
       // Tierra diurna clara (tipo atlas) — contrasta sobre mar azul claro
-      landGrad.addColorStop(0,'rgba(244,247,238,.97)');
-      landGrad.addColorStop(.55,'rgba(233,238,225,.97)');
-      landGrad.addColorStop(1,'rgba(222,229,212,.97)');
+      A.tierra.forEach(function(p){ landGrad.addColorStop(p[0],p[1]); });
     } else {
       landGrad.addColorStop(0,'rgba(24,34,62,.95)');
       landGrad.addColorStop(.55,'rgba(16,24,48,.95)');
       landGrad.addColorStop(1,'rgba(11,17,38,.96)');
     }
-    var coastStroke=day?'rgba(30,64,124,.30)':'rgba(34,211,238,.13)';
+    var coastStroke=day?A.costa:'rgba(34,211,238,.13)';
     m.LANDS.forEach(function(pts){
       var minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9,proj=[];
       for(var i=0;i<pts.length;i++){
@@ -51790,6 +51951,25 @@ var LDM = {
 
    `LDM.mes` NO se guarda: al volver al mapa lo que se quiere ver es el mapa
    entero, no el septiembre que se miró la semana pasada. */
+/* ⚠ EXPORTACIÓN, y no es cosmética. `LDM` vive en este bloque <script> y la
+   carta SIGWX (public/js/sigwx.js) vive en otro, así que allí `window.LDM` era
+   `undefined` SIEMPRE. Consecuencias, las dos mudas:
+
+     · `apCoord()` del SIGWX empieza por `if (window.LDM && LDM.AP[iata])` — no
+       entraba nunca. Sin coordenadas de los aeropuertos no hay puntos, sin
+       puntos `fit()` se sale por su `return`, y el mapa **abría sobre el mundo
+       entero en vez de encuadrar tu ruta**. Eso es lo que se vive como «no
+       puedo acercarme lo suficiente»: no es el tope del zoom, es que arrancabas
+       a 10.000 km del sitio.
+     · Y la costa de más resolución (`LDM.LANDS`, 1:50m con Baleares y Canarias)
+       tampoco se podía elegir, así que se dibujaba siempre la del mundo a 110m,
+       donde esas islas no existen.
+
+   Es `window.RST_IATA_ICAO` / `fetchLiveNotams` / `rstToIata` / `mono` / `sans`
+   otra vez, SEXTA. La guarda `if (window.LDM && ...)` no era el arreglo: era lo
+   que escondía que faltaba la exportación. */
+try { window.LDM = LDM; } catch (e) {}
+
 function ldMapEntries(){
   var todo=window.ldEntries||[];
   if(!LDM.mes||LDM.mes==='todo') return todo;

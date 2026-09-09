@@ -76,7 +76,12 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){
    EX.tkSum / EX.tkLine: lo que suman los tickets, por nota y por línea. Es lo
    que convierte el tope del convenio en lo que de verdad vas a cobrar. */
 var EX = { auto: [], manual: [], sent: {}, pend: {}, tkCount: {}, tkSum: {}, tkLine: {},
-           base: (window.ppGet&&ppGet('base'))||BASE_DEFAULT, mes: null, sync: null };
+           base: (window.ppGet&&ppGet('base'))||BASE_DEFAULT, mes: null, estado: 'falta',
+           sync: null,
+           /* Envío al portal. Se inicializan AQUÍ y no sólo en sus loaders: si
+              algún día se pinta la pestaña sin pasar por exInit, un `EX.paid`
+              undefined reventaría al marcar una nota como cobrada. */
+           portal: {}, paid: {}, sheets: [], vistas: {}, vistasN: {}, fechas: {}, motivos: {}, flash: {}, sel: {}, selMode: false };
 var ARRANCADO = false;
 var K_SENT = 'pilotos_gastos_enviadas', K_MAN = 'pilotos_gastos_manual',
     K_PEND = 'pilotos_gastos_porsubir', K_SYNCAT = 'pilotos_gastos_sync';
@@ -615,6 +620,100 @@ function mesesStrip(meses){
       '<span>'+eur(sumaDe(meses, function(m){ return m.tope; }))+'</span></div></div>';
 }
 
+/* ════════ LOS TRES PASOS DE UNA NOTA ════════
+   No es una categoría más: es lo único que el piloto quiere saber al entrar —
+   qué le falta para cobrar. El orden es el del trabajo:
+     falta   → ni un solo ticket. Sin ticket el portal no abona NADA.
+     lista   → ya tiene alguno; queda pasarla por el portal.
+     enviado → hecha.
+   `lista` mira si hay ALGÚN ticket, no si están todos: una nota de dos noches
+   con una sola foto ya ha empezado, y el chip de la tarjeta dice «1 de 2» en
+   ámbar para que la mitad que falta no se dé por buena. Poner el listón en
+   «todas» dejaría esa nota en «SIN TICKET» teniendo una foto dentro, que es
+   justo el 0 mudo que este archivo lleva persiguiendo. */
+var PASOS = [
+  { k:'falta',   l:'SIN TICKET',
+    vacio:'Ninguna nota sin ticket. Todo lo de este mes está justificado.' },
+  { k:'lista',   l:'CON TICKET',
+    vacio:'Todavía ninguna nota con ticket adjunto.' },
+  { k:'enviado', l:'ENVIADO',
+    vacio:'Aún no has marcado ninguna como enviada.' }
+];
+function pasoDe(k){ for (var i=0;i<PASOS.length;i++) if (PASOS[i].k===k) return PASOS[i]; return PASOS[0]; }
+function lineasConTk(n){
+  var k = 0;
+  (n.lines||[]).forEach(function(_, i){ if (tkDeLinea(n, i) > 0) k++; });
+  return k;
+}
+function estadoDe(n){
+  if (EX.sent[n.id]) return 'enviado';
+  return lineasConTk(n) > 0 ? 'lista' : 'falta';
+}
+/* El paso que se abre es el primero que TENGA algo, no el último que se miró:
+   al entrar en Gastos lo que interesa es lo que bloquea el cobro. */
+function primerPaso(g){
+  for (var i=0;i<PASOS.length;i++) if (g[PASOS[i].k] && g[PASOS[i].k].length) return PASOS[i].k;
+  return 'falta';
+}
+window.exPaso = function(k){ EX.estado = k; exRender(); };
+
+/* ── El detalle de la tarjeta, plegado ────────────────────────────────────────
+   La tarjeta abierta ocupaba media pantalla para decir un número: con dos notas
+   ya no cabía nada más. Plegada entran ocho. El estado NO se guarda —al volver
+   a Gastos lo que interesa es la lista, no la nota que se dejó abierta— y el
+   atajo a la cámara vive en el chip de tickets, así que la foto sigue a UN
+   toque desde la lista: plegar no puede alejar la única tarea de la pantalla. */
+window.exToggle = function(id, el){
+  var b = document.getElementById('exb-'+id); if (!b) return;
+  var abierto = b.style.display !== 'none';
+  b.style.display = abierto ? 'none' : '';
+  if (el) el.classList.toggle('open', !abierto);
+};
+
+/* ════════ EL ICONO DEL TIPO ════════
+   ⚠️ DIBUJADO, no escrito con un carácter. Un glifo (✈ 🛏 ⚠) lo pinta la fuente
+   instalada en el móvil del piloto: el mismo código sale sólido en un aparato y
+   en hueco en otro, y ahí «no tienes nota» y «tu teléfono pinta el avión de un
+   pelo» se ven igual. Es la lección de la luna de las pernoctas, y por eso el
+   icono va en <path fill>: un trazado no adelgaza en otro sistema ni se lo
+   sustituye un emoji. El color sale del MISMO `--tcol` que la tira lateral, así
+   que icono y tira no pueden discrepar. */
+var ICONOS = {
+  /* avión de perfil */
+  position:'<path d="M15 8c0 .5-.4.9-.9.9l-4.3.3-2.2 5.2c-.1.2-.3.4-.6.4h-.8c-.3 0-.5-.3-.4-.6'+
+    'l1.2-5-3 .2-1.2 1.6c-.1.1-.2.2-.4.2h-.5c-.2 0-.4-.2-.3-.5L2.3 8l-.7-2.7c-.1-.3.1-.5.3-.5h.5'+
+    'c.2 0 .3.1.4.2l1.2 1.6 3 .2-1.2-5c-.1-.3.1-.6.4-.6h.8c.3 0 .5.2.6.4l2.2 5.2 4.3.3'+
+    'c.5 0 .9.4.9.9z"/>',
+  /* cama */
+  voucher:'<rect x="1.3" y="3.6" width="1.9" height="8.8" rx=".8"/>'+
+    '<rect x="4.1" y="5.6" width="3.2" height="2.6" rx="1.1"/>'+
+    '<rect x="4.1" y="8.2" width="10.4" height="4.2" rx="1.2"/>',
+  /* triángulo de aviso */
+  incident:'<path d="M8 2.1 14.7 13.7H1.3z" fill="none" stroke="currentColor" stroke-width="1.6" '+
+    'stroke-linejoin="round"/><rect x="7.2" y="6.2" width="1.6" height="3.5" rx=".8"/>'+
+    '<circle cx="8" cy="11.5" r=".95"/>',
+  /* llama */
+  oven:'<path d="M8.7 1.1c.3 2 1.3 2.9 2.3 4 .9 1 1.5 2.1 1.5 3.5A4.5 4.5 0 0 1 8 13.1'+
+    'a4.5 4.5 0 0 1-4.5-4.5c0-1.6.8-2.7 1.8-3.5.2.7.6 1.1 1.2 1.3C6 4.5 6.9 2.4 8.7 1.1z"/>',
+  /* casa */
+  second:'<path d="M8 1.7 14.9 7.7H1.1z"/><rect x="3.2" y="7.7" width="9.6" height="6.6" rx=".9"/>',
+  /* cruz sanitaria */
+  medical:'<rect x="6.3" y="1.6" width="3.4" height="12.8" rx="1.1"/>'+
+    '<rect x="1.6" y="6.3" width="12.8" height="3.4" rx="1.1"/>',
+  /* birrete */
+  training:'<path d="M8 1.9 15.5 5.6 8 9.3.5 5.6z"/>'+
+    '<path d="M3.7 7.9v3c0 1.4 1.9 2.5 4.3 2.5s4.3-1.1 4.3-2.5v-3L8 10.4z"/>',
+  /* portapapeles */
+  ops:'<rect x="2.9" y="2.9" width="10.2" height="11.2" rx="1.7" fill="none" '+
+    'stroke="currentColor" stroke-width="1.5"/><rect x="5.8" y="1.2" width="4.4" height="2.8" rx="1.1"/>'+
+    '<rect x="5.4" y="7" width="5.2" height="1.4" rx=".7"/>'+
+    '<rect x="5.4" y="10" width="3.4" height="1.4" rx=".7"/>'
+};
+function icono(kind){
+  return '<svg class="ex-ic" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" '+
+    'fill="currentColor">'+(ICONOS[kind] || ICONOS.ops)+'</svg>';
+}
+
 /* ════════ RENDER ════════ */
 function exRender(){
   var host = document.getElementById('pc-tab-gastos');
@@ -665,47 +764,113 @@ function exRender(){
 
   if (meses.length > 1) h += mesesStrip(meses);
 
+  /* ════════ EL NÚMERO GRANDE ES LO QUE RECLAMAS, NO EL TOPE ════════
+     Hasta Beta.770 mandaba el TOPE del convenio y justo debajo iba una línea
+     diciendo que sin tickets no se abona nada: el número que domina la pantalla
+     contradiciendo a la frase que tiene debajo. El tope es un máximo teórico —
+     dinero que no está—, así que pasa a segundo plano y manda lo que de verdad
+     vas a cobrar con los tickets que llevas puestos. La barra enseña cuánto de
+     ese tope llevas cubierto, que es el trabajo que queda por hacer. */
+  var pct = tope > 0 ? Math.max(0, Math.min(100, Math.round(recl / tope * 100))) : 0;
   h += '<div class="ex-hero">'+
-    '<div class="ex-lbl">POR RECLAMAR · '+(EX.mes==='*' ? 'TODOS LOS MESES' : mesLargo(EX.mes))+'</div>'+
-    '<div class="ex-big">'+eur(tope)+'</div>'+
-    '<div class="ex-sub">tope máximo · '+pend.length+(pend.length===1?' nota':' notas')+
-      ' · '+pend.reduce(function(a,n){return a+n.lines.length;},0)+' líneas</div>'+
-    /* El tope no es dinero cobrado: el portal paga lo que sumen los tickets.
-       Decirlo aquí, y no en letra pequeña, evita el "leí 128 € y cobré 40". */
-    (pend.length
-      ? '<div class="ex-real">'+
-          (recl > 0
-            ? 'Con tus tickets reclamas <b>'+eur(recl)+'</b>'+
-              (margen > 0 ? ' · te quedan '+eur(margen)+' de margen' : ' · tope alcanzado')
-            : 'Aún <b>sin tickets</b>: sin ticket adjunto no se abona nada de esto')+
-        '</div>'
-      : '')+
-    '<div class="ex-tiles">'+
-      '<div class="ex-tile'+(recl>0?' cash':'')+'"><div class="n">'+eur(recl)+'</div>'+
-        '<div class="l">CON TUS TICKETS</div></div>'+
-      '<div class="ex-tile ok"><div class="n">'+eur(totS)+'</div><div class="l">YA PASADAS</div></div>'+
-      (prox
-        ? '<div class="ex-tile'+(daysLeft(prox.date)<=30?' warn':'')+'"'+
-          (proxFuera ? ' onclick="exMes(\''+proxMes+'\')"' : '')+'><div class="n">'+
-          daysLeft(prox.date)+(daysLeft(prox.date)===1?' día':' días')+'</div>'+
-          '<div class="l">CADUCA LA 1ª · '+(proxFuera ? mesLbl(proxMes) : eur(topeDe(prox)||tkDe(prox)))+
-          '</div></div>'
-        : '<div class="ex-tile" style="opacity:.45"><div class="n">—</div><div class="l">SIN PLAZOS</div></div>')+
-    '</div>'+ nubeEstado() +'</div>';
+    '<div class="ex-lbl">RECLAMAS · '+(EX.mes==='*' ? 'TODOS LOS MESES' : mesLargo(EX.mes))+'</div>'+
+    '<div class="ex-big">'+eur(recl)+'</div>'+
+    '<div class="ex-sub">de <b>'+eur(tope)+'</b> posibles · '+pend.length+
+      (pend.length===1?' nota' : ' notas')+' · '+
+      pend.reduce(function(a,n){return a+n.lines.length;},0)+' líneas</div>'+
+    (pend.length ? '<div class="ex-pbar"><i style="width:'+pct+'%"></i></div>' : '')+
+    avisos(pend, prox, proxFuera, proxMes)+
+    nubeEstado()+'</div>';
 
+  /* ════════ LOS TRES PASOS ════════
+     El piloto no piensa "mis notas de gasto": piensa "¿qué me falta para cobrar
+     esto?". Los tres pasos son esa respuesta, con su recuento a la vista — así
+     que filtrar no esconde nada: lo que hay en los otros dos lo dice el propio
+     mando. Se eligen los que están, no un número guardado: si no queda nada sin
+     ticket, entrar en Gastos abre por el paso que sí tiene trabajo. */
+  var grupos = { falta:[], lista:[], enviado:[] };
+  all.filter(enMes).forEach(function(n){ grupos[estadoDe(n)].push(n); });
+  if (!grupos[EX.estado] || !grupos[EX.estado].length) EX.estado = primerPaso(grupos);
+
+  if (all.length){
+    h += '<div class="ex-pasos">'+ PASOS.map(function(p){
+      return '<div class="ex-paso'+(EX.estado===p.k?' on':'')+
+        (p.k==='falta' && grupos.falta.length ? ' urge':'')+'" onclick="exPaso(\''+p.k+'\')">'+
+        '<div class="n">'+grupos[p.k].length+'</div><div class="l">'+p.l+'</div></div>';
+    }).join('') +'</div>';
+
+    var lista = grupos[EX.estado];
+    if (lista.length) h += porMeses(lista, EX.estado === 'enviado');
+    else h += '<div class="ex-empty">'+pasoDe(EX.estado).vacio+'</div>';
+  }
+
+  /* Lo que Vueling ha hecho con tus notas. Va antes de "añadir a mano": es
+     dinero que reclamaste y no vas a cobrar, y hasta hoy sólo estaba en un
+     correo del bot que nadie relee. */
+  h += bannerPortal();
+
+  /* Al final y no arriba: lo que se viene a hacer a esta pantalla es mirar lo
+     que falta, no crear una nota. La app detecta sola las dos que más salen. */
   h += '<div class="ex-sect">AÑADIR A MANO</div>'+
     '<div class="ex-new" onclick="exPickTipo()">＋ Nueva nota de gasto</div>'+
     '<div class="ex-note" style="margin:6px 4px 0">La app detecta sola los posicionales y las '+
     'pernoctas. Lo demás — una incidencia, el horno, un reconocimiento médico — lo marcas tú.</div>';
 
-  if (pend.length) h += porMeses(pend, 'PENDIENTE DE TI', false);
-  if (done.length) h += porMeses(done, 'YA PASADAS AL PORTAL', true);
+  /* ⚠️ LA TIRA DE MESES SE REHACE EN CADA RENDER, Y CON ELLA SU SCROLL
+     `exMes` llama a `exRender`, que reescribe el `innerHTML` entero: la tira
+     nace de nuevo pegada a la izquierda. Si el piloto arrastraba hasta ABR y lo
+     pulsaba, el mes SÍ cambiaba pero la tira saltaba al principio y el chip que
+     acababa de tocar se iba de la pantalla — desde fuera es idéntico a «no me
+     lo ha seleccionado», y se acaba pulsando tres veces. Se conserva la
+     posición y se trae el elegido a la vista. */
+  var tira = host.querySelector('.ex-meses');
+  var scroll = tira ? tira.scrollLeft : 0;
   host.innerHTML = h;
+  var nueva = host.querySelector('.ex-meses');
+  if (nueva){
+    nueva.scrollLeft = scroll;
+    var on = nueva.querySelector('.ex-mchip.on');
+    /* Sin `smooth`: es la posición de partida, no una animación que enseñar. */
+    if (on && on.scrollIntoView) try { on.scrollIntoView({ block:'nearest', inline:'nearest' }); } catch(e){}
+  }
+  barraSel();                       // la barra de "enviar varias", si toca
+}
+
+/* ── Los avisos del resumen ───────────────────────────────────────────────────
+   Dos frases como mucho, y las dos sobre algo que el piloto puede arreglar hoy.
+   ⚠️ La CADUCIDAD se mira siempre sobre TODO lo pendiente, filtre lo que filtre
+   el mes: un filtro que esconde un vencimiento es peor que no tener filtro. Si
+   la que caduca antes es de otro mes, la línea lo dice y lleva a ese mes de un
+   toque. Y un plazo pasado se dice con PALABRAS: «-158 días» es una resta, no
+   un estado, y se lee como si aún quedara algo. */
+function avisos(pend, prox, proxFuera, proxMes){
+  var linea = [], clase = '', d = prox ? daysLeft(prox.date) : null;
+  var sinTk = pend.filter(function(n){ return !lineasConTk(n); }).length;
+  if (sinTk){
+    linea.push('Sin ticket <b>no se abona nada</b>: '+
+      (sinTk===1 ? 'falta 1 nota por justificar' : 'faltan '+sinTk+' notas por justificar'));
+    clase = ' warn';
+  }
+  if (prox){
+    linea.push(
+      (d < 0 ? 'La 1ª <b>caducó hace '+(-d)+(d===-1?' día':' días')+'</b>'
+             : d === 0 ? 'La 1ª <b>caduca hoy</b>'
+             : 'La 1ª caduca en <b>'+d+(d===1?' día':' días')+'</b>')+
+      (proxFuera ? ' · está en <b>'+mesLbl(proxMes)+'</b>' : ''));
+    /* Un plazo vencido manda sobre todo lo demás; verde no es un color para un
+       plazo, ni siquiera cuando queda lejos. */
+    if (d < 0) clase = ' bad'; else if (d <= 30 && clase !== ' bad') clase = ' warn';
+    else if (!clase) clase = ' info';
+  }
+  if (!linea.length) return '';
+  return '<div class="ex-real'+clase+'"'+
+    (proxFuera ? ' onclick="exMes(\''+proxMes+'\')"' : '')+'>'+
+    linea.join('<br>')+'</div>';
 }
 
 /* Las notas se agrupan por MES, con su subtotal: un piloto no piensa "mis
    gastos", piensa "lo de julio". Y el plazo de 3 meses también va por mes. */
-function porMeses(list, titulo, isDone){
+function porMeses(list, isDone){
   var g = {}, orden = [];
   list.slice().sort(function(a,b){ return b.date.localeCompare(a.date); })
       .forEach(function(n){
@@ -713,16 +878,33 @@ function porMeses(list, titulo, isDone){
         if (!g[k]) { g[k] = []; orden.push(k); }
         g[k].push(n);
       });
-  var h = '<div class="ex-sect">'+titulo+'</div>';
+  /* Con un mes elegido el rótulo del mes iba DOS veces —la píldora de arriba y
+     esta fila— y el recuento una tercera, en el resumen. Aquí sólo hay más de un
+     grupo cuando se mira TODO, así que la fila del mes existe únicamente ahí; con
+     un mes puesto, su recuento se recoge en el propio título de la sección. */
+  /* UNA fila de cabecera, no tres. Antes iban seguidos el rótulo del paso, la
+     fila del mes y el enlace del desglose — y con un mes elegido los tres decían
+     casi lo mismo, porque el mes ya lo dice la píldora de arriba y el paso el
+     mando de los tres pasos. Aquí sólo hay más de un grupo cuando se mira TODO,
+     que es cuando el nombre del mes vuelve a hacer falta. */
+  var uno = orden.length === 1 && EX.mes !== '*';
+  var cnt = function(l){ var t = sumaDe(l, topeDe), r = sumaDe(l, reclamaDe);
+    return l.length+(l.length===1?' nota · ':' notas · ')+eur(t)+(r>0 ? ' · reclamas '+eur(r) : ''); };
+  var h = '';
   orden.forEach(function(k){
-    var sub = sumaDe(g[k], topeDe), rec = sumaDe(g[k], reclamaDe);
     var id = k + (isDone ? '-d' : '-p');
     DSG[id] = g[k];
-    h += '<div class="ex-mes"><span class="m">'+mesLargo(k)+'</span>'+
-         '<span class="s">'+g[k].length+(g[k].length===1?' nota · ':' notas · ')+eur(sub)+
-         (rec>0 ? ' · reclamas '+eur(rec) : '')+'</span></div>'+
-         '<div class="ex-dsgbar"><span class="ex-whyb" onclick="exDesglose(\''+id+'\',this)">'+
-           'ver desglose del mes</span></div>'+
+    /* Botón de verdad, no un texto subrayado con puntitos: el chevron dice que
+       despliega, y girándolo dice si está abierto. Ancho fijo, así que la fila
+       no se mueve al usarlo. */
+    h += '<div class="ex-mesbar">'+
+           '<span class="m">'+(uno ? '' : mesLbl(k)+' · ')+cnt(g[k])+'</span>'+
+           '<span class="ex-dsgb" onclick="exDesglose(\''+id+'\',this)">'+
+             '<span class="l">Desglose</span>'+
+             '<svg viewBox="0 0 10 10" width="9" height="9" fill="currentColor" aria-hidden="true">'+
+               '<path d="M1.1 3.3h7.8L5 8z"/></svg>'+
+           '</span>'+
+         '</div>'+
          '<div class="ex-dsgbox" id="dsg-'+id+'" style="display:none"></div>';
     g[k].forEach(function(n){ h += card(n, isDone); });
   });
@@ -765,20 +947,103 @@ function desglose(list){
       'Se cobra lo menor de los dos: sin ticket no se aprueba, y lo que pase del tope no se abona.'+
     '</div></div>';
 }
+/* ⚠️ El texto del botón NO se toca al abrir y cerrar.
+   Antes se reescribía a «ver desglose del mes» / «ocultar desglose»: dos
+   longitudes distintas para el mismo botón, y la larga no cabía — se partía en
+   dos líneas y rompía la fila. Ahora el botón dice siempre lo mismo y lo que
+   cambia es el chevron, que gira. Es lo que hace todo el mundo y ocupa igual
+   esté abierto o cerrado. */
 window.exDesglose = function(id, el){
   var box = document.getElementById('dsg-'+id);
   if (!box) return;
-  if (box.style.display !== 'none' && box.innerHTML){
-    box.style.display = 'none'; el.textContent = 'ver desglose del mes'; return;
-  }
+  var abierto = box.style.display !== 'none' && box.innerHTML;
+  if (abierto){ box.style.display = 'none'; el.classList.remove('on'); return; }
   if (!box.innerHTML) box.innerHTML = desglose(DSG[id]);
-  box.style.display = ''; el.textContent = 'ocultar desglose';
+  box.style.display = ''; el.classList.add('on');
 };
+
+/* ════════ LA TARJETA: CABECERA A LA VISTA, DETALLE PLEGADO ════════
+   Antes cada nota traía de golpe la tira de franjas, el desglose línea a línea,
+   el porqué, tres avisos y dos botones: ~300 px por nota, dos notas por
+   pantalla. Y de esas seis cosas sólo una decide algo al pasar la lista —
+   cuántos tickets llevas—, así que es la única que se queda fuera junto al día,
+   el nombre y el importe. El resto sigue ENTERO un toque más allá; nada se
+   pierde, sólo deja de gritar a la vez. */
+/* ════════ QUÉ FALTA PARA COBRARLA ════════
+   El desglose de líneas decía los mismos datos en letra de 10 px y en gris: el
+   piloto tenía que RESTAR mentalmente el ticket del tope para saber si esa
+   línea estaba lista. Aquí cada requisito de la nota —el nº de ISO cuando lo
+   pide, y el ticket de cada línea— dice su estado con una palabra grande y su
+   color, y debajo la cuenta que la sostiene.
+
+   Sustituye al desglose, no se suma a él: decir dos veces lo mismo en la misma
+   tarjeta es exactamente el ruido que se quitó en Beta.772. */
+var REQ_EST = {
+  falta:    { l:'PENDIENTE',      c:'warn' },
+  parcial:  { l:'INCOMPLETO',     c:'part' },
+  ok:       { l:'COMPLETO',       c:'ok'   },
+  sobra:    { l:'TOPE SUPERADO',  c:'warn' },
+  puesto:   { l:'',               c:'ok'   }   // el ISO: manda el número
+};
+function requisitos(n){
+  var out = [];
+  if (n.needsISO) out.push({
+    k:'Nº DE ISO', est: isoDe(n) ? 'puesto' : 'falta',
+    grande: isoDe(n) || null,
+    sub: isoDe(n) ? 'lo dio la tripulación' : 'te lo da la tripulación técnica o de cabina',
+    accion:'iso'
+  });
+  (n.lines||[]).forEach(function(l, i){
+    var tk = tkDeLinea(n, i), cap = Number(l.cap) || 0, est, sub;
+    if (!tk)                 { est='falta';   sub = cap ? 'hasta '+eur(cap) : 'lo que sume el ticket'; }
+    else if (!cap)           { est='ok';      sub = eur(tk)+' justificados'; }
+    else if (tk > cap)       { est='sobra';   sub = eur(tk)+' · reclamas '+eur(cap); }
+    else if (tk < cap)       { est='parcial'; sub = eur(tk)+' · te faltan '+eur(r2(cap-tk)); }
+    else                     { est='ok';      sub = eur(tk)+' · tope alcanzado'; }
+    out.push({
+      k: sinDia(fdate(l.date||n.date)).toUpperCase()+' · '+String(l.slotLabel||'').toUpperCase()+
+         (l.window ? '  '+l.window : (l.where ? '  '+ciudad(l.where) : '')),
+      est: est, sub: sub, accion:'tk'
+    });
+  });
+  return out;
+}
+function bloqueFalta(n, isDone){
+  var reqs = requisitos(n);
+  if (!reqs.length) return '';
+  var listos = reqs.filter(function(r){ return r.est==='ok' || r.est==='puesto' || r.est==='sobra'; }).length;
+  var todo = listos === reqs.length;
+
+  return '<div class="ex-falta'+(todo?' full':'')+'">'+
+    '<div class="ex-falta-h"><span class="t">'+(isDone ? 'LO QUE LLEVABA' :
+      todo ? 'LISTA PARA PASARLA' : 'QUÉ FALTA PARA COBRARLA')+'</span>'+
+      '<span class="p">'+listos+' / '+reqs.length+'</span></div>'+
+    reqs.map(function(r){
+      var E = REQ_EST[r.est];
+      return '<div class="ex-req '+E.c+'">'+
+        '<div class="ex-req-k">'+esc(r.k)+'</div>'+
+        '<div class="ex-req-b">'+
+          '<div class="ex-req-v">'+esc(r.grande || E.l)+'</div>'+
+          (isDone ? '' :
+            r.accion==='iso' && !r.grande
+              ? '<span class="ex-req-go" onclick="event.stopPropagation();exSetIso(\''+n.id+'\')">Añadir</span>'
+              : r.est!=='ok' && r.est!=='puesto'
+                ? '<span class="ex-req-go" onclick="event.stopPropagation();exOpen(\''+n.id+'\')">'+
+                  (r.accion==='iso'?'Cambiar':'📷 Foto')+'</span>'
+                : '')+
+        '</div>'+
+        '<div class="ex-req-s">'+esc(r.sub)+'</div>'+
+      '</div>';
+    }).join('')+
+  '</div>';
+}
 
 function card(n, isDone){
   var T = tipoDe(n.kind), left = daysLeft(n.date);
+  var nL = (n.lines||[]).length, kL = lineasConTk(n), tk = tkDe(n);
+
   var chip = n.kind==='voucher'
-    ? '<span class="ex-chip tipo">'+n.lines.length+' VOUCHERS</span>'
+    ? '<span class="ex-chip tipo">'+n.lines.length+' VOUCHER'+(n.lines.length===1?'':'S')+'</span>'
     : '<span class="ex-chip tipo">'+(n.manual?'A MANO':'AUTO')+'</span>';
   var sc = (n.kind!=='voucher' && n.scope==='int') ? '<span class="ex-chip int">INT</span>' : '';
 
@@ -812,15 +1077,15 @@ function card(n, isDone){
      de la tarjeta, y sin la fecha delante no hay forma de saber de dónde sale
      cada importe. Detrás, lo que llevas de ticket en esa línea concreta. */
   var lines = '<div class="ex-lines">' + n.lines.map(function(l, i){
-    var tk = tkDeLinea(n, i), cap = Number(l.cap)||0;
+    var t = tkDeLinea(n, i), cap = Number(l.cap)||0;
     /* Ámbar cuando el ticket pasa del tope: no es que falte, es que ese exceso
        no lo abona nadie — mejor saberlo aquí que al cobrar. */
-    var cls = tk ? (cap && tk > cap ? 'over' : '') : 'no';
+    var cls = t ? (cap && t > cap ? 'over' : '') : 'no';
     return '<div class="ex-ln"><div class="k"><b>'+esc(sinDia(fdate(l.date||n.date)))+'</b> '+
       esc(l.slotLabel)+
       (l.window?' <span>'+esc(l.window)+'</span>':(l.where?' <span>'+esc(ciudad(l.where))+'</span>':''))+
       '</div><div class="v">'+eur(l.cap)+
-      '<i class="'+cls+'">'+(tk ? 'ticket '+eur(tk)+(cls==='over'?' · pasa del tope':'') : 'sin ticket')+'</i>'+
+      '<i class="'+cls+'">'+(t ? 'ticket '+eur(t)+(cls==='over'?' · pasa del tope':'') : 'sin ticket')+'</i>'+
       '</div></div>'; }).join('') + '</div>';
 
   /* "¿por qué?" plegado: el que se fía no lo abre nunca; el que duda lo abre
@@ -832,36 +1097,83 @@ function card(n, isDone){
       '<div class="ex-whybox" id="why-'+n.id+'" style="display:none"></div>';
   }
 
+  /* ── El chip de tickets es el ATAJO A LA CÁMARA ──
+     Es el único mando que se queda en la tarjeta plegada, y no por adorno: la
+     foto es la ÚNICA tarea de esta pantalla, así que no puede quedar detrás de
+     un despliegue. Dice además cuánto falta con números, no con un «sin
+     tickets» que ya salía cuatro veces en la misma tarjeta. */
+  var tkc = isDone
+    ? '<span class="ex-tkchip ok">'+(tk ? '✓ '+eur(tk)+' en tickets' : '✓ enviado')+'</span>'
+    : '<span class="ex-tkchip'+(kL===0 ? '' : kL<nL ? '' : ' ok')+'" '+
+        'onclick="event.stopPropagation();exOpen(\''+n.id+'\')">'+
+        (kL===0 ? (nL===1 ? 'Falta 1 ticket' : 'Faltan '+nL+' tickets')
+                : kL<nL ? kL+' de '+nL+' líneas'
+                : '✓ '+eur(tk)+' en tickets')+'</span>';
+
+  /* Un plazo pasado se dice con palabras. «-158 días» es una resta con signo,
+     y a primera vista se lee como si aún quedara algo. */
+  var plazo = isDone ? ''
+    : left < 0  ? '<span class="ex-plazo bad">PLAZO VENCIDO</span>'
+    : left <= 20 ? '<span class="ex-plazo warn">'+left+(left===1?' día':' días')+'</span>'
+    : '';
+
+  var avisos = '';
+  if (!isDone && n.needsISO) avisos += isoDe(n)
+    ? '<div class="ex-note">Nº de ISO <b>'+esc(isoDe(n))+'</b> · <span class="ex-lnk" onclick="event.stopPropagation();exSetIso(\''+n.id+'\')">cambiar</span></div>'
+    : '<div class="ex-note">Requiere <b>nº de ISO</b> — lo hace la tripulación técnica o de cabina. <span class="ex-lnk" onclick="event.stopPropagation();exSetIso(\''+n.id+'\')">Añadirlo</span></div>';
+
   var nTk = EX.tkCount[n.id] || 0;
-  return '<div class="ex-day'+(isDone?' done':'')+'" style="--tcol:'+T.col+'">'+
-    '<div class="ex-top"><div>'+
-      '<div class="ex-dd">'+T.ic+'  '+fdate(n.date).toUpperCase()+'</div>'+
-      '<div class="ex-title">'+esc(titulo)+' '+(isDone?'<span class="ex-chip ok">ENVIADA</span>':chip+' '+sc)+'</div>'+
-      '<div class="ex-route">'+esc(sub)+'</div>'+
-    '</div><div class="ex-right">'+
-      /* El importe grande es el TOPE (por eso el "hasta"); debajo, lo que de
-         verdad reclamas con los tickets que llevas puestos. */
-      '<div class="ex-amt">'+eur(topeDe(n)===null ? tkDe(n) : topeDe(n))+
-        '<small>'+(isDone?'PASADA':'HASTA')+'</small>'+
-        (tkDe(n) ? '<em>'+eur(reclamaDe(n))+' con tickets</em>' : '')+'</div>'+
-      /* Sólo las notas creadas a mano se pueden borrar: las automáticas vuelven
-         a salir en el siguiente render (las manda el roster), así que un botón
-         de borrar ahí sería mentira. Mismo icono y opacidad que el logbook. */
-      (n.manual ? '<button class="ex-del" title="Eliminar nota" '+
-        'onclick="event.stopPropagation();exDelNota(\''+n.id+'\')">🗑</button>' : '')+
-    '</div></div>'+
-    bar + lines + why +
-    (!isDone && left<=20 ? '<div class="ex-note">⏳ Te quedan <b>'+left+' días</b> para presentarla.</div>' : '')+
-    (!isDone && n.needsISO ? (isoDe(n)
-        ? '<div class="ex-note">Nº de ISO <b>'+esc(isoDe(n))+'</b> · <span class="ex-lnk" onclick="event.stopPropagation();exSetIso(\''+n.id+'\')">cambiar</span></div>'
-        : '<div class="ex-note">Requiere <b>nº de ISO</b> — lo hace la tripulación técnica o de cabina. <span class="ex-lnk" onclick="event.stopPropagation();exSetIso(\''+n.id+'\')">Añadirlo</span></div>') : '')+
-    (!isDone && !nTk ? '<div class="ex-note">📷 Aún <b>sin tickets</b> — sin ticket adjunto no se aprueba.</div>' : '')+
-    '<div class="ex-row">'+
-      (isDone
-        ? '<div class="ex-btn ghost" onclick="exUnmark(\''+n.id+'\')">↩ No la pasé</div>'
-        : '<div class="ex-btn" onclick="exOpen(\''+n.id+'\')">'+
-            (nTk ? '🧾 '+nTk+' ticket'+(nTk>1?'s':'')+' · abrir' : '📷 Añadir tickets')+'</div>'+
-          '<div class="ex-btn ghost" onclick="exMark(\''+n.id+'\')">Ya la pasé</div>')+
+  /* La tarjeta entera se tiñe del estado del ENVÍO y la franja lo dice con
+     palabras, plegada o desplegada: es lo primero que se busca al entrar. La
+     barra vertical de la izquierda sigue siendo la del TIPO de nota.
+     En modo "enviar varias" la tarjeta hace además de casilla — acertar en un
+     cuadradito de 18px en el móvil es pedir demasiado. */
+  var stE = estadoEnvio(n);
+  var selble = EX.selMode && (stE === 'go' || stE === 'new');
+  var marcada = selble && (EX.sel || {})[n.id];
+  return '<div class="ex-day st-'+stE+(isDone?' done':'')+((EX.flash||{})[n.id]?' recien':'')+
+      (selble?' selble':'')+(marcada?' marcada':'')+'" style="--tcol:'+T.col+'"'+
+      (selble?' onclick="exSelToggle(\''+n.id+'\')"':'')+'>'+
+    (selble ? '<div class="ex-tick">'+(marcada?'✓':'')+'</div>' : '')+
+    franjaEstado(n)+
+    '<div class="ex-head" onclick="exToggle(\''+n.id+'\',this)">'+
+      '<span class="ex-ico">'+icono(n.kind)+'</span>'+
+      '<span class="ex-hmid">'+
+        '<span class="ex-dd">'+fdate(n.date).toUpperCase()+'</span>'+
+        '<span class="ex-title">'+esc(titulo)+'</span>'+
+        (sub ? '<span class="ex-route">'+esc(sub)+'</span>' : '')+
+      '</span>'+
+      '<span class="ex-right">'+
+        /* El importe grande es el TOPE (por eso el "hasta"); debajo, lo que de
+           verdad reclamas con los tickets que llevas puestos. */
+        '<span class="ex-amt">'+eur(topeDe(n)===null ? tkDe(n) : topeDe(n))+
+          '<small>'+(isDone?'ENVIADO':'HASTA')+'</small>'+
+          (tkDe(n) ? '<em>'+eur(reclamaDe(n))+' con tickets</em>' : '')+'</span>'+
+        /* El chevron también DIBUJADO: es la misma regla del icono del tipo, y
+           un carácter geométrico tampoco lo elige el código. */
+        '<span class="ex-caret" aria-hidden="true"><svg viewBox="0 0 10 10" width="10" '+
+          'height="10" fill="currentColor"><path d="M1.1 3.3h7.8L5 8z"/></svg></span>'+
+      '</span>'+
+    '</div>'+
+    '<div class="ex-chips">'+tkc+plazo+'</div>'+
+    '<div class="ex-body" id="exb-'+n.id+'" style="display:none">'+
+      /* De dónde sale la nota, el ámbito y cuántos vouchers agrupa: contexto
+         para cuando ya la estás mirando, no para elegir cuál mirar. */
+      '<div class="ex-chips">'+chip+sc+'</div>'+
+      bar + bloqueFalta(n, isDone) + why +
+      /* El botón de la derecha ya no es "marcar como enviado": lleva la nota por
+         su ciclo — Ver la nota → Enviar → Enviada → Pagada — y cambia de color
+         con él. "No enviado" se queda para deshacer una marca a mano. */
+      '<div class="ex-row">'+
+        '<div class="ex-btn" onclick="event.stopPropagation();exOpen(\''+n.id+'\')">'+
+          (nTk ? '🧾 '+nTk+' ticket'+(nTk>1?'s':'')+' · abrir' : '📷 Añadir tickets')+'</div>'+
+        botonCiclo(n)+
+        /* Sólo las notas creadas a mano se pueden borrar: las automáticas vuelven
+           a salir en el siguiente render (las manda el roster), así que un botón
+           de borrar ahí sería mentira. */
+        (n.manual ? '<button class="ex-del" title="Eliminar nota" '+
+          'onclick="event.stopPropagation();exDelNota(\''+n.id+'\')">🗑</button>' : '')+
+      '</div>'+
     '</div></div>';
 }
 
@@ -906,7 +1218,7 @@ window.exOpen = function(id){
 var TK_SUCIO = false;
 window.exClose = function(){
   var s = document.getElementById('ex-sheet'); if (s) s.classList.remove('on');
-  SHEET = null;
+  SHEET = null; SUBIENDO = null;
   if (TK_SUCIO){ TK_SUCIO = false; contarTickets(); }
 };
 
@@ -927,7 +1239,19 @@ function drawSheet(){
     var claim = Math.min(suma, l.cap), room = Math.round((l.cap-claim)*100)/100;
 
     h += '<div class="ex-grp">▸ ADD NEW EXPENSE LINE · '+(i+1)+' de '+n.lines.length+'</div>';
-    h += cp('DATE *', l.date.split('-').reverse().join('/'));
+    /* ★ La FECHA se puede cambiar, y es el campo que más notas tumba.
+       El portal admite el ticket aunque la hora y el sitio no cuadren con tu
+       actividad —eso la guía lo permite expresamente— pero NO que la fecha se
+       salga de la ventana del concepto (§5): comida no cargada D y D+1, horno y
+       posicional D-1/D/D+1, cafeteras el día exacto. Como el ticket es de
+       cuando fuiste a comprar y no de cuando volaste, la fecha del roster no
+       siempre es la del recibo — y hasta ahora no había forma de corregirla.
+       Debajo se dice qué días admite este concepto, para no adivinar. */
+    var fDia = fechaLinea(n, i), movida = fDia !== (l.date || n.date);
+    h += '<div class="ex-cp fecha'+(movida?' movida':'')+'" onclick="exSetFecha(\''+n.id+'\','+i+')">'+
+      '<div><div class="k">DATE *</div><div class="v">'+esc(fDia.split('-').reverse().join('/'))+'</div>'+
+      '<div class="h">'+(movida ? 'cambiada por ti · ' : '')+ventanaTxt(n)+'</div></div>'+
+      '<div class="c">✎</div></div>';
     h += cp('EXPENSE TYPE', l.subtype);
     /* Con número puesto la fila se comporta como las demás: se toca y se copia
        para pegarla en el portal. Sin número no hay nada que copiar, así que lo
@@ -938,16 +1262,39 @@ function drawSheet(){
       : '<div class="ex-cp iso vacio" onclick="exSetIso(\''+n.id+'\')">'+
         '<div><div class="k">ISO NUMBER *</div><div class="v">Tocar para añadirlo</div>'+
         '<div class="h">te lo da la tripulación técnica o de cabina</div></div><div class="c">✎</div></div>';
+    /* REASON: faltaba, y el portal lo pinta en rojo como obligatorio. En las
+       incidencias es un desplegable cerrado de seis opciones — se enseña cuál
+       va a salir y se puede cambiar sin salir de aquí. */
+    h += '<div class="ex-cp motivo" onclick="exSetMotivo(\''+n.id+'\')">'+
+      '<div><div class="k">REASON *</div><div class="v">'+esc(motivoDe(n))+'</div>'+
+      '<div class="h">'+(reasonCerrado(n)
+        ? 'desplegable del portal · toca para elegir otro'
+        : 'texto libre · toca para cambiarlo')+'</div></div><div class="c">✎</div></div>';
     h += cp('COST *', (claim>0?claim:l.cap).toFixed(2).replace('.',','), '',
             claim>0 ? 'suma de tus tickets' : 'tope · aún sin tickets');
+
+    /* Los que este aparato ha tocado y la nube aún no sabe. El dato ya existía
+       (`EX.pend`, la cola de subida); lo que faltaba era enseñarlo. */
+    var sinSubir = tks.filter(function(t){ return !!EX.pend['t:' + t.id]; }).length;
 
     h += '<div class="ex-tk"><div class="ex-tkhead"><div class="k">TICKETS DE ESTA LÍNEA</div>'+
       '<div class="n">'+tks.length+'</div></div><div class="ex-thumbs">'+
       tks.map(function(t){ return '<div class="ex-th">'+
-        (t.url?'<img src="'+t.url+'" alt="ticket">':'<div class="ex-noimg">☁</div>')+
+        (t.url?'<img src="'+t.url+'" alt="ticket">':'<div class="ex-noimg">'+iconoNube()+'</div>')+
+        /* ⚠️ DIBUJADA, no el carácter ☁: un glifo lo pinta la fuente del móvil
+           del piloto —la lección de la luna de las pernoctas—, y aquí la marca
+           es lo único que distingue «está en tu cuenta» de «sólo en este
+           teléfono». */
+        (EX.pend['t:' + t.id] ? '<div class="nb" title="Aún sin subir">'+iconoNube()+'</div>' : '')+
         '<div class="a">'+(Number(t.amount)||0).toFixed(2).replace('.',',')+'</div>'+
         '<div class="x" onclick="exDelTk(\''+t.id+'\')">✕</div>'+
         '<div class="dl" onclick="exOutTk(\''+t.id+'\')">↓</div></div>'; }).join('')+
+      /* La casilla de lo que se está subiendo va DONDE VA A CAER el ticket, en
+         su sitio de la tira, y DICE en qué está. */
+      (SUBIENDO && SUBIENDO.key === key
+        ? '<div class="ex-th cargando"><div class="ex-carga"><span class="ex-spin"></span>'+
+          '<span class="t">'+esc(FASE_TXT[SUBIENDO.fase] || 'Un momento…')+'</span></div></div>'
+        : '')+
       /* Cámara y galería siguen siendo dos botones —con capture="environment"
          iOS abre la cámara y ya no ofrece la fototeca, así que un ticket ya
          fotografiado no había forma de adjuntarlo (#GA5ST)— pero comparten UNA
@@ -963,7 +1310,13 @@ function drawSheet(){
         '<span class="i">📷</span><span class="l">Cámara</span></div>'+
       '<div class="ex-add'+(exIsPro()?' pro':'')+'" onclick="exPickTk(\''+key+'\',0)">'+
         '<span class="i">🖼</span><span class="l">Galería</span></div>'+
-      '</div><div class="ex-sum">'+
+      '</div>'+
+      (sinSubir
+        ? '<div class="ex-nosub">'+iconoNube()+' <b>'+sinSubir+
+          (sinSubir===1 ? ' ticket sin subir</b> — se sube solo' : ' tickets sin subir</b> — se suben solos')+
+          ' en cuanto haya red. La foto vive en este teléfono; a tu cuenta viaja el importe.</div>'
+        : '')+
+      '<div class="ex-sum">'+
       (tks.length
         ? 'Suma <b>'+suma.toFixed(2).replace('.',',')+' €</b> · tope '+l.cap.toFixed(2).replace('.',',')+' €<br>'+
           (suma > l.cap
@@ -975,8 +1328,14 @@ function drawSheet(){
       '</div></div>';
   });
 
-  // La entrada compartida por los botones de Cámara y Galería (ver exPickTk).
-  h += '<input type="file" accept="image/*" id="ex-file" style="display:none">';
+  /* La entrada compartida por los botones de Cámara y Galería (ver exPickTk).
+     ⚠️ NO con `display:none`: un <input type=file> oculto así lo ignora el
+     Safari de iOS en algunos casos y el selector no llega a abrirse — se pulsa
+     Galería y no pasa absolutamente nada. Se deja en el árbol de render pero
+     invisible y sin tamaño, que es lo que sí respeta. */
+  h += '<input type="file" accept="image/*" id="ex-file" ' +
+       'style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;' +
+       'clip:rect(0 0 0 0);border:0;padding:0">';
 
   h += '<div class="ex-note">El portal admite <b>5 recibos por nota</b> — llevas '+nTk+'.'+
        (nTk>5 ? ' <b>Te pasas: harán falta 2 notas.</b>' : '')+'</div>';
@@ -990,9 +1349,24 @@ function drawSheet(){
      de salida tiene que leerse como confirmar, no como descartar — si no, da
      la sensación de que se pierde lo hecho. Va en cian (acción principal) y
      "Sacar los N" baja a secundario. */
+  /* Enviar desde la hoja: es donde el piloto acaba de poner los tickets y ve
+     los importes cuadrados — el momento natural de mandarla. Mismo ciclo que
+     el botón de la tarjeta, para que no haya dos verdades sobre el estado. */
+  h += (!envioEnCurso(n) && !EX.sent[n.id]
+    ? '<div class="ex-row"><div class="ex-btn cic go" onclick="exClose();exEnviar(\''+n.id+'\')">'+
+      '✈ Enviar a Vueling</div></div>'
+    : '<div class="ex-row"><div class="ex-sent-note">'+
+      (envioDe(n) && envioDe(n).state === 'sending' ? 'Enviándose a Vueling…'
+        : (EX.paid||{})[n.id] ? 'Pagada'
+        : 'Ya está en Vueling' + (envioDe(n) && envioDe(n).number ? ' · ' + esc(envioDe(n).number) : ''))+
+      '</div></div>');
   h += '<div class="ex-row"><div class="ex-btn" onclick="exClose()">✓ Guardar</div>'+
        (nTk ? '<div class="ex-btn ghost" onclick="exOutAll()">↓ Sacar los '+nTk+'</div>' : '')+'</div>'+
-       '<div class="ex-row"><div class="ex-btn solid" onclick="exMark(\''+n.id+'\');exClose()">Marcar como pasada</div></div>'+
+       /* Se queda para quien la pase a mano en el portal: ahí no molesta y es
+          la única forma de meterla en el ciclo sin enviarla desde la app. */
+       (EX.sent[n.id] ? '' :
+         '<div class="ex-row"><div class="ex-btn ghost" onclick="exMark(\''+n.id+'\');exClose()">'+
+         'La he pasado yo a mano</div></div>')+
        (n.manual ? '<div class="ex-row"><div class="ex-btn ghost danger" onclick="exDelNota(\''+n.id+'\')">Borrar esta nota</div></div>' : '');
 
   document.getElementById('ex-sheetbody').innerHTML = h;
@@ -1016,6 +1390,194 @@ window.exCopy = function(el, txt){
    siempre manuales, y de las manuales se sincroniza el cuerpo entero).
    Se guarda tal cual lo teclea la tripulación: los formatos de ISO cambian y
    validar una forma que no conocemos sería rechazar números buenos. */
+/* ── LA FECHA DE LA LÍNEA ─────────────────────────────────────────────────────
+   La del roster es la del VUELO; la que el portal valida es la del TICKET, y no
+   tienen por qué coincidir: compras la cena al llegar al hotel, o el desayuno
+   la mañana siguiente. Por eso se puede cambiar.
+
+   Lo que NO se puede es salirse de la ventana del concepto (§5 de la spec):
+   cada tipo admite unos días alrededor del de la actividad — `win` lo lleva
+   dicho desde el primer día y hasta ahora no se usaba para nada. El techo es
+   siempre D+1: da igual que la hora y el establecimiento no cuadren (eso la
+   guía lo permite), la FECHA no puede pasar de ahí.
+
+   Se guarda aparte de la nota, por línea, porque las notas automáticas se
+   vuelven a derivar del roster en cada render: escribir la fecha DENTRO de la
+   nota la perdería en el siguiente repintado. Misma razón por la que el nº de
+   ISO sólo se podía poner en las manuales — con esto ya no hace falta esa
+   excepción para la fecha. */
+var K_FECHAS = 'pilotos_gastos_fechas';
+function fechasLoad(){
+  try { EX.fechas = JSON.parse(localStorage.getItem(K_FECHAS) || '{}') || {}; }
+  catch(e){ EX.fechas = {}; }
+}
+function fechasSave(){ try { localStorage.setItem(K_FECHAS, JSON.stringify(EX.fechas || {})); } catch(e){} }
+
+function fechaLinea(n, i){
+  var puesta = (EX.fechas || {})[lineKey(n, i)];
+  var base = (n.lines[i] && n.lines[i].date) || n.date;
+  if (!puesta) return base;
+  /* Si la nota se recalcula y la fecha guardada ya no cabe en la ventana, se
+     descarta: vale más la del roster que una fecha que el portal rechazaría. */
+  return dentroVentana(n, i, puesta) ? puesta : base;
+}
+function _dias(a, b){ return Math.round((new Date(a+'T12:00:00Z') - new Date(b+'T12:00:00Z')) / 86400000); }
+function ventanaDe(n){
+  var w = tipoDe(n.kind).win || [-1, 0, 1];
+  return { min: Math.min.apply(null, w), max: Math.max.apply(null, w) };
+}
+function dentroVentana(n, i, f){
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(f))) return false;
+  var base = (n.lines[i] && n.lines[i].date) || n.date, v = ventanaDe(n), d = _dias(f, base);
+  return d >= v.min && d <= v.max;
+}
+function ventanaTxt(n){
+  var v = ventanaDe(n);
+  if (v.min === 0 && v.max === 0) return 'sólo el día exacto de la actividad';
+  var l = [];
+  if (v.min < 0) l.push('el día antes');
+  l.push('el mismo día');
+  if (v.max > 0) l.push('el siguiente');
+  return 'admite ' + l.join(', ');
+}
+
+window.exSetFecha = function(id, i){
+  var n = notaDe(id); if (!n || !n.lines[i]) return;
+  var base = n.lines[i].date || n.date, v = ventanaDe(n);
+  var opciones = [];
+  for (var d = v.min; d <= v.max; d++){
+    var f = new Date(new Date(base + 'T12:00:00Z').getTime() + d * 86400000)
+              .toISOString().slice(0, 10);
+    opciones.push({ f: f, d: d });
+  }
+  var actual = fechaLinea(n, i);
+  /* Sólo se ofrecen los días que el portal admite para este concepto: si no se
+     puede elegir una fecha mala, no hay que validarla ni explicar el error. */
+  exPick({
+    ic: '📅', titulo: 'Fecha del ticket',
+    sub: 'La que <b>pone en tu recibo</b>, no la del vuelo · ' + ventanaTxt(n),
+    opciones: opciones.map(function(o){
+      return {
+        txt: o.f.split('-').reverse().join('/'),
+        hint: o.d === 0 ? 'el día de la actividad' : o.d < 0 ? 'el día antes' : 'el día siguiente',
+        v: o.f, on: o.f === actual
+      };
+    }),
+    onPick: function(v){
+      if (!v) return;
+      EX.fechas[lineKey(n, i)] = v; fechasSave();
+      if (typeof drawSheet === 'function') drawSheet();
+      exRender();
+    }
+  });
+};
+
+/* ── UN SELECTOR QUE SE TOCA ──────────────────────────────────────────────────
+   `prompt()` con «escribe el número» es lo que hay a mano, pero es exactamente
+   lo que un piloto no debería tener que hacer con una lista de seis opciones y
+   el móvil en una mano: se lee el número, se busca el teclado, se escribe. Aquí
+   se toca la opción y ya.
+
+   Se apoya en la hoja que ya existe (`ex-send`), así que hereda su estética, su
+   modo día y su animación. El callback vive en una variable del módulo porque
+   los `onclick` de esta app son cadenas y por ahí no cabe una función. */
+var PICK_CB = null;
+function exPick(cfg){
+  PICK_CB = cfg.onPick || null;
+  var el = sendEl();
+  var h = '<div class="ex-send-h"><div class="ex-send-ic">' + (cfg.ic || '☰') + '</div>' +
+    '<div class="ex-send-t">' + esc(cfg.titulo || '') + '</div>' +
+    (cfg.sub ? '<div class="ex-send-s">' + cfg.sub + '</div>' : '') + '</div>' +
+    '<div class="ex-send-body">' + (cfg.html || '') +
+    '<div class="ex-opts">' + (cfg.opciones || []).map(function(o, i){
+      return '<div class="ex-opt' + (o.on ? ' on' : '') + (o.ghost ? ' ghost' : '') +
+        '" onclick="exPickGo(' + i + ')">' +
+        '<div class="t">' + esc(o.txt) + '</div>' +
+        (o.hint ? '<div class="h">' + esc(o.hint) + '</div>' : '') +
+        (o.on ? '<div class="c">✓</div>' : '') + '</div>';
+    }).join('') + '</div></div>' +
+    '<div class="ex-send-foot"><div class="ex-btn ghost" onclick="exSendClose()">Cancelar</div></div>';
+  document.getElementById('ex-send-box').innerHTML = h;
+  el.classList.add('on');
+  PICK_OPTS = cfg.opciones || [];
+}
+var PICK_OPTS = [];
+window.exPickGo = function(i){
+  var o = PICK_OPTS[i], cb = PICK_CB;
+  exSendClose(); PICK_CB = null;
+  if (cb && o) cb(o.v, o);
+};
+
+/* ── EL MOTIVO (Reason) ───────────────────────────────────────────────────────
+   El portal lo marca obligatorio y, en «Operational incidents», NO es un texto
+   libre: es un desplegable con seis opciones cerradas. Faltaba en el calco —
+   así que el piloto llegaba al portal, se encontraba el campo en rojo y tenía
+   que adivinar cuál poner— y sobre todo faltaba en el ENVÍO, que es donde un
+   motivo que no sea uno de los suyos se convierte en una nota rechazada.
+
+   Los seis salen de `ExpenseReasons` de la propia API (get-info), no de una
+   lista inventada. Se dejan también en texto libre para los tipos que sí lo
+   admiten (posicional, voucher, médicos…). */
+var REASONS = ['Airport activity', 'Crew meal not loaded', 'Oven not working',
+               'Flight delayed', 'AOG', 'Charter flight'];
+/* Los tipos cuyo Reason es DESPLEGABLE en el portal. En el resto es texto. */
+function reasonCerrado(n){ return n.kind === 'incident'; }
+
+var K_MOTIVOS = 'pilotos_gastos_motivos';
+function motivosLoad(){
+  try { EX.motivos = JSON.parse(localStorage.getItem(K_MOTIVOS) || '{}') || {}; }
+  catch(e){ EX.motivos = {}; }
+}
+function motivosSave(){ try { localStorage.setItem(K_MOTIVOS, JSON.stringify(EX.motivos || {})); } catch(e){} }
+
+function motivoDe(n){
+  var puesto = (EX.motivos || {})[n.id];
+  if (puesto) return puesto;
+  /* Por defecto, el que corresponde a lo que la app ya sabe de la nota. En una
+     incidencia el más habitual con diferencia es que no cargaron la comida. */
+  if (n.kind === 'incident') return 'Crew meal not loaded';
+  if (n.kind === 'oven')     return 'Oven not working';
+  if (n.kind === 'position') return 'Vuelo de posicionamiento' + (n.route ? ' ' + n.route : '');
+  if (n.kind === 'voucher')  return 'Voucher de hotel' + (n.route ? ' ' + n.route : '');
+  return tituloDe(n);
+}
+
+/* Traducción de los seis motivos. El que VIAJA es siempre el inglés —es el que
+   el portal tiene en su desplegable— pero el piloto elige leyendo el suyo. */
+var REASON_ES = {
+  'Airport activity':      'Actividad en el aeropuerto',
+  'Crew meal not loaded':  'No cargaron la comida de tripulación',
+  'Oven not working':      'Horno inoperativo',
+  'Flight delayed':        'Vuelo retrasado',
+  'AOG':                   'Avión en tierra (AOG)',
+  'Charter flight':        'Vuelo chárter'
+};
+window.exSetMotivo = function(id){
+  var n = notaDe(id); if (!n) return;
+  var actual = motivoDe(n);
+  if (reasonCerrado(n)){
+    exPick({
+      ic: '❓', titulo: 'Motivo de la incidencia',
+      sub: 'En el portal es un desplegable cerrado: viaja el texto en inglés, tal cual',
+      opciones: REASONS.map(function(r){
+        return { txt: r, hint: REASON_ES[r] || '', v: r, on: r === actual };
+      }),
+      onPick: function(v){
+        if (!v) return;
+        EX.motivos[id] = v; motivosSave();
+        if (typeof drawSheet === 'function') drawSheet();
+      }
+    });
+    return;
+  }
+  var v = prompt('Motivo\n\nEl portal lo exige y se envía tal cual (máximo 400 caracteres).', actual);
+  if (v === null) return;
+  v = String(v).trim().slice(0, 400);
+  if (!v){ alert('El motivo no puede quedar vacío: el portal lo rechaza.'); return; }
+  EX.motivos[id] = v; motivosSave();
+  if (typeof drawSheet === 'function') drawSheet();
+};
+
 function isoDe(n){ return (n && n.iso) ? String(n.iso) : ''; }
 window.exSetIso = function(id){
   var n = notaDe(id); if (!n) return;
@@ -1037,6 +1599,41 @@ window.exSetIso = function(id){
 /* Abre la cámara (camara=1) o la fototeca (camara=0) con la MISMA entrada.
    `capture` es el atributo que decide cuál: puesto, iOS va directo a la cámara;
    quitado, ofrece el selector con la fototeca. */
+/* ════════ QUÉ ESTÁ PASANDO CON ESA FOTO ════════
+   Entre que el piloto elige la foto y aparece algo pasaban hasta TRES cosas, y
+   ninguna se veía:
+     1. `shrink()` decodifica y reescala una foto de 4-5 MB — un segundo o dos
+        de hilo principal en un móvil;
+     2. con plan Pro, `leerConIA()` manda la imagen al backend y espera a que el
+        modelo la lea — SEGUNDOS, y con mala cobertura muchos;
+     3. y `subirTicket()` dispara `exSync()` sin esperarla, así que la copia a
+        la nube era invisible entera.
+   Desde el asiento del piloto las tres se ven igual que «no ha pasado nada» —
+   es el 0 mudo de las pernoctas, esta vez en la única acción de la pantalla.
+
+   El aviso va DONDE VA A APARECER EL TICKET, no en un toast: la casilla de la
+   tira se ocupa ya, con el nombre de lo que se está haciendo. Un giro genérico
+   diría «espera»; lo que hace falta es saber si está preparando la foto o
+   esperando al modelo, porque duran cosas muy distintas. */
+var SUBIENDO = null;              // { key, fase } · fase: foto · ia · guardando
+var FASE_TXT = { foto:'Preparando la foto…', ia:'✦ Leyendo el ticket…',
+                 guardando:'Guardando…' };
+/* Nube DIBUJADA. Vale para la miniatura que vive en otro aparato y para la
+   marca de «aún sin subir»: en las dos, el carácter ☁ sale a color en un móvil,
+   en hueco en otro y de un pelo en un tercero — y esa marca es todo lo que hay
+   para distinguir dos estados de tu dinero. */
+function iconoNube(){
+  return '<svg class="ex-ic-nb" viewBox="0 0 20 14" width="14" height="10" aria-hidden="true" '+
+    'fill="currentColor"><path d="M15.6 5.1A5.1 5.1 0 0 0 5.9 4 4 4 0 0 0 4.3 11.8'+
+    'h11a3.4 3.4 0 0 0 .3-6.7z"/></svg>';
+}
+function faseTk(key, fase){
+  SUBIENDO = fase ? { key:key, fase:fase } : null;
+  /* Sólo se repinta la hoja: `exRender` recorrería el histórico entero por un
+     cambio que no sale de esta tira. */
+  try { if (SHEET) drawSheet(); } catch(e){}
+}
+
 window.exPickTk = function(key, camara){
   var inp = document.getElementById('ex-file');
   if (!inp) return;
@@ -1050,27 +1647,66 @@ window.exPickTk = function(key, camara){
 window.exNewTk = function(input, key){
   var file = input.files && input.files[0]; input.value = '';
   if (!file) return;
+  faseTk(key, 'foto');
   shrink(file).then(function(blob){
     var id = 'tk-' + Date.now() + '-' + Math.round(Math.random()*1e6);
     // Pro: la IA lee el ticket y separa lo que computa. Free: importe a mano.
+    /* La fase se pinta ANTES de llamar al modelo, y `leerConIA` espera a la
+       red: eso da al navegador el respiro que necesita para pintarla. Con el
+       `prompt()` —que congela la página— delante, no lo habría. */
+    if (exIsPro()) faseTk(key, 'ia');
     var pre = exIsPro() ? leerConIA(blob) : Promise.resolve(null);
     return pre.then(function(ia){
+      /* ★ EL TICKET NO SE PIERDE NUNCA.
+         Antes, si la IA leía un ticket donde no computaba nada (una compra con
+         alcohol, por ejemplo), sugería 0 €, el piloto le daba a OK y saltaba
+         «Importe no válido»: adiós foto, a hacerla otra vez. Y encima sin decir
+         POR QUÉ salía 0.
+         Ahora lo que la Compañía no va a aceptar se enseña con nombre y precio
+         —es información suya, no un motivo para descartarle el recibo— y el
+         importe lo pone él, con lo computable como sugerencia. */
       var sug = ia && ia.computable != null ? String(ia.computable).replace('.',',') : '';
-      var txt = prompt('Importe del ticket (€)\n\nSolo lo que computa: productos alimenticios.\n'+
-        'No cuentan el alcohol fuera de menú ni lo no alimentario.' +
-        (ia ? '\n\n✦ La IA ha leído: total ' + ia.total + ' € · computable ' + ia.computable + ' €' : ''), sug);
-      if (txt === null) return;
+      var fuera = (ia && ia.items || []).filter(function(x){ return x && !x.food; });
+      var aviso = '';
+      if (fuera.length){
+        aviso = '\n\n⚠️ Esto NO te lo van a abonar (' +
+          (Number(ia.excluded)||0).toFixed(2).replace('.',',') + ' €):\n' +
+          fuera.slice(0, 8).map(function(x){
+            return '  · ' + (x.name || x.desc || 'artículo') +
+                   (x.amount != null ? '  ' + Number(x.amount).toFixed(2).replace('.',',') + ' €' : '');
+          }).join('\n') +
+          (fuera.length > 8 ? '\n  · …y ' + (fuera.length - 8) + ' más' : '') +
+          '\n\nSolo computan los alimentos. El alcohol de supermercado no, y lo no\n' +
+          'alimentario tampoco (el vino o la cerveza de un menú sí).';
+      }
+      var txt = prompt('Importe del ticket (€)\n\nEscribe lo que vas a reclamar.' +
+        (ia ? '\n\n✦ Leído: total ' + ia.total + ' € · computable ' + ia.computable + ' €' : '') +
+        aviso, sug);
+      if (txt === null) { faseTk(null); return; }
       var amount = parseFloat(String(txt).replace(',', '.'));
-      if (!isFinite(amount) || amount <= 0) { alert('Importe no válido'); return; }
+      if (!isFinite(amount) || amount < 0) amount = 0;
+      if (amount === 0 && !confirm('Vas a guardar el ticket con 0 €: no reclamará nada.\n\n' +
+          '¿Lo guardo igualmente?\n\n(Puedes cambiarle el importe luego, o borrarlo.)')) {
+        faseTk(null); return;
+      }
+      faseTk(key, 'guardando');
       var rec = { id:id, lineKey:key, blob:blob, amount:amount,
         shop: ia && ia.shop || null, ticket_date: ia && ia.date || null,
         items: ia && ia.items || null, source: ia ? 'ai' : 'manual',
         added: new Date().toISOString() };
       TK_SUCIO = true;
-      return tkPut(rec).then(function(){ return subirTicket(rec, key); })
-        .then(cargarTickets).then(drawSheet)
-        .catch(function(){ alert('No se pudo guardar el ticket en este navegador.'); });
+      /* `cargarTickets` ANTES de subir: la miniatura aparece en cuanto está
+         guardada, sin esperar a la red. */
+      return tkPut(rec).then(cargarTickets)
+        .then(function(){ return subirTicket(rec, key); })
+        .then(function(){ faseTk(null); })
+        .catch(function(){ faseTk(null); alert('No se pudo guardar el ticket en este navegador.'); });
     });
+  /* Sin este catch, una foto que el navegador no sabe decodificar dejaba la
+     casilla girando para siempre y sin un solo error a la vista. */
+  }).catch(function(){
+    faseTk(null);
+    alert('No se ha podido preparar esa foto. Prueba con otra o hazla de nuevo.');
   });
 };
 function leerConIA(blob){
@@ -1173,9 +1809,27 @@ function cuerpoNota(n, id){
            manual: !!n.manual, status: EX.sent[id || n.id] ? 'sent' : 'pending',
            maxTotal: n.maxTotal, data: n.manual ? n : null };
 }
+/* ⚠️ LA COLA SE LEE DE IndexedDB, NO DEL ARRAY EN MEMORIA
+   `TICKETS` sólo se rellena al ABRIR una nota (`exOpen` → `cargarTickets`), y
+   aquí un ticket que no aparecía en él se daba por «ya no existe» y se sacaba
+   de la cola — sin enviarlo y sin un solo error. Dos caminos reales:
+
+   · al añadir un ticket, `subirTicket` disparaba `exSync()` ANTES de que
+     `cargarTickets()` metiera el nuevo en el array: su importe no llegaba a la
+     nube, y el otro aparato reclamaba una cifra distinta del mismo mes;
+   · y en un arranque en frío con cola pendiente, `TICKETS` está VACÍO, así que
+     la primera sincronización **vaciaba la cola entera** sin subir nada.
+
+   El dato bueno está en IndexedDB, que es donde se guardó. Lo demás es una
+   caché de la hoja abierta. */
 function subirCola(){
   var claves = Object.keys(EX.pend || {});
   if (!claves.length) return Promise.resolve(0);
+  return tkAll().catch(function(){ return []; }).then(function(guardados){
+    return _subirCola(claves, guardados);
+  });
+}
+function _subirCola(claves, guardados){
   var notas = [], tickets = [], borrados = [], hechas = [];
 
   claves.forEach(function(k){
@@ -1194,8 +1848,8 @@ function subirCola(){
                               (nota ? '?note_id='+encodeURIComponent(nota) : '') });
         return;
       }
-      var t = null; TICKETS.forEach(function(x){ if (x.id === id) t = x; });
-      if (!t){ hechas.push(k); return; }
+      var t = null; (guardados||[]).forEach(function(x){ if (x.id === id) t = x; });
+      if (!t){ hechas.push(k); return; }   // borrado de verdad: no clava la cola
       tickets.push({ id:t.id, note_id:String(t.lineKey).split('#')[0],
         line_idx:Number(String(t.lineKey).split('#')[1])||0, amount:t.amount,
         shop:t.shop, ticket_date:t.ticket_date, items:t.items, source:t.source });
@@ -1315,6 +1969,10 @@ function exSync(){
                try { localStorage.setItem(K_SYNCAT, EX.syncAt); } catch(e){} }
       if (ok) contarTickets();                 // repinta con lo que haya llegado
       else exRender();
+      /* `contarTickets` repinta la PESTAÑA, no la hoja abierta: sin esto el ☁
+         de «sin subir» se quedaba puesto en un ticket que ya estaba en la nube
+         hasta que el piloto cerraba y volvía a abrir. */
+      if (SHEET) cargarTickets().then(function(){ try { drawSheet(); } catch(e){} });
       if (EX.syncOtra){ EX.syncOtra = false; return exSync(); }
       return ok;
     })
@@ -1360,10 +2018,69 @@ window.exPickSub = function(tid){
     '<input class="ex-in" type="date" id="ex-mdate" value="'+hoy+'">'+ opts +
     '<div class="ex-row"><div class="ex-btn ghost" onclick="exPickTipo()">‹ Atrás</div></div>';
 };
-window.exCrear = function(tid, subtype, cap, slot, lbl){
+/* ── ¿Cuadra con el roster? ───────────────────────────────────────────────────
+   La Compañía tiene un proceso que cruza cada nota con el roster y la rechaza
+   sola: «Automatic rejection. Does not match with Roster». La app mira EL MISMO
+   roster, así que puede avisar antes de que el piloto se lleve el rechazo.
+   No bloquea —el roster puede estar sin importar, o desactualizado, o el
+   posicional haberse dado sobre la marcha— pero lo dice. */
+function diaDelRoster(fecha){
+  var dias = construirDias();
+  for (var i = 0; i < dias.length; i++) if (dias[i].date === fecha) return dias[i];
+  return null;
+}
+function cuadraConRoster(tid, fecha){
+  /* Sin roster importado no se avisa de nada: no es que no cuadre, es que no
+     hay con qué comparar. */
+  if (!rosterRows().length) return { hay: true };
+  /* `construirDias` sólo devuelve días CON vuelos (filtra por legs.length), así
+     que "no está" significa día libre, guardia o sin importar — nunca un día de
+     vuelo que se haya perdido. */
+  var dia = diaDelRoster(fecha);
+  if (tid === 'position'){
+    if (!dia) return { hay: false, motivo: 'ese día no tienes vuelos en el roster' };
+    return (dia.legs || []).some(function(l){ return l.positioning; })
+      ? { hay: true }
+      : { hay: false, motivo: 'ese día vuelas, pero ningún tramo consta como posicional' };
+  }
+  if (tid === 'voucher'){
+    if (!dia) return { hay: false, motivo: 'ese día no tienes actividad de vuelo en el roster' };
+    return dia.layover
+      ? { hay: true }
+      : { hay: false, motivo: 'ese día el roster te deja en tu base, sin pernocta fuera' };
+  }
+  /* Los demás (incidencia, horno, médicos…) no se pueden contrastar con el
+     roster: dependen de lo que pasó a bordo, no de lo que estaba previsto. */
+  return { hay: true };
+}
+
+window.exCrear = function(tid, subtype, cap, slot, lbl, fechaFija){
   var T = tipoDe(tid);
   var el = document.getElementById('ex-mdate');
-  var d = (el && el.value) || new Date().toISOString().slice(0,10);
+  /* Al volver del aviso del roster, el campo de la fecha ya no está en pantalla
+     (lo tapó el aviso): en el reintento se pasa explícita. */
+  var d = fechaFija || (el && el.value) || new Date().toISOString().slice(0,10);
+
+  /* Aviso ANTES de crearla, no al enviarla: si no cuadra, lo más probable es
+     que se haya equivocado de día — y corregirlo ahora es un toque. */
+  var chk = cuadraConRoster(tid, d);
+  if (!chk.hay && !EX._saltarChk){
+    exPick({
+      ic: '⚠', titulo: 'Esto no cuadra con tu roster',
+      sub: esc(T.lbl) + ' del ' + d.split('-').reverse().join('/') + ' — ' + esc(chk.motivo) + '.<br>' +
+           'Vueling cruza cada nota con el roster y rechaza sola las que no encajan.',
+      opciones: [
+        { txt: 'Cambiar el día', hint: 'volver y elegir otra fecha', v: 'atras' },
+        { txt: 'Crearla igualmente', hint: 'si sabes que es correcta, adelante', v: 'seguir', ghost: true }
+      ],
+      onPick: function(v){
+        if (v !== 'seguir') return;
+        EX._saltarChk = true;
+        try { exCrear(tid, subtype, cap, slot, lbl, d); } finally { EX._saltarChk = false; }
+      }
+    });
+    return;
+  }
   var n = { id:'man-'+Date.now(), date:d, kind:tid, manual:true, portalType:T.portal,
     title:T.lbl, route:'', scope:/International/i.test(subtype)?'int':'nat',
     needsISO:!!T.iso, single:false, maxTotal:cap, ticketWindow:T.win,
@@ -1430,7 +2147,1003 @@ try {
     if (host && host.style.display !== 'none' && ARRANCADO) syncSiToca();
   });
 } catch(e){}
+/* ════════ ENVIAR LA NOTA A LA COMPAÑÍA ══════════════════════════════════════
+   Hasta aquí la app te decía qué te deben y te dejaba los campos listos para
+   copiar. Esto lo manda: el servidor entra en el portal con la sesión que ya
+   aprobaste para eCrews (mismo Microsoft de Vueling, no se te pide nada nuevo)
+   y crea la nota con sus líneas y sus tickets.
+
+   Tres cosas que no son negociables en este flujo:
+   1. **Doble confirmación.** Mandar una nota a RRHH no se deshace desde la app.
+      Primero se revisa lo que va a salir, y luego hay que confirmarlo aparte.
+   2. **El estado se ve.** Enviar y no saber si llegó es peor que no enviar. A la
+      derecha de la nota queda el chip: enviándose, en Vueling (con su número),
+      o no se pudo — con el motivo.
+   3. **El motivo del rechazo se enseña tal cual.** Vueling tiene un bot que
+      cruza la nota con tu roster y la tumba sola si no cuadra; que el piloto lo
+      lea con sus palabras vale más que cualquier mensaje nuestro. */
+
+var K_PORTAL = 'pilotos_gastos_portal';
+function portalLoad(){
+  try { EX.portal = JSON.parse(localStorage.getItem(K_PORTAL) || '{}') || {}; }
+  catch(e){ EX.portal = {}; }
+}
+function portalSave(){ try { localStorage.setItem(K_PORTAL, JSON.stringify(EX.portal)); } catch(e){} }
+function envioDe(n){ return (EX.portal || {})[typeof n === 'string' ? n : n.id] || null; }
+/* "En curso" = ya salió y no ha vuelto con un fallo. Un envío fallido NO cuenta:
+   ahí el piloto tiene que poder reintentar. Uno rechazado tampoco se reenvía
+   desde aquí — reenviar lo mismo lo rechazarían otra vez. */
+function envioEnCurso(n){
+  var e = envioDe(n);
+  return !!(e && e.state !== 'error' && e.state !== 'login');
+}
+
+/* Cómo se ve cada estado. El texto va en primera persona del piloto: no dice
+   "OK/ERROR", dice si está en Vueling o no. */
+var ENV_UI = {
+  sending:  { cls:'go',   ic:'', txt:'ENVIANDO' },
+  sent:     { cls:'ok',   ic:'✓', txt:'EN VUELING' },
+  requested:{ cls:'ok',   ic:'✓', txt:'EN VUELING' },
+  review:   { cls:'ok',   ic:'✓', txt:'EN REVISIÓN' },
+  approved: { cls:'ok',   ic:'✓', txt:'APROBADA' },
+  pending_payment:{ cls:'ok', ic:'€', txt:'A COBRAR' },
+  paid:     { cls:'paid', ic:'€', txt:'PAGADA' },
+  rejected: { cls:'bad',  ic:'✕', txt:'RECHAZADA' },
+  cancelled:{ cls:'warn', ic:'—', txt:'ANULADA' },
+  error:    { cls:'bad',  ic:'!', txt:'NO SE ENVIÓ' },
+  login:    { cls:'warn', ic:'⚠', txt:'ENTRA EN TU CUENTA' }
+};
+
+/* ── EL BOTÓN DE TRES ESTADOS ─────────────────────────────────────────────────
+   Sustituye al viejo "Ya la pasé". Una nota de gasto tiene tres momentos y el
+   botón los recorre, con el color diciendo en cuál estás:
+
+     ✈ ENVIAR    cian    · lo que tienes que hacer
+     ⏳ ENVIADA   ámbar   · está en Vueling, falta cobrarla  → tócalo al cobrar
+     € PAGADA    verde   · dinero en el bolsillo, cerrada
+
+   El cian es el color de acción del módulo, el ámbar el de "pendiente" y el
+   verde el del dinero cobrado: es el mismo semáforo que ya usa la app, no una
+   paleta nueva. Fuera de ese ciclo sólo hay dos casos, los dos en rojo: no se
+   pudo enviar (se reintenta) y la rechazó la Compañía (se ve el motivo). */
+var K_PAID = 'pilotos_gastos_pagadas';
+function paidLoad(){
+  try { EX.paid = JSON.parse(localStorage.getItem(K_PAID) || '{}') || {}; }
+  catch(e){ EX.paid = {}; }
+}
+function paidSave(){ try { localStorage.setItem(K_PAID, JSON.stringify(EX.paid)); } catch(e){} }
+
+/* UNA sola función decide en qué estado está la nota, y de ella salen el botón,
+   el chip y el color de la tarjeta. Si cada uno lo dedujera por su cuenta,
+   antes o después dirían cosas distintas de la misma nota. */
+function estadoEnvio(n){
+  var e = envioDe(n), id = n.id;
+  if (e && e.state === 'sending') return 'sending';
+  if (e && (e.state === 'error' || e.state === 'login')) return 'err';
+  if (e && e.state === 'rejected') return 'rej';
+  if ((EX.paid || {})[id]) return 'paid';
+  if (EX.sent[id] || (e && e.state)) return 'sent';
+  return 'go';
+}
+
+function botonCiclo(n){
+  var st = estadoEnvio(n), id = n.id;
+  var clic = function(fn){ return 'onclick="event.stopPropagation();' + fn + '"'; };
+  if (st === 'sending') return '<div class="ex-btn cic go off"><i class="ex-dots"><b></b><b></b><b></b></i> Enviando</div>';
+  if (st === 'err')     return '<div class="ex-btn cic err" ' + clic('exEnviar(\'' + id + '\')') + '>↻ Reintentar</div>';
+  if (st === 'rej')     return '<div class="ex-btn cic err" ' + clic('exEnvioDetalle(\'' + id + '\')') + '>✕ Rechazada</div>';
+  if (st === 'paid')    return '<div class="ex-btn cic paid" ' + clic('exDespagada(\'' + id + '\')') + '>€ Pagada</div>';
+  /* Enviada = la mandó la app, o el piloto la pasó a mano y la marcó. Los dos
+     caminos acaban aquí, y desde aquí sólo queda cobrarla. */
+  if (st === 'new')     return '<div class="ex-btn cic new" ' + clic('exVista(\'' + id + '\')') + '>Ver la nota</div>';
+  if (st === 'sent')    return '<div class="ex-btn cic sent" ' + clic('exCobrada(\'' + id + '\')') + '>⏳ Enviada</div>';
+  return '<div class="ex-btn cic go" ' + clic('exEnviar(\'' + id + '\')') + '>✈ Enviar</div>';
+}
+
+/* Se marca vista al abrirla: a partir de ahí ya no es una novedad, es trabajo
+   pendiente. Se guarda aparte de las marcas de envío porque no dice nada del
+   estado de la nota, sólo de si el piloto la ha visto. */
+var K_VISTASN = 'pilotos_gastos_notas_vistas';
+function vistasNLoad(){ try { EX.vistasN = JSON.parse(localStorage.getItem(K_VISTASN)||'{}')||{}; } catch(e){ EX.vistasN={}; } }
+function vistasNSave(){ try { localStorage.setItem(K_VISTASN, JSON.stringify(EX.vistasN||{})); } catch(e){} }
+window.exVista = function(id){ EX.vistasN = EX.vistasN||{}; EX.vistasN[id]=1; vistasNSave(); exRender(); if (window.exOpen) exOpen(id); };
+
+window.exCobrada = function(id){
+  var n = notaDe(id); if (!n) return;
+  if (!confirm('¿Ya has recibido el cobro de esta nota?\n\n' + tituloDe(n) +
+               '\n\nSe marcará como PAGADA. Es tu control: la app no puede saber ' +
+               'cuándo te entra el dinero en la nómina.')) return;
+  EX.paid[id] = new Date().toISOString(); paidSave();
+  /* Cobrada implica pasada: si se marcó pagada sin haber pasado por "enviada"
+     (una nota vieja), no puede quedarse en la lista de pendientes. */
+  if (!EX.sent[id]){ EX.sent[id] = EX.paid[id]; saveSent(); syncNota(id); }
+  exRender();
+};
+window.exDespagada = function(id){
+  if (!confirm('¿Marcarla otra vez como pendiente de cobro?')) return;
+  delete EX.paid[id]; paidSave(); exRender();
+};
+
+/* ── La franja de ESTADO, arriba de cada nota ─────────────────────────────────
+   Va SIEMPRE, también cuando la nota está sin tocar ("PENDIENTE"): un estado
+   que sólo aparece cuando ya ha pasado algo obliga a deducir el resto por
+   ausencia. Cuatro palabras y su color, en el primer sitio donde cae la vista.
+   Sustituye al chip que había junto al importe: dos sitios contando lo mismo
+   acaban contándolo distinto. */
+var EST_TXT = {
+  go:'PENDIENTE', sending:'ENVIANDO', sent:'ENVIADO', paid:'PAGADO',
+  rej:'RECHAZADO', err:'NO SE ENVIÓ'
+};
+function franjaEstado(n){
+  var st = estadoEnvio(n), e = envioDe(n);
+  /* El estado fino del portal (en revisión, a cobrar…) se enseña si lo hay: es
+     más informativo que un "enviado" genérico, y no cambia el color. */
+  var txt = EST_TXT[st] || 'PENDIENTE';
+  if (st === 'sent' && e && ENV_UI[e.state] && e.state !== 'sent') txt = ENV_UI[e.state].txt;
+  var pulsable = (st === 'rej' || st === 'err') && e && e.msg;
+  return '<div class="ex-estado es-' + st + '"' +
+    (pulsable ? ' onclick="event.stopPropagation();exEnvioDetalle(\'' + n.id + '\')"' : '') + '>' +
+    '<span class="k">ESTADO</span><span class="v">' + txt + '</span>' +
+    (st === 'sending' ? '<i class="ex-dots"><b></b><b></b><b></b></i>' : '') +
+    (e && e.number ? '<span class="n">' + esc(e.number) + '</span>' : '') +
+    (pulsable ? '<span class="q">ver por qué ›</span>' : '') +
+    '</div>';
+}
+
+window.exEnvioDetalle = function(id){
+  var e = envioDe(id); if (!e || !e.msg) return;
+  alert((e.state === 'rejected' ? 'Vueling ha rechazado esta nota:\n\n'
+       : 'No se pudo enviar:\n\n') + e.msg +
+    (e.number ? '\n\nReferencia: ' + e.number : ''));
+};
+
+/* ── Lo que se va a mandar ────────────────────────────────────────────────────
+   Se construye ANTES de enseñar la confirmación, para que lo que el piloto lee
+   sea exactamente lo que sale. El importe de cada línea es lo que de verdad se
+   reclama: la suma de sus tickets, con el tope como techo. */
+/* El motivo lo decide `motivoDe(n)`, arriba, junto al campo que lo edita: dos
+   funciones calculando el mismo texto acaban dando textos distintos. */
+function lineasParaEnviar(n, motivo){
+  return n.lines.map(function(l, i){
+    var tk = tkDeLinea(n, i), cap = Number(l.cap) || 0;
+    return {
+      portalType: n.portalType,
+      portalSubtype: l.portalSubtype || l.subtype || null,
+      date: fechaLinea(n, i),          // la del ticket, no la del vuelo
+      reason: motivo,
+      cost: cap ? Math.min(tk, cap) : tk,
+      iso: isoDe(n),
+      expedient: n.expedient || ''
+    };
+  }).filter(function(l){ return l.cost > 0; });
+}
+
+/* Antes de abrir nada: los tres motivos por los que el portal rechazaría la
+   nota en la cara del piloto. Se dicen aquí, no después del envío. */
+function pegasDe(n){
+  var p = [];
+  if (n.needsISO && !isoDe(n)) p.push('Falta el <b>nº de ISO</b>, y este tipo de nota no se acepta sin él.');
+  if (!(EX.tkCount[n.id] || 0)) p.push('No has adjuntado <b>ningún ticket</b>. Sin recibo no se aprueba.');
+  if ((EX.tkCount[n.id] || 0) > 5) p.push('Llevas <b>' + EX.tkCount[n.id] + ' tickets</b> y el portal admite 5 por nota.');
+  if (!lineasParaEnviar(n, 'x').length) p.push('Ninguna línea tiene importe: añade los tickets primero.');
+  return p;
+}
+
+/* ── La hoja de confirmación (dos pasos) ─────────────────────────────────── */
+var SEND = null;                       // { id, motivo, paso }
+function sendEl(){
+  var el = document.getElementById('ex-send');
+  if (!el){
+    el = document.createElement('div');
+    el.id = 'ex-send'; el.className = 'ex-send';
+    el.innerHTML = '<div class="ex-send-back" onclick="exSendClose()"></div>' +
+                   '<div class="ex-send-box" id="ex-send-box"></div>';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+window.exSendClose = function(){
+  var el = document.getElementById('ex-send');
+  if (el) el.classList.remove('on');
+  /* La pantalla de éxito quita el marco de la hoja (`limpio`); si no se
+     limpiara, el siguiente diálogo saldría sin su cabecera ni sus bordes. */
+  var bx = document.getElementById('ex-send-box');
+  if (bx) bx.classList.remove('limpio', 'mal');
+  SEND = null;
+};
+
+window.exEnviar = function(id){
+  var n = notaDe(id); if (!n) return;
+  var pegas = pegasDe(n);
+  SEND = { id: id, motivo: motivoDe(n), paso: pegas.length ? 0 : 1, pegas: pegas };
+  var el = sendEl(); drawSend(); el.classList.add('on');
+};
+window.exSendPaso = function(p){
+  if (!SEND) return;
+  var t = document.getElementById('ex-send-motivo');
+  if (t) SEND.motivo = t.value;                 // no se pierde lo que haya escrito
+  SEND.paso = p; drawSend();
+};
+window.exSendCheck = function(el){
+  var b = document.getElementById('ex-send-go');
+  if (b) b.classList.toggle('off', !el.checked);
+};
+
+function drawSend(){
+  var n = notaDe(SEND && SEND.id); if (!n) return;
+  var box = document.getElementById('ex-send-box'), h = '';
+
+  /* Paso 0 — no se puede enviar todavía. No es un paso del asistente: es una
+     parada, con lo que falta y el botón para arreglarlo. */
+  if (SEND.paso === 0){
+    h = '<div class="ex-send-h stop"><div class="ex-send-ic">⚠</div>' +
+        '<div class="ex-send-t">Aún no se puede enviar</div>' +
+        '<div class="ex-send-s">' + esc(tituloDe(n)) + '</div></div>' +
+        '<div class="ex-send-body"><ul class="ex-pegas">' +
+        SEND.pegas.map(function(p){ return '<li>' + p + '</li>'; }).join('') + '</ul></div>' +
+        '<div class="ex-send-foot">' +
+          '<div class="ex-btn ghost" onclick="exSendClose()">Cerrar</div>' +
+          '<div class="ex-btn" onclick="exSendClose();exOpen(\'' + n.id + '\')">Arreglarlo</div>' +
+        '</div>';
+    box.innerHTML = h; return;
+  }
+
+  var lineas = lineasParaEnviar(n, SEND.motivo);
+  var total = r2(lineas.reduce(function(a, l){ return a + l.cost; }, 0));
+  var nTk = EX.tkCount[n.id] || 0;
+
+  /* Paso 1 — revisar. Lo que se enseña es LO QUE SALE, campo por campo, con las
+     mismas palabras que el portal: si algo está mal, se ve aquí. */
+  if (SEND.paso === 1){
+    h = '<div class="ex-send-h"><div class="ex-send-ic">🧾</div>' +
+        '<div class="ex-send-t">Revisa lo que se va a enviar</div>' +
+        '<div class="ex-send-s">' + esc(tituloDe(n)) + ' · ' + esc(sinDia(fdate(n.date))) + '</div></div>' +
+        '<div class="ex-send-body">' +
+        '<div class="ex-send-k">TIPO EN EL PORTAL</div>' +
+        '<div class="ex-send-v">' + esc(n.portalType) + '</div>' +
+        (isoDe(n) ? '<div class="ex-send-k">Nº DE ISO</div><div class="ex-send-v">' + esc(isoDe(n)) + '</div>' : '') +
+        '<div class="ex-send-k">MOTIVO <span>se envía tal cual · lo puedes cambiar</span></div>' +
+        '<textarea class="ex-send-txt" id="ex-send-motivo" maxlength="400" rows="2">' +
+          esc(SEND.motivo) + '</textarea>' +
+        '<div class="ex-send-k">LÍNEAS</div>' +
+        '<div class="ex-send-lines">' + lineas.map(function(l){
+          return '<div class="ex-send-l"><div class="d">' + esc(sinDia(fdate(l.date))) + '</div>' +
+                 '<div class="s">' + esc(l.portalSubtype || '—') + '</div>' +
+                 '<div class="m">' + eur(l.cost) + '</div></div>'; }).join('') + '</div>' +
+        '<div class="ex-send-tot"><span>TOTAL</span><b>' + eur(total) + '</b></div>' +
+        '<div class="ex-send-tk">📎 ' + nTk + ' ticket' + (nTk === 1 ? '' : 's') + ' se adjuntan a la nota</div>' +
+        '</div>' +
+        '<div class="ex-send-foot">' +
+          '<div class="ex-btn ghost" onclick="exSendClose()">Cancelar</div>' +
+          '<div class="ex-btn" onclick="exSendPaso(2)">Continuar →</div>' +
+        '</div>';
+    box.innerHTML = h; return;
+  }
+
+  /* Paso 2 — la confirmación de verdad. Aquí no se repite el detalle: se dice
+     lo único que importa y que el paso anterior no decía, que esto sale de la
+     app y va a la Compañía. El botón nace apagado a propósito. */
+  h = '<div class="ex-send-h go"><div class="ex-send-ic">✈</div>' +
+      '<div class="ex-send-t">¿Enviar esta nota a Vueling?</div>' +
+      '<div class="ex-send-s">' + esc(tituloDe(n)) + ' · <b>' + eur(total) + '</b></div></div>' +
+      '<div class="ex-send-body">' +
+      '<div class="ex-send-warn">Se creará la nota en el portal de la Compañía a tu nombre, con sus ' +
+        nTk + ' ticket' + (nTk === 1 ? '' : 's') + '. <b>Desde la app ya no se puede retirar</b> — ' +
+        'para anularla tendrías que entrar al portal.</div>' +
+      '<label class="ex-send-chk"><input type="checkbox" onchange="exSendCheck(this)">' +
+        '<span>He revisado los importes y los tickets</span></label>' +
+      '</div>' +
+      '<div class="ex-send-foot">' +
+        '<div class="ex-btn ghost" onclick="exSendPaso(1)">← Volver</div>' +
+        '<div class="ex-btn solid off" id="ex-send-go" onclick="exSendGo()">Sí, enviar a Vueling</div>' +
+      '</div>';
+  box.innerHTML = h;
+}
+
+window.exSendGo = function(){
+  var b = document.getElementById('ex-send-go');
+  if (!b || b.classList.contains('off')) return;      // sin marcar la casilla no sale
+  var n = notaDe(SEND && SEND.id); if (!n) return;
+  var motivo = SEND.motivo, id = n.id;
+  exSendClose();
+  enviarAlPortal(n, motivo);
+};
+
+/* ── Enviar VARIAS de una vez ─────────────────────────────────────────────────
+   Un piloto no pasa una nota: se sienta un domingo y pasa las cinco del mes.
+   Las N notas van al backend en UNA llamada y allí se crean en UNA sola sesión
+   de navegador — mandarlas de una en una serían cinco logins, cinco minutos y
+   cinco oportunidades de que la sesión caduque a media faena.
+   ★ Cada nota lleva su propio resultado de vuelta: que la tercera falle no
+   puede dejar sin enviar —ni sin avisar— a la cuarta y la quinta. */
+var MAX_LOTE = 10;
+window.exSelModo = function(on){
+  EX.selMode = !!Number(on); EX.sel = {};
+  exRender();
+};
+window.exSelToggle = function(id){
+  EX.sel = EX.sel || {};
+  if (EX.sel[id]) delete EX.sel[id];
+  else {
+    if (Object.keys(EX.sel).length >= MAX_LOTE){
+      showToast && showToast('Máximo ' + MAX_LOTE + ' notas por envío', 'warn');
+      return;
+    }
+    EX.sel[id] = 1;
+  }
+  exRender();
+};
+function seleccionadas(){
+  return Object.keys(EX.sel || {}).map(notaDe).filter(Boolean);
+}
+
+/* Barra fija abajo con el recuento. Se crea y se destruye con el modo: si se
+   quedara en el DOM taparía la última tarjeta de la lista. */
+function barraSel(){
+  var vieja = document.getElementById('ex-selbar');
+  if (vieja) vieja.remove();
+  if (!EX.selMode) return;
+  var sel = seleccionadas();
+  var tot = r2(sel.reduce(function(a, n){ return a + reclamaDe(n); }, 0));
+  var el = document.createElement('div');
+  el.id = 'ex-selbar'; el.className = 'ex-selbar' + (sel.length ? ' on' : '');
+  el.innerHTML = '<div class="ex-selbar-tx"><b>' + sel.length +
+      (sel.length === 1 ? ' nota' : ' notas') + '</b>' +
+      '<span>' + (sel.length ? 'reclamas ' + eur(tot) : 'toca las que quieras enviar') + '</span></div>' +
+    '<div class="ex-btn ghost" onclick="exSelModo(0)">Cancelar</div>' +
+    '<div class="ex-btn cic go' + (sel.length ? '' : ' off') + '" onclick="exEnviarLote()">✈ Enviar</div>';
+  document.body.appendChild(el);
+}
+
+window.exEnviarLote = function(){
+  var sel = seleccionadas();
+  if (!sel.length) return;
+  /* Las pegas se miran ANTES de la confirmación y por nota: si tres de las
+     cinco no pueden salir, hay que decirlo aquí, no dejar que el portal las
+     rechace una a una. */
+  var malas = sel.filter(function(n){ return pegasDe(n).length; });
+  if (malas.length){
+    alert('Estas notas todavía no se pueden enviar:\n\n' +
+      malas.map(function(n){
+        return '• ' + tituloDe(n) + '\n   ' + pegasDe(n)[0].replace(/<[^>]+>/g, '');
+      }).join('\n') +
+      '\n\nQuítalas de la selección o arréglalas primero.');
+    return;
+  }
+  SEND = { lote: sel.map(function(n){ return n.id; }), paso: 1 };
+  var el = sendEl(); drawSendLote(); el.classList.add('on');
+};
+
+function drawSendLote(){
+  var sel = (SEND.lote || []).map(notaDe).filter(Boolean);
+  var tot = r2(sel.reduce(function(a, n){ return a + reclamaDe(n); }, 0));
+  var nTk = sel.reduce(function(a, n){ return a + (EX.tkCount[n.id] || 0); }, 0);
+  var box = document.getElementById('ex-send-box'), h;
+
+  if (SEND.paso === 1){
+    h = '<div class="ex-send-h"><div class="ex-send-ic">🧾</div>' +
+      '<div class="ex-send-t">' + sel.length + ' notas a Vueling</div>' +
+      '<div class="ex-send-s">Se crea una nota por cada una, como en el portal</div></div>' +
+      '<div class="ex-send-body"><div class="ex-send-lines">' +
+      sel.map(function(n){
+        return '<div class="ex-send-l"><div class="d">' + esc(sinDia(fdate(n.date))) + '</div>' +
+          '<div class="s">' + esc(tituloDe(n)) + '</div>' +
+          '<div class="m">' + eur(reclamaDe(n)) + '</div></div>'; }).join('') +
+      '</div><div class="ex-send-tot"><span>TOTAL</span><b>' + eur(tot) + '</b></div>' +
+      '<div class="ex-send-tk">📎 ' + nTk + ' ticket' + (nTk === 1 ? '' : 's') + ' en total</div></div>' +
+      '<div class="ex-send-foot"><div class="ex-btn ghost" onclick="exSendClose()">Cancelar</div>' +
+      '<div class="ex-btn" onclick="exSendPasoLote(2)">Continuar →</div></div>';
+  } else {
+    h = '<div class="ex-send-h go"><div class="ex-send-ic">✈</div>' +
+      '<div class="ex-send-t">¿Enviar ' + sel.length + ' notas a Vueling?</div>' +
+      '<div class="ex-send-s">Total <b>' + eur(tot) + '</b></div></div>' +
+      '<div class="ex-send-body">' +
+      '<div class="ex-send-warn">Se crearán <b>' + sel.length + ' notas</b> en el portal de la ' +
+        'Compañía a tu nombre. <b>Desde la app ya no se pueden retirar</b>.</div>' +
+      '<label class="ex-send-chk"><input type="checkbox" onchange="exSendCheck(this)">' +
+        '<span>He revisado las ' + sel.length + ' notas</span></label></div>' +
+      '<div class="ex-send-foot"><div class="ex-btn ghost" onclick="exSendPasoLote(1)">← Volver</div>' +
+      '<div class="ex-btn solid off" id="ex-send-go" onclick="exSendGoLote()">Sí, enviar las ' +
+        sel.length + '</div></div>';
+  }
+  box.innerHTML = h;
+}
+window.exSendPasoLote = function(p){ if (SEND){ SEND.paso = p; drawSendLote(); } };
+window.exSendGoLote = function(){
+  var b = document.getElementById('ex-send-go');
+  if (!b || b.classList.contains('off')) return;
+  var sel = (SEND.lote || []).map(notaDe).filter(Boolean);
+  exSendClose(); EX.selMode = false; EX.sel = {};
+  enviarLote(sel);
+};
+
+function enviarLote(notas){
+  notas.forEach(function(n){
+    EX.portal[n.id] = { state: 'sending', at: new Date().toISOString() };
+  });
+  portalSave(); exRender();
+  exProgreso('Preparando ' + notas.length + ' notas…');
+  pasosDeEspera();
+
+  cargarTickets()
+    .then(function(){
+      return Promise.all(notas.map(function(n){
+        return ticketsDe(n).then(function(tk){
+          return { ref: n.id, lines: lineasParaEnviar(n, motivoDe(n)), tickets: tk,
+                   comment: tituloDe(n) + (n.route ? ' · ' + n.route : '') };
+        });
+      }));
+    })
+    .then(function(payload){
+      return api('/api/expense/portal/submit', { method: 'POST', body: {
+        notes: payload, draft: false, confirm: true } });
+    })
+    .then(function(r){
+      var b = r.body || {};
+      if (b.status === 'NEEDS_LOGIN'){
+        notas.forEach(function(n){
+          EX.portal[n.id] = { state: 'login', at: new Date().toISOString(),
+            msg: 'La sesión con tu cuenta de Vueling ha caducado. Entra otra vez y se mandan solas.' };
+        });
+        pedirLogin(function(){ enviarLote(notas); });
+      } else if (r.status === 200 && Array.isArray(b.results)){
+        var bien = 0;
+        b.results.forEach(function(res){
+          if (res.ok){
+            bien++;
+            /* El servidor ya sabe si el bot la ha tumbado: se guarda su estado
+               real, no un "enviada" que mañana habría que corregir. */
+            var tumbada = res.sheetStatus === 'rejected';
+            EX.portal[res.ref] = { state: tumbada ? 'rejected' : 'sent',
+              number: res.number, portalId: res.id, at: new Date().toISOString(),
+              msg: tumbada ? (res.rejectedReason || 'La Compañía la ha rechazado.')
+                           : ((res.warnings && res.warnings.length) ? res.warnings.join('\n') : '') };
+            EX.sent[res.ref] = new Date().toISOString(); syncNota(res.ref);
+          } else {
+            EX.portal[res.ref] = { state: 'error', at: new Date().toISOString(),
+              msg: res.error || 'El portal no la aceptó' };
+          }
+        });
+        saveSent();
+        var okIds = b.results.filter(function(x){ return x.ok; }).map(function(x){ return x.ref; });
+        var eurOk = r2(okIds.reduce(function(a, id){
+          var nn = notaDe(id); return a + (nn ? reclamaDe(nn) : 0); }, 0));
+        /* Las que llegaron pero la Compañía ya ha tumbado. No son un fallo del
+           envío —están en el portal— pero no se pueden celebrar: si se cuentan
+           como enviadas, el piloto se queda pensando que va a cobrarlas. */
+        var mal = b.results.filter(function(x){ return x.ok && x.sheetStatus === 'rejected'; });
+        var vivas = bien - mal.length;
+        if (mal.length === 1 && b.results.length === 1){
+          exRechazo({ numero: mal[0].number, motivo: mal[0].rejectedReason,
+                      id: mal[0].ref });
+        } else if (bien){
+          exExito({
+            titulo: vivas === 0 ? 'Llegaron, pero las han rechazado'
+                  : vivas === 1 ? 'Enviada a Vueling'
+                                : vivas + ' notas en Vueling',
+            numero: vivas === 1 ? (b.results.find(function(x){
+                      return x.ok && x.sheetStatus !== 'rejected'; }) || {}).number : null,
+            importe: vivas ? eurOk : 0,
+            sub: [ mal.length ? mal.length + ' rechazada' + (mal.length > 1 ? 's' : '') +
+                                ' al llegar — mira el motivo' : '',
+                   bien < b.results.length ? (b.results.length - bien) + ' no salieron' : ''
+                 ].filter(Boolean).join(' · '),
+            flash: okIds
+          });
+        } else {
+          showToast && showToast('No se pudo enviar ninguna', 'warn');
+        }
+      } else {
+        notas.forEach(function(n){
+          EX.portal[n.id] = { state: 'error', at: new Date().toISOString(),
+            msg: b.message || b.error || ('El portal respondió ' + r.status) };
+        });
+        showToast && showToast('No se pudieron enviar', 'warn');
+      }
+      portalSave(); exRender();
+    })
+    .catch(function(e){
+      notas.forEach(function(n){
+        EX.portal[n.id] = { state: 'error', at: new Date().toISOString(),
+          msg: (e && e.message) || 'Sin conexión con el servidor' };
+      });
+      portalSave(); exRender();
+      showToast && showToast('No se pudieron enviar', 'warn');
+    });
+}
+
+/* ── Sesión caducada: se le lleva a entrar, no se le avisa y ya ───────────────
+   Un toast diciendo «reconecta eCrews» deja al piloto en el mismo sitio, con la
+   nota sin enviar, y encima le habla de eCrews cuando lo que él quiere es
+   mandar un gasto. Se le abre la pantalla de entrar y, al volver, se reintenta
+   el envío solo.
+
+   ★ Es UNA sola sesión: la cuenta de Vueling (Microsoft) abre el roster y el
+   portal de gastos. Por dentro se reutiliza el flujo que ya existe —el único
+   que hay— pero al piloto no se le menciona eCrews: se le dice que entre en su
+   cuenta, que es lo que va a hacer.
+
+   El login NO se hace por nuestra cuenta desde el servidor — eso es lo que
+   disparaba los number-match en cascada de los testers. Lo lanza él. */
+/* ★ Entrar es entrar en TU CUENTA, no "sincronizar eCrews".
+   Antes esto abría el flujo del roster: una pantalla titulada «Sincronizar
+   eCrews» que además se ponía a leerte el calendario entero (30-40 s de
+   navegador) cuando lo único que hacía falta era la sesión de Microsoft. El
+   piloto le había dado a "Enviar", no a "Sincronizar".
+   Ahora la pantalla es de aquí, dice lo que hace, y el backend se para en
+   cuanto tiene la sesión (`only_session`). */
+var _reintento = null, _login = { sid: null, poll: null };
+
+function pedirLogin(reintentar){
+  _reintento = reintentar || null;
+  loginPaso('creds');
+}
+
+function loginCerrar(){
+  if (_login.poll){ clearInterval(_login.poll); _login.poll = null; }
+  _login.sid = null;
+  exSendClose();
+}
+window.exLoginCerrar = function(){ _reintento = null; loginCerrar(); };
+
+function loginPaso(paso, datos){
+  var el = sendEl(), h = '';
+  datos = datos || {};
+
+  if (paso === 'creds'){
+    h = '<div class="ex-send-h"><div class="ex-send-ic">🔑</div>' +
+      '<div class="ex-send-t">Entra en tu cuenta de Vueling</div>' +
+      '<div class="ex-send-s">Hace falta para dejar la nota en el portal. Es tu cuenta ' +
+        'de siempre, la de Microsoft.</div></div>' +
+      /* ★ Los campos van dentro de un <form> de verdad, con sus `autocomplete`:
+         es la única forma de que el LLAVERO del iPhone ofrezca la contraseña
+         guardada. Nosotros no la guardamos —no queremos custodiar la contraseña
+         corporativa de nadie— pero el gestor del propio teléfono sí, que es
+         donde debe estar, y así el piloto no la teclea cada vez. */
+      '<div class="ex-send-body">' +
+      '<form onsubmit="exLoginGo();return false" autocomplete="on">' +
+      '<div class="ex-send-k">CORREO DE VUELING</div>' +
+      '<input class="ex-send-txt" id="ex-lg-mail" name="username" type="email" autocomplete="username" ' +
+        'inputmode="email" autocapitalize="none" spellcheck="false" ' +
+        'placeholder="nombre.apellido@vueling.com" value="' + esc(datos.mail || lsGet('ec_last_mail', '')) + '">' +
+      '<div class="ex-send-k">CONTRASEÑA</div>' +
+      '<input class="ex-send-txt" id="ex-lg-pass" name="password" type="password" ' +
+        'autocomplete="current-password" placeholder="la de tu correo de Vueling">' +
+      /* La contraseña viaja al servidor de PilotOS para entrar por ti, y eso hay
+         que decirlo con todas las letras ANTES, no en un aviso legal. */
+      '<label class="ex-send-chk"><input type="checkbox" id="ex-lg-ok" onchange="exLoginCheck(this)">' +
+        '<span>Autorizo a PilotOS a entrar en mi cuenta para dejar la nota. La contraseña ' +
+        'no se guarda en nuestros servidores.</span></label>' +
+      (datos.error ? '<div class="ex-send-warn" style="margin-top:12px">' + esc(datos.error) + '</div>' : '') +
+      '</form></div>' +
+      '<div class="ex-send-foot"><div class="ex-btn ghost" onclick="exLoginCerrar()">Ahora no</div>' +
+      '<div class="ex-btn solid off" id="ex-lg-go" onclick="exLoginGo()">Entrar</div></div>';
+  }
+
+  else if (paso === 'numero'){
+    /* Lo que el piloto necesita saber aquí lo aprendimos con los testers: la
+       notificación muchas veces NO llega, la aprobación está dentro de Outlook,
+       y volver a darle a "Entrar" genera un número nuevo que anula éste. */
+    h = '<div class="ex-send-h go"><div class="ex-send-ic">📲</div>' +
+      '<div class="ex-send-t">Aprueba en Outlook</div>' +
+      '<div class="ex-send-s">Abre <b>Outlook en el móvil</b> y escribe este número</div></div>' +
+      '<div class="ex-send-body"><div class="ex-lg-num">' + esc(datos.number || '··') + '</div>' +
+      '<div class="ex-send-warn">Si no te salta la notificación, <b>abre Outlook a mano</b> y ' +
+        'desliza hacia abajo: la solicitud suele estar dentro. <b>No vuelvas a darle a Entrar</b> — ' +
+        'eso genera un número nuevo y anula éste.</div></div>' +
+      '<div class="ex-send-foot"><div class="ex-btn ghost" onclick="exLoginCerrar()">Cancelar</div></div>';
+  }
+
+  else if (paso === 'esperando'){
+    h = '<div class="ex-send-h go"><div class="ex-send-ic">⏳</div>' +
+      '<div class="ex-send-t">Conectando con tu cuenta</div>' +
+      '<div class="ex-send-s">' + esc(datos.txt || 'Un momento…') + '</div></div>' +
+      '<div class="ex-send-body" style="text-align:center;padding:20px 18px">' +
+      '<i class="ex-dots" style="color:#7EFBFE;transform:scale(2)"><b></b><b></b><b></b></i></div>' +
+      '<div class="ex-send-foot"><div class="ex-btn ghost" onclick="exLoginCerrar()">Cancelar</div></div>';
+  }
+
+  else if (paso === 'listo'){
+    h = '<div class="ex-send-h"><div class="ex-send-ic">✓</div>' +
+      '<div class="ex-send-t">Cuenta conectada</div>' +
+      '<div class="ex-send-s">' + (_reintento ? 'Se envía la nota…' : 'Ya puedes enviar') + '</div></div>' +
+      '<div class="ex-send-body"><div class="ex-send-tk">La sesión se queda guardada: no ' +
+        'tendrás que repetirlo cada vez.</div></div>' +
+      '<div class="ex-send-foot"><div class="ex-btn" onclick="exLoginCerrar()">Hecho</div></div>';
+  }
+
+  document.getElementById('ex-send-box').innerHTML = h;
+  el.classList.add('on');
+}
+
+window.exLoginCheck = function(el){
+  var b = document.getElementById('ex-lg-go');
+  if (b) b.classList.toggle('off', !el.checked);
+};
+
+window.exLoginGo = function(){
+  var b = document.getElementById('ex-lg-go');
+  if (!b || b.classList.contains('off')) return;
+  var mail = (document.getElementById('ex-lg-mail') || {}).value || '';
+  var pass = (document.getElementById('ex-lg-pass') || {}).value || '';
+  mail = String(mail).trim();
+  if (!mail || !pass){ loginPaso('creds', { mail: mail, error: 'Faltan el correo o la contraseña.' }); return; }
+  try { lsSet && lsSet('ec_last_mail', mail); } catch(e){}
+
+  loginPaso('esperando', { txt: 'Comprobando tus datos con Microsoft' });
+  api('/api/ecrews/login', { method: 'POST', body: {
+    email: mail, password: pass, consent: true,
+    only_session: true            // entrar y guardar la sesión; el roster NO se toca
+  }}).then(function(r){
+    var b2 = r.body || {};
+    if (r.status !== 200){
+      loginPaso('creds', { mail: mail, error: b2.error || ('No se pudo entrar (' + r.status + ')') });
+      return;
+    }
+    _login.sid = b2.sessionId;
+    if (b2.number) loginPaso('numero', { number: b2.number });
+    else loginPaso('esperando', { txt: 'Esperando a Microsoft' });
+    loginVigilar();
+  }).catch(function(){
+    loginPaso('creds', { mail: mail, error: 'Sin conexión con el servidor.' });
+  });
+};
+
+/* Se pregunta por el estado del login hasta que entra o falla. Es el mismo
+   /status que usa el roster: aquí sólo cambia qué se hace al terminar. */
+function loginVigilar(){
+  if (_login.poll) clearInterval(_login.poll);
+  var t0 = Date.now();
+  _login.poll = setInterval(function(){
+    if (!_login.sid || Date.now() - t0 > 7 * 60 * 1000){ loginCerrar(); return; }
+    api('/api/ecrews/login/status?sessionId=' + encodeURIComponent(_login.sid)).then(function(r){
+      var s = r.body || {};
+      if (s.number && s.status === 'AWAITING_APPROVAL') loginPaso('numero', { number: s.number });
+      if (s.status === 'ERROR'){
+        clearInterval(_login.poll); _login.poll = null;
+        loginPaso('creds', { error: s.error || 'No se pudo entrar.' });
+        return;
+      }
+      /* COMPLETE o AUTHENTICATED: la sesión ya está guardada en el servidor. */
+      if (s.status === 'COMPLETE' || s.status === 'AUTHENTICATED'){
+        clearInterval(_login.poll); _login.poll = null; _login.sid = null;
+        loginPaso('listo');
+        var f = _reintento; _reintento = null;
+        if (f) setTimeout(function(){ loginCerrar(); f(); }, 1200);
+      }
+    }).catch(function(){});
+  }, 3000);
+}
+
+/* ── LA CONFIRMACIÓN DE QUE HA SALIDO ────────────────────────────────────────
+   Un toast de tres segundos en una esquina no basta para esto. Mandar una nota
+   a la Compañía es de las poquísimas cosas de la app que salen del teléfono y
+   no se pueden deshacer: el piloto tiene que quedarse SEGURO de que ha llegado,
+   y con el número delante para reconocerla luego en el portal.
+
+   Por eso ocupa la pantalla, trae el número, el importe, y se cierra cuando él
+   quiere. Y al volver, su tarjeta se ilumina en verde un segundo — así el ojo
+   sabe CUÁL de las notas de la lista es la que acaba de irse.
+
+   El check se dibuja (el trazo se traza, no aparece de golpe): es medio segundo
+   y es lo que convierte "ha pasado algo" en "ha salido bien". Con
+   prefers-reduced-motion aparece ya hecho, sin animación. */
+/* Red de seguridad: el servidor espera 25 s al veredicto, pero el bot puede
+   tardar más. Se vuelve a preguntar a los 2 y a los 6 minutos — sólo tras un
+   envío, no cada rato — para que un rechazo tardío tampoco pase inadvertido.
+   `exRefrescarEstados` ya avisa con un toast de lo que haya cambiado. */
+function vigilarVeredicto(){
+  [120000, 360000].forEach(function(ms){
+    setTimeout(function(){ try { exRefrescarEstados(true); } catch(e){} }, ms);
+  });
+}
+
+/* ── UNA SOLA PANTALLA, DE PRINCIPIO A FIN ────────────────────────────────────
+   Se abre al pulsar Enviar con el círculo girando, y ese MISMO círculo se
+   convierte en el check verde o en la cruz roja cuando llega la respuesta. No
+   se cierra y se abre otra: el aro es el mismo, y por eso se lee como "esto ha
+   terminado así" en vez de como dos avisos sueltos.
+
+   Mientras espera va contando qué está pasando —crear la nota tarda, y el
+   servidor además aguarda unos segundos al veredicto del bot— porque veinte
+   segundos de rueda muda se parecen demasiado a que se ha colgado. */
+function exProgreso(txt){
+  var el = sendEl();
+  document.getElementById('ex-send-box').innerHTML =
+    '<div class="ex-ok cargando" id="ex-ok-caja">' +
+      '<div class="ex-ok-halo"></div>' +
+      '<div class="ex-ok-mark">' +
+        '<svg viewBox="0 0 52 52" aria-hidden="true">' +
+          '<circle class="c" cx="26" cy="26" r="23" fill="none"/>' +
+          '<path class="t check" fill="none" d="M14.5 27.5l7.5 7.5 15.5-16"/>' +
+          '<path class="t cruz" fill="none" d="M18 18l16 16M34 18L18 34"/>' +
+        '</svg>' +
+      '</div>' +
+      '<div class="ex-ok-t" id="ex-ok-t">Enviando a Vueling</div>' +
+      '<div class="ex-ok-p" id="ex-ok-p">' + esc(txt || 'Entrando en el portal…') + '</div>' +
+      '<div class="ex-ok-cuerpo" id="ex-ok-cuerpo"></div>' +
+    '</div>';
+  document.getElementById('ex-send-box').classList.add('limpio');
+  el.classList.add('on');
+}
+function exProgresoPaso(txt){
+  var p = document.getElementById('ex-ok-p');
+  if (p) p.textContent = txt;
+}
+/* Un envío tarda entre 20 y 45 segundos: abrir el navegador en el servidor,
+   entrar con tu sesión, crear la nota y esperar el veredicto del bot. Contarlo
+   por encima quita la sensación de cuelgue — y además es verdad, cada frase
+   corresponde a algo que está pasando de verdad en ese momento. */
+var _pasos = null;
+function pasosDeEspera(){
+  if (_pasos) clearTimeout(_pasos);
+  var guion = [
+    [6000,  'Creando la nota con tus tickets…'],
+    [14000, 'Ya está en el portal · esperando a que la revisen…'],
+    [26000, 'La Compañía la revisa automáticamente. Un momento más…']
+  ];
+  guion.forEach(function(p){
+    setTimeout(function(){
+      var caja = document.getElementById('ex-ok-caja');
+      if (caja && caja.classList.contains('cargando')) exProgresoPaso(p[1]);
+    }, p[0]);
+  });
+}
+/* Cierra el ciclo: el aro se completa y se dibuja el símbolo. Si por lo que sea
+   la pantalla de progreso no estaba abierta (un envío desde otro sitio), se
+   pinta entera y ya. */
+function exResultado(tipo, cuerpo, titulo, flash){
+  var caja = document.getElementById('ex-ok-caja');
+  if (!caja){ exProgreso(''); caja = document.getElementById('ex-ok-caja'); }
+  caja.classList.remove('cargando');
+  caja.classList.add(tipo === 'mal' ? 'mal' : 'bien');
+  if (tipo === 'mal') document.getElementById('ex-send-box').classList.add('mal');
+  document.getElementById('ex-ok-t').textContent = titulo;
+  document.getElementById('ex-ok-p').textContent = '';
+  document.getElementById('ex-ok-cuerpo').innerHTML = cuerpo;
+
+  EX.flash = {};
+  (flash || []).forEach(function(id){ EX.flash[id] = 1; });
+  vigilarVeredicto();
+  exRender();
+  setTimeout(function(){ EX.flash = {}; exRender(); }, 4000);
+}
+
+function exExito(d){
+  exResultado('bien',
+    (d.numero ? '<div class="ex-ok-n">' + esc(d.numero) + '</div>' : '') +
+    (d.importe ? '<div class="ex-ok-e">' + eur(d.importe) + '</div>' : '') +
+    (d.sub ? '<div class="ex-ok-s">' + esc(d.sub) + '</div>' : '') +
+    '<div class="ex-ok-p">Ya está en el portal de Vueling.<br>' +
+      'Si te la rechazan, te lo diré aquí con el motivo.</div>' +
+    '<div class="ex-btn cic sent" onclick="exSendClose()">Hecho</div>',
+    d.titulo || 'Enviada', d.flash);
+}
+
+/* ── Y si te la tumban, te enteras AQUÍ ───────────────────────────────────────
+   La Compañía tiene un proceso que cruza la nota con tu roster y la rechaza
+   sola, en segundos. El aviso oficial es un correo del bot que se lee tarde o
+   no se lee. El servidor espera ese veredicto con el navegador ya abierto, así
+   que se puede decir en la misma pantalla del envío — con el motivo, que es lo
+   único accionable.
+   En rojo y sin celebración: la nota está creada, pero no la van a pagar. */
+function exRechazo(d){
+  portalSave();
+  exResultado('mal',
+    (d.numero ? '<div class="ex-ok-n">' + esc(d.numero) + '</div>' : '') +
+    '<div class="ex-ok-motivo">' + esc(d.motivo || 'El portal no da el motivo. Entra en él para verlo.') + '</div>' +
+    '<div class="ex-ok-p">Ha llegado bien: la ha tumbado su revisión automática. ' +
+      'Arregla lo que dice y vuelve a mandarla.</div>' +
+    '<div class="ex-btn cic err" onclick="exSendClose()">Entendido</div>',
+    'Vueling la ha rechazado', d.id ? [d.id] : []);
+}
+
+/* ── El envío ─────────────────────────────────────────────────────────────── */
+function ticketsDe(n){
+  /* Los tickets viven en IndexedDB como blob; el backend los quiere en base64.
+     Se mandan los de TODAS las líneas de la nota, que es como los pide el
+     portal (los recibos van a la hoja, no a cada línea). */
+  var keys = n.lines.map(function(_, i){ return lineKey(n, i); });
+  var tks = TICKETS.filter(function(t){ return keys.indexOf(t.lineKey) >= 0; }).slice(0, 5);
+  return Promise.all(tks.map(function(t, i){
+    if (!t.blob) return Promise.resolve(null);
+    return blobToB64(t.blob).then(function(b64){
+      return { name: 'ticket-' + (i + 1) + '.jpg', base64: b64, mime: t.blob.type || 'image/jpeg' };
+    });
+  })).then(function(l){ return l.filter(Boolean); });
+}
+
+function enviarAlPortal(n, motivo){
+  EX.portal[n.id] = { state: 'sending', at: new Date().toISOString() };
+  portalSave(); exRender();
+  exProgreso('Preparando los tickets…');
+  pasosDeEspera();
+
+  cargarTickets()
+    .then(function(){ return ticketsDe(n); })
+    .then(function(tickets){
+      exProgresoPaso('Entrando en el portal de Vueling…');
+      return api('/api/expense/portal/submit', { method: 'POST', body: {
+        lines: lineasParaEnviar(n, motivo),
+        tickets: tickets,
+        comment: tituloDe(n) + (n.route ? ' · ' + n.route : ''),
+        draft: false,          // va a la Compañía: lo acaba de confirmar el piloto
+        confirm: true          // segundo cerrojo, exigido por el backend
+      }});
+    })
+    .then(function(r){
+      var b = r.body || {};
+      if (b.status === 'NEEDS_LOGIN'){
+        EX.portal[n.id] = { state: 'login', at: new Date().toISOString(),
+          msg: 'La sesión con tu cuenta de Vueling ha caducado. Entra otra vez y se manda sola.' };
+        pedirLogin(function(){ enviarAlPortal(n, motivo); });
+      } else if (r.status === 200 && b.status === 'OK'){
+        EX.portal[n.id] = { state: 'sent', number: b.number, portalId: b.id,
+                            at: new Date().toISOString(),
+                            msg: (b.warnings && b.warnings.length) ? b.warnings.join('\n') : '' };
+        /* Enviada es enviada: la nota pasa a "ya la pasé" sola. Si no, el piloto
+           tendría que marcarla a mano justo después de mandarla. */
+        EX.sent[n.id] = new Date().toISOString(); saveSent(); syncNota(n.id);
+        /* El servidor ha esperado unos segundos al veredicto del bot. Si ya la
+           ha tumbado, se dice AHORA y con el motivo: enterarse aquí es poder
+           arreglarlo hoy; enterarse por el correo es no enterarse. */
+        if (b.sheetStatus === 'rejected'){
+          EX.portal[n.id].state = 'rejected';
+          EX.portal[n.id].msg = b.rejectedReason || 'La Compañía la ha rechazado.';
+          exRechazo({ numero: b.number, motivo: b.rejectedReason, nota: tituloDe(n), id: n.id });
+        } else {
+          exExito({ titulo: 'Enviada a Vueling', numero: b.number,
+                    importe: reclamaDe(n), sub: tituloDe(n), flash: [n.id] });
+        }
+      } else {
+        EX.portal[n.id] = { state: 'error', at: new Date().toISOString(),
+          msg: b.message || b.error || ('El portal respondió ' + r.status) };
+        /* El círculo también se cierra cuando sale mal: dejarlo girando para
+           siempre es peor que decir que no ha salido. */
+        exResultado('mal',
+          '<div class="ex-ok-motivo">' + esc(EX.portal[n.id].msg) + '</div>' +
+          '<div class="ex-ok-p">No ha llegado a Vueling. Puedes reintentarlo desde la nota.</div>' +
+          '<div class="ex-btn cic err" onclick="exSendClose()">Entendido</div>',
+          'No se pudo enviar', []);
+      }
+      portalSave(); exRender();
+    })
+    .catch(function(e){
+      EX.portal[n.id] = { state: 'error', at: new Date().toISOString(),
+        msg: (e && e.message) ? e.message : 'Sin conexión con el servidor' };
+      portalSave();
+      exResultado('mal',
+        '<div class="ex-ok-motivo">' + esc(EX.portal[n.id].msg) + '</div>' +
+        '<div class="ex-ok-p">No ha llegado a Vueling. Puedes reintentarlo desde la nota.</div>' +
+        '<div class="ex-btn cic err" onclick="exSendClose()">Entendido</div>',
+        'No se pudo enviar', []);
+    });
+}
+
+/* ── Estado real, traído del portal ──────────────────────────────────────────
+   Enviar no es el final. De las 91 notas de la cuenta con la que se probó esto,
+   **21 estaban rechazadas** — 599,80 € reclamados y no cobrados — y el piloto no
+   lo sabía: el aviso es un correo del bot que se lee una vez y se entierra.
+   Por eso la app pregunta al portal por TODAS tus notas, no sólo por las que ha
+   mandado ella, y por las rechazadas trae además el MOTIVO, que el portal sí
+   da (en los comentarios de la hoja) y es lo único accionable:
+     · "Automatic rejection. Does not match with Roster"
+     · "Ya se aprueban 34.02€ en la NG-2026-089015"
+     · "Es imprescindible que aparezca la fecha en el ticket" */
+var K_SHEETS = 'pilotos_gastos_portal_hojas', K_VISTAS = 'pilotos_gastos_rech_vistas';
+function sheetsLoad(){
+  try { EX.sheets = JSON.parse(localStorage.getItem(K_SHEETS) || '[]') || []; } catch(e){ EX.sheets = []; }
+  try { EX.vistas = JSON.parse(localStorage.getItem(K_VISTAS) || '{}') || {}; } catch(e){ EX.vistas = {}; }
+}
+function sheetsSave(){
+  try { localStorage.setItem(K_SHEETS, JSON.stringify(EX.sheets || [])); } catch(e){}
+  try { localStorage.setItem(K_VISTAS, JSON.stringify(EX.vistas || {})); } catch(e){}
+}
+function rechazadas(){ return (EX.sheets || []).filter(function(s){ return s.status === 'rejected'; }); }
+
+/* El banner. En rojo si hay rechazos que el piloto aún no ha abierto; apagado
+   cuando ya los ha visto — sigue ahí, pero deja de gritar. */
+function bannerPortal(){
+  var mal = rechazadas();
+  if (!mal.length) return '';
+  var nuevas = mal.filter(function(s){ return !(EX.vistas || {})[s.number]; });
+  var eurTot = r2(mal.reduce(function(a, s){ return a + (Number(s.amount) || 0); }, 0));
+  var eurNue = r2(nuevas.reduce(function(a, s){ return a + (Number(s.amount) || 0); }, 0));
+  return '<div class="ex-rech' + (nuevas.length ? ' nuevo' : '') + '" onclick="exVerRechazos()">' +
+    '<div class="ex-rech-ic">' + (nuevas.length ? '!' : '✕') + '</div>' +
+    '<div class="ex-rech-tx"><b>' +
+      (nuevas.length
+        ? nuevas.length + (nuevas.length === 1 ? ' nota rechazada' : ' notas rechazadas') + ' · ' + eur(eurNue)
+        : mal.length + (mal.length === 1 ? ' nota rechazada' : ' notas rechazadas') + ' · ' + eur(eurTot)) +
+    '</b><span>' + (nuevas.length ? 'Vueling no te las va a pagar · toca para ver por qué'
+                                  : 'histórico · toca para revisarlas') + '</span></div>' +
+    '<div class="ex-rech-go">›</div></div>';
+}
+
+window.exVerRechazos = function(){
+  var mal = rechazadas();
+  if (!mal.length) return;
+  var el = sheetEl();
+  var h = '<div class="ex-lbl2">LO QUE VUELING NO TE HA PAGADO</div>' +
+    '<div class="ex-sh-t">' + mal.length + (mal.length === 1 ? ' nota rechazada' : ' notas rechazadas') + '</div>' +
+    '<div class="ex-sh-s">Suman <b>' + eur(r2(mal.reduce(function(a,s){ return a+(Number(s.amount)||0); },0))) +
+    '</b> que reclamaste y no vas a cobrar</div>';
+  h += mal.map(function(s){
+    return '<div class="ex-rj">' +
+      '<div class="ex-rj-h"><span class="n">' + esc(s.number || '—') + '</span>' +
+        '<span class="m">' + eur(s.amount) + '</span></div>' +
+      '<div class="ex-rj-d">' + esc(sinDia(fdate(String(s.date || '').slice(0, 10)))) + '</div>' +
+      '<div class="ex-rj-r">' + esc(s.reason || 'El portal no da el motivo. Entra en él para verlo.') + '</div>' +
+      '</div>'; }).join('');
+  /* Se marcan como vistas al abrirlas: el aviso rojo ha cumplido su función y
+     no tiene por qué seguir dando la lata cada vez que entras. */
+  mal.forEach(function(s){ EX.vistas[s.number] = 1; });
+  sheetsSave();
+  h += '<div class="ex-note">El motivo lo escribe quien la revisa en la Compañía. ' +
+       '«Does not match with Roster» lo pone un <b>proceso automático</b> que cruza la nota con ' +
+       'tu roster de ese día — si crees que se equivoca, la reclamación va por el portal.</div>' +
+       '<div class="ex-row"><div class="ex-btn" onclick="exClose()">Entendido</div></div>';
+  document.getElementById('ex-sheetbody').innerHTML = h;
+  el.classList.add('on');
+  exRender();                                     // el banner ya no va en rojo
+};
+
+var _ultEstados = 0;
+window.exRefrescarEstados = function(forzar){
+  /* Cada consulta arranca un navegador en el servidor, así que se espacia. Pero
+     el freno NO es el mismo siempre: si hay notas esperando veredicto se
+     pregunta cada 5 minutos, y si no hay ninguna pendiente, cada media hora.
+     Es lo que hace que un rechazo que llega media hora tarde —cuando la
+     Compañía manda su correo— se vea al abrir la app y no tres días después. */
+  var esperando = Object.keys(EX.portal || {}).some(function(k){
+    var e = EX.portal[k];
+    return e && e.number && (e.state === 'sent' || e.state === 'requested' || e.state === 'review');
+  });
+  var freno = esperando ? 5 * 60 * 1000 : 30 * 60 * 1000;
+  if (!forzar && Date.now() - _ultEstados < freno) return Promise.resolve();
+  _ultEstados = Date.now();
+  return api('/api/expense/portal/status').then(function(r){
+    var b = r.body || {};
+    if (b.status !== 'OK' || !Array.isArray(b.sheets)) return;
+
+    var antes = {};
+    (EX.sheets || []).forEach(function(s){ antes[s.number] = s.status; });
+    EX.sheets = b.sheets;
+
+    /* Las que mandó la app: se les actualiza su chip y su motivo. */
+    var porNum = {};
+    b.sheets.forEach(function(s){ porNum[s.number] = s; });
+    Object.keys(EX.portal || {}).forEach(function(k){
+      var e = EX.portal[k]; if (!e || !e.number) return;
+      var s = porNum[e.number]; if (!s) return;
+      if (ENV_UI[s.status] && e.state !== s.status){
+        e.state = s.status;
+        if (s.status === 'rejected') e.msg = s.reason || 'La Compañía la ha rechazado.';
+      }
+    });
+    portalSave(); sheetsSave();
+
+    /* Un rechazo nuevo se avisa en el momento, no sólo con el banner: es la
+       única novedad de aquí que le cuesta dinero al piloto. */
+    var nuevos = b.sheets.filter(function(s){
+      return s.status === 'rejected' && antes[s.number] && antes[s.number] !== 'rejected'; });
+    if (nuevos.length && typeof showToast === 'function')
+      showToast('Vueling ha rechazado ' + nuevos.length +
+                (nuevos.length === 1 ? ' nota' : ' notas'), 'warn');
+    exRender();
+  }).catch(function(){});
+};
+
+
 window.exRender = exRender;
-window.exInit = function(){ loadLocal(); ARRANCADO = false; arrancar(); };
+window.exInit = function(){
+  loadLocal(); portalLoad(); paidLoad(); sheetsLoad(); vistasNLoad(); fechasLoad(); motivosLoad();
+  ARRANCADO = false; arrancar();
+  /* Al entrar en Gastos se pregunta al portal cómo van tus notas. Va detrás de
+     su propio freno de media hora (cada consulta arranca un navegador en el
+     servidor), y si falla no se nota: el banner se pinta con lo último que se
+     supo. */
+  try { exRefrescarEstados(); } catch(e){}
+};
 
 })();
