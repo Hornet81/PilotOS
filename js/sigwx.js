@@ -144,8 +144,10 @@
     return (2 * Math.atan(Math.exp(p)) - Math.PI / 2) * 180 / Math.PI; }
 
   /* ═══════════════════════════════════════════════════════════════════════
-     PEGAR LOS PUNTOS DE LA RUTA (respuesta a "¿si añado una copia de los
-     puntos, se crea la ruta?" — sí: esto es lo que los convierte en ruta).
+     LECTOR DE COORDENADAS PEGADAS
+     Ya NO hay interfaz para pegarlas: el piloto no tiene las coordenadas, para
+     eso está adjuntar el OFP. Se mantiene el lector porque está probado
+     (scripts/route-parse-test.js) y lo reutiliza cualquier importación futura.
      Acepta lo que de verdad sale de un navlog o de una hoja de cálculo:
        N4130.2 E00204.5      grados + minutos decimales (formato OFP)
        4130N 00204E          estilo ARINC
@@ -154,10 +156,10 @@
        [[lon,lat], ...]      JSON, longitud primero (como GeoJSON)
      Devuelve [[lon,lat], ...] — el orden interno del mapa.
      ═══════════════════════════════════════════════════════════════════════ */
-  function parseRoutePoints(txt) {
+    function parseRoutePoints(txt) {
     var s = String(txt || '').trim();
     if (!s) return [];
-    /* JSON explícito: se respeta su orden [lon,lat] */
+
     if (s[0] === '[') {
       try {
         var j = JSON.parse(s);
@@ -168,39 +170,62 @@
             return null;
           }).filter(function (p) { return p && isFinite(p[0]) && isFinite(p[1]); });
         }
-      } catch (e) { /* no era JSON: sigue por texto */ }
+      } catch (e) { /* no era JSON */ }
     }
 
-    var out = [];
-    /* 1 · hemisferio pegado a los dígitos: N4130.2 E00204.5 / 4130N 00204E */
-    var reH = /([NS])\s*(\d{2,4}(?:[.,]\d+)?)|(\d{2,4}(?:[.,]\d+)?)\s*([NS])/gi;
-    var reW = /([EW])\s*(\d{2,5}(?:[.,]\d+)?)|(\d{2,5}(?:[.,]\d+)?)\s*([EW])/gi;
-    function dm(v, degDigits) {
-      // "4130.2" → 41° 30.2' ; "41.297" (con punto y pocos dígitos) → decimal
+    /* Descompone un número "empaquetado" (4117.8 / 00204.6 / 5128).
+       degDigits = cuántos dígitos ocupa la parte de grados (2 lat, 3 lon).
+       Si la parte entera no es más larga que eso, ya viene en grados decimales. */
+    function packed(v, degDigits) {
       var t = String(v).replace(',', '.');
-      var intPart = t.split('.')[0];
-      if (intPart.length <= degDigits) return parseFloat(t);         // ya es decimal
-      var deg = parseInt(intPart.slice(0, intPart.length - 2), 10);
-      var min = parseFloat(intPart.slice(-2) + (t.indexOf('.') >= 0 ? '.' + t.split('.')[1] : ''));
+      var ent = t.split('.')[0];
+      if (ent.length <= degDigits) return parseFloat(t);
+      var deg = parseInt(ent.slice(0, ent.length - 2), 10);
+      var dec = t.indexOf('.') >= 0 ? '.' + t.split('.')[1] : '';
+      var min = parseFloat(ent.slice(-2) + dec);
       return deg + min / 60;
     }
+
+    /* Una pasada, tres formas, por orden de preferencia:
+         1) N41 17.8      hemisferio + grados + minutos separados
+         2) N4117.8       hemisferio + dígitos pegados
+         3) 4117.8N       dígitos + hemisferio detrás  */
+    /* ★ La letra del hemisferio NO puede venir pegada a otra letra, y la de
+       detrás no puede llevar letra después. Sin esta guarda, las columnas de un
+       navlog envenenan la ruta: "GS440" se lee como S440 = 4°40'S, y "12NM" como
+       12N. Se usa un grupo "carácter previo" en vez de lookbehind, que en Safari
+       viejo de iPad no existe. */
+    var re = /(^|[^A-Za-z])(?:([NSEW])\s*(\d{1,3})[°\s]+(\d{1,2}(?:[.,]\d+)?)['´]?|([NSEW])\s*(\d{2,7}(?:[.,]\d+)?)|(\d{2,7}(?:[.,]\d+)?)\s*([NSEW])(?![A-Za-z]))/gi;
+    /* "N4117.8E00204.6" sin separador: el grupo de caracter previo se comio el
+       digito, asi que la longitud quedaria fuera. Se separa antes de escanear.
+       No rompe "4117N" (queda "4117 N", que la forma con hemisferio detras sigue
+       casando) ni "12NM" (lo corta el lookahead de letra). */
+    s = s.replace(/([\d.])([NSEW])/gi, '$1 $2');
+
     var lats = [], lons = [], m;
-    while ((m = reH.exec(s))) {
-      var hemi = (m[1] || m[4]).toUpperCase(), val = m[2] || m[3];
-      var la = dm(val, 2); if (hemi === 'S') la = -la;
-      if (isFinite(la) && Math.abs(la) <= 90) lats.push(la);
+    while ((m = re.exec(s))) {
+      var hemi, val, sep = null;
+      if (m[2]) { hemi = m[2]; val = m[3]; sep = m[4]; }
+      else if (m[5]) { hemi = m[5]; val = m[6]; }
+      else { hemi = m[8]; val = m[7]; }
+      if (!hemi) continue;
+      hemi = hemi.toUpperCase();
+      var esLat = (hemi === 'N' || hemi === 'S');
+      var deg;
+      if (sep != null) deg = parseInt(val, 10) + parseFloat(String(sep).replace(',', '.')) / 60;
+      else deg = packed(val, esLat ? 2 : 3);
+      if (!isFinite(deg)) continue;
+      if (hemi === 'S' || hemi === 'W') deg = -deg;
+      if (esLat) { if (Math.abs(deg) <= 90) lats.push(deg); }
+      else { if (Math.abs(deg) <= 180) lons.push(deg); }
     }
-    while ((m = reW.exec(s))) {
-      var hw = (m[1] || m[4]).toUpperCase(), vw = m[2] || m[3];
-      var lo = dm(vw, 3); if (hw === 'W') lo = -lo;
-      if (isFinite(lo) && Math.abs(lo) <= 180) lons.push(lo);
-    }
+    var out = [];
     if (lats.length && lats.length === lons.length) {
       for (var i = 0; i < lats.length; i++) out.push([lons[i], lats[i]]);
       return out;
     }
 
-    /* 2 · pares decimales sueltos, latitud primero */
+    /* Sin hemisferios: pares decimales, LATITUD primero (como el navlog) */
     var reD = /(-?\d{1,2}(?:[.,]\d+))\s*[,;\s]\s*(-?\d{1,3}(?:[.,]\d+))/g;
     while ((m = reD.exec(s))) {
       var a = parseFloat(m[1].replace(',', '.')), b = parseFloat(m[2].replace(',', '.'));
@@ -208,29 +233,33 @@
     }
     return out;
   }
-  window.pilotosParseRoutePoints = parseRoutePoints;   // reutilizable (OFP, ARIA…)
+
+window.pilotosParseRoutePoints = parseRoutePoints;   // reutilizable (OFP, ARIA…)
 
   /* Nombres de los puntos. En un navlog cada renglón es un waypoint: su
      identificador y sus coordenadas. Se procesa línea a línea, y sólo se acepta
      el nombre si esa línea ha dado exactamente UN punto — así no se cuelga una
      etiqueta al waypoint equivocado. */
-  function parseRouteWithNames(txt) {
+    function parseRouteWithNames(txt) {
     var lines = String(txt || '').split(/[\r\n]+/);
     var pts = [], names = [], any = false;
     for (var i = 0; i < lines.length; i++) {
       var ln = lines[i];
       var p = parseRoutePoints(ln);
       if (p.length !== 1) { if (p.length > 1) return { pts: parseRoutePoints(txt), names: null }; continue; }
-      // identificador: 2–5 letras/dígitos que no sea el hemisferio ni una unidad
-      var m = ln.match(/\b([A-Z]{5}|[A-Z]{4}\d?|[A-Z]{3}\d{0,2}|[A-Z]{2}\d{2,3})\b/);
+      /* El identificador es lo primero de la línea; si se busca en toda la línea
+         se acaba cogiendo "GS440" o "FL360" de las columnas de la derecha. */
+      var head = ln.split(/[NS]\s*\d|\d{2,7}\s*[NS]/)[0] || '';
+      var m = head.match(/\b([A-Z]{2,5}\d{0,3})\b/);
       var nm = m ? m[1] : '';
-      if (/^(N|S|E|W|FL|KT|NM|TAS|GS|IAS|ETO|ATO|ZFW|TOW)$/.test(nm)) nm = '';
+      if (/^(N|S|E|W|FL|KT|NM|TAS|GS|IAS|ETO|ATO|ZFW|TOW|MACH|DIST|TRK|WIND|TEMP|SAT|ISA)$/.test(nm)) nm = '';
       pts.push(p[0]); names.push(nm); if (nm) any = true;
     }
     if (pts.length < 2) return { pts: parseRoutePoints(txt), names: null };
     return { pts: pts, names: any ? names : null };
   }
-  window.pilotosParseRoute = parseRouteWithNames;
+
+window.pilotosParseRoute = parseRouteWithNames;
 
   function haversineNm(a, b) {
     var R = Math.PI / 180, r = 3440.065;
@@ -392,10 +421,9 @@
     var _f = useState(true),        flOnly = _f[0],   setFlOnly = _f[1];
     var _s = useState(null),        sel = _s[0],      setSel = _s[1];
     var _r = useState(null),        route = _r[0],    setRoute = _r[1];
-    var _b = useState(false),       busy = _b[0],     setBusy = _b[1];
     var _n = useState(0),           nonce = _n[0],    setNonce = _n[1];   // fuerza recarga
-    var _p = useState(false),       pasting = _p[0],  setPasting = _p[1];
-    var _t = useState(''),          pasteTxt = _t[0], setPasteTxt = _t[1];
+    var _of = useState(null),       ofp = _of[0],     setOfp = _of[1];   // cabecera del OFP leido
+    var _ob = useState(false),      ofpBusy = _ob[0], setOfpBusy = _ob[1];
     var _fr = useState(null),       fronts = _fr[0],  setFronts = _fr[1];
     var _sc = useState(null),       chart = _sc[0],   setChart = _sc[1];
     /* ALTO = SIGWX de crucero (FL250–630): chorro, CB, turbulencia, hielo,
@@ -678,8 +706,6 @@
       legRef.current = legKey;
       if (route) setRoute(null);
       if (sel) setSel(null);
-      if (pasting) setPasting(false);
-      if (pasteTxt) setPasteTxt('');
       camRef.current.z = 1;            // vuelve a encuadrar sobre el leg nuevo
     } else if (legRef.current === null) {
       legRef.current = legKey;
@@ -1498,6 +1524,16 @@
       pintaRotulos();      // lo último: ninguna línea cruza un dato
     }
 
+    /* ★ Los oyentes de resize/orientación se registran UNA vez (deps []), así
+       que se quedan con el `draw` del PRIMER render — uno que no conoce la ruta
+       que pegues después. Medido: girar el móvil, abrir el teclado o volver a
+       la pestaña repintaba el gran círculo y la ruta desaparecía sin que nadie
+       tocara nada. Se guarda el draw vigente en una ref y los oyentes llaman a
+       ESE. */
+    var drawRef = useRef(null);
+    drawRef.current = draw;
+    function redraw() { if (drawRef.current) drawRef.current(); }
+
     useEffect(function () { draw(); });
 
     /* ── cuánto sitio hay ────────────────────────────────────────────────
@@ -1534,7 +1570,7 @@
     }
     useEffect(function () { mide(); });
     useEffect(function () {
-      var f = function () { mide(); draw(); };
+      var f = function () { mide(); redraw(); };
       window.addEventListener('resize', f);
       /* en algunas WebView el resize llega antes de que el layout se reasiente:
          el `orientationchange` es el respaldo, como en el mapa del logbook */
@@ -1677,31 +1713,47 @@
       return found;
     }
 
-    /* ── guardar la ruta que se está viendo en la base compartida ── */
-    function saveRoute() {
-      var pts = routePts();
-      if (!pts || !leg.dep || !leg.arr) return;
-      setBusy(true);
-      fetch(ldBackendUrl() + '/api/route', {
-        method: 'POST',
-        headers: Object.assign({ 'Content-Type': 'application/json' },
-                 (typeof ldAuthHeaders === 'function' ? (ldAuthHeaders() ? { Authorization: 'Bearer ' + ldAuthHeaders() } : {}) : {})),
-        body: JSON.stringify({ dep: leg.dep, arr: leg.arr, pts: pts, names: (route && route.names) || null,
-                               source: route ? route.src : 'gc' })
-      }).then(function (r) { return r.json(); })
-        .then(function (j) {
-          setBusy(false);
-          if (typeof showToast === 'function') {
-            showToast(j && j.ok ? '✅ Ruta guardada para ' + leg.dep + '–' + leg.arr
-                                : '❌ ' + ((j && j.error) || 'No se pudo guardar'),
-                      j && j.ok ? 'success' : 'error');
-          }
-        }).catch(function () {
-          setBusy(false);
-          if (typeof showToast === 'function') showToast('❌ Sin conexión', 'error');
-        });
+    /* ── adjuntar el OFP ──
+       El OFP no imprime coordenadas: da nombres y distancias. El servidor los
+       cruza con la base de puntos GPL e interpola los que faltan usando las
+       propias distancias del OFP. Aqui solo se pinta lo que devuelve, y se
+       enseña el CONTROL: si las dos fuentes no cuadran, hay que saberlo. */
+    function subeOfp(file) {
+      if (!file) return;
+      if (!/\.pdf$/i.test(file.name || '')) {
+        if (typeof showToast === 'function') showToast('De momento solo el PDF del OFP', 'error');
+        return;
+      }
+      setOfpBusy(true);
+      var fr = new FileReader();
+      fr.onerror = function () { setOfpBusy(false); if (typeof showToast === 'function') showToast('No se ha podido leer el archivo', 'error'); };
+      fr.onload = function () {
+        var tok = (typeof ldAuthHeaders === 'function') ? ldAuthHeaders() : null;
+        fetch(ldBackendUrl() + '/api/route/ofp', {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, tok ? { Authorization: 'Bearer ' + tok } : {}),
+          body: JSON.stringify({ pdf_buffer: String(fr.result).replace(/^data:[^,]+,/, '') })
+        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (x) {
+            setOfpBusy(false);
+            if (!x.ok || !x.j.ok) {
+              if (typeof showToast === 'function') showToast('❌ ' + ((x.j && x.j.error) || 'No se ha podido leer el OFP'), 'error');
+              return;
+            }
+            var r = x.j;
+            setOfp(r);
+            setRoute({ pts: r.pts, names: r.names, src: 'ofp', label: 'RUTA DEL OFP' });
+                camRef.current.z = 1;
+            if (typeof showToast === 'function') showToast('✅ ' + r.pts.length + ' puntos del plan de vuelo', 'success');
+          }).catch(function () {
+            setOfpBusy(false);
+            if (typeof showToast === 'function') showToast('❌ Sin conexion', 'error');
+          });
+      };
+      fr.readAsDataURL(file);
     }
 
+    /* ── guardar la ruta que se está viendo en la base compartida ── */
     /* Panel propio: Glass es oscuro fijo y en modo día quedaba un bloque negro
        en medio de una pantalla clara. Aquí se usan los tokens del tema. */
     function Panel(props) {
@@ -2149,110 +2201,60 @@
       h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
         h('div', { style: { flex: 1 } },
           h('div', { style: { fontSize: 7, fontFamily: mono, letterSpacing: '1.2px', marginBottom: 3,
-                              color: route ? (route.src === 'db' ? T.cyan : RUTA) : T.tx3 } },
+                              color: route ? ((route.src === 'db' || route.src === 'ofp') ? T.cyan : RUTA) : T.tx3 } },
             route ? route.label : 'GRAN CÍRCULO'),
           h('div', { style: { fontSize: 9, color: T.tx2, fontFamily: mono, lineHeight: 1.5 } },
-            route && route.src === 'db'
-              ? 'Ruta guardada para ' + leg.dep + '–' + leg.arr + '. Es la que manda.'
-              : route && route.src === 'adsb'
-                ? 'Traza real ' + (route.reg ? route.reg + ' · ' : '') + (route.samples || route.pts.length) + ' posiciones · adsb.lol (ODbL)'
-                : 'No hay ruta guardada ni traza en el aire: línea recta entre aeropuertos, no es por donde se pasa.')),
-        h('button', {
-          onClick: saveRoute, disabled: busy || !routePts(),
-          style: { padding: '8px 10px', borderRadius: 8, cursor: 'pointer',
-                   border: '1px solid ' + T.cyan, background: T.cyan + '18',
-                   color: T.cyan, fontFamily: mono, fontSize: 8, fontWeight: 700, letterSpacing: '.8px',
-                   opacity: busy ? .5 : 1 }
-        }, busy ? '…' : 'GUARDAR')),
+            route && route.src === 'ofp'
+              ? ((ofp && ofp.meta && ofp.meta.ofpRoute ? 'Ruta ' + ofp.meta.ofpRoute + ' · ' : 'Del plan de vuelo: ')
+                 + route.pts.length + ' puntos'
+                 + (ofp && ofp.guardada ? ' · guardada en la base' : ''))
+              : route && route.src === 'paste'
+                ? 'Puntos pegados a mano: ' + route.pts.length + '.'
+                : route && route.src === 'db'
+                  ? 'Ruta guardada para ' + leg.dep + '–' + leg.arr + '. Es la que manda.'
+                  : route && route.src === 'adsb'
+                    ? 'Traza real ' + (route.reg ? route.reg + ' · ' : '') + (route.samples || route.pts.length) + ' posiciones · adsb.lol (ODbL)'
+                    : 'No hay ruta guardada ni traza en el aire: línea recta entre aeropuertos, no es por donde se pasa.'))),
 
-      /* ── sacar los puntos: al portapapeles, tal cual, para llevarlos a otro
-         sitio (una hoja, el OFP, otro piloto). Se exporta lo que se está
-         viendo, con nombre si lo hay. ── */
-      routePts() ? h('button', {
-        onClick: function () {
-          var pts = routePts(), nm = route && route.names;
-          var txt = pts.map(function (p, i) {
-            var la = p[1] >= 0 ? 'N' : 'S', lo = p[0] >= 0 ? 'E' : 'W';
-            var pad = function (v, d) { var t = Math.abs(v).toFixed(3); var e = t.split('.')[0];
-              while (e.length < d) e = '0' + e; return e + '.' + t.split('.')[1]; };
-            return ((nm && nm[i] ? nm[i] : '').padEnd(6, ' ') + ' ' +
-                    la + pad(p[1], 2) + '  ' + lo + pad(p[0], 3)).trim();
-          }).join('\n');
-          var head = (leg.dep || '') + '-' + (leg.arr || '') + '  ' + pts.length + ' puntos  ('
-                   + (route ? route.label : 'gran círculo') + ')\n';
-          var full = head + txt;
-          function done(ok) {
-            if (typeof showToast === 'function')
-              showToast(ok ? '📋 ' + pts.length + ' puntos copiados' : '❌ No se pudo copiar',
-                        ok ? 'success' : 'error');
-          }
-          try {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-              navigator.clipboard.writeText(full).then(function () { done(true); }, function () { done(false); });
-            } else {
-              // iOS antiguo / contexto sin permisos: se enseña para copiar a mano
-              setPasteTxt(full); setPasting(true); done(true);
-            }
-          } catch (e) { setPasteTxt(full); setPasting(true); }
-        },
-        style: { marginTop: 9, width: '100%', padding: '8px', borderRadius: 8, cursor: 'pointer',
-                 border: '1px solid ' + T.line, background: 'transparent',
-                 color: T.tx2, fontFamily: mono, fontSize: 8, fontWeight: 700, letterSpacing: '.8px' }
-      }, '⧉ COPIAR LOS PUNTOS DE LA RUTA') : null,
+      /* ── adjuntar el OFP: la via buena, porque las coordenadas no las tiene
+         el piloto y aqui no hace falta que las tenga ── */
+      h('label', {
+        style: { marginTop: 9, width: '100%', padding: '10px 8px', borderRadius: 8,
+                 cursor: ofpBusy ? 'wait' : 'pointer', display: 'block', textAlign: 'center',
+                 border: '1px solid ' + T.cyan, background: T.cyan + '18', color: T.cyan,
+                 fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '.8px',
+                 opacity: ofpBusy ? .6 : 1 }
+      },
+        ofpBusy ? 'LEYENDO EL OFP…' : '📎 ADJUNTAR OFP (PDF)',
+        h('input', {
+          type: 'file', accept: 'application/pdf,.pdf', disabled: ofpBusy,
+          onChange: function (e) { var f = e.target.files && e.target.files[0]; e.target.value = ''; subeOfp(f); },
+          style: { display: 'none' }
+        })),
 
-      /* ── pegar los puntos: esto es lo que CREA la ruta ── */
-      h('button', {
-        onClick: function () { setPasting(!pasting); },
-        style: { marginTop: 9, width: '100%', padding: '8px', borderRadius: 8, cursor: 'pointer',
-                 border: '1px dashed ' + T.line, background: 'transparent',
-                 color: T.tx2, fontFamily: mono, fontSize: 8, fontWeight: 700, letterSpacing: '.8px' }
-      }, pasting ? '✕ CANCELAR' : '📋 PEGAR LOS PUNTOS DE LA RUTA'),
-
-      pasting ? h('div', { style: { marginTop: 8 } },
-        h('textarea', {
-          value: pasteTxt,
-          onChange: function (e) { setPasteTxt(e.target.value); },
-          spellCheck: false,
-          placeholder: 'Pega aquí los puntos del navlog. Se entienden:\n'
-                     + 'N4130.2 E00204.5   ·   4130N 00204E\n'
-                     + '41.297 2.078  (latitud primero)\n'
-                     + '[[2.07,41.30], ...]  (JSON, longitud primero)',
-          style: { width: '100%', minHeight: 84, padding: 8, borderRadius: 8, resize: 'vertical',
-                   background: (day ? 'rgba(255,255,255,.75)' : 'rgba(0,0,0,.28)'), border: '1px solid ' + T.line,
-                   color: T.tx1, fontFamily: mono, fontSize: 8.5, lineHeight: 1.5 }
-        }),
-        (function () {
-          var parsed = parseRouteWithNames(pasteTxt), pp = parsed.pts;
-          if (!pasteTxt.trim()) return h('div', { style: { fontSize: 7, fontFamily: mono, color: T.tx3, marginTop: 6, lineHeight: 1.5 } },
-            'Sí: con pegar los puntos, la ruta se crea y se guarda para ' + (leg.dep || '—') + '–' + (leg.arr || '—') + '. '
-            + 'La próxima vez sale sola, y para cualquier piloto que vuele ese par.');
-          /* ★ comprobación de cordura: si los extremos no caen cerca de los
-             aeropuertos, casi seguro que el orden lat/lon está cambiado */
-          var warn = null;
-          if (pp.length > 1 && depC && arrC) {
-            var d1 = haversineNm(pp[0], depC), d2 = haversineNm(pp[pp.length - 1], arrC);
-            if (Math.min(d1, d2) > 150) warn = 'Los extremos quedan a ' + Math.round(d1) + ' NM de ' + leg.dep +
-              ' y ' + Math.round(d2) + ' NM de ' + leg.arr + '. Revisa el orden latitud/longitud antes de guardar.';
-          }
-          return h('div', { style: { marginTop: 7 } },
-            h('div', { style: { fontSize: 8, fontFamily: mono, color: pp.length > 1 ? T.grn : T.red } },
-              pp.length > 1 ? ('✓ ' + pp.length + ' puntos entendidos' + (parsed.names ? ' · ' + parsed.names.filter(Boolean).length + ' con nombre' : '')) : '✕ No se han reconocido puntos'),
-            warn ? h('div', { style: { fontSize: 7.5, fontFamily: mono, color: T.amb, marginTop: 4, lineHeight: 1.5 } }, '⚠ ' + warn) : null,
-            h('button', {
-              disabled: pp.length < 2,
-              onClick: function () {
-                setRoute({ pts: pp, names: parsed.names, src: 'paste', label: 'RUTA PEGADA' });
-                setPasting(false);
-                camRef.current.z = 1;
-                if (typeof showToast === 'function') showToast('Ruta cargada · pulsa GUARDAR para dejarla en la base', 'success');
-              },
-              style: { marginTop: 7, width: '100%', padding: '8px', borderRadius: 8,
-                       cursor: pp.length > 1 ? 'pointer' : 'not-allowed',
-                       border: '1px solid ' + T.cyan, background: T.cyan + '18',
-                       color: T.cyan, fontFamily: mono, fontSize: 8, fontWeight: 700,
-                       letterSpacing: '.8px', opacity: pp.length > 1 ? 1 : .4 }
-            }, 'DIBUJAR EN EL MAPA'));
-        })()) : null));
+      ofp ? h('div', { style: { marginTop: 8, padding: '9px 10px', borderRadius: 9,
+                                border: '1px solid ' + T.line, background: T.surf1 } },
+        h('div', { style: { fontSize: 7, fontFamily: mono, color: T.tx3, letterSpacing: '1.2px', marginBottom: 5 } },
+          'LEIDO DEL OFP' + (ofp.meta.ofpRoute ? ' · RUTA ' + ofp.meta.ofpRoute : '')),
+        h('div', { style: { fontSize: 9, fontFamily: mono, color: T.tx2, lineHeight: 1.6 } },
+          [ofp.meta.flight, ofp.meta.callsign].filter(Boolean).join(' · ') + (ofp.meta.reg ? '  ' + ofp.meta.reg : '') +
+          (ofp.meta.acType ? ' ' + ofp.meta.acType : ''),
+          h('br'),
+          (ofp.meta.dep || '?') + '/' + (ofp.meta.rwyDep || '--') + ' → ' + (ofp.meta.arr || '?') + '/' + (ofp.meta.rwyArr || '--') +
+          (ofp.meta.altn ? '   ALTN ' + ofp.meta.altn : ''),
+          h('br'),
+          (ofp.meta.cruiseFL ? 'FL' + ofp.meta.cruiseFL + '   ' : '') + ofp.distNm + ' NM   ' +
+          ofp.pts.length + ' puntos'),
+        /* ★ la comprobacion, a la vista: dos fuentes independientes tienen que
+           coincidir, y si no coinciden el piloto tiene que enterarse */
+        ofp.control && ofp.control.tramos ? h('div', {
+          style: { fontSize: 7.5, fontFamily: mono, marginTop: 6, lineHeight: 1.5,
+                   color: ofp.control.peor <= 3 ? T.grn : T.amb }
+        }, (ofp.control.peor <= 3 ? '✓ ' : '⚠ ') + 'contraste base de puntos vs distancias del OFP: ' +
+           ofp.control.medio + ' NM de media, ' + ofp.control.peor + ' NM el peor (' + ofp.control.tramos + ' tramos)') : null,
+        ofp.interpolados ? h('div', { style: { fontSize: 7, fontFamily: mono, color: T.tx3, marginTop: 5, lineHeight: 1.5 } },
+          ofp.resueltos + ' puntos salen de la base; ' + ofp.interpolados + ' no estan en ella y se colocan por su distancia en el OFP: ' +
+          ofp.desconocidos.slice(0, 6).join(' ') + (ofp.desconocidos.length > 6 ? '…' : '')) : null) : null));
 
     /* procedencia — siempre visible, no en un "acerca de" */
     kids.push(h('div', { key: 'src', style: {

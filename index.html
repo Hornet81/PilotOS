@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.788">
+  <meta name="version" content="Estable.808">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.788","builtAt":"2026-09-09T10:29:01Z","commit":"dc90793","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.808","builtAt":"2026-09-10T11:00:11Z","commit":"ff19d15","channel":"stable"};</script>
   <!-- ── BETA REPORTS ── captura temprana de errores JS (lo antes posible en el arranque)
        para que el formulario de reporte ya tenga contexto cuando el tester lo abra.
        Usa addEventListener (no pisa ningún window.onerror existente). -->
@@ -5349,6 +5349,21 @@ html.day #skyview-react-root [style*="color: #22D3EE"],
 html.day #skyview-react-root [style*="color:#22D3EE"]{color:#0E7490!important;}
 
 /* Status colors → más oscuros para contraste sobre blanco */
+/* ── SkyView vertical · las barras SECUNDARIAS siguen a la cinta de legs ──────
+   La tira de condiciones de WX y las subpestañas de MAPAS son `sticky; top:0`
+   DENTRO del scroller. Al apartarse la cinta se quedaban clavadas a media altura
+   con un hueco vacío encima ("se queda en medio volando"). Suben exactamente lo
+   mismo que ella, medido en vivo y publicado como --sv-ribh.
+   Es el mismo arreglo que ya existía para horizontal (html.chrome-off .sv-stick),
+   aquí para vertical. */
+#skyview-react-root .sv-stick{
+  transition:transform .2s cubic-bezier(.22,.61,.36,1);
+  will-change:transform;
+}
+#skyview-react-root .sv-min .sv-stick,
+#skyview-react-root .sv-min > div > .sv-stick{
+  transform:translate3d(0,calc(-1 * var(--sv-ribh,0px)),0);
+}
 html.day #skyview-react-root [style*="color: #4dff91"],
 html.day #skyview-react-root [style*="color:#4dff91"]{color:#16A34A!important;}
 html.day #skyview-react-root [style*="color: #ff4d6d"],
@@ -32728,7 +32743,17 @@ function WindCard(_ref19) {
   const xwColor = crosswind > 15 ? "#ff4d6d" : crosswind > 10 ? "#FFB800" : "#4dff91";
 
   // Compass needle angle: wind FROM dir rotated to show on runway axis
-  const rwyNum = rwy ? parseInt(String(rwy).replace(/[LRC]/g, "")) * 10 : 360;
+  /* Una pista "VRB" o vacia no tiene rumbo: parseInt daba NaN y de ahi salian
+     TODAS las coordenadas de la rosa en NaN (y los errores de <line> en
+     consola). Ahora se distingue "no hay pista" de "pista 360". */
+  const _rwyDeg = (function(){
+    var m = String(rwy || "").match(/^(\d{1,2})/);
+    if (!m) return null;
+    var v = parseInt(m[1], 10) * 10;
+    return (isFinite(v) && v > 0 && v <= 360) ? v : null;
+  })();
+  const rwyNum = _rwyDeg == null ? 360 : _rwyDeg;
+  const _T = _ref19.T || SKY_THEME(false);
   const relAngle = (dir - rwyNum + 360) % 360;
   return /*#__PURE__*/React.createElement("div", {
     onClick: function () { if (typeof onWx === "function") onWx(icao); },
@@ -32769,89 +32794,15 @@ function WindCard(_ref19) {
       lineHeight: 1
     }
   }, (typeof iataToIcao === "function" ? iataToIcao(icao) : icao))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      position: "relative",
-      width: 42,
-      height: 42,
-      flexShrink: 0
-    }
-  }, /*#__PURE__*/React.createElement("svg", {
-    width: "42",
-    height: "42",
-    viewBox: "0 0 42 42"
-  }, /*#__PURE__*/React.createElement("circle", {
-    cx: "21",
-    cy: "21",
-    r: "19",
-    fill: "rgba(0,20,55,0.8)",
-    stroke: "rgba(126,251,254,0.35)",
-    strokeWidth: "1"
-  }), [0, 90, 180, 270].map(a => {
-    const rad = (a - 90) * Math.PI / 180;
-    return /*#__PURE__*/React.createElement("line", {
-      key: a,
-      x1: 21 + 14 * Math.cos(rad),
-      y1: 21 + 14 * Math.sin(rad),
-      x2: 21 + 18 * Math.cos(rad),
-      y2: 21 + 18 * Math.sin(rad),
-      stroke: "rgba(126,251,254,0.25)",
-      strokeWidth: "1"
-    });
-  }), (() => {
-    const r1 = (rwyNum - 90) * Math.PI / 180;
-    const r2 = (rwyNum + 180 - 90) * Math.PI / 180;
-    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("line", {
-      x1: 21 + 8 * Math.cos(r1),
-      y1: 21 + 8 * Math.sin(r1),
-      x2: 21 + 16 * Math.cos(r1),
-      y2: 21 + 16 * Math.sin(r1),
-      stroke: "rgba(126,251,254,0.5)",
-      strokeWidth: "2",
-      strokeLinecap: "round"
-    }), /*#__PURE__*/React.createElement("line", {
-      x1: 21 + 8 * Math.cos(r2),
-      y1: 21 + 8 * Math.sin(r2),
-      x2: 21 + 16 * Math.cos(r2),
-      y2: 21 + 16 * Math.sin(r2),
-      stroke: "rgba(126,251,254,0.25)",
-      strokeWidth: "1.5",
-      strokeLinecap: "round"
-    }));
-  })(), (() => {
-    const wRad = (dir - 90) * Math.PI / 180;
-    const x2 = 21 + 13 * Math.cos(wRad),
-      y2 = 21 + 13 * Math.sin(wRad);
-    const x1 = 21 - 10 * Math.cos(wRad),
-      y1 = 21 - 10 * Math.sin(wRad);
-    return /*#__PURE__*/React.createElement("g", null, /*#__PURE__*/React.createElement("line", {
-      x1: x1,
-      y1: y1,
-      x2: x2,
-      y2: y2,
-      stroke: xwColor,
-      strokeWidth: "2",
-      strokeLinecap: "round"
-    }), /*#__PURE__*/React.createElement("polygon", {
-      points: "".concat(x2, ",").concat(y2, " ").concat(x2 - 4 * Math.cos(wRad - 0.5), ",").concat(y2 - 4 * Math.sin(wRad - 0.5), " ").concat(x2 - 4 * Math.cos(wRad + 0.5), ",").concat(y2 - 4 * Math.sin(wRad + 0.5)),
-      fill: xwColor
-    }));
-  })(), /*#__PURE__*/React.createElement("circle", {
-    cx: "21",
-    cy: "21",
-    r: "2",
-    fill: "rgba(126,251,254,0.4)"
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      position: "absolute",
-      bottom: -4,
-      left: "50%",
-      transform: "translateX(-50%)",
-      fontSize: 7,
-      color: "rgba(126,251,254,0.75)",
-      fontFamily: mono,
-      whiteSpace: "nowrap"
-    }
-  }, dir, "\xB0/", spd, "kt"))), /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 2, flexShrink: 0 }
+  },
+    /* Miniatura de la rosa de WX. Los tokens salen de SKY_THEME(false) a
+       proposito: esta tarjeta es cristal OSCURO en los dos temas, asi que
+       los colores de noche son los que contrastan. */
+    _wxDiagramMini(_T, _rwyDeg, dir, String(icao || "x") + String(label || "")),
+    React.createElement("div", {
+      style: { fontSize: 7.5, color: "rgba(126,251,254,0.82)", fontFamily: mono, whiteSpace: "nowrap", letterSpacing: ".2px" }
+    }, String(dir).padStart(3, "0"), "\xB0/", spd, "kt"))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 5,
@@ -32950,7 +32901,10 @@ function WindCard(_ref19) {
   }, fmtAlongWind(headwind), " \xB7 M\xC1X 10kt OPS")));
 }
 function WindCards(_ref20) {
-  let leg = _ref20.leg, onWx = _ref20.onWx;
+  /* El tema llega del panel del BRIEF (x.T), no se fija aqui: asi la rosa
+     sigue a la paleta que elija el piloto (azul / petroleo / grafito) en vez
+     de ser la unica pieza con colores propios. */
+  let leg = _ref20.leg, onWx = _ref20.onWx, T = _ref20.T || SKY_THEME(false);
   const _nowUtc = new Date().toISOString().slice(11,16);
   const _dIcao = iataToIcao(leg.dep);
   const _aIcao = iataToIcao(leg.arr);
@@ -32968,6 +32922,7 @@ function WindCards(_ref20) {
     }
   }, /*#__PURE__*/React.createElement(WindCard, {
     label: "DEP",
+    T: T,
     icao: leg.dep,
     rwy: _dRwy,
     metar: leg.metar,
@@ -32975,6 +32930,7 @@ function WindCards(_ref20) {
     onWx: onWx
   }), /*#__PURE__*/React.createElement(WindCard, {
     label: "ARR",
+    T: T,
     icao: leg.arr,
     rwy: _aRwy,
     metar: leg.metarArr,
@@ -33163,8 +33119,14 @@ function _bSev(T, k) {
 }
 function _bCatSev(cat) {
   if (cat === 'VMC') return 'ok';
-  if (cat === 'MVMC') return 'warn';
-  if (cat === 'IFR' || cat === 'IMC' || cat === 'LIFR') return 'crit';
+  /* ★ IFR e IMC van en ÁMBAR, no en rojo. Un techo bajo con visibilidad reducida
+     es "atención", no "crítico": se aterriza por instrumentos todos los días del
+     año. El ROJO se reserva para LIFR, que es lo que de verdad puede dejarte sin
+     aterrizar, y para los NOTAM que cierran pista.
+     Si todo lo instrumental sale en rojo, el rojo deja de significar algo — que es
+     exactamente el problema que este rediseño venía a arreglar. */
+  if (cat === 'MVMC' || cat === 'IFR' || cat === 'IMC') return 'warn';
+  if (cat === 'LIFR') return 'crit';
   return 'info';
 }
 /* ★ CUÁNDO CADUCA UN NOTAM — fuente ÚNICA para el panel del BRIEF y para la pestaña NOTAM.
@@ -33434,10 +33396,71 @@ function _bAltIcaos(leg) {
   return _altsDe(leg).lista.map(function (a) { return a.icao; })
     .filter(function (v, i, arr) { return v && arr.indexOf(v) === i; });
 }
+/* ════════ FENÓMENOS SIGNIFICATIVOS EN TEXTO CRUDO ════════════════════════
+   Marca en el METAR/TAF los fenómenos que cambian una decisión:
+     ROJO   TS · SA · VA · SS · SQ · GR · FZ* · FC
+     ÁMBAR  CB · FG · SN · SG · DS · DU · +RA · +SN · +RASN
+   Estaba metido a mano DENTRO de la pestaña WX, así que el BRIEF —donde el
+   piloto mira primero— enseñaba el mismo METAR sin marcar nada. Una sola
+   función para los dos: si mañana se añade un fenómeno, entra en ambos sitios.
+   ★ Ojo con el \b: CB va SIN ancla por delante porque aparece pegado al grupo
+   de nubes ("FEW030CB") y ahí no hay frontera de palabra entre el 0 y la C. */
+var _WX_SIG_RE  = /(?:\bTSRA|\bTSGR|\bFZRA|\bFZFG|\bFZDZ|\+TSRA|\+TS\b|\bTS\b|\bGR\b|\bFC\b|\bVA\b|\bSS\b|\bSA\b|\bSQ\b|\bFG\b|\+RASN\b|\+RA\b|\+SN\b|\bSN\b|\bSG\b|\bDS\b|\bDU\b|CB\b)/g;
+/* anclada: se prueba contra el token EXACTO ya casado, así "TS" no se cuela dentro de otra cosa */
+var _WX_SIG_CRIT = /^(?:TSRA|TSGR|FZRA|FZFG|FZDZ|\+TSRA|\+TS|TS|GR|FC|VA|SS|SA|SQ)$/;
+function _wxSigParts(txt, marca) {
+  var t = String(txt || '');
+  if (!t) return t;
+  var partes = [], ultimo = 0, m;
+  _WX_SIG_RE.lastIndex = 0;
+  while ((m = _WX_SIG_RE.exec(t)) !== null) {
+    if (m.index > ultimo) partes.push(t.slice(ultimo, m.index));
+    var crit = _WX_SIG_CRIT.test(m[0]);
+    var col = crit ? '#FF3B30' : '#FF9500';
+    partes.push(React.createElement('span', {
+      key: m.index,
+      style: { color: col, fontWeight: 700, textShadow: '0 0 6px ' + col + '80' }
+    }, (crit && marca !== false ? '⚠ ' : '') + m[0]));
+    ultimo = m.index + m[0].length;
+  }
+  if (!partes.length) return t;
+  if (ultimo < t.length) partes.push(t.slice(ultimo));
+  return partes;
+}
+
+function _bWindKt(w) {
+  var t = String(w || '');
+  var g = t.match(/G(\d{2,3})/);            // la ráfaga manda sobre la media
+  if (g) return parseInt(g[1], 10);
+  var p = (typeof parseMetarWind === 'function') ? parseMetarWind(t) : null;
+  return p ? (p.spd || 0) : 0;
+}
+/* el peor de los dos aeropuertos: es lo que hay que mirar de un vistazo */
+function _bWindMaxKt(leg) {
+  return Math.max(
+    _bWindKt(leg.metar && leg.metar.wind),
+    _bWindKt(leg.metarArr && leg.metarArr.wind)
+  );
+}
+/* Pista en servicio, con la MISMA cascada que RwyInUsePanel: la planificada
+   del roster → la config por reglas+viento → la de mejor viento → la del METAR.
+   Sin esto el chip caía al literal 'RWY' en cuanto el roster no traía pista. */
+function _bRwyNow(leg, esArr) {
+  try {
+    var ic = _bIcao(esArr ? leg.arr : leg.dep);
+    var m = (esArr ? leg.metarArr : leg.metar) || {};
+    var w = (typeof parseMetarWind === 'function') ? parseMetarWind(m.wind || '—') : { dir: 0, spd: 0 };
+    var cfg = (typeof calcRwyConfig === 'function') ? calcRwyConfig(ic, w.dir, w.spd) : null;
+    var ahora = new Date().toISOString().slice(11, 16);
+    return (esArr ? leg.rwyArr : leg.rwyDep)
+        || (cfg && (esArr ? cfg.arr : cfg.dep))
+        || (typeof calcBestRwy === 'function' ? calcBestRwy(ic, w.dir, w.spd, ahora) : null)
+        || (typeof calcRwyFromMetar === 'function' ? calcRwyFromMetar(m.raw || '') : null)
+        || null;
+  } catch (e) { return null; }
+}
 function _bWindSev(w) {
-  var p = (typeof parseMetarWind === 'function') ? parseMetarWind(w || '') : null;
-  var kt = p ? (p.gust || p.speed || 0) : 0;
-  return kt >= 25 ? 'warn' : 'ok';
+  return _bWindKt(w) >= 25 ? 'warn' : 'ok';
 }
 
 /* fila de la hoja de ayuda */
@@ -33504,7 +33527,7 @@ function BriefTaf(_bt) {
       fontFamily: mono, fontSize: 9.5, lineHeight: 1.6, marginTop: 8, padding: '8px 9px',
       borderRadius: 8, background: T.rawBg, color: T.rawTx, wordBreak: 'break-word'
     }
-  }, taf);
+  }, _wxSigParts(taf));
 }
 
 /* ── Bloque METAR de un aeropuerto (contenido, sin tarjeta) ── */
@@ -33528,7 +33551,7 @@ function BriefMetarBody(_bm) {
         fontFamily: mono, fontSize: 9.5, lineHeight: 1.6, marginTop: 8, padding: '8px 9px',
         borderRadius: 8, background: T.rawBg, color: T.rawTx, wordBreak: 'break-word'
       }
-    }, m.raw) : null,
+    }, _wxSigParts(m.raw)) : null,
     React.createElement(BriefTaf, { icao: icao, T: T })
   );
 }
@@ -33651,7 +33674,7 @@ function BriefNotamBody(_bn) {
           }
         },
           React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' } },
-            React.createElement('span', { style: { fontSize: 11 } }, n.icon || '📋'),
+            React.createElement('span', { style: { fontSize: 11, color: sv.c } }, n.icon || '📋'),
             React.createElement('span', { style: { fontFamily: mono, fontSize: 9, fontWeight: 700, color: sv.c, letterSpacing: '.5px' } }, n.id || cur),
             _bNotamIsNew(n) ? React.createElement('span', {
               style: { fontFamily: mono, fontSize: 7.5, fontWeight: 800, letterSpacing: '.8px', color: '#06101c', background: '#2BE5A0', borderRadius: 5, padding: '1px 5px', flexShrink: 0 }
@@ -33699,9 +33722,127 @@ function BriefNotamBody(_bn) {
 /* ════════ CATÁLOGO ════════
    sev/head/badge se calculan SIN pedir datos (sólo con el leg y lo ya
    cacheado), para que el titular no dispare fetches.                   */
+
+/* ════════════════════════════════════════════════════════════════════
+   PALETA DEL BRIEF — tres tonos del MISMO idioma que WX (cristal oscuro
+   sobre cielo). Sólo afecta al BRIEF: las barras de SkyView, WX, NOTAM y
+   MAPAS no se tocan.
+
+   ★ La regla que mata el popurrí: en SKY_THEME hay OCHO acentos
+   (red·amb·inf·grn·ice·route·alt·extra) y BriefCard los pintaba todos a la
+   vez (fondo + borde + barra izquierda + chip del icono + badge + subtítulo).
+   Aquí 'inf', 'ice', 'alt' y 'extra' COLAPSAN en un único neutro, así que
+   los tintes por grupo desaparecen de los ~40 sitios que los usan sin tocar
+   ni uno. Queda color sólo donde significa estado: rojo, ámbar y verde.
+════════════════════════════════════════════════════════════════════ */
+var BRIEF_PAL_KEY = 'pilotOS_brief_pal';
+var BRIEF_PALS = ['A', 'B', 'C'];
+var BRIEF_PAL_NAME = { A: 'AZUL', B: 'PETRÓLEO', C: 'GRAFITO', auto: 'AUTO' };
+var BRIEF_PAL_DEF = {
+  A: {
+    day:   { sky: 'linear-gradient(180deg,#1E63B8 0%,#124C97 34%,#0C3C7D 66%,#082C5E 100%)',
+             glass: '6,26,54', line: '126,196,255', tx: ['#EAF3FF', '#A8C6EA', '#7A9CC8'],
+             acc: '#46E3F2', red: '#FF5C78', amb: '#FFB43C', grn: '#37E29C', slab: 'rgba(2,12,28,.72)' },
+    night: { sky: 'linear-gradient(180deg,#0B2748 0%,#071A33 42%,#040F20 74%,#020810 100%)',
+             glass: '8,24,46', line: '110,180,250', tx: ['#E7F1FE', '#93B0D6', '#5F7CA4'],
+             acc: '#3FD3E8', red: '#FF5670', amb: '#F0A92B', grn: '#2BD095', slab: 'rgba(0,0,0,.42)' }
+  },
+  B: {
+    day:   { sky: 'linear-gradient(180deg,#12706E 0%,#0C5A5C 34%,#08464A 66%,#053238 100%)',
+             glass: '3,28,34', line: '130,232,224', tx: ['#E9FBF8', '#A2D2CE', '#73A8A6'],
+             acc: '#5FEBDA', red: '#FF5E70', amb: '#FFB02E', grn: '#6FE86A', slab: 'rgba(1,16,20,.74)' },
+    night: { sky: 'linear-gradient(180deg,#08373A 0%,#052629 42%,#031A1D 74%,#010E10 100%)',
+             glass: '3,26,30', line: '110,220,210', tx: ['#E6FAF7', '#93C6C2', '#5F918F'],
+             acc: '#4FDDCC', red: '#FF5568', amb: '#EFA828', grn: '#5FD95C', slab: 'rgba(0,0,0,.44)' }
+  },
+  C: {
+    day:   { sky: 'linear-gradient(180deg,#3E4B60 0%,#2E3A4C 36%,#242E3E 68%,#1A222E 100%)',
+             glass: '13,19,28', line: '190,210,240', tx: ['#EFF3F9', '#AFBCCF', '#8492A8'],
+             acc: '#5CD3EC', red: '#FF5D74', amb: '#FFB53F', grn: '#43DD97', slab: 'rgba(6,10,16,.74)' },
+    night: { sky: 'linear-gradient(180deg,#232B38 0%,#181E28 42%,#10141C 74%,#080B10 100%)',
+             glass: '16,21,30', line: '180,200,232', tx: ['#EDF1F8', '#A3B0C4', '#71809A'],
+             acc: '#4FC6E0', red: '#FF556D', amb: '#F0AA2E', grn: '#35CE8D', slab: 'rgba(0,0,0,.44)' }
+  }
+};
+function _bpA(hex, a) {
+  var h = String(hex).replace('#', '');
+  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+  var v = parseInt(h, 16);
+  return 'rgba(' + ((v >> 16) & 255) + ',' + ((v >> 8) & 255) + ',' + (v & 255) + ',' + a + ')';
+}
+/* Lo que el piloto ELIGIÓ: 'auto' | 'A' | 'B' | 'C' */
+function briefPalMode() {
+  try { var m = localStorage.getItem(BRIEF_PAL_KEY); return (m === 'auto' || BRIEF_PALS.indexOf(m) >= 0) ? m : 'auto'; }
+  catch (e) { return 'auto'; }
+}
+/* AUTO = un color por DÍA, derivado del día del año. NO es aleatorio a
+   propósito: si cambiara al reabrir la app parecería que algo falla. Es el
+   mismo todo el día y rota sola a medianoche — y es lo que hace que el
+   piloto descubra que el color se puede elegir. */
+function briefPalEff() {
+  var m = briefPalMode();
+  if (m !== 'auto') return m;
+  var d = new Date();
+  var dia = Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 86400000);
+  return BRIEF_PALS[((dia % 3) + 3) % 3];
+}
+function briefPalSet(m) {
+  try { localStorage.setItem(BRIEF_PAL_KEY, m); } catch (e) {}
+}
+function BRIEF_PAL(pal, day) {
+  var d = (BRIEF_PAL_DEF[pal] || BRIEF_PAL_DEF.A)[day ? 'day' : 'night'];
+  var g = d.glass, l = d.line;
+  function gl(a) { return 'rgba(' + g + ',' + a + ')'; }
+  function li(a) { return 'rgba(' + l + ',' + a + ')'; }
+  /* el neutro que sustituye a los cuatro acentos de grupo */
+  var neu = d.tx[1], neuBg = li(.07), neuBd = li(.22);
+  return {
+    surf1: gl(.60), surf2: gl(.42), surf3: gl(.30),
+    line: li(.16), line2: li(.28), line3: li(.40),
+    tx1: d.tx[0], tx2: d.tx[1], tx3: d.tx[2], cyan: d.acc,
+    red: d.red, redBg: _bpA(d.red, .14), redBd: _bpA(d.red, .45),
+    amb: d.amb, ambBg: _bpA(d.amb, .13), ambBd: _bpA(d.amb, .42),
+    grn: d.grn, grnBg: _bpA(d.grn, .12), grnBd: _bpA(d.grn, .40),
+    inf:   neu,   infBg: neuBg,   infBd: neuBd,
+    ice:   neu,   iceBg: neuBg,   iceBd: neuBd,
+    alt:   neu,   altBg: neuBg,   altBd: neuBd,
+    extra: neu, extraBg: neuBg, extraBd: neuBd,
+    route: d.acc, routeBg: _bpA(d.acc, .12), routeBd: _bpA(d.acc, .34),
+    floatBg: day ? 'rgba(10,20,36,.97)' : 'rgba(8,14,24,.97)',
+    rawBg: d.slab, rawTx: 'rgba(226,240,255,.90)',
+    pageBg: d.sky, briefBg: d.sky,
+    heroBg: 'linear-gradient(150deg,' + gl(.74) + ',' + gl(.90) + ')',
+    cardBd: li(.20), cardSh: '0 10px 26px rgba(0,0,0,.30)', glassBg: gl(.55)
+  };
+}
+
+/* ── ICONOS MONOCROMOS ──────────────────────────────────────────────
+   Los emoji (🌬 ⚡ ⛰ ✈ 💬 ⇄ 〰 ◍ ◉ 🌀) son diez colores que no controlas:
+   con 16 paneles son la mitad del popurrí. Estos heredan currentColor,
+   así que el icono va del color del ESTADO de su tarjeta. */
+function _bIco(k) {
+  var P = {
+    wind:   ['M3 8h11a3 3 0 1 0-3-3', 'M3 12h15a3 3 0 1 1-3 3', 'M3 16h8'],
+    bolt:   ['M13 2 4.5 13H11l-1 9 8.5-11H12l1-9Z'],
+    mtn:    ['m3 19 6-9 4 5.5 2.5-3L21 19H3Z'],
+    plane:  ['M10.2 3.5 12 3l1.8.5 1 7.5 6.7 3.4v1.8l-7.2-1.6-.9 4.2 2.4 1.6v1.2L12 21l-3.8-.4v-1.2l2.4-1.6-.9-4.2-7.2 1.6v-1.8l6.7-3.4 1-7.5Z'],
+    chat:   ['M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12Z'],
+    swap:   ['M4 8h13l-3.5-3.5', 'M20 16H7l3.5 3.5'],
+    rwy:    ['M8 3 4 21', 'm16 3 4 18', 'M12 6v2', 'M12 11v2', 'M12 16v2'],
+    wave:   ['M2 9c2.5-3 4.5 3 7 0s4.5 3 7 0 4.5 3 6 1', 'M2 16c2.5-3 4.5 3 7 0s4.5 3 7 0 4.5 3 6 1'],
+    map:    ['M9 4 3 6.5v14L9 18l6 2.5 6-2.5v-14L15 6.5 9 4Z', 'M9 4v14', 'M15 6.5v14'],
+    radar:  ['M12 3a9 9 0 1 0 9 9', 'M12 7.5a4.5 4.5 0 1 0 4.5 4.5', 'M12 12 19 5'],
+    tor:    ['M4 5h16', 'M6 9h13', 'M8 13h9', 'M10 17h5', 'M12 21h1.5']
+  }[k] || [];
+  return React.createElement('svg', {
+    width: 15, height: 15, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor',
+    strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round', style: { display: 'block' }
+  }, P.map(function (dd, i) { return React.createElement('path', { key: i, d: dd }); }));
+}
+
 var BRIEF_CATALOG = [
   {
-    id: 'wind', slab: true, grp: 'BRIEF', ico: '🌬', lbl: 'COMPONENTE DE VIENTO', d: 'Cara, cola y cruzado en DEP y ARR',
+    id: 'wind', slab: true, grp: 'BRIEF', ico: _bIco('wind'), lbl: 'COMPONENTE DE VIENTO', d: 'Cara, cola y cruzado en DEP y ARR',
     sev: function (leg) {
       var a = _bWindSev(leg.metarArr && leg.metarArr.wind), d = _bWindSev(leg.metar && leg.metar.wind);
       return (a === 'warn' || d === 'warn') ? 'warn' : 'ok';
@@ -33709,11 +33850,11 @@ var BRIEF_CATALOG = [
     head: function (leg) {
       return _bIcao(leg.dep) + ' ' + ((leg.metar && leg.metar.wind) || '—') + '  ·  ' + _bIcao(leg.arr) + ' ' + ((leg.metarArr && leg.metarArr.wind) || '—');
     },
-    badge: function () { return 'WIND'; },
-    render: function (leg, x) { return React.createElement(WindCards, { leg: leg, onWx: x.onOpenWx }); }
+    badge: function (leg) { return _bWindMaxKt(leg) + ' kt'; },
+    render: function (leg, x) { return React.createElement(WindCards, { leg: leg, onWx: x.onOpenWx, T: x.T }); }
   },
   {
-    id: 'fatigue', grp: 'BRIEF', ico: '⚡', lbl: 'FATIGA × METEO', d: 'Índice de fatiga de la jornada',
+    id: 'fatigue', grp: 'BRIEF', ico: _bIco('bolt'), lbl: 'FATIGA × METEO', d: 'Índice de fatiga de la jornada',
     sev: function () { return FATIGUE.score >= 70 ? 'crit' : FATIGUE.score >= 45 ? 'warn' : 'ok'; },
     head: function (leg) { return FATIGUE.score + '/100 · Fatiga ' + FATIGUE.level; },
     badge: function () { return String(FATIGUE.score); },
@@ -33756,21 +33897,21 @@ var BRIEF_CATALOG = [
     }
   },
   {
-    id: 'routewx', slab: true, grp: 'BRIEF', ico: '⛰', lbl: 'WX EN RUTA', d: 'Corte vertical de la ruta',
+    id: 'routewx', slab: true, grp: 'BRIEF', ico: _bIco('mtn'), lbl: 'WX EN RUTA', d: 'Corte vertical de la ruta',
     sev: function () { return 'info'; },
     head: function (leg) { return 'Perfil ' + _bIcao(leg.dep) + ' → ' + _bIcao(leg.arr) + ' · FL' + leg.cruiseFL; },
     badge: function (leg) { return 'FL' + leg.cruiseFL; },
     render: function (leg, x) { return React.createElement(MapProfile, { leg: leg, compact: true, onOpen: x.onOpenMaps }); }
   },
   {
-    id: 'profile', grp: 'BRIEF', ico: '✈', lbl: 'PERFIL DE VUELO', d: 'Subida, crucero y descenso',
+    id: 'profile', grp: 'BRIEF', ico: _bIco('plane'), lbl: 'PERFIL DE VUELO', d: 'Subida, crucero y descenso',
     sev: function () { return 'info'; },
     head: function (leg) { return leg.std + ' → ' + leg.sta + ' · ' + leg.block + ' block'; },
     badge: function (leg) { return leg.block; },
     render: function (leg) { return React.createElement(FlightProfileSVG, { leg: leg }); }
   },
   {
-    id: 'pireps', grp: 'BRIEF', ico: '💬', lbl: 'PIREPS EN RUTA', d: 'Reportes de otras tripulaciones',
+    id: 'pireps', grp: 'BRIEF', ico: _bIco('chat'), lbl: 'PIREPS EN RUTA', d: 'Reportes de otras tripulaciones',
     sev: function (leg) { return leg.pireps && leg.pireps.length ? 'warn' : 'ok'; },
     head: function (leg) {
       return leg.pireps && leg.pireps.length ? (leg.pireps.length + ' reporte(s) en ruta') : 'Sin reportes · ruta limpia';
@@ -33808,10 +33949,10 @@ var BRIEF_CATALOG = [
     }
   },
   {
-    id: 'alternates', grp: 'BRIEF', ico: '⇄', lbl: 'ALTERNATES', d: 'Alternativos de destino y en ruta', core: true,
+    id: 'alternates', grp: 'BRIEF', ico: _bIco('swap'), lbl: 'ALTERNATES', d: 'Alternativos de destino y en ruta', core: true,
     sev: function (leg) {
       var a = leg.alts || [];
-      for (var i = 0; i < a.length; i++) if (_bCatSev(a[i].cat) === 'crit') return 'warn';
+      for (var i = 0; i < a.length; i++) if (_bCatSev(a[i].cat) !== 'ok') return 'warn';
       return 'alt';
     },
     /* Un 0 mudo no se puede discutir: "sin ficha de este aeropuerto" y "este
@@ -33829,7 +33970,7 @@ var BRIEF_CATALOG = [
 
   /* ── de la pestaña WX ── */
   {
-    id: 'metardep', grp: 'WX', ico: _bPlane('up'), lbl: 'METAR / TAF · SALIDA', d: 'Observación y pronóstico del origen',
+    id: 'metardep', grp: 'WX', ico: _bPlane('up'), lbl: 'METAR / TAF · SALIDA', d: 'Observación y pronóstico del origen', core: true, fixed: true,
     sev: function (leg) { return _bCatSev(leg.metar && leg.metar.cat); },
     head: function (leg) {
       var m = leg.metar || {};
@@ -33839,7 +33980,7 @@ var BRIEF_CATALOG = [
     render: function (leg, x) { return React.createElement(BriefMetarBody, { m: leg.metar || {}, icao: _bIcao(leg.dep), T: x.T }); }
   },
   {
-    id: 'metararr', grp: 'WX', ico: _bPlane('down'), lbl: 'METAR / TAF · LLEGADA', d: 'Observación y pronóstico del destino',
+    id: 'metararr', grp: 'WX', ico: _bPlane('down'), lbl: 'METAR / TAF · LLEGADA', d: 'Observación y pronóstico del destino', core: true, fixed: true,
     sev: function (leg) { return _bCatSev(leg.metarArr && leg.metarArr.cat); },
     head: function (leg) {
       var m = leg.metarArr || {};
@@ -33849,10 +33990,10 @@ var BRIEF_CATALOG = [
     render: function (leg, x) { return React.createElement(BriefMetarBody, { m: leg.metarArr || {}, icao: _bIcao(leg.arr), T: x.T }); }
   },
   {
-    id: 'rwy', slab: true, grp: 'WX', ico: '⇥', lbl: 'PISTA EN SERVICIO', d: 'Pista de despegue y de aterrizaje',
+    id: 'rwy', slab: true, grp: 'WX', ico: _bIco('rwy'), lbl: 'PISTA EN SERVICIO', d: 'Pista de despegue y de aterrizaje',
     sev: function () { return 'info'; },
     head: function (leg) { return 'DEP ' + (leg.rwyDep || '—') + '  ·  ARR ' + (leg.rwyArr || '—'); },
-    badge: function (leg) { return leg.rwyArr || 'RWY'; },
+    badge: function (leg) { return _bRwyNow(leg, false) || _bRwyNow(leg, true) || '—'; },
     render: function (leg) { return React.createElement(RwyInUsePanel, { leg: leg }); }
   },
 
@@ -33888,28 +34029,28 @@ var BRIEF_CATALOG = [
 
   /* ── de la pestaña MAPAS ── */
   {
-    id: 'turb', slab: true, grp: 'MAPAS', ico: '〰', lbl: 'PERFIL DE TURBULENCIA', d: 'EDR por nivel de vuelo',
+    id: 'turb', slab: true, grp: 'MAPAS', ico: _bIco('wave'), lbl: 'PERFIL DE TURBULENCIA', d: 'EDR por nivel de vuelo',
     sev: function () { return 'info'; },
     head: function (leg) { return 'EDR por nivel · crucero FL' + leg.cruiseFL; },
     badge: function () { return 'EDR'; },
     render: function (leg) { return React.createElement(TurbulenceProfile, { leg: leg }); }
   },
   {
-    id: 'mapsurf', slab: true, grp: 'MAPAS', ico: '◍', lbl: 'SUPERFICIE · QNH', d: 'Isobaras y frentes (Windy)',
+    id: 'mapsurf', slab: true, grp: 'MAPAS', ico: _bIco('map'), lbl: 'SUPERFICIE · QNH', d: 'Isobaras y frentes (Windy)',
     sev: function () { return 'info'; },
     head: function () { return 'Presión en superficie y frentes'; },
     badge: function () { return 'QNH'; },
     render: function (leg) { return React.createElement(MapSurface, { leg: leg }); }
   },
   {
-    id: 'mapradar', slab: true, grp: 'MAPAS', ico: '◉', lbl: 'RADAR', d: 'Eco de precipitación (Windy)',
+    id: 'mapradar', slab: true, grp: 'MAPAS', ico: _bIco('radar'), lbl: 'RADAR', d: 'Eco de precipitación (Windy)',
     sev: function () { return 'info'; },
     head: function () { return 'Precipitación en vivo'; },
     badge: function () { return 'RAD'; },
     render: function (leg) { return React.createElement(MapRadar, { leg: leg }); }
   },
   {
-    id: 'mapwind', slab: true, grp: 'MAPAS', ico: '🌀', lbl: 'VIENTOS EN ALTURA', d: 'Viento al nivel de crucero (Windy)',
+    id: 'mapwind', slab: true, grp: 'MAPAS', ico: _bIco('tor'), lbl: 'VIENTOS EN ALTURA', d: 'Viento al nivel de crucero (Windy)',
     sev: function () { return 'info'; },
     head: function (leg) { return 'Viento al nivel FL' + leg.cruiseFL; },
     badge: function () { return 'WND'; },
@@ -33996,6 +34137,14 @@ function BriefCard(_bc) {
   var k = auto ? 'crit' : p.sev(leg);
   var sv = _bSev(T, k);
   var pinned = !edit && (auto || k === 'crit');
+  /* ★ Sólo 'warn' y 'crit' llevan color. Antes se teñía la tarjeta entera
+     con el acento de SU GRUPO (cian ruta, morado alternativo, rosa añadido),
+     así que un NOTAM crítico competía con un badge que ponía "FL360". Lo
+     demás va en neutro y el rojo vuelve a significar algo. */
+  var hot = (k === 'crit' || k === 'warn');
+  var acc = hot ? sv.c : T.tx2;
+  var bdc = hot ? sv.bd : T.line;
+  var fixed = !!p.fixed;
 
   return React.createElement('div', {
     className: 'bp-card' + (dragging ? ' bp-drag' : ''),
@@ -34003,19 +34152,18 @@ function BriefCard(_bc) {
     'data-bp': p.id,
     style: {
       width: (half && !open) ? 'calc(50% - 4px)' : '100%',
-      /* En DÍA la tarjeta va sobre losa blanca (como el resto de paneles de
-         SkyView) y encima el tinte de severidad: si se deja sólo el tinte
-         translúcido sobre el cielo claro, el titular baja a ~2,5 de contraste
-         y no se lee. En NOCHE el tinte va directo sobre el fondo oscuro. */
-      backgroundColor: x.day ? 'rgba(255,255,255,0.88)' : 'transparent',
-      backgroundImage: 'linear-gradient(' + sv.bg + ',' + sv.bg + ')',
-      border: '1px solid ' + sv.bd,
-      borderLeft: '3px solid ' + sv.c,
-      borderRadius: 12,
+      /* Cristal oscuro sobre el cielo del BRIEF — el mismo idioma que WX,
+         igual de día que de noche. El tinte de severidad sólo entra si hay
+         algo que avisar. */
+      backgroundColor: T.surf1,
+      backgroundImage: hot ? ('linear-gradient(' + sv.bg + ',' + sv.bg + ')') : 'none',
+      border: '1px solid ' + bdc,
+      borderLeft: (k === 'crit') ? ('3px solid ' + sv.c) : ('1px solid ' + bdc),
+      borderRadius: 14,
       overflow: 'hidden',
       opacity: (edit && hidden) ? 0.4 : 1,
       transform: dragging ? 'translateY(' + dy + 'px) scale(1.02)' : 'none',
-      boxShadow: pinned ? '0 0 0 1px ' + sv.c + ',0 0 20px ' + sv.bd : (open ? '0 0 14px ' + sv.bd : 'none')
+      boxShadow: pinned ? '0 0 0 1px ' + sv.c + ',0 0 18px ' + sv.bd : (open ? T.cardSh : 'none')
     }
   },
     auto ? React.createElement('div', {
@@ -34027,15 +34175,15 @@ function BriefCard(_bc) {
 
     React.createElement('div', {
       className: edit ? 'pc-drag-zone' : '',
-      onClick: function () { if (!edit) onToggle(p.id); },
+      onClick: function () { if (!edit && !fixed) onToggle(p.id); },
       /* En edicion arrastra la TARJETA ENTERA, no solo el asa: en el movil el asa de
          15px es un objetivo imposible. Los botones (ojo/tamaño) se excluyen. */
       onPointerDown: function (e) {
-        if (!edit) return;
+        if (!edit || fixed) return;
         if (e.target && e.target.closest && e.target.closest('[data-nodrag]')) return;
         onGrab(e, p.id);
       },
-      style: { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', minHeight: 44, cursor: edit ? (p.core ? 'default' : 'grab') : 'pointer' }
+      style: { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', minHeight: 44, cursor: fixed ? 'default' : (edit ? (p.core ? 'default' : 'grab') : 'pointer') }
     },
       edit ? React.createElement('span', {
         className: 'bp-h',
@@ -34044,7 +34192,8 @@ function BriefCard(_bc) {
 
       React.createElement('span', {
         style: {
-          width: 26, height: 26, borderRadius: 8, flexShrink: 0, background: sv.bd, color: sv.c,
+          width: 26, height: 26, borderRadius: 8, flexShrink: 0,
+          background: hot ? sv.bg : T.surf2, color: acc,
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13
         }
       }, p.ico),
@@ -34059,7 +34208,7 @@ function BriefCard(_bc) {
         React.createElement('div', {
           style: {
             fontSize: 10.5, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            fontFamily: sans, fontWeight: edit ? 500 : 600, color: edit ? T.tx3 : sv.c
+            fontFamily: sans, fontWeight: edit ? 500 : 600, color: edit ? T.tx3 : acc
           }
         }, edit ? p.d : p.head(leg))
       ),
@@ -34067,13 +34216,12 @@ function BriefCard(_bc) {
       (!edit) ? React.createElement('span', {
         style: {
           flexShrink: 0, fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: '.6px',
-          padding: '3px 7px', borderRadius: 6, border: '1px solid ' + sv.bd, color: sv.c,
-          /* en día, base clara: el tinte sobre tinte dejaba el verde a 2,9 */
-          background: x.day ? 'rgba(255,255,255,0.72)' : sv.bg
+          padding: '3px 7px', borderRadius: 6, border: '1px solid ' + bdc, color: acc,
+          background: T.surf2
         }
       }, p.badge(leg)) : null,
 
-      edit && p.core ? React.createElement('span', { style: { flexShrink: 0, fontSize: 11, opacity: .6 } }, '🔒') : null,
+      (fixed || (edit && p.core)) ? React.createElement('span', { style: { flexShrink: 0, fontSize: 11, opacity: .55 } }, '🔒') : null,
 
       edit && !p.core ? React.createElement('span', {
         'data-nodrag': '1',
@@ -34095,25 +34243,20 @@ function BriefCard(_bc) {
         }
       }, hidden ? '🚫' : '👁') : null,
 
-      (!edit) ? React.createElement('span', {
+      (!edit && !fixed) ? React.createElement('span', {
         style: { flexShrink: 0, fontSize: 10, color: T.tx3, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }
       }, '▾') : null
     ),
 
     (open && !edit) ? React.createElement('div', {
       className: 'bp-body',
-      style: { padding: '0 12px 12px', borderTop: '1px solid ' + sv.bd }
+      style: { padding: '0 12px 12px', borderTop: '1px solid ' + bdc }
     },
-      /* `slab`: componentes heredados que pintan texto CLARO sobre fondo oscuro
-         (WindCards, el perfil WX en ruta). En modo día la tarjeta es blanca y su
-         texto desaparecía. En vez de reescribirlos, se les da la losa oscura que
-         la app ya usa para METAR/TAF crudo: legible en los dos temas y deliberado. */
-      (p.slab && x.day) ? React.createElement('div', {
-        style: {
-          background: T.rawBg, borderRadius: 12, padding: '10px 11px', marginTop: 10,
-          border: '1px solid rgba(255,255,255,.10)'
-        }
-      }, p.render(leg, x)) : p.render(leg, x)
+      /* La losa oscura del flag `slab` existía porque en modo día la tarjeta
+         era BLANCA y los componentes heredados (WindCards, perfil WX) pintan
+         texto claro sobre oscuro. Ahora la tarjeta es cristal oscuro en los dos
+         temas, así que la losa sobra: sería un recuadro dentro de otro. */
+      p.render(leg, x)
     ) : null
   );
 }
@@ -34125,8 +34268,14 @@ function TabBrief(_ref21) {
   let onOpenWx = _ref21.onOpenWx;
 
   const day = useSkyDay();
-  const T = SKY_THEME(day);
-  const ink = day ? '#FFFFFF' : '#06101c';   // texto sobre una pastilla de color fuerte
+  /* El BRIEF tiene paleta propia (ver BRIEF_PAL): tres tonos del mismo idioma
+     de WX. 'auto' rota un color por día. Sólo afecta a esta pestaña. */
+  const _pm = useState(briefPalMode), palMode = _pm[0], setPalMode = _pm[1];
+  const pal = briefPalEff();
+  const T = BRIEF_PAL(pal, day);
+  /* El acento es claro en las tres paletas ⇒ la tinta que va ENCIMA de una
+     pastilla de color es oscura en los dos temas, no sólo de noche. */
+  const ink = '#05131F';
   _briefEnsureCss();
 
   const _l = useState(briefGetLayout), lay = _l[0], setLay = _l[1];
@@ -34333,17 +34482,57 @@ function TabBrief(_ref21) {
   var ordered = autoIds.concat(crit, rest.filter(function (id) { return crit.indexOf(id) < 0; }));
   var shown = edit ? ordered : ordered.filter(function (id) { return autoIds.indexOf(id) >= 0 || !lay.hidden[id]; });
 
-  /* ── franja de alertas ── */
+  /* ── SEMÁFORO DE LA JORNADA ──
+     Antes la franja sólo aparecía si algo estaba en ámbar o rojo, así que un
+     brief limpio no enseñaba nada y el piloto tenía que abrir paneles para
+     saber que no pasaba nada. Ahora salen SIEMPRE las mismas seis: "todo
+     verde" también es información, y el punto de color es lo único que grita. */
+  var SIG_IDS = ['wind', 'rwy', 'notamdep', 'notamarr', 'alternates', 'fatigue'];
+  var SIG_LBL = { wind: 'VIENTO', rwy: 'PISTA', notamdep: 'NOTAM DEP', notamarr: 'NOTAM ARR', alternates: 'ALTN', fatigue: 'FATIGA' };
   var alerts = [];
-  BRIEF_CATALOG.forEach(function (p) {
-    var k = p.sev(leg);
-    if (k === 'crit' || k === 'warn') alerts.push({ p: p, k: k });
+  SIG_IDS.forEach(function (id) {
+    var p = BRIEF_BY_ID[id];
+    if (p) alerts.push({ p: p, k: p.sev(leg), lbl: SIG_LBL[id] });
   });
+
+  /* ── NÚCLEO FIJO: METAR/TAF de SALIDA y de LLEGADA ──
+     Salen de la lista ordenable y se pintan arriba SIEMPRE desplegados. Es la
+     primera pregunta que se hace el piloto; no debería costar un toque ni
+     depender de cómo tenga configurados los paneles. */
+  var fixedIds = shown.filter(function (id) { return BRIEF_BY_ID[id] && BRIEF_BY_ID[id].fixed; });
+  shown = shown.filter(function (id) { return !(BRIEF_BY_ID[id] && BRIEF_BY_ID[id].fixed); });
 
   shownRef.current = shown;
   var x = { T: T, day: day, ink: ink, onOpenMaps: onOpenMaps, onOpenWx: onOpenWx };
 
-  return React.createElement('div', { ref: rootRef, style: { padding: '12px 14px 100px' } },
+  /* Un toque = siguiente color. AUTO → AZUL → PETRÓLEO → GRAFITO → AUTO */
+  function cyclePal() {
+    var L = ['auto'].concat(BRIEF_PALS);
+    var nx = L[(L.indexOf(palMode) + 1) % L.length];
+    briefPalSet(nx); setPalMode(nx);
+  }
+  var palBtn = React.createElement('span', {
+    key: 'palbtn', onClick: cyclePal, title: 'Color del BRIEF',
+    style: {
+      cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5,
+      padding: '4px 8px', borderRadius: 8, border: '1px solid ' + T.line2, background: T.surf2
+    }
+  },
+    React.createElement('span', { style: { width: 9, height: 9, borderRadius: '50%', background: T.cyan, boxShadow: '0 0 7px ' + T.cyan, flexShrink: 0 } }),
+    React.createElement('span', { style: { fontFamily: mono, fontSize: 7.5, fontWeight: 700, letterSpacing: '.9px', color: T.tx2, whiteSpace: 'nowrap' } },
+      palMode === 'auto' ? ('AUTO · ' + BRIEF_PAL_NAME[pal]) : BRIEF_PAL_NAME[pal])
+  );
+
+  /* ★ El BRIEF pinta SU PROPIO fondo, igual que hacen WX y NOTAM. Sin esto el
+     botón de color casi no se nota: con el cielo de SkyView detrás manda más
+     el fondo que el cristal, y petróleo y grafito se ven casi iguales al azul. */
+  return React.createElement('div', {
+    ref: rootRef,
+    style: {
+      padding: '12px 14px 100px', background: T.briefBg, minHeight: '100%',
+      transition: 'background .45s ease'
+    }
+  },
 
     /* ── INDICADOR DE "DESLIZA PARA ACTUALIZAR" ── */
     React.createElement('div', {
@@ -34364,30 +34553,30 @@ function TabBrief(_ref21) {
     React.createElement(Glass, {
       style: {
         padding: '13px 14px', marginBottom: 10,
-        background: 'linear-gradient(135deg,rgba(1,25,72,0.95),rgba(0,14,45,0.98))',
-        border: '1px solid rgba(126,251,254,0.35)',
-        boxShadow: '0 0 40px rgba(1,77,139,0.50), inset 0 1px 0 rgba(126,251,254,0.15)'
+        background: T.heroBg,
+        border: '1px solid ' + T.line2,
+        boxShadow: T.cardSh
       }
     },
       React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 } },
         React.createElement('div', null,
-          React.createElement('div', { style: { fontSize: 8, fontFamily: mono, fontWeight: 700, color: C.dim, letterSpacing: '2px', marginBottom: 3 } }, 'LEG ', leg.num, ' \xB7 ROSTER'),
+          React.createElement('div', { style: { fontSize: 8, fontFamily: mono, fontWeight: 700, color: T.tx3, letterSpacing: '2px', marginBottom: 3 } }, 'LEG ', leg.num, ' \xB7 ROSTER'),
           React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-            React.createElement('span', { style: { fontSize: 26, fontWeight: 900, fontFamily: mono, color: C.white } }, _bIcao(leg.dep)),
+            React.createElement('span', { style: { fontSize: 26, fontWeight: 900, fontFamily: mono, color: T.tx1 } }, _bIcao(leg.dep)),
             React.createElement('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 } },
-              React.createElement('span', { style: { fontSize: 8, color: C.cyan, fontFamily: mono } }, leg.flight),
-              React.createElement('div', { style: { width: 36, height: 1, background: 'linear-gradient(90deg,'.concat(C.blue, ',').concat(C.cyan, ')') } }),
-              React.createElement('span', { style: { fontSize: 12 } }, '✈')
+              React.createElement('span', { style: { fontSize: 8, color: T.cyan, fontFamily: mono } }, leg.flight),
+              React.createElement('div', { style: { width: 36, height: 1, background: 'linear-gradient(90deg,transparent,' + T.cyan + ')' } }),
+              React.createElement('span', { style: { fontSize: 12, color: T.cyan } }, '✈')
             ),
-            React.createElement('span', { style: { fontSize: 26, fontWeight: 900, fontFamily: mono, color: C.white } }, _bIcao(leg.arr))
+            React.createElement('span', { style: { fontSize: 26, fontWeight: 900, fontFamily: mono, color: T.tx1 } }, _bIcao(leg.arr))
           )
         ),
         React.createElement('div', { style: { textAlign: 'right' } },
           React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end', marginBottom: 3 } },
-            React.createElement(GlowDot, { color: '#4dff91' }),
-            React.createElement('span', { style: { fontSize: 7, color: '#4dff91', fontFamily: mono, fontWeight: 700 } }, 'ACTIVO')
+            React.createElement(GlowDot, { color: T.grn }),
+            React.createElement('span', { style: { fontSize: 7, color: T.grn, fontFamily: mono, fontWeight: 700 } }, 'ACTIVO')
           ),
-          React.createElement('div', { style: { fontSize: 8, color: C.dim, fontFamily: mono } }, '25 MAY 2026')
+          React.createElement('div', { style: { fontSize: 8, color: T.tx3, fontFamily: mono } }, '25 MAY 2026')
         )
       ),
       React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 5 } },
@@ -34395,10 +34584,10 @@ function TabBrief(_ref21) {
           var l = _r[0], v = _r[1];
           return React.createElement('div', {
             key: l,
-            style: { background: 'rgba(0,28,75,0.80)', border: '1px solid rgba(126,251,254,0.25)', borderRadius: 8, padding: '6px 7px' }
+            style: { background: T.surf2, border: '1px solid ' + T.line, borderRadius: 8, padding: '6px 7px' }
           },
-            React.createElement('div', { style: { fontSize: 6, color: C.dimmer, fontFamily: mono, marginBottom: 1 } }, l),
-            React.createElement('div', { style: { fontSize: 11, fontWeight: 700, color: C.cyan, fontFamily: mono } }, v)
+            React.createElement('div', { style: { fontSize: 6, color: T.tx3, fontFamily: mono, marginBottom: 1 } }, l),
+            React.createElement('div', { style: { fontSize: 11, fontWeight: 700, color: T.tx1, fontFamily: mono } }, v)
           );
         })
       ),
@@ -34406,20 +34595,28 @@ function TabBrief(_ref21) {
         var _da = _bAltIcaos(leg);   // la MISMA resolución que la pestaña ALTERNATES
         if (!_da.length) return null;
         return React.createElement('div', {
-          style: { marginTop: 8, paddingTop: 7, borderTop: '1px solid rgba(126,251,254,0.12)', display: 'flex', alignItems: 'center', gap: 7 }
+          style: { marginTop: 8, paddingTop: 7, borderTop: '1px solid ' + T.line, display: 'flex', alignItems: 'center', gap: 7 }
         },
-          React.createElement('span', { style: { fontSize: 6.5, color: C.dimmer, fontFamily: mono, letterSpacing: '1.5px', fontWeight: 700 } }, 'ALTN'),
-          React.createElement('span', { style: { fontSize: 11, fontWeight: 700, color: C.cyan, fontFamily: mono, letterSpacing: '0.5px' } }, _da.slice(0, 2).join('  \xB7  '))
+          React.createElement('span', { style: { fontSize: 6.5, color: T.tx3, fontFamily: mono, letterSpacing: '1.5px', fontWeight: 700 } }, 'ALTN'),
+          React.createElement('span', { style: { fontSize: 11, fontWeight: 700, color: T.cyan, fontFamily: mono, letterSpacing: '0.5px' } }, _da.slice(0, 2).join('  \xB7  '))
         );
       })()
     ),
 
-    /* ── FRANJA DE ALERTAS ── */
+    /* ── SEMÁFORO DE LA JORNADA + BOTÓN DE ACTUALIZAR ──
+       El ↻ vive aquí arriba, por encima del selector de color: es lo primero que
+       se toca al abrir el BRIEF con datos viejos. El semáforo se desplaza en
+       horizontal y el botón se queda fijo a su derecha. */
     (!edit && alerts.length) ? React.createElement('div', {
-      className: 'bp-strip',
-      style: { display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 10, paddingBottom: 2 }
-    }, alerts.map(function (a) {
+      key: 'sigrow',
+      style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }
+    },
+      React.createElement('div', {
+        className: 'bp-strip', key: 'sig',
+        style: { display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 3, flex: 1, minWidth: 0 }
+      }, alerts.map(function (a) {
       var sv = _bSev(T, a.k);
+      var caliente = (a.k === 'crit' || a.k === 'warn');
       return React.createElement('div', {
         key: a.p.id,
         onClick: function () {
@@ -34430,11 +34627,74 @@ function TabBrief(_ref21) {
           }, 60);
         },
         style: {
-          flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 20,
-          fontSize: 10.5, fontWeight: 700, fontFamily: sans, cursor: 'pointer',
-          color: sv.c, background: sv.bg, border: '1px solid ' + sv.bd
+          flexShrink: 0, display: 'flex', alignItems: 'center', gap: 7, padding: '7px 11px 7px 9px',
+          borderRadius: 11, cursor: 'pointer', background: T.surf1,
+          border: '1px solid ' + (a.k === 'crit' ? sv.bd : T.line)
         }
-      }, a.p.ico, ' ', a.p.head(leg));
+      },
+        React.createElement('span', {
+          style: {
+            width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: sv.c,
+            boxShadow: caliente ? ('0 0 8px ' + sv.c) : 'none'
+          }
+        }),
+        React.createElement('span', null,
+          React.createElement('div', { style: { fontFamily: mono, fontSize: 7.5, fontWeight: 700, letterSpacing: '1px', color: T.tx3, whiteSpace: 'nowrap' } }, a.lbl),
+          React.createElement('div', {
+            style: {
+              fontSize: 11, fontWeight: 700, fontFamily: sans, whiteSpace: 'nowrap',
+              color: caliente ? sv.c : T.tx1
+            }
+          }, a.p.badge(leg))
+        )
+      );
+    })),
+      /* Mismo diseño que el ↻ de WX y NOTAM: 28px, esquina 9, transparente y
+         borde de 1px. La hora de la última carga va debajo, en pequeño: es un
+         dato real que no conviene perder por parecerse más. */
+      React.createElement('div', {
+        key: 'upd',
+        onClick: function () { if (!loading) doRefresh(); },
+        title: 'Actualizar METAR, TAF y NOTAM',
+        style: { cursor: loading ? 'default' : 'pointer', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }
+      },
+        React.createElement('span', {
+          style: {
+            width: 28, height: 28, borderRadius: 9,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'transparent',
+            border: '1px solid ' + (loading ? T.cyan : _rgba(T.cyan, .4)),
+            color: T.cyan, fontSize: 14, lineHeight: 1, flexShrink: 0,
+            animation: loading ? 'briefSpin .8s linear infinite' : 'none'
+          }
+        }, '↻'),
+        React.createElement('span', {
+          style: { fontFamily: mono, fontSize: 7.5, fontWeight: 700, letterSpacing: '.3px', color: loading ? T.cyan : T.tx3, lineHeight: 1, whiteSpace: 'nowrap' }
+        }, loading ? '···' : _updStr(lastUpd))
+      )
+    ) : null,
+
+    /* ── NÚCLEO FIJO: siempre a la vista ── */
+    fixedIds.length ? React.createElement('div', {
+      key: 'fixhd',
+      style: { display: 'flex', alignItems: 'center', gap: 8, margin: '4px 2px 8px' }
+    },
+      React.createElement('span', { style: { fontFamily: mono, fontSize: 8, fontWeight: 700, letterSpacing: '2px', color: T.tx3 } }, 'SIEMPRE A LA VISTA'),
+      React.createElement('span', { style: { flex: 1, height: 1, background: T.line2 } }),
+      palBtn
+    ) : null,
+    fixedIds.length ? React.createElement('div', {
+      key: 'fix',
+      style: { display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-start', marginBottom: 4 }
+    }, fixedIds.map(function (id) {
+      var p = BRIEF_BY_ID[id]; if (!p) return null;
+      return React.createElement(BriefCard, {
+        key: id, p: p, leg: leg, T: T, x: x,
+        open: true, edit: false, hidden: false, half: false, auto: false,
+        dragging: false, dy: 0,
+        onToggle: function () {}, onEye: function () {}, onSize: function () {}, onGrab: function () {},
+        setRef: function (el) { cardRefs.current[id] = el; }
+      });
     })) : null,
 
     /* ── CABECERA DE ZONA ── */
@@ -34442,29 +34702,6 @@ function TabBrief(_ref21) {
       React.createElement('span', { style: { fontFamily: mono, fontSize: 8, fontWeight: 700, letterSpacing: '2px', color: T.tx3 } },
         edit ? 'ARRASTRA ⠿ PARA ORDENAR' : 'PANELES'),
       React.createElement('span', { style: { flex: 1, height: 1, background: T.line2 } }),
-      /* ── BOTÓN REDONDO DE ACTUALIZAR ──
-         El gesto de deslizar ya existía, pero no se ve y en tablet/escritorio no hay forma
-         de dispararlo. Un botón siempre visible hace lo mismo: recarga METAR, TAF y NOTAM
-         de salida, llegada y alternativos. Gira mientras trabaja. */
-      React.createElement('div', {
-        onClick: function () { if (!loading) doRefresh(); },
-        title: 'Actualizar METAR, TAF y NOTAM',
-        style: { cursor: loading ? 'default' : 'pointer', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }
-      },
-        React.createElement('span', {
-          style: {
-            width: 26, height: 26, borderRadius: '50%',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: mono, fontSize: 13, fontWeight: 700,
-            border: '1px solid ' + (loading ? T.cyan : T.line2),
-            background: T.surf2, color: loading ? T.cyan : T.tx2,
-            animation: loading ? 'briefSpin .9s linear infinite' : 'none'
-          }
-        }, '↻'),
-        React.createElement('span', {
-          style: { fontFamily: mono, fontSize: 7.5, fontWeight: 700, letterSpacing: '.3px', color: loading ? T.cyan : T.tx3, lineHeight: 1, whiteSpace: 'nowrap' }
-        }, loading ? '···' : _updStr(lastUpd))
-      ),
       React.createElement('span', {
         onClick: function () { setInfo(true); },
         aria: 'Cómo funciona el BRIEF',
@@ -35021,8 +35258,8 @@ function TafBlock(_ref24) {
       }
     }, p.label))), p.sig && /*#__PURE__*/React.createElement("span", {
       style: (() => {
-        const CRIT_WX = /\b(TSRA|TSGR|FZRA|FZFG|FZDZ|\+TSRA|\+TS|TS\b|GR\b|FC\b|VA\b|SS\b|DS\b)/;
-        const WARN_WX = /\b(FG\b|\+RA|\+SN|\+RASN|SQ\b)/;
+        const CRIT_WX = /\b(TSRA|TSGR|FZRA|FZFG|FZDZ|\+TSRA|\+TS|TS\b|GR\b|FC\b|VA\b|SS\b|SA\b|SQ\b)/;
+        const WARN_WX = /\b(FG\b|\+RA|\+SN|\+RASN|SN\b|SG\b|DS\b|DU\b)|CB\b/;
         const isCrit = CRIT_WX.test(p.sig);
         const isWarn = !isCrit && WARN_WX.test(p.sig);
         const col = isCrit ? "#FF3B30" : isWarn ? "#FF9500" : ts.text;
@@ -35038,7 +35275,7 @@ function TafBlock(_ref24) {
           boxShadow: isCrit ? "0 0 6px ".concat(col, "60") : "none"
         };
       })()
-    }, ((/\b(TSRA|TSGR|FZRA|FZFG|FZDZ|\+TSRA|\+TS|TS\b|GR\b|FC\b|VA\b|SS\b|DS\b)/.test(p.sig)) ? "⚠ " : "") + p.sig)), /*#__PURE__*/React.createElement("div", {
+    }, ((/\b(TSRA|TSGR|FZRA|FZFG|FZDZ|\+TSRA|\+TS|TS\b|GR\b|FC\b|VA\b|SS\b|SA\b|SQ\b)/.test(p.sig)) ? "⚠ " : "") + p.sig)), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
         gap: 8,
@@ -35527,6 +35764,98 @@ function _wxDiagramBig(T,hdg,windDir,rwyId,mid){
     React.createElement('text',{x:lx,y:ly+4,textAnchor:'middle',fontFamily:mono,fontSize:11,fontWeight:700,fill:T.grn},String(windDir).padStart(3,'0')+'°'),
     React.createElement('circle',{cx:cx,cy:cy,r:2.3,fill:T.cyan}));
 }
+/* ════════ ROSA DE VIENTOS MINIATURA (BRIEF) ══════════════════════════════
+   Es _wxDiagramBig reducida, no un dibujo distinto: mismo disco con degradado
+   radial, mismo borde violeta, misma pista con su eje a trazos, mismo cono de
+   viento verde y la misma aguja. Lo que cambia es la DENSIDAD, que es lo único
+   que no escala: la grande gradúa cada 5° y a 58px eso es una mancha gris, así
+   que aquí va cada 15° con las cardinales marcadas y el norte en rojo.
+   Sin rótulos dentro: a este tamaño no se leen y ensucian.
+   * 'hdg' puede venir null (pista VRB o desconocida): entonces NO se dibuja la
+   pista. Antes se calculaba igual y salía NaN — que es exactamente lo que
+   llenaba la consola de «<line> attribute x1: Expected length "NaN"». */
+function _wxDiagramMini(T, hdg, windDir, mid) {
+  const S = 58, cx = 29, cy = 29, R = 26;
+  const wr = (Number(windDir) || 0) * Math.PI / 180;
+  const rB = 17;
+  const a1 = ((Number(windDir) || 0) - 15) * Math.PI / 180, a2 = ((Number(windDir) || 0) + 15) * Math.PI / 180;
+  const b1x = cx + Math.sin(a1) * rB, b1y = cy - Math.cos(a1) * rB;
+  const b2x = cx + Math.sin(a2) * rB, b2y = cy - Math.cos(a2) * rB;
+  const qtx = cx + Math.sin(wr) * 15, qty = cy - Math.cos(wr) * 15;
+  const qhx = cx + Math.sin(wr) * 10.5, qhy = cy - Math.cos(wr) * 10.5;
+  const cg = 'mrc' + mid, rg = 'mrr' + mid, bg = 'mrb' + mid, mk = 'mrm' + mid;
+
+  const ticks = [];
+  for (let d = 0; d < 360; d += 15) {
+    const a = d * Math.PI / 180;
+    const card = (d % 90 === 0);
+    const r1 = R - 1, r2 = card ? R - 6 : R - 3.5;
+    ticks.push(React.createElement('line', {
+      key: d,
+      x1: cx + Math.sin(a) * r1, y1: cy - Math.cos(a) * r1,
+      x2: cx + Math.sin(a) * r2, y2: cy - Math.cos(a) * r2,
+      /* el norte en rojo, como la 'N' roja de la grande */
+      stroke: d === 0 ? T.red : (card ? 'rgba(212,228,250,.55)' : 'rgba(212,228,250,.22)'),
+      strokeWidth: d === 0 ? 1.4 : (card ? 0.9 : 0.6),
+      strokeLinecap: 'round'
+    }));
+  }
+
+  const kids = [
+    React.createElement('defs', { key: 'd' },
+      React.createElement('radialGradient', { id: cg, cx: '50%', cy: '42%', r: '62%' },
+        React.createElement('stop', { offset: '0%', stopColor: 'rgba(60,80,140,.30)' }),
+        React.createElement('stop', { offset: '100%', stopColor: 'rgba(10,16,32,.06)' })),
+      React.createElement('linearGradient', { id: rg, x1: '0', y1: '0', x2: '1', y2: '0' },
+        React.createElement('stop', { offset: '0%', stopColor: 'rgba(150,120,235,.10)' }),
+        React.createElement('stop', { offset: '42%', stopColor: 'rgba(216,204,255,.20)' }),
+        React.createElement('stop', { offset: '100%', stopColor: 'rgba(150,120,235,.10)' })),
+      React.createElement('radialGradient', { id: bg, gradientUnits: 'userSpaceOnUse', cx: cx, cy: cy, r: rB },
+        React.createElement('stop', { offset: '0%', stopColor: T.grn, stopOpacity: .55 }),
+        React.createElement('stop', { offset: '100%', stopColor: T.grn, stopOpacity: .07 })),
+      React.createElement('marker', { id: mk, markerWidth: 4, markerHeight: 4, refX: 3.2, refY: 2, orient: 'auto' },
+        React.createElement('path', { d: 'M0 0L3.2 2L0 4Z', fill: T.grn }))),
+    React.createElement('circle', {
+      key: 'disc', cx: cx, cy: cy, r: R, fill: 'url(#' + cg + ')',
+      stroke: 'rgba(198,125,255,.30)', strokeWidth: 0.9,
+      style: { filter: 'drop-shadow(0 0 2px rgba(198,125,255,.30))' }
+    }),
+    React.createElement('g', { key: 'tk' }, ticks)
+  ];
+
+  if (hdg != null && isFinite(hdg)) {
+    kids.push(React.createElement('g', {
+      key: 'rwy',
+      transform: 'rotate(' + hdg + ' ' + cx + ' ' + cy + ')',
+      style: { filter: 'drop-shadow(0 0 4px rgba(150,120,255,.45))' }
+    },
+      React.createElement('rect', {
+        x: cx - 3.2, y: cy - 15, width: 6.4, height: 30,
+        fill: 'url(#' + rg + ')', stroke: 'rgba(212,200,255,.34)', strokeWidth: 0.7
+      }),
+      React.createElement('line', {
+        x1: cx, y1: cy - 12, x2: cx, y2: cy + 12,
+        stroke: 'rgba(255,255,255,.55)', strokeWidth: 0.9, strokeDasharray: '2.5 3.5'
+      })));
+  }
+
+  kids.push(React.createElement('path', {
+    key: 'cono',
+    d: 'M' + cx + ' ' + cy + 'L' + b1x.toFixed(1) + ' ' + b1y.toFixed(1) + 'L' + b2x.toFixed(1) + ' ' + b2y.toFixed(1) + 'Z',
+    fill: 'url(#' + bg + ')',
+    style: { filter: 'drop-shadow(0 0 3px rgba(78,230,174,.35))' }
+  }));
+  kids.push(React.createElement('line', {
+    key: 'aguja', x1: qtx.toFixed(1), y1: qty.toFixed(1), x2: qhx.toFixed(1), y2: qhy.toFixed(1),
+    stroke: T.grn, strokeWidth: 1, strokeLinecap: 'round', markerEnd: 'url(#' + mk + ')'
+  }));
+  kids.push(React.createElement('circle', { key: 'hub', cx: cx, cy: cy, r: 1.7, fill: T.cyan }));
+
+  return React.createElement('svg', {
+    width: S, height: S, viewBox: '0 0 ' + S + ' ' + S, style: { display: 'block', flexShrink: 0 }
+  }, kids);
+}
+
 // Mini reloj de viento cruzado (zonas + límite A320 38 kt)
 function _wxXwGauge(T,value){
   const max=45,cx=46,cy=44,R=34,A0=135,SW=270;
@@ -36361,22 +36690,7 @@ function TabMeteoV2(_refM2){
       return React.createElement("div",{key:i,style:{display:"flex",gap:9,padding:"8px 2px",borderBottom:i<segs.length-1?"1px solid "+T.line:"none"}},
         React.createElement("span",{style:{flex:"0 0 auto",alignSelf:"flex-start",fontFamily:mono,fontSize:7.5,fontWeight:700,letterSpacing:".5px",padding:"2px 6px",borderRadius:5,color:b.c,background:b.bg,border:"1px solid "+b.bd,whiteSpace:"nowrap"}},s.type),
         React.createElement("div",{style:{flex:1,fontFamily:mono,fontSize:"calc(9px * var(--tablet-wx-scale,1))",lineHeight:1.55,color:T.tx2,wordBreak:"break-word"}},(function(){
-          const CRIT=/\b(TSRA|TSGR|FZRA|FZFG|FZDZ|\+TSRA|\+TS|TS\b|GR\b|FC\b|VA\b|SS\b|DS\b)/g;
-          const WARN=/\b(FG\b|\+RA\b|\+SN\b|\+RASN\b|SQ\b)/g;
-          const txt=s.text;
-          const parts=[];let last=0;
-          const matches=[];
-          let mm;const re=/\b(TSRA|TSGR|FZRA|FZFG|FZDZ|\+TSRA|\+TS|TS\b|GR\b|FC\b|VA\b|SS\b|DS\b|FG\b|\+RA\b|\+SN\b|\+RASN\b|SQ\b)/g;
-          while((mm=re.exec(txt))!==null) matches.push(mm);
-          matches.forEach(function(m){
-            if(m.index>last) parts.push(txt.slice(last,m.index));
-            const isCrit=CRIT.test(m[0]);CRIT.lastIndex=0;
-            const col=isCrit?"#FF3B30":"#FF9500";
-            parts.push(React.createElement("span",{key:m.index,style:{color:col,fontWeight:700,textShadow:"0 0 6px "+col+"80"}},(isCrit?"⚠ ":"")+m[0]));
-            last=m.index+m[0].length;
-          });
-          if(last<txt.length) parts.push(txt.slice(last));
-          return parts.length?parts:txt;
+          return _wxSigParts(s.text);
         })()));
     }):React.createElement("div",{style:{fontFamily:mono,fontSize:9.5,color:T.tx3,textAlign:"center",padding:"10px 0"}},"Sin TAF disponible para "+cur.icao);
     const metarBody=React.createElement("div",{style:{padding:"13px 16px 16px"}},
@@ -37219,7 +37533,8 @@ function TabNotamV2(_refN2) {
           /* Pegajosa: en una lista de 20 NOTAMs hay que saber SIEMPRE si lo que estás
              leyendo es un crítico o un aviso, sin volver a subir. Fondo opaco para que la
              lista no se transparente por detrás. */
-          style: { position: "sticky", top: 0, zIndex: 4, display: "flex", alignItems: "center", gap: 9, padding: "6px 10px", borderRadius: 10, cursor: "pointer", background: m.bg, backgroundColor: T.floatBg, backgroundImage: "linear-gradient(" + m.bg + "," + m.bg + ")", border: "1px solid " + m.bd, borderLeft: "4px solid " + m.c }
+          className: "b-sevstick",
+          style: { position: "sticky", top: "var(--sev-stick, 0px)", zIndex: 4, display: "flex", alignItems: "center", gap: 9, padding: "6px 10px", borderRadius: 10, cursor: "pointer", background: m.bg, backgroundColor: T.floatBg, backgroundImage: "linear-gradient(" + m.bg + "," + m.bg + ")", border: "1px solid " + m.bd, borderLeft: "4px solid " + m.c }
         },
           React.createElement("span", { style: { fontFamily: mono, fontSize: 14, fontWeight: 800, color: m.c, minWidth: 18, textAlign: "center", lineHeight: 1 } }, g.items.length),
           React.createElement("div", { style: { flex: 1 } },
@@ -38275,7 +38590,8 @@ function TabMaps(_ref51) {
       paddingBottom: 100
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "sv-chrome",
+    /* sv-stick: sube con las barras en vez de quedarse flotando a media altura */
+    className: "sv-chrome sv-stick",
     style: {
       position: "sticky",
       top: 0,
@@ -38962,6 +39278,96 @@ function SkyViewPilotOS() {
     _useState40 = _slicedToArray(_useState39, 2),
     turbData = _useState40[0],
     setTurbData = _useState40[1];
+  /* ══════ CROMO QUE SE APARTA (retrato) ══════════════════════════════════
+     Medido a 430×920: cabecera 44 + cinta de legs 40 + barra de pestañas 72 =
+     156px de cromo. Al bajar se aparta la cinta y la barra se queda en una
+     pastilla de 30px con la pestaña activa; al tocarla, vuelve entera.
+     En HORIZONTAL no se toca nada: de eso ya se encarga __landChrome, y dos
+     mecanismos peleándose por las mismas barras es peor que ninguno. */
+  const _cmin = useState(false), chromeMin = _cmin[0], setChromeMin = _cmin[1];
+  /* En HORIZONTAL manda __landChrome, que ya aparta las barras con su propio CSS
+     (!important). Metiendo yo position/transform en línea salían peleados: el
+     menú se quedaba en mitad de la pantalla y el scroll del perfil se bloqueaba. */
+  /* La MISMA media query que el CSS de horizontal, no una parecida. */
+  var _LAND_MQ = '(orientation:landscape) and (max-height:520px)';
+  function _midoLand() {
+    try {
+      return (window.matchMedia && window.matchMedia(_LAND_MQ).matches)
+          || document.documentElement.classList.contains('bp-land');
+    } catch (e) { return false; }
+  }
+  const _lnd = useState(_midoLand), esLand = _lnd[0], setEsLand = _lnd[1];
+  useEffect(function () {
+    function upd() { try { setEsLand(_midoLand()); } catch (e) {} }
+    var mq = null;
+    try { mq = window.matchMedia(_LAND_MQ); mq.addEventListener('change', upd); } catch (e) {}
+    var obs = new MutationObserver(upd);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    window.addEventListener('resize', upd);
+    window.addEventListener('orientationchange', upd);
+    upd();
+    return function () {
+      try { mq && mq.removeEventListener('change', upd); } catch (e) {}
+      obs.disconnect();
+      window.removeEventListener('resize', upd);
+      window.removeEventListener('orientationchange', upd);
+    };
+  }, []);
+  /* Alturas medidas de la cabecera y de la cinta: la cinta va posicionada bajo
+     la cabecera y el scroller reserva su alto. Se MIDE porque el safe-area del
+     móvil y el modo día las cambian. */
+  const hdrRef = useRef(null), ribRef = useRef(null);
+  const _hh = useState(0), hdrH = _hh[0], setHdrH = _hh[1];
+  const _rh = useState(0), ribH = _rh[0], setRibH = _rh[1];
+  const chromeAcc = useRef(0);
+  const chromeY = useRef(0);
+  /* ★ Sólo donde el contenido es una lista que se desplaza de verdad.
+     MAPAS queda fuera a propósito: SIGWX lleva su propio lienzo y sus propios
+     scrollers dentro, y el piloto reportó que al bajar "rebota arriba y abajo
+     muchas veces". ARIA queda fuera porque no se desplaza (llena el contenedor).
+     Si no lo he probado, no se pliega. */
+  const puedePlegar = !esLand && (tab === "brief" || tab === "meteo" || tab === "notam" || tab === "maps");
+  useEffect(function () { if (!puedePlegar && chromeMin) setChromeMin(false); }, [puedePlegar, chromeMin]);
+  function onChromeScroll(e) {
+    try {
+      if (!puedePlegar) return;
+      var y = e.currentTarget.scrollTop;
+      var d = y - chromeY.current;
+      chromeY.current = y;
+      /* Cerca del principio el cromo está SIEMPRE entero: es donde el piloto
+         mira el leg y cambia de pestaña. */
+      if (y < 28) { chromeAcc.current = 0; if (chromeMin) setChromeMin(false); return; }
+      if ((d > 0) !== (chromeAcc.current > 0)) chromeAcc.current = 0;
+      chromeAcc.current += d;
+      /* ★ Umbrales ASIMÉTRICOS, copiados de __landChrome porque allí ya está
+         medido: con un único umbral simétrico, un vaivén de amplitud mayor que
+         él hace que la barra vaya y venga sin parar (14 parpadeos con ±14px
+         contra un umbral de 26). Devolverla exige un gesto claro hacia arriba. */
+      if (!chromeMin && chromeAcc.current > 32) { setChromeMin(true); chromeAcc.current = 0; }
+      else if (chromeMin && chromeAcc.current < -64) { setChromeMin(false); chromeAcc.current = 0; }
+    } catch (_e) {}
+  }
+  /* Al cambiar de pestaña, cromo entero: acabas de llegar y quieres verlo.
+     ★ NO se toca chromeY. El scroller CONSERVA su posición al cambiar de pestaña, así
+     que ponerlo a 0 teniéndolo en 240 hacía que el siguiente evento midiera un salto
+     de +240 y lo replegara al instante (medido: cambiabas a MAPAS y seguía plegado).
+     Si el scroller sí se reposiciona, el salto sale negativo y el cromo aparece — que
+     es el lado seguro: ante la duda, visible. */
+  useEffect(function () { setChromeMin(false); chromeAcc.current = 0; }, [tab]);
+
+  useEffect(function () {
+    function medir() {
+      try {
+        if (hdrRef.current) setHdrH(hdrRef.current.offsetHeight);
+        setRibH(ribRef.current ? ribRef.current.offsetHeight : 0);
+      } catch (e) {}
+    }
+    medir();
+    var t = setTimeout(medir, 300);   // safe-area y fuentes tardan un frame
+    window.addEventListener('resize', medir);
+    return function () { clearTimeout(t); window.removeEventListener('resize', medir); };
+  }, [svDay, tab]);
+
   const [liveWeather, setLiveWeather] = useState({});
   const [liveTafs, setLiveTafs] = useState({});
   const _rosterLegs = buildLegsFromRoster();
@@ -39186,9 +39592,13 @@ function SkyViewPilotOS() {
       overflow: "hidden",
       fontFamily: sans,
       display: "flex",
-      flexDirection: "column"
-    }
+      flexDirection: "column",
+      /* la leen las barras secundarias para subir EXACTAMENTE lo que sube la cinta */
+      "--sv-ribh": ribH + "px"
+    },
+    className: (chromeMin && puedePlegar) ? "sv-min" : ""
   }, /*#__PURE__*/React.createElement("div", {
+    ref: hdrRef,
     className: "sv-chrome",
     style: {
       position: "sticky",
@@ -39251,8 +39661,14 @@ function SkyViewPilotOS() {
       fontFamily: mono
     }
   }, utc))), _rosterLegs && /*#__PURE__*/React.createElement("div", {
+    ref: ribRef,
     className: "sv-chrome",
-    style: { position: "sticky", top: 0, zIndex: 24, display: "flex", alignItems: "center", gap: 11, padding: "2px 13px 9px", background: svDay ? "linear-gradient(180deg,rgba(247,252,255,.96) 0%,rgba(233,245,255,.92) 100%)" : "rgba(0,9,24,0.96)", backdropFilter: "blur(12px) saturate(150%)", WebkitBackdropFilter: "blur(12px) saturate(150%)", borderBottom: svDay ? "1px solid rgba(8,145,178,.18)" : "1px solid rgba(126,251,254,0.08)" }
+    /* ★ Igual que la barra de abajo: fuera del flujo y se aparta SÓLO con
+       transform, para que el alto del scroller no se mueva nunca (es lo que
+       provocaba los tirones al desplazar y dejaba ARIA en blanco).
+       En ARIA se queda en flujo: esa pestaña no se desplaza, así que no hay
+       nada que apartar. */
+    style: { position: puedePlegar ? "absolute" : "sticky", top: puedePlegar ? hdrH : 0, left: 0, right: puedePlegar ? 0 : undefined, zIndex: 24, transform: puedePlegar ? ((chromeMin ? ("translateY(calc(-100% - " + hdrH + "px))") : "translateY(0)")) : undefined, transition: puedePlegar ? "transform .2s cubic-bezier(.22,.61,.36,1)" : undefined, willChange: puedePlegar ? "transform" : undefined, display: "flex", alignItems: "center", gap: 11, padding: "2px 13px 9px", background: svDay ? "linear-gradient(180deg,rgba(247,252,255,.96) 0%,rgba(233,245,255,.92) 100%)" : "rgba(0,9,24,0.96)", backdropFilter: "blur(12px) saturate(150%)", WebkitBackdropFilter: "blur(12px) saturate(150%)", borderBottom: svDay ? "1px solid rgba(8,145,178,.18)" : "1px solid rgba(126,251,254,0.08)" }
   }, /*#__PURE__*/React.createElement("div", {
     style: { flex: 1, minWidth: 0 }
   }, /*#__PURE__*/React.createElement("div", {
@@ -39385,13 +39801,15 @@ function SkyViewPilotOS() {
       fontFamily: mono
     }
   }, leg.metarArr.cat, " \xB7 ", leg.metarArr.temp, " \xB7 ", leg.metarArr.qnh)))), /*#__PURE__*/React.createElement("div", {
+    onScroll: onChromeScroll,
     style: {
       position: "relative",
       zIndex: 1,
       flex: 1,
       overflowY: "auto",
       overflowX: "hidden",
-      WebkitOverflowScrolling: "touch"
+      WebkitOverflowScrolling: "touch",
+      paddingTop: puedePlegar ? ribH : 0
     }
   }, tab === "brief" && /*#__PURE__*/React.createElement(TabBrief, {
     leg: leg,
@@ -39406,13 +39824,81 @@ function SkyViewPilotOS() {
   }), tab === "aria" && /*#__PURE__*/React.createElement(TabAria, {
     leg: leg,
     turbData: turbData
-  })), /*#__PURE__*/React.createElement("div", {
+  })), puedePlegar ? /*#__PURE__*/React.createElement("button", {
+    onClick: function () { setChromeMin(false); chromeAcc.current = 0; },
+    title: "Mostrar las pestañas",
+    style: {
+      /* Hermana de la barra, no hija: dentro se iría con el translateY y no
+         habría manera de recuperarla. */
+      position: "absolute",
+      left: "50%",
+      bottom: "calc(8px + env(safe-area-inset-bottom, 0px))",
+      zIndex: 31,
+      transform: "translateX(-50%) translateY(" + (chromeMin ? "0" : "16px") + ")",
+      opacity: chromeMin ? 1 : 0,
+      pointerEvents: chromeMin ? "auto" : "none",
+      transition: "opacity .18s ease, transform .2s cubic-bezier(.22,.61,.36,1)",
+      display: "flex", alignItems: "center", gap: 7,
+      padding: "6px 13px",
+      borderRadius: 999,
+      whiteSpace: "nowrap",
+      background: svDay ? "rgba(255,255,255,.94)" : "rgba(0,12,30,.92)",
+      border: "1px solid " + (svDay ? "rgba(8,145,178,.32)" : "rgba(126,251,254,.24)"),
+      boxShadow: svDay ? "0 6px 20px rgba(12,60,110,.28)" : "0 6px 20px rgba(0,0,0,.5)",
+      backdropFilter: "blur(18px) saturate(160%)",
+      WebkitBackdropFilter: "blur(18px) saturate(160%)",
+      cursor: "pointer"
+    }
+  },
+    /* apartada la barra, nada más dice en qué pestaña estás */
+    /*#__PURE__*/React.createElement("span", {
+      key: "i",
+      style: { display: "flex", alignItems: "center", color: svDay ? "#0369A1" : C.cyan }
+    }, (MAIN_TABS.filter(function (t) { return t.id === tab; })[0] || MAIN_TABS[0]).icon),
+    /*#__PURE__*/React.createElement("span", {
+      key: "l",
+      style: {
+        fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "1.3px",
+        color: svDay ? "#0369A1" : C.cyan
+      }
+    }, (MAIN_TABS.filter(function (t) { return t.id === tab; })[0] || MAIN_TABS[0]).label),
+    /*#__PURE__*/React.createElement("span", {
+      key: "c",
+      style: { fontSize: 10, lineHeight: 1, color: svDay ? "#5A7395" : C.dimmer }
+    }, "\u25B4")
+  ) : null, /*#__PURE__*/React.createElement("div", {
     className: "sv-chrome", style: {
-      position: "sticky",
+      /* ★★ FUERA DEL FLUJO SIEMPRE, y se aparta SÓLO con transform.
+         Las dos regresiones de la Beta.790/791 salían de lo mismo: la barra estaba
+         EN EL FLUJO y al plegarla el alto del scroller cambiaba (414 → 492).
+         · En el móvil, cambiar ese alto cambia el scrollTop MÁXIMO: el navegador
+           recorta la posición y ese salto dispara otro evento de scroll → los
+           tirones. Ya estaba escrito en el módulo de horizontal: «el rebote NO se
+           arregla con umbrales; la solución es que el layout NO cambie».
+         · ARIA se dimensiona con el alto del contenedor, así que un contenedor que
+           se movía bajo sus pies la dejaba en blanco.
+         Estando SIEMPRE absolute el scroller mide lo mismo pase lo que pase: la
+         barra se limita a TAPAR los últimos ~78px y al apartarse los descubre. Es
+         lo que ya hace el modo horizontal, donde funciona.
+         El sitio para que el último panel no quede debajo ya existe: los contenidos
+         de las pestañas llevan padding-bottom de 100px. */
+      /* ★ En ARIA se queda EN FLUJO. Es la única pestaña que no se desplaza —
+         llena el contenedor— así que ahí la barra no tiene nada que apartar, y
+         superpuesta le tapaba la caja de preguntar (que va posicionada, por lo
+         que reservarle padding al scroller no la mueve). */
+      /* Fuera del flujo SÓLO donde se pliega. En el resto (horizontal, ARIA,
+         MAPAS) vuelve a ser exactamente la barra de siempre. */
+      position: puedePlegar ? "absolute" : "sticky",
       bottom: 0,
       left: 0,
-      width: "100%",
+      right: puedePlegar ? 0 : undefined,
+      width: puedePlegar ? undefined : "100%",
       zIndex: 30,
+      /* ★ undefined, NO "translateY(0)": un transform en línea gana al CSS de
+         __landChrome y en horizontal las barras dejaban de apartarse. */
+      transform: puedePlegar ? (chromeMin ? "translateY(100%)" : "translateY(0)") : undefined,
+      transition: puedePlegar ? "transform .2s cubic-bezier(.22,.61,.36,1)" : undefined,
+      willChange: puedePlegar ? "transform" : undefined,
       background: svDay
         ? "linear-gradient(180deg,rgba(255,255,255,.90) 0%,rgba(234,246,255,.97) 100%)"
         : "rgba(0,8,22,0.97)",
@@ -56352,7 +56838,13 @@ document.addEventListener('DOMContentLoaded', function(){
   // las devuelve (util en "Generando...", donde no hay scroll que las revele).
   // Reutiliza la clase global `chrome-off` -> NO toca el modulo de scroll landscape.
   var _landMQ=null; try{ _landMQ=window.matchMedia('(orientation: landscape) and (max-height: 520px)'); }catch(e){}
-  function _ariaChromeApply(){ try{ if(_ariaMounted && _landMQ && _landMQ.matches){ document.documentElement.classList.add('chrome-off'); } else { document.documentElement.classList.remove('chrome-off'); } }catch(e){} }
+  /* ★ Si ARIA NO está montada, esta función NO puede tocar la clase: es del módulo
+     de scroll horizontal, que la usa para replegar el cromo. Estaba enganchada al
+     media query de horizontal, así que en CADA giro hacía remove() y deshacía el
+     repliegue automático — desde la otra punta del fichero. Eso es lo que tumbó el
+     intento de la Beta.801 y lo que lo hacía parecer intermitente en el emulador:
+     ganaba el que corriera el último. Al desmontarse, ARIA ya limpia por su cuenta. */
+  function _ariaChromeApply(){ try{ if(!_ariaMounted) return; if(_landMQ && _landMQ.matches){ document.documentElement.classList.add('chrome-off'); } else { document.documentElement.classList.remove('chrome-off'); } }catch(e){} }
   function _ariaChromeTap(e){ try{ if(!(_ariaMounted&&_landMQ&&_landMQ.matches))return; if(e.target.closest&&e.target.closest('button,input,select,textarea,a,label,[role=button],#ar-tr,#ar-bar,#ar-set'))return; document.documentElement.classList.toggle('chrome-off'); }catch(_e){} }
   try{ if(_landMQ){ if(_landMQ.addEventListener) _landMQ.addEventListener('change',_ariaChromeApply); else _landMQ.addListener(_ariaChromeApply); } }catch(e){}
   try{ window.addEventListener('orientationchange', function(){ setTimeout(_ariaChromeApply,180); }); }catch(e){}
@@ -56957,6 +57449,11 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   /* !important porque algún scroller lleva su propio padding con más especificidad
      (Upgrade). No se pierde nada: el listener guarda el padding original y lo SUMA
      a la altura de la cabecera antes de escribir --land-hdr. */
+  /* ⚠ SIN transición en el padding: `measureActive` corre dos veces tras cada
+     giro (60 ms y 350 ms) y la segunda corrige a la primera — con transición,
+     la reserva se animaba DOS veces y eso es justo la intermitencia de ajuste
+     que se veía. Puesto de golpe no se nota: lo tapa el propio movimiento del
+     cromo, que sí va animado. */
   .js-land-scroller{padding-top:var(--land-hdr,0px)!important}
   /* Reserva de ABAJO: sólo la necesitan las secciones cuyo cromo inferior también
      flota (CAFI y SkyView); en el resto la nav ya está fija fuera del scroller. */
@@ -56972,6 +57469,21 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
     transition:transform .17s cubic-bezier(.22,.61,.36,1);
     will-change:transform;backface-visibility:hidden;
   }
+  /* ★ Al GIRAR se usa una curva más larga y con más frenada. Al hacer scroll la
+     de .17s es la correcta —tiene que sentirse inmediata, va pegada al dedo—,
+     pero en el giro no hay dedo: hay un cambio de escena, y ahí lo que se lee
+     bien es un movimiento que arranca decidido y se posa. */
+  html.chrome-soft .screen > .inner-header,
+  html.chrome-soft #scr-home > .dh-header,
+  html.chrome-soft #scr-logbook > #ld-hero-hdr,
+  html.chrome-soft #scr-cafi .context-bar,
+  html.chrome-soft #scr-cafi .input-area,
+  html.chrome-soft #skyview-react-root > div > .sv-chrome,
+  html.chrome-soft #skyview-react-root .sv-stick,
+  html.chrome-soft #btabs{
+    transition:transform .24s cubic-bezier(.25,.8,.3,1)!important;
+  }
+
   html.chrome-off .screen > .inner-header,
   html.chrome-off #scr-home > .dh-header,
   html.chrome-off #scr-logbook > #ld-hero-hdr{transform:translate3d(0,-100%,0)}
@@ -57060,13 +57572,21 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
      del cromo—, así que al apartarse las barras se quedaba clavada a media altura
      con un hueco vacío encima. Sube exactamente lo mismo que ellas y se lee
      arriba del todo, que es donde se mira de un vistazo. */
-  #skyview-react-root .sv-stick{
-    transition:transform .17s cubic-bezier(.22,.61,.36,1);
-    will-change:transform;
-  }
-  html.chrome-off #skyview-react-root .sv-stick{
-    transform:translate3d(0,calc(-1 * var(--land-hdrh,0px)),0);
-  }
+  /* ── NOTAM · la cabecera de severidad se ancla ARRIBA DEL TODO ──────────────
+     `position:sticky; top:0` se pega al borde del PADDING del scroller, que aquí
+     reserva la altura del cromo: la cabecera se quedaba clavada a media pantalla
+     y encima de ella se seguía viendo el NOTAM desfilando. Subiendo el ancla lo
+     que mide el cromo, se pega donde el piloto la busca. Se toca `top` y no
+     `transform` a propósito: `top` sólo actúa cuando ya está pegada, así que
+     mientras va con el resto del scroll no se mueve ni tapa nada. */
+  /* ★ En horizontal NADA se queda pegado arriba. Alto sobra el que sobra —unos
+     390 px— y una barra clavada se come una fila entera de contenido. Además,
+     subir un elemento pegajoso por encima del cromo replegado lo hacía aterrizar
+     ENCIMA de la cinta de aeropuertos: no era que la tira fuera transparente,
+     es que había dos cosas ocupando el mismo sitio. Todo va con el scroll. */
+  #skyview-react-root .b-sevstick{position:static!important}
+
+  #skyview-react-root .sv-stick{position:static!important;transform:none!important}
 
   /* ── ARIA · dos columnas ────────────────────────────────────────────────────
      Medido a 852×393: el panel de control (#ar-deck) se llevaba 181px —el 46% de
@@ -57140,6 +57660,13 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   // en ARIA y ya no veías ni las pestañas ni la caja de preguntar. Volver a
   // mostrarlas no lleva puerta: ante la duda, visibles.
   var lastGesture = 0;
+  /* ★ Ventana en la que manda el repliegue automático del giro. Mientras dure,
+     NADIE devuelve las barras solo: ni la rama de "scroller nuevo" (al girar la
+     pantalla se rehace), ni la de "estás arriba del todo" (al girar scrollTop es
+     0), ni el segundo y tercer `reset()` del mismo giro. Se acaba antes de tiempo
+     en cuanto el piloto sube con el dedo de verdad: pedirlas siempre gana. */
+  var landAuto = 0;
+  var wasLand = MQ.matches;   // para detectar el FLANCO vertical → horizontal
   var GESTURE_MS = 1200;   // margen para la inercia de iOS tras soltar el dedo
   ['touchstart','touchmove','wheel','pointerdown','keydown'].forEach(function(ev){
     document.addEventListener(ev, function(){ lastGesture = Date.now(); }, {passive:true, capture:true});
@@ -57181,6 +57708,10 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
     for(var i = 0; i < sv.length; i++) (i === sv.length - 1 ? bot : top).push(sv[i]);
     return { top: top, bot: bot };
   }
+  /* Escribe una variable CSS SÓLO si cambia de valor. La segunda medida tras el
+     giro suele dar lo mismo, y reescribirla invalida el estilo de todo el
+     subárbol en plena animación. */
+  function setVar(node, k, v){ if(node.style.getPropertyValue(k) !== v) node.style.setProperty(k, v); }
   function measure(el){
     if(!el) return;
     var scr = el.closest && el.closest('.screen');
@@ -57201,10 +57732,11 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
       return;
     }
     var c = chromeOf(scr);
-    // Se mide con las barras VISIBLES: con .chrome-off puesto la cabecera está
-    // desplazada y, aunque su altura no cambie, se evita medir en pleno transform.
-    var wasOff = document.documentElement.classList.contains('chrome-off');
-    if(wasOff) document.documentElement.classList.remove('chrome-off');
+    // ★ NO se quita `chrome-off` para medir. Se hacía, y con la transición de .17s
+    //   puesta eso ANIMABA el cromo adentro y afuera; como `measureActive` corre dos
+    //   veces tras cada giro (60ms y 350ms), salían dos destellos. Y no hace falta:
+    //   `chrome-off` sólo aplica `translate3d`, y una traslación no cambia el
+    //   `offsetHeight` ni la altura del rect. Se mide tal cual.
     // ★ offsetHeight y NO getBoundingClientRect: SkyView se pinta dentro de un
     // contenedor con zoom:1.35, así que el rect sale en píxeles de PANTALLA (52)
     // mientras que el padding que escribimos se interpreta en los del contenedor
@@ -57218,21 +57750,21 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
     // SkyView está en display:none y no cuenta).
     var bt = document.getElementById('btabs');
     var btH = (bt && getComputedStyle(bt).display !== 'none') ? Math.round(bt.getBoundingClientRect().height) : 0;
-    if(wasOff) document.documentElement.classList.add('chrome-off');
-    el.style.setProperty('--land-hdr', (el.__landBase + hTop) + 'px');
-    if(hBot) el.style.setProperty('--land-ftr', (el.__landBaseB + hBot + btH) + 'px');
+
+    setVar(el, '--land-hdr', (el.__landBase + hTop) + 'px');
+    if(hBot) setVar(el, '--land-ftr', (el.__landBaseB + hBot + btH) + 'px');
     else el.style.removeProperty('--land-ftr');
     // En la PANTALLA (no en el scroller): las barras flotantes son hermanas del
     // scroller, no descendientes, y también necesitan leerlas.
-    scr.style.setProperty('--land-hdr1', h1 + 'px');
+    setVar(scr, '--land-hdr1', h1 + 'px');
     // Cromo de arriba ENTERO (sin el padding que ya tuviera el scroller): es lo que
     // suben los elementos "pegajosos" de dentro —la barra del mes del Logbook, la
     // tira del WX— para acabar arriba del todo y no clavados a media altura.
-    scr.style.setProperty('--land-hdrh', hTop + 'px');
+    setVar(scr, '--land-hdrh', hTop + 'px');
     // Altura de la barra de MÁS ABAJO: es sobre la que se apoya la de encima (la
     // caja de preguntar de ARIA se posa en la barra de pestañas de SkyView).
-    scr.style.setProperty('--land-ftr1', (c.bot.length ? (c.bot[c.bot.length-1].offsetHeight || 0) : 0) + 'px');
-    scr.style.setProperty('--land-btabs', btH + 'px');
+    setVar(scr, '--land-ftr1', (c.bot.length ? (c.bot[c.bot.length-1].offsetHeight || 0) : 0) + 'px');
+    setVar(scr, '--land-btabs', btH + 'px');
   }
 
   // ¿Es este el contenedor que hace de scroll PRINCIPAL de una sección?
@@ -57255,14 +57787,24 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   // fallo: no se ejecuta si la pestaña no está componiendo.
   function evaluate(el){
     var y = el.scrollTop;
-    if(el !== lastEl){ lastEl = el; lastY = y; acc = 0; measure(el); show(); return; }
+    if(el !== lastEl){
+      lastEl = el; lastY = y; acc = 0; measure(el);
+      /* Al girar, el scroller que emite el primer evento NO es el que había
+         antes (la pantalla se rehace), y esta rama devolvía las barras justo
+         después de haberlas replegado. Medido en la traza: dos set(false)
+         seguidos con el repliegue recién hecho. */
+      if(Date.now() >= landAuto) show();
+      return;
+    }
     // Ventana de asentamiento tras entrar en una sección/pestaña: ahí el propio
     // panel se coloca solo (ARIA baja al último mensaje, el Logbook recupera su
     // posición) y ese desplazamiento PROGRAMADO no es un gesto del piloto. Sin
     // esto, al abrir ARIA las barras se apartaban de entrada y se llevaban por
     // delante la caja de preguntar antes de que a nadie le diera tiempo a tocar.
     if(Date.now() < settleUntil){ lastY = y; acc = 0; return; }
-    if(y <= TOP_ZONE){ lastY = y; acc = 0; show(); return; }
+    // Al girar se está en scrollTop 0, así que esta cortesía deshacía el repliegue
+    // automático antes de que el piloto viera nada.
+    if(y <= TOP_ZONE){ lastY = y; acc = 0; if(Date.now() >= landAuto) show(); return; }
     // Sobre-scroll (el rebote elástico de iOS al llegar a un extremo): la posición se
     // sale del rango y va y viene sola. No es un gesto: no cuenta.
     var max = el.scrollHeight - el.clientHeight;
@@ -57275,7 +57817,7 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
     if((acc > 0) !== (d > 0)) acc = 0;
     acc += d;
     if(acc >= HIDE_AT){ if(Date.now() - lastGesture < GESTURE_MS) set(true); }
-    else if(acc <= -SHOW_AT) set(false);
+    else if(acc <= -SHOW_AT){ landAuto = 0; set(false); }
   }
 
   // ★ ARIA lleva su propio cromo en horizontal: lo aparta al montarse y un TOQUE en
@@ -57349,7 +57891,27 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   // navegador aún está recolocando cuando salta el evento y una medida tomada ahí
   // sale mal.
   function reset(){
-    lastEl = null; acc = 0; show();
+    lastEl = null; acc = 0;
+    /* ★ Sólo en el FLANCO vertical → horizontal. Con `resize` a secas se
+       replegaría también al abrir el teclado, y en CAFI eso se lleva por delante
+       la caja de escribir. En ARIA no se toca: ese panel manda sobre su cromo. */
+    var isLand = MQ.matches;
+    var entra = isLand && !wasLand;
+    wasLand = isLand;
+    if(entra && !ariaOwnsChrome()){
+      /* La ventana de gracia se abre YA (nadie puede deshacerlo mientras tanto),
+         pero el movimiento espera a que el sistema termine de girar: encimarlo al
+         reflow es lo que se veía como un ajuste a saltos. */
+      landAuto = Date.now() + 2500;
+      var raiz = document.documentElement;
+      clearTimeout(reset.__t);
+      reset.__t = setTimeout(function(){
+        raiz.classList.add('chrome-soft');
+        set(true);
+        setTimeout(function(){ raiz.classList.remove('chrome-soft'); }, 300);
+      }, 60);
+    }
+    else if(Date.now() >= landAuto){ landAuto = 0; show(); }
     settleUntil = Date.now() + 700;
     setTimeout(measureActive, 60);
     setTimeout(function(){
@@ -57373,7 +57935,9 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   }, true);
   // Las pantallas se activan por clase, sin evento propio: se observa el cambio.
   try{
-    var mo = new MutationObserver(function(){ lastEl = null; acc = 0; show(); settleUntil = Date.now() + 700; setTimeout(measureActive, 40); });
+    // Al girar, la pantalla activa se repinta y este observador saltaba: otro
+    // camino más por el que volvían las barras recién replegadas.
+    var mo = new MutationObserver(function(){ lastEl = null; acc = 0; if(Date.now() >= landAuto) show(); settleUntil = Date.now() + 700; setTimeout(measureActive, 40); });
     document.querySelectorAll('.screen').forEach(function(s){ mo.observe(s, {attributes:true, attributeFilter:['class']}); });
   }catch(e){}
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', measureActive);
