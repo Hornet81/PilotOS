@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.901">
+  <meta name="version" content="Estable.902">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.901","builtAt":"2026-09-16T19:37:52Z","commit":"789d830","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.902","builtAt":"2026-09-16T19:37:52Z","commit":"789d830","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -46042,7 +46042,7 @@ function rosterRenderActivitiesList(dateStr, entries){
     row.innerHTML =
       '<div style="width:4px;min-width:4px;height:36px;border-radius:3px;background:'+cfg.bg+'"></div>'
       + '<div style="flex:1;min-width:0">'
-      + '<div style="font-size:11px;font-weight:800;color:'+cfg.bg+';text-transform:uppercase;letter-spacing:.5px">'+legLabel+'</div>'
+      + '<div style="font-size:11px;font-weight:800;color:'+cfg.bg+';text-transform:uppercase;letter-spacing:.5px">'+legLabel+(f.lineCheck?' <span style="color:#92400E;background:#FEF3C7;border:1px solid #FCD34D;border-radius:4px;padding:0 5px;font-size:9px;letter-spacing:.2px">✓ LINE CHECK</span>':'')+'</div>'
       + '<div style="font-size:12px;font-weight:700;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(f.flightNum||'—')+(route?' · '+route:'')+'</div>'
       + timeHTML
       + '</div>'
@@ -49839,7 +49839,8 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
     // ── Flight duty (incl. type "Default" = jornada de posicionamiento suelta) ──
     if(type === 'flight' || type === 'default'){
       var dutyCode = text.split('\n')[0].trim();
-      var _dutyCheck = _ecDayCheck(date);   // line check en esta jornada (indicador "k" de eCrews)
+      // Line check POR-LEG: tokens de Indicators[date] (",k ,k "), se alinean abajo con los legs.
+      var _indTokens = String((EC_IND && EC_IND[date]) || '').split(',');
       var report   = ev.report || '';
       var debrief  = ev.debrief || '';
       var delay    = ev.delay || '';
@@ -49902,7 +49903,12 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
       }).length;
       var markPositioning = isDeadhead && flightLegCount === 1;
 
-      legLines.forEach(function(line){
+      // Los tokens de Indicators se ALINEAN A LA DERECHA con los legs: ",k ,k " sobre 4 legs
+      // → el "k" cae en los 2 últimos (día 7: 3708/3709 = BCN-MAH-BCN). Solo ese leg es check.
+      var _indPad = legLines.length - _indTokens.length;
+      function _legIsCheck(i){ var _ti = i - _indPad; return _ti >= 0 && _indTokens[_ti] != null && String(_indTokens[_ti]).trim().toLowerCase() === 'k'; }
+
+      legLines.forEach(function(line, _legIdx){
         line = line.trim();
         // eCrews marca las legs de POSICIONAMIENTO con un * delante del aeropuerto
         // (p.ej. "3535 - *IBZ (A1852) - *BCN (A1954)"). Detectarlo ANTES de limpiar el
@@ -49917,6 +49923,7 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
         // (⁺¹|+1) opcional tras los 4 dígitos = esa hora cae en el día NATURAL siguiente.
         var m = line.match(/^([A-Z0-9]+)\s+-\s+([A-Z]{3})\s+\(([AES]?)(\d{4})(⁺¹|\+1)?\)\s+-\s+([A-Z]{3})\s+\(([AES]?)(\d{4})(⁺¹|\+1)?\)/);
         if(!m) return;
+        var _legCheck = _legIsCheck(_legIdx);   // ¿este leg es line check? (indicador "k" de eCrews)
 
         var fNum       = m[1];
         var dep        = m[2];
@@ -49981,7 +49988,7 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
               checkin: report, debrief: debrief, dutyCode: dutyCode,
               airReturn: true, source: 'ECREWS'
             };
-            if(_dutyCheck) arEntry.lineCheck = true;
+            if(_legCheck) arEntry.lineCheck = true;
             if(legActual){ arEntry.std_actual = tDep; arEntry.sta_actual = tArr; }
             else if(legEstim){ arEntry.std_estimated = tDep; arEntry.sta_estimated = tArr; }
             else { arEntry.std = tDep; arEntry.sta = tArr; }
@@ -50016,7 +50023,7 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
           dutyH:   bdt.Item2 || '',
           source:  'ECREWS'
         };
-        if(_dutyCheck) legEntry.lineCheck = true;
+        if(_legCheck) legEntry.lineCheck = true;
         // Posicionamiento: marca * de eCrews —en la propia leg o en el resumen del
         // evento, por ruta o por número de vuelo— o, en su defecto, jornada deadhead
         // de UNA sola leg (heurística de respaldo cuando no hay ningún *).
