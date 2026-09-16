@@ -289,12 +289,29 @@ body{background:linear-gradient(160deg,#040d1a 0%,#071832 55%,#0a1e3a 100%);back
 .row.xp .logo-tile{transform:scale(1);opacity:1}
 .row.xp .mname{color:var(--acc)}
 .row.xp .open{color:var(--acc)}
-/* botón volver a la app (solo visible embebido en la app) */
-#g-close{display:none;position:fixed;top:calc(13px + env(safe-area-inset-top,0px));right:14px;z-index:60;
-  align-items:center;gap:7px;padding:8px 14px;border-radius:100px;cursor:pointer;
+/* mandos de la guía (solo visibles embebida en la app) ─────────────────────────
+   Los DOS van juntos y arriba, no al final: la guía son doce secciones y un
+   mando que sólo aparece tras scrollear hasta el fondo es un mando que no
+   existe para quien no scrollea. Y 44 px de alto — la lección de la papelera de
+   Gastos: un objetivo de 29 px se falla, y «he fallado el blanco» y «esto no
+   se puede hacer» se ven igual desde el asiento del piloto. */
+/* ⚠ Se VEN por defecto y es el JS quien los QUITA cuando la guía está suelta, y
+   no al revés. La hoja de Google Fonts del <head> bloquea la ejecución de todo
+   <script> hasta que resuelve, así que con la red lenta —o sin ella— los mandos
+   tardaban segundos en aparecer: el pilotó abría la guía y no tenía ni con qué
+   volver ni con qué apagarla. Embebida es como se abre siempre; suelta, en una
+   pestaña, es el caso raro y es el que puede permitirse un parpadeo. */
+#g-acts{display:flex;position:fixed;top:calc(13px + env(safe-area-inset-top,0px));right:14px;z-index:60;
+  gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100vw - 28px)}
+#g-acts.suelta{display:none}
+#g-acts button{display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:0 15px;
+  border-radius:100px;cursor:pointer;
   font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--white);
   background:rgba(7,20,40,.74);border:1px solid rgba(124,58,237,.32);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
-#g-close:hover{border-color:var(--cyan);color:var(--cyan)}
+#g-acts button:hover{border-color:var(--cyan);color:var(--cyan)}
+#g-acts button svg{flex:none}
+/* Pulsado: la guía se va enseguida, pero el mando lo confirma mientras se va. */
+#g-nunca.done{border-color:var(--cyan);color:var(--cyan);background:rgba(34,211,238,.14)}
 /* ── Ejemplos dentro de las secciones ── */
 .gx{margin-top:15px;display:flex;flex-direction:column;gap:9px}
 .gx-lbl{font-family:var(--mono);font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:var(--slate)}
@@ -343,7 +360,16 @@ body{background:linear-gradient(160deg,#040d1a 0%,#071832 55%,#0a1e3a 100%);back
 <div class="sky"><div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div></div>
 <div class="stars"></div>
 <div class="glow"></div>
-<button id="g-close">✕ Volver a la app</button>
+<div id="g-acts">
+  <!-- El icono va DIBUJADO (<path>), no escrito con un carácter: un glifo lo
+       pinta la fuente del móvil del piloto y no el código — la luna de las
+       pernoctas. Ojo tachado = «no me la vuelvas a enseñar». -->
+  <button id="g-nunca" type="button" title="No volver a abrir la guía al entrar en la app">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg>
+    No volver a mostrar
+  </button>
+  <button id="g-close" type="button">✕ Volver a la app</button>
+</div>
 
 <div class="wrap">
 
@@ -728,11 +754,22 @@ document.querySelectorAll('.fb').forEach(function(b){
     r.addEventListener('click', function(e){ if(e.target.closest('.open')) return; r.classList.toggle('xp'); });
     r.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); nav(r); } });
   });
+  /* Los mandos sólo existen embebida en la app: suelta en una pestaña no hay
+     app a la que volver ni preferencia que guardar. */
+  var dentro = !!(window.parent && window.parent !== window);
+  var acts = document.getElementById('g-acts');
+  if(acts && !dentro) acts.classList.add('suelta');
   var cb = document.getElementById('g-close');
-  if(cb){
-    if(window.parent && window.parent !== window) cb.style.display = 'inline-flex';
-    cb.addEventListener('click', function(){ try{ parent.postMessage({ type:'pilotos-guide-close' }, '*'); }catch(e){} });
-  }
+  if(cb) cb.addEventListener('click', function(){ try{ parent.postMessage({ type:'pilotos-guide-close' }, '*'); }catch(e){} });
+  /* «No volver a mostrar»: la guía NO se guarda nada a este lado —vive en un
+     iframe con su propio origen en cuanto la app se sirva desde otro sitio, así
+     que su localStorage no es el de la app—. Quien decide y quien guarda es la
+     app, por la misma puerta que ya usa para cerrar. */
+  var nb = document.getElementById('g-nunca');
+  if(nb) nb.addEventListener('click', function(){
+    nb.classList.add('done');
+    try{ parent.postMessage({ type:'pilotos-guide-nunca' }, '*'); }catch(e){}
+  });
 })();
 </script>
 </body>

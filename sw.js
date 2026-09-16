@@ -1,7 +1,7 @@
 // PilotOS Service Worker
 // APP_VERSION lo reescribe scripts/stamp-version.js en cada deploy → cambia el
 // nombre del caché → los cachés de versiones viejas se borran al activar.
-const APP_VERSION = 'Estable.808';
+const APP_VERSION = 'Estable.898';
 
 const STATIC_CACHE  = 'pilotos-static-' + APP_VERSION;
 const FONT_CACHE    = 'pilotos-fonts-'  + APP_VERSION;
@@ -23,6 +23,7 @@ const PRECACHE_URLS = [
   // con red — y la primera visita no pasa por el Service Worker.
   'js/dia-libre.js',
   'js/roster-changes.js',
+  'js/roster-stats.js',
   // Beta.722 lo trajo y se quedó fuera de esta lista: `offline-test` lo cazó al
   // instante («ningún fichero propio falta sin red» → /js/ecrews-legs-import.js).
   // Un módulo nuevo en public/js/ que no se añada aquí funciona con cobertura y
@@ -36,10 +37,27 @@ const PRECACHE_URLS = [
   'js/relieve.js',
   'js/sigwx.js',
   'js/expense-engine.js',
+  // El mismo caso que `ecrews-legs-import.js` de dos avisos más arriba: llegó con
+  // el login de Microsoft y se quedó fuera de la lista. Sin él, la reja del MFA
+  // se queda sin su módulo en cuanto falta la red, y `window.MsMfa` es
+  // `undefined` — o sea que la guarda `window.MsMfa && …` devuelve undefined sin
+  // un solo error y el botón de entrar no hace NADA, que es el fallo mudo de
+  // siempre. Lo cazó `offline-test` («ningún fichero propio falta sin red»).
+  'js/ms-mfa.js',
+  // El idioma. Sin ellos, un piloto en inglés abre la app sin red y la ve en español.
+  'js/i18n.js',
+  'js/i18n-en.js',
+  'js/i18n-en-logbook.js',
+  'js/i18n-en-roster.js',
+  'js/i18n-en-skyview.js',
   'js/expense.js',
   'js/profile.js',
   'js/docs.js',
   'js/runways.js',
+  'js/airports-coords.js',
+  // Las islas pequeñas con aeropuerto. Sin esto, volando y sin red un St Barth
+  // vuelve a salir flotando sobre el mar.
+  'js/islas.js',
   'js/oes-figs.js',
   'js/qbank-lim.js',
   'js/qbank-elec.js',

@@ -581,43 +581,20 @@ window.pilotosParseRoute = parseRouteWithNames;
        corte: no era el zoom, era la otra tabla.
 
        Se hace una vez y se guarda: son 133 anillos y el mapa repinta a 60 Hz. */
-    var _costasCache = null, _costasFuente = null;
+    /* ⚠ LA COSTURA VIVE EN `coastline.js`, con el dato. Nació aquí y el mapa del
+       logbook, al pasar a ser mundial, necesitaba exactamente la misma: copiarla
+       habría sido ES_AIRPORTS / ES_IATA con una función. Esto ya dependía de
+       `window.COSTAS_MUNDO`, así que no añade dependencia — la hace explícita. Y
+       si algún día falta, se DICE en consola en vez de devolver la tierra sin
+       coser y dejar que la raya vuelva en silencio. */
+    var _avisado = false;
     function costasUnidas(land) {
-      if (_costasFuente === land && _costasCache) return _costasCache;
-      var out;
-      try {
-        var libres = land.map(function (r) { return r; });
-        var cerrado = function (r) { return r[0][0] === r[r.length - 1][0] && r[0][1] === r[r.length - 1][1]; };
-        var cambio = true;
-        while (cambio) {
-          cambio = false;
-          for (var i = 0; i < libres.length && !cambio; i++) {
-            var a = libres[i]; if (cerrado(a)) continue;
-            var fa = a[a.length - 1];
-            for (var j = 0; j < libres.length; j++) {
-              if (j === i) continue;
-              var b = libres[j]; if (cerrado(b)) continue;
-              if (b[0][0] === fa[0] && b[0][1] === fa[1]) {
-                libres[i] = a.concat(b.slice(1));
-                libres.splice(j, 1);
-                cambio = true; break;
-              }
-            }
-          }
-        }
-        /* La Antártida no se puede coser con nada: va de lon -180 a 180 por su
-           costa norte. Se le añaden las dos esquinas del polo para que el
-           relleno llegue abajo en vez de cortarse por una recta a -84,7°. */
-        out = libres.map(function (r) {
-          if (r.length > 40 && r[0][1] < -60 && r[r.length - 1][1] < -60 &&
-              Math.abs(r[0][0]) > 179 && Math.abs(r[r.length - 1][0]) > 179) {
-            return r.concat([[r[r.length - 1][0], -90], [r[0][0], -90]]);
-          }
-          return r;
-        });
-      } catch (e) { out = land; }
-      _costasFuente = land; _costasCache = out;
-      return out;
+      var f = (typeof W !== 'undefined' && W.pilotosCostasUnidas) ||
+              (typeof window !== 'undefined' && window.pilotosCostasUnidas);
+      if (typeof f === 'function') return f(land);
+      if (!_avisado) { _avisado = true;
+        try { console.warn('[sigwx] falta js/coastline.js → costas sin coser: vuelve la raya del antimeridiano'); } catch (e) {} }
+      return land;
     }
 
     var _relCache = {};
@@ -1537,35 +1514,19 @@ window.pilotosParseRoute = parseRouteWithNames;
     useEffect(function () { draw(); });
 
     /* ── cuánto sitio hay ────────────────────────────────────────────────
-       La barra de abajo se MIDE, no se cablea: se mira qué hay de verdad bajo
-       el dedo en el borde inferior y se sube hasta el bloque pegado ahí. Un
-       número fijo aquí volvería a desviarse el día que la barra cambie de alto
-       —que es exactamente lo que pasó con la ✕ del modo inspección—. */
-    function altoBarra() {
-      try {
-        var n = document.elementFromPoint(Math.round(window.innerWidth / 2), window.innerHeight - 6);
-        while (n && n !== document.body) {
-          var r = n.getBoundingClientRect(), cs = window.getComputedStyle(n);
-          if ((cs.position === 'sticky' || cs.position === 'fixed') &&
-              r.width > window.innerWidth * 0.9 && r.height > 40 && r.height < 180 &&
-              r.bottom > window.innerHeight - 6) return r.height;
-          n = n.parentElement;
-        }
-      } catch (e) {}
-      return 0;
-    }
-    /* ⚠ SkyView se pinta con un `transform: scale()`, así que lo que mide
-       `getBoundingClientRect` NO son los píxeles que hay que escribir en
-       `height`. La escala se deduce dividiendo lo pintado entre lo declarado;
-       sin esto el mapa se pasa un 35 % y se mete debajo de la barra. */
+       La barra de abajo se MIDE, no se cablea: un número fijo aquí volvería a
+       desviarse el día que la barra cambie de alto —que es exactamente lo que
+       pasó con la ✕ del modo inspección—.
+       ★ La medición vive en `window.svAltoLibre` (index.html) y NO se copia
+       aquí: la comparten esta carta y las tres pestañas de mapas Windy, que
+       tenían su propio 260 cableado. Dos geometrías para la misma pregunta es
+       `ES_AIRPORTS` / `ES_IATA`, y con píxeles los dos números salen
+       plausibles. Ahí se arregló además que la barra de SkyView es `absolute`
+       y la versión anterior sólo miraba `sticky|fixed`: devolvía 0 y esta
+       carta se dibujaba por DEBAJO de la barra. */
     function mide() {
       var el = wrapRef.current; if (!el || full) return;
-      var r = el.getBoundingClientRect();
-      var css = parseFloat(window.getComputedStyle(el).height) || 1;
-      var esc = r.height / css;
-      if (!(esc > 0.2 && esc < 5)) esc = 1;
-      var libre = (window.innerHeight - r.top - altoBarra() - 10) / esc;
-      var v = Math.max(200, Math.round(libre));
+      var v = window.svAltoLibre(el, 200);
       setAlto(function (prev) { return Math.abs(prev - v) > 2 ? v : prev; });
     }
     useEffect(function () { mide(); });

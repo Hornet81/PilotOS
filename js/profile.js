@@ -20,6 +20,19 @@
     nombre: '', licencia: '', autoridad: '', tipoLicencia: '',
     compania: '', base: '', flota: '', empleado: '',
     rol: '',            // CPT | FO  -> manda sobre lo que hoy DEDUCE el logbook
+    /* CARGOS en la compañía: TRI · TRE · LSC · GTI, varios a la vez. De aquí sale
+       el rol que se PRESELECCIONA al traerse una sesión de simulador del roster:
+       hasta tenerlo, un TRI/TRE que IMPARTE cobraba sus simuladores como ALUMNO
+       (119,03 € en vez de 800,99 / 924,22), porque `pc_tri`/`pc_tre` sólo se
+       rellenan desde el logbook y del roster no llegaba nada.
+
+       ⚠ Va como CADENA separada por comas, no como array, y no es cosmética:
+       `POST /api/profile` (server.js) sólo copia `string | boolean | number`, así
+       que un array se descartaría EN SILENCIO y el cargo no saldría nunca de este
+       aparato — el 0 mudo, en la sincronización. Como cadena sincroniza hoy mismo
+       y sin tocar el backend, que además es lo que hace que funcione en beta: una
+       ruta o un filtro nuevos del servidor nacen rotos en beta hasta producción. */
+    cargos: '',
     idioma: '',         // es | en   -> ES el idioma de la app: el selector ES/EN de
                         // ARIA escribe AQUÍ (window.pilotosSetIdioma), no un ajuste
                         // aparte. Hubo las dos precedencias posibles entre este campo
@@ -64,6 +77,29 @@
     try { localStorage.removeItem(PROF_KEY); } catch (e) {}
     try { if (typeof window.updateUserAvatar === 'function') window.updateUserAvatar(window.currentUser || {}); } catch (e) {}
     return _avDel();
+  }
+
+  /* ── LOS CARGOS, en un solo sitio ─────────────────────────────────────────
+     Se guardan en cadena (ver arriba) y se leen en lista. Quien los quiera los
+     pide aquí: escribir un segundo `split(',')` por la app es como empiezan los
+     dos criterios para la misma pregunta. */
+  var PP_CARGOS = ['TRI', 'TRE', 'LSC', 'GTI'];
+  function ppCargos() {
+    return String(PROFILE.cargos || '').toUpperCase().split(',')
+      .map(function (c) { return c.trim(); })
+      .filter(function (c) { return PP_CARGOS.indexOf(c) >= 0; });
+  }
+  function ppTieneCargo(c) { return ppCargos().indexOf(String(c || '').toUpperCase()) >= 0; }
+  function ppToggleCargo(c) {
+    c = String(c || '').toUpperCase();
+    if (PP_CARGOS.indexOf(c) < 0) return ppCargos();
+    var l = ppCargos(), i = l.indexOf(c);
+    if (i >= 0) l.splice(i, 1); else l.push(c);
+    /* Se guardan EN EL ORDEN de la lista, no en el que los pulsó el piloto: así el
+       mismo juego de cargos da siempre la misma cadena y no sube al servidor una
+       versión nueva del perfil por haberlos tocado en otro orden. */
+    ppSave({ cargos: PP_CARGOS.filter(function (x) { return l.indexOf(x) >= 0; }).join(',') });
+    return ppCargos();
   }
 
   // ── ÚNICA puerta de escritura ────────────────────────────────────────────
@@ -555,6 +591,24 @@
       '#scr-perfil .pp-in::placeholder{color:var(--ppDimr);opacity:1}',
       '#scr-perfil select.pp-in{width:128px}',
       'html.day #scr-perfil select.pp-in{background:#F1F7FC}',
+      /* ── Cargos en la compañía ────────────────────────────────────────────
+         Van en su propia fila y no en un <select>: son VARIOS a la vez, y un
+         desplegable de uno solo obligaría a elegir entre TRI y TRE a quien es
+         las dos cosas. El objetivo táctil es de 44 px de alto
+         (la papelera de Gastos medía 21 y era intocable).
+         Las DOS paletas se declaran: encendido es el acento de cada tema con su
+         texto encima —cian sobre oscuro de noche, azul con blanco de día—, que
+         es lo que permite medir el contraste en vez de suponerlo. */
+      'html:not(.day) #scr-perfil{--ppOn:#22D3EE;--ppOnTx:#06232B}',
+      'html.day #scr-perfil{--ppOn:#0369A1;--ppOnTx:#FFFFFF}',
+      '#scr-perfil .pp-cargos{display:flex;flex-wrap:wrap;gap:7px;padding:2px 13px 12px}',
+      '#scr-perfil .pp-cargo{font-family:' + M + ';font-size:12px;font-weight:700;letter-spacing:.4px;',
+      '  min-height:44px;min-width:54px;padding:6px 13px;border-radius:10px;cursor:pointer;',
+      '  background:rgba(127,127,127,.12);border:1px solid var(--ppLine);color:var(--ppTxt);',
+      '  display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.25}',
+      '#scr-perfil .pp-cargo small{font-family:inherit;font-size:9px;font-weight:600;opacity:.72;letter-spacing:0}',
+      '#scr-perfil .pp-cargo.on{background:var(--ppOn);border-color:var(--ppOn);color:var(--ppOnTx)}',
+      '#scr-perfil .pp-cargo.on small{opacity:.88}',
       '#scr-perfil .pp-note{font-size:11px;color:var(--ppDim);line-height:1.5;padding:9px 14px 12px}',
       /* interruptor */
       '#scr-perfil .pp-sw{width:44px;height:25px;border-radius:13px;background:rgba(127,127,127,.38);position:relative;',
@@ -673,6 +727,32 @@
       ' onchange="PilotProfile.save({' + campo + ':this.value})"></div>';
   }
 
+  /* La fila de cargos. El subtítulo dice PARA QUÉ sirve, que es la mitad del
+     arreglo: un campo que no explica qué mueve no lo rellena nadie, y si no lo
+     rellenan el simulador impartido se sigue cobrando de alumno. */
+  var _CARGO_TXT = {
+    TRI: ['TRI', 'instructor'],
+    TRE: ['TRE', 'examinador'],
+    LSC: ['LSC', 'línea'],
+    GTI: ['GTI', 'tierra']
+  };
+  function _filaCargos() {
+    var puestos = ppCargos();
+    var chips = PP_CARGOS.map(function (c) {
+      var on = puestos.indexOf(c) >= 0;
+      return '<div class="pp-cargo' + (on ? ' on' : '') + '" role="button" tabindex="0"' +
+        ' aria-pressed="' + (on ? 'true' : 'false') + '"' +
+        ' onclick="PilotProfile.toggleCargo(\'' + c + '\');ppRenderScreen()">' +
+        _esc(_CARGO_TXT[c][0]) + '<small>' + _esc(_CARGO_TXT[c][1]) + '</small></div>';
+    }).join('');
+    return '<div class="pp-row" style="border-bottom:none;padding-bottom:5px"><div class="pp-ico">🎓</div>' +
+      '<div class="pp-lbl"><b>Cargo en la compañía</b><span>' +
+        (puestos.length ? _esc(puestos.join(' · ')) : 'Ninguno · marca los que tengas') +
+      '</span></div></div>' +
+      '<div class="pp-cargos">' + chips + '</div>' +
+      '<div class="pp-note" style="padding-top:0">Con esto puesto, al traerte un simulador del roster al logbook viene ya marcado como <b>impartido</b>. Sin ello se cuenta como formación de alumno — 119,03 € en vez de 800,99 (TRI) o 924,22 (TRE).</div>';
+  }
+
   function ppRenderScreen() {
     ppCss();
     var cont = document.getElementById('pp-screen-body');
@@ -740,7 +820,8 @@
           '<option value=""' + (!PROFILE.rol ? ' selected' : '') + '>Automático</option>' +
           '<option value="CPT"' + (PROFILE.rol === 'CPT' ? ' selected' : '') + '>Comandante</option>' +
           '<option value="FO"' + (PROFILE.rol === 'FO' ? ' selected' : '') + '>Primer oficial</option>' +
-        '</select></div></div>';
+        '</select></div>' +
+      _filaCargos() + '</div>';
 
     h += '<div class="pp-sh">Preferencias</div><div class="pp-card">' +
       '<div class="pp-row"><div class="pp-ico">🗣️</div>' +
@@ -934,13 +1015,606 @@
   window.ppRenderScreen = ppRenderScreen;
   window.ppOnFoto = ppOnFoto;
 
+  /* ══ EL ALTA DEL PERFIL — el primer login pregunta quién eres ════════════════
+     Hasta Beta.813 el perfil nacía VACÍO y la app rellenaba los huecos ella sola:
+     el nombre grande de Mi perfil decía «Capitán» y la Especialidad del Pay Check
+     nacía en «Comandante (1P)» porque es el primer <option>. Ninguna de las dos
+     era una elección del piloto, y desde fuera un valor por defecto y una elección
+     se ven exactamente igual — con la diferencia de que del segundo salen tarifas
+     del convenio (la invasión de día libre de un CMD son 547,16 € en la franja de
+     arriba; la de un FO, otra cifra). Es la familia del avión inventado: un dato
+     falso presentado como bueno es peor que no tener ninguno.
+
+     Así que se PREGUNTA, una vez, al entrar. Reglas de la hoja:
+
+     · **El ROL es obligatorio** y no viene preseleccionado. Es justamente el dato
+       que la app se estaba inventando: dejar uno marcado de salida reproduciría
+       el fallo con otra cara. Lo demás es opcional y se puede completar luego.
+     · **Sólo sale si la NUBE ya ha contestado.** El perfil sincroniza entre
+       aparatos: preguntando antes del pull, el piloto que ya lo rellenó en el iPad
+       vuelve a rellenarlo en el móvil. Es «una bandera vieja no manda sobre la
+       aritmética» — aquí, un perfil local vacío que la nube desmiente.
+     · **Ni a quien ya lleva tiempo dentro** (ver `_appVirgen`): con roster,
+       logbook o notas guardadas no es un primer login, y ahí el rol se deduce
+       solo (`_ldDominantRole`) o se pone en Mi perfil, sin pared de por medio.
+     · Y **no se guarda a medias**: un solo `ppSave` al final, que es la única
+       puerta de escritura del perfil. */
+  var ALTA_KEY = 'pilotos_perfil_alta';
+
+  /* ── «Me aparece CADA VEZ» ────────────────────────────────────────────────
+     La marca era una fecha suelta en `pilotos_perfil_alta`, y eso la dejaba en
+     manos de DOS cosas que la borran a propósito:
+
+     · **`clearAllUserData()` barre las claves `pilotos_*`** — y lo llaman el
+       logout, el «cerrar sesión» del menú y el cambio de cuenta. O sea que el
+       MISMO piloto que sale y vuelve a entrar era, para esta hoja, un piloto
+       nuevo. La marca lleva ahora el UID dentro y la clave está en la lista de
+       supervivientes del barrido: sobrevive a un logout, y ante otra cuenta no
+       vale, que es justo lo que tiene que pasar.
+     · **Se escribía SÓLO al pulsar «Empezar →»**. Quien se la quitaba de encima
+       recargando —que es lo que hace cualquiera con una pared que no se puede
+       cerrar— se la encontraba otra vez en el arranque siguiente, y en el
+       siguiente. Ahora se marca al ABRIRLA: es una bienvenida de una vez, no un
+       peaje, y el rol se pone en Mi perfil cuando se quiera. (Es lo mismo que se
+       arregló en la guía, que se marcaba al PROGRAMARLA y se quemaba sin que
+       nadie la viera: ahí el arreglo fue marcarla al abrirla de verdad. Aquí,
+       igual — al abrirla, no antes.) */
+  function _uid() {
+    try {
+      var u = JSON.parse(localStorage.getItem('cafi_auth_user') || '{}');
+      return String(u.id || u.email || '');
+    } catch (e) { return ''; }
+  }
+  function ppAltaHecha() {
+    try {
+      var v = localStorage.getItem(ALTA_KEY);
+      if (!v) return false;
+      /* Una marca vieja (sin UID) vale para el piloto que ya la tenía: no se le
+         puede volver a preguntar por haber cambiado el formato. */
+      if (v.charAt(0) !== '{') return true;
+      var o = JSON.parse(v);
+      return !o.uid || !_uid() || o.uid === _uid();
+    } catch (e) { return false; }
+  }
+  function ppAltaMarca() {
+    try { localStorage.setItem(ALTA_KEY, JSON.stringify({ uid: _uid(), at: new Date().toISOString() })); } catch (e) {}
+  }
+
+  /* ¿Es de verdad un PRIMER login? Lo pedido es «que en el primer login obligue a
+     rellenar el formulario», y un primer login es, por definición, una sesión en
+     la que el aparato no guarda todavía nada del piloto. A quien ya tiene su
+     roster, su logbook o sus notas de gasto dentro no se le levanta una pared en
+     mitad de un arranque cualquiera: lleva tiempo usando la app, y el sitio de
+     ese campo es Mi perfil, donde siempre ha estado. Una hoja obligatoria que
+     aparece de sorpresa a alguien que sólo venía a mirar su roster es justo la
+     clase de emboscada que esta app no hace. */
+  var RASTRO = ['pilotOS_logbook_v1', 'pilotOS_roster', 'pilotos_gastos_manual',
+                'pilotos_gastos_enviadas', 'pilotos_payProfile', 'pilotos_pay_manual'];
+  /* ⚠ ¿EN BLANCO CUÁNDO? — Beta.889
+     `ppAltaToca` se decide DESPUÉS de que conteste la nube (el perfil sincroniza
+     y preguntando antes se le repetiría la hoja a quien ya la rellenó en el
+     iPad). Pero en beta `/api/profile` sale a PRODUCCIÓN, y un Railway
+     despertándose tarda segundos — y en esos segundos la app ya está
+     restaurando el roster y el logbook de la sesión nueva. Medido con la nube a
+     3 s: al decidir, `pilotOS_roster` ya estaba escrito, `_appVirgen()` daba
+     FALSO y la hoja **no salía nunca**. Con la nube rápida salía: o sea que lo
+     que decidía si un piloto ve la bienvenida era la latencia del servidor.
+     Así que se APUNTA al entrar —el instante honesto: «¿estaba en blanco este
+     aparato cuando empezó la sesión?»— y la respuesta de la nube ya no puede
+     cambiarla. Es «una medida que entra en su propio cálculo se toma en
+     REPOSO», del mapa que crecía al rodar. */
+  var _VIRGEN_SESION = null;
+  function ppNotaVirgen() { _VIRGEN_SESION = _appVirgen(); return _VIRGEN_SESION; }
+  function _virgenSesion() { return _VIRGEN_SESION === null ? _appVirgen() : _VIRGEN_SESION; }
+
+  function _appVirgen() {
+    try {
+      for (var i = 0; i < RASTRO.length; i++) {
+        var v = localStorage.getItem(RASTRO[i]);
+        if (v && v !== '[]' && v !== '{}' && v !== 'null') return false;
+      }
+    } catch (e) {}
+    return true;
+  }
+
+  /* ¿Toca preguntar? Una sola función lo decide: con la respuesta repartida entre
+     el arranque y el login acabarían discrepando y la hoja saldría dos veces. */
+  function ppAltaToca() {
+    if (!_tok()) return false;                       // sin sesión no hay a quién preguntar
+    if (PROFILE.rol) return false;                   // ya lo dijo (aquí o en el otro aparato)
+    if (ppAltaHecha()) return false;
+    if (!_virgenSesion()) return false;              // no es su primer login (apuntado AL ENTRAR)
+    if (document.getElementById('pp-alta')) return false;
+    return true;
+  }
+
+  function ppAltaSiToca() { if (ppAltaToca()) ppAltaAbrir(); }
+
+  function ppAltaCss() {
+    if (document.getElementById('pp-alta-style')) return;
+    var st = document.createElement('style');
+    st.id = 'pp-alta-style';
+    var M = "'Space Mono',monospace";
+    /* Hoja propia y no `#scr-perfil`: vive colgada de <body> para que salga esté
+       el piloto donde esté, así que no puede heredar los tokens de esa pantalla.
+       Las dos paletas se declaran aquí — un bloque que cambia de fondo declara
+       sus dos temas, y de eso este proyecto ya lleva varias rondas. */
+    st.textContent = [
+      /* ── LA ESCENA ────────────────────────────────────────────────────────
+         El velo es OPACO y pinta su propio amanecer. No es estética: un cristal
+         es translúcido por definición, así que el contraste de lo que se lee
+         encima depende de lo que haya DETRÁS — y si detrás está la app, depende
+         de en qué pantalla estuviera el piloto. Con la escena puesta por
+         nosotros el compuesto es el mismo siempre y se puede MEDIR, que es la
+         regla del panel opaco de la tarjeta del día aplicada a un cristal.
+         Dibujada, no fotografiada: una foto son cientos de KB que hay que
+         precachear en el `sw.js` para que exista volando, hay que licenciarla, y
+         detrás de un formulario compite con lo que se está leyendo. */
+      '#pp-alta{position:fixed;inset:0;z-index:100000;display:flex;align-items:flex-end;',
+      '  justify-content:center;overflow:hidden;padding:0 0 env(safe-area-inset-bottom,0px)}',
+      'html:not(.day) #pp-alta{background:#02080F}',
+      'html.day #pp-alta{background:#8FCDF0}',
+      '#pp-alta .pa-sky{position:absolute;inset:0;overflow:hidden;pointer-events:none}',
+      /* ⚠ `pointer-events:none` es FUNCIONAL, no cosmético: el toque en el velo
+         se responde con `e.target === ov`, así que una capa que recibiera el
+         dedo dejaría el zarandeo MUDO justo donde el piloto toca. */
+      'html:not(.day) #pp-alta .pa-sky{background:',
+      '  radial-gradient(1px 1px at 12% 9%,rgba(255,255,255,.75),transparent),',
+      '  radial-gradient(1px 1px at 78% 6%,rgba(255,255,255,.55),transparent),',
+      '  radial-gradient(1.4px 1.4px at 46% 15%,rgba(255,255,255,.65),transparent),',
+      '  radial-gradient(1px 1px at 88% 21%,rgba(255,255,255,.45),transparent),',
+      '  radial-gradient(1px 1px at 27% 24%,rgba(255,255,255,.40),transparent),',
+      '  linear-gradient(180deg,#02080F 0%,#061A2E 34%,#0B2C45 58%,#14415A 76%,#22566A 100%)}',
+      'html.day #pp-alta .pa-sky{background:',
+      '  linear-gradient(180deg,#7FC4EE 0%,#A9DAF4 40%,#D4EDFA 68%,#F6E3C8 100%)}',
+      /* El horizonte: la línea que hace que un degradado parezca una vista. */
+      '#pp-alta .pa-hz{position:absolute;left:-8%;right:-8%;top:5.5%;height:1px}',
+      'html:not(.day) #pp-alta .pa-hz{background:linear-gradient(90deg,transparent,',
+      '  rgba(125,211,252,.45) 20%,rgba(253,224,171,.92) 50%,rgba(125,211,252,.45) 80%,transparent);',
+      '  box-shadow:0 0 26px 4px rgba(56,189,248,.26)}',
+      'html.day #pp-alta .pa-hz{background:linear-gradient(90deg,transparent,',
+      '  rgba(255,255,255,.75) 24%,rgba(255,255,255,.98) 50%,rgba(255,255,255,.75) 76%,transparent);',
+      '  box-shadow:0 0 20px 3px rgba(255,255,255,.6)}',
+      /* ── LAS LUCES ────────────────────────────────────────────────────────
+         RESPIRAN, no parpadean. Tres manchas desenfocadas con periodos primos
+         entre sí (13 · 17 · 11 s) para que no se sincronicen nunca: lo que se
+         ve es una aurora moviéndose, no un intermitente. Un destello detrás de
+         un formulario compite con lo que hay que leer — es la lección de las
+         ocho tramas de los tickets, con luz en vez de rayado.
+         Sólo se animan `opacity` y `transform`, que los compone la GPU: el
+         `blur` es fijo y la capa se cachea. */
+      '#pp-alta .pa-glow{position:absolute;border-radius:50%;filter:blur(44px);',
+      '  will-change:transform,opacity}',
+      /* ⚠ Van DETRÁS del panel, no sobre el trozo de cielo que asoma. La hoja se
+         lleva el 92 % del alto, así que unas luces colocadas arriba se ven en
+         una franja de dos dedos y el resto del cristal queda negro: un cristal
+         sin nada detrás no es un cristal, es un rectángulo oscuro. Puestas aquí,
+         lo que el piloto ve es el color ATRAVESANDO el desenfoque, que es de lo
+         único que va el glassmorphism. */
+      '#pp-alta .g1{width:80vw;height:80vw;left:-26vw;top:-6vh;animation:paGlowA 13s ease-in-out infinite}',
+      '#pp-alta .g2{width:70vw;height:70vw;right:-24vw;top:26vh;animation:paGlowB 17s ease-in-out infinite}',
+      '#pp-alta .g3{width:100vw;height:44vw;left:-2vw;top:64vh;animation:paGlowC 11s ease-in-out infinite}',
+      'html:not(.day) #pp-alta .g1{background:radial-gradient(circle,rgba(34,211,238,.85),transparent 66%)}',
+      'html:not(.day) #pp-alta .g2{background:radial-gradient(circle,rgba(99,60,214,.80),transparent 68%)}',
+      'html:not(.day) #pp-alta .g3{background:radial-gradient(circle,rgba(251,191,36,.62),transparent 70%)}',
+      'html.day #pp-alta .g1{background:radial-gradient(circle,rgba(56,189,248,.82),transparent 66%)}',
+      'html.day #pp-alta .g2{background:radial-gradient(circle,rgba(255,255,255,.88),transparent 68%)}',
+      'html.day #pp-alta .g3{background:radial-gradient(circle,rgba(253,186,116,.72),transparent 70%)}',
+      '@keyframes paGlowA{0%,100%{opacity:.50;transform:translate3d(0,0,0) scale(1)}',
+      '  50%{opacity:.86;transform:translate3d(4vw,-5vh,0) scale(1.14)}}',
+      '@keyframes paGlowB{0%,100%{opacity:.42;transform:translate3d(0,0,0) scale(1.06)}',
+      '  50%{opacity:.78;transform:translate3d(-5vw,4vh,0) scale(.94)}}',
+      '@keyframes paGlowC{0%,100%{opacity:.38;transform:translate3d(0,0,0) scale(1)}',
+      '  50%{opacity:.72;transform:translate3d(0,-3vh,0) scale(1.1)}}',
+      /* ── EL CRISTAL ───────────────────────────────────────────────────────
+         Glassmorphism de verdad: desenfoque de lo de detrás, fondo translúcido,
+         canto de luz arriba y sombra proyectada. El `backdrop-filter` sale
+         barato AQUÍ —esta hoja no tiene bucle de dibujo, se compone una vez—,
+         que es el mismo criterio que las píldoras de la carta SIGWX.
+         Y la opacidad SUBE hacia abajo a propósito: arriba el texto es grande
+         (título a 22px/800) y aguanta cristal fino; abajo están los rótulos de
+         10px, y ahí el cristal se cierra. La transparencia se gasta donde no
+         cuesta legibilidad. */
+      '#pp-alta .pa-in{position:relative;width:100%;max-width:520px;max-height:92vh;overflow-y:auto;',
+      '  -webkit-overflow-scrolling:touch;border-radius:28px 28px 0 0;padding:22px 18px calc(24px + env(safe-area-inset-bottom,0px));',
+      '  animation:paUp .42s cubic-bezier(.2,.9,.3,1) both;',
+      '  -webkit-backdrop-filter:blur(26px) saturate(150%);backdrop-filter:blur(26px) saturate(150%)}',
+      '@keyframes paUp{from{transform:translateY(38px);opacity:0}}',
+      /* El cristal tiene su PROPIO tinte, como lo tiene uno de verdad: el cian
+         de la marca arriba y el violeta en la esquina. Va en el MISMO atajo
+         `background` que el degradado — declararlo aparte lo pisaría, que es lo
+         del ✦ embaldosado de los campos importados del Pay Check. */
+      'html:not(.day) #pp-alta .pa-in{background:',
+      '  radial-gradient(130% 42% at 12% 0%,rgba(34,211,238,.26),transparent 62%),',
+      '  radial-gradient(120% 34% at 92% 8%,rgba(124,58,237,.24),transparent 64%),',
+      '  radial-gradient(150% 26% at 50% 100%,rgba(251,191,36,.10),transparent 62%),',
+      '  linear-gradient(180deg,rgba(9,28,48,.52),rgba(6,17,30,.88) 36%,rgba(4,12,22,.95) 64%);',
+      '  border-top:1px solid rgba(125,211,252,.34);color:#F0FFFE;',
+      '  box-shadow:0 -26px 70px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.17)}',
+      'html.day #pp-alta .pa-in{background:',
+      '  radial-gradient(130% 42% at 12% 0%,rgba(56,189,248,.24),transparent 62%),',
+      '  radial-gradient(120% 34% at 92% 8%,rgba(255,255,255,.55),transparent 64%),',
+      '  linear-gradient(180deg,rgba(255,255,255,.58),rgba(250,253,255,.92) 36%,rgba(246,251,255,.97) 64%);',
+      '  border-top:1px solid rgba(255,255,255,.92);color:#0A1628;',
+      '  box-shadow:0 -26px 70px rgba(8,47,73,.28),inset 0 1px 0 rgba(255,255,255,.95)}',
+      /* El destello que cruza el cristal al abrirse. UNA vez, no en bucle: lo
+         espectacular es que pase al entrar, no que esté pasando siempre. */
+      '#pp-alta .pa-in::before{content:"";position:absolute;top:0;left:-45%;width:38%;height:100%;',
+      '  pointer-events:none;background:linear-gradient(105deg,transparent,rgba(255,255,255,.13),transparent);',
+      '  animation:paSheen 1.5s cubic-bezier(.4,0,.2,1) .3s 1 both}',
+      '@keyframes paSheen{from{transform:translateX(0) skewX(-14deg)}',
+      '  to{transform:translateX(420%) skewX(-14deg)}}',
+      /* El rótulo lleva su FARO: 6 px que laten cada 2,6 s. Ésta es la única luz
+         que se enciende y se apaga de verdad, y por eso es diminuta y lenta —
+         un anticolisión, no una alarma. Con `prefers-reduced-motion` se queda
+         encendido fijo: sigue siendo la marca, deja de moverse. */
+      '#pp-alta .pa-k{font-family:' + M + ';font-size:9.5px;font-weight:700;letter-spacing:1.9px;',
+      '  text-transform:uppercase;display:flex;align-items:center;gap:8px}',
+      '#pp-alta .pa-k::before{content:"";width:6px;height:6px;border-radius:50%;flex:none;',
+      '  background:currentColor;animation:paFaro 2.6s ease-in-out infinite}',
+      '@keyframes paFaro{0%,100%{opacity:1;box-shadow:0 0 9px 2px currentColor}',
+      '  55%{opacity:.35;box-shadow:0 0 3px 0 currentColor}}',
+      'html:not(.day) #pp-alta .pa-k{color:#22D3EE}',
+      'html.day #pp-alta .pa-k{color:#075985}',   /* 4,63:1 con #0369A1 y las luces moviéndose detrás: demasiado justo para un rótulo de 9,5 px */
+      '#pp-alta .pa-t{font-size:23px;font-weight:800;margin:9px 0 6px;line-height:1.2;letter-spacing:-.3px}',
+      '#pp-alta .pa-s{font-size:13px;line-height:1.55;margin-bottom:18px}',
+      'html:not(.day) #pp-alta .pa-s{color:rgba(240,255,254,.72)}',
+      'html.day #pp-alta .pa-s{color:rgba(15,23,42,.72)}',
+      '#pp-alta .pa-lbl{font-family:' + M + ';font-size:9.5px;font-weight:700;letter-spacing:1.4px;',
+      '  text-transform:uppercase;margin:0 0 7px;display:flex;align-items:center;gap:7px}',
+      'html:not(.day) #pp-alta .pa-lbl{color:rgba(240,255,254,.70)}',
+      'html.day #pp-alta .pa-lbl{color:rgba(15,23,42,.70)}',
+      '#pp-alta .pa-req{font-size:8.5px;letter-spacing:1px;padding:2px 6px;border-radius:5px;font-weight:800}',
+      'html:not(.day) #pp-alta .pa-req{background:rgba(34,211,238,.18);color:#67E8F9}',
+      'html.day #pp-alta .pa-req{background:rgba(3,105,161,.14);color:#0C4A6E}',
+      /* El rol: dos botones grandes y ninguno marcado de salida. */
+      '#pp-alta .pa-rol{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:18px}',
+      '#pp-alta .pa-r{border-radius:14px;padding:13px 10px;text-align:center;cursor:pointer;',
+      '  font-size:13.5px;font-weight:700;line-height:1.3;touch-action:manipulation;',
+      '  transition:transform .13s cubic-bezier(.34,1.56,.64,1),background .15s,border-color .15s}',
+      '#pp-alta .pa-r span{display:block;font-family:' + M + ';font-size:9.5px;font-weight:700;',
+      '  letter-spacing:1.2px;margin-top:4px;opacity:.72}',
+      '#pp-alta .pa-r:active{transform:scale(.97)}',
+      'html:not(.day) #pp-alta .pa-r{background:rgba(255,255,255,.05);border:1.5px solid rgba(34,211,238,.22);color:#F0FFFE}',
+      'html:not(.day) #pp-alta .pa-r.on{background:rgba(34,211,238,.20);border-color:#22D3EE;color:#ECFEFF}',
+      'html.day #pp-alta .pa-r{background:#FFFFFF;border:1.5px solid rgba(2,132,199,.22);color:#0A1628}',
+      'html.day #pp-alta .pa-r.on{background:#E0F2FE;border-color:#0369A1;color:#0C4A6E}',
+      /* ── El cargo, con los MISMOS botones que el rol de arriba ──────────────
+         `.pa-c` sólo cambia la rejilla y el tamaño: el color, los dos temas y el
+         estado `.on` los hereda de `.pa-r`. Una paleta propia aquí sería un
+         cuarto juego de colores que mantener sincronizado con el de al lado. */
+      '#pp-alta .pa-cargos{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:18px}',
+      '#pp-alta .pa-c{padding:10px 3px;font-size:13px;min-height:54px;display:flex;',
+      '  flex-direction:column;align-items:center;justify-content:center}',
+      '#pp-alta .pa-c span{font-size:8.5px;letter-spacing:.5px;margin-top:3px}',
+      /* La insignia de opcional: el mismo sitio y forma que el OBLIGATORIO del
+         rol, apagada. Sin ella, cuatro botones debajo de un campo obligatorio
+         parecen otro campo obligatorio y el piloto se inventa un cargo. */
+      '#pp-alta .pa-opc{font-size:8.5px;letter-spacing:1px;padding:2px 6px;border-radius:5px;font-weight:800}',
+      'html:not(.day) #pp-alta .pa-opc{background:rgba(240,255,254,.10);color:rgba(240,255,254,.72)}',
+      'html.day #pp-alta .pa-opc{background:rgba(15,23,42,.07);color:rgba(15,23,42,.62)}',
+      /* Los campos de texto */
+      '#pp-alta .pa-f{margin-bottom:13px}',
+      '#pp-alta .pa-in-f{width:100%;box-sizing:border-box;border-radius:12px;padding:12px 13px;',
+      '  font-family:inherit;font-size:15px;font-weight:600;outline:none}',   /* 15px: por debajo de 16 iOS hace zoom al enfocar */
+      'html:not(.day) #pp-alta .pa-in-f{background:rgba(255,255,255,.06);border:1px solid rgba(34,211,238,.20);color:#F0FFFE}',
+      'html:not(.day) #pp-alta .pa-in-f::placeholder{color:rgba(240,255,254,.42)}',
+      'html.day #pp-alta .pa-in-f{background:#FFFFFF;border:1px solid rgba(2,132,199,.22);color:#0A1628}',
+      'html.day #pp-alta .pa-in-f::placeholder{color:rgba(15,23,42,.42)}',
+      '#pp-alta .pa-yasta{display:flex;flex-direction:column;gap:2px;border-radius:12px;',
+      '  padding:11px 13px;margin-bottom:15px;font-size:13px;font-weight:600}',
+      '#pp-alta .pa-yasta span{font-size:10.5px;font-weight:500;opacity:.78}',
+      'html:not(.day) #pp-alta .pa-yasta{background:rgba(34,211,238,.10);',
+      '  border:1px solid rgba(34,211,238,.26);color:#CFFAFE}',
+      'html.day #pp-alta .pa-yasta{background:#ECFEFF;border:1px solid rgba(3,105,161,.22);color:#0C4A6E}',
+      '#pp-alta .pa-hint{font-size:10.5px;margin-top:5px;line-height:1.45}',
+      /* La pista del rol sube hasta pegarse a su rejilla: con el margen de
+         `.pa-rol` en medio parece el encabezado del campo siguiente. */
+      '#pp-alta .pa-hrol{margin:-13px 0 18px}',
+      'html:not(.day) #pp-alta .pa-hint{color:rgba(240,255,254,.60)}',
+      'html.day #pp-alta .pa-hint{color:rgba(15,23,42,.62)}',
+      '#pp-alta .pa-go{width:100%;border:none;border-radius:14px;padding:15px;font-family:inherit;',
+      '  font-size:15px;font-weight:800;cursor:pointer;margin-top:4px;touch-action:manipulation;',
+      '  transition:transform .13s cubic-bezier(.34,1.56,.64,1),opacity .15s}',
+      '#pp-alta .pa-go:active{transform:scale(.985)}',
+      '#pp-alta .pa-go[disabled]{cursor:default;box-shadow:none}',
+      'html:not(.day) #pp-alta .pa-go[disabled]{background:rgba(125,211,252,.13);color:#BAE6FD}',
+      'html.day #pp-alta .pa-go[disabled]{background:rgba(3,105,161,.10);color:#075985}',
+      'html:not(.day) #pp-alta .pa-go{background:linear-gradient(135deg,#67E8F9,#22D3EE 55%,#0EA5C4);color:#04222C;',
+      '  box-shadow:0 10px 30px rgba(34,211,238,.34)}',
+      'html.day #pp-alta .pa-go{background:linear-gradient(135deg,#0284C7,#0369A1 60%,#075985);color:#FFFFFF;',
+      '  box-shadow:0 10px 28px rgba(3,105,161,.32)}',
+      '#pp-alta .pa-pie{font-size:10.5px;text-align:center;margin-top:11px;line-height:1.5}',
+      'html:not(.day) #pp-alta .pa-pie{color:rgba(240,255,254,.55)}',
+      'html.day #pp-alta .pa-pie{color:rgba(15,23,42,.58)}',
+      /* ── EL «NO» ──────────────────────────────────────────────────────────
+         La hoja no se puede cerrar sin contestar, y hasta aquí eso era MUDO: el
+         piloto tocaba fuera y no pasaba nada, así que «he fallado el blanco» y
+         «esto no se cierra» se veían igual. Ahora se zarandea.
+         Pero un «no» a secas tampoco dice qué falta, así que el zarandeo va
+         SIEMPRE acompañado de resaltar el campo obligatorio — el movimiento
+         llama y el resalte explica. */
+      '@keyframes paNo{0%,100%{transform:translateX(0)}',
+      '  15%{transform:translateX(-9px)}35%{transform:translateX(8px)}',
+      '  55%{transform:translateX(-5px)}75%{transform:translateX(3px)}}',
+      '#pp-alta .pa-in.no{animation:paNo .42s cubic-bezier(.36,.07,.19,.97)}',
+      /* El resalte NO es movimiento: con `prefers-reduced-motion` el zarandeo se
+         apaga y esto se queda, que es la mitad que de verdad informa. */
+      '#pp-alta .pa-rol.pide .pa-r{border-width:2px}',
+      'html:not(.day) #pp-alta .pa-rol.pide .pa-r{border-color:#22D3EE;background:rgba(34,211,238,.10)}',
+      'html.day #pp-alta .pa-rol.pide .pa-r{border-color:#0369A1;background:#F0F9FF}',
+      '@media (prefers-reduced-motion: reduce){#pp-alta .pa-in{animation:none}',
+      '  #pp-alta .pa-in.no{animation:none}',
+      '  #pp-alta .pa-in::before{animation:none;opacity:0}',
+      '  #pp-alta .pa-glow{animation:none;opacity:.6}',
+      '  #pp-alta .pa-k::before{animation:none}',
+      '  #pp-alta .pa-r:active,#pp-alta .pa-go:active{transform:none}}'
+    ].join('');
+    document.head.appendChild(st);
+  }
+
+  /* ── LO QUE EL REGISTRO YA PREGUNTÓ ───────────────────────────────────────
+     «En el pop up no vuelvas a poner la compañía ni el avión, ya que se ha
+     puesto inicialmente en el registro» (11-sep-2026). Y es exacto: la reja de
+     acceso tiene su rejilla de compañías (`pag-airline` → `pag_airline`) y su
+     selector de flota (`pagSelectFleet` → `pilotos_company`). Preguntarlo otra
+     vez dos segundos después no es sólo redundante: le dice al piloto que lo
+     que acaba de elegir no se ha guardado.
+
+     Pero tampoco se TIRAN: de la compañía salen las dietas y las pernoctas, y
+     de la flota el contexto de CAFI. Se leen de donde el registro las dejó y se
+     escriben en el perfil al guardar. Un campo que desaparece de la pantalla y
+     un campo que no se ha guardado se ven igual desde fuera. */
+  function _delRegistro() {
+    var out = { compania: '', flota: '' };
+    try { out.compania = localStorage.getItem('pag_airline') || ''; } catch (e) {}
+    try {
+      var app = JSON.parse(localStorage.getItem('pilotos_company') || '{}') || {};
+      out.flota = app.aircraftFull || app.fleet || '';
+      if (!out.compania) out.compania = app.companyName || '';
+    } catch (e) {}
+    return out;
+  }
+
+  /* «Vueling · Vueling A320 Family» — `aircraftFull` ya lleva la compañía dentro,
+     así que juntarlos a pelo la dice dos veces en la misma línea. */
+  function _regEtiqueta(REG) {
+    var f = REG.flota || '';
+    if (REG.compania && f.toLowerCase().indexOf(REG.compania.toLowerCase() + ' ') === 0)
+      f = f.slice(REG.compania.length + 1);
+    return [REG.compania, f].filter(Boolean).join(' · ');
+  }
+
+  function ppAltaAbrir() {
+    ppAltaCss();
+    var REG = _delRegistro();
+    var ov = document.createElement('div');
+    ov.id = 'pp-alta';
+    /* Aquí NO se rellena nada de lo que la app deduzca, y no es un olvido: esta
+       hoja sólo sale cuando el aparato está en blanco (`_appVirgen`), así que no
+       hay logbook del que deducir. Los placeholders son ejemplos, nunca valores:
+       un campo que llega relleno sin que nadie lo haya escrito es el mismo
+       problema que la hoja viene a arreglar, una talla más pequeña. */
+    ov.innerHTML =
+      /* La ESCENA, hermana del panel y no hija: el cristal la desenfoca por
+         detrás, así que tiene que estar fuera de él. */
+      '<div class="pa-sky" aria-hidden="true">' +
+        '<i class="pa-glow g1"></i><i class="pa-glow g2"></i><i class="pa-glow g3"></i>' +
+        '<i class="pa-hz"></i>' +
+      '</div>' +
+      '<div class="pa-in" role="dialog" aria-modal="true" aria-labelledby="pa-t">' +
+        /* ── LA CABECERA ──────────────────────────────────────────────────
+           Tenía cuatro líneas explicando el convenio antes de la primera
+           casilla. Es lo primero que ve un piloto que acaba de registrarse, y
+           un párrafo no da la bienvenida: la justifica. Lo que el piloto
+           necesita arriba es POR QUÉ le preguntamos, en una frase; el detalle
+           —que las tarifas cambian con el rango— baja a la pista del propio
+           campo, que es donde sirve para decidir. */
+        '<div class="pa-k">Bienvenido a bordo</div>' +
+        /* «Calibremos» y no «Ajustemos»: el subtítulo de debajo dice «PilotOS
+             AJUSTA cada cálculo», así que el título repetía el verbo dos
+             líneas más arriba. Y calibrar es lo que de verdad pasa aquí: fijar
+             una referencia —el rango— de la que salen las tarifas. */
+        '<div class="pa-t" id="pa-t">Calibremos los instrumentos</div>' +
+        '<div class="pa-s">Cuéntanos quién vuela y PilotOS ajusta cada cálculo a tu ' +
+          'convenio: dietas, pernoctas, horas y nómina.</div>' +
+
+        '<div class="pa-lbl">Tu puesto <span class="pa-req">OBLIGATORIO</span></div>' +
+        '<div class="pa-rol">' +
+          '<div class="pa-r" data-rol="CPT" onclick="PilotProfile.altaRol(\'CPT\')">Comandante<span>CPT · 1P</span></div>' +
+          '<div class="pa-r" data-rol="FO"  onclick="PilotProfile.altaRol(\'FO\')">Primer oficial<span>FO · 2P</span></div>' +
+        '</div>' +
+        '<div class="pa-hint pa-hrol">De tu rango salen las tarifas del convenio.</div>' +
+
+        /* El CARGO, sin párrafo que lo explique: son cuatro siglas que quien las
+           tiene reconoce de un vistazo, y quien no, no marca nada. Lo que hacen
+           —que el simulador impartido entre en la nómina por su casilla y no por
+           la de alumno— se ve solo la primera vez que se importa una sesión.
+           Preguntarlo AQUÍ y no sólo en Mi perfil es lo que hace que funcione
+           desde el primer mes: un instructor que no sepa que ese campo existe
+           cobra sus sesiones a 119,03 € en vez de a 800,99 o 924,22. */
+        '<div class="pa-lbl">Cargo en la compañía <span class="pa-opc">OPCIONAL</span></div>' +
+        '<div class="pa-cargos">' +
+          PP_CARGOS.map(function (c) {
+            return '<div class="pa-r pa-c" data-cargo="' + c + '" role="button" tabindex="0"' +
+              ' aria-pressed="false" onclick="PilotProfile.altaCargo(\'' + c + '\')">' +
+              _esc(_CARGO_TXT[c][0]) + '<span>' + _esc(_CARGO_TXT[c][1]) + '</span></div>';
+          }).join('') +
+        '</div>' +
+
+        '<div class="pa-f"><div class="pa-lbl">Tu nombre</div>' +
+          '<input class="pa-in-f" id="pa-nombre" autocomplete="name" placeholder="Como quieres que te llamemos" ' +
+            'value="' + _esc(PROFILE.nombre || '') + '">' +
+          '<div class="pa-hint">Lo usa ARIA para saludarte y va en la cabecera del logbook.</div></div>' +
+
+        '<div class="pa-f"><div class="pa-lbl">Base</div>' +
+          '<input class="pa-in-f" id="pa-base" placeholder="BCN" autocapitalize="characters" ' +
+            'value="' + _esc(PROFILE.base || '') + '">' +
+          '<div class="pa-hint">De ella salen las pernoctas: una noche fuera de base se paga, una en casa no.</div></div>' +
+
+        /* La compañía y la flota NO se preguntan: se eligieron en el registro.
+           Se enseñan para que el piloto vea que la app las tiene —callarlas
+           dejaría «no me lo ha guardado» y «no hace falta decirlo» con la misma
+           cara— y se dice dónde se cambian. */
+        (REG.compania || REG.flota
+          ? '<div class="pa-yasta">✓ <b>' + _esc(_regEtiqueta(REG)) +
+              '</b><span>Lo elegiste al registrarte. Se cambia en Mi perfil.</span></div>'
+          : '') +
+
+        '<button class="pa-go" id="pa-go" disabled onclick="PilotProfile.altaGuardar()">Elige tu puesto para empezar</button>' +
+        '<div class="pa-pie">Se cambia cuando quieras en <b>Mi perfil</b> · se sincroniza con tus otros dispositivos.</div>' +
+      '</div>';
+    /* El toque FUERA del panel. `e.target === ov` y no un `closest`: lo que se
+       responde es el toque en el velo, no uno que haya burbujeado desde dentro
+       —si no, elegir un rol zarandearía la hoja—. */
+    ov.addEventListener('click', function (e) { if (e.target === ov) ppAltaZarandea(); });
+    /* Y el Escape, que en un teclado es el otro «quítame esto de delante». El
+       listener se quita solo cuando la hoja se va: dejarlo vivo sería un listener
+       colgado del documento para siempre. */
+    /* ⚠ `_onEsc` y NO `_esc`: `_esc` es el escapador de HTML del módulo, y un
+       `var _esc` aquí dentro lo SOMBREA — su hoisting lo deja `undefined` para
+       toda la función, así que el `.map()` de los cargos, doce líneas más
+       arriba, moría con «_esc is not a function». Y en producción no se ve: el
+       arranque envuelve esto en un try y la hoja sencillamente no sale.
+       Es el `var W = cam.W` que tapaba el `W = window` de la carta SIGWX. */
+    var _onEsc = function (e) {
+      if (e.key !== 'Escape') return;
+      if (!document.getElementById('pp-alta')) { document.removeEventListener('keydown', _onEsc); return; }
+      e.preventDefault(); ppAltaZarandea();
+    };
+    document.addEventListener('keydown', _onEsc);
+    document.body.appendChild(ov);
+    /* Vista = preguntada. Si sólo se marca al guardar, cerrar la app la deja
+       viva para siempre y sale en cada arranque — que es el reporte. */
+    ppAltaMarca();
+    _ALTA_ROL = '';
+    _ALTA_CARGOS = ppCargos();
+    _ALTA_CARGOS.forEach(function (c) {
+      try {
+        var el = ov.querySelector('.pa-c[data-cargo="' + c + '"]');
+        if (el) { el.classList.add('on'); el.setAttribute('aria-pressed', 'true'); }
+      } catch (e) {}
+    });
+    ppAltaBoton();
+  }
+
+  /* ── «NO SE CIERRA SIN CONTESTAR» ────────────────────────────────────────
+     Pedido el 15-sep-2026: «que si el piloto pulsa en otro sitio, haga un
+     movimiento diciendo que no».
+     Devuelve `true` si había hoja a la que decir que no — eso es lo que deja al
+     botón ATRÁS consumir su entrada del historial en vez de navegar: sin ello,
+     el atrás de Android se lleva al piloto a otra pantalla (o fuera de la app)
+     con la hoja todavía encima, que es la peor de las dos salidas.
+     No se re-dispara mientras está sonando: diez toques seguidos darían diez
+     animaciones encimadas y ninguna se vería entera. */
+  var _altaNoOcupado = false;
+  function ppAltaZarandea() {
+    var ov = document.getElementById('pp-alta'); if (!ov) return false;
+    var caja = ov.querySelector('.pa-in'); if (!caja) return false;
+    if (_altaNoOcupado) return true;
+    _altaNoOcupado = true;
+    /* Y se DICE qué falta. Un zarandeo solo es un «no» sin motivo; lo que el
+       piloto necesita saber es que lo que le falta es el puesto. */
+    var falta = !_ALTA_ROL;
+    var rol = ov.querySelector('.pa-rol');
+    if (falta && rol) rol.classList.add('pide');
+    caja.classList.add('no');
+    setTimeout(function () { caja.classList.remove('no'); _altaNoOcupado = false; }, 460);
+    if (falta && rol) setTimeout(function () { rol.classList.remove('pide'); }, 1400);
+    return true;
+  }
+
+  var _ALTA_ROL = '';
+  /* Los cargos ya marcados vienen del perfil, como el nombre y la base: esta hoja
+     sale con el aparato en blanco, pero el perfil puede haber bajado de la nube
+     desde otro móvil y volver a preguntarlo sería no haberlo guardado. */
+  var _ALTA_CARGOS = [];
+  function ppAltaCargo(c) {
+    c = String(c || '').toUpperCase();
+    if (PP_CARGOS.indexOf(c) < 0) return;
+    var i = _ALTA_CARGOS.indexOf(c);
+    if (i >= 0) _ALTA_CARGOS.splice(i, 1); else _ALTA_CARGOS.push(c);
+    try {
+      Array.prototype.forEach.call(document.querySelectorAll('#pp-alta .pa-c'), function (el) {
+        var on = _ALTA_CARGOS.indexOf(el.getAttribute('data-cargo')) >= 0;
+        el.classList.toggle('on', on);
+        el.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    } catch (e) {}
+    /* El botón NO se toca: el cargo es opcional y lo que enciende «Empezar» es el
+       rol. Colgarlo de aquí dejaría fuera a los nueve de cada diez pilotos que no
+       tienen ninguno. */
+  }
+  function ppAltaBoton() {
+    var b = document.getElementById('pa-go'); if (!b) return;
+    b.disabled = !_ALTA_ROL;
+    b.textContent = _ALTA_ROL ? 'Empezar →' : 'Elige tu puesto para empezar';
+  }
+  function ppAltaRol(v) {
+    _ALTA_ROL = v;
+    try {
+      Array.prototype.forEach.call(document.querySelectorAll('#pp-alta .pa-r'), function (el) {
+        el.classList.toggle('on', el.getAttribute('data-rol') === v);
+      });
+    } catch (e) {}
+    ppAltaBoton();
+  }
+  function ppAltaGuardar() {
+    if (!_ALTA_ROL) return;                       // el botón ya está apagado; esto es el cinturón
+    var val = function (id) { var e = document.getElementById(id); return e ? String(e.value || '').trim() : ''; };
+    /* UN solo ppSave: es la única puerta de escritura y además sube a la nube una
+       vez en vez de cinco. */
+    var REG = _delRegistro();
+    ppSave({
+      rol: _ALTA_ROL,
+      nombre: val('pa-nombre'),
+      base: val('pa-base').toUpperCase(),
+      /* En el ORDEN de la lista y como CADENA, igual que `ppToggleCargo`: el
+         servidor sólo copia string|boolean|number, así que un array se perdería
+         sin un solo error. */
+      cargos: PP_CARGOS.filter(function (c) { return _ALTA_CARGOS.indexOf(c) >= 0; }).join(','),
+      /* Del registro, no de esta hoja. Y sin pisar lo que ya hubiera: si el
+         perfil traía compañía de otro aparato, manda esa. */
+      compania: PROFILE.compania || REG.compania,
+      flota: PROFILE.flota || REG.flota
+    });
+    ppAltaMarca();
+    var ov = document.getElementById('pp-alta'); if (ov) ov.parentNode.removeChild(ov);
+    /* Y AHORA LA GUÍA. Pedido así: «que a la primera entrada le obligue a rellenar
+       el perfil y luego aparezca la guía». Se avisa desde aquí, en vez de dejar que
+       el otro lado espere a que esta hoja desaparezca mirándola de reojo: el orden
+       tiene que ser un hecho y no una carrera entre dos temporizadores. La función
+       no hace nada si el piloto ya la ha visto. */
+    try { if (typeof window.pilotosGuiaPrimeraVez === 'function') window.pilotosGuiaPrimeraVez(); } catch (e) {}
+    /* La Especialidad del Pay Check sale de este rol (pcManualApply): sin volver a
+       aplicarla, el desplegable se queda en la que tenía y las tarifas del convenio
+       serían las de otro rango hasta la siguiente recarga. */
+    try { if (typeof window.pcManualApply === 'function') window.pcManualApply(); } catch (e) {}
+    try { if (typeof window.ppRenderScreen === 'function' &&
+              document.getElementById('pp-screen-body')) ppRenderScreen(); } catch (e) {}
+  }
+
   window.PilotProfile = {
     load: ppLoad, save: ppSave, get: ppGet, data: function () { return PROFILE; },
     clear: ppClear, foto: ppFoto, firma: ppFirma, setFirma: ppSetFirma, quitarFirma: ppQuitarFirma, hydrate: ppHydrate, setFoto: ppSetFoto, quitarFoto: ppQuitarFoto,
-    stats: ppStats, contextoIA: ppContextoIA, cloudPull: ppCloudPull
+    stats: ppStats, contextoIA: ppContextoIA, cloudPull: ppCloudPull,
+    altaSiToca: ppAltaSiToca, altaRol: ppAltaRol, altaGuardar: ppAltaGuardar,
+    notaVirgen: ppNotaVirgen,
+    // Para el banco: saber si TOCA preguntar sin llegar a abrir la hoja.
+    altaToca: ppAltaToca,
+    cargos: ppCargos, tieneCargo: ppTieneCargo, toggleCargo: ppToggleCargo,
+    altaCargo: ppAltaCargo, altaZarandea: ppAltaZarandea
   };
   // Atajo para los lectores de otros módulos: ppGet('rol','FO')
   window.ppGet = ppGet;
+  /* El logbook vive en OTRO bloque <script> y desde allí esto se lee. Si no se
+     exporta explícitamente vale `undefined` siempre y la preselección del rol de
+     un simulador «no hace nada», sin un solo error — window.RST_IATA_ICAO. */
+  /* Lo llama el manejador del botón ATRÁS, que vive en index.html: sin exportar
+     sería `undefined` allí y el atrás volvería a navegar con la hoja puesta. */
+  window.ppAltaZarandea = ppAltaZarandea;
+  window.pilotosCargos = ppCargos;
+  window.pilotosTieneCargo = ppTieneCargo;
 
   ppLoad();
   /* Al arrancar se BAJA lo que haya en la nube. Sin esto el perfil sólo subía:
@@ -948,7 +1622,34 @@
      local y sin bloquear — sin red se queda lo de aquí y no se pierde nada. */
   function _arranca() {
     try { ppHydrate(); } catch (e) {}
-    try { ppCloudPull(true); } catch (e) {}
+    /* El alta se decide DESPUÉS de que conteste la nube, nunca antes: el perfil
+       sincroniza entre aparatos y preguntando de entrada el piloto que ya lo
+       rellenó en el iPad tendría que volver a rellenarlo en el móvil. Sin red el
+       fetch falla enseguida y se pregunta igual, que es lo correcto: aquí no hay
+       nada que sepamos y no podemos quedarnos callados. */
+    /* Se apunta ANTES de pedir la nube: mientras ella contesta, el arranque ya
+       está restaurando roster y logbook, y entonces «primer login» dependería de
+       lo que tardara el servidor. */
+    var virgen = ppNotaVirgen();
+    var p = null;
+    try { p = ppCloudPull(true); } catch (e) {}
+    var decide = function () {
+      try { ppAltaSiToca(); } catch (e) {}
+      /* Y si NO hay alta que rellenar, la guía de la primera vez entra igual: el
+         piloto que creó la cuenta y cerró la app antes de verla se quedaba sin
+         ella para siempre, porque sólo se lanzaba desde el login. Sólo en un
+         aparato en blanco — a quien lleva meses dentro no se le abre la guía de
+         bienvenida en un arranque cualquiera. */
+      try {
+        if (virgen && !document.getElementById('pp-alta') &&
+            typeof window.pilotosGuiaPrimeraVez === 'function') window.pilotosGuiaPrimeraVez();
+      } catch (e) {}
+    };
+    try {
+      (p && p.then ? p : Promise.resolve(null))
+        .catch(function () { return null; })
+        .then(decide);
+    } catch (e) { decide(); }
   }
   try {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _arranca);

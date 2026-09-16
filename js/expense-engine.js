@@ -49,8 +49,22 @@ var VY_RULES = {
     voucher:   { std: 23.21, special: 34.82 } // ⚠️ el hotel NO distingue nac/int
   },
 
-  // ⏳ PENDIENTE: lista real del Acuerdo Voucher. Provisional.
-  specialCities: ['CDG', 'ORY', 'AMS', 'LHR', 'LGW'],
+  // Voucher ESPECIAL (34,82 € en vez de 23,21) — confirmado por el piloto
+  // (13-sep-2026): París, Londres y Ámsterdam.
+  //
+  // ★ Van TODOS los aeropuertos de esas ciudades, no sólo el principal: una
+  // pernocta en Luton es Londres igual, y con la lista corta (LHR + LGW) se le
+  // pagaba tarifa normal sin un solo aviso — 11,61 € menos por noche y mudos.
+  //
+  // ⚠️ Y en IATA **y en ICAO**. El roster y el logbook conviven en las dos
+  // escrituras en la misma tabla, así que `layoverCity` llega como 'LHR' o como
+  // 'EGLL' según de dónde venga el mes: comparar una sola forma es
+  // `ES_AIRPORTS` / `ES_IATA` otra vez, aquí costando dinero y en silencio.
+  specialCities: [
+    'CDG','ORY','BVA',                 'LFPG','LFPO','LFOB',                    // París
+    'LHR','LGW','LTN','STN','LCY','SEN','EGLL','EGKK','EGGW','EGSS','EGLC','EGMC', // Londres
+    'AMS',                             'EHAM'                                   // Ámsterdam
+  ],
 
   // Ventana de fechas admitidas para el ticket, en días respecto al del gasto.
   ticketWindow: {
@@ -468,8 +482,28 @@ function detectDay(day, opts) {
     };
   }
 
+  // ★ GUARDIA EN EL HOTEL — voucher APARTE del de la noche. Guía de notas de
+  // gasto: «un voucher por imaginaria si no se activa antes de las 12:00 y
+  // continúa la estancia en el hotel». Ese día el piloto come en el hotel
+  // esperando una activación que no llega, y eso no lo cubre la noche: la
+  // noche paga dormir, esto paga el día entero de espera.
+  // «No activada» es el MISMO criterio que /api/paycheck: sin vuelos ese día
+  // no se activó. Y si se activó, sólo cuenta si fue a partir de las 12:00
+  // locales — `reportLocalMin` es la firma, o sea la hora de la activación.
+  var standbyNight = null;
+  if (day.standby && day.layover && day.hotelPrevNight) {
+    var act = reportLocalMin(segs);          // null = no hay vuelos = no se activó
+    if (act == null || act >= 12 * 60) {
+      standbyNight = {
+        date: day.date, city: day.layoverCity || null, standby: true,
+        special: isSpecialCity(day.layoverCity, rules)
+      };
+    }
+  }
+
   return { date: day.date, scope: scope, positioning: isPos, layover: !!day.layover,
            segments: segs, slots: slots, voucherNight: voucherNight,
+           standbyNight: standbyNight,
            reportLocal: reportLocalMin(segs),
            coveredByCatering: byCatering.map(function (s) { return s.slot; }),
            coveredByVoucher: byHotel.map(function (s) { return s.slot; }),
@@ -489,8 +523,9 @@ function detectPeriod(days, opts) {
   var lines = [], cur = null;
   results.forEach(function (r, i) {
     if (r.voucherNight) {
-      if (!cur) cur = { nights: [], startIdx: i };
+      if (!cur) cur = { nights: [], standbys: [], startIdx: i };
       cur.nights.push(r.voucherNight);
+      if (r.standbyNight) cur.standbys.push(r.standbyNight);
       cur.endIdx = i;
     } else if (cur) {
       // El día en que vuelve a base cierra la línea: es su "último día".
@@ -505,6 +540,18 @@ function detectPeriod(days, opts) {
         portalSubtype: n.special ? 'Voucher Especial' : 'Voucher Hotel',
         cap: n.special ? rules.caps.voucher.special : rules.caps.voucher.std };
     });
+
+    // La guardia no activada viaja en la MISMA nota que sus noches: es un
+    // voucher más de la línea, no una nota aparte (la guía manda una sola nota
+    // por la suma de todos los vouchers de la línea).
+    (ln.standbys || []).forEach(function (n) {
+      noteLines.push({ date: n.date, city: n.city, standby: true,
+        portalSubtype: 'Standby ' + (n.special ? 'especial' : 'normal'),
+        cap: n.special ? rules.caps.voucher.special : rules.caps.voucher.std });
+    });
+    // Cronológico: la noche de un día antes que la guardia de ese mismo día
+    // (el sort es estable, así que el empate lo deja como se insertó).
+    noteLines.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
 
     // ★ +1 voucher si la firma del ÚLTIMO día de la línea es posterior a las
     // 12:00 hora local (te quedas en el hotel toda la mañana).

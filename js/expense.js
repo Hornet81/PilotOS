@@ -170,10 +170,27 @@ function shrink(file){
     img.src = url;
   });
 }
-function blobToB64(b){ return new Promise(function(res){
+/* ★ Sin `onerror` esta promesa NO se resolvía nunca si la foto no se podía
+   leer (en iOS un blob guardado en IndexedDB puede volverse ilegible): el envío
+   se quedaba en «Enviando a Vueling» para siempre sin llegar a salir del móvil. */
+function blobToB64(b){ return new Promise(function(res, rej){
   var fr = new FileReader();
+  var mal = function(){ rej(new Error('No se pudo leer la foto de un ticket. Vuelve a adjuntarla y envía de nuevo.')); };
   fr.onload = function(){ res(String(fr.result).split(',')[1]); };
-  fr.readAsDataURL(b); }); }
+  fr.onerror = mal; fr.onabort = mal;
+  try { fr.readAsDataURL(b); } catch(e){ mal(); } }); }
+
+/* Ninguna espera del envío puede ser infinita: si algo no contesta, se corta y
+   se dice, en vez de dejar el círculo girando. */
+function conTope(p, ms, msg){
+  return new Promise(function(res, rej){
+    var t = setTimeout(function(){ rej(new Error(msg)); }, ms);
+    p.then(function(v){ clearTimeout(t); res(v); }, function(e){ clearTimeout(t); rej(e); });
+  });
+}
+var ENVIO_PREP_MS = 30000, ENVIO_MS = 240000;
+var MSG_PREP = 'No se pudieron preparar los tickets del móvil. Cierra y abre la app y vuelve a intentarlo.';
+var MSG_TARDA = 'El portal de Vueling no ha contestado a tiempo. Antes de reintentar, mira si la nota ya aparece en el portal.';
 
 /* Sacar el ticket del móvil. En iOS la hoja de compartir permite "Guardar
    imagen" al carrete, que es de donde lo cogerá el portal; <a download> es
@@ -267,6 +284,10 @@ function construirDias(rows){
       if (!rd.debrief && v.debrief) rd.debrief = v.debrief; });
     return {
       date: d, checkin: rd.checkin, debrief: rd.debrief,
+      // ★ Un día de GUARDIA no trae vuelos, y eso no lo convierte en un día
+      // vacío: si no se activa y el piloto sigue en el hotel, la guía le paga
+      // su voucher. El motor lo necesita para distinguirlo de un día libre.
+      standby: rs.some(function(x){ return (x.entry_type||x.type)==='standby'; }),
       legs: rs.filter(function(x){ return (x.entry_type||x.type)==='flight' && x.dep && x.arr; })
         .map(function(x){ return { dep:x.dep, arr:x.arr, std:legHora(x,'std'), sta:legHora(x,'sta'),
           flightNum: x.flight_number || x.flightNum,
@@ -299,7 +320,16 @@ function construirDias(rows){
     day.hotelPrevNight = prev !== EX.base;
     day.incidents = [];
     return day;
-  }).filter(function(d){ return d.legs.length; });
+  /* ⚠️ Un día SIN VUELOS no es un día sin derechos. Aquí se filtraba por
+     `legs.length` a secas, y con eso una guardia en el hotel —o cualquier día
+     que te deja fuera de base sin volar— no llegaba al motor: su noche no
+     existía y la línea pagaba una pernocta menos. Reporte AD8BF: línea 3→7 sep
+     en Palma con un 2SBY el día 6 que no se activó; la app daba 92,84 € (3
+     noches + firma tarde) donde había 4 noches + la guardia. Y el calendario
+     del roster YA pintaba su luna, así que las dos pantallas se contradecían.
+     Lo que decide es dónde duermes, no si has volado: pasan los días con
+     vuelos y los que acaban fuera de base. */
+  }).filter(function(d){ return d.legs.length || d.layover; });
 }
 
 /* ── Firma barata del roster ──────────────────────────────────────────────
@@ -369,7 +399,8 @@ function detectar(rows){
       maxTotal: n.maxTotal, ticketWindow: n.ticketWindow,
       lines: (n.lines||[]).map(function(l){ return {
         date:l.date, subtype:l.portalSubtype, cap:l.cap, slot:l.slot||null,
-        slotLabel: l.slotLabel || (l.lateSignature ? 'Firma tarde' : 'Pernocta'),
+        slotLabel: l.slotLabel || (l.lateSignature ? 'Firma tarde'
+                                 : l.standby ? 'Guardia en hotel' : 'Pernocta'),
         window: l.window||null, where: l.where||l.city||null }; }),
       covered: { catering: rd ? rd.coveredByCatering : [], voucher: rd ? rd.coveredByVoucher : [] },
       // ★ El motor ya calcula el porqué (segmentos con su huso y quién te
@@ -714,6 +745,57 @@ function icono(kind){
     'fill="currentColor">'+(ICONOS[kind] || ICONOS.ops)+'</svg>';
 }
 
+/* ════════ LA CABECERA DE TIPO ════════
+   Pedido el 11-sep-2026: «que encima de estado ponga TICKET Horno inoperativo».
+   Y tenía razón de fondo: la tarjeta decía en qué ESTADO está la nota antes de
+   decir QUÉ nota es. El tipo salía sólo en un icono de 16 px y, para las notas
+   automáticas, repetido en el título — dos sitios diciendo lo mismo y ninguno
+   diciéndolo en el primero donde cae la vista.
+
+   ── LA SEGUNDA VERSIÓN, Y POR QUÉ ──────────────────────────────────────────
+   La primera llevaba OCHO TEXTURAS, una por concepto (rayas, cuadrículas,
+   puntos). Veredicto del piloto: «se ve bastante feo». Y al mirarlo con eso en
+   la cabeza, tenía razón por un motivo que se puede decir: una trama es RUIDO
+   REPETIDO — ocho tarjetas seguidas con ocho rayados distintos convierten una
+   lista en una manta de retales, y encima cada trama compite con el rótulo que
+   tiene justo encima. La textura llamaba la atención sobre sí misma en vez de
+   sobre la nota.
+
+   Lo que hay ahora son TRES capas, ninguna repetida:
+
+     1. un LAVADO del color del tipo que entra por la izquierda —donde está la
+        tira— y se apaga antes de llegar al centro. Un degradado, no una trama:
+        no tiene grano, así que no puede competir con el texto.
+     2. una LÍNEA DE LUZ abajo, del color del tipo, con su halo. Es lo que hace
+        que la cabecera parezca una pieza y no un rectángulo pintado.
+     3. y la MARCA DEL TIPO en grande, muy tenue, saliéndose por el borde
+        derecho: el mismo trazado que el icono pequeño, a 46 px y al 13 %.
+
+   La tercera es la que distingue un tipo de otro de un vistazo, y es honesta:
+   **es el símbolo del propio concepto, no un rayado inventado**. Una sola forma
+   grande se lee de lejos; ocho rayados distintos, no. Y el color sigue saliendo
+   del MISMO `--tcol` que la tira y el icono, así que no hay una cuarta cosa que
+   mantener sincronizada.
+
+   ⚠️ Nada de esto baja al CUERPO de la tarjeta. Ahí hay importes, topes y el
+   desglose línea a línea, y algo pintado detrás de un número es un fallo que
+   este proyecto ya pagó caro: el ✦ de los campos importados se embaldosó por
+   todo el input y los números quedaron detrás de un enrejado violeta — y NO se
+   detecta midiendo contraste, porque los puntos de muestreo caen entre los
+   trazos. La cabecera no tiene ni una cifra. */
+function cabeceraTipo(n, T){
+  return '<div class="ex-tipo">'+
+    /* La marca grande va PRIMERO en el DOM y detrás en pintura: es fondo, no
+       contenido. `aria-hidden` porque no dice nada que el rótulo no diga. */
+    '<span class="ex-tipo-marca" aria-hidden="true">'+
+      '<svg viewBox="0 0 16 16" width="46" height="46" fill="currentColor">'+
+        (ICONOS[n.kind] || ICONOS.ops)+'</svg></span>'+
+    '<span class="ex-tipo-ic">'+icono(n.kind)+'</span>'+
+    '<span class="ex-tipo-k">TICKET</span>'+
+    '<span class="ex-tipo-v">'+esc(T.lbl)+'</span>'+
+  '</div>';
+}
+
 /* ════════ RENDER ════════ */
 function exRender(){
   var host = document.getElementById('pc-tab-gastos');
@@ -800,7 +882,7 @@ function exRender(){
     }).join('') +'</div>';
 
     var lista = grupos[EX.estado];
-    if (lista.length) h += porMeses(lista, EX.estado === 'enviado');
+    if (lista.length) h += EX.estado === 'enviado' ? porEnvio(lista) : porMeses(lista, false);
     else h += '<div class="ex-empty">'+pasoDe(EX.estado).vacio+'</div>';
   }
 
@@ -826,6 +908,11 @@ function exRender(){
   var tira = host.querySelector('.ex-meses');
   var scroll = tira ? tira.scrollLeft : 0;
   host.innerHTML = h;
+  /* El deslizamiento se engancha por DELEGACIÓN y una sola vez —las tarjetas se
+     rehacen enteras aquí—, y el aviso cierra las que hubiera abiertas: tras el
+     repintado, la tarjeta de esa posición puede ser otra nota. */
+  try { exSwipeInit(); } catch(e){}
+  try { window.dispatchEvent(new Event('pilotos-gastos-render')); } catch(e){}
   var nueva = host.querySelector('.ex-meses');
   if (nueva){
     nueva.scrollLeft = scroll;
@@ -909,6 +996,94 @@ function porMeses(list, isDone){
     g[k].forEach(function(n){ h += card(n, isDone); });
   });
   return h;
+}
+
+/* ════════ LO ENVIADO, AGRUPADO POR LO QUE TOCA HACER ════════
+   Pedido el 14-sep-2026: todas las enviadas eran tarjetas verdes iguales,
+   ordenadas por la fecha del servicio, y no se sabía qué se mandó cuándo ni
+   qué había que mirar. Ahora, de arriba abajo:
+     1. RECHAZADAS / NO SALIERON — en rojo, lo único que pide hacer algo.
+     2. EN VUELING — por DÍA DE ENVÍO, que es como aparecen en el portal.
+     3. PAGADAS — plegadas, por mes de cobro.
+   Dentro de cada grupo, por fecha de servicio (lo que recuerda el tripulante). */
+function importeHecho(n){ return tkDe(n) ? reclamaDe(n) : (topeDe(n)||0); }
+function diaLocal(iso){
+  if (typeof iso !== 'string') return null;
+  var d = new Date(iso); if (isNaN(d.getTime())) return null;
+  var p = function(x){ return (x < 10 ? '0' : '') + x; };
+  return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
+}
+EX.pagAbierto = EX.pagAbierto || {};
+window.exPagToggle = function(k){ EX.pagAbierto[k] = !EX.pagAbierto[k]; exRender(); };
+
+function porEnvio(list){
+  var porFecha = function(a, b){ return b.date.localeCompare(a.date); };
+  var mal = [], viv = {}, ordV = [], pag = {}, ordP = [];
+  list.forEach(function(n){
+    var st = estadoEnvio(n), k;
+    if (st === 'rej' || st === 'err'){ mal.push(n); return; }
+    if (st === 'paid'){
+      k = (diaLocal(EX.paid[n.id]) || 'sin').slice(0, 7);
+      if (!pag[k]){ pag[k] = []; ordP.push(k); } pag[k].push(n); return;
+    }
+    k = diaLocal(EX.sent[n.id]) || 'sin';
+    if (!viv[k]){ viv[k] = []; ordV.push(k); } viv[k].push(n);
+  });
+  var desc = function(a, b){ return a === 'sin' ? 1 : b === 'sin' ? -1 : b.localeCompare(a); };
+  var cnt = function(l){ return l.length + (l.length === 1 ? ' nota · ' : ' notas · ') + eur(sumaDe(l, importeHecho)); };
+  var h = '';
+
+  if (mal.length){
+    h += '<div class="ex-sect ex-gsect bad">RECHAZADAS O NO SALIERON · ' + cnt(mal) + '</div>';
+    mal.sort(porFecha).forEach(function(n){ h += card(n, true); });
+  }
+  if (ordV.length){
+    h += '<div class="ex-sect ex-gsect">EN VUELING · PENDIENTES DE COBRO</div>';
+    ordV.sort(desc).forEach(function(k){
+      h += '<div class="ex-mesbar"><span class="m">' +
+        (k === 'sin' ? 'Sin fecha de envío' : 'Enviadas el ' + fdate(k).toLowerCase()) +
+        ' · ' + cnt(viv[k]) + '</span></div>';
+      viv[k].sort(porFecha).forEach(function(n){ h += card(n, true); });
+    });
+  }
+  if (ordP.length){
+    h += '<div class="ex-sect ex-gsect">PAGADAS</div>';
+    ordP.sort(desc).forEach(function(k){
+      var ab = !!EX.pagAbierto[k];
+      h += '<div class="ex-mesbar plegable' + (ab ? ' abierto' : '') + '" onclick="exPagToggle(\'' + k + '\')">' +
+        '<span class="m">' + (k === 'sin' ? 'Sin fecha' : 'Cobradas en ' + mesLbl(k)) + ' · ' + cnt(pag[k]) + '</span>' +
+        '<svg viewBox="0 0 10 10" width="9" height="9" fill="currentColor" aria-hidden="true">' +
+          '<path d="M1.1 3.3h7.8L5 8z"/></svg></div>';
+      if (ab) pag[k].sort(porFecha).forEach(function(n){ h += card(n, true); });
+    });
+  }
+  return h;
+}
+
+/* Las TRES fechas de una nota, cada una con su nombre. Antes salía sólo la del
+   servicio, sin rótulo, y se confundía con la del ticket y con la del envío. */
+function diasEntre(a, b){
+  return Math.round((Date.parse(b + 'T12:00:00Z') - Date.parse(a + 'T12:00:00Z')) / 86400000);
+}
+function fechasFila(n, isDone){
+  var dd = function(f){ return sinDia(fdate(f)).toUpperCase(); };
+  var h = '<span class="f"><i>SERVICIO</i>' + esc(fdate(n.date).toUpperCase()) + '</span>';
+  var fs = (EX.tkFechas || {})[n.id] || [];
+  if (fs.length){
+    var win = n.ticketWindow || tipoDe(n.kind).win;
+    /* En las pernoctas cada línea es de un día distinto: ahí la ventana se mide
+       por línea y desde la tarjeta no se puede juzgar sin dar falsos avisos. */
+    var fuera = n.kind !== 'voucher' && Array.isArray(win) && win.length && fs.some(function(f){
+      var d = diasEntre(n.date, f);
+      return d < Math.min.apply(null, win) || d > Math.max.apply(null, win);
+    });
+    var txt = (fs.length === 1 && fs[0] === n.date) ? 'MISMO DÍA' : fs.slice().sort().map(dd).join(', ');
+    h += '<span class="f' + (fuera ? ' warn' : '') + '"><i>TICKET</i>' + esc(txt) +
+         (fuera ? ' · FUERA DE PLAZO' : '') + '</span>';
+  }
+  var s = diaLocal(EX.sent[n.id]);
+  if (isDone && s) h += '<span class="f"><i>ENVIADA</i>' + esc(dd(s)) + '</span>';
+  return '<span class="ex-dd ex-fechas">' + h + '</span>';
 }
 
 /* ════════ DESGLOSE DEL MES ════════
@@ -1067,10 +1242,16 @@ function card(n, isDone){
 
   var titulo = tituloDe(n), sub = n.route || '';
   if (n.kind==='voucher' && n.lines.length){
-    var noches = n.lines.filter(function(l){ return !/Firma/i.test(l.subtype); }).length;
+    /* Una guardia en el hotel NO es una noche: es un voucher del día. Contarla
+       como noche diría "5 noches" de una línea de 4 y el piloto no podría
+       cuadrar el subtítulo con el desglose de debajo. */
+    var noches = n.lines.filter(function(l){ return !/Firma|Standby/i.test(l.subtype); }).length;
     var tarde  = n.lines.some(function(l){ return /Firma/i.test(l.subtype); });
+    var guard  = n.lines.filter(function(l){ return /Standby/i.test(l.subtype); }).length;
     sub = sinDia(fdate(n.date)) + ' → ' + sinDia(fdate(n.lines[n.lines.length-1].date)) +
-          '  ·  ' + noches + (noches===1?' noche':' noches') + (tarde?' + firma tarde':'');
+          '  ·  ' + noches + (noches===1?' noche':' noches') +
+          (guard ? ' + ' + guard + (guard===1?' guardia':' guardias') : '') +
+          (tarde?' + firma tarde':'');
   }
 
   /* Cada línea con SU día: en las pernoctas las noches son de días distintos al
@@ -1102,8 +1283,10 @@ function card(n, isDone){
      foto es la ÚNICA tarea de esta pantalla, así que no puede quedar detrás de
      un despliegue. Dice además cuánto falta con números, no con un «sin
      tickets» que ya salía cuatro veces en la misma tarjeta. */
+  /* Enviada: sin chip. «✓ 211,30 € en tickets» en verde se leía como lo que
+     cobras, y el estado ya lo dice la franja — era la tercera vez. */
   var tkc = isDone
-    ? '<span class="ex-tkchip ok">'+(tk ? '✓ '+eur(tk)+' en tickets' : '✓ enviado')+'</span>'
+    ? ''
     : '<span class="ex-tkchip'+(kL===0 ? '' : kL<nL ? '' : ' ok')+'" '+
         'onclick="event.stopPropagation();exOpen(\''+n.id+'\')">'+
         (kL===0 ? (nL===1 ? 'Falta 1 ticket' : 'Faltan '+nL+' tickets')
@@ -1131,31 +1314,83 @@ function card(n, isDone){
   var stE = estadoEnvio(n);
   var selble = EX.selMode && (stE === 'go' || stE === 'new');
   var marcada = selble && (EX.sel || {})[n.id];
-  return '<div class="ex-day st-'+stE+(isDone?' done':'')+((EX.flash||{})[n.id]?' recien':'')+
+  /* El título sólo si DICE algo que la cabecera de tipo no diga ya. En una nota
+     automática `tituloDe` devuelve la etiqueta del tipo, así que con la cabecera
+     puesta salía «Horno inoperativo» dos veces en cuatro centímetros. Donde sí
+     aporta —una pernocta («Pernocta en Roma»), una nota escrita a mano— se queda. */
+  var titFuera = titulo && titulo !== T.lbl;
+
+  /* ── UNA zona de toque, la tarjeta plegada entera ──────────────────────────
+     Pedido el 11-sep-2026: «que al pulsar sobre el ticket se abra más fácilmente».
+     Y no era manía: el único sitio que abría la tarjeta era `.ex-head`, así que la
+     franja de estado, la fila de chips y todo el aire alrededor no hacían NADA al
+     tocarlos. Desde el asiento del piloto «he fallado el blanco» y «esto no se
+     abre» se ven igual — es el fallo mudo, esta vez en un gesto.
+
+     Ahora abre todo lo que se ve con la tarjeta plegada: cabecera de tipo, estado,
+     fila principal y chips. El CUERPO se queda FUERA a propósito: ahí dentro hay
+     botones, enlaces y el desglose, y tocarlo no puede cerrar la tarjeta que
+     estás leyendo. Los mandos de dentro de la zona ya cortan la burbuja con
+     `event.stopPropagation()`, que es lo que los mantiene independientes.
+
+     En modo «enviar varias» la tarjeta entera ES la casilla (exSelToggle), así que
+     ahí no se cuelga el toggle: si no, el mismo dedo marcaría y desplegaría. */
+  return '<div class="ex-day k-'+esc(n.kind)+' st-'+stE+(isDone?' done':'')+((EX.flash||{})[n.id]?' recien':'')+
       (selble?' selble':'')+(marcada?' marcada':'')+'" style="--tcol:'+T.col+'"'+
+      ' data-nota="'+n.id+'"'+(n.manual?' data-man="1"':'')+
       (selble?' onclick="exSelToggle(\''+n.id+'\')"':'')+'>'+
     (selble ? '<div class="ex-tick">'+(marcada?'✓':'')+'</div>' : '')+
+    /* ⚠ El panel y la zona táctil van DENTRO DEL MISMO envoltorio, no sueltos en
+       la tarjeta. Colgando de `.ex-day` el panel medía **151 px de alto contra
+       los 139 de lo que se desliza**: los 12 de padding sobraban por abajo y el
+       rojo asomaba en forma de L por debajo del contenido. Y llevaba su propio
+       radio (14) dentro de una tarjeta de 16 con `overflow:hidden`, así que entre
+       los dos quedaba una uña del fondo — «el azul tapa la línea roja». Dentro
+       del envoltorio el panel es `inset:0` de EXACTAMENTE lo que se revela y el
+       radio es uno solo. Nada de cablear ese 12: un número que tiene que
+       coincidir con una altura calculada acaba desviándose siempre.
+       Sólo en las notas a mano: las automáticas las manda el roster y volverían a
+       salir, así que un borrado ahí sería mentira. */
+    '<div class="ex-swipe">'+
+    (n.manual ? '<div class="ex-swipe-del" onclick="event.stopPropagation();exDelNota(\''+n.id+'\')">'+
+       '<span class="fl" aria-hidden="true">'+iconoFlechaIzq()+'</span>'+
+       /* Icono EN DISCO sobre el rótulo, no los dos en fila: en una columna de
+          96 px la fila deja el icono pegado al texto y no se lee ninguno de los
+          dos. El disco le da un centro a la mirada y hace que parezca un botón
+          y no dos glifos flotando sobre un fondo rojo. */
+       '<span class="ac"><span class="dk">'+iconoPapelera()+'</span>'+
+       '<span class="tx">Eliminar</span></span></div>' : '')+
+    '<div class="ex-tap"'+(selble?'':' onclick="exToggle(\''+n.id+'\',this)"')+'>'+
+    cabeceraTipo(n, T)+
     franjaEstado(n)+
-    '<div class="ex-head" onclick="exToggle(\''+n.id+'\',this)">'+
-      '<span class="ex-ico">'+icono(n.kind)+'</span>'+
+    '<div class="ex-head">'+
       '<span class="ex-hmid">'+
-        '<span class="ex-dd">'+fdate(n.date).toUpperCase()+'</span>'+
-        '<span class="ex-title">'+esc(titulo)+'</span>'+
+        fechasFila(n, isDone)+
+        (titFuera ? '<span class="ex-title">'+esc(titulo)+'</span>' : '')+
         (sub ? '<span class="ex-route">'+esc(sub)+'</span>' : '')+
       '</span>'+
       '<span class="ex-right">'+
         /* El importe grande es el TOPE (por eso el "hasta"); debajo, lo que de
            verdad reclamas con los tickets que llevas puestos. */
-        '<span class="ex-amt">'+eur(topeDe(n)===null ? tkDe(n) : topeDe(n))+
-          '<small>'+(isDone?'ENVIADO':'HASTA')+'</small>'+
-          (tkDe(n) ? '<em>'+eur(reclamaDe(n))+' con tickets</em>' : '')+'</span>'+
+        /* Enviada: manda lo RECLAMADO, y el total del recibo va debajo en gris
+           («de 211,30 € de ticket») para que no se lea como dinero a cobrar. */
+        (isDone
+          ? '<span class="ex-amt">'+eur(importeHecho(n))+
+              '<small>'+(tkDe(n) ? 'RECLAMADO' : 'TOPE')+'</small>'+
+              (tkDe(n) > reclamaDe(n) ? '<em class="de">de '+eur(tkDe(n))+' de ticket</em>' : '')+'</span>'
+          : '<span class="ex-amt">'+eur(topeDe(n)===null ? tkDe(n) : topeDe(n))+
+              '<small>HASTA</small>'+
+              (tkDe(n) ? '<em>'+eur(reclamaDe(n))+' con tickets</em>' : '')+'</span>')+
         /* El chevron también DIBUJADO: es la misma regla del icono del tipo, y
            un carácter geométrico tampoco lo elige el código. */
         '<span class="ex-caret" aria-hidden="true"><svg viewBox="0 0 10 10" width="10" '+
           'height="10" fill="currentColor"><path d="M1.1 3.3h7.8L5 8z"/></svg></span>'+
       '</span>'+
     '</div>'+
-    '<div class="ex-chips">'+tkc+plazo+'</div>'+
+    (tkc || plazo ? '<div class="ex-chips">'+tkc+plazo+'</div>' : '')+
+    avisoDup(n)+
+    '</div>'+
+    '</div>'+
     '<div class="ex-body" id="exb-'+n.id+'" style="display:none">'+
       /* De dónde sale la nota, el ámbito y cuántos vouchers agrupa: contexto
          para cuando ya la estás mirando, no para elegir cuál mirar. */
@@ -1168,13 +1403,162 @@ function card(n, isDone){
         '<div class="ex-btn" onclick="event.stopPropagation();exOpen(\''+n.id+'\')">'+
           (nTk ? '🧾 '+nTk+' ticket'+(nTk>1?'s':'')+' · abrir' : '📷 Añadir tickets')+'</div>'+
         botonCiclo(n)+
-        /* Sólo las notas creadas a mano se pueden borrar: las automáticas vuelven
-           a salir en el siguiente render (las manda el roster), así que un botón
-           de borrar ahí sería mentira. */
-        (n.manual ? '<button class="ex-del" title="Eliminar nota" '+
-          'onclick="event.stopPropagation();exDelNota(\''+n.id+'\')">🗑</button>' : '')+
+        /* ⋯ = TODO lo que se puede hacer desde este estado. Es el que rompe el
+           carril único: «ya me la han pagado» está aquí también cuando la nota
+           todavía no se ha enviado. */
+        '<button class="ex-mas" title="Más opciones" aria-label="Más opciones" '+
+          'onclick="event.stopPropagation();exMasMenu(\''+n.id+'\')">⋯</button>'+
       '</div>'+
+      /* ⚠ La papelera va en SU PROPIA FILA, abajo a la derecha, y no apretada al
+         final de la de los botones. Medido con la tarjeta desplegada: ahí salía
+         de **21 px** de ancho junto a dos botones de 133 —la mitad del mínimo de
+         44 que se puede tocar con el pulgar—, y así llegó el reporte: «ha
+         desaparecido la papelera». No había desaparecido; era intocable. Es la
+         luna de las pernoctas y la ✕ del modo inspección otra vez: el DOM decía
+         que estaba y la pantalla decía que no. */
+      (n.manual ? '<div class="ex-row ex-row-del">'+
+        '<button class="ex-del" title="Eliminar nota" aria-label="Eliminar nota" '+
+        'onclick="event.stopPropagation();exDelNota(\''+n.id+'\')">'+
+        iconoPapelera()+'<span>Eliminar</span></button></div>' : '')+
     '</div></div>';
+}
+
+/* La papelera se DIBUJA. El 🗑 lo pinta la fuente del móvil del piloto —la
+   lección de la luna de las pernoctas— y a 13 px salía un borrón: es justo el
+   botón que el piloto reportó como «ha desaparecido». Un trazado no adelgaza en
+   otro sistema ni se lo sustituye un emoji. */
+/* La flecha que dice HACIA DÓNDE se desliza. Dibujada, no un «‹»: un carácter
+   lo pinta la fuente del móvil del piloto —la lección de la luna de las
+   pernoctas— y aquí es justo lo que tiene que explicar el gesto. */
+/* El mismo recibo en otra nota. Va en la tarjeta PLEGADA: es justo antes de
+   enviar cuando hay que verlo, no dentro de un desplegable. */
+function avisoDup(n){
+  var otras = ((EX.tkDup || {})[n.id] || []).map(notaDe).filter(Boolean);
+  if (!otras.length) return '';
+  return '<div class="ex-dup">⚠ El mismo ticket va también en ' +
+    otras.map(function(o){
+      return '<b>' + esc(tipoDe(o.kind).lbl) + '</b> del ' + esc(sinDia(fdate(o.date)).toLowerCase());
+    }).join(', ') + '. Vueling puede rechazar una de las dos.</div>';
+}
+
+function iconoFlechaIzq(){
+  return '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">'+
+    '<path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" '+
+    'stroke-linejoin="round" d="M14 5l-7 7 7 7"/></svg>';
+}
+
+/* ── LA PAPELERA, DE TRAZO ────────────────────────────────────────────────────
+   «Modifica el botón de eliminar nota por un icono mucho más bonito. Que se vea
+   perfectamente en modo día y modo noche» (12-sep-2026).
+
+   Era una mancha SÓLIDA de 17 px: a ese tamaño una silueta rellena no enseña la
+   forma de nada, sólo un bulto oscuro con el contorno de un bote. El trazo sí
+   dibuja el objeto —tapa, asa, cuerpo que se estrecha y las dos ranuras— y es
+   además **el lenguaje que la app ya tiene**: `iconoFlechaIzq`, que vive tres
+   líneas más arriba y se pinta al lado en el mismo panel, es de trazo redondeado.
+   Dos iconos vecinos con dos lenguajes distintos se ven como un descuido.
+
+   Sigue DIBUJADA, que es lo que no se negocia: el 🗑 lo pinta la fuente del móvil
+   del piloto —la lección de la luna de las pernoctas— y a 13 px salía un borrón,
+   que es justo el botón que se reportó como «ha desaparecido».
+
+   El grosor (1,9 sobre 24, o sea ~1,4 px a 18) es un DATO, no un gusto: por
+   debajo se adelgaza hasta el pelo de la luna y por encima vuelve a ser el bulto.
+   `ticket-papelera-test` cuenta la tinta en los dos temas. */
+function iconoPapelera(){
+  return '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" '+
+    'fill="none" stroke="currentColor" stroke-width="1.9" '+
+    'stroke-linecap="round" stroke-linejoin="round">'+
+      '<path d="M9.8 6.2V5a1.6 1.6 0 0 1 1.6-1.6h1.2A1.6 1.6 0 0 1 14.2 5v1.2"/>'+  /* el asa */
+      '<path d="M4.6 6.6h14.8"/>'+                                                  /* la tapa */
+      '<path d="M6.5 6.6l.78 12.4A2.2 2.2 0 0 0 9.47 21h5.06a2.2 2.2 0 0 0 2.19-2l.78-12.4"/>'+
+      '<path d="M10.3 10.4v6.6M13.7 10.4v6.6"/>'+                                   /* las ranuras */
+    '</svg>';
+}
+
+/* ── DESLIZAR A LA IZQUIERDA PARA BORRAR ─────────────────────────────────────
+   Pedido el 11-sep-2026. Es el PRIMER deslizamiento de la app: si algún día
+   hace falta otro, se saca de aquí y se comparte — no se copia (el fallo de
+   `ES_AIRPORTS` / `ES_IATA`).
+
+   Tres cosas que no son adorno:
+
+   · **Sólo las notas a mano.** Las automáticas las manda el roster y volverían
+     a salir en el siguiente render; deslizar una y ver cómo reaparece sería
+     peor que no poder deslizarla.
+   · **El gesto no le roba el scroll a la lista.** Hasta que el dedo no lleva
+     más recorrido horizontal que vertical (y 12 px), esto no hace nada: si no,
+     bajar por las notas engancharía tarjetas de lado a cada paso.
+   · **Deslizar NO borra: descubre el botón.** Un gesto no puede ser la
+     confirmación de algo irreversible — se abre el panel y el piloto pulsa,
+     y ahí sale el mismo pop-up que en la papelera. Un borrado que pasa con el
+     dedo resbalando es dinero reclamado que desaparece sin que nadie lo diga.
+
+   Se engancha por DELEGACIÓN al contenedor de la pestaña, una sola vez: las
+   tarjetas se rehacen en cada `exRender()` y unos listeners por tarjeta se
+   quedarían colgando del DOM viejo. */
+var SW_ANCHO = 96;                      // lo que asoma el panel, y el CSS lo repite
+var _swOn = false, _sw = null;
+function exSwipeInit(){
+  if (_swOn) return;
+  var host = document.getElementById('pc-tab-gastos');
+  if (!host) return;
+  _swOn = true;
+
+  function cierra(card){ if (card) card.classList.remove('sw'); }
+  function cierraTodas(menos){
+    var abiertas = host.querySelectorAll('.ex-day.sw');
+    for (var i = 0; i < abiertas.length; i++) if (abiertas[i] !== menos) cierra(abiertas[i]);
+  }
+
+  host.addEventListener('pointerdown', function(ev){
+    var card = ev.target.closest && ev.target.closest('.ex-day[data-man="1"]');
+    /* Tocar DENTRO del panel abierto es pulsar el botón, no empezar un gesto. */
+    if (ev.target.closest && ev.target.closest('.ex-swipe-del')) return;
+    if (!card) { cierraTodas(null); return; }
+    _sw = { card: card, x0: ev.clientX, y0: ev.clientY, dx: 0, vivo: false,
+            abierta: card.classList.contains('sw') };
+  }, { passive: true });
+
+  host.addEventListener('pointermove', function(ev){
+    if (!_sw) return;
+    var dx = ev.clientX - _sw.x0, dy = ev.clientY - _sw.y0;
+    if (!_sw.vivo) {
+      /* Nada hasta saber que el gesto es HORIZONTAL. */
+      if (Math.abs(dy) > Math.abs(dx)) { _sw = null; return; }
+      if (Math.abs(dx) < 12) return;
+      _sw.vivo = true;
+      cierraTodas(_sw.card);
+    }
+    var base = _sw.abierta ? -SW_ANCHO : 0;
+    _sw.dx = Math.max(-SW_ANCHO, Math.min(0, base + dx));
+    /* El desplazamiento se escribe en la TARJETA, no en la zona táctil: la zona
+       táctil y el panel se mueven JUNTOS con él, así que el panel entra desde
+       fuera del borde en vez de estar debajo esperando. Con el panel debajo, la
+       zona táctil tenía que taparlo —y no puede: la tarjeta es de cristal—, que
+       es exactamente cómo el rojo acabó viéndose con la tarjeta cerrada.
+       El contenido del panel CRECE con `--swp`. Son dos variables CSS y no una
+       animación: se escriben dos propiedades por frame y de ahí para abajo lo
+       compone la GPU —aquí un bucle de rAF ya costó 209 ms por interacción tres
+       pantallas más allá—. Al soltar manda la clase `sw`, con su transición. */
+    _sw.card.style.setProperty('--dx', _sw.dx + 'px');
+    _sw.card.style.setProperty('--swp', (Math.abs(_sw.dx) / SW_ANCHO).toFixed(3));
+  }, { passive: true });
+
+  function suelta(){
+    if (!_sw) return;
+    var card = _sw.card, vivo = _sw.vivo, dx = _sw.dx;
+    _sw = null;
+    card.style.removeProperty('--dx');       // manda la clase, no el estilo en línea
+    card.style.removeProperty('--swp');      // ídem: a partir de aquí decide `sw`
+    if (!vivo) return;
+    /* Pasado el tercio, se queda abierto; si no, vuelve. */
+    if (dx < -SW_ANCHO / 3) card.classList.add('sw'); else card.classList.remove('sw');
+  }
+  host.addEventListener('pointerup', suelta, { passive: true });
+  host.addEventListener('pointercancel', suelta, { passive: true });
+  /* Al repintar, ninguna queda abierta: la tarjeta de debajo puede ser otra. */
+  window.addEventListener('pilotos-gastos-render', function(){ cierraTodas(null); });
 }
 
 /* ════════ HOJA DE DETALLE ════════ */
@@ -1367,7 +1751,12 @@ function drawSheet(){
        (EX.sent[n.id] ? '' :
          '<div class="ex-row"><div class="ex-btn ghost" onclick="exMark(\''+n.id+'\');exClose()">'+
          'La he pasado yo a mano</div></div>')+
-       (n.manual ? '<div class="ex-row"><div class="ex-btn ghost danger" onclick="exDelNota(\''+n.id+'\')">Borrar esta nota</div></div>' : '');
+       /* La MISMA papelera que la tarjeta, dentro de la hoja de edición: es
+          donde el piloto está cuando decide que la nota sobra, y hasta ahora
+          era un botón de texto que no se parecía en nada al de fuera. */
+       (n.manual ? '<div class="ex-row ex-row-del">'+
+         '<button class="ex-del" title="Eliminar nota" aria-label="Eliminar nota" '+
+         'onclick="exDelNota(\''+n.id+'\')">'+iconoPapelera()+'<span>Eliminar nota</span></button></div>' : '');
 
   document.getElementById('ex-sheetbody').innerHTML = h;
 }
@@ -1481,19 +1870,42 @@ window.exSetFecha = function(id, i){
    Se apoya en la hoja que ya existe (`ex-send`), así que hereda su estética, su
    modo día y su animación. El callback vive en una variable del módulo porque
    los `onclick` de esta app son cadenas y por ahí no cabe una función. */
+/* Los iconos de las opciones se DIBUJAN. Iban dentro del texto como caracteres
+   —«✓ La he pasado yo a mano», «🗑 Eliminar la nota»— y eso lo pinta la fuente
+   del móvil del piloto, no el código: es la luna de las pernoctas, tercera vez
+   en esta pestaña. Un trazado no adelgaza en otro sistema ni se lo sustituye un
+   emoji, y además le da a cada fila una FORMA distinta, que es lo que se lee de
+   un vistazo cuando tres filas dicen lo mismo en el mismo blanco. */
+var PICK_IC = {
+  check: '<path fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.5l5 5 10-11"/>',
+  euro:  '<path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M18 6.5A7.5 7.5 0 0 0 7.2 9M18 17.5A7.5 7.5 0 0 1 7.2 15M4 10.5h9M4 13.5h9"/>',
+  undo:  '<path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M4 9h10a5 5 0 0 1 0 10h-4M4 9l4-4M4 9l4 4"/>',
+  trash: '<path fill="currentColor" d="M9 3h6a1 1 0 0 1 1 1v1h4a1 1 0 1 1 0 2h-.8l-1 13.1A2 2 0 0 1 16.2 22H7.8a2 2 0 0 1-2-1.9L4.8 7H4a1 1 0 0 1 0-2h4V4a1 1 0 0 1 1-1zm1 2h4V4.8h-4V5zm-.3 5a.8.8 0 0 0-.8.8v7.4a.8.8 0 0 0 1.6 0V10.8a.8.8 0 0 0-.8-.8zm4.6 0a.8.8 0 0 0-.8.8v7.4a.8.8 0 0 0 1.6 0V10.8a.8.8 0 0 0-.8-.8z"/>'
+};
+function exOptIc(k){
+  if (!k || !PICK_IC[k]) return '';
+  return '<span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">' +
+         PICK_IC[k] + '</svg></span>';
+}
 var PICK_CB = null;
 function exPick(cfg){
   PICK_CB = cfg.onPick || null;
   var el = sendEl();
-  var h = '<div class="ex-send-h"><div class="ex-send-ic">' + (cfg.ic || '☰') + '</div>' +
+  /* Un `ic` que empieza por «<» es un TRAZADO y entra tal cual: las hojas que
+     borran no pueden llevar su icono en cian —el color de «todo va bien»— ni
+     dibujado por la fuente del aparato. */
+  var icH = cfg.ic || '☰', crudo = icH.charAt(0) === '<';
+  var h = '<div class="ex-send-h' + (cfg.tono ? ' t-' + cfg.tono : '') + '">' +
+    '<div class="ex-send-ic' + (crudo ? ' dib' : '') + '">' + (crudo ? icH : esc(icH)) + '</div>' +
     '<div class="ex-send-t">' + esc(cfg.titulo || '') + '</div>' +
     (cfg.sub ? '<div class="ex-send-s">' + cfg.sub + '</div>' : '') + '</div>' +
     '<div class="ex-send-body">' + (cfg.html || '') +
     '<div class="ex-opts">' + (cfg.opciones || []).map(function(o, i){
       return '<div class="ex-opt' + (o.on ? ' on' : '') + (o.ghost ? ' ghost' : '') +
-        '" onclick="exPickGo(' + i + ')">' +
-        '<div class="t">' + esc(o.txt) + '</div>' +
-        (o.hint ? '<div class="h">' + esc(o.hint) + '</div>' : '') +
+        (o.tono ? ' t-' + o.tono : '') + '" onclick="exPickGo(' + i + ')">' +
+        exOptIc(o.ic) +
+        '<div class="tx"><div class="t">' + esc(o.txt) + '</div>' +
+        (o.hint ? '<div class="h">' + esc(o.hint) + '</div>' : '') + '</div>' +
         (o.on ? '<div class="c">✓</div>' : '') + '</div>';
     }).join('') + '</div></div>' +
     '<div class="ex-send-foot"><div class="ex-btn ghost" onclick="exSendClose()">Cancelar</div></div>';
@@ -1728,7 +2140,18 @@ function subirTicket(rec, key){
   return Promise.resolve();       // (y con mala cobertura, esperar la congelaría)
 }
 window.exDelTk = function(id){
-  if (!confirm('¿Borrar este ticket?')) return;
+  /* El mismo pop-up de la app que la nota: dos confirmaciones con dos aspectos
+     distintos en la misma pantalla es lo que no puede pasar. */
+  exPick({
+    ic: '<svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">' + PICK_IC.trash + '</svg>',
+    tono: 'danger', titulo: '¿Borrar este ticket?',
+    sub: 'La nota se queda; se va sólo esta foto.',
+    opciones: [ { v:'si', txt:'Sí, borrarlo', ic:'trash', tono:'danger', hint:'No se puede deshacer' },
+                { v:'no', txt:'No, dejarlo', ic:'undo', ghost:true } ],
+    onPick: function(v){ if (v === 'si') exDelTkYa(id); }
+  });
+};
+window.exDelTkYa = function(id){
   var t = null; TICKETS.forEach(function(x){ if (x.id===id) t = x; });
   var nota = t ? String(t.lineKey).split('#')[0] : '';
   TK_SUCIO = true;
@@ -1755,9 +2178,22 @@ window.exOutAll = function(){
     if (all[k].blob) sacarFuera(all[k].blob, nombreTk(all[k])).then(function(){ next(k+1); });
     else next(k+1); })(0);
 };
+/* Huella de un recibo leído por la IA: comercio + fecha + total de sus líneas.
+   El `amount` NO sirve —es lo que se reclama, y el piloto lo ajusta al tope—;
+   las líneas del recibo sí son las mismas si es el mismo papel. Sin comercio,
+   fecha o líneas no hay huella: un ticket a mano de 23,21 € no dice nada. */
+function firmaTicket(t){
+  if (!t || !t.shop || !t.ticket_date) return null;
+  var it = t.items;
+  if (typeof it === 'string'){ try { it = JSON.parse(it); } catch(e){ it = null; } }
+  if (!Array.isArray(it) || !it.length) return null;
+  var tot = it.reduce(function(a, x){ return a + (Number(x && x.amount)||0); }, 0);
+  return String(t.shop).trim().toUpperCase() + '|' + String(t.ticket_date).slice(0, 10) + '|' + tot.toFixed(2);
+}
 function contarTickets(){
   tkAll().then(function(all){
-    EX.tkCount = {}; EX.tkSum = {}; EX.tkLine = {};
+    EX.tkCount = {}; EX.tkSum = {}; EX.tkLine = {}; EX.tkFechas = {}; EX.tkDup = {};
+    var firmas = {};
     (all||[]).forEach(function(t){
       var id = String(t.lineKey).split('#')[0], eur = Number(t.amount)||0;
       EX.tkCount[id] = (EX.tkCount[id]||0) + 1;
@@ -1765,6 +2201,27 @@ function contarTickets(){
       // Por LÍNEA (lineKey = idNota#índice): es lo que permite decir en qué
       // franja concreta te falta ticket, no solo que la nota va corta.
       EX.tkLine[t.lineKey] = (EX.tkLine[t.lineKey]||0) + eur;
+      /* La fecha IMPRESA en el recibo: no es la del servicio ni la del envío, y
+         la tarjeta tiene que poder decir las tres por separado. */
+      if (t.ticket_date){
+        var fd = String(t.ticket_date).slice(0, 10);
+        EX.tkFechas[id] = EX.tkFechas[id] || [];
+        if (EX.tkFechas[id].indexOf(fd) < 0) EX.tkFechas[id].push(fd);
+      }
+      var f = firmaTicket(t);
+      if (f){ firmas[f] = firmas[f] || {}; firmas[f][id] = 1; }
+    });
+    /* El MISMO recibo en dos notas (se escanea dos veces la misma cena): Vueling
+       puede tumbar una. Se avisa, no se bloquea — a veces es legítimo repartir. */
+    Object.keys(firmas).forEach(function(f){
+      var ids = Object.keys(firmas[f]); if (ids.length < 2) return;
+      ids.forEach(function(id){
+        ids.forEach(function(o){
+          if (o === id) return;
+          EX.tkDup[id] = EX.tkDup[id] || [];
+          if (EX.tkDup[id].indexOf(o) < 0) EX.tkDup[id].push(o);
+        });
+      });
     });
     exRender();
   }).catch(function(){ exRender(); });
@@ -2033,12 +2490,13 @@ function cuadraConRoster(tid, fecha){
   /* Sin roster importado no se avisa de nada: no es que no cuadre, es que no
      hay con qué comparar. */
   if (!rosterRows().length) return { hay: true };
-  /* `construirDias` sólo devuelve días CON vuelos (filtra por legs.length), así
-     que "no está" significa día libre, guardia o sin importar — nunca un día de
-     vuelo que se haya perdido. */
+  /* `construirDias` devuelve los días con vuelos y los que te dejan fuera de
+     base (una guardia en el hotel es de estos), así que "no está" significa día
+     libre en base o sin importar — nunca un día que se haya perdido. */
   var dia = diaDelRoster(fecha);
   if (tid === 'position'){
-    if (!dia) return { hay: false, motivo: 'ese día no tienes vuelos en el roster' };
+    if (!dia || !(dia.legs||[]).length)
+      return { hay: false, motivo: 'ese día no tienes vuelos en el roster' };
     return (dia.legs || []).some(function(l){ return l.positioning; })
       ? { hay: true }
       : { hay: false, motivo: 'ese día vuelas, pero ningún tramo consta como posicional' };
@@ -2093,8 +2551,32 @@ window.exCrear = function(tid, subtype, cap, slot, lbl, fechaFija){
   EX.mes = d.slice(0,7);
   exRender(); exOpen(n.id);
 };
+/* Confirmar con la hoja de la app (`exPick`), no con `confirm()`. El diálogo
+   nativo en una PWA sale con el dominio por delante, no sigue el modo día y en
+   iOS lo puede bloquear el propio navegador — y entonces borra sin preguntar o
+   no borra y no lo dice. `exPick` ya existe: escribir un segundo confirmador
+   sería `ES_AIRPORTS` / `ES_IATA` en los diálogos.
+   La línea DICE qué se pierde antes de tocarla: los tickets se van con ella. */
 window.exDelNota = function(id){
-  if (!confirm('¿Borrar esta nota?')) return;
+  var n = (EX.manual || []).filter(function(x){ return x.id === id; })[0];
+  var nTk = (EX.tkCount || {})[id] || 0;
+  exPick({
+    ic: '<svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">' + PICK_IC.trash + '</svg>',
+    tono: 'danger',
+    titulo: '¿Eliminar esta nota?',
+    sub: (n ? esc(n.title || '') + ' · ' + fdate(n.date) : '') +
+         (nTk ? ' — se van con ella ' + nTk + ' ticket' + (nTk > 1 ? 's' : '') : ''),
+    /* ⚠ `exPickGo` llama al callback con `(o.v, o)` — el VALOR de la opción, no
+       su índice. Mirando el índice, esto borraría con «No, dejarla». */
+    opciones: [
+      { v: 'si', txt: 'Sí, eliminarla', ic: 'trash', tono: 'danger',
+        hint: nTk ? 'Los tickets adjuntos también' : 'No se puede deshacer' },
+      { v: 'no', txt: 'No, dejarla', ic: 'undo', ghost: true }
+    ],
+    onPick: function(v){ if (v === 'si') exDelNotaYa(id); }
+  });
+};
+window.exDelNotaYa = function(id){
   EX.manual = EX.manual.filter(function(n){ return n.id !== id; }); saveMan();
   delete EX.sent[id]; saveSent();
   // Lápida, no borrado a secas: el otro dispositivo tiene que enterarse de que
@@ -2112,9 +2594,62 @@ window.exDelNota = function(id){
 function arrancar(){
   if (ARRANCADO) return;
   ARRANCADO = true;      // ANTES de llamar: contarTickets() vuelve a pintar
+  rebotePega();
   contarTickets();
   _ultSync = Date.now();
   exSync();
+}
+
+/* ── EL REBOTE DEL TICKET ─────────────────────────────────────────────────────
+   Pedido junto a lo de abrir más fácil: «que haga un rebote al pulsar que sea
+   dinámico». Dinámico quiere decir que responde al dedo, no que reproduce una
+   animación fija: la tarjeta se HUNDE mientras la tienes pulsada —y se hunde más
+   cuanto más la tienes, porque la transición de entrada es larga y lenta— y al
+   soltar vuelve con una curva que se pasa de largo y se asienta. El rebote sale
+   de la curva, así que su amplitud es proporcional a lo que llegó a hundirse:
+   un toque seco rebota poco y una pulsación mantenida rebota más. Todo en CSS,
+   sin un solo cálculo por frame — en esta app un bucle de animación que nadie
+   mira ya costó 209 ms por interacción tres pantallas más allá.
+
+   Va DELEGADO en el contenedor de la pestaña y se engancha UNA vez: `exRender`
+   rehace las tarjetas enteras en cada pintado, así que un listener por tarjeta
+   se perdería en el siguiente repintado o se acumularía.
+
+   Y no se hunde la ZONA sino la TARJETA: la tira de color del tipo es un
+   `:before` de `.ex-day`, así que escalando sólo `.ex-tap` la tira se quedaría
+   quieta mientras el resto se mueve. */
+var REBOTE = false;
+function rebotePega(){
+  if (REBOTE) return;
+  var host = document.getElementById('pc-tab-gastos'); if (!host) return;
+  REBOTE = true;
+  /* Los mandos propios NO hunden la tarjeta: tienen su propio `:active` y su
+     `stopPropagation`. Hundir la tarjeta entera al tocar el chip de la cámara
+     diría que se va a abrir la tarjeta, y lo que se abre es la hoja de tickets. */
+  var MANDOS = '.ex-tkchip,.ex-btn,.ex-del,.ex-lnk,.ex-whyb,.ex-estado[onclick],a,button,input,select,textarea';
+  var pulsada = null;
+  var suelta = function(){
+    if (!pulsada) return;
+    pulsada.classList.remove('pulsando');
+    pulsada = null;
+  };
+  host.addEventListener('pointerdown', function(ev){
+    var zona = ev.target && ev.target.closest ? ev.target.closest('.ex-tap') : null;
+    if (!zona) return;
+    if (ev.target.closest(MANDOS)) return;
+    var card = zona.closest('.ex-day');
+    if (!card || card.classList.contains('selble')) return;
+    suelta();
+    pulsada = card;
+    card.classList.add('pulsando');
+  }, { passive: true });
+  ['pointerup','pointercancel','pointerleave','dragstart'].forEach(function(e){
+    host.addEventListener(e, suelta, { passive: true });
+  });
+  /* Y si el dedo se va de la tarjeta arrastrando (la lista rueda), se suelta:
+     sin esto la tarjeta se queda hundida para siempre y parece rota. */
+  window.addEventListener('pointerup', suelta, { passive: true });
+  window.addEventListener('scroll', suelta, { passive: true, capture: true });
 }
 
 /* ── VOLVER A ENTRAR TIENE QUE VOLVER A SINCRONIZAR ────────────────────────────
@@ -2167,6 +2702,19 @@ var K_PORTAL = 'pilotos_gastos_portal';
 function portalLoad(){
   try { EX.portal = JSON.parse(localStorage.getItem(K_PORTAL) || '{}') || {}; }
   catch(e){ EX.portal = {}; }
+  /* Un «enviando» guardado de hace más de 6 min es un envío que se cortó (app
+     cerrada, cuelgue): si se queda así, la nota pierde el botón de Enviar para
+     siempre. Pasa a error, que permite reintentar. */
+  var ahora = Date.now(), cambio = false;
+  Object.keys(EX.portal).forEach(function(id){
+    var e = EX.portal[id];
+    if (e && e.state === 'sending' && !(ahora - Date.parse(e.at) < 6 * 60000)){
+      EX.portal[id] = { state: 'error', at: new Date().toISOString(),
+        msg: 'El envío no se completó. Mira si la nota ya aparece en el portal antes de reintentar.' };
+      cambio = true;
+    }
+  });
+  if (cambio) portalSave();
 }
 function portalSave(){ try { localStorage.setItem(K_PORTAL, JSON.stringify(EX.portal)); } catch(e){} }
 function envioDe(n){ return (EX.portal || {})[typeof n === 'string' ? n : n.id] || null; }
@@ -2226,6 +2774,13 @@ function estadoEnvio(n){
   return 'go';
 }
 
+/* ── El ciclo: el estado lo dice la FRANJA; los botones hacen cosas ──────────
+   Era un solo botón con tres oficios: su rótulo decía DÓNDE ESTÁS y su toque
+   hacía LA SIGUIENTE transición («⏳ Enviada» marcaba pagada). Un mando que no
+   dice lo que hace, y encima sólo dejaba UN camino por estado — por eso no
+   había forma de decir «ya me la han pagado» sin haberla enviado antes, que es
+   justo lo que reportó el piloto. Hoy: la franja dice el estado, el botón dice
+   la acción, y el ⋯ ofrece TODO lo que se puede hacer desde donde estás. */
 function botonCiclo(n){
   var st = estadoEnvio(n), id = n.id;
   var clic = function(fn){ return 'onclick="event.stopPropagation();' + fn + '"'; };
@@ -2236,7 +2791,7 @@ function botonCiclo(n){
   /* Enviada = la mandó la app, o el piloto la pasó a mano y la marcó. Los dos
      caminos acaban aquí, y desde aquí sólo queda cobrarla. */
   if (st === 'new')     return '<div class="ex-btn cic new" ' + clic('exVista(\'' + id + '\')') + '>Ver la nota</div>';
-  if (st === 'sent')    return '<div class="ex-btn cic sent" ' + clic('exCobrada(\'' + id + '\')') + '>⏳ Enviada</div>';
+  if (st === 'sent')    return '<div class="ex-btn cic sent" ' + clic('exCobrada(\'' + id + '\')') + '>€ Marcar cobrada</div>';
   return '<div class="ex-btn cic go" ' + clic('exEnviar(\'' + id + '\')') + '>✈ Enviar</div>';
 }
 
@@ -2248,11 +2803,53 @@ function vistasNLoad(){ try { EX.vistasN = JSON.parse(localStorage.getItem(K_VIS
 function vistasNSave(){ try { localStorage.setItem(K_VISTASN, JSON.stringify(EX.vistasN||{})); } catch(e){} }
 window.exVista = function(id){ EX.vistasN = EX.vistasN||{}; EX.vistasN[id]=1; vistasNSave(); exRender(); if (window.exOpen) exOpen(id); };
 
+/* Todas las transiciones posibles desde donde esté la nota, en un sitio.
+   Antes cada estado ofrecía exactamente UNA —la del carril— y el resto no
+   existían: una nota sin enviar no tenía forma de marcarse pagada aunque
+   `exCobrada` ya supiera hacerlo («cobrada implica pasada») desde el primer
+   día. Faltaba el CAMINO, no el motor. Es el primo de `ppCloudPull`: una
+   función que nadie puede llamar no es media función, es ninguna. */
+window.exMasMenu = function(id){
+  var n = notaDe(id); if (!n) return;
+  var st = estadoEnvio(n), ops = [];
+  if (st !== 'paid') {
+    if (!EX.sent[id]) ops.push({ v:'mano', txt:'La he pasado yo a mano', ic:'check', tono:'ok',
+      hint:'La mandaste por el portal, no desde aquí' });
+    ops.push({ v:'pagada', txt:'Ya me la han pagado', ic:'euro', tono:'pay',
+      hint:'Aunque no la hayas enviado desde la app' });
+  }
+  if (EX.sent[id] && st !== 'paid') ops.push({ v:'nomano', txt:'No, aún no la he enviado', ic:'undo', ghost:true });
+  if (st === 'paid') ops.push({ v:'despagada', txt:'Volver a pendiente de cobro', ic:'undo', ghost:true });
+  /* La irreversible va en ROJO y la última. Antes era la fila MÁS apagada de
+     las tres —gris pizarra, borde azul, sin un píxel rojo—: la única que no se
+     puede deshacer, anunciada como la menos importante. */
+  if (n.manual) ops.push({ v:'borrar', txt:'Eliminar la nota', ic:'trash', tono:'danger' });
+  if (!ops.length) return;
+  exPick({
+    ic:'⋯', titulo:tituloDe(n), sub:'¿Qué quieres hacer con esta nota?',
+    opciones: ops,
+    /* ⚠ `exPickGo` llama con (o.v, o) — el VALOR, no el índice. */
+    onPick: function(v){
+      if (v === 'mano')           exMark(id);
+      else if (v === 'nomano')    exUnmark(id);
+      else if (v === 'pagada')    exCobrada(id);
+      else if (v === 'despagada') exDespagada(id);
+      else if (v === 'borrar')    exDelNota(id);
+    }
+  });
+};
+
 window.exCobrada = function(id){
   var n = notaDe(id); if (!n) return;
-  if (!confirm('¿Ya has recibido el cobro de esta nota?\n\n' + tituloDe(n) +
-               '\n\nSe marcará como PAGADA. Es tu control: la app no puede saber ' +
-               'cuándo te entra el dinero en la nómina.')) return;
+  exPick({
+    ic:'€', titulo:'¿Ya has recibido el cobro?',
+    sub:esc(tituloDe(n)) + ' — es TU control: la app no puede saber cuándo te entra el dinero en la nómina.',
+    opciones:[ { v:'si', txt:'Sí, ya está cobrada', ic:'euro', tono:'pay' },
+               { v:'no', txt:'Todavía no', ic:'undo', ghost:true } ],
+    onPick: function(v){ if (v === 'si') exCobradaYa(id); }
+  });
+};
+window.exCobradaYa = function(id){
   EX.paid[id] = new Date().toISOString(); paidSave();
   /* Cobrada implica pasada: si se marcó pagada sin haber pasado por "enviada"
      (una nota vieja), no puede quedarse en la lista de pendientes. */
@@ -2260,8 +2857,14 @@ window.exCobrada = function(id){
   exRender();
 };
 window.exDespagada = function(id){
-  if (!confirm('¿Marcarla otra vez como pendiente de cobro?')) return;
-  delete EX.paid[id]; paidSave(); exRender();
+  exPick({
+    ic:'↩', titulo:'¿Volver a pendiente de cobro?',
+    sub:'La nota deja de contar como pagada.',
+    opciones:[ { v:'si', txt:'Sí, aún no la he cobrado', ic:'undo', tono:'ok' },
+               { v:'no', txt:'Déjala pagada', ic:'euro', ghost:true } ],
+    onPick: function(v){ if (v !== 'si') return;
+      delete EX.paid[id]; paidSave(); exRender(); }
+  });
 };
 
 /* ── La franja de ESTADO, arriba de cada nota ─────────────────────────────────
@@ -2565,7 +3168,7 @@ function enviarLote(notas){
   exProgreso('Preparando ' + notas.length + ' notas…');
   pasosDeEspera();
 
-  cargarTickets()
+  conTope(cargarTickets(), ENVIO_PREP_MS, MSG_PREP)
     .then(function(){
       return Promise.all(notas.map(function(n){
         return ticketsDe(n).then(function(tk){
@@ -2575,8 +3178,8 @@ function enviarLote(notas){
       }));
     })
     .then(function(payload){
-      return api('/api/expense/portal/submit', { method: 'POST', body: {
-        notes: payload, draft: false, confirm: true } });
+      return conTope(api('/api/expense/portal/submit', { method: 'POST', body: {
+        notes: payload, draft: false, confirm: true } }), ENVIO_MS, MSG_TARDA);
     })
     .then(function(r){
       var b = r.body || {};
@@ -2631,25 +3234,34 @@ function enviarLote(notas){
             flash: okIds
           });
         } else {
-          showToast && showToast('No se pudo enviar ninguna', 'warn');
+          /* Antes sólo un toast: la pantalla de «Enviando» se quedaba girando. */
+          var err1 = (b.results[0] && b.results[0].error) || 'El portal no aceptó ninguna';
+          loteFallo(err1);
         }
       } else {
         notas.forEach(function(n){
           EX.portal[n.id] = { state: 'error', at: new Date().toISOString(),
             msg: b.message || b.error || ('El portal respondió ' + r.status) };
         });
-        showToast && showToast('No se pudieron enviar', 'warn');
+        loteFallo(b.message || b.error || ('El portal respondió ' + r.status));
       }
       portalSave(); exRender();
     })
     .catch(function(e){
+      var msg = (e && e.message) || 'Sin conexión con el servidor';
       notas.forEach(function(n){
-        EX.portal[n.id] = { state: 'error', at: new Date().toISOString(),
-          msg: (e && e.message) || 'Sin conexión con el servidor' };
+        EX.portal[n.id] = { state: 'error', at: new Date().toISOString(), msg: msg };
       });
       portalSave(); exRender();
-      showToast && showToast('No se pudieron enviar', 'warn');
+      loteFallo(msg);
     });
+}
+function loteFallo(msg){
+  exResultado('mal',
+    '<div class="ex-ok-motivo">' + esc(msg) + '</div>' +
+    '<div class="ex-ok-p">No han llegado a Vueling. Puedes reintentarlo desde las notas.</div>' +
+    '<div class="ex-btn cic err" onclick="exSendClose()">Entendido</div>',
+    'No se pudieron enviar', []);
 }
 
 /* ── Sesión caducada: se le lleva a entrar, no se le avisa y ya ───────────────
@@ -2720,18 +3332,23 @@ function loginPaso(paso, datos){
       '<div class="ex-btn solid off" id="ex-lg-go" onclick="exLoginGo()">Entrar</div></div>';
   }
 
-  else if (paso === 'numero'){
-    /* Lo que el piloto necesita saber aquí lo aprendimos con los testers: la
-       notificación muchas veces NO llega, la aprobación está dentro de Outlook,
-       y volver a darle a "Entrar" genera un número nuevo que anula éste. */
-    h = '<div class="ex-send-h go"><div class="ex-send-ic">📲</div>' +
-      '<div class="ex-send-t">Aprueba en Outlook</div>' +
-      '<div class="ex-send-s">Abre <b>Outlook en el móvil</b> y escribe este número</div></div>' +
-      '<div class="ex-send-body"><div class="ex-lg-num">' + esc(datos.number || '··') + '</div>' +
-      '<div class="ex-send-warn">Si no te salta la notificación, <b>abre Outlook a mano</b> y ' +
+  else if (paso === 'mfa'){
+    /* La verificación entera —número, código por SMS, aprobación sin número y
+       lista de métodos— la pinta ms-mfa.js, EL MISMO modal que usa el roster.
+       Antes esta vista daba por hecho el number-match ("Aprueba en Outlook") y
+       un piloto con SMS no tenía dónde escribir su código.
+
+       El aviso de la push sigue aquí, pero condicionado al método: sobre una
+       pantalla de código no diría nada cierto. */
+    var esPush = (datos.method === 'number' || datos.method === 'approval');
+    h = '<div class="ex-send-h go"><div class="ex-send-ic">' + (esPush ? '📲' : '🔑') + '</div>' +
+      '<div class="ex-send-t">Verifica tu identidad</div>' +
+      '<div class="ex-send-s">Microsoft pide un segundo paso para entrar en tu cuenta.</div></div>' +
+      '<div class="ex-send-body"><div id="ex-mfa-host"></div>' +
+      (esPush ? '<div class="ex-send-warn">Si no te salta la notificación, <b>abre Outlook a mano</b> y ' +
         'desliza hacia abajo: la solicitud suele estar dentro. <b>No vuelvas a darle a Entrar</b> — ' +
-        'eso genera un número nuevo y anula éste.</div></div>' +
-      '<div class="ex-send-foot"><div class="ex-btn ghost" onclick="exLoginCerrar()">Cancelar</div></div>';
+        'eso genera un número nuevo y anula éste.</div>' : '') +
+      '</div>';
   }
 
   else if (paso === 'esperando'){
@@ -2771,9 +3388,15 @@ window.exLoginGo = function(){
   try { lsSet && lsSet('ec_last_mail', mail); } catch(e){}
 
   loginPaso('esperando', { txt: 'Comprobando tus datos con Microsoft' });
-  api('/api/ecrews/login', { method: 'POST', body: {
+  /* `target: gastos` → el backend se para en cuanto tiene la sesión y NO lee el
+     calendario (serían 30-40 s de navegador que aquí no le sirven a nadie: el
+     piloto le ha dado a Enviar, no a Sincronizar). Es el mismo login que el del
+     roster; lo único que cambia es qué se hace al terminar. */
+  api('/api/ms-auth/gastos/login', { method: 'POST', body: {
     email: mail, password: pass, consent: true,
-    only_session: true            // entrar y guardar la sesión; el roster NO se toca
+    // La misma memoria que el roster: es el mismo Entra y el mismo aparato.
+    preferMethod: (window.MsMfa && MsMfa.metodoRecordado && MsMfa.metodoRecordado()) || undefined,
+    preferFamily: (window.MsMfa && MsMfa.familiaRecordada && MsMfa.familiaRecordada()) || undefined
   }}).then(function(r){
     var b2 = r.body || {};
     if (r.status !== 200){
@@ -2781,39 +3404,66 @@ window.exLoginGo = function(){
       return;
     }
     _login.sid = b2.sessionId;
-    if (b2.number) loginPaso('numero', { number: b2.number });
-    else loginPaso('esperando', { txt: 'Esperando a Microsoft' });
-    loginVigilar();
+    loginMfa(b2);
   }).catch(function(){
     loginPaso('creds', { mail: mail, error: 'Sin conexión con el servidor.' });
   });
 };
 
-/* Se pregunta por el estado del login hasta que entra o falla. Es el mismo
-   /status que usa el roster: aquí sólo cambia qué se hace al terminar. */
-function loginVigilar(){
-  if (_login.poll) clearInterval(_login.poll);
-  var t0 = Date.now();
-  _login.poll = setInterval(function(){
-    if (!_login.sid || Date.now() - t0 > 7 * 60 * 1000){ loginCerrar(); return; }
-    api('/api/ecrews/login/status?sessionId=' + encodeURIComponent(_login.sid)).then(function(r){
-      var s = r.body || {};
-      if (s.number && s.status === 'AWAITING_APPROVAL') loginPaso('numero', { number: s.number });
-      if (s.status === 'ERROR'){
-        clearInterval(_login.poll); _login.poll = null;
-        loginPaso('creds', { error: s.error || 'No se pudo entrar.' });
-        return;
-      }
-      /* COMPLETE o AUTHENTICATED: la sesión ya está guardada en el servidor. */
-      if (s.status === 'COMPLETE' || s.status === 'AUTHENTICATED'){
-        clearInterval(_login.poll); _login.poll = null; _login.sid = null;
-        loginPaso('listo');
-        var f = _reintento; _reintento = null;
-        if (f) setTimeout(function(){ loginCerrar(); f(); }, 1200);
-      }
-    }).catch(function(){});
-  }, 3000);
+/* Monta el modal compartido de verificación. Una sola función: las cuatro
+   vistas las decide el `method` que manda el servidor tras MIRAR la pantalla de
+   Microsoft, no una suposición de la app. */
+var _mfaMetodo = null;
+
+function mfaBase(){ return (typeof ldBackendUrl === 'function') ? ldBackendUrl() : 'https://api.pilotos.aero'; }
+
+function loginMfa(vista){
+  if (typeof MsMfa === 'undefined'){
+    loginPaso('creds', { error: 'Falta un componente de la app. Recarga la página.' });
+    return;
+  }
+  _mfaMetodo = (vista && vista.method) || null;
+  mfaMonta(vista);
 }
+
+/* El marco de fuera (el aviso de la push) depende del método, así que cuando el
+   método CAMBIA —el piloto pide otro y pasa de número a código— hay que
+   repintar el marco, y con él se va el host del modal. Por eso se remonta.
+   Se hace solo al cambiar: repintar en cada tic borraría lo que está tecleando. */
+function mfaMonta(vista){
+  loginPaso('mfa', { method: _mfaMetodo });
+  MsMfa.arranca({
+    host: document.getElementById('ex-mfa-host'),
+    target: 'gastos',
+    sessionId: _login.sid,
+    base: mfaBase(),
+    token: exToken(),
+    onEstado: function(v){
+      if (v.method && v.method !== _mfaMetodo){ _mfaMetodo = v.method; mfaMonta(v); }
+    },
+    onListo: loginListo,
+    onError: loginFallo,
+    onCancelar: function(){ window.exLoginCerrar(); }
+  }, vista);
+}
+
+function loginListo(){
+  _login.sid = null;
+  loginPaso('listo');
+  var f = _reintento; _reintento = null;
+  if (f) setTimeout(function(){ loginCerrar(); f(); }, 1200);
+}
+
+function loginFallo(v){
+  loginPaso('creds', { error: (v && v.error) || 'No se pudo entrar.' });
+}
+
+/* `loginVigilar` vivía aquí: sondeaba /api/ecrews/login/status y pintaba
+   loginPaso('numero'). Lo hace ahora ms-mfa.js, que además entiende el resto de
+   métodos. Se BORRA en vez de dejarlo sin llamar: código muerto que apunta a una
+   vista que ya no existe es lo que hace perder media hora al siguiente que lo
+   lea buscando por qué "no se usa el número". El cierre del ciclo está en
+   loginListo / loginFallo, arriba. */
 
 /* ── LA CONFIRMACIÓN DE QUE HA SALIDO ────────────────────────────────────────
    Un toast de tres segundos en una esquina no basta para esto. Mandar una nota
@@ -2959,17 +3609,16 @@ function enviarAlPortal(n, motivo){
   exProgreso('Preparando los tickets…');
   pasosDeEspera();
 
-  cargarTickets()
-    .then(function(){ return ticketsDe(n); })
+  conTope(cargarTickets().then(function(){ return ticketsDe(n); }), ENVIO_PREP_MS, MSG_PREP)
     .then(function(tickets){
       exProgresoPaso('Entrando en el portal de Vueling…');
-      return api('/api/expense/portal/submit', { method: 'POST', body: {
+      return conTope(api('/api/expense/portal/submit', { method: 'POST', body: {
         lines: lineasParaEnviar(n, motivo),
         tickets: tickets,
         comment: tituloDe(n) + (n.route ? ' · ' + n.route : ''),
         draft: false,          // va a la Compañía: lo acaba de confirmar el piloto
         confirm: true          // segundo cerrojo, exigido por el backend
-      }});
+      }}), ENVIO_MS, MSG_TARDA);
     })
     .then(function(r){
       var b = r.body || {};

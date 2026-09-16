@@ -74,6 +74,89 @@ html.day #scr-pay .pc-tab-btn[data-tab="gastos"].active{
 #pc-tab-gastos .ex-paso.urge .n{color:#FFB067}
 #pc-tab-gastos .ex-paso.on.urge .n{color:#FFB067}
 
+/* ══ LA CABECERA DE TIPO ══════════════════════════════════════════════════════
+   «Que encima de estado ponga TICKET Horno inoperativo» (11-sep-2026), y con
+   ella «que los tickets tuvieran un diseño… elegante».
+
+   ── LA PRIMERA VERSIÓN LLEVABA OCHO TEXTURAS Y ESTABA MAL ──
+   Una trama por concepto (rayas, cuadrícula, puntos). «Se ve bastante feo», y
+   con razón: **una trama es ruido repetido**. Ocho tarjetas seguidas con ocho
+   rayados distintos convierten la lista en una manta de retales, y cada trama
+   compite con el rótulo que tiene justo encima — la textura llamaba la atención
+   sobre sí misma en vez de sobre la nota. Se quitaron en Beta.816. No volver a
+   añadirlas: si algún día parece buena idea, mirar una lista de seis notas
+   seguidas antes de escribir una línea.
+
+   ── LO QUE HAY AHORA: TRES CAPAS, NINGUNA REPETIDA ──
+   1. **Lavado.** Un degradado del color del tipo que entra por la izquierda
+      —donde está la tira— y se apaga antes del centro. Sin grano: un degradado
+      no puede competir con el texto como sí lo hace una trama.
+   2. **Línea de luz** abajo, del color del tipo y con su halo. Es lo que hace
+      que la cabecera parezca una pieza y no un rectángulo pintado.
+   3. **La marca del tipo en grande**, muy tenue, saliéndose por el borde
+      derecho. Es la que distingue un concepto de otro de un vistazo, y es
+      honesta: es el símbolo del propio concepto —el MISMO trazado que el icono
+      pequeño— y no un rayado inventado. Una forma grande se lee de lejos; ocho
+      rayados, no.
+
+   Las tres salen del MISMO `--tcol` que la tira lateral y el icono: un color
+   propio aquí sería una cuarta cosa que mantener sincronizada.
+
+   ⚠️ NUNCA con el atajo `background`. Un `html.day …{background:#fff!important}`
+   se llevaría por delante el degradado del lavado. `background-color` y
+   `background-image` por separado, y los overrides de día también.
+
+   La cabecera va a sangre (márgenes negativos contra el padding de la tarjeta).
+   La tira de color de `.ex-day:before` es `position:absolute`, así que se pinta
+   POR ENCIMA de esta banda y sigue de arriba abajo sin partirse. */
+#pc-tab-gastos .ex-tipo{position:relative;overflow:hidden;
+  display:flex;align-items:center;gap:8px;
+  margin:-12px -13px 9px -15px;padding:8px 13px 8px 15px;
+  border-bottom:1px solid color-mix(in srgb,var(--tcol) 34%,transparent);
+  box-shadow:0 1px 10px -4px color-mix(in srgb,var(--tcol) 55%,transparent);
+  background-color:transparent;
+  background-image:linear-gradient(100deg,
+    color-mix(in srgb,var(--tcol) 19%,transparent) 0%,
+    color-mix(in srgb,var(--tcol) 8%,transparent) 38%,
+    color-mix(in srgb,var(--tcol) 0%,transparent) 78%)}
+/* La marca grande: fondo, no contenido. Se sale por el borde —está recortada
+   por el `overflow:hidden` de la banda— para que se lea como una filigrana y no
+   como un icono suelto mal colocado. */
+#pc-tab-gastos .ex-tipo-marca{position:absolute;right:-9px;top:50%;
+  transform:translateY(-50%);line-height:0;color:var(--tcol);opacity:.13;
+  pointer-events:none}
+#pc-tab-gastos .ex-tipo-ic{position:relative;flex:0 0 auto;line-height:0;color:var(--tcol)}
+#pc-tab-gastos .ex-tipo-ic .ex-ic{width:15px;height:15px}
+/* El rótulo va OPACO y no al 62 %. A 8,5 px sobre la banda teñida, el 62 % se
+   quedaba entre 3,12:1 (médicos) y 4,36:1 (incidencia) — por debajo del 4,5:1 de
+   AA. Es la línea pequeña del arrastre del IRPF otra vez: «parece gris» no es
+   una medición. Lo mide `ticket-cabecera-test` en los ocho tipos y en los dos
+   temas, y con el peor píxel de la banda, no con uno cualquiera. */
+#pc-tab-gastos .ex-tipo-k{position:relative;font-family:ui-monospace,'SF Mono',Menlo,monospace;
+  font-size:8.5px;font-weight:800;letter-spacing:.22em;color:#C8E3FF;flex:0 0 auto}
+#pc-tab-gastos .ex-tipo-v{position:relative;font-size:11px;font-weight:800;letter-spacing:.03em;
+  color:var(--tcol);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── EL REBOTE AL PULSAR ──
+   «Que al pulsar sobre el ticket se abra más fácilmente y que haga un rebote al
+   pulsar que sea dinámico.» Dinámico = responde al dedo. La ENTRADA es larga y
+   con salida suave, así que la tarjeta se hunde progresivamente mientras la
+   tienes pulsada; la VUELTA lleva una curva que se pasa de largo, y como el
+   rebote sale de la curva su amplitud es proporcional a lo que llegó a
+   hundirse: un toque seco rebota poco, una pulsación mantenida rebota más.
+   Cero trabajo por frame — lo compone el navegador. */
+#pc-tab-gastos .ex-day{transition:transform .34s cubic-bezier(.34,1.4,.5,1)}
+#pc-tab-gastos .ex-day.pulsando{transform:scale(.968);
+  transition:transform .45s cubic-bezier(.22,.9,.3,1)}
+/* La zona de toque es la tarjeta PLEGADA entera: cabecera de tipo, estado, fila
+   principal y chips. El cuerpo queda fuera — tocar un botón de dentro no puede
+   cerrar la tarjeta que estás leyendo. */
+#pc-tab-gastos .ex-tap{cursor:pointer;touch-action:manipulation}
+#pc-tab-gastos .ex-day.selble .ex-tap{cursor:inherit}
+@media (prefers-reduced-motion: reduce){
+  #pc-tab-gastos .ex-day,#pc-tab-gastos .ex-day.pulsando{transition:none;transform:none}
+}
+
 /* ── Cabecera de la tarjeta ── */
 #pc-tab-gastos .ex-head{display:flex;align-items:flex-start;gap:10px;cursor:pointer}
 #pc-tab-gastos .ex-ico{flex:0 0 auto;width:30px;height:30px;border-radius:9px;display:flex;
@@ -86,7 +169,7 @@ html.day #scr-pay .pc-tab-btn[data-tab="gastos"].active{
 /* .52 daba 4,14:1 sobre la tarjeta de noche — por debajo del 4,5 de AA. */
 #pc-tab-gastos .ex-caret{color:rgba(180,220,255,.75);line-height:0;margin-top:6px;
   transition:transform .18s;flex:0 0 auto;display:block}
-#pc-tab-gastos .ex-head.open .ex-caret{transform:rotate(180deg)}
+#pc-tab-gastos .ex-tap.open .ex-caret{transform:rotate(180deg)}
 
 /* ── Los chips: lo único que decide algo con la tarjeta plegada ── */
 #pc-tab-gastos .ex-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:9px}
@@ -101,6 +184,10 @@ html.day #scr-pay .pc-tab-btn[data-tab="gastos"].active{
   border-radius:6px;white-space:nowrap}
 #pc-tab-gastos .ex-plazo.warn{background:rgba(255,176,103,.14);color:#FFB067}
 #pc-tab-gastos .ex-plazo.bad{background:rgba(255,128,149,.16);color:#FF8095}
+/* El `z-index:2` que llevaba esto existía para ganarle la capa al panel del
+   deslizamiento, que colgaba de `.ex-day` y se pintaba encima del cuerpo
+   tapando la papelera y el ⋯. Con el panel dentro de `.ex-swipe` ya no llega
+   aquí: el parche sobra y se quita en vez de quedarse «por si acaso». */
 #pc-tab-gastos .ex-body{margin-top:2px}
 
 /* ── Tira de meses ──
@@ -120,7 +207,7 @@ html.day #scr-pay .pc-tab-btn[data-tab="gastos"].active{
    el toque; con `manipulation` se compromete antes.
    Va en TODOS los mandos de esta pestaña, no sólo en los meses. */
 #pc-tab-gastos .ex-mchip,#pc-tab-gastos .ex-paso,#pc-tab-gastos .ex-tkchip,
-#pc-tab-gastos .ex-head,#pc-tab-gastos .ex-new,#pc-tab-gastos .ex-whyb,
+#pc-tab-gastos .ex-tap,#pc-tab-gastos .ex-new,#pc-tab-gastos .ex-whyb,
 #pc-tab-gastos .ex-req-go,.ex-btn,.ex-add,.ex-cp{touch-action:manipulation}
 /* Y el blanco de toque llega a los 44 px que pide Apple: el chip medía 34. */
 #pc-tab-gastos .ex-mchip{flex:0 0 auto;padding:9px 11px;min-height:44px;
@@ -155,7 +242,11 @@ html.day #scr-pay .pc-tab-btn[data-tab="gastos"].active{
   padding:18px 10px;line-height:1.6}
 
 /* tarjeta con tira de color por tipo de gasto */
-#pc-tab-gastos .ex-day{border-radius:16px;padding:12px 13px 12px 15px;margin-bottom:9px;position:relative;
+/* El padding de la tarjeta se declara UNA vez y se usa dos: aquí y en el
+   sangrado de `.ex-swipe`. Escrito dos veces, el día que cambie uno el panel
+   deja un canalón claro y vuelve el reporte. */
+#pc-tab-gastos .ex-day{--swp:0;--exPadT:12px;--exPadR:13px;--exPadB:12px;--exPadL:15px;
+  border-radius:16px;padding:var(--exPadT) var(--exPadR) var(--exPadB) var(--exPadL);margin-bottom:9px;position:relative;
   overflow:hidden;background:rgba(16,24,40,.44);border:1px solid rgba(126,251,254,.34)}
 #pc-tab-gastos .ex-day:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--tcol,#7EFBFE)}
 #pc-tab-gastos .ex-day.done{opacity:.55;border-color:rgba(255,255,255,.14)}
@@ -172,9 +263,135 @@ html.day #scr-pay .pc-tab-btn[data-tab="gastos"].active{
 /* Papelera igual que la del logbook (.ld-fdel): el mismo icono y la misma
    opacidad .55 — con .35 el icono se quedaba en 1,07:1 sobre la tarjeta
    oscura. Discreto está bien en un botón destructivo; invisible no. */
-#pc-tab-gastos .ex-del{background:none;border:none;cursor:pointer;font-size:13px;
-  padding:2px 4px;opacity:.55;transition:opacity .15s;flex-shrink:0;line-height:1}
-#pc-tab-gastos .ex-del:active{opacity:1}
+/* ⚠ Antes era un 🗑 suelto de 13 px al final de la fila de botones: medido con
+   la tarjeta desplegada salía de **21 px de ancho** junto a dos botones de 133,
+   la mitad del mínimo de 44 que se toca con el pulgar. Así llegó el reporte
+   —«ha desaparecido la papelera»—: no había desaparecido, era intocable.
+   Ahora va en su propia fila, ABAJO A LA DERECHA, con su aro, su rótulo y 44 px
+   de alto. Discreto está bien en un botón destructivo; invisible no. */
+/* ── Deslizar a la izquierda ────────────────────────────────────────────────
+   ⚠ El envoltorio `.ex-swipe` es EXACTAMENTE lo que se desliza, y el panel va
+   `inset:0` de él. Antes el panel colgaba de `.ex-day`: medía 151 px de alto
+   contra los 139 de la zona táctil —los 12 del padding sobraban por abajo y el
+   rojo asomaba en forma de L—, y llevaba su propio radio de 14 dentro de una
+   tarjeta de 16, dejando una uña del fondo claro entre los dos («el azul tapa la
+   línea roja»). Un solo radio, y el recorte lo hace el envoltorio.
+   El ancho lo repite `SW_ANCHO` en expense.js: si uno cambia, cambian los dos. */
+#pc-tab-gastos .ex-day{position:relative}
+/* SANGRA a los cuatro lados hasta el borde de la tarjeta y restituye el padding
+   por dentro: su caja de margen queda EXACTAMENTE donde estaba la zona táctil,
+   así que nada se mueve, y el panel —`inset:0` de aquí— llega al borde en vez de
+   dejar el canalón claro de 13 px que el piloto ve como «el azul tapa la línea
+   roja». Sin radio propio: el recorte y la curva los pone `.ex-day`
+   (`overflow:hidden` + 16 px), y así hay UN solo radio y ninguna uña entre dos. */
+#pc-tab-gastos .ex-swipe{position:relative;overflow:hidden;
+  margin:calc(-1 * var(--exPadT)) calc(-1 * var(--exPadR))
+         calc(-1 * var(--exPadB)) calc(-1 * var(--exPadL));
+  padding:var(--exPadT) var(--exPadR) var(--exPadB) var(--exPadL)}
+/* NACE FUERA DE LA TARJETA (`left:100%`) y entra con el gesto, recortado por el
+   `overflow:hidden` del envoltorio. Antes estaba QUIETO debajo de la zona táctil
+   y se destapaba al apartarse ésta, lo que obliga a que la zona táctil sea
+   OPACA — y esta tarjeta es de cristal (`rgba(16,24,40,.44)`): el rojo se
+   transparentaba por encima del importe con la tarjeta CERRADA. No es un
+   problema de pintura sino de geometría, así que se arregla con geometría: si
+   el panel está fuera, no hay nada que tapar. */
+#pc-tab-gastos .ex-swipe-del{position:absolute;top:0;left:100%;bottom:0;width:96px;
+  transform:translateX(var(--dx,0px));
+  transition:transform .18s cubic-bezier(.2,.8,.3,1);will-change:transform;
+  display:flex;align-items:center;justify-content:flex-end;gap:6px;
+  padding-right:11px;cursor:pointer;color:#fff;
+  /* SÓLIDO, y la profundidad la da la sombra interior de abajo. El primer
+     intento fundía el borde izquierdo con un rojo transparente, y sobre la
+     tarjeta clara eso no leía como profundidad: leía como una banda lavada y
+     sucia de medio centímetro. Lo que separa los dos planos es la SOMBRA que
+     proyecta la tarjeta, no un degradado que se aclara.
+     El radial se queda: pone la luz donde está el icono, que es adonde tiene que
+     ir la mirada. */
+  background:
+    radial-gradient(58% 76% at 70% 46%, rgba(255,255,255,.13) 0%, rgba(255,255,255,0) 72%),
+    linear-gradient(90deg, #6B1020 0%, #7E1429 26%, #8D1731 66%, #971A36 100%);
+  /* La tarjeta que se aparta proyecta su sombra AQUÍ DENTRO. Es lo que da la
+     sensación de que una capa se levanta sobre otra en vez de destaparse un
+     rectángulo pintado, y no cuesta un solo frame: es una sombra interior. */
+  box-shadow:inset 17px 0 22px -13px rgba(0,0,0,.55)}
+/* La flecha, pegada al borde izquierdo y discreta: dice de qué lado está el
+   borrado sin competir con el icono. */
+#pc-tab-gastos .ex-swipe-del .fl{display:flex;opacity:.6;flex-shrink:0}
+#pc-tab-gastos .ex-swipe-del .ac{display:flex;flex-direction:column;align-items:center;gap:4px;
+  /* CRECE con el gesto (`--swp`, que escribe el arrastre). Con el panel a medio
+     abrir el contenido entra pequeño y llega a su tamaño justo al destaparse. */
+  transform:scale(calc(.58 + .42 * var(--swp, 1)));
+  opacity:calc(.2 + .8 * var(--swp, 1));
+  transition:transform .2s cubic-bezier(.2,.9,.3,1.25), opacity .2s ease}
+#pc-tab-gastos .ex-swipe-del .ac{will-change:transform}
+#pc-tab-gastos .ex-swipe-del .dk{width:34px;height:34px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.17);box-shadow:0 1px 0 rgba(255,255,255,.22) inset,
+    0 3px 9px rgba(80,0,18,.34)}
+#pc-tab-gastos .ex-swipe-del .tx{font-size:9.5px;font-weight:800;letter-spacing:.7px;
+  text-transform:uppercase;opacity:.94}
+/* La flecha se queda SIEMPRE. Desvanecerla al abrir del todo la escondía justo
+   en el único momento en que el piloto la está mirando — y es la que dice de qué
+   lado está el borrado. */
+/* La zona táctil y el panel se mueven JUNTOS, los dos con `--dx`.
+   ⚠ Aquí había un `background:inherit` para taparle el panel a la zona táctil.
+   Heredaba el fondo de `.ex-day` mientras era hija suya; al meterla dentro de
+   `.ex-swipe` —que no declara ninguno— pasó a heredar TRANSPARENTE y el panel
+   se veía a través, con la tarjeta cerrada. Y restituir la cadena tampoco
+   valía: de noche el fondo de la tarjeta es `rgba(16,24,40,.44)`, o sea que una
+   copia suya deja pasar el 56 % del rojo igual. Un fondo no puede tapar lo que
+   no debería estar ahí. */
+#pc-tab-gastos .ex-tap{position:relative;z-index:1;
+  transform:translateX(var(--dx,0px));
+  transition:transform .18s cubic-bezier(.2,.8,.3,1);will-change:transform}
+#pc-tab-gastos .ex-day.sw{--swp:1;--dx:-96px}
+/* El canto de la tarjeta que se aparta: una línea de luz de un píxel. Sin ella
+   la tarjeta y el panel se tocan a hueso y parecen el mismo plano. */
+#pc-tab-gastos .ex-swipe .ex-tap::after{content:'';position:absolute;top:0;bottom:0;
+  right:calc(-1 * var(--exPadR));width:1px;background:rgba(255,255,255,.5);
+  opacity:var(--swp, 0);pointer-events:none}
+#pc-tab-gastos .ex-day.sw .ex-swipe .ex-tap::after{opacity:1;transition:opacity .2s}
+html.day #pc-tab-gastos .ex-swipe .ex-tap::after{background:rgba(255,255,255,.9)}
+/* Mientras el dedo arrastra manda el estilo en línea, no la transición. La
+   marca es `--dx` en la TARJETA: es lo que escribe el gesto. */
+#pc-tab-gastos .ex-day[style*="--dx"] .ex-tap,
+#pc-tab-gastos .ex-day[style*="--dx"] .ex-swipe-del{transition:none}
+
+/* ⋯ — todas las transiciones del estado. 44 px, como la papelera: un mando que
+   no se puede tocar es un mando que no existe. */
+#pc-tab-gastos .ex-mas{flex:0 0 auto;min-width:44px;min-height:44px;
+  display:inline-flex;align-items:center;justify-content:center;
+  border-radius:10px;cursor:pointer;font-family:inherit;font-size:17px;line-height:1;
+  border:1px solid rgba(126,251,254,.28);background:rgba(126,251,254,.08);color:#7EFBFE}
+#pc-tab-gastos .ex-mas:active{background:rgba(126,251,254,.2)}
+html.day #pc-tab-gastos .ex-mas{border-color:rgba(8,145,178,.34);
+  background:rgba(8,145,178,.08);color:#0E7490}
+
+/* ── EL BOTÓN DE BORRAR ───────────────────────────────────────────────────────
+   ⚠️ SIN `#pc-tab-gastos` DELANTE, Y ESO ES EL ARREGLO, NO UN DESCUIDO.
+   La hoja de detalle (`#ex-sheet`) se cuelga de `<body>`, no de la pestaña
+   —`sheetEl()` hace `document.body.appendChild`—, así que un selector anclado en
+   `#pc-tab-gastos` NO la alcanza. El botón de dentro de la hoja se quedaba sin
+   una sola regla y el navegador le pintaba su botón de fábrica: la pastilla gris
+   con letra negra que llegó fotografiada, idéntica en los dos temas porque un
+   estilo de agente de usuario no sabe de temas.
+
+   Lo peor es que el código afirmaba lo contrario: el comentario de su `<button>`
+   dice «la MISMA papelera que la tarjeta» y el selector lo desmentía en silencio.
+   Es la familia de `window.RST_IATA_ICAO` —algo que dice hacerse y no se hace,
+   sin un solo error— esta vez por alcance de CSS.
+   `.ex-btn`, que también se usa en la hoja, ya estaba sin anclar por esto mismo:
+   ahí está la pista de que era el patrón correcto desde el principio. */
+.ex-row-del{justify-content:flex-end;margin-top:8px}
+.ex-del{display:inline-flex;align-items:center;gap:7px;
+  min-height:44px;padding:0 15px;border-radius:12px;cursor:pointer;line-height:1;
+  flex:0 0 auto;font-family:inherit;font-size:11.5px;font-weight:700;
+  letter-spacing:.02em;-webkit-appearance:none;appearance:none;
+  border:1px solid rgba(248,113,113,.34);background:rgba(248,113,113,.10);
+  color:rgba(252,165,165,.95);transition:background .15s,border-color .15s,transform .13s}
+.ex-del svg{flex-shrink:0;opacity:.95}
+.ex-del:active{background:rgba(248,113,113,.22);border-color:rgba(248,113,113,.55);
+  transform:scale(.97)}
 
 /* ── EL PORQUÉ: barra del día + frases ──
    El eje va en tiempo real (UTC por dentro, único monótono al cruzar husos)
@@ -584,7 +801,16 @@ html.day #pc-tab-gastos .ex-mes{border-bottom-color:rgba(2,132,199,.22)}
 html.day #pc-tab-gastos .ex-mes .m{color:#0E7490}
 html.day #pc-tab-gastos .ex-mesbar .m{color:#3C5468}
 html.day #pc-tab-gastos .ex-mes .s{color:#455E75}
-html.day #pc-tab-gastos .ex-del{opacity:.8}
+/* En modo día el panel es claro —y la hoja de detalle también (`#F6FAFE`)—: el
+   rojo claro de noche se queda en un fantasma. Manda el rojo oscuro, que es el
+   que la app ya usa en día. Sin `#pc-tab-gastos`, por lo mismo que el bloque de
+   noche: la hoja cuelga de `<body>` y ese ancla no la alcanza.
+   Las DOS paletas hacen falta aquí de verdad: este botón sí cambia de fondo
+   —navy `#001233` de noche, casi blanco de día—, al revés que la tarjeta del día
+   del roster, que no cambia y por eso lleva una sola. */
+html.day .ex-del{border-color:rgba(185,28,28,.38);
+  background:rgba(185,28,28,.07);color:#B91C1C}
+html.day .ex-del:active{background:rgba(185,28,28,.16)}
 /* ── Rediseño de la lista, en modo día ──
    Los alfa de la noche sobre panel casi blanco dan 1,2:1. Cada color es opaco y
    medido sobre el fondo real de esta pestaña, igual que el resto del bloque. */
@@ -611,6 +837,25 @@ html.day #pc-tab-gastos .ex-paso.on.urge .n{color:#9A3412}
 html.day #pc-tab-gastos .ex-ico{background:color-mix(in srgb,var(--tcol) 20%,#FFF);
   border-color:color-mix(in srgb,var(--tcol) 55%,#FFF);
   color:color-mix(in srgb,var(--tcol) 45%,#0F172A)}
+/* ── La cabecera de tipo, de día ──
+   La tarjeta pasa a blanca y los ocho colores de tipo están elegidos contra un
+   fondo OSCURO: son pasteles (#C4B0FF, #9BDEFF, #4EE6AE…) y sobre blanco se
+   quedan en fantasma, tanto el rótulo como el lavado. Se mezclan hacia el negro
+   para el texto y hacia el blanco para el fondo — la misma receta que ya usa
+   `.ex-ico` aquí al lado, no una paleta nueva. Y la marca grande sube de opacidad:
+   al 13 % sobre blanco no se ve, y al 22 % sobre oscuro sería una mancha. */
+html.day #pc-tab-gastos .ex-tipo{
+  border-bottom-color:color-mix(in srgb,var(--tcol) 55%,#FFF);
+  box-shadow:0 1px 10px -4px color-mix(in srgb,var(--tcol) 70%,#FFF);
+  background-image:linear-gradient(100deg,
+    color-mix(in srgb,var(--tcol) 30%,#FFF) 0%,
+    color-mix(in srgb,var(--tcol) 12%,#FFF) 38%,
+    color-mix(in srgb,var(--tcol) 0%,#FFF) 78%)}
+html.day #pc-tab-gastos .ex-tipo-marca{opacity:.22;
+  color:color-mix(in srgb,var(--tcol) 62%,#0F172A)}
+html.day #pc-tab-gastos .ex-tipo-ic{color:color-mix(in srgb,var(--tcol) 45%,#0F172A)}
+html.day #pc-tab-gastos .ex-tipo-k{color:#475569}
+html.day #pc-tab-gastos .ex-tipo-v{color:color-mix(in srgb,var(--tcol) 30%,#0F172A)}
 html.day #pc-tab-gastos .ex-caret{color:#52697E}
 html.day #pc-tab-gastos .ex-tkchip{background:#FFF3E4;border-color:#FB923C;color:#9A3412}
 html.day #pc-tab-gastos .ex-tkchip.ok{background:#E7FBF3;border-color:#34D399;color:#036B4B}
@@ -1116,15 +1361,54 @@ html.day .ex-cp.motivo .c{color:#155E75}
 .ex-opts{display:flex;flex-direction:column;gap:7px;margin-top:4px}
 .ex-opt{display:flex;align-items:center;gap:10px;padding:12px 13px;border-radius:12px;cursor:pointer;
   border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);min-height:22px}
-.ex-opt .t{flex:1;font-size:13px;font-weight:700;color:#EAF4FF}
-.ex-opt .h{font-size:10.5px;color:rgba(180,220,255,.55);margin-top:2px}
-.ex-opt>div:first-child{flex:1;min-width:0}
+/* El rótulo y su pista van APILADOS. Eran hermanos en la misma fila, así que
+   la pista se llevaba media anchura y, al entrar el disco del icono, «La he
+   pasado yo a mano» salía partido en CUATRO líneas. En una columna el título
+   se lee de un tirón y la pista queda donde tiene que estar: debajo. */
+.ex-opt .tx{flex:1;min-width:0}
+.ex-opt .t{font-size:13px;font-weight:700;color:#EAF4FF}
+.ex-opt .h{font-size:10.5px;color:rgba(180,220,255,.55);margin-top:2px;line-height:1.35}
 .ex-opt .c{flex:0 0 auto;font-size:14px;font-weight:900;color:#7EFBFE}
 .ex-opt.on{border-color:rgba(126,251,254,.6);background:rgba(126,251,254,.13)}
 .ex-opt.on .t{color:#7EFBFE}
 .ex-opt.ghost{background:transparent;border-style:dashed}
 .ex-opt.ghost .t{color:rgba(180,220,255,.7);font-weight:600}
 .ex-opt:active{transform:scale(.99)}
+
+/* ── Que las opciones SE DISTINGAN ─────────────────────────────────────────
+   «No se distingue. Queda demasiado igual» (11-sep-2026, con la hoja del ⋯ y
+   la de confirmación). Medido: en modo día las dos primeras filas salían
+   IDÉNTICAS —`rgb(255,255,255)`, borde `rgba(2,132,199,.18)`, texto
+   `rgb(15,23,42)`, 13 px/700—, y «Eliminar la nota» era la MÁS apagada de las
+   tres: gris pizarra sobre transparente, sin un solo píxel rojo. La única
+   acción que no se puede deshacer, anunciada como la menos importante.
+
+   Dos canales, y cada uno dice una cosa distinta:
+   · el DISCO con su icono dibujado da a cada fila una FORMA — se lee antes que
+     ningún texto cuando tres filas son del mismo blanco;
+   · el TONO (`--ocol`) dice de qué va: verde hecho · oro dinero · pizarra
+     deshacer · rojo irreversible.
+   El tinte de fila se lo queda SÓLO el rojo: si todas se tiñen, volvemos a
+   «todas iguales» con más color. */
+.ex-opt .ic{flex:0 0 auto;width:30px;height:30px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--ocol,#7EFBFE);
+  background:color-mix(in srgb,var(--ocol,#7EFBFE) var(--odisc,15%),transparent);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ocol,#7EFBFE) 34%,transparent)}
+.ex-opt.t-ok{--ocol:#34D399}
+.ex-opt.t-pay{--ocol:#F5C542}
+/* El tinte de noche va al 17 %: al 10 % sobre la hoja oscura el compuesto
+   salía rgb(36,28,45) contra el rgb(22,31,46) del vecino — más rojo que él por
+   14 puntos de R, que es menos de lo que se ve. Medido, no mirado. */
+.ex-opt.t-danger{--ocol:#FF6B81;
+  border-color:rgba(255,107,129,.5);background:rgba(255,107,129,.17)}
+.ex-opt.t-danger .t{color:#FF8B9C}
+.ex-opt.ghost .ic{--ocol:rgba(180,220,255,.75)}
+/* Una hoja que BORRA no puede llevar su icono en cian, que en esta app es el
+   color de «todo va bien». */
+.ex-send-h.t-danger .ex-send-ic{background:rgba(255,107,129,.14);
+  border-color:rgba(255,107,129,.5);color:#FF8B9C}
+.ex-send-ic.dib{display:flex;align-items:center;justify-content:center}
 /* Una lista larga no puede empujar los botones fuera de la pantalla. */
 .ex-send-body .ex-opts{max-height:52vh;overflow:auto;-webkit-overflow-scrolling:touch}
 
@@ -1136,6 +1420,26 @@ html.day .ex-opt.on{background:#ECFEFF;border-color:#67E8F9}
 html.day .ex-opt.on .t{color:#155E75}
 html.day .ex-opt.ghost{background:transparent}
 html.day .ex-opt.ghost .t{color:#475569}
+/* La paleta de día se declara entera: sobre una tarjeta blanca el verde y el
+   oro de noche no llegan a 4,5:1 y el rojo claro se lava. */
+/* Sobre la fila BLANCA de modo día un lavado al 15 % apenas tiñe: medido, el
+   disco verde y el dorado se quedaban a 44 de distancia, y el color del disco
+   es justo lo que distingue dos filas que comparten fondo. Al 24 % se separan
+   de verdad sin que el disco compita con el rótulo que tiene al lado. */
+html.day .ex-opt .ic{--odisc:24%}
+html.day .ex-opt.t-ok{--ocol:#0F766E}
+html.day .ex-opt.t-pay{--ocol:#B45309}
+html.day .ex-opt.t-danger{--ocol:#BE123C;
+  border-color:rgba(190,18,60,.42);background:#FFF1F2}
+html.day .ex-opt.t-danger .t{color:#9F1239}
+html.day .ex-opt.ghost .ic{--ocol:#475569}
+html.day .ex-send-h.t-danger .ex-send-ic{background:#FFF1F2;
+  border-color:#FDA4AF;color:#BE123C}
+/* El «Cancelar» del pie iba en BLANCO OPACO y peso 800: el mando que no hace
+   nada era lo más marcado de la hoja, por encima de las propias opciones. Se
+   apaga — sólo en el pie de esta hoja, que es donde compite. */
+html.day .ex-send-foot .ex-btn.ghost{background:transparent;
+  border-color:rgba(15,23,42,.16);color:#475569;font-weight:700}
 
 /* ── Entrar en la cuenta de Vueling (desde Gastos) ──
    Pantalla propia, no la de "Sincronizar eCrews": esa se queda como está para
@@ -1328,3 +1632,32 @@ html.day .ex-ok.cargando .ex-ok-halo{background:radial-gradient(circle,rgba(2,13
   .ex-ok.bien .check,.ex-ok.mal .cruz{animation:none;stroke-dashoffset:0}
   .ex-ok-cuerpo{animation:none}
 }
+
+/* ── Las tres fechas, rotuladas · grupos de ENVIADO (14-sep-2026) ───────────────
+   SERVICIO / TICKET / ENVIADA en una fila que se parte sola en el móvil. El
+   rótulo va pequeño y apagado: lo que se lee es la fecha. */
+#pc-tab-gastos .ex-hmid>.ex-fechas{display:flex;flex-wrap:wrap;gap:3px 12px}
+#pc-tab-gastos .ex-fechas .f{white-space:nowrap}
+#pc-tab-gastos .ex-fechas .f i{font-style:normal;font-size:7.5px;letter-spacing:.18em;font-weight:800;
+  color:rgba(180,220,255,.45);margin-right:5px}
+#pc-tab-gastos .ex-fechas .f.warn{color:#FFB067}
+#pc-tab-gastos .ex-fechas .f.warn i{color:rgba(255,176,103,.7)}
+/* El total del recibo, en gris: es contexto, no dinero a cobrar. */
+#pc-tab-gastos .ex-amt em.de{color:rgba(180,220,255,.55);font-weight:600}
+#pc-tab-gastos .ex-dup{margin-top:9px;padding:7px 10px;border-radius:9px;font-size:10.5px;line-height:1.45;
+  background:rgba(255,176,103,.12);border:1px solid rgba(255,176,103,.38);color:#FFB067}
+#pc-tab-gastos .ex-dup b{color:inherit}
+#pc-tab-gastos .ex-gsect{margin-top:16px}
+#pc-tab-gastos .ex-gsect.bad{color:#FF8095}
+#pc-tab-gastos .ex-mesbar.plegable{cursor:pointer;justify-content:flex-start;gap:8px;
+  color:rgba(180,220,255,.62)}
+#pc-tab-gastos .ex-mesbar.plegable svg{transition:transform .2s ease}
+#pc-tab-gastos .ex-mesbar.plegable.abierto svg{transform:rotate(180deg)}
+
+html.day #pc-tab-gastos .ex-fechas .f i{color:#64748B}
+html.day #pc-tab-gastos .ex-fechas .f.warn,
+html.day #pc-tab-gastos .ex-fechas .f.warn i{color:#9A3412}
+html.day #pc-tab-gastos .ex-amt em.de{color:#52697E}
+html.day #pc-tab-gastos .ex-dup{background:#FFF3E4;border-color:#FB923C;color:#9A3412}
+html.day #pc-tab-gastos .ex-gsect.bad{color:#B91C1C}
+html.day #pc-tab-gastos .ex-mesbar.plegable{color:#3C5468}
