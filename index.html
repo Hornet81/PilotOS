@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.900">
+  <meta name="version" content="Estable.901">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.900","builtAt":"2026-09-16T19:37:52Z","commit":"01c6e3e","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.901","builtAt":"2026-09-16T19:37:52Z","commit":"01c6e3e","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -49819,7 +49819,11 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
           // si un código desconocido cayera a 'off' por el fallback, se fuerza a
           // 'training' (no pintar verde de libre una jornada de trabajo).
           var _ty = (_m.type === 'off') ? 'training' : _m.type;
-          entries.push({ date:a.date, type:_ty, code:_m.code || a.code,
+          // CÓDIGO ORIGINAL (LMF3, LMSD, EVAL…), NO el genérico 'TR' de _ecMapCode:
+          // dos e-learnings del mismo día (LMF3+LMSD) mapeados ambos a 'TR' colisionan
+          // en el dedup de ldECrewsConfirm (fecha+tipo+code) y uno se pierde. Con su
+          // código real son distintos → entran los dos. (El tipo sí sale de _ecMapCode.)
+          entries.push({ date:a.date, type:_ty, code:a.code,
                          std:a.std, sta:a.sta, dep:a.dep, arr:a.arr, source:'ECREWS' });
         });
         return;
