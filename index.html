@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.898">
+  <meta name="version" content="Beta.713">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.898","builtAt":"2026-09-16T12:34:17Z","commit":"c11d8d9","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Beta.713","builtAt":"2026-09-16T19:37:52Z","commit":"3dd13ea","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -49588,6 +49588,7 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
     // ── FORMACIÓN / TRAINING ─────────────────────────────────────
     'EBT':  {type:'ebt', code:'EBT'},       // Evidence-Based Training (simulador)
     'EVA':  {type:'eva', code:'EVA'},       // Evaluación en simulador
+    'EVAL': {type:'eva', code:'EVAL'},      // Evaluación (variante de 4 letras que manda eCrews)
     'SIM':  {type:'training', code:'SIM'},  // Simulator practice
     'LPC':  {type:'training', code:'SIM'},  // License proficiency check
     'OPC':  {type:'training', code:'SIM'},  // Operating proficiency check
@@ -49791,6 +49792,26 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
 
     // ── Training ──
     if(type === 'training'){
+      /* Día multi-actividad de tierra: eCrews mete VARIAS actividades en un solo
+         evento "Training", cada una con sus horas en el desglose de `details`
+         (día 14: LMF3 07:30-08:00 · LMSD 08:00-09:00 · EVAL 10:30-13:30). Igual que
+         la rama de guardia, se parte por `_ecActsDeDetails` cuando hay ≥2 actividades
+         para no perder las demás — antes solo entraba la 1ª (LMF3) con la ventana
+         report→debrief entera y el EVAL/LMSD desaparecían. Con UNA sola actividad se
+         mantiene la entrada única de siempre (cero regresión en días LM/SBTL sueltos). */
+      var _trActs = _ecActsDeDetails(details, date);
+      if(_trActs.length >= 2){
+        _trActs.forEach(function(a){
+          var _m = _ecMapCode(a.code);
+          // Dentro de un evento de formación, una actividad NUNCA es un día libre:
+          // si un código desconocido cayera a 'off' por el fallback, se fuerza a
+          // 'training' (no pintar verde de libre una jornada de trabajo).
+          var _ty = (_m.type === 'off') ? 'training' : _m.type;
+          entries.push({ date:a.date, type:_ty, code:_m.code || a.code,
+                         std:a.std, sta:a.sta, dep:a.dep, arr:a.arr, source:'ECREWS' });
+        });
+        return;
+      }
       var trCode = text.split('\n')[0].trim();
       var trStart = (ev.start||'').slice(11,16);
       var trEnd   = (ev.end||'').slice(11,16);
