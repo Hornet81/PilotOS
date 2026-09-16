@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.899">
+  <meta name="version" content="Estable.900">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.899","builtAt":"2026-09-16T19:37:52Z","commit":"008fec0","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.900","builtAt":"2026-09-16T19:37:52Z","commit":"008fec0","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -42790,7 +42790,10 @@ function rstRenderCalendar(){
           timeStr = '✈';
         }
         var _fSort = _cks.length ? Math.min.apply(null,_cks) : (_stds.length ? (Math.min.apply(null,_stds)-55) : 9999);
-        barItems.push({ bg:fc.bg, tx:fc.tx, lbl: timeStr, sortMin:_fSort });
+        // Line check (indicador "k" de eCrews): misma tira ROJA de vuelo pero con la HORA
+        // en AMARILLO, para reconocer de un vistazo el día de comprobación en línea.
+        var _isCheckDay = flights.some(function(f){ return f.lineCheck; });
+        barItems.push({ bg:fc.bg, tx: _isCheckDay ? '#FCD34D' : fc.tx, lbl: timeStr, sortMin:_fSort });
       }
       nonFlights.forEach(function(e){
         // Override por CÓDIGO de color (EBT/EVA/REU/VAC...): la barra de la celda
@@ -42856,15 +42859,17 @@ function rstRenderCalendar(){
       if(_xDots) barTopHTML += _dotsHTML;
       barTopHTML += '</div>';
     } else if(hasEntry){
-      // Máximo 2 tiras visibles. Cada tira = una CATEGORÍA distinta (los vuelos del
+      // Hasta 3 tiras visibles. Cada tira = una CATEGORÍA distinta (los vuelos del
       // día se funden en UNA sola tira de firma; standby/training/off van aparte).
-      // Tres puntos (•••) SOLO cuando hay 3+ categorías distintas (más tiras que las
-      // 2 visibles). Un día de un único vuelo de varios saltos = 1 tira, sin puntos.
-      var vis2 = barItems.slice(0,2);
+      // Tres puntos (•••) SOLO cuando hay 4+ categorías distintas (la 4ª y siguientes
+      // se resumen en •••). Un día de un único vuelo de varios saltos = 1 tira, sin puntos.
+      var vis2 = barItems.slice(0,3);
       var extra2 = barItems.length - vis2.length;
       var showDots = extra2 > 0;
-      // Height per bar: leave ~18px for the number at bottom
-      var bh2 = vis2.length===1 ? 20 : (showDots ? 12 : 14);
+      // Altura por tira para que quepan hasta 3 (+ puntos) sobre el número del día (~18px):
+      // 1 tira=20px · 2=14/12 · 3=11/10 (más finas para dejar hueco a los •••).
+      var _nv = vis2.length;
+      var bh2 = _nv<=1 ? 20 : _nv===2 ? (showDots ? 12 : 14) : (showDots ? 10 : 11);
       barTopHTML = '<div style="position:absolute;top:0;left:0;right:0;overflow:hidden;border-radius:7px 7px 0 0">';
       vis2.forEach(function(b){ barTopHTML += _barHTML(b, bh2); });
       if(showDots) barTopHTML += _dotsHTML;
@@ -49209,7 +49214,7 @@ window.ecResyncMonth = function(month){
     if(res.j.status === 'COMPLETE' && res.j.roster){
       var roster = res.j.roster;
       var parsedAll = _ecParseSchedulerEvents(roster.SchedulerEvents || [], roster.BlockDutyTimes || {},
-                                             { timesIn: ecTimesInModo(roster), report: roster.ScheduleReport || null });
+                                             { timesIn: ecTimesInModo(roster), report: roster.ScheduleReport || null, indicators: roster.Indicators || null });
       // El periodo de eCrews DESBORDA al mes siguiente (p.ej. junio llega al 02/07) →
       // quedarnos SOLO con los días del mes pedido (si no, vuelos de julio entran en junio).
       var parsedMonth = parsedAll.filter(function(e){ return e.date && e.date.slice(0,7)===month; });
@@ -49362,6 +49367,13 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
   var EC_LOCAL = !!(opts && opts.timesIn === 'local');
   var EC_BASE  = (function(){ try { return localStorage.getItem('pilotOS_home_base') || 'BCN'; }
                               catch(e){ return 'BCN'; } })();
+  /* Line check: eCrews manda los indicadores del mes en roster.Indicators (por fecha,
+     una entrada por leg separada por comas): "2026-10-07":",k ,k " = legs con "k"
+     (IndicatorsDesc: "k - Annual route check"). NO viaja dentro del evento → se pasa por
+     opts.indicators. Marca la jornada como line check (chip rojo + hora amarilla). La "D"
+     (deadhead) ya se maneja por el * posicional / IsDeadhead. */
+  var EC_IND = (opts && opts.indicators) || {};
+  function _ecDayCheck(d){ return String((EC_IND && EC_IND[d]) || '').split(',').some(function(t){ return t.trim().toLowerCase()==='k'; }); }
 
   // Helper: extract code from eCrews text, skipping HHMM/HH:MM time lines
   // eCrews sometimes puts the start time on the first line before the code, e.g.:
@@ -49823,6 +49835,7 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
     // ── Flight duty (incl. type "Default" = jornada de posicionamiento suelta) ──
     if(type === 'flight' || type === 'default'){
       var dutyCode = text.split('\n')[0].trim();
+      var _dutyCheck = _ecDayCheck(date);   // line check en esta jornada (indicador "k" de eCrews)
       var report   = ev.report || '';
       var debrief  = ev.debrief || '';
       var delay    = ev.delay || '';
@@ -49964,6 +49977,7 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
               checkin: report, debrief: debrief, dutyCode: dutyCode,
               airReturn: true, source: 'ECREWS'
             };
+            if(_dutyCheck) arEntry.lineCheck = true;
             if(legActual){ arEntry.std_actual = tDep; arEntry.sta_actual = tArr; }
             else if(legEstim){ arEntry.std_estimated = tDep; arEntry.sta_estimated = tArr; }
             else { arEntry.std = tDep; arEntry.sta = tArr; }
@@ -49998,6 +50012,7 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
           dutyH:   bdt.Item2 || '',
           source:  'ECREWS'
         };
+        if(_dutyCheck) legEntry.lineCheck = true;
         // Posicionamiento: marca * de eCrews —en la propia leg o en el resumen del
         // evento, por ruta o por número de vuelo— o, en su defecto, jornada deadhead
         // de UNA sola leg (heurística de respaldo cuando no hay ningún *).
@@ -50312,7 +50327,7 @@ function _ecHandleData(payload){
      «pruebo otra hipótesis» en «mira lo que manda eCrews». Sin datos personales
      más allá de lo que ya está en el roster, y solo del último import. */
   _ecParsedEntries = _ecParseSchedulerEvents(events, bdt,
-    { timesIn: ecTimesInModo(payload), report: payload.ScheduleReport || null });
+    { timesIn: ecTimesInModo(payload), report: payload.ScheduleReport || null, indicators: payload.Indicators || null });
 
   var flights  = _ecParsedEntries.filter(function(e){ return e.type==='flight'; });
   var offs     = _ecParsedEntries.filter(function(e){ return e.type==='off'; });
@@ -50457,7 +50472,7 @@ window.ldECrewsConfirm = function(){
           _chg = true;
         }
       }
-      ['blockH','dutyH','checkin','checkout','start','end','times','debrief','arr_time','invasionEnd','delay','dutyCode','acType','acTypeCode'].forEach(function(f){
+      ['blockH','dutyH','checkin','checkout','start','end','times','debrief','arr_time','invasionEnd','delay','dutyCode','acType','acTypeCode','lineCheck'].forEach(function(f){
         if(e[f]!==undefined && e[f]!=='' && ex[f]!==e[f]){ ex[f]=e[f]; _chg=true; }
       });
       // Horas de actividades NO-vuelo (standby/off/training) — las de vuelo ya las gestiona el bloque de categoría.
@@ -50498,6 +50513,7 @@ window.ldECrewsConfirm = function(){
       if(e.dutyH)       entry.dutyH       = e.dutyH;
       if(e.delay)       entry.delay       = e.delay;
       if(e.dutyCode)    entry.dutyCode    = e.dutyCode;
+      if(e.lineCheck)   entry.lineCheck   = true;   // line check (indicador "k" de eCrews)
       if(e.isPositioning) entry.isPositioning = true;
       // Solo el CÓDIGO de eCrews (320/32A/321/32Q), para pintarlo en la ficha del día.
       // `acType` (el campo del logbook) NO se toca desde aquí: ver el comentario del
