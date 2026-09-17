@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.903">
+  <meta name="version" content="Estable.905">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.903","builtAt":"2026-09-16T19:37:52Z","commit":"e7f3c27","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.905","builtAt":"2026-09-17T10:37:03Z","commit":"e7f3c27","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -9546,6 +9546,88 @@ html.day #rst-ecsync-btn{
   color:#03598F !important;
 }
 
+/* ── FIN DE SINCRONIZACIÓN: que se VEA que ha terminado (16-sep-2026) ────────
+   Antes el icono dejaba de girar y ya: el piloto no sabía si había acabado,
+   si había fallado o si seguía. Ahora el botón se vuelve verde con un ✓ que se
+   dibuja y dos ondas, y arriba sale una tarjeta que dice qué ha pasado. */
+#rst-ecsync-btn{position:relative;overflow:visible;transition:background .35s,border-color .35s,color .35s,box-shadow .35s}
+#rst-ecsync-btn .ec-ring{position:absolute;inset:-2px;border-radius:11px;border:2px solid #34D399;pointer-events:none;opacity:0;animation:ecRing 1.15s cubic-bezier(.2,.7,.3,1) forwards}
+#rst-ecsync-btn .ec-ring+.ec-ring{animation-delay:.28s}
+#rst-ecsync-btn.ec-sync-ok,html.day #rst-ecsync-btn.ec-sync-ok{
+  background:linear-gradient(135deg,#34D399 0%,#059669 100%) !important;
+  border-color:#6EE7B7 !important;color:#fff !important;
+  animation:ecOkPop .55s cubic-bezier(.34,1.56,.64,1),ecOkGlow 1.4s ease-in-out .3s 2 both;
+}
+#rst-ecsync-btn.ec-sync-err,html.day #rst-ecsync-btn.ec-sync-err{
+  background:linear-gradient(135deg,#F87171 0%,#DC2626 100%) !important;
+  border-color:#FCA5A5 !important;color:#fff !important;
+  box-shadow:0 0 16px 3px rgba(239,68,68,.55);
+  animation:ecShake .5s cubic-bezier(.36,.07,.19,.97);
+}
+#rst-ecsync-btn .ec-check path,#ec-sync-pop .ecp-disc path{stroke-dasharray:26;stroke-dashoffset:26;animation:ecDraw .45s .18s cubic-bezier(.65,0,.45,1) forwards}
+@keyframes ecRing{0%{transform:scale(1);opacity:.95}100%{transform:scale(2.7);opacity:0}}
+@keyframes ecHalo{0%{transform:scale(1);opacity:.9}100%{transform:scale(1.7);opacity:0}}
+@keyframes ecOkPop{0%{transform:scale(.72)}60%{transform:scale(1.18)}100%{transform:scale(1)}}
+@keyframes ecOkGlow{0%,100%{box-shadow:0 0 10px 2px rgba(16,185,129,.55)}50%{box-shadow:0 0 26px 9px rgba(16,185,129,.85)}}
+@keyframes ecShake{10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(3px)}30%,50%,70%{transform:translateX(-5px)}40%,60%{transform:translateX(5px)}}
+@keyframes ecDraw{to{stroke-dashoffset:0}}
+
+#ec-sync-pop{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 14px);z-index:600;
+  width:max-content;min-width:270px;max-width:min(92vw,400px);box-sizing:border-box;
+  display:flex;align-items:center;gap:14px;padding:14px 20px 17px 14px;border-radius:20px;overflow:hidden;cursor:pointer;
+  font-family:'Space Grotesk',sans-serif;color:#ECFDF5;
+  background:linear-gradient(135deg,rgba(6,56,44,.97) 0%,rgba(7,22,40,.97) 100%);
+  border:1px solid rgba(52,211,153,.55);
+  box-shadow:0 20px 50px rgba(0,0,0,.5),0 0 0 4px rgba(16,185,129,.12),0 0 44px rgba(16,185,129,.4);
+  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);
+  transform:translateX(-50%);animation:ecPopIn .6s cubic-bezier(.34,1.56,.64,1) both}
+#ec-sync-pop.out{animation:ecPopOut .32s ease-in forwards}
+#ec-sync-pop .ecp-disc{position:relative;flex:0 0 auto;width:46px;height:46px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(circle at 32% 28%,#6EE7B7 0%,#10B981 45%,#047857 100%);
+  box-shadow:0 0 0 3px rgba(52,211,153,.25),0 6px 18px rgba(16,185,129,.55)}
+#ec-sync-pop .ecp-disc::after{content:'';position:absolute;inset:-3px;border-radius:50%;border:2px solid #34D399;animation:ecHalo 1.3s ease-out .15s 2 both}
+#ec-sync-pop .ecp-tit{font-size:15.5px;font-weight:700;letter-spacing:-.01em;line-height:1.25}
+#ec-sync-pop .ecp-sub{margin-top:2px;font-size:12px;line-height:1.35;color:rgba(209,250,229,.85)}
+#ec-sync-pop .ecp-sub b{font-weight:700;color:#A7F3D0}
+#ec-sync-pop .ecp-bar{position:absolute;left:0;right:0;bottom:0;height:3px;transform-origin:left;
+  background:linear-gradient(90deg,#34D399,#22D3EE);animation:ecBar linear forwards}
+#ec-sync-pop.err{background:linear-gradient(135deg,rgba(69,10,10,.97) 0%,rgba(24,12,24,.97) 100%);
+  border-color:rgba(248,113,113,.6);color:#FEF2F2;
+  box-shadow:0 20px 50px rgba(0,0,0,.5),0 0 0 4px rgba(239,68,68,.12),0 0 40px rgba(239,68,68,.35)}
+#ec-sync-pop.err .ecp-disc{background:radial-gradient(circle at 32% 28%,#FCA5A5 0%,#EF4444 45%,#991B1B 100%);box-shadow:0 0 0 3px rgba(248,113,113,.25),0 6px 18px rgba(239,68,68,.5)}
+#ec-sync-pop.err .ecp-disc::after{border-color:#F87171}
+#ec-sync-pop.err .ecp-sub{color:rgba(254,226,226,.88)}
+#ec-sync-pop.err .ecp-bar{background:linear-gradient(90deg,#F87171,#FBBF24)}
+/* «Seguimos descargando» (#KZFX3): cian, con la flecha bajando */
+#ec-sync-pop.info{background:linear-gradient(135deg,rgba(8,47,73,.97) 0%,rgba(7,22,40,.97) 100%);
+  border-color:rgba(34,211,238,.55);color:#ECFEFF;
+  box-shadow:0 20px 50px rgba(0,0,0,.5),0 0 0 4px rgba(34,211,238,.12),0 0 40px rgba(34,211,238,.35)}
+#ec-sync-pop.info .ecp-disc{background:radial-gradient(circle at 32% 28%,#67E8F9 0%,#0891B2 50%,#155E75 100%);box-shadow:0 0 0 3px rgba(34,211,238,.25),0 6px 18px rgba(8,145,178,.55)}
+#ec-sync-pop.info .ecp-disc::after{border-color:#22D3EE}
+#ec-sync-pop.info .ecp-sub{color:rgba(207,250,254,.85)}
+#ec-sync-pop.info .ecp-dl{animation:ecDl 1.1s ease-in-out infinite}
+@keyframes ecDl{0%,100%{transform:translateY(-2px)}50%{transform:translateY(2px)}}
+html.day #ec-sync-pop.info{color:#164E63;background:linear-gradient(135deg,#ECFEFF 0%,#FFFFFF 100%);border-color:rgba(8,145,178,.45);
+  box-shadow:0 18px 44px rgba(15,23,42,.18),0 0 0 4px rgba(34,211,238,.14),0 0 34px rgba(34,211,238,.28)}
+html.day #ec-sync-pop.info .ecp-sub{color:#155E75}
+html.day #ec-sync-pop{color:#064E3B;background:linear-gradient(135deg,#ECFDF5 0%,#FFFFFF 100%);
+  border-color:rgba(5,150,105,.45);box-shadow:0 18px 44px rgba(15,23,42,.18),0 0 0 4px rgba(16,185,129,.14),0 0 36px rgba(16,185,129,.3)}
+html.day #ec-sync-pop .ecp-sub{color:#065F46}
+html.day #ec-sync-pop .ecp-sub b{color:#047857}
+html.day #ec-sync-pop.err{color:#7F1D1D;background:linear-gradient(135deg,#FEF2F2 0%,#FFFFFF 100%);border-color:rgba(220,38,38,.45);
+  box-shadow:0 18px 44px rgba(15,23,42,.18),0 0 0 4px rgba(239,68,68,.12),0 0 34px rgba(239,68,68,.25)}
+html.day #ec-sync-pop.err .ecp-sub{color:#991B1B}
+@keyframes ecPopIn{0%{opacity:0;transform:translate(-50%,-26px) scale(.86)}100%{opacity:1;transform:translate(-50%,0) scale(1)}}
+@keyframes ecPopOut{to{opacity:0;transform:translate(-50%,-18px) scale(.94)}}
+@keyframes ecBar{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+@media (prefers-reduced-motion:reduce){
+  #rst-ecsync-btn.ec-sync-ok,#rst-ecsync-btn.ec-sync-err,#ec-sync-pop,#ec-sync-pop.out,
+  #rst-ecsync-btn .ec-ring,#ec-sync-pop .ecp-disc::after{animation:none !important}
+  #rst-ecsync-btn .ec-ring{display:none}
+  #rst-ecsync-btn .ec-check path,#ec-sync-pop .ecp-disc path{animation:none;stroke-dashoffset:0}
+}
+
 /* ── Calendario: sin fondo propio, hereda el degradado ── */
 html.day #rst-calendar{
   background:transparent !important;
@@ -16686,6 +16768,9 @@ var NAV_CAPAS = [
  'ld-rst-import-overlay','pp-modal','rst-edit-modal','rst-json-modal',
  'rst-options-sheet','sidebar-overlay'].forEach(function(id){
   NAV_CAPAS.push({ id:id, cerrar:function(){
+    // La hoja de eCrews tiene su propio atrás: con una conexión en marcha no
+    // puede limitarse a esconderse (#KZFX3, ver ecSyncOcultar).
+    if (id === 'ec-sync-overlay' && typeof window.ecSyncOcultar === 'function') return window.ecSyncOcultar();
     var el = document.getElementById(id); if (el) el.style.display = 'none';
   }});
 });
@@ -48747,6 +48832,9 @@ window.ldRosterImportConfirm = function(){
 var _ecParsedEntries = [];
 
 window.ldECrewsSyncOpen = function(){
+  // Una conexión a medias que se había quedado en segundo plano (ver ecSyncOcultar):
+  // se vuelve a ELLA. Empezar de cero aquí tiraba la descarga que estaba en marcha.
+  if(_ecEnCurso()){ _ecReabre(); return; }
   // Abre el flujo de importación eCrews (proxy headless): empieza por credenciales.
   _ecParsedEntries = [];
   _ecProxyReset();
@@ -48760,6 +48848,34 @@ window.ldECrewsSyncClose = function(){
   if(ov) ov.style.display = 'none';
   document.body.style.overflow = '';
   _ecProxyReset();
+};
+
+/* ── EL ATRÁS CON UNA CONEXIÓN EN MARCHA (#KZFX3, 17-sep-2026) ──────────────────
+   Marc pulsó «Conectar», hizo atrás y se fue a ARIA. El atrás ocultaba la hoja y
+   nada más: la descarga siguió, el roster LLEGÓ (298 KB) y la lista de meses se
+   pintó en una hoja que nadie veía. No se guardó nada y no se dijo nada.
+   Ahora: si hay una conexión en marcha, la hoja se aparta pero la descarga sigue
+   y se DICE; al terminar, la hoja vuelve sola (ver _ecProxyStartPoll). Sin nada
+   en marcha, el atrás hace lo de siempre. Banco: scripts/ec-atras-test.js. */
+function _ecEnCurso(){ return !!(_ecProxySid && _ecProxyPollTimer); }
+function _ecHojaVisible(){
+  var ov = document.getElementById('ec-sync-overlay');
+  return !!(ov && ov.style.display !== 'none' && ov.style.display !== '');
+}
+function _ecT(s){ return (typeof window.t==='function') ? window.t(s) : s; }
+function _ecReabre(){
+  var ov = document.getElementById('ec-sync-overlay');
+  // Sin tocar el historial: las capas no apilan entrada (el popstate la repone al cerrar).
+  if(ov){ ov.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
+}
+window.ecSyncOcultar = function(){
+  var ov = document.getElementById('ec-sync-overlay');
+  if(ov) ov.style.display = 'none';
+  document.body.style.overflow = '';
+  if(!_ecEnCurso()) return;
+  _ecAviso('info', _ecT('Seguimos descargando tu roster de eCrews'),
+           _ecEsc(_ecT('Te avisamos en cuanto esté listo · toca para volver')),
+           { dur: 4500, onTap: _ecReabre });
 };
 
 // ══════════════════════════════════════════════════════════════════
@@ -48906,11 +49022,17 @@ function _ecMontaMfa(vistaInicial){
     // Banco: scripts/ec-race-test.js (órdenes de los dos temporizadores + respuestas atrasadas).
     onListo: function(){ if(_ecProxyPollTimer) _ecShowState('ec-state-fetching'); },
     onError: function(v){
+      if(_ecProxyPollTimer){ clearInterval(_ecProxyPollTimer); _ecProxyPollTimer = null; }
       _ecShowState('ec-state-creds');
       var e = document.getElementById('ec-creds-err');
       if(e){ e.textContent = v.error || 'Error en eCrews'; e.style.display = 'block'; }
       var b = document.getElementById('ec-connect-btn');
       if(b){ b.disabled = false; b.textContent = 'Conectar con eCrews'; }
+      // Con la hoja apartada (atrás durante la conexión), el fallo tiene que verse (#KZFX3).
+      if(!_ecHojaVisible()){
+        _ecReabre();
+        _ecAviso('err', _ecT('No se pudo conectar con eCrews'), _ecEsc(v.error || _ecT('Inténtalo de nuevo en un momento')), { dur: 5200 });
+      }
     },
     onCancelar: function(){ _ecProxyReset(); _ecShowState('ec-state-creds'); }
   }, vistaInicial);
@@ -48927,7 +49049,11 @@ function _ecProxyStartPoll(){
     fetch(_ecApiBase()+'/api/ms-auth/ecrews/status?sessionId='+encodeURIComponent(_ecProxySid), { headers:{'Authorization':'Bearer '+_ecApiTok()} })
     .then(function(r){ return r.json(); })
     .then(function(v){
-      if(!v || v.error) return;
+      // `error` en una respuesta ERROR es el MENSAJE para el piloto, no un fallo de la
+      // petición (el mismo tropiezo que ms-mfa.js). Descartándola, la rama ERROR de
+      // abajo no corría nunca y un fallo durante la descarga —cuando el modal ya ha
+      // dejado de sondear— dejaba la ruedecita girando para siempre.
+      if(!v || (v.error && v.status !== 'ERROR')) return;
       // Respuesta de un tic anterior que llega DESPUÉS de COMPLETE (o de otra sesión):
       // repintaría "descargando" encima de los meses con el temporizador ya parado.
       if(!_ecProxyPollTimer || (v.sessionId && v.sessionId !== _ecProxySid)) return;
@@ -48939,6 +49065,11 @@ function _ecProxyStartPoll(){
         _ecShowState('ec-state-creds');
         var e = document.getElementById('ec-creds-err'); if(e){ e.textContent = v.error || 'Error en eCrews'; e.style.display = 'block'; }
         var b = document.getElementById('ec-connect-btn'); if(b){ b.disabled = false; b.textContent = 'Conectar con eCrews'; }
+        // En segundo plano, un fallo que nadie ve es otro «no pasa nada» (#KZFX3).
+        if(!_ecHojaVisible()){
+          _ecReabre();
+          _ecAviso('err', _ecT('No se pudo conectar con eCrews'), _ecEsc(v.error || _ecT('Inténtalo de nuevo en un momento')), { dur: 5200 });
+        }
       }
       if(v.status === 'COMPLETE'){
         clearInterval(_ecProxyPollTimer); _ecProxyPollTimer = null;
@@ -48968,6 +49099,13 @@ function _ecProxyStartPoll(){
         }
         ecRenderMonths();
         _ecShowState('ec-state-months');
+        // El piloto se fue a otra pantalla mientras descargaba: el roster no puede
+        // quedarse en una hoja oculta (#KZFX3). Vuelve delante, y se dice.
+        if(!_ecHojaVisible()){
+          _ecReabre();
+          _ecAviso('ok', _ecT('Tu roster de eCrews está listo'),
+                   _ecEsc(_ecT('Elige el mes que quieres importar')), { dur: 5200 });
+        }
       }
     })
     .catch(function(){});
@@ -49082,7 +49220,10 @@ function _ecApplyMonthReplace(parsedMonth, month){
   if(typeof window.ldECrewsConfirm==='function') window.ldECrewsConfirm();
 }
 // Resumen visual de cambios (toast si no hay; hoja con detalle si los hay).
-function _ecShowChangeSummary(month, diff){
+// `sinToast`: quien llama ya enseña su propio aviso de fin (la tarjeta del botón
+// del mes) y el toast de «ya estaba al día» sería el mismo mensaje dos veces.
+// Devuelve lo que ha pasado para que ese aviso lo pueda contar.
+function _ecShowChangeSummary(month, diff, sinToast){
   var n = diff.added.length + diff.removed.length + diff.changed.length;
   var mlabel = (typeof _ecMonthLabel==='function') ? _ecMonthLabel(month) : month;
   /* El diff compara lo que trae eCrews con lo guardado, y mira la hora VIGENTE
@@ -49094,9 +49235,9 @@ function _ecShowChangeSummary(month, diff){
   var _restTxt = _rest ? (_rest===1 ? ' · se ha restaurado 1 hora que habías editado'
                                     : ' · se han restaurado '+_rest+' horas que habías editado') : '';
   if(n===0){
-    if(typeof showToast==='function')
+    if(!sinToast && typeof showToast==='function')
       showToast('✓ '+mlabel+(_rest ? ' sin cambios de la compañía'+_restTxt : ' ya estaba al día'),'success');
-    return;
+    return { n:0, rest:_rest };
   }
   var ov=document.createElement('div');
   ov.setAttribute('data-ecsum','1');
@@ -49124,6 +49265,7 @@ function _ecShowChangeSummary(month, diff){
      preguntas y el piloto dejaría de mirarlas. Aquí no se dan euros: el importe
      depende del ordinal final y el convenio cierra la cuenta al acabar el mes. */
   try{ _ecPintaPagables(card, month, diff); }catch(e){}
+  return { n:n, rest:_rest };
 }
 
 async function _ecPintaPagables(card, month, diff){
@@ -49186,9 +49328,106 @@ function _ecFlashSyncOK(){
   setTimeout(function(){ w.style.cssText=_css; _ecRefreshSyncLabel(); }, 2500);
 }
 
+/* ── EL FIN DE LA SINCRONIZACIÓN, QUE SE VEA ─────────────────────────────────
+   Pedido el 16-sep-2026: «cuando termine de sincronizar, que avise… un pop up y
+   un glow muy evidente». Antes el icono dejaba de girar y nada más: «ha
+   terminado», «ha fallado» y «sigue» se veían igual. Dos señales, las dos:
+   · el BOTÓN se vuelve verde con un ✓ que se dibuja y dos ondas (o rojo y
+     tiembla si ha fallado) — es donde está mirando el piloto;
+   · una TARJETA arriba que dice QUÉ ha pasado: el mes y si había cambios.
+   Se cierra sola (o tocándola) y respeta «reducir movimiento». */
+var _EC_BTN_ICON = null;
+var _EC_CHECK_SVG = '<svg class="ec-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5 10-11"/></svg>';
+function _ecEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function _ecMesBonito(ym){
+  var p=(ym||'').split('-'), y=+p[0], m=+p[1];
+  if(!y||!m) return ym||'';
+  var lang=(window.pilotosLang==='en')?'en-GB':'es-ES';
+  var s;
+  try{ s = new Date(y, m-1, 1).toLocaleDateString(lang,{month:'long',year:'numeric'}); }
+  catch(e){ s = _ecMonthLabel(ym); }
+  // Solo la primera letra: `text-transform:capitalize` escribía «Septiembre De 2026».
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+function _ecSyncFin(ok, info){
+  info = info || {};
+  var T = (typeof window.t==='function') ? window.t : function(s){ return s; };
+  try{ if(typeof closeToast==='function') closeToast(); }catch(e){}   // el «Sincronizando…» ya no aplica
+
+  // 1) El botón
+  var btn = document.getElementById('rst-ecsync-btn');
+  if(btn){
+    if(_EC_BTN_ICON==null) _EC_BTN_ICON = btn.innerHTML;
+    clearTimeout(btn._ecFinT);
+    btn.classList.remove('ec-spinning','ec-sync-ok','ec-sync-err');
+    void btn.offsetWidth;                                    // reinicia la animación si se repite
+    btn.innerHTML = (ok ? _EC_CHECK_SVG : _EC_BTN_ICON) + '<span class="ec-ring"></span><span class="ec-ring"></span>';
+    btn.classList.add(ok ? 'ec-sync-ok' : 'ec-sync-err');
+    btn.style.pointerEvents = '';
+    btn._ecFinT = setTimeout(function(){
+      btn.classList.remove('ec-sync-ok','ec-sync-err');
+      btn.innerHTML = _EC_BTN_ICON;
+    }, ok ? 2900 : 1800);
+  }
+
+  // 2) La tarjeta
+  var tit = ok ? T('Roster sincronizado') : T('No se pudo sincronizar');
+  var sub;
+  if(ok){
+    var n = info.n||0, rest = info.rest||0, partes = [];
+    if(n===0 && !rest) partes.push(T('Todo al día con eCrews'));
+    else if(n===0)      partes.push(T('Sin cambios de la compañía'));
+    // El motor de idioma casa plantillas contra el número REAL: se traduce la frase ya hecha.
+    else                partes.push(T(n===1 ? '1 cambio aplicado' : n+' cambios aplicados'));
+    if(rest) partes.push(T(rest===1 ? '1 hora editada restaurada' : rest+' horas editadas restauradas'));
+    sub = (info.mes ? '<b>'+_ecEsc(_ecMesBonito(info.mes))+'</b> · ' : '') + _ecEsc(partes.join(' · '));
+  } else {
+    sub = _ecEsc(info.msg || T('Inténtalo de nuevo en un momento'));
+  }
+  _ecAviso(ok ? 'ok' : 'err', tit, sub, { dur: ok ? 3600 : 5200 });
+}
+window._ecSyncFin = _ecSyncFin;
+
+/* La tarjeta de aviso de arriba, sola. La usan el botón del mes (_ecSyncFin) y la
+   hoja de eCrews cuando trabaja sin que se vea (#KZFX3).
+   tipo: 'ok' | 'err' | 'info'. `titulo` va escapado aquí; `subHtml` ya viene hecho.
+   opts: { dur, onTap } — tocar la tarjeta la cierra y, si hay onTap, lo ejecuta. */
+function _ecAviso(tipo, titulo, subHtml, opts){
+  opts = opts || {};
+  var viejo = document.getElementById('ec-sync-pop');
+  if(viejo && viejo.parentNode) viejo.parentNode.removeChild(viejo);
+  var dur = opts.dur || 3600;
+  var pop = document.createElement('div');
+  pop.id = 'ec-sync-pop';
+  pop.className = tipo;
+  pop.setAttribute('role','status');
+  pop.setAttribute('aria-live','polite');
+  var icono = tipo === 'ok'
+    ? '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5 10-11"/></svg>'
+    : tipo === 'err'
+    ? '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+    : '<svg class="ecp-dl" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>';
+  pop.innerHTML = '<div class="ecp-disc">'+icono+'</div>'
+    + '<div style="min-width:0"><div class="ecp-tit">'+_ecEsc(titulo)+'</div><div class="ecp-sub">'+(subHtml||'')+'</div></div>'
+    + '<div class="ecp-bar" style="animation-duration:'+dur+'ms"></div>';
+  var cerrar = function(){
+    if(pop._cerrado) return; pop._cerrado = true;
+    clearTimeout(pop._t);
+    pop.classList.add('out');
+    setTimeout(function(){ if(pop.parentNode) pop.parentNode.removeChild(pop); }, 340);
+  };
+  pop.addEventListener('click', function(){ cerrar(); if(opts.onTap){ try{ opts.onTap(); }catch(e){} } });
+  document.body.appendChild(pop);
+  pop._t = setTimeout(cerrar, dur);
+  // Y en la mano: un toque corto de vibración donde el aparato lo permite
+  try{ if(navigator.vibrate) navigator.vibrate(tipo==='err' ? [60,40,60] : tipo==='ok' ? [14,50,22] : 12); }catch(e){}
+  return pop;
+}
+window._ecAviso = _ecAviso;
+
 // Sincroniza el mes en vista sin preguntar (reutiliza sesión). NEEDS_LOGIN → credenciales.
 window.ecResyncMonth = function(month){
-  var _syncOk = false;
+  var _syncOk = false, _syncInfo = null, _syncErr = null;
   if(!month){
     var y = (typeof RST!=='undefined' && RST.viewYear)  ? RST.viewYear  : new Date().getFullYear();
     var m = (typeof RST!=='undefined' && RST.viewMonth!=null) ? RST.viewMonth : new Date().getMonth();
@@ -49196,7 +49435,13 @@ window.ecResyncMonth = function(month){
   }
   var btn = document.getElementById('rst-ecsync-btn');   // icono acción (junto al mes)
   var _when = document.getElementById('rst-ecsync-when'); // pastilla informativa (banner)
-  if(btn){ btn.classList.add('ec-spinning'); btn.style.pointerEvents='none'; }
+  if(btn){
+    if(_EC_BTN_ICON==null) _EC_BTN_ICON = btn.innerHTML;
+    clearTimeout(btn._ecFinT);                                  // un fin anterior aún en pantalla
+    btn.classList.remove('ec-sync-ok','ec-sync-err');
+    btn.innerHTML = _EC_BTN_ICON;
+    btn.classList.add('ec-spinning'); btn.style.pointerEvents='none';
+  }
   // No cambiamos el ancho de la pastilla al sincronizar (el icono del mes gira + toast).
   if(typeof showToast==='function') showToast('🔄 Sincronizando '+month+'…','info');
   fetch(_ecApiBase()+'/api/ecrews/resync', {
@@ -49221,15 +49466,21 @@ window.ecResyncMonth = function(month){
       var parsedMonth = parsedAll.filter(function(e){ return e.date && e.date.slice(0,7)===month; });
       var diff = _ecDiffMonth(parsedMonth, month);  // 1) calcular cambios (solo del mes)
       _ecApplyMonthReplace(parsedMonth, month);      // 2) eCrews = fuente de verdad (conserva lo manual)
-      _ecShowChangeSummary(month, diff);             // 3) avisar al usuario
+      _syncInfo = _ecShowChangeSummary(month, diff, true) || {};   // 3) detalle (si hay cambios)
+      _syncInfo.mes = month;
       _syncOk = true;                                 // para el feedback verde
     }
   })
-  .catch(function(e){ if(typeof showToast==='function') showToast('❌ '+e.message,'error'); })
+  .catch(function(e){ _syncErr = (e && e.message) || 'Error de sincronización'; })
   .then(function(){
     if(btn){ btn.classList.remove('ec-spinning'); btn.style.pointerEvents=''; }
-    if(_syncOk) _ecFlashSyncOK();   // pastilla verde "✓ Sincronizado"
-    else _ecRefreshSyncLabel();     // restaurar "↻ hace X" si no hubo sync
+    if(_syncOk){
+      _ecFlashSyncOK();             // pastilla verde "✓ Sincronizado"
+      _ecSyncFin(true, _syncInfo);  // botón verde + tarjeta
+    } else {
+      if(_syncErr) _ecSyncFin(false, { msg:_syncErr });
+      _ecRefreshSyncLabel();        // restaurar "↻ hace X" si no hubo sync
+    }
   });
 };
 // Mantener la etiqueta "✓ hace X" al cambiar de mes en el roster.

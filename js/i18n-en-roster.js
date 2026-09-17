@@ -5,6 +5,22 @@
 (function(){
   if (typeof window.pilotosI18nAdd !== 'function') return;
   window.pilotosI18nAdd('en', {
+    // Aviso de fin de sincronización del botón del mes (Beta.913)
+    "Roster sincronizado": "Roster synced",
+    "No se pudo sincronizar": "Couldn't sync",
+    "Todo al día con eCrews": "All up to date with eCrews",
+    "Sin cambios de la compañía": "No changes from the company",
+    "1 cambio aplicado": "1 change applied",
+    "{0} cambios aplicados": "{0} changes applied",
+    "1 hora editada restaurada": "1 edited time restored",
+    "{0} horas editadas restauradas": "{0} edited times restored",
+    "Inténtalo de nuevo en un momento": "Try again in a moment",
+    // La hoja de eCrews en segundo plano (#KZFX3, Beta.917)
+    "Seguimos descargando tu roster de eCrews": "Still downloading your eCrews roster",
+    "Te avisamos en cuanto esté listo · toca para volver": "We'll let you know when it's ready · tap to go back",
+    "Tu roster de eCrews está listo": "Your eCrews roster is ready",
+    "Elige el mes que quieres importar": "Choose the month you want to import",
+    "No se pudo conectar con eCrews": "Couldn't connect to eCrews",
     "— habría que retrasar la firma a las": "— report would have to be delayed to",
     "— Máximo 6 legs —": "— Maximum 6 legs —",
     "— No es el mes actual": "— Not the current month",
