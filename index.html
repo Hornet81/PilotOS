@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.905">
+  <meta name="version" content="Estable.906">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.905","builtAt":"2026-09-17T10:37:20Z","commit":"501dace","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.906","builtAt":"2026-09-18T18:02:32Z","commit":"501dace","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -44119,6 +44119,21 @@ function rstLimProject(LL, k, d){
 }
 
 // Nivel de severidad de una llegada: 0 dentro · 1 rompe descanso · 2 discreción · 3 no operable
+/* El margen de UN sector, y contra qué se mide.
+   Antes de calzos, el límite es de SALIDA: la hora a la que hay que despegar
+   para llegar a tiempo con el bloque PROGRAMADO. Pero cuando el último sector
+   ya tiene calzos reales, esa proyección sobra: lo que cuenta es la llegada de
+   verdad contra el límite de llegada. Reporte 18-sep: 7833 LGW-BCN programado
+   12:00 con bloque 2 h 15, salió 13:47 (el límite de salida era 13:42) y la
+   ficha pintaba −5 min en rojo; voló 2 h 05, calzos 15:52 contra 15:57, y el
+   DP acabó por debajo de 12 h. El aviso era falso. */
+function rstLimLegMargin(L, p, M){
+  if(L.isLast && L.factArr && p && typeof p.arr === 'number'){
+    return { lim: M.staLimPlan, margen: M.staLimPlan - p.arr, llegada: true };
+  }
+  return { lim: L.limAbs, margen: L.limAbs - (p ? p.dep : L.nowStdAbs), llegada: false };
+}
+
 function rstLimLevel(arrAbs, M, aug){
   if(arrAbs <= M.staLimPlan) return 0;
   if(arrAbs <= M.staLimFdp)  return 1;
@@ -44150,7 +44165,8 @@ function rstLimitTileHTML(fdp, marginColor, dateStr){
       + '</div>';
   }
   var last = LL[LL.length-1];
-  var slack = last.slackMin;
+  var _lastM = rstLimLegMargin(last, {dep:last.nowStdAbs, arr:last.nowStaAbs}, M);
+  var slack = _lastM.margen;
   // Día nuevo → simulador a cero, y el panel se abre solo UNA vez si hay motivo.
   if(RST_LIM_SIM.dateStr !== dateStr){
     RST_LIM_SIM = {leg:LL.length-1, delay:0, aug:false, dateStr:dateStr};
@@ -44169,20 +44185,24 @@ function rstLimitTileHTML(fdp, marginColor, dateStr){
     +   '<span>Límite calzos</span>'
     +   '<span id="rst-lim-chev" style="font-size:9px;color:#94A3B8;transition:transform .2s;display:inline-block;transform:rotate('+(RST_LIM_OPEN?180:0)+'deg)">▼</span>'
     + '</div>'
-    + '<div id="rst-lim-tilev" style="font-size:20px;font-weight:800;color:'+hourCol+';font-family:\'Space Mono\',monospace;letter-spacing:-.5px;line-height:1.1">'+rstLimFmt(last.limAbs)+'</div>'
-    + '<div style="font-size:11px;color:#475569;margin-top:1px">'+(last.flightNum||'último')
+    + '<div id="rst-lim-tilev" style="font-size:20px;font-weight:800;color:'+hourCol+';font-family:\'Space Mono\',monospace;letter-spacing:-.5px;line-height:1.1">'+rstLimFmt(_lastM.lim)+'</div>'
+    + '<div style="font-size:11px;color:#475569;margin-top:1px">'+(last.flightNum||'último')+(_lastM.llegada ? '<span> · llegada</span>' : '')
     +   ' · <b id="rst-lim-tilem" style="font-family:\'Space Mono\',monospace;color:'+(slack<30?'#92400E':'#0F172A')+'">'+rstLimDur(slack)+'</b>'
     +   ' · '+govTxt+'</div>'
     + '</div>';
 
   // ── Nivel 2: el desplegable ──
   var rows = LL.slice(-2).map(function(L){
-    var c = L.slackMin<0 ? '#991B1B' : L.slackMin<30 ? '#92400E' : '#065F46';
+    var _m = rstLimLegMargin(L, {dep:L.nowStdAbs, arr:L.nowStaAbs}, M);
+    var c = _m.margen<0 ? '#991B1B' : _m.margen<30 ? '#92400E' : '#065F46';
     return '<div style="display:grid;grid-template-columns:auto 1fr auto;gap:2px 9px;align-items:baseline;background:rgba(255,255,255,.85);border-radius:8px;padding:6px 9px;margin-bottom:5px">'
       + '<span style="font-size:12px;font-weight:800;font-family:\'Space Mono\',monospace;color:#0F172A">'+(L.flightNum||'—')+'</span>'
       + '<span style="font-size:10.5px;font-weight:700;color:#0369A1">'+L.dep+' → '+L.arr+'</span>'
-      + '<span style="font-size:18px;font-weight:800;font-family:\'Space Mono\',monospace;letter-spacing:-.4px;color:'+c+'">'+rstLimFmt(L.limAbs)+'</span>'
-      + '<span style="grid-column:1/4;font-size:10px;color:#64748B">programada '+rstLimFmt(L.stdAbs)+' · holgura '+rstLimDur(L.slackMin)+'</span>'
+      + '<span style="display:flex;flex-direction:column;align-items:flex-end;line-height:1.05">'
+      +   '<span style="font-size:8px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:'+c+';opacity:.85">'+(_m.llegada ? 'Límite llegada' : 'Límite salida')+'</span>'
+      +   '<span style="font-size:18px;font-weight:800;font-family:\'Space Mono\',monospace;letter-spacing:-.4px;color:'+c+'">'+rstLimFmt(_m.lim)+'</span>'
+      + '</span>'
+      + '<span style="grid-column:1/4;font-size:10px;color:#64748B">'+(_m.llegada ? 'calzos '+rstLimFmt(L.nowStaAbs) : 'programada '+rstLimFmt(L.stdAbs))+' · holgura '+rstLimDur(_m.margen)+'</span>'
       + '</div>';
   }).join('');
 
@@ -44203,7 +44223,7 @@ function rstLimitTileHTML(fdp, marginColor, dateStr){
   if(showRest){
     ladder += rung(VIO, M.govBy==='rest', 'Planificación · descanso '+(M.restDur||'12h'), rstLimFmt(M.limLastRest),
       'Próx. firma '+rstLimFmt(M.nextReportAbs)+' · '
-      + (M.restPorDP ? 'el DP de hoy pasa de 12 h y el descanso lo iguala (ORO.FTL.235)'
+      + (M.restPorDP ? 'si el DP pasa de 12 h, el descanso tiene que igualarlo (ORO.FTL.235)'
                      : 'el descanso cierra la jornada'));
   }
   /* ⚠ Aquí ponía «12 h desde la firma» CABLEADO, con la baldosa de arriba diciendo
@@ -44341,7 +44361,8 @@ function rstLimRowsHTML(proj){
   var zLabel = RST.useLT ? 'LT' : 'Z';
   return LL.slice(-2).map(function(L){
     var i = LL.indexOf(L);
-    var margen = L.limAbs - proj[i].dep;
+    var _m = rstLimLegMargin(L, proj[i], M);
+    var margen = _m.margen;
     var c = margen<0 ? COL[Math.max(1,lvl)] : (margen<30 ? '#B45309' : '#047857');
     // La etiqueta dice de dónde sale la hora de verdad: A del datalink, L del logbook,
     // E de la compañía. Solo si el simulador la ha movido pasa a P (proyectada).
@@ -44351,10 +44372,18 @@ function rstLimRowsHTML(proj){
     return '<div style="display:grid;grid-template-columns:auto 1fr auto;gap:3px 9px;align-items:center;background:rgba(255,255,255,.85);border-radius:8px;padding:7px 9px;margin-bottom:5px">'
       + '<span style="font-size:12px;font-weight:800;font-family:\'Space Mono\',monospace;color:#0F172A">'+(L.flightNum||'—')+'</span>'
       + '<span style="font-size:10.5px;font-weight:700;color:#0369A1">'+L.dep+' → '+L.arr+'</span>'
-      + '<span style="background:'+c+';color:#fff;border-radius:6px;padding:3px 8px;font-size:16px;font-weight:800;font-family:\'Space Mono\',monospace;letter-spacing:-.3px;white-space:nowrap">'+rstLimFmt(L.limAbs)+zLabel+'</span>'
+      /* Rótulo DENTRO de la pastilla (petición del usuario, 18-sep): la hora sola no
+         decía qué era, y ahora cambia de significado — límite de SALIDA antes de
+         despegar, límite de LLEGADA cuando el sector ya tiene calzos reales. */
+      + '<span style="background:'+c+';color:#fff;border-radius:6px;padding:3px 8px 4px;display:flex;flex-direction:column;align-items:center;line-height:1.05;white-space:nowrap">'
+      +   '<span style="font-size:8px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;opacity:.9">'+(_m.llegada ? 'Límite llegada' : 'Límite salida')+'</span>'
+      +   '<span style="font-size:16px;font-weight:800;font-family:\'Space Mono\',monospace;letter-spacing:-.3px">'+rstLimFmt(_m.lim)+zLabel+'</span>'
+      + '</span>'
       + '<span style="grid-column:1/4;font-size:10px;color:#64748B;display:flex;flex-wrap:wrap;align-items:center;gap:0 7px">'
       +   '<span>'+badge('S', rstLimFmt(L.stdAbs))+'</span>'
       +   (liveTxt !== rstLimFmt(L.stdAbs) ? '<span>'+badge(liveCode, liveTxt)+'</span>' : '')
+      /* Con calzos reales el margen es de LLEGADA: se enseña la hora contra la que se mide. */
+      +   (_m.llegada ? '<span>calzos '+badge(L.srcCode, rstLimFmt(proj[i].arr))+'</span>' : '')
       +   '<span>margen <b style="font-family:\'Space Mono\',monospace;color:'+c+'">'+rstLimDur(margen)+'</b></span>'
       + '</span>'
       + '</div>';
@@ -44405,7 +44434,7 @@ function rstLimSimRender(){
   var mv = $g('rst-ftl-maxv'); if(mv) mv.style.color = COL[lvl];
 
   // La baldosa y las filas cuentan lo mismo: el margen del último sector con el retraso puesto
-  var lastMargin = LL[LL.length-1].limAbs - proj[LL.length-1].dep;
+  var lastMargin = rstLimLegMargin(LL[LL.length-1], proj[LL.length-1], M).margen;
   var tm = $g('rst-lim-tilem');
   if(tm){
     tm.textContent = rstLimDur(lastMargin);
