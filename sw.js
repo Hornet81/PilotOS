@@ -1,11 +1,32 @@
 // PilotOS Service Worker
 // APP_VERSION lo reescribe scripts/stamp-version.js en cada deploy → cambia el
 // nombre del caché → los cachés de versiones viejas se borran al activar.
-const APP_VERSION = 'Estable.908';
+const APP_VERSION = 'Estable.909';
 
 const STATIC_CACHE  = 'pilotos-static-' + APP_VERSION;
 const FONT_CACHE    = 'pilotos-fonts-'  + APP_VERSION;
 const CURRENT_CACHES = [STATIC_CACHE, FONT_CACHE, 'pilotos-api-' + APP_VERSION];
+
+/* El lector de fotos de combustible (Tesseract, /vendor/tesseract/) NO lleva la
+   versión en el nombre del caché, y eso es deliberado.
+
+   Son 5,8 MB. El resto de cachés llevan `APP_VERSION` dentro precisamente para
+   que al subir la versión se borren y se vuelva a bajar todo — que es lo que
+   hace que un arreglo llegue al tester. Aquí eso sería el fallo: en beta salen
+   varias versiones al día, así que cada tester se bajaría 5,8 MB por versión
+   para una función que a lo mejor no usa nunca.
+
+   Estos archivos son INMUTABLES —una versión concreta de Tesseract— así que no
+   hay nada que invalidar: se bajan la primera vez que el piloto pulsa el botón
+   y se quedan. Si algún día se cambia la versión del lector, se sube el número
+   de ESTE nombre (no el de la app) y el `activate` se lleva el viejo, porque lo
+   que no esté en CURRENT_CACHES se borra.
+
+   Por lo mismo NO están en PRECACHE_URLS: ahí van los archivos sin los que la
+   app no arranca o no calcula. Sin el lector, las ocho casillas de combustible
+   se escriben a mano, que es como se escribían ayer. */
+const OCR_CACHE = 'pilotos-ocr-v1';
+CURRENT_CACHES.push(OCR_CACHE);
 
 // Todo lo que la app necesita para arrancar y funcionar SIN RED.
 // Incluye las librerías de export (jsPDF/autotable/qrcode → PDF del logbook) y el
@@ -22,6 +43,8 @@ const PRECACHE_URLS = [
   // cacheaban solos al pedirlos la página, pero solo DESPUÉS de una carga completa
   // con red — y la primera visita no pasa por el Service Worker.
   'js/dia-libre.js',
+  'js/forzoso.js',
+  'js/i18n-en-forzoso.js',
   'js/roster-changes.js',
   'js/roster-stats.js',
   // Beta.722 lo trajo y se quedó fuera de esta lista: `offline-test` lo cazó al
@@ -37,6 +60,10 @@ const PRECACHE_URLS = [
   'js/relieve.js',
   'js/sigwx.js',
   'js/expense-engine.js',
+  /* El parser de la foto de combustible. Los 5,8 MB del RECONOCEDOR no entran
+     aquí a propósito (ver OCR_CACHE arriba), pero esto sí: son 9 KB, y sin él
+     el botón de la foto lee la imagen y no sabe dónde mirar. */
+  'js/fuel-ocr.js',
   // El mismo caso que `ecrews-legs-import.js` de dos avisos más arriba: llegó con
   // el login de Microsoft y se quedó fuera de la lista. Sin él, la reja del MFA
   // se queda sin su módulo en cuanto falta la red, y `window.MsMfa` es
@@ -50,6 +77,10 @@ const PRECACHE_URLS = [
   'js/i18n-en-logbook.js',
   'js/i18n-en-roster.js',
   'js/i18n-en-skyview.js',
+  'js/i18n-en-app.js',
+  'js/i18n-en-paycheck.js',
+  'js/i18n-en-rest.js',
+  'js/i18n-en-guide.js',
   'js/expense.js',
   'js/profile.js',
   'js/docs.js',
@@ -200,6 +231,14 @@ self.addEventListener('fetch', function(e) {
 
   // version.json — nunca cachear (es la fuente de la versión "running" real)
   if (url.indexOf('/version.json') !== -1) {
+    return;
+  }
+
+  /* El lector de fotos — cache-first en SU caché, que sobrevive a los cambios
+     de versión. Va ANTES que el resto de reglas de nuestro propio origen para
+     que no caiga en el caché versionado, que es de donde había que sacarlo. */
+  if (req.method === 'GET' && url.indexOf('/vendor/tesseract/') !== -1) {
+    e.respondWith(cacheFirst(req, OCR_CACHE));
     return;
   }
 

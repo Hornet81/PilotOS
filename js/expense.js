@@ -56,8 +56,11 @@ var CIUDAD = { SVQ:'Sevilla', IBZ:'Ibiza', AMS:'Ámsterdam', LHR:'Londres', LGW:
   FCO:'Roma', NAP:'Nápoles', VCE:'Venecia', PRG:'Praga', CPH:'Copenhague', BRU:'Bruselas' };
 function ciudad(c){ return CIUDAD[c] || c || ''; }
 
-var MES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-var DIA = ['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'];
+// En inglés, por código: "MAR" es martes y marzo a la vez y el diccionario no puede distinguirlos.
+var _EN = window.pilotosLang === 'en';
+var MES = _EN ? ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec']
+              : ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+var DIA = _EN ? ['SUN','MON','TUE','WED','THU','FRI','SAT'] : ['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'];
 var DEADLINE = 90;
 
 function eur(n){ return (Number(n)||0).toFixed(2).replace('.',',') + ' €'; }

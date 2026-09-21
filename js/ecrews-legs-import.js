@@ -43,7 +43,10 @@
   function api() { return (typeof lsGet === 'function' ? lsGet('cafi_backend_url', 'https://api.pilotos.aero') : 'https://api.pilotos.aero'); }
   function tok() { return localStorage.getItem('cafi_auth_token'); }
   function toast(m, t) { if (typeof showToast === 'function') showToast(m, t || 'info'); }
-  function icao(x) { var u = String(x || '').toUpperCase(); return (window.RST_IATA_ICAO && window.RST_IATA_ICAO[u]) || u; }
+  function icao(x) {
+    if (typeof window.pilotosIcao === 'function') return window.pilotosIcao(x);   // la puerta única a OACI
+    var u = String(x || '').toUpperCase(); return (window.RST_IATA_ICAO && window.RST_IATA_ICAO[u]) || u;
+  }
   function legKey(l) { return l.date + '|' + l.flightNum + '|' + l.dep + '|' + l.arr; }
 
   // ── Paleta ─────────────────────────────────────────────────────────────────
@@ -449,6 +452,10 @@
       .then(function (res) {
         CARGANDO = false;
         if (res.j && res.j.status === 'NEEDS_LOGIN') return necesitaLogin();
+        // eCrews no contestó y la sesión sigue viva: un error que se reintenta, NO un
+        // MFA. Mismo criterio que /resync (ver server.js).
+        if (res.j && res.j.status === 'ECREWS_NO_RESPONDE')
+          return error('eCrews no ha contestado a tiempo. Tu sesión sigue activa: vuelve a intentarlo.');
         if (!res.ok) return error(res.j && (res.j.error || res.j.detail) || ('HTTP ' + res.s));
         LEGS = (res.j && res.j.legs) || [];
         // Las jornadas SIN VUELOS (guardias, tierra) no son un fallo: no hay nada que

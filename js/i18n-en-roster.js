@@ -5,6 +5,9 @@
 (function(){
   if (typeof window.pilotosI18nAdd !== 'function') return;
   window.pilotosI18nAdd('en', {
+    // Cambios de programación sin conexión (Beta.922)
+    "sin conexión": "offline",
+    "Sin conexión · cambios calculados con la última consulta": "Offline · changes worked out from the last check",
     // Aviso de fin de sincronización del botón del mes (Beta.913)
     "Roster sincronizado": "Roster synced",
     "No se pudo sincronizar": "Couldn't sync",
@@ -264,6 +267,34 @@
     "si el DP pasa de 12 h, el descanso tiene que igualarlo (ORO.FTL.235)": "if the duty goes past 12 h, rest must match it (ORO.FTL.235)",
     "calzos {0} · holgura {1}": "on-blocks {0} · margin {1}",
     "margen": "margin",
+    /* ── La tarjeta de LÍMITES FTL ────────────────────────────────────────
+       Medido con la app en inglés: quedaban OCHO cadenas en castellano en una
+       tarjeta de 85 líneas. El diccionario parte por « · » y admite plantillas
+       `{0}`, así que casi todo son claves; lo que iba cosido con flechas (la
+       cadena de auditoría) y las palabras sueltas se arreglaron en el HTML —
+       una palabra suelta como clave GLOBAL traduciría cualquier nodo de la app
+       que sea exactamente esa palabra. */
+    "/ máx {0}h": "/ max {0}h",
+    "/ máx {0}h {1}m": "/ max {0}h {1}m",
+    "Solo por circunstancias imprevistas": "Only for unforeseen circumstances",
+    "Planificación": "Planning",
+    "descanso {0}h {1}m": "rest {0}h {1}m",
+    "descanso {0}h": "rest {0}h",
+    "descanso: sin jornada siguiente en el roster": "rest: no next duty in the roster",
+    "descanso: no limita hoy": "rest: not limiting today",
+    "Próx. firma {0}": "Next report {0}",
+    "Próx. firma {0}+{1}": "Next report {0}+{1}",
+    "{0}h desde la firma": "{0}h from report",
+    "{0}h {1}m desde la firma": "{0}h {1}m from report",
+    "margen {0}h {1}m": "margin {0}h {1}m",
+    "margen +{0}m": "margin +{0}m",
+    "margen −{0}m": "margin −{0}m",
+    "margen +{0}h {1}m": "margin +{0}h {1}m",
+    "margen −{0}h {1}m": "margin −{0}h {1}m",
+    "reforzada +{0} h → {1}": "augmented +{0} h → {1}",
+    "llegada {0}": "on-blocks {0}",
+    "Queda {0}m de margen.": "{0}m of margin left.",
+    "Queda {0}h{1} de margen.": "{0}h{1} of margin left.",
     "Límite salida": "Latest off-blocks",
     "Límite llegada": "Latest on-blocks",
     "calzos": "on-blocks",
@@ -415,6 +446,10 @@
     "no, vienen en": "no, they're in",
     "NUEVO": "NEW",
     "Nunca": "Never",
+    "ahora": "just now",
+    "Sin sincronizar": "Not synced",
+    "Sincronizar con la nube": "Sync with the cloud",
+    "Baja y sube el mes que ves": "Pulls and pushes the month you're viewing",
     "O SINCRONIZA": "OR SYNC",
     "Ocultar contraseña": "Hide password",
     "OFF — Día libre": "OFF — Day off",
@@ -466,6 +501,12 @@
     "SIM — Simulador": "SIM — Simulator",
     "Simulador ·": "Simulator ·",
     "Simular retraso en": "Simulate delay on",
+    "Simular retraso de salida": "Simulate departure delay",
+    "↺ Resetear": "↺ Reset",
+    "✓ volado": "✓ flown",
+    "▲ programado · ▼ real · nº = escala": "▲ scheduled · ▼ actual · no. = turnaround",
+    "Todos los sectores han salido: no queda nada que simular.": "All sectors have departed: nothing left to simulate.",
+    "+{0} min": "+{0} min",
     "Sin actividad registrada ·": "No activity recorded ·",
     "Sin cambio": "No change",
     "sin cambios de la compañía": "no company changes",
@@ -476,6 +517,13 @@
     "Sin red": "Offline",
     "Sin vuelos en roster para este día": "No roster flights for this day",
     "Sin vuelos seleccionados": "No flights selected",
+    "El mes en vista, sin volver a entrar": "The month on screen, no sign-in",
+    "No hemos podido traer ese mes con tu sesión. Conéctate y elige mes.": "We couldn't fetch that month with your session. Sign in and pick a month.",
+    "Roster de eCrews al día. ¿Qué mes importar?": "eCrews roster up to date. Which month do you want to import?",
+    "eCrews no ha contestado": "eCrews didn't respond",
+    "Tu sesión sigue activa · toca para volver a entrar si insiste": "Your session is still active · tap to sign in again if it persists",
+    "Mes importado": "Month imported",
+    "No se pudo importar": "Couldn't import",
     "Sincronización directa": "Direct sync",
     "Sincronización directa con eCrews": "Direct sync with eCrews",
     "Sincronizar eCrews": "Sync eCrews",

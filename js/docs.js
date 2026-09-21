@@ -812,7 +812,7 @@ function openDocSheet(id) {
         ? '<span style="font-size:12px;font-weight:600;color:' + pillCol + '">' + (ratSum.ok + ratSum.warn) + ' de ' + ratSum.total + ' vigentes</span>'
         : (s.days != null && s.days >= 0 ? '<span style="font-size:12px;font-weight:600;color:' + pillCol + '">' + s.days + ' días restantes</span>' : ''));
   // Filas de datos
-  let rows = '<div class="doc-sheet-row"><span class="k">Autoridad emisora</span><span class="v">' + m.authority + '</span></div>';
+  let rows = '<div class="doc-sheet-row"><span class="k">Autoridad emisora</span><span class="v">' + (m.authority || '—') + '</span></div>';
   if (isRat) {
     const partsRat = [];
     if (ratSum.exp > 0) partsRat.push('<b style="color:#F87171">' + ratSum.exp + ' caducada' + (ratSum.exp > 1 ? 's' : '') + '</b>');

@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>PilotOS · Flashcards — MAQUETA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════════════════════════════
+   PilotOS — FLASHCARDS (maqueta). Vive dentro de Live Training (#scr-oes).
+   PALETA: UNA sola, oscura, en los DOS temas — igual que #scr-oes, que es
+   #06091a sin override de html.day. Un bloque que no cambia de fondo no
+   puede tener dos paletas (regla de la tarjeta del día del roster).
+   El ámbar #FF8C00 no es un color nuevo: es el que index.html ya declara
+   para .mode-flash. Cian = Live Training. Violeta NO se usa: es modo prueba.
+   Color por CLASE, nunca en línea.
+   ══════════════════════════════════════════════════════════════════════ */
+:root{
+  --bg:#050912; --bg2:#080f22; --panel:#0C1430; --panel2:#101a3c;
+  --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --tx:#E8EEFF; --tx2:rgba(232,238,255,.66); --tx3:rgba(232,238,255,.60);
+  --amb:#FF9F1A; --amb2:#FFC46B; --ambdim:rgba(255,159,26,.14);
+  --cy:#00C8E0; --cy2:#7DD3FC;
+  --ga:#FF5252;  /* go around  */
+  --un:#FFA726;  /* inestable  */
+  --st:#26D07C;  /* estable    */
+  --cv:#22D3EE;  /* cavok      */
+  --shadow:0 18px 50px rgba(0,0,0,.55);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%}
+body{
+  background:var(--bg); color:var(--tx);
+  font-family:'Space Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; overscroll-behavior:none;
+}
+/* cielo de cabina: un degradado, NUNCA una foto — una foto detrás de un
+   formulario compite con lo que hay que leer (lección de las 8 tramas) */
+.sky{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.sky::before{content:'';position:absolute;left:50%;top:-18%;width:150vw;height:80vh;transform:translateX(-50%);
+  background:radial-gradient(ellipse at 50% 0%,rgba(0,200,224,.13) 0%,rgba(41,121,255,.07) 38%,transparent 68%)}
+.sky::after{content:'';position:absolute;left:-10%;bottom:-24%;width:130vw;height:60vh;
+  background:radial-gradient(ellipse at 30% 100%,rgba(255,159,26,.11) 0%,transparent 62%)}
+.sky i{position:absolute;border-radius:50%;background:#fff;opacity:.5;animation:tw 4s ease-in-out infinite}
+@keyframes tw{0%,100%{opacity:.16}50%{opacity:.6}}
+.horiz{position:absolute;left:-5%;right:-5%;top:34%;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(0,200,224,.28) 18%,rgba(0,200,224,.28) 82%,transparent);
+  box-shadow:0 0 22px rgba(0,200,224,.35)}
+
+.app{position:relative;z-index:1;max-width:760px;margin:0 auto;min-height:100%;display:flex;flex-direction:column}
+
+/* ─── cabecera ─── */
+.hd{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:10px;
+  padding:calc(10px + env(safe-area-inset-top)) 14px 10px;
+  background:linear-gradient(120deg,#04070e 0%,#08112a 60%,#0c1840 100%);
+  border-bottom:1px solid var(--line)}
+.hd-back{width:44px;height:44px;flex:0 0 44px;display:flex;align-items:center;justify-content:center;
+  border:none;background:transparent;color:var(--cy2);cursor:pointer;border-radius:12px}
+.hd-back:active{background:rgba(255,255,255,.06)}
+.hd-t{flex:1;min-width:0}
+.hd-t b{display:block;font-size:16px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.hd-t span{display:block;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.09em;color:var(--tx3);
+  margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.maq{flex:0 0 auto;font-family:'Space Mono',monospace;font-size:8.5px;font-weight:700;letter-spacing:.09em;
+  padding:5px 8px;border-radius:8px;background:rgba(255,159,26,.16);border:1px solid rgba(255,159,26,.42);color:var(--amb2)}
+
+.body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:calc(30px + env(safe-area-inset-bottom))}
+.view{display:none;padding:0 14px}
+.view.on{display:block;animation:vin .32s cubic-bezier(.2,.8,.3,1)}
+@keyframes vin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* ─── piezas comunes ─── */
+.sec{margin-top:18px}
+.sec-h{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.sec-h b{font-family:'Space Mono',monospace;font-size:9.5px;font-weight:700;letter-spacing:.16em;color:var(--tx3);text-transform:uppercase}
+.sec-h hr{flex:1;border:none;height:1px;background:var(--line);margin:0}
+.sec-h em{font-style:normal;font-family:'Space Mono',monospace;font-size:9.5px;color:var(--tx3)}
+.card{background:linear-gradient(160deg,var(--panel) 0%,#0a1128 100%);border:1px solid var(--line);
+  border-radius:16px;box-shadow:var(--shadow)}
+.note{font-size:11px;line-height:1.5;color:var(--tx2)}
+/* Lo que iba en un atributo style pasa a CLASE: una hoja no puede corregir
+   un color en línea sin !important, y esta maqueta es la plantilla de lo
+   que se construya de verdad. */
+.dim{color:var(--tx3)}
+.amb{color:var(--amb2)}
+.brt{color:var(--tx)}
+.ok-c{color:var(--st)}
+.un-c{color:var(--un)}
+.ga-c{color:var(--ga)}
+.hueco{display:inline-block;min-width:74px;padding:0 10px;border-radius:8px;text-align:center;
+  border:1px dashed rgba(255,159,26,.6);background:rgba(255,159,26,.12);color:var(--amb2)}
+.card.cy-b{border-color:rgba(0,200,224,.3);background:linear-gradient(150deg,#08192b 0%,#0b1026 62%)}
+
+/* ─── HERO ─── */
+.hero{position:relative;margin-top:14px;padding:16px 16px 14px;overflow:hidden;
+  background:linear-gradient(150deg,#0b1533 0%,#0a1026 55%,#140d05 140%);
+  border:1px solid rgba(255,159,26,.22);border-radius:20px;box-shadow:0 22px 60px rgba(0,0,0,.6)}
+.hero::before{content:'';position:absolute;right:-60px;top:-70px;width:230px;height:230px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,159,26,.20) 0%,transparent 66%);pointer-events:none}
+.hero-top{display:flex;align-items:flex-start;gap:14px;position:relative}
+.gauge{flex:0 0 118px;width:118px;height:118px;position:relative}
+.gauge svg{width:100%;height:100%;transform:rotate(0)}
+.g-arc{fill:none;stroke-linecap:round}
+.g-bg{stroke:rgba(255,255,255,.07);stroke-width:9}
+.g-red{stroke:rgba(255,82,82,.45);stroke-width:3}
+.g-val{stroke:url(#gg);stroke-width:9;filter:drop-shadow(0 0 7px rgba(255,159,26,.75));
+  transition:stroke-dashoffset 1.4s cubic-bezier(.2,.9,.25,1)}
+.g-tick{stroke:rgba(255,255,255,.22);stroke-width:1.4}
+.g-needle{stroke:var(--amb2);stroke-width:2.2;stroke-linecap:round;transform-origin:60px 60px;
+  transition:transform 1.4s cubic-bezier(.2,.9,.25,1);filter:drop-shadow(0 0 5px rgba(255,196,107,.9))}
+.g-lbl{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.g-num{font-family:'Saira Condensed','Space Grotesk',sans-serif;font-size:36px;font-weight:700;line-height:.9;color:var(--amb2);
+  text-shadow:0 0 18px rgba(255,159,26,.55)}
+.g-num small{font-size:15px;opacity:.65}
+.g-cap{font-family:'Space Mono',monospace;font-size:7.5px;letter-spacing:.14em;color:var(--tx3);margin-top:3px}
+.hero-r{flex:1;min-width:0;padding-top:2px}
+.hero-k{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.14em;color:var(--amb);font-weight:700}
+.hero-big{font-family:'Saira Condensed','Space Grotesk',sans-serif;font-size:46px;font-weight:700;line-height:.92;letter-spacing:-.01em;margin:2px 0 0}
+.hero-sub{font-size:12px;color:var(--tx2);line-height:1.45;margin-top:5px}
+.hero-sub b{color:var(--tx)}
+.cta{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;margin-top:14px;
+  min-height:52px;border:none;border-radius:15px;cursor:pointer;
+  font-family:'Space Grotesk',sans-serif;font-size:14.5px;font-weight:700;letter-spacing:.02em;color:#1A0F00;
+  background:linear-gradient(135deg,#FFC46B 0%,#FF9F1A 52%,#F97316 100%);
+  box-shadow:0 10px 26px rgba(255,159,26,.34),inset 0 1px 0 rgba(255,255,255,.45);
+  transition:transform .12s cubic-bezier(.2,.8,.3,1),box-shadow .12s}
+.cta:active{transform:scale(.975);box-shadow:0 5px 14px rgba(255,159,26,.3),inset 0 1px 0 rgba(255,255,255,.45)}
+.cta svg{flex:0 0 auto}
+.cta-sub{display:block;text-align:center;font-family:'Space Mono',monospace;font-size:9px;color:var(--tx3);margin-top:7px;letter-spacing:.05em}
+
+/* ─── SENDA (racha = luces de aproximación) ─── */
+.senda{padding:13px 14px 12px}
+.senda-top{display:flex;align-items:baseline;gap:8px;margin-bottom:11px}
+.senda-n{font-family:'Saira Condensed','Space Grotesk',sans-serif;font-size:30px;font-weight:700;line-height:1;color:var(--st)}
+.senda-t{font-size:12px;color:var(--tx2)}
+.senda-t b{color:var(--tx)}
+.alu{display:flex;align-items:flex-end;justify-content:space-between;gap:5px;height:44px;padding:0 2px}
+.alu-d{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px}
+.alu-bar{width:100%;border-radius:2px;background:rgba(255,255,255,.09);transition:all .4s}
+.alu-d.on .alu-bar{background:linear-gradient(180deg,var(--st),#0f7a46);box-shadow:0 0 9px rgba(38,208,124,.75)}
+.alu-d.prot .alu-bar{background:linear-gradient(180deg,var(--cy),#0e6b7c);box-shadow:0 0 9px rgba(0,200,224,.7)}
+.alu-d.now .alu-bar{background:linear-gradient(180deg,var(--amb2),var(--amb));box-shadow:0 0 12px rgba(255,159,26,.85);animation:pul 2.4s ease-in-out infinite}
+@keyframes pul{0%,100%{opacity:1}50%{opacity:.55}}
+.alu-l{font-family:'Space Mono',monospace;font-size:8px;color:var(--tx3);letter-spacing:.04em}
+.alu-d.now .alu-l{color:var(--amb2)}
+.shield{display:flex;align-items:flex-start;gap:9px;margin-top:11px;padding:9px 11px;border-radius:12px;
+  background:rgba(0,200,224,.09);border:1px solid rgba(0,200,224,.26)}
+.shield svg{flex:0 0 auto;margin-top:1px;color:var(--cy)}
+.shield p{margin:0;font-size:11px;line-height:1.5;color:#BFEFF8}
+.shield b{color:#E8FCFF}
+
+/* ─── DEL ROSTER ─── */
+.rost{position:relative;overflow:hidden;padding:14px;border-color:rgba(255,82,82,.3);
+  background:linear-gradient(150deg,#1a0d14 0%,#0b1026 62%)}
+.rost::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#FF5252,#FF9F1A)}
+.rost-h{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.pill{display:inline-flex;align-items:center;gap:5px;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;
+  letter-spacing:.09em;padding:4px 8px;border-radius:7px;white-space:nowrap}
+.pill.red{background:rgba(255,82,82,.16);border:1px solid rgba(255,82,82,.42);color:#FFB4B4}
+.pill.amb{background:rgba(255,159,26,.14);border:1px solid rgba(255,159,26,.4);color:var(--amb2)}
+.pill.cy{background:rgba(0,200,224,.13);border:1px solid rgba(0,200,224,.36);color:#9FEAF6}
+.pill.grn{background:rgba(38,208,124,.14);border:1px solid rgba(38,208,124,.4);color:#9AF0C4}
+.pill.dim{background:rgba(255,255,255,.05);border:1px solid var(--line2);color:var(--tx3)}
+.rost-t{font-size:15px;font-weight:700;letter-spacing:-.01em}
+.rost-s{font-size:11.5px;color:var(--tx2);line-height:1.5;margin-top:4px}
+.bar{height:7px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:11px}
+.bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#FF5252,#FF9F1A);
+  box-shadow:0 0 12px rgba(255,159,26,.5);transition:width 1s cubic-bezier(.2,.9,.25,1)}
+.bar-l{display:flex;justify-content:space-between;font-family:'Space Mono',monospace;font-size:9px;color:var(--tx3);margin-top:5px}
+.btn2{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;min-height:44px;margin-top:11px;
+  border-radius:12px;border:1px solid rgba(255,159,26,.45);background:rgba(255,159,26,.12);color:var(--amb2);
+  font-family:'Space Grotesk',sans-serif;font-size:12.5px;font-weight:700;cursor:pointer;transition:background .15s}
+.btn2:active{background:rgba(255,159,26,.22)}
+.rost-mini{display:flex;align-items:center;gap:10px;margin-top:10px;padding:10px 11px;border-radius:12px;
+  background:rgba(255,255,255,.035);border:1px solid var(--line)}
+.rost-mini svg{flex:0 0 auto;color:var(--cy2)}
+.rost-mini p{margin:0;flex:1;font-size:11px;line-height:1.45;color:var(--tx2)}
+.rost-mini b{color:var(--tx)}
+.rost-mini button{flex:0 0 auto;min-height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line2);
+  background:transparent;color:var(--cy2);font-family:'Space Mono',monospace;font-size:10px;font-weight:700;cursor:pointer}
+
+/* ─── HORIZONTE DE RETENCIÓN ─── */
+.hz{padding:13px 12px 10px}
+.hz-w{position:relative;width:100%;height:132px;padding-bottom:18px}
+.hz-w svg{width:100%;height:114px;display:block}
+.hz-90{position:absolute;right:4px;transform:translateY(-130%);font-family:'Space Mono',monospace;
+  font-size:8.5px;letter-spacing:.06em;color:var(--amb2)}
+.hz-x{display:flex;justify-content:space-between;padding:2px 2px 0}
+.hz-x span{font-family:'Space Mono',monospace;font-size:8.5px;color:var(--tx3)}
+.hz-leg{display:flex;flex-wrap:wrap;gap:12px;margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
+.hz-leg span{display:inline-flex;align-items:center;gap:5px;font-family:'Space Mono',monospace;font-size:9px;color:var(--tx3)}
+.hz-leg i{width:8px;height:8px;border-radius:50%;display:inline-block}
+
+/* ─── MAZOS ─── */
+.decks{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media(min-width:620px){.decks{grid-template-columns:repeat(3,1fr)}}
+.deck{position:relative;overflow:hidden;padding:12px;border-radius:15px;cursor:pointer;text-align:left;
+  color:var(--tx);   /* un <button> sin color hereda `buttontext`: NEGRO. Lo cazó la medida. */
+  background:linear-gradient(160deg,var(--panel) 0%,#0a1128 100%);border:1px solid var(--line);
+  display:flex;flex-direction:column;gap:9px;min-height:132px;transition:transform .14s,border-color .18s}
+.deck:active{transform:scale(.978)}
+.deck.hot{border-color:rgba(255,159,26,.42)}
+.deck::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--dc,var(--cy));opacity:.55}
+.deck-h{display:flex;align-items:center;gap:9px;padding-right:26px}
+.ring{position:relative;flex:0 0 40px;width:40px;height:40px}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring .r-bg{fill:none;stroke:rgba(255,255,255,.09);stroke-width:4}
+.ring .r-v{fill:none;stroke:var(--dc,var(--cy));stroke-width:4;stroke-linecap:round;
+  transition:stroke-dashoffset 1.1s cubic-bezier(.2,.9,.25,1)}
+.ring b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:'Space Mono',monospace;font-size:10px;font-weight:700;color:var(--tx2)}
+.deck-n{flex:1;min-width:0;font-size:12.5px;font-weight:700;line-height:1.2;letter-spacing:-.01em}
+.deck-m{font-family:'Space Mono',monospace;font-size:9px;color:var(--tx3);line-height:1.6;margin-top:auto}
+.deck-m b{color:var(--amb2)}
+.deck-due{position:absolute;right:10px;top:10px;min-width:22px;height:22px;padding:0 6px;border-radius:99px;
+  display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;
+  background:var(--amb);color:#1A0F00;box-shadow:0 0 12px rgba(255,159,26,.55)}
+
+/* ─── RANGO ─── */
+.rank{padding:14px}
+.rank-t{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:11px}
+.rank-now{font-size:17px;font-weight:700;letter-spacing:-.01em;color:var(--amb2)}
+.rank-nx{font-family:'Space Mono',monospace;font-size:9.5px;color:var(--tx3)}
+.rank-track{position:relative;height:3px;border-radius:99px;background:rgba(255,255,255,.09);margin:20px 0 6px}
+.rank-fill{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:linear-gradient(90deg,var(--cy),var(--amb));
+  box-shadow:0 0 12px rgba(255,159,26,.5);transition:width 1.2s cubic-bezier(.2,.9,.25,1)}
+.rank-steps{display:flex;justify-content:space-between;margin-top:-13px;position:relative}
+.rank-st{display:flex;flex-direction:column;align-items:center;gap:7px;flex:1}
+.rank-dot{width:11px;height:11px;border-radius:50%;background:#0b1226;border:2px solid rgba(255,255,255,.22)}
+.rank-st.done .rank-dot{background:var(--amb);border-color:var(--amb2);box-shadow:0 0 10px rgba(255,159,26,.75)}
+.rank-st.cur .rank-dot{background:var(--amb2);border-color:#fff;box-shadow:0 0 14px rgba(255,196,107,.95);transform:scale(1.25)}
+.rank-lb{font-family:'Space Mono',monospace;font-size:7.5px;letter-spacing:.06em;color:var(--tx3);text-align:center}
+.rank-st.cur .rank-lb,.rank-st.done .rank-lb{color:var(--tx2)}
+
+/* ══════════════════════════════════════════════════════════════════════
+   SESIÓN
+   ══════════════════════════════════════════════════════════════════════ */
+#v-ses{padding:0 12px}
+.ses-top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:9px;padding:10px 2px 9px;
+  background:linear-gradient(180deg,var(--bg) 62%,rgba(5,9,18,0))}
+.ses-x{width:44px;height:44px;flex:0 0 44px;display:flex;align-items:center;justify-content:center;border:none;
+  background:transparent;color:var(--tx3);cursor:pointer;border-radius:12px}
+.ses-x:active{background:rgba(255,255,255,.06)}
+/* la tira de progreso son las barras de una pista: las hechas encendidas */
+.strip{flex:1;display:flex;gap:2.5px;height:8px;align-items:stretch;min-width:0}
+.strip i{flex:1;border-radius:2px;background:rgba(255,255,255,.1);transition:background .3s,box-shadow .3s}
+.strip i.ok{background:var(--st);box-shadow:0 0 7px rgba(38,208,124,.65)}
+.strip i.mid{background:var(--un);box-shadow:0 0 7px rgba(255,167,38,.6)}
+.strip i.bad{background:var(--ga);box-shadow:0 0 7px rgba(255,82,82,.6)}
+.strip i.cur{background:var(--amb2);box-shadow:0 0 12px rgba(255,196,107,.9)}
+.ses-m{flex:0 0 auto;display:flex;align-items:center;gap:9px;font-family:'Space Mono',monospace;font-size:10px;color:var(--tx3)}
+.ses-m b{color:var(--tx2)}
+.ses-chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:2px 2px 12px}
+
+/* ── la tarjeta ── */
+.stage{position:relative;perspective:1400px;touch-action:pan-y}
+/* ══════════════════════════════════════════════════════════════════════
+   EL GIRO, tercera versión — y la primera que no depende de nada raro.
+
+   1.ª  `backface-visibility:hidden` en las dos caras. En el Safari de iOS
+        NO se cumple: la cara de delante se transparentaba ESPEJADA por
+        detrás de la respuesta («AICNEUCES»).
+   2.ª  Apagar la cara que sobra con `opacity`. Peor: en Safari, dar
+        opacidad a un hijo de un `preserve-3d` APLANA el contexto 3D, así
+        que la tarjeta dejó de girar y lo único que se veía era la cara
+        yéndose a negro.
+
+   Hoy: MEDIA VUELTA. La tarjeta gira 0→90° (de canto, invisible), ahí se
+   cambia qué cara está puesta y se recoloca en −90° sin animación, y de
+   −90°→0 vuelve a entrar. Nunca se enseña el reverso de nada, así que no
+   hace falta `backface-visibility`, ni `preserve-3d`, ni opacidad sobre
+   las caras. Las dos se pintan del derecho.
+
+   Lo de esconder va por `visibility`, no por `opacity`: no crea contexto
+   de apilamiento y no puede aplanar nada.
+   ══════════════════════════════════════════════════════════════════════ */
+/* Las dos caras van APILADAS EN LA MISMA CELDA de un grid, no una en el
+   flujo y la otra absoluta. Con la absoluta, la altura de la tarjeta la
+   mandaba la PREGUNTA —que es corta— y las respuestas largas se cortaban:
+   en las 14 más largas del banco se perdían ~100 px de texto por debajo,
+   sin que nada lo dijera. Apiladas, la tarjeta mide lo que mida la cara
+   más alta de las dos. */
+.fc{position:relative;width:100%;min-height:44vh;display:grid;
+  transition:transform .26s cubic-bezier(.4,0,1,1)}
+.fc-f,.fc-b{grid-area:1/1;min-width:0}
+.fc:not(.flip) .fc-b{visibility:hidden;pointer-events:none}
+.fc.flip .fc-f{visibility:hidden;pointer-events:none}
+.fc-f,.fc-b{border-radius:20px;padding:18px;display:flex;flex-direction:column;overflow:hidden;
+  box-shadow:0 26px 64px rgba(0,0,0,.66),inset 0 1px 0 rgba(255,255,255,.07)}
+.fc-f{background:linear-gradient(158deg,#101B42 0%,#0A1026 58%,#0C1330 100%);border:1px solid rgba(255,255,255,.12)}
+.fc-b{background:linear-gradient(158deg,#0E1A33 0%,#091422 55%,#141003 155%);
+  border:1px solid rgba(255,159,26,.28)}
+/* trama de panel: líneas finísimas, NO una textura con grano — una trama
+   detrás de un texto compite con él y no se detecta midiendo contraste */
+.fc-f::before,.fc-b::before{content:'';position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background:linear-gradient(180deg,rgba(255,255,255,.05) 0%,transparent 26%)}
+.fc-f::after{content:'';position:absolute;right:-70px;top:-80px;width:250px;height:250px;border-radius:50%;
+  background:radial-gradient(circle,rgba(0,200,224,.16) 0%,transparent 66%);pointer-events:none}
+.fc-b::after{content:'';position:absolute;left:-60px;bottom:-80px;width:250px;height:250px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,159,26,.18) 0%,transparent 66%);pointer-events:none}
+.fc-hd{display:flex;align-items:center;gap:6px;flex-wrap:wrap;position:relative;z-index:1}
+.fc-q{position:relative;z-index:1;flex:1;display:flex;align-items:center;padding:16px 2px 8px;
+  font-size:clamp(17px,4.6vw,23px);font-weight:600;line-height:1.36;letter-spacing:-.015em}
+.fc-hint{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:7px;
+  font-family:'Space Mono',monospace;font-size:9.5px;letter-spacing:.11em;color:var(--tx3);padding-top:8px;
+  border-top:1px solid var(--line)}
+.fc-hint svg{animation:tap 2.6s ease-in-out infinite}
+@keyframes tap{0%,100%{transform:translateY(0);opacity:.55}50%{transform:translateY(-3px);opacity:1}}
+.fc-a{position:relative;z-index:1;flex:1;overflow-y:auto;padding:14px 2px 6px;font-size:14px;line-height:1.62;color:#F2F6FF}
+.fc-a strong{color:var(--amb2);font-weight:700}
+.ref{display:inline-flex;align-items:center;gap:5px;font-family:'Space Mono',monospace;font-size:9px;
+  padding:5px 9px;border-radius:8px;background:rgba(0,200,224,.11);border:1px solid rgba(0,200,224,.3);
+  color:#9FEAF6;margin-top:10px}
+.keys{display:flex;flex-wrap:wrap;gap:5px;margin-top:11px;position:relative;z-index:1}
+.mini{position:relative;z-index:1;margin-top:auto;padding-top:11px;border-top:1px solid var(--line)}
+.mini-h{font-family:'Space Mono',monospace;font-size:8.5px;letter-spacing:.09em;color:var(--tx3);margin-bottom:4px}
+.mini-h b{color:#6EE7A8}
+.mini svg{width:100%;height:46px;display:block}
+.mini-x{display:flex;justify-content:space-between;padding-top:3px}
+.mini-x span{font-family:'Space Mono',monospace;font-size:8.5px;color:var(--tx3)}
+.mini-x span:last-child{color:var(--amb2)}
+.keys i{font-style:normal;font-family:'Space Mono',monospace;font-size:9px;padding:4px 8px;border-radius:7px;
+  background:rgba(38,208,124,.12);border:1px solid rgba(38,208,124,.3);color:#9AF0C4}
+
+/* ── gestos: los paneles que asoman al arrastrar ── */
+/* NACEN FUERA del borde y entran con el dedo. Si algo no debe verse, no se
+   TAPA, se quita de en medio (lección del panel rojo de Gastos). */
+.swipe-l,.swipe-r{position:absolute;top:0;bottom:0;width:46%;display:flex;align-items:center;
+  border-radius:20px;pointer-events:none;opacity:0;transition:opacity .12s;z-index:2}
+.swipe-l{left:0;justify-content:flex-start;padding-left:18px;
+  background:linear-gradient(90deg,rgba(255,82,82,.34),transparent)}
+.swipe-r{right:0;justify-content:flex-end;padding-right:18px;
+  background:linear-gradient(270deg,rgba(38,208,124,.34),transparent)}
+.swipe-l b,.swipe-r b{font-family:'Space Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.1em}
+.swipe-l b{color:#FFC9C9}.swipe-r b{color:#B6F5D6}
+
+/* ── botones de nota (4 grados tipo FSRS, en idioma de cabina) ── */
+.rate{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:14px}
+.rb{min-height:62px;border-radius:14px;cursor:pointer;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:3px;padding:6px 3px;border:1px solid var(--rc);background:var(--rbg);
+  transition:transform .12s,filter .12s}
+.rb:active{transform:scale(.955);filter:brightness(1.25)}
+.rb u{text-decoration:none;font-family:'Space Mono',monospace;font-size:8.6px;font-weight:700;letter-spacing:.01em;
+  color:var(--rc);text-align:center;line-height:1.2}
+.rb s{text-decoration:none;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--tx)}
+.rb.ga{--rc:#FF7B7B;--rbg:rgba(255,82,82,.13)}
+.rb.un{--rc:#FFC078;--rbg:rgba(255,167,38,.13)}
+.rb.st{--rc:#6EE7A8;--rbg:rgba(38,208,124,.13)}
+.rb.cv{--rc:#67E8F9;--rbg:rgba(34,211,238,.13)}
+.rate-h{font-family:'Space Mono',monospace;font-size:8.5px;letter-spacing:.13em;color:var(--tx3);
+  text-align:center;margin-top:13px}
+.show{width:100%;min-height:52px;margin-top:14px;border-radius:14px;cursor:pointer;border:1px solid rgba(255,159,26,.42);
+  background:rgba(255,159,26,.12);color:var(--amb2);font-family:'Space Grotesk',sans-serif;font-size:13.5px;font-weight:700;
+  transition:background .15s}
+.show:active{background:rgba(255,159,26,.22)}
+.nxt{display:flex;align-items:center;justify-content:center;gap:7px;font-family:'Space Mono',monospace;font-size:9.5px;
+  color:var(--tx3);margin-top:10px;padding-bottom:6px}
+.nxt b{color:var(--cy2)}
+
+/* ── SECUENCIA (ordenar) ── */
+.seq{position:relative;z-index:1;flex:1;display:flex;flex-direction:column;gap:9px;padding:12px 0 4px;overflow-y:auto}
+.seq-slots{display:flex;flex-direction:column;gap:6px}
+.seq-slot{display:flex;align-items:center;gap:9px;min-height:44px;padding:0 11px;border-radius:11px;
+  border:1px dashed var(--line2);background:rgba(255,255,255,.03)}
+.seq-slot.full{border-style:solid;border-color:rgba(38,208,124,.4);background:rgba(38,208,124,.1)}
+.seq-slot.wrong{border-color:rgba(255,82,82,.5);background:rgba(255,82,82,.12);animation:shk .34s}
+@keyframes shk{0%,100%{transform:translateX(0)}22%{transform:translateX(-7px)}62%{transform:translateX(6px)}}
+.seq-i{flex:0 0 20px;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;color:var(--tx3)}
+.seq-slot.full .seq-i{color:var(--st)}
+.seq-txt{flex:1;font-size:12.5px;font-weight:600;color:var(--tx2)}
+.seq-slot.full .seq-txt{color:var(--tx)}
+.seq-pool{display:flex;flex-wrap:wrap;gap:7px;padding-top:9px;border-top:1px solid var(--line)}
+.seq-chip{min-height:44px;padding:0 13px;border-radius:12px;cursor:pointer;border:1px solid var(--line2);
+  background:rgba(255,255,255,.055);color:var(--tx);font-family:'Space Grotesk',sans-serif;font-size:12.5px;font-weight:600;
+  transition:transform .12s,opacity .2s}
+.seq-chip:active{transform:scale(.94)}
+.seq-chip.used{opacity:.22;pointer-events:none}
+
+/* ── PANEL (oclusión de esquema) ── */
+.pan{position:relative;z-index:1;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+.pan svg{width:100%;max-width:330px;height:auto}
+.pan-hot{cursor:pointer}
+.pan-hot rect,.pan-hot circle{transition:opacity .3s}
+.pan-q{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.06em;color:var(--tx3);text-align:center}
+
+/* ══════════════════════════════════════════════════════════════════════
+   DEBRIEF
+   ══════════════════════════════════════════════════════════════════════ */
+.db-hero{margin-top:16px;padding:20px 16px;border-radius:20px;text-align:center;overflow:hidden;position:relative;
+  background:linear-gradient(150deg,#0b1533 0%,#0a1026 52%,#03160e 145%);border:1px solid rgba(38,208,124,.26)}
+.db-hero::before{content:'';position:absolute;left:50%;top:-90px;width:300px;height:300px;transform:translateX(-50%);
+  border-radius:50%;background:radial-gradient(circle,rgba(38,208,124,.2) 0%,transparent 66%);pointer-events:none}
+.db-k{position:relative;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.2em;color:var(--st)}
+.db-big{position:relative;font-family:'Saira Condensed','Space Grotesk',sans-serif;font-size:58px;font-weight:700;
+  line-height:.94;margin:5px 0 2px;letter-spacing:-.01em}
+.db-sub{position:relative;font-size:12px;color:var(--tx2)}
+.db-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:16px}
+.db-s{padding:11px 8px;border-radius:13px;background:rgba(255,255,255,.04);border:1px solid var(--line);text-align:center}
+.db-s b{display:block;font-family:'Saira Condensed','Space Grotesk',sans-serif;font-size:24px;font-weight:700;line-height:1}
+.db-s span{display:block;font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.09em;color:var(--tx3);margin-top:4px}
+.db-mix{display:flex;height:11px;border-radius:99px;overflow:hidden;margin-top:14px;background:rgba(255,255,255,.07)}
+.db-mix i{height:100%;transition:width .9s cubic-bezier(.2,.9,.25,1)}
+.db-list{margin-top:10px}
+.db-row{display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:12px;background:rgba(255,255,255,.035);
+  border:1px solid var(--line);margin-bottom:7px}
+.db-row .dot{flex:0 0 7px;width:7px;height:7px;border-radius:50%}
+.db-row p{flex:1;margin:0;font-size:11.5px;line-height:1.45;color:var(--tx2)}
+.db-row em{font-style:normal;font-family:'Space Mono',monospace;font-size:9px;color:var(--tx3);white-space:nowrap}
+.db-delta{display:flex;align-items:center;justify-content:center;gap:9px;margin-top:14px;padding:12px;
+  border-radius:14px;background:rgba(255,159,26,.09);border:1px solid rgba(255,159,26,.28)}
+.db-delta>b{font-family:'Saira Condensed','Space Grotesk',sans-serif;font-size:27px;font-weight:700;color:var(--amb2);line-height:1}
+.db-delta span{font-size:11.5px;color:var(--tx2);line-height:1.4}
+
+/* pie de honestidad: esto es una MAQUETA y sus cifras son de ejemplo */
+.foot{margin:22px 0 10px;padding:12px 13px;border-radius:13px;background:rgba(255,159,26,.07);
+  border:1px solid rgba(255,159,26,.24)}
+.foot p{margin:0;font-size:10.5px;line-height:1.6;color:#F0D6AE}
+.sinbanco{margin-top:14px;padding:15px 16px;border-radius:16px;
+  background:rgba(255,82,82,.10);border:1px solid rgba(255,82,82,.42)}
+.sinbanco b{display:block;font-size:14.5px;color:#FFB4B4;margin-bottom:6px}
+.sinbanco p{margin:0 0 7px;font-size:11.5px;line-height:1.6;color:#F6D9D9}
+.sinbanco code{font-family:'Space Mono',monospace;font-size:10.5px;color:var(--amb2)}
+.foot b{color:var(--amb2)}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+<div class="sky" id="sky"><div class="horiz"></div></div>
+<div class="app">
+
+  <header class="hd">
+    <button class="hd-back" onclick="volver()" aria-label="Volver">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <div class="hd-t"><b id="hd-title">Flashcards</b><span id="hd-sub">A320 CEO · FCOM VUELING DEC 25</span></div>
+    <span class="maq">MAQUETA</span>
+  </header>
+
+  <div class="body">
+
+  <!-- ══════════════════ VISTA 1 · HANGAR ══════════════════ -->
+  <section class="view on" id="v-hangar">
+
+    <div class="hero">
+      <div class="hero-top">
+        <div class="gauge">
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <defs><linearGradient id="gg" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0%" stop-color="#F97316"/><stop offset="55%" stop-color="#FF9F1A"/><stop offset="100%" stop-color="#FFE0A8"/>
+            </linearGradient></defs>
+            <g transform="rotate(135 60 60)">
+              <circle class="g-arc g-bg" cx="60" cy="60" r="48" stroke-dasharray="226 302"/>
+              <circle class="g-arc g-val" id="g-val" cx="60" cy="60" r="48" stroke-dasharray="226 302" stroke-dashoffset="226"/>
+              <circle class="g-arc g-red" cx="60" cy="60" r="55" stroke-dasharray="45 302" stroke-dashoffset="0"/>
+            </g>
+            <g id="g-ticks"></g>
+            <line class="g-needle" id="g-needle" x1="60" y1="60" x2="60" y2="22" transform="rotate(-135 60 60)"/>
+            <circle cx="60" cy="60" r="4.5" fill="#FFC46B"/>
+          </svg>
+          <div class="g-lbl"><div class="g-num" id="g-num">0<small>%</small></div><div class="g-cap">ESTABLES</div></div>
+        </div>
+        <div class="hero-r">
+          <div class="hero-k">VENCEN HOY</div>
+          <div class="hero-big" id="hero-due">—</div>
+          <div class="hero-sub" id="hero-sub">Calculando…</div>
+        </div>
+      </div>
+      <button class="cta" onclick="empezar('HOY')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3" fill="currentColor"/></svg>
+        EMPEZAR SESIÓN
+      </button>
+      <span class="cta-sub" id="cta-sub">—</span>
+    </div>
+
+    <!-- SENDA (racha) -->
+    <div class="sec">
+      <div class="sec-h"><b>Senda</b><hr><em>racha de estudio</em></div>
+      <div class="card senda">
+        <div class="senda-top">
+          <div class="senda-n" id="senda-n">14</div>
+          <div class="senda-t">días <b>en senda</b><br><span class="dim">tu mejor racha: 31</span></div>
+        </div>
+        <div class="alu" id="alu"></div>
+        <div class="shield">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <p><b>Senda protegida el 16 SEP.</b> Ese día volaste una jornada de 11 h 20 — PilotOS lo lee de tu roster y no te rompe la racha. Descansar no es abandonar.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- DEL ROSTER -->
+    <div class="sec">
+      <div class="sec-h"><b>De tu roster</b><hr><em>mazos automáticos</em></div>
+      <div class="card rost">
+        <div class="rost-h"><span class="pill red">● EVAL · 23 SEP</span><span class="pill dim">faltan 5 días</span></div>
+        <div class="rost-t">Bloque de examen</div>
+        <div class="rost-s">Tu <b>EVAL</b> está en el roster. PilotOS ha armado un mazo con las <b>84 tarjetas</b> que más caen en evaluación: limitaciones, eléctrico y auto flight.</div>
+        <div class="bar"><i id="rost-bar" style="width:0%"></i></div>
+        <div class="bar-l"><span id="rost-l">0 / 84 estables</span><span>meta: 23 SEP</span></div>
+        <button class="btn2" onclick="empezar('EVAL')">PREPARAR EL EVAL →</button>
+        <div class="rost-mini">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5a2.1 2.1 0 0 0-3-3L13 8 4.8 6.2a.5.5 0 0 0-.5.8l3.3 4-2 2-2.3-.6a.5.5 0 0 0-.5.8L5 16l1.8 3.2a.5.5 0 0 0 .8-.1l-.6-2.3 2-2 4 3.3a.5.5 0 0 0 .8-.5z"/></svg>
+          <p>Mañana vuelas a <b>LIS</b> y el día 21 a <b>FLR</b>. 6 tarjetas de aeropuerto especial y viento cruzado.</p>
+          <button onclick="empezar('RUTA')">VER</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- HORIZONTE DE RETENCIÓN -->
+    <div class="sec">
+      <div class="sec-h"><b>Horizonte de retención</b><hr><em>próximos 30 días</em></div>
+      <div class="card hz">
+        <div class="hz-w">
+          <svg id="hz-svg" viewBox="0 0 320 110" preserveAspectRatio="none"></svg>
+          <span class="hz-90" id="hz-90">90 % RETENCIÓN</span>
+          <div class="hz-x"><span>HOY</span><span>+7d</span><span>+14d</span><span>+21d</span><span>+28d</span></div>
+        </div>
+        <div class="hz-leg">
+          <span><i style="background:#FF5252"></i>bajo el 90 %: hay que repasarla</span>
+          <span><i style="background:#FF9F1A"></i>vence esta semana</span>
+          <span><i style="background:#26D07C"></i>estable</span>
+        </div>
+        <p class="note" style="margin:9px 0 0">Cada punto es una tarjeta y la curva es tu olvido, no una media. Cuando una cae por debajo del <b class="amb">90 %</b> de probabilidad de acierto, vuelve a la sesión de ese día.</p>
+      </div>
+    </div>
+
+    <!-- MAZOS -->
+    <div class="sec">
+      <div class="sec-h"><b>Mazos</b><hr><em id="mz-tot">—</em></div>
+      <div class="decks" id="decks"></div>
+    </div>
+
+    <!-- RANGO -->
+    <div class="sec">
+      <div class="sec-h"><b>Rango</b><hr><em>tarjetas dominadas</em></div>
+      <div class="card rank">
+        <div class="rank-t"><div class="rank-now" id="rk-now">SENIOR FIRST OFFICER</div><div class="rank-nx" id="rk-nx">—</div></div>
+        <div class="rank-track"><div class="rank-fill" id="rk-fill" style="width:0%"></div></div>
+        <div class="rank-steps" id="rk-steps"></div>
+      </div>
+    </div>
+
+    <div class="foot">
+      <p><b>Esto es una maqueta.</b> Las preguntas y las referencias FCOM son <b>reales</b> —salen del banco de la app (452 tarjetas trazadas al FCOM de Vueling)—. Las cifras de racha, rango, roster y estabilidad son <b>datos de ejemplo</b> para enseñar el diseño: en la app saldrían de tu historial y de tu roster.</p>
+    </div>
+  </section>
+
+  <!-- ══════════════════ VISTA 2 · SESIÓN ══════════════════ -->
+  <section class="view" id="v-ses">
+    <div class="ses-top">
+      <button class="ses-x" onclick="salirSesion()" aria-label="Salir de la sesión">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="strip" id="strip"></div>
+      <div class="ses-m"><span id="ses-n">0/0</span><span>·</span><b id="ses-t">0:00</b></div>
+    </div>
+    <div class="ses-chips" id="ses-chips"></div>
+
+    <div class="stage" id="stage">
+      <div class="swipe-l" id="sw-l"><b>↩ GO AROUND</b></div>
+      <div class="swipe-r" id="sw-r"><b>ESTABLE ✓</b></div>
+      <div class="fc" id="fc">
+        <div class="fc-f" id="fc-f"></div>
+        <div class="fc-b" id="fc-b"></div>
+      </div>
+    </div>
+
+    <div id="ses-actions"></div>
+    <div class="nxt" id="ses-nxt"></div>
+  </section>
+
+  <!-- ══════════════════ VISTA 3 · DEBRIEF ══════════════════ -->
+  <section class="view" id="v-debrief">
+    <div class="db-hero">
+      <div class="db-k">DEBRIEF DE SESIÓN</div>
+      <div class="db-big" id="db-big">—</div>
+      <div class="db-sub" id="db-sub">—</div>
+      <div class="db-mix" id="db-mix"></div>
+    </div>
+    <div class="db-stats" id="db-stats"></div>
+    <div class="db-delta">
+      <b id="db-delta-n">+0</b>
+      <span><b class="brt">días de memoria</b> ganados<br><span id="db-delta-s" class="dim"></span></span>
+    </div>
+    <div class="sec">
+      <div class="sec-h"><b>Qué se movió</b><hr></div>
+      <div class="db-list" id="db-list"></div>
+    </div>
+    <div class="sec">
+      <div class="sec-h"><b>Próxima sesión</b><hr></div>
+      <div class="card rost cy-b">
+        <div class="rost-h"><span class="pill cy">MAÑANA · 19 SEP</span></div>
+        <div class="rost-t" id="db-next">—</div>
+        <div class="rost-s" id="db-next-s">—</div>
+      </div>
+    </div>
+    <button class="cta" style="margin-top:18px" onclick="irA('v-hangar')">VOLVER AL HANGAR</button>
+    <div class="foot"><p><b>Maqueta.</b> Los intervalos que ves («2 d», «9 d») los calcula de verdad un planificador tipo FSRS incluido en esta página: salen de cómo has puntuado, no están escritos a mano. Lo que es de ejemplo es tu historial previo.</p></div>
+  </section>
+
+  </div><!-- /body -->
+</div><!-- /app -->
+
+<script>/* Los bancos bilingües se enganchan a un QB global que declara index.html.
+   Sin él se salen por su propio catch, SIN un solo error, y sólo entra
+   qbank-lim: 294 de 452. Lo cazó la sonda, no la lectura del código. */
+var QB = []; window.QB = QB;</script>
+<script src="js/qbank-lim.js"></script>
+<script src="js/qbank-elec.js"></script>
+<script src="js/qbank-ac.js"></script>
+<script src="js/qbank-ag.js"></script>
+<script src="js/qbank-afgen.js"></script>
+<script>
+/* ══════════════════════════════════════════════════════════════════════
+   PilotOS · FLASHCARDS — maqueta interactiva
+   El contenido sale del banco REAL de la app (js/qbank-*.js). Lo único
+   inventado es el historial de ejemplo, y la página lo dice en pantalla.
+   ══════════════════════════════════════════════════════════════════════ */
+'use strict';
+
+/* ── 1 · El banco: dos formas distintas conviven, se normaliza UNA vez ──
+   qbank-lim  → {sys,type,q,keys,answer,opts}
+   los demás  → {sys,type,kid,es:{...},en:{...}}
+   Escribir el aplanado en dos sitios sería ES_AIRPORTS / ES_IATA. */
+function normaliza(raw){
+  var o = raw.es || raw;
+  if(!o || !o.q) return null;
+  return {sys:raw.sys, type:raw.type, kid:raw.kid||null,
+          q:o.q, answer:o.answer||'', keys:o.keys||[], opts:o.opts||[]};
+}
+var BANCO = [].concat(
+  window.QB_LIM||[], window.QB_ELEC||[], window.QB_AC||[], window.QB_AG||[], window.QB_AFGEN||[]
+).map(normaliza).filter(Boolean);
+
+/* La referencia FCOM vive DENTRO del texto de la respuesta, entre paréntesis.
+   Se extrae para pintarla como cita aparte: un dato y su procedencia no se
+   pueden citar igual (regla de los alternativos: cci ≠ ref). */
+function parteRef(txt){
+  var m = String(txt).match(/\(((?:FCOM|FCTM|QRH|MEL)[^)]*)\)\s*$/i);
+  if(m) return {cuerpo:String(txt).slice(0,m.index).trim(), ref:m[1].trim()};
+  return {cuerpo:String(txt).trim(), ref:''};
+}
+
+/* ── 2 · Los mazos: familias ATA reales del Question Bank ── */
+var MAZOS = [
+  {id:'LIM',  n:'Limitaciones',    c:'#FF9F1A', sys:null, type:'LIM', ic:'lim'},
+  {id:'ELEC', n:'Eléctrico',       c:'#FFD54F', sys:['ELEC'], ic:'elec'},
+  {id:'AC',   n:'Aire y presión',  c:'#7DD3FC', sys:['AC','PNEU','ICE','O2'], ic:'air'},
+  {id:'ENG',  n:'Motores y APU',   c:'#FF8A65', sys:['ENG','APU','FUEL'], ic:'eng'},
+  {id:'AF',   n:'Auto Flight',     c:'#26D07C', sys:['AF_GEN','AF_FG','AF_FM','AF_FA'], ic:'af'},
+  {id:'AG',   n:'Aircraft general',c:'#B39DDB', sys:['AG','SPD','WGHT','ENV','ARPT','EQUIP','DOORS'], ic:'ag'},
+  {id:'NAV',  n:'Nav y vigilancia',c:'#00C8E0', sys:['NAV','SURV','COM','IND'], ic:'nav'},
+  {id:'GEAR', n:'Tren y mandos',   c:'#F48FB1', sys:['GEAR','FCTL','HYD'], ic:'gear'}
+];
+function cartasDe(m){
+  return BANCO.filter(function(q){
+    if(m.type && q.type!==m.type) return false;
+    if(m.sys && m.sys.indexOf(q.sys)<0) return false;
+    return true;
+  });
+}
+
+/* ── 3 · Planificador tipo FSRS (versión corta y honesta) ──
+   Cada tarjeta lleva ESTABILIDAD (días hasta caer al 90 % de acierto) y
+   DIFICULTAD (1-10). Los intervalos que se pintan en los botones SALEN DE
+   AQUÍ: no son literales. Un número fijo que tiene que coincidir con uno
+   calculado acaba desviándose siempre.                                    */
+var RETENCION = 0.90;                 // objetivo: 90 % de probabilidad de acierto
+var G = {GA:1, UN:2, ST:3, CV:4};     // go around / inestable / estable / cavok
+
+function estabilidadInicial(g){ return [0,0.42,1.2,3.1,8.4][g]; }
+function dificultadInicial(g){ return Math.min(10, Math.max(1, 5.2 - 1.15*(g-3))); }
+function nuevaDificultad(d,g){ return Math.min(10, Math.max(1, d - 0.9*(g-3))); }
+function nuevaEstabilidad(s,d,g){
+  if(g===G.GA) return Math.max(0.35, s*0.32*Math.exp(-0.12*(d-5)));   // se va abajo, no a cero
+  var fac = 1 + (11-d)*0.11*Math.pow(s,-0.22)*(Math.exp(1.3*(g-2))-1);
+  if(g===G.UN) fac = 1 + (fac-1)*0.42;
+  if(g===G.CV) fac = 1 + (fac-1)*1.45;
+  return Math.max(0.4, s*fac);
+}
+function intervalo(s){ return Math.max(1, Math.round(s * Math.log(RETENCION)/Math.log(0.9))); }
+function recuerdo(s,dias){ return Math.pow(1 + dias/(9*Math.max(s,.01)), -1); } // curva de olvido
+function fmtInt(s,g){
+  if(g===G.GA) return '<1 min';
+  var d = intervalo(s);
+  if(d < 60) return d + ' d';
+  if(d < 400) return Math.round(d/30) + ' meses';
+  return (Math.round(d/365*10)/10).toString().replace('.',',') + ' años';
+}
+
+/* ── 4 · Historial de EJEMPLO ─────────────────────────────────────────
+   Se genera con semilla fija: la maqueta tiene que enseñar lo MISMO cada
+   vez que se abre, o no se puede discutir una captura. Y va marcado como
+   ejemplo en pantalla: un dato inventado presentado como bueno es peor
+   que no tener ninguno.                                                  */
+var _sd = 20260918;
+function rnd(){ _sd = (_sd*1103515245 + 12345) & 0x7fffffff; return _sd/0x7fffffff; }
+var EST = {};      // id -> {s, d, pasado, vistas}   pasado = días desde el último repaso
+var DOMINIO_D = 21;                                  // "dominada" = intervalo >= 3 semanas
+
+(function siembra(){
+  /* Reparto explícito, no a base de probabilidades: una maqueta tiene que
+     enseñar lo MISMO cada vez o no se puede discutir una captura, y los
+     números de la pantalla (23 vencen hoy) tienen que cuadrar con los de
+     las tarjetas. Orden barajado con semilla fija para que las nuevas y las
+     vencidas no caigan todas en el mismo mazo. */
+  var NUEVAS = 9, VENCIDAS = 23, DOMINADAS = 0.78;
+  var idx = BANCO.map(function(q,i){ q._id = q.kid || ('lim'+i); return i; });
+  for(var k=idx.length-1;k>0;k--){ var j=Math.floor(rnd()*(k+1)); var t=idx[k]; idx[k]=idx[j]; idx[j]=t; }
+
+  idx.forEach(function(i, pos){
+    var q = BANCO[i];
+    if(pos < NUEVAS){ EST[q._id] = null; return; }           // nunca vista
+    var madura = ((pos - NUEVAS) / (idx.length - NUEVAS)) < DOMINADAS;
+    var s = madura ? (DOMINIO_D + rnd()*rnd()*230) : (0.6 + rnd()*19);
+    var iv = intervalo(s);
+    var pasado = (pos < NUEVAS + VENCIDAS)
+      ? iv + Math.round(rnd()*rnd()*iv*0.7)                  // ya vencida
+      : Math.round(rnd()*rnd()*iv*0.92);                     // aún dentro
+    EST[q._id] = {s:s, d:2.4 + rnd()*6.2, pasado:pasado, vistas:1 + Math.floor(rnd()*7)};
+  });
+})();
+function dueDe(e){ return e ? intervalo(e.s) - e.pasado : 0; }
+function estadoDe(q){ return EST[q._id] || null; }
+function venceHoy(q){ var e = estadoDe(q); return !e || dueDe(e) <= 0; }
+function nuevas(){ return BANCO.filter(function(q){ return !estadoDe(q); }); }
+
+/* ESTABILIDAD = qué parte del mazo tienes con la memoria asentada, o sea
+   con intervalo >= 21 días. No es "cuánto recuerdas ahora mismo": eso da
+   siempre 95 % y no dice nada. La pantalla escribe la definición debajo:
+   un porcentaje sin decir de qué es la mitad de un dato. */
+function pctDominio(lista){
+  if(!lista.length) return 0;
+  var n = lista.filter(function(q){ var e = estadoDe(q); return e && e.s >= DOMINIO_D; }).length;
+  return Math.round(n/lista.length*100);
+}
+
+/* ── 5 · Cielo: estrellas colocadas a mano, no una baldosa que se repita ── */
+(function estrellas(){
+  var sky = document.getElementById('sky'), pos = [[8,12],[19,5],[33,18],[47,8],[62,15],[74,6],[86,20],[93,10],[27,26],[55,29],[81,31]];
+  pos.forEach(function(p,i){
+    var s = document.createElement('i'); var t = (i%3===0)?2.2:1.4;
+    s.style.left = p[0]+'%'; s.style.top = p[1]+'%'; s.style.width = t+'px'; s.style.height = t+'px';
+    s.style.animationDelay = (i*0.37)+'s';
+    sky.appendChild(s);
+  });
+})();
+
+/* ── 6 · Navegación entre vistas ── */
+var VISTA = 'v-hangar';
+function irA(id){
+  document.querySelectorAll('.view').forEach(function(v){ v.classList.toggle('on', v.id===id); });
+  VISTA = id;
+  document.querySelector('.body').scrollTop = 0;
+  var t = {'v-hangar':['Flashcards','A320 CEO · FCOM VUELING DEC 25'],
+           'v-ses':['Sesión', SES.nombre||'REPASO DEL DÍA'],
+           'v-debrief':['Debrief','SESIÓN COMPLETADA']}[id];
+  document.getElementById('hd-title').textContent = t[0];
+  document.getElementById('hd-sub').textContent = t[1];
+}
+function volver(){
+  if(VISTA==='v-ses'){ salirSesion(); return; }
+  if(VISTA==='v-debrief'){ irA('v-hangar'); return; }
+  if(window.parent!==window){ try{ window.parent.postMessage({t:'pilotos-flash-close'},'*'); }catch(e){} }
+  else history.length>1 ? history.back() : (location.href='/');
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   VISTA 1 · HANGAR
+   ══════════════════════════════════════════════════════════════════════ */
+function pintaHangar(){
+  /* Un archivo suelto no alcanza js/qbank-*.js: el banco llega VACÍO y todo
+     lo de debajo se pintaría con ceros como si fuera la respuesta. Se dice,
+     y el botón deja de prometer una sesión que no hay. */
+  if(!BANCO.length){ sinBanco(); return; }
+  var due = BANCO.filter(venceHoy), pct = pctDominio(BANCO);
+
+  /* aguja + arco. El 135° de arranque y los 270° de recorrido son los de
+     un instrumento de motor: 0 abajo-izquierda, máximo abajo-derecha. */
+  var LARGO = 226;
+  document.getElementById('g-val').style.strokeDashoffset = LARGO*(1-pct/100);
+  document.getElementById('g-needle').setAttribute('transform','rotate('+(-135 + 270*pct/100)+' 60 60)');
+  var ticks = '';
+  for(var t=0;t<=10;t++){
+    var a = (-135 + 27*t)*Math.PI/180, r1 = t%5===0?40:44, r2 = 47;
+    ticks += '<line class="g-tick" x1="'+(60+r1*Math.sin(a))+'" y1="'+(60-r1*Math.cos(a))+'" x2="'+(60+r2*Math.sin(a))+'" y2="'+(60-r2*Math.cos(a))+'"/>';
+  }
+  document.getElementById('g-ticks').innerHTML = ticks;
+  var n = 0, paso = setInterval(function(){                 // el número acompaña a la aguja
+    n += Math.max(1, Math.round(pct/26)); if(n>=pct){ n=pct; clearInterval(paso); }
+    document.getElementById('g-num').innerHTML = n + '<small>%</small>';
+  }, 42);
+
+  document.getElementById('hero-due').textContent = due.length;
+  var mins = Math.max(1, Math.round(due.length*16/60));
+  document.getElementById('hero-sub').innerHTML =
+    'tarjetas · <b>~'+mins+' min</b><br><span class="dim">'+nuevas().length+' nuevas · '+(due.length-nuevas().length)+' de repaso</span>';
+  document.getElementById('cta-sub').textContent = 'ESTABLE = INTERVALO ≥ 21 DÍAS · ~16 s POR TARJETA';
+
+  /* senda: 7 luces de aproximación, la de hoy late */
+  var dias = ['J','V','S','D','L','M','X'], estado = ['on','on','prot','on','on','on','now'];
+  document.getElementById('alu').innerHTML = dias.map(function(d,i){
+    var h = 12 + i*4.5;
+    return '<div class="alu-d '+estado[i]+'"><div class="alu-bar" style="height:'+h+'px"></div><div class="alu-l">'+d+'</div></div>';
+  }).join('');
+
+  setTimeout(function(){
+    document.getElementById('rost-bar').style.width = '61%';
+    document.getElementById('rost-l').textContent = '51 / 84 estables';
+  }, 120);
+
+  pintaHorizonte();
+  pintaMazos();
+  pintaRango();
+}
+
+function sinBanco(){
+  var h = document.querySelector('.hero');
+  h.innerHTML = '<div class="sinbanco"><b>No se han cargado las preguntas</b>'+
+    '<p>Esta maqueta lee las <b style="display:inline">452 tarjetas reales</b> de '+
+    '<code>js/qbank-lim.js</code>, <code>qbank-elec.js</code>, <code>qbank-ac.js</code>, '+
+    '<code>qbank-ag.js</code> y <code>qbank-afgen.js</code>. Abriendo el HTML suelto '+
+    '(doble clic) esas rutas no existen y no hay nada que enseñar.</p>'+
+    '<p>Dos formas de verlo entero: dentro de la app '+
+    '(<b style="display:inline">Live Training → Flashcards → VER MAQUETA</b>), o dejando este '+
+    'archivo junto a la carpeta <code>js/</code> de <code>public/</code> y sirviéndolo.</p></div>';
+  ['#alu','#decks','#hz-svg','#rk-steps'].forEach(function(q){ var e=document.querySelector(q); if(e) e.innerHTML=''; });
+  document.querySelectorAll('.sec, .hz-leg, .hz-x, .hz-90').forEach(function(e){ e.style.display='none'; });
+}
+
+/* El horizonte: la curva de olvido de VERDAD (recuerdo(s,t)) con las
+   tarjetas puestas encima donde caen. Un degradado bonito pasaría por
+   gráfico y no diría nada; esto se puede comprobar punto a punto.       */
+function pintaHorizonte(){
+  var W = 320, H = 110, PL = 8, PR = 8, PT = 8, PB = 6;
+  var x = function(d){ return PL + (W-PL-PR)*d/30; };
+  var y = function(r){ return PT + (H-PT-PB)*(1-(Math.max(.78,r)-0.78)/0.22); };
+  var s = '';
+  /* rejilla + semanas */
+  [0,7,14,21,28].forEach(function(d){
+    s += '<line x1="'+x(d)+'" y1="'+PT+'" x2="'+x(d)+'" y2="'+(H-PB)+'" stroke="rgba(255,255,255,.055)" stroke-width="1"/>';
+  });
+  /* línea del 90 % */
+  s += '<line x1="'+PL+'" y1="'+y(.9)+'" x2="'+(W-PR)+'" y2="'+y(.9)+'" stroke="rgba(255,159,26,.55)" stroke-width="1" stroke-dasharray="4 4"/>';
+  /* el rótulo del 90 % se coloca DONDE está su línea, calculado: un
+     porcentaje escrito a mano se desviaría al tocar la escala */
+  document.getElementById('hz-90').style.top = (y(.9)/H*100).toFixed(2)+'%';
+  /* La curva es la MEDIANA de las tarjetas que entran en la ventana, no la
+     media de todo el banco: con 452 tarjetas y la mayoría ya maduras, la
+     media sale plana y el gráfico deja de decir nada. */
+  var ss = BANCO.map(estadoDe).filter(Boolean)
+                .filter(function(e){ return dueDe(e) <= 30; })
+                .map(function(e){ return e.s; }).sort(function(a,b){ return a-b; });
+  var med = ss.length ? ss[Math.floor(ss.length/2)] : 20;
+  var pts = [];
+  for(var d=0; d<=30; d+=0.5){ pts.push(x(d)+','+y(recuerdo(med,d))); }
+  s += '<polyline points="'+pts.join(' ')+'" fill="none" stroke="url(#hzg)" stroke-width="2.2" stroke-linecap="round"/>';
+  s += '<polygon points="'+PL+','+(H-PB)+' '+pts.join(' ')+' '+(W-PR)+','+(H-PB)+'" fill="url(#hzf)"/>';
+  /* las tarjetas */
+  var muestra = BANCO.filter(estadoDe).filter(function(_,i){ return i%7===0; }).slice(0,46);
+  muestra.forEach(function(q){
+    var e = estadoDe(q), du = dueDe(e), dd = Math.max(0, Math.min(30, du));
+    var r = Math.min(1, recuerdo(e.s, e.pasado));
+    var col = du<=0 ? '#FF5252' : (du<=7 ? '#FF9F1A' : '#26D07C');
+    s += '<circle cx="'+x(dd)+'" cy="'+y(r)+'" r="2.6" fill="'+col+'" opacity=".92"/>';
+  });
+  document.getElementById('hz-svg').innerHTML =
+    '<defs><linearGradient id="hzg" x1="0" x2="1"><stop offset="0%" stop-color="#FF5252"/><stop offset="28%" stop-color="#FF9F1A"/><stop offset="100%" stop-color="#26D07C"/></linearGradient>'+
+    '<linearGradient id="hzf" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(255,159,26,.20)"/><stop offset="100%" stop-color="rgba(255,159,26,0)"/></linearGradient></defs>' + s;
+}
+
+function pintaMazos(){
+  document.getElementById('decks').innerHTML = MAZOS.map(function(m){
+    var c = cartasDe(m);
+    var due = c.filter(venceHoy).length, pct = pctDominio(c);
+    var C = 2*Math.PI*17;
+    return '<button class="deck'+(due>14?' hot':'')+'" style="--dc:'+m.c+'" onclick="empezar(\''+m.id+'\')">'+
+      (due? '<span class="deck-due">'+due+'</span>' : '')+
+      '<div class="deck-h"><div class="ring"><svg viewBox="0 0 40 40">'+
+        '<circle class="r-bg" cx="20" cy="20" r="17"/>'+
+        '<circle class="r-v" cx="20" cy="20" r="17" stroke-dasharray="'+C+'" stroke-dashoffset="'+C+'" data-off="'+(C*(1-pct/100))+'"/>'+
+      '</svg><b>'+pct+'</b></div><div class="deck-n">'+m.n+'</div></div>'+
+      '<div class="deck-m">'+c.length+' tarjetas<br>'+(due? '<b>'+due+' vencen hoy</b>' : 'al día ✓')+'</div></button>';
+  }).join('');
+  document.getElementById('mz-tot').textContent = BANCO.length + ' tarjetas · una puede estar en 2 mazos';
+  requestAnimationFrame(function(){
+    document.querySelectorAll('#decks .r-v').forEach(function(c){ c.style.strokeDashoffset = c.dataset.off; });
+  });
+}
+
+var RANGOS = [['CADET',0],['FIRST OFFICER',60],['SENIOR FO',180],['COMANDANTE',340],['INSTRUCTOR TRI',520],['EXAMINADOR TRE',760]];
+function pintaRango(){
+  var dominadas = BANCO.filter(function(q){ var e = estadoDe(q); return e && e.s >= DOMINIO_D; }).length;
+  var i = 0; RANGOS.forEach(function(r,k){ if(dominadas >= r[1]) i = k; });
+  var sig = RANGOS[Math.min(i+1, RANGOS.length-1)];
+  document.getElementById('rk-now').textContent = RANGOS[i][0];
+  document.getElementById('rk-nx').textContent = (dominadas<sig[1]) ? ('faltan '+(sig[1]-dominadas)+' para '+sig[0]) : 'rango máximo';
+  document.getElementById('rk-steps').innerHTML = RANGOS.map(function(r,k){
+    return '<div class="rank-st '+(k<i?'done':(k===i?'cur':''))+'"><div class="rank-dot"></div><div class="rank-lb">'+r[0].split(' ')[0]+'</div></div>';
+  }).join('');
+  var pct = Math.min(100, 100*i/(RANGOS.length-1) + (100/(RANGOS.length-1))*Math.min(1,(dominadas-RANGOS[i][1])/Math.max(1,sig[1]-RANGOS[i][1])));
+  setTimeout(function(){ document.getElementById('rk-fill').style.width = pct.toFixed(1)+'%'; }, 160);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   VISTA 2 · SESIÓN
+   ══════════════════════════════════════════════════════════════════════ */
+var SES = {cola:[], i:0, notas:[], t0:0, tick:null, nombre:'', volteada:false, ganado:0};
+
+var NOMBRES = {HOY:'REPASO DEL DÍA', EVAL:'BLOQUE DE EXAMEN · EVAL 23 SEP', RUTA:'AEROPUERTOS DE TU SEMANA'};
+function nombreMazo(id){ var m = MAZOS.filter(function(x){return x.id===id;})[0]; return m ? m.n.toUpperCase() : (NOMBRES[id]||'SESIÓN'); }
+
+function empezar(id){
+  if(!BANCO.length){ sinBanco(); return; }   // sin preguntas no hay sesión que empezar
+  var pool;
+  if(id==='HOY')      pool = BANCO.filter(venceHoy);
+  else if(id==='EVAL')pool = BANCO.filter(function(q){ return ['LIM','ELEC','AF_GEN','AF_FG'].indexOf(q.type==='LIM'?'LIM':q.sys)>=0; });
+  else if(id==='RUTA')pool = BANCO.filter(function(q){ return q.sys==='ARPT'; });
+  else                pool = cartasDe(MAZOS.filter(function(m){return m.id===id;})[0]||{});
+  if(!pool.length) pool = BANCO.slice();
+
+  /* Orden: primero lo más vencido. Un repaso que empieza por lo fácil
+     gasta la atención buena en lo que ya sabes. */
+  pool = pool.slice().sort(function(a,b){
+    var ea = estadoDe(a), eb = estadoDe(b);
+    return (ea?dueDe(ea):-99) - (eb?dueDe(eb):-99);
+  }).slice(0, 12);
+
+  SES = {cola:pool, i:0, notas:[], t0:Date.now(), tick:null, nombre:nombreMazo(id), volteada:false, ganado:0};
+  /* Tres tarjetas especiales metidas a propósito para que la maqueta las
+     enseñe: hueco, secuencia y esquema. En la app saldrían del tipo de la
+     propia tarjeta, no de la posición. */
+  if(SES.cola[2]) SES.cola[2] = Object.assign({}, SES.cola[2], {_forma:'cloze'});
+  SES.cola.splice(1, 0, TARJETA_SEQ);
+  SES.cola.splice(4, 0, TARJETA_PANEL);
+
+  irA('v-ses');
+  SES.tick = setInterval(reloj, 1000); reloj();
+  pintaCarta();
+}
+function salirSesion(){ if(SES.tick) clearInterval(SES.tick); irA('v-hangar'); }
+function reloj(){
+  var s = Math.floor((Date.now()-SES.t0)/1000);
+  document.getElementById('ses-t').textContent = Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+}
+
+/* ── tarjeta de SECUENCIA: valores REALES del banco, trazados al FCOM ── */
+var TARJETA_SEQ = {
+  _forma:'seq', sys:'SPD', type:'LIM', _id:'seq-vfe',
+  q:'Ordena estas VFE de la flota de MAYOR a MENOR velocidad.',
+  answer:'Cada tabla MAXIMUM FLAPS/SLATS SPEEDS es distinta por variante: A321neo CONF 1 = 243 kt · A319/A320 CONF 1 = 230 kt · A321neo CONF 3 = 195 kt · A321 CEO CONF FULL = 190 kt · A319/A320 CONF FULL = 177 kt. (FCOM LIM-AG-SPD · p. 35-36)',
+  keys:['243','230','195','190','177'],
+  pasos:[['A321neo · CONF 1','243 kt'],['A320 IAE · CONF 1','230 kt'],['A321neo · CONF 3','195 kt'],['A321 CEO · CONF FULL','190 kt'],['A319/A320 · CONF FULL','177 kt']]
+};
+
+/* ── tarjeta de ESQUEMA: dibuja LITERALMENTE lo que dice su respuesta ── */
+var TARJETA_PANEL = {
+  _forma:'panel', sys:'ELEC', type:'GEN', _id:'pan-elec',
+  q:'En configuración normal, ¿cuántos generadores forman la red y quién los acciona?',
+  answer:'La red está constituida por 2 generadores de motor (GEN 1 y GEN 2), accionados cada uno por su motor mediante un accionamiento integrado, y 1 generador de APU. Cada generador puede alimentar todas las barras. (FCOM DSC-24-10-10 · p. 5 · rev 21 MAR 16)',
+  keys:['generadores','motor','apu','todas las barras']
+};
+
+function esc(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function pintaCarta(){
+  var q = SES.cola[SES.i];
+  if(!q){ debrief(); return; }
+  SES.volteada = false;
+  var fc = document.getElementById('fc');
+  fc.classList.remove('flip');
+  fc.style.transition = ''; fc.style.transform = ''; fc.style.opacity = '';
+  _girando = false;
+
+  /* tira de progreso */
+  document.getElementById('strip').innerHTML = SES.cola.map(function(_,k){
+    var n = SES.notas[k], c = k===SES.i ? 'cur' : (n===undefined ? '' : (n===G.GA?'bad':(n===G.UN?'mid':'ok')));
+    return '<i class="'+c+'"></i>';
+  }).join('');
+  document.getElementById('ses-n').textContent = (SES.i+1)+'/'+SES.cola.length;
+
+  var e = estadoDe(q);
+  document.getElementById('ses-chips').innerHTML =
+    '<span class="pill amb">'+esc(SES.nombre)+'</span>'+
+    (e ? '<span class="pill grn">vista '+e.vistas+'×</span>' : '<span class="pill cy">NUEVA</span>');
+
+  /* ── cara A ── */
+  var forma = q._forma || 'qa', frente = '';
+  var cab = '<div class="fc-hd">'+
+    '<span class="pill '+(forma==='seq'?'grn':forma==='panel'?'cy':forma==='cloze'?'amb':'dim')+'">'+
+      ({qa:'PREGUNTA', cloze:'COMPLETA EL HUECO', seq:'SECUENCIA', panel:'ESQUEMA'})[forma]+'</span>'+
+    '<span class="pill dim">'+esc(q.type)+'</span></div>';
+
+  if(forma === 'seq'){
+    frente = cab + '<div class="fc-q" style="flex:0;padding:12px 2px 2px;font-size:16.5px">'+esc(q.q)+'</div>' + htmlSeq(q);
+  } else if(forma === 'panel'){
+    frente = cab + '<div class="fc-q" style="flex:0;padding-bottom:4px;font-size:17px">'+esc(q.q)+'</div>' + htmlPanel();
+  } else if(forma === 'cloze'){
+    frente = cab + '<div class="fc-q">'+cloze(q)+'</div>' +
+      '<div class="fc-hint"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 11V6a3 3 0 0 1 6 0v5"/><path d="M5 11h14v10H5z"/></svg>TOCA LA TARJETA PARA VER EL DATO</div>';
+  } else {
+    frente = cab + '<div class="fc-q">'+esc(q.q)+'</div>' +
+      '<div class="fc-hint"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><polyline points="5 12 12 5 19 12"/></svg>TOCA PARA VOLTEAR · ARRASTRA PARA PUNTUAR</div>';
+  }
+  document.getElementById('fc-f').innerHTML = frente;
+
+  /* ── cara B ── */
+  var p = parteRef(q.answer);
+  document.getElementById('fc-b').innerHTML =
+    '<div class="fc-hd"><span class="pill grn">RESPUESTA</span><span class="pill dim">ATA · '+esc(q.sys)+'</span></div>'+
+    '<div class="fc-a">'+resalta(p.cuerpo)+
+      (p.ref ? '<br><span class="ref"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'+esc(p.ref)+'</span>' : '')+
+    '</div>'+
+    (q.keys && q.keys.length ? '<div class="keys">'+q.keys.slice(0,6).map(function(k){ return '<i>'+esc(k)+'</i>'; }).join('')+'</div>' : '')+
+    miniHorizonte(q, e);
+
+  pintaAcciones();
+  document.getElementById('ses-nxt').innerHTML = e
+    ? 'INTERVALO ACTUAL <b>'+intervalo(e.s)+' d</b> · RECUERDO HOY <b>'+Math.round(recuerdo(e.s,e.pasado)*100)+' %</b>'
+    : 'TARJETA NUEVA · AÚN SIN HISTORIAL';
+}
+
+/* El horizonte de ESTA tarjeta: su curva de olvido si la puntúas ESTABLE,
+   con la línea del 90 % y el día en que vuelve. Es de donde sale el número
+   del botón, dibujado — un intervalo sin su porqué es un número mágico. */
+function miniHorizonte(q, e){
+  var s1 = e ? nuevaEstabilidad(e.s, e.d, G.ST) : estabilidadInicial(G.ST);
+  var iv = intervalo(s1), W = 300, H = 46, PL = 4, PR = 4, PT = 6, PB = 4;
+  var x = function(d){ return PL + (W-PL-PR)*d/iv; };
+  var y = function(r){ return PT + (H-PT-PB)*(1-(Math.max(.85,r)-0.85)/0.15); };
+  var pts = [];
+  for(var d=0; d<=iv; d+=iv/60){ pts.push(x(d)+','+y(recuerdo(s1,d))); }
+  return '<div class="mini"><div class="mini-h">SI LA PUNTÚAS <b>ESTABLE</b>, VUELVE EN '+fmtInt(s1,G.ST)+'</div>'+
+    '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'+
+      '<line x1="'+PL+'" y1="'+y(.9)+'" x2="'+(W-PR)+'" y2="'+y(.9)+'" stroke="rgba(255,159,26,.5)" stroke-width="1" stroke-dasharray="4 4"/>'+
+      '<polygon points="'+PL+','+(H-PB)+' '+pts.join(' ')+' '+(W-PR)+','+(H-PB)+'" fill="rgba(38,208,124,.14)"/>'+
+      '<polyline points="'+pts.join(' ')+'" fill="none" stroke="#26D07C" stroke-width="2" stroke-linecap="round"/>'+
+      '<circle cx="'+PL+'" cy="'+y(1)+'" r="3" fill="#FFC46B"/>'+
+      '<circle cx="'+(W-PR)+'" cy="'+y(.9)+'" r="3.4" fill="#FF9F1A"/>'+
+    '</svg><div class="mini-x"><span>HOY</span><span>90 % · '+fmtInt(s1,G.ST)+'</span></div></div>';
+}
+
+/* Hueco generado del propio texto: se tapa la PRIMERA cifra de la respuesta.
+   Nada inventado — es la misma frase del FCOM con un dato menos. */
+function cloze(q){
+  var p = parteRef(q.answer), m = p.cuerpo.match(/\b\d[\d .,]*\s?(?:kt|ft|°C|kg|psi|V|Hz|min|h|%)\b/i);
+  if(!m) return esc(q.q);
+  var hueco = '<span class="hueco">?</span>';
+  return esc(p.cuerpo.slice(0, m.index)) + hueco + esc(p.cuerpo.slice(m.index + m[0].length));
+}
+function resalta(t){
+  return esc(t).replace(/\b(\d[\d .,]*\s?(?:kt|ft|°C|kg|psi|V|Hz|min|h|%|NM))\b/gi, '<strong>$1</strong>');
+}
+
+/* ── el drill de SECUENCIA ── */
+var SEQ = {puestos:[]};
+function htmlSeq(q){
+  SEQ.puestos = [];
+  var barajado = q.pasos.map(function(p,i){ return {p:p, i:i}; }).sort(function(){ return rnd()-0.5; });
+  return '<div class="seq"><div class="seq-slots" id="seq-slots">'+
+    q.pasos.map(function(_,k){ return '<div class="seq-slot" data-k="'+k+'"><span class="seq-i">'+(k+1)+'</span><span class="seq-txt">—</span></div>'; }).join('')+
+    '</div><div class="seq-pool" id="seq-pool">'+
+    barajado.map(function(b){ return '<button class="seq-chip" data-i="'+b.i+'" onclick="seqPon(this)">'+esc(b.p[0])+'</button>'; }).join('')+
+    '</div></div>';
+}
+function seqPon(btn){
+  var q = SES.cola[SES.i], idx = +btn.dataset.i, k = SEQ.puestos.length;
+  var slot = document.querySelector('#seq-slots .seq-slot[data-k="'+k+'"]');
+  if(!slot) return;
+  if(idx !== k){
+    slot.classList.add('wrong');
+    slot.querySelector('.seq-txt').textContent = q.pasos[idx][0];
+    setTimeout(function(){ slot.classList.remove('wrong'); slot.querySelector('.seq-txt').textContent = '—'; }, 420);
+    if(navigator.vibrate) try{ navigator.vibrate(35); }catch(e){}
+    SEQ.fallo = true;
+    return;
+  }
+  SEQ.puestos.push(idx);
+  btn.classList.add('used');
+  slot.classList.add('full');
+  slot.querySelector('.seq-txt').innerHTML = esc(q.pasos[idx][0]) + ' <b class="amb">' + esc(q.pasos[idx][1]) + '</b>';
+  if(SEQ.puestos.length === q.pasos.length){
+    setTimeout(function(){ voltear(true); }, 380);
+  }
+}
+
+/* ── el ESQUEMA: dibuja lo que su propia respuesta afirma, ni más ni menos ── */
+function htmlPanel(){
+  return '<div class="pan"><svg viewBox="0 0 320 168" xmlns="http://www.w3.org/2000/svg">'+
+    '<defs><filter id="glow"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>'+
+    /* barras */
+    '<rect x="18" y="104" width="128" height="16" rx="4" fill="rgba(0,200,224,.16)" stroke="#00C8E0" stroke-width="1.4"/>'+
+    '<text x="82" y="116" text-anchor="middle" font-family="Space Mono,monospace" font-size="10" fill="#9FEAF6">AC BUS 1</text>'+
+    '<rect x="174" y="104" width="128" height="16" rx="4" fill="rgba(0,200,224,.16)" stroke="#00C8E0" stroke-width="1.4"/>'+
+    '<text x="238" y="116" text-anchor="middle" font-family="Space Mono,monospace" font-size="10" fill="#9FEAF6">AC BUS 2</text>'+
+    /* bus tie */
+    '<line x1="146" y1="112" x2="174" y2="112" stroke="#00C8E0" stroke-width="1.4" stroke-dasharray="3 3"/>'+
+    '<text x="160" y="134" text-anchor="middle" font-family="Space Mono,monospace" font-size="7.5" fill="rgba(232,238,255,.4)">BUS TIE</text>'+
+    /* generadores */
+    '<g>'+
+      '<circle cx="52" cy="46" r="24" fill="rgba(38,208,124,.14)" stroke="#26D07C" stroke-width="1.6"/>'+
+      '<text x="52" y="44" text-anchor="middle" font-family="Space Mono,monospace" font-size="11" font-weight="700" fill="#9AF0C4">GEN</text>'+
+      '<text x="52" y="56" text-anchor="middle" font-family="Space Mono,monospace" font-size="11" font-weight="700" fill="#9AF0C4">1</text>'+
+      '<line x1="52" y1="70" x2="52" y2="104" stroke="#26D07C" stroke-width="1.6"/>'+
+    '</g>'+
+    '<g>'+
+      '<circle cx="268" cy="46" r="24" fill="rgba(38,208,124,.14)" stroke="#26D07C" stroke-width="1.6"/>'+
+      '<text x="268" y="44" text-anchor="middle" font-family="Space Mono,monospace" font-size="11" font-weight="700" fill="#9AF0C4">GEN</text>'+
+      '<text x="268" y="56" text-anchor="middle" font-family="Space Mono,monospace" font-size="11" font-weight="700" fill="#9AF0C4">2</text>'+
+      '<line x1="268" y1="70" x2="268" y2="104" stroke="#26D07C" stroke-width="1.6"/>'+
+    '</g>'+
+    /* la incógnita */
+    '<g id="pan-x" class="pan-hot">'+
+      '<circle cx="160" cy="40" r="26" fill="rgba(255,159,26,.14)" stroke="#FF9F1A" stroke-width="1.8" stroke-dasharray="5 4" filter="url(#glow)"/>'+
+      '<text x="160" y="47" text-anchor="middle" font-family="Saira Condensed,sans-serif" font-size="26" font-weight="700" fill="#FFC46B">?</text>'+
+      '<line x1="146" y1="58" x2="96" y2="104" stroke="rgba(255,159,26,.55)" stroke-width="1.4" stroke-dasharray="4 4"/>'+
+      '<line x1="174" y1="58" x2="224" y2="104" stroke="rgba(255,159,26,.55)" stroke-width="1.4" stroke-dasharray="4 4"/>'+
+    '</g>'+
+    '</svg><div class="pan-q">¿QUÉ FALTA EN LA RED Y QUIÉN LO ACCIONA?</div></div>';
+}
+
+/* ── acciones: antes de voltear, un botón; después, los cuatro grados ──
+   Los intervalos de los botones se CALCULAN con el planificador. Un número
+   escrito a mano que tiene que coincidir con uno calculado se desvía. */
+function pintaAcciones(){
+  var q = SES.cola[SES.i], e = estadoDe(q), cont = document.getElementById('ses-actions');
+  if(!SES.volteada){
+    var forma = q._forma || 'qa';
+    cont.innerHTML = (forma === 'seq')
+      ? '<div class="rate-h">TOCA LOS PASOS EN ORDEN · DE MAYOR A MENOR</div>'
+      : '<button class="show" onclick="voltear()">MOSTRAR RESPUESTA</button>';
+    return;
+  }
+  var GR = [
+    ['ga', G.GA, 'GO AROUND', 'no la sabía'],
+    ['un', G.UN, 'INESTABLE', 'me costó'],
+    ['st', G.ST, 'ESTABLE',   'bien'],
+    ['cv', G.CV, 'CAVOK',     'inmediata']
+  ];
+  cont.innerHTML = '<div class="rate-h">¿CÓMO HA IDO?</div><div class="rate">' + GR.map(function(g){
+    var s0 = e ? e.s : 0, d0 = e ? e.d : 5;
+    var s1 = e ? nuevaEstabilidad(s0, d0, g[1]) : estabilidadInicial(g[1]);
+    return '<button class="rb '+g[0]+'" onclick="puntuar('+g[1]+')" title="'+g[3]+'">'+
+             '<u>'+g[2]+'</u><s>'+fmtInt(s1, g[1])+'</s></button>';
+  }).join('') + '</div>';
+}
+
+var MEDIA = 260;   // ms de cada mitad del giro
+var _girando = false;
+function poco(){ try{ return matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } }
+
+/* Media vuelta: 0→90° (de canto), se cambia la cara, se recoloca en −90°
+   sin animación y de −90°→0 entra la nueva. Nunca se ve un reverso. */
+function giraMediaVuelta(alReverso, hecho){
+  var fc = document.getElementById('fc');
+  if(poco()){ fc.classList.toggle('flip', alReverso); if(hecho) hecho(); return; }
+  _girando = true;
+  fc.style.transition = 'transform ' + MEDIA + 'ms cubic-bezier(.4,0,1,1)';
+  fc.style.transform = 'rotateY(' + (alReverso ? 90 : -90) + 'deg)';
+  setTimeout(function(){
+    fc.classList.toggle('flip', alReverso);
+    fc.style.transition = 'none';
+    fc.style.transform = 'rotateY(' + (alReverso ? -90 : 90) + 'deg)';
+    void fc.offsetWidth;                                   // fuerza el reflujo
+    fc.style.transition = 'transform ' + MEDIA + 'ms cubic-bezier(0,0,.55,1)';
+    fc.style.transform = 'rotateY(0deg)';
+    setTimeout(function(){ fc.style.transition = ''; fc.style.transform = ''; _girando = false; if(hecho) hecho(); }, MEDIA + 20);
+  }, MEDIA);
+}
+
+function voltear(forzado){
+  var q = SES.cola[SES.i];
+  if(SES.volteada || _girando) return;
+  if(!forzado && (q._forma === 'seq')) return;      // la secuencia se voltea sola al completarla
+  SES.volteada = true;
+  giraMediaVuelta(true);
+  if(q._forma === 'panel'){
+    var x = document.getElementById('pan-x');
+    if(x) x.style.opacity = '.25';
+  }
+  pintaAcciones();
+}
+
+function puntuar(g){
+  var q = SES.cola[SES.i], e = estadoDe(q);
+  if(q._forma === 'seq' && SEQ.fallo && g > G.UN) g = G.UN;   // fallaste el orden: no puede salir CAVOK
+  SEQ.fallo = false;
+  var s1, d1;
+  if(e){ s1 = nuevaEstabilidad(e.s, e.d, g); d1 = nuevaDificultad(e.d, g); SES.ganado += (s1 - e.s); }
+  else { s1 = estabilidadInicial(g); d1 = dificultadInicial(g); SES.ganado += s1; }
+  EST[q._id] = {s:s1, d:d1, pasado:0, vistas:(e?e.vistas:0)+1};
+  SES.notas[SES.i] = g;
+
+  /* la tarjeta sale por el lado que dice la nota */
+  var fc = document.getElementById('fc'), dir = (g===G.GA ? -1 : 1);
+  fc.style.transition = 'transform .3s cubic-bezier(.4,0,.8,.4),opacity .3s';
+  fc.style.transform = 'translateX('+(dir*115)+'%) rotate('+(dir*9)+'deg)';
+  fc.style.opacity = '0';
+  if(navigator.vibrate) try{ navigator.vibrate(g===G.GA?[18,40,18]:14); }catch(e2){}
+  setTimeout(function(){
+    fc.style.transition = '';
+    SES.i++;
+    pintaCarta();
+  }, 300);
+}
+
+/* ── gestos ──────────────────────────────────────────────────────────
+   Se escucha pointer Y touch: en iOS el pointerdown de una zona con
+   touch-action puede llegar tarde mientras el navegador decide si el
+   gesto es un scroll (lección de Beta.887). touch-action:pan-y deja el
+   scroll vertical al navegador: capturar el gesto entero secuestraría
+   la pestaña.                                                          */
+(function gestos(){
+  var st = document.getElementById('stage'), fc = document.getElementById('fc');
+  var x0=0, y0=0, dx=0, activo=false, decidido=false, movido=false, ult=0;
+  function xy(ev){ var t = ev.touches ? ev.touches[0] : ev; return {x:t.clientX, y:t.clientY}; }
+  function abajo(ev){
+    if(_girando) return;                                    // en mitad del giro no se arrastra
+    var n = Date.now(); if(n-ult < 90) return; ult = n;      // dedup por vías, no por ventana única
+    if(ev.target.closest && ev.target.closest('.seq-chip')) return;
+    var p = xy(ev); x0 = p.x; y0 = p.y; dx = 0; activo = true; decidido = false; movido = false;
+  }
+  function mueve(ev){
+    if(!activo) return;
+    var p = xy(ev), ax = p.x - x0, ay = p.y - y0;
+    if(!decidido){
+      if(Math.abs(ax) < 12 && Math.abs(ay) < 12) return;
+      if(Math.abs(ay) > Math.abs(ax)){ activo = false; return; }   // es scroll: no se roba
+      decidido = true;
+    }
+    movido = true; dx = ax;
+    if(ev.cancelable) ev.preventDefault();
+    var r = Math.max(-1, Math.min(1, dx/150));
+    fc.style.transition = 'none';
+    fc.style.transform = 'translateX('+dx+'px) rotate('+(r*7)+'deg)';
+    document.getElementById('sw-l').style.opacity = dx < 0 ? Math.min(1, -dx/110) : 0;
+    document.getElementById('sw-r').style.opacity = dx > 0 ? Math.min(1,  dx/110) : 0;
+  }
+  function arriba(){
+    if(!activo){ return; }
+    activo = false;
+    document.getElementById('sw-l').style.opacity = 0;
+    document.getElementById('sw-r').style.opacity = 0;
+    fc.style.transition = 'transform .34s cubic-bezier(.2,.9,.28,1)';
+    if(Math.abs(dx) > 92){ puntuar(dx < 0 ? G.GA : G.ST); return; }
+    fc.style.transform = '';
+    if(!movido) voltear();                                  // un toque limpio voltea
+  }
+  st.addEventListener('pointerdown', abajo);
+  st.addEventListener('pointermove', mueve, {passive:false});
+  st.addEventListener('pointerup', arriba);
+  st.addEventListener('pointercancel', arriba);
+  st.addEventListener('touchstart', abajo, {passive:true});
+  st.addEventListener('touchmove', mueve, {passive:false});
+  st.addEventListener('touchend', arriba);
+})();
+document.addEventListener('keydown', function(ev){
+  if(VISTA !== 'v-ses') return;
+  if(ev.key === ' '){ ev.preventDefault(); voltear(); return; }
+  if(SES.volteada && '1234'.indexOf(ev.key) >= 0) puntuar(+ev.key);
+});
+
+/* ══════════════════════════════════════════════════════════════════════
+   VISTA 3 · DEBRIEF
+   ══════════════════════════════════════════════════════════════════════ */
+function debrief(){
+  if(SES.tick) clearInterval(SES.tick);
+  var n = SES.notas.filter(function(x){ return x!==undefined; });
+  var seg = Math.max(1, Math.round((Date.now()-SES.t0)/1000));
+  var cuenta = [0,0,0,0,0]; n.forEach(function(g){ cuenta[g]++; });
+  var bien = cuenta[G.ST] + cuenta[G.CV], pct = Math.round(bien/Math.max(1,n.length)*100);
+
+  document.getElementById('db-big').textContent = pct + '%';
+  document.getElementById('db-sub').innerHTML =
+    n.length + ' tarjetas · ' + Math.floor(seg/60) + ':' + String(seg%60).padStart(2,'0') +
+    ' · ' + Math.round(seg/Math.max(1,n.length)) + ' s por tarjeta';
+
+  var col = {1:'#FF5252', 2:'#FFA726', 3:'#26D07C', 4:'#22D3EE'};
+  document.getElementById('db-mix').innerHTML = [1,2,3,4].map(function(g){
+    return '<i style="width:0;background:'+col[g]+'" data-w="'+(cuenta[g]/Math.max(1,n.length)*100)+'%"></i>';
+  }).join('');
+  requestAnimationFrame(function(){
+    document.querySelectorAll('#db-mix i').forEach(function(i){ i.style.width = i.dataset.w; });
+  });
+
+  document.getElementById('db-stats').innerHTML =
+    '<div class="db-s"><b class="ok-c">'+bien+'</b><span>ESTABLES</span></div>'+
+    '<div class="db-s"><b class="un-c">'+cuenta[G.UN]+'</b><span>INESTABLES</span></div>'+
+    '<div class="db-s"><b class="ga-c">'+cuenta[G.GA]+'</b><span>GO AROUND</span></div>';
+
+  var dias = Math.round(SES.ganado);
+  document.getElementById('db-delta-n').textContent = (dias>=0?'+':'') + dias.toLocaleString('es-ES');
+  document.getElementById('db-delta-s').textContent =
+    'Es lo que han crecido tus intervalos sumados: lo que repasabas cada pocos días vuelve más tarde.';
+
+  /* Lo que se movió: sólo lo que hay que mirar. Una lista de 15 líneas en
+     verde esconde las tres que importan. */
+  var flojas = SES.cola.map(function(q,k){ return {q:q, g:SES.notas[k]}; })
+                       .filter(function(o){ return o.g === G.GA || o.g === G.UN; }).slice(0,5);
+  document.getElementById('db-list').innerHTML = flojas.length
+    ? flojas.map(function(o){
+        var e = EST[o.q._id];
+        return '<div class="db-row"><span class="dot" style="background:'+(o.g===G.GA?'#FF5252':'#FFA726')+'"></span>'+
+          '<p>'+esc(o.q.q.slice(0,96))+(o.q.q.length>96?'…':'')+'</p>'+
+          '<em>vuelve en '+(e? fmtInt(e.s, G.ST) : '1 d')+'</em></div>';
+      }).join('')
+    : '<div class="db-row"><span class="dot" style="background:#26D07C"></span><p>Ninguna se te ha atragantado. Las que hoy no fallaste no se listan: una lista en verde esconde las que importan.</p></div>';
+
+  var manana = BANCO.filter(function(q){ var e = estadoDe(q); return e && dueDe(e) <= 1; }).length;
+  document.getElementById('db-next').textContent = manana + ' tarjetas te vencen';
+  document.getElementById('db-next-s').innerHTML =
+    'Unos <b>' + Math.max(1, Math.round(manana*16/60)) + ' min</b>. Y tienes el <b>EVAL el 23 SEP</b>: quedan 5 sesiones para llegar con el bloque de examen en verde.';
+
+  irA('v-debrief');
+  pintaHangar();     /* el hangar se rehace: sus cifras acaban de cambiar */
+}
+
+/* ── arranque ── */
+pintaHangar();
+</script>
+</body>
+</html>

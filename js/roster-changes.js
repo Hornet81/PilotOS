@@ -318,7 +318,7 @@ function detectar(opts){
     .filter(function(d){ return !opts.mes || d.slice(0, 7) === opts.mes; })
     .sort();
 
-  var computables = [], descartados = [];
+  var computables = [], descartados = [], casi = [];
 
   fechas.forEach(function(fecha){
     if (!cubre[fecha]) return;                 // día que la foto actual no cubre
@@ -370,7 +370,20 @@ function detectar(opts){
     if (!cand && pernoctaNueva && !esReserva(a) && !esFranco(a)){
       cand = { tipo:'pernocta', motivo:'pernocta que no estaba en la programación inicial' };
     }
-    if (!cand) return;                         // no encaja en el artículo: informativo
+    /* No encaja en el artículo. Pero «no encaja» y «no ha pasado nada» NO son lo
+       mismo, y hasta aquí se veían igual: el día desaparecía de las dos listas y
+       el piloto no tenía forma de saber si la app lo había mirado. Es el 0 mudo
+       de las pernoctas, aquí en el sitio donde más duele —el piloto cree que le
+       han cambiado un vuelo y la pantalla no dice ni que sí ni que no—.
+       Un CASI-CAMBIO es un día en el que pasó algo de verdad y le falta UNA de
+       las dos condiciones que el artículo exige a la vez. No es un descartado
+       (un descartado sí encaja y lo excluye una regla) y no entra en la escalera
+       ni en el importe: es informativo, y va aparte para que no se confundan. */
+    if (!cand){
+      var fc = casiCambio(fecha, a, b, mov, cambiaVuelo, dIni, dFin, fuera, nuevos);
+      if (fc) casi.push(fc);
+      return;
+    }
 
     var base = {
       date: fecha, tipo: cand.tipo, motivo: cand.motivo,
@@ -417,11 +430,68 @@ function detectar(opts){
     mes: opts.mes || null,
     computables: computables,
     descartados: descartados,
+    casi: casi,
     nComputables: computables.length,
+    nCasi: casi.length,
     nAbonan: abonados,
     importe: Math.round(importe * 100) / 100,
     tarifas: tarifas
   };
+}
+
+/* ── Los CASI-CAMBIOS ──────────────────────────────────────────────────────
+   El artículo pide las dos cosas A LA VEZ: cambio de número de vuelo Y un
+   movimiento de la jornada de más de 60 min en la dirección que quita descanso.
+   Un día al que le falta una de las dos no se paga — y eso está bien—, pero
+   tiene que DECIRSE: una sustitución de destino que no mueve la jornada
+   (Arlanda por Lanzarote a las mismas horas) es exactamente lo que un piloto
+   lee como «me han cambiado el vuelo», y callarla deja «no cuenta» y «no se ha
+   enterado» con la misma cara.
+
+   Va UNA por día y no por vuelo, al revés que los computables: no devenga nada,
+   así que desglosarla por sectores sería ruido sin nada que reclamar detrás.
+
+   Lo que NO es un casi-cambio, a propósito: los días que el artículo excluye de
+   raíz —franco, reserva, formación, situación personal—. Ahí no falta una
+   condición: es que no cuentan nunca, y llamarlos «casi» sería sugerir un
+   dinero que no existe. */
+function casiCambio(fecha, a, b, mov, cambiaVuelo, dIni, dFin, fuera, nuevos){
+  if (esFranco(a) || esReserva(a)) return null;
+  if (esFormacion(a) || esFormacion(b)) return null;
+  if (esPersonal(a) || esPersonal(b)) return null;
+  if (!a.vuelos.length && !b.vuelos.length) return null;   // ni antes ni después hubo vuelos
+
+  var U = REGLAS.umbralMin;
+  var base = { date: fecha, dIni: dIni, dFin: dFin, umbral: U,
+               vuelosIni: a.vuelos, vuelosAct: b.vuelos,
+               fuera: fuera, nuevos: nuevos,
+               vueloIni: fuera[0] || null, vueloAct: nuevos[0] || null };
+
+  if (cambiaVuelo && !mov){
+    /* Sin las dos horas no se puede medir el movimiento, así que no se puede
+       afirmar que NO llegue al umbral: es otra cosa y se dice como otra cosa. */
+    if (dIni == null && dFin == null)
+      return mezcla(base, { falta:'medida',
+        motivo:'cambia el vuelo, pero falta alguna hora para medir el movimiento de la jornada' });
+    return mezcla(base, { falta:'movimiento', motivo:'cambia el vuelo, pero ' + txtQuieta(dIni, dFin, U) });
+  }
+  if (mov && !cambiaVuelo)
+    return mezcla(base, { falta:'cambio_vuelo',
+      motivo:'la jornada se mueve (' + mov.txt + '), pero el nº de vuelo es el mismo' });
+  return null;
+}
+
+/* Cuánto se ha movido la jornada cuando NO llega al umbral. Sale del mismo sitio
+   que el veredicto —los mismos dIni/dFin y el mismo U— para que el número que
+   lee el piloto no pueda discrepar del que decidió que no contaba. */
+function txtQuieta(dIni, dFin, U){
+  var sim = (REGLAS.direccion === 'simetrica');
+  var aIni = (dIni == null) ? 0 : (sim ? Math.abs(dIni) : Math.max(0, -dIni));
+  var aFin = (dFin == null) ? 0 : (sim ? Math.abs(dFin) : Math.max(0,  dFin));
+  var peor = Math.max(aIni, aFin);
+  if (peor === 0) return 'la jornada no se adelanta ni se alarga (hacen falta ' + hhmm(U) + ')';
+  var lado = (aIni >= aFin) ? 'el inicio solo se adelanta ' : 'el fin solo se retrasa ';
+  return lado + hhmm(peor) + ' (hacen falta ' + hhmm(U) + ')';
 }
 
 function vacio(fecha){ return { date:fecha, codes:[], tipos:[], vuelos:[], firma:null, _seq:[], inicio:null, fin:null, numeros:'' }; }

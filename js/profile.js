@@ -27,7 +27,7 @@
        aprendía al guardar el primer vuelo y en un móvil nuevo salía vacío. Aquí
        sincroniza (es una cadena: /api/profile la copia sin tocar el servidor). */
     nombreTripulacion: '',
-    /* CARGOS en la compañía: TRI · TRE · LSC · GTI, varios a la vez. De aquí sale
+    /* CARGOS en la compañía: TRI · TRE · LSC · GRI, varios a la vez. De aquí sale
        el rol que se PRESELECCIONA al traerse una sesión de simulador del roster:
        hasta tenerlo, un TRI/TRE que IMPARTE cobraba sus simuladores como ALUMNO
        (119,03 € en vez de 800,99 / 924,22), porque `pc_tri`/`pc_tre` sólo se
@@ -90,15 +90,23 @@
      Se guardan en cadena (ver arriba) y se leen en lista. Quien los quiera los
      pide aquí: escribir un segundo `split(',')` por la app es como empiezan los
      dos criterios para la misma pregunta. */
-  var PP_CARGOS = ['TRI', 'TRE', 'LSC', 'GTI'];
+  var PP_CARGOS = ['TRI', 'TRE', 'LSC', 'GRI'];
+  /* ⚠ El de tierra se llamaba GTI y hoy es GRI —Ground Rating Instructor, que es
+     su nombre de verdad (21-sep-2026)—. Renombrar el CÓDIGO sin más dejaría sin
+     cargo a quien ya lo tuviera marcado: su perfil guarda la cadena «GTI» y el
+     filtro de aquí abajo la tiraría en silencio. Se traduce AL LEER, que es donde
+     el código viejo sigue estando — el patrón de `PAY_CODE_REMAP` con el /401 y
+     el /402. Se reescribe solo en cuanto el piloto toque cualquier cargo. */
+  var PP_CARGO_VIEJO = { GTI: 'GRI' };
   function ppCargos() {
     return String(PROFILE.cargos || '').toUpperCase().split(',')
-      .map(function (c) { return c.trim(); })
+      .map(function (c) { c = c.trim(); return PP_CARGO_VIEJO[c] || c; })
       .filter(function (c) { return PP_CARGOS.indexOf(c) >= 0; });
   }
   function ppTieneCargo(c) { return ppCargos().indexOf(String(c || '').toUpperCase()) >= 0; }
   function ppToggleCargo(c) {
     c = String(c || '').toUpperCase();
+    c = PP_CARGO_VIEJO[c] || c;
     if (PP_CARGOS.indexOf(c) < 0) return ppCargos();
     var l = ppCargos(), i = l.indexOf(c);
     if (i >= 0) l.splice(i, 1); else l.push(c);
@@ -120,6 +128,10 @@
     // rol, se guarda bien, y el chip sigue diciendo lo de antes (#3IFUH).
     try { ppRefrescarCabecera(); } catch (e) {}
     ppCloudPush();
+    // El idioma es el de toda la app (js/i18n.js): si cambia —a mano, desde ARIA o bajado
+    // de otro dispositivo— la interfaz se recarga en el nuevo. Después del push, que el
+    // traductor espera un momento antes de recargar para no cortarlo.
+    try { if (cambios && ('idioma' in cambios) && window.pilotosI18nSync) window.pilotosI18nSync(PROFILE.idioma); } catch (e) {}
     return PROFILE;
   }
 
@@ -763,7 +775,7 @@
     TRI: ['TRI', 'instructor'],
     TRE: ['TRE', 'examinador'],
     LSC: ['LSC', 'línea'],
-    GTI: ['GTI', 'tierra']
+    GRI: ['GRI', 'tierra']
   };
   function _filaCargos() {
     var puestos = ppCargos();

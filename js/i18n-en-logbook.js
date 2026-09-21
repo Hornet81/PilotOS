@@ -5,6 +5,70 @@
 (function(){
   if (typeof window.pilotosI18nAdd !== 'function') return;
   window.pilotosI18nAdd('en', {
+  /* Leer el combustible de una imagen de la tabla (pantallazo del iPad o foto).
+     «Camara» NO se declara aqui: ya esta en i18n-en-paycheck.js y los seis
+     diccionarios comparten el MISMO bucket por idioma (pilotosI18nAdd), asi que
+     repetirla seria la misma clave en dos sitios esperando a separarse. */
+  "el combustible sólo baja, y aquí sube": "fuel only goes down, and here it goes up",
+  "ese taxi de salida es imposible": "that outbound taxi is impossible",
+  "ese taxi de entrada es imposible": "that inbound taxi is impossible",
+  "Pantallazo o foto": "Screenshot or photo",
+  /* El rotulo bajo la barra. Va de PLANTILLA porque lleva el numero dentro
+     («plan 4.576 kg») y el motor solo traduce un nodo cuyo contenido COMPLETO
+     este en el diccionario: sin el hueco {0} no casaria nunca.
+
+     «Quemado en bloque», «Quemado en bloque · plan» y «revisa las cifras» NO
+     se declaran aqui: YA estan mas abajo en este mismo archivo. Repetirlas
+     arriba no solo sobra — en un objeto literal gana la ULTIMA, asi que la de
+     arriba seria una traduccion muerta que se lee como si mandara. */
+  "plan {0} kg": "planned {0} kg",
+  "Preparando el lector… la primera vez se baja (5,8 MB); después ya no.": "Getting the reader ready… it downloads the first time (5.8 MB), never again.",
+  "Leyendo la foto…": "Reading the photo…",
+  "No se ha podido bajar el lector. Hace falta conexión la PRIMERA vez; luego funciona sin ella.": "Could not download the reader. It needs a connection the FIRST time; after that it works offline.",
+  "Falta js/fuel-ocr.js — sin él no sé dónde mirar en la foto.": "js/fuel-ocr.js is missing — without it I don't know where to look in the photo.",
+  "No se ha podido leer la foto.": "Could not read the photo.",
+  "Escribe las cifras a mano.": "Type the figures by hand.",
+  "Veo la tabla —las filas Takeoff y Landing— pero no he podido leer ninguna de las dos cabeceras, y sin ellas no sé cuál es la columna planificada y cuál la real. Prueba con la foto más cerca o más nítida.": "I can see the table — the Takeoff and Landing rows — but I couldn't read either header, and without them I don't know which column is planned and which is actual. Try the photo closer or sharper.",
+  "He leído": "I read",
+  "palabras y no encuentro la tabla: ni sus cabeceras ni las filas Takeoff y Landing. ¿Es la pantalla «Flight Times and Fuel»?": "words and I can't find the table: neither its headers nor the Takeoff and Landing rows. Is this the «Flight Times and Fuel» screen?",
+  /* ⚠ Lo de los REFLEJOS sólo se dice cuando no se ha leído ni una palabra. La
+     frase que había —«No he podido leer ninguna cifra. Prueba con la pantalla
+     más recta y sin reflejos.»— llegó como reporte encima de un pantallazo
+     perfectamente recto, así que acusaba al piloto de algo que no había hecho.
+     Su clave se ha RETIRADO en vez de dejarla muerta aquí: una traducción de
+     una frase que ya no existe se lee como si mandara. */
+  "No he leído ni una sola palabra en la imagen. Si es una foto de la pantalla, prueba más recta y sin reflejos.": "I didn't read a single word in the image. If it's a photo of the screen, try again straighter and without glare.",
+  /* Y el porqué, por columna: el parser ya sabía dónde se había parado y la
+     pantalla lo tiraba. Cada frase va suelta porque el motor sólo traduce un
+     nodo cuyo contenido COMPLETO esté en el diccionario, y los números van
+     fuera de los span. */
+  "la columna planificada": "the planned column",
+  "la columna real": "the actual column",
+  "he leído la tabla y no cuadra:": "I read the table and it doesn't add up:",
+  "no encuentro su cabecera en la imagen": "I can't find its header in the image",
+  "sólo veo": "I can only see",
+  "de sus cuatro cifras": "of its four figures",
+  "veo": "I can see",
+  "cifras y no sé cuáles son las cuatro de la tabla": "figures and I can't tell which four are the table's",
+  "no veo ninguna cifra debajo de su cabecera": "I can't see a single figure under its header",
+  /* Las cuatro causas de que una columna salga muda. Sin estas claves el
+     diagnostico sale en castellano en medio de una pantalla inglesa — que es
+     como llego el reporte del 20-sep. */
+  "no veo ninguna cifra debajo de ninguna de las dos cabeceras": "I can't see a single figure under either header",
+  "leo": "I read",
+  "cifras de kilos y ninguna cae en su columna — la m\u00e1s cerca se queda a": "kg-shaped figures and none falls inside its column \u2014 the closest one is off by",
+  "cifras demasiado borrosas para fiarme": "figures too blurry to trust",
+  "leo cifras que no tienen forma de kilos, como": "I read figures that aren't kg-shaped, such as",
+  "no leo ni una sola cifra en la imagen": "I can't read a single figure in the image",
+  "No relleno nada — un número mal leído en el logbook es peor que un hueco.": "I'm filling in nothing — a misread number in the logbook is worse than a blank.",
+  "cifra leída": "figure read",
+  "cifras leídas": "figures read",
+  "la columna real está a 0 en la foto, ésa la pones tú": "the actual column is 0 in the photo, that one is yours to fill",
+  "que ya tenías ha cambiado": "you already had has changed",
+  "que ya tenías han cambiado": "you already had have changed",
+  "Compruébalas": "Check them",
+  "contra el recorte.": "against the crop.",
+  "el vuelo no habría quemado nada": "the flight would have burned nothing",
     "— la IA solo ha hecho un primer intento. Revisa sobre todo": "— the AI has only made a first pass. Check especially",
     "— vacío —": "— empty —",
     ", alcanzarás las": ", you will reach",
@@ -54,9 +118,15 @@
     "{0} meses": "{0} months",
     "{0} operaciones": "{0} operations",
     "{0} por rellenar": "{0} to complete",
+    "{0} sector sin coordenadas, no cuenta": "{0} sector without coordinates, not counted",
     "{0} sectores": "{0} sectors",
+    "1 sector": "1 sector",
+    "{0} llegadas": "{0} arrivals",
+    "1 llegada": "1 arrival",
+    "{0} sectores sin coordenadas, no cuentan": "{0} sectors without coordinates, not counted",
     "{0} seleccionados": "{0} selected",
     "{0} vuelos": "{0} flights",
+    "{0} vueltas al mundo": "{0} times around the world",
     "{0}% de los vuelos": "{0}% of flights",
     "{0}h {1}m media": "{0}h {1}m average",
     "{0}h/año": "{0}h/year",
@@ -244,6 +314,17 @@
     "De las filas de arriba, {0} son sesiones de simulador (sin ruta, no cuentan como horas de vuelo).": "Of the rows above, {0} are simulator sessions (no route, not counted as flight time).",
     "de páginas anteriores.": "from previous pages.",
     "de páginas anteriores. {0} sólo detalla los últimos vuelos; el resto viene resumido aquí.": "from previous pages. {0} only lists the latest flights; the rest is summarised here.",
+    // Saldo de páginas anteriores: las dos frases llegan en UN solo nodo de texto
+    "de páginas anteriores. Esta página de tu logbook sólo detalla los últimos vuelos; el resto viene resumido aquí. Estas horas suman a tu carrera pero no son vuelos: no salen en la lista ni en el mapa.": "from previous pages. This logbook page only lists the latest flights; the rest is summarised here. These hours count towards your career but aren't flights: they don't appear in the list or on the map.",
+    "de páginas anteriores. Tu PDF sólo detalla los últimos vuelos; el resto viene resumido aquí. Estas horas suman a tu carrera pero no son vuelos: no salen en la lista ni en el mapa.": "from previous pages. Your PDF only lists the latest flights; the rest is summarised here. These hours count towards your career but aren't flights: they don't appear in the list or on the map.",
+    "Tu PDF imprime": "Your PDF shows",
+    "Tu logbook imprime": "Your logbook shows",
+    "Fotografía también las páginas anteriores y te importo esos vuelos uno a uno — con su mapa, sus rutas y sus estadísticas — en vez de un total. Al subirlos, este saldo se ajusta solo y tus horas no cambian.": "Photograph the earlier pages too and I'll import those flights one by one — with map, routes and stats — instead of a total. Once uploaded, this balance adjusts itself and your hours stay the same.",
+    "Este PDF sólo trae las últimas páginas, por eso el resto viene resumido. Si exportas todas, te importo esos vuelos uno a uno — con su mapa, sus rutas y sus estadísticas — en vez de un total. Puedes hacerlo ahora o más adelante: al subirlos, este saldo se ajusta solo y tus horas no cambian.": "This PDF only contains the latest pages, so the rest is summarised. If you export them all, I'll import those flights one by one — with map, routes and stats — instead of a total. You can do it now or later: once uploaded, this balance adjusts itself and your hours stay the same.",
+    // Las fechas AAAA-MM-DD son tres números para el motor de plantillas
+    "de páginas anteriores hasta el {0}-{1}-{2}. Esta página dice": "from previous pages up to {0}-{1}-{2}. This page says",
+    "hasta el {0}-{1}-{2} — {3} menos—, pero entre esas dos fechas tu logbook sólo tiene": "up to {0}-{1}-{2} — {3} less —, but between those two dates your logbook only has",
+    "Si tu logbook trae un «total from previous pages» (horas de páginas anteriores), rellénalo aquí abajo. Si esta es tu primera página, déjalo a 0. Estas horas suman a tu carrera pero no son vuelos: no salen en la lista ni en el mapa.": "If your logbook has a “total from previous pages”, enter it below. If this is your first page, leave it at 0. These hours count towards your career but aren't flights: they don't appear in the list or on the map.",
     "de retraso)": "delay)",
     "de simulador =": "simulator =",
     "de una vuelta al mundo": "of a trip around the world",
@@ -352,9 +433,10 @@
     "Generar": "Generate",
     "Gestión": "Manage",
     "Gestionar o cancelar": "Manage or cancel",
-    "GTI · instrucción en tierra": "GTI · ground training",
+    "GRI · instrucción en tierra": "GRI · ground training",
     "Guardar perfil": "Save profile",
     "Guardar vuelo": "Save flight",
+    "Has dado": "You've flown",
     "Hasta el": "Up to",
     "Hora lleg.": "Arr. time",
     "Hora sal.": "Dep. time",

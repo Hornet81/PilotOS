@@ -123,8 +123,10 @@
   function flNum(v) { var n = parseInt(v, 10); return isFinite(n) ? n : null; }
   function bandTxt(p, key) {
     var top = flNum(p.top), base = flNum(p.base);
-    if (key === 'CB') return top ? 'TOPE FL' + top : 'TOPE no especificado';
-    if (top == null && base == null) return 'niveles no especificados';
+    // Pasa por el traductor: parte de esto se pinta en el lienzo, donde el traductor del DOM no llega.
+    var tt = window.t || function (s) { return s; };
+    if (key === 'CB') return top ? tt('TOPE FL' + top) : tt('TOPE no especificado');
+    if (top == null && base == null) return tt('niveles no especificados');
     return (base == null ? 'XXX' : 'FL' + base) + ' – ' + (top == null ? 'XXX' : 'FL' + top);
   }
   /* ¿corta mi nivel de crucero? El CB se cuenta desde abajo hasta su tope (no
@@ -1291,7 +1293,7 @@ window.pilotosParseRoute = parseRouteWithNames;
             ctx.save(); ctx.translate(qa[0] + 3, Math.max(14, Math.min(H - 6, H * 0.5)));
             ctx.rotate(-Math.PI / 2);
             ctx.fillStyle = 'rgba(148,163,184,.8)'; ctx.font = '700 7px ' + mono;
-            ctx.fillText('LÍMITE DE LOS FRENTES →', 0, 0);
+            ctx.fillText((window.t ? window.t('LÍMITE DE LOS FRENTES →') : 'LÍMITE DE LOS FRENTES →'), 0, 0);
             ctx.restore();
           }
         }
@@ -1446,7 +1448,7 @@ window.pilotosParseRoute = parseRouteWithNames;
             ctx.strokeStyle = LC(key); ctx.stroke();
           }
           ctx.font = '700 7px ' + mono;
-          ctx.fillText(f.p.name || LAY[key].lbl, q[0] + 9, q[1] + 4);
+          ctx.fillText((f.p.name && window.t ? window.t(f.p.name) : f.p.name) || LAY[key].lbl, q[0] + 9, q[1] + 4);
         });
       });
 

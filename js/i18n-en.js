@@ -22,9 +22,13 @@
                    niebla:'fog', neblina:'mist' };
 
   window.pilotosI18nAdd('en', {
+    // ── Tiempo relativo en minúscula (pastilla eCrews del roster: "↻ ahora") ──
+    'ahora': 'now',
     // ── Selector de idioma ──
     'Idioma': 'Language',
     'Idioma de la app': 'App language',
+    'Automático': 'Automatic',
+    'Castellano': 'Spanish',
 
     // ── Login / registro ──
     'Iniciar sesión': 'Sign in',
@@ -220,6 +224,25 @@
     [/^Alternativos habituales de la ficha CCI de (\w+)\.$/, 'Usual alternates from the $1 CCI sheet.'],
     // Viento con rumbo cardinal español: "SO 31kt" → "SW 31kt"
     [/^(SO|O|NO) (\d+\s?kt)$/, function(m){ return ({ SO:'SW', O:'W', NO:'NW' }[m[1]]) + ' ' + m[2]; }],
+    // Documentos: "Médico (sin datos)"
+    [/^(.+) \(sin datos\)$/, function(m, T){ return T(m[1]) + ' (no data)'; }],
+    [/^(.+) ✓$/, function(m, T){ var r = T(m[1]); return r === m[1] ? null : r + ' ✓'; }],
+    // Roster: "Viendo Octubre 2026 — No es el mes actual"
+    [/^Viendo (.+?) — No es el mes actual$/, function(m, T){ return 'Viewing ' + T(m[1]) + ' — not the current month'; }],
+    // Pay Check: frases con el nombre del mes
+    [/^\. Para la nómina de (enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre), importa$/i, function(m){
+      return '. For the ' + MESLARGO[m[1].toLowerCase()] + ' payslip, import';
+    }],
+    [/^(?:Volver a i|I)mportar (enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?: (\d{4}))? de PilotOS$/i, function(m){
+      return (/^Volver/.test(m[0]) ? 'Re-import ' : 'Import ') + MESLARGO[m[1].toLowerCase()] + (m[2] ? ' ' + m[2] : '') + ' from PilotOS';
+    }],
+    // Meses abreviados en minúscula/capitalizados: "Ago", "Ago 2026", "15 ago"
+    [/^(?:(\d{1,2}) )?(ene|abr|ago|dic)(?: (\d{2,4}))?$/i, function(m){
+      var en = { ene:'jan', abr:'apr', ago:'aug', dic:'dec' }[m[2].toLowerCase()];
+      if (m[2] === m[2].toUpperCase()) en = en.toUpperCase();
+      else if (m[2][0] === m[2][0].toUpperCase()) en = en[0].toUpperCase() + en.slice(1);
+      return (m[1] ? m[1] + ' ' : '') + en + (m[3] ? ' ' + m[3] : '');
+    }],
     // "AGO 2026" · "01 JUN 2026"
     [/^(ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC) (\d{4})$/, function(m){ return MES[m[1]] + ' ' + m[2]; }],
     [/^(\d{1,2}) (ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC) (\d{4})$/, function(m){ return m[1] + ' ' + MES[m[2]] + ' ' + m[3]; }],

@@ -22,10 +22,38 @@
      inglés: comparar valores de JS, no lo que hay pintado. */
 (function(){
   'use strict';
-  var KEY = 'pilotos_lang';
+  /* DE DÓNDE SALE EL IDIOMA — uno solo para toda la app:
+     1. el campo «Idioma» de Mi perfil (`pilotos_profile.idioma`), que se sincroniza con la
+        cuenta y es el mismo que usa ARIA → viaja entre dispositivos;
+     2. si el perfil dice «Automático» o aún no hay perfil (pantalla de login), la última
+        elección hecha en ESTE aparato (`app_lang`). No empieza por `pilotos_` a propósito:
+        clearAllUserData barre esas claves al cerrar sesión y el login volvería al castellano;
+     3. aparato nuevo (nada guardado): el idioma del móvil/navegador. Castellano si es
+        es/ca/gl/eu (un piloto de aquí con el iPhone en catalán quiere la app en castellano);
+        inglés para cualquier otro. Sólo decide la PRIMERA vez: se guarda en `app_lang` y a
+        partir de ahí manda eso, así que a quien ya usaba la app no le cambia nada.
+     4. castellano. (`pilotos_lang` es la clave de las primeras betas: se lee y se migra.) */
+  var KEY = 'app_lang';
   var LANGS = { es: 'Español', en: 'English' };
-  var lang = 'es';
-  try { var s = localStorage.getItem(KEY); if (s && LANGS[s]) lang = s; } catch (e) {}
+  var PENINSULA = { es: 1, ca: 1, gl: 1, eu: 1 };
+  function delNavegador(){
+    var l = [];
+    try { l = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language || '']; } catch (e) {}
+    var p = String(l[0] || '').toLowerCase().split(/[-_]/)[0];
+    if (!p) return 'es';
+    return PENINSULA[p] ? 'es' : 'en';
+  }
+  function leeLang(){
+    var p = '';
+    try { p = (JSON.parse(localStorage.getItem('pilotos_profile') || '{}') || {}).idioma || ''; } catch (e) {}
+    if (LANGS[p]) return p;
+    var s = null;
+    try { s = localStorage.getItem(KEY) || localStorage.getItem('pilotos_lang'); } catch (e) { return 'es'; }
+    if (LANGS[s]) return s;
+    return delNavegador();
+  }
+  var lang = leeLang();
+  try { localStorage.setItem(KEY, lang); } catch (e) {}
   window.pilotosLang = lang;
   window.PILOTOS_LANGS = LANGS;
   try { document.documentElement.setAttribute('lang', lang); } catch (e) {}
@@ -88,14 +116,9 @@
     }
     return null;
   }
-  // Traduce un texto entero. null = no hay traducción (se deja como está).
-  function tr(s){
-    if (lang === 'es' || s == null) return null;
-    var b = DICT[lang]; if (!b) return null;
-    var raw = String(s), k = norm(raw);
-    if (!k || k.length > 2000 || !/[A-Za-zÀ-ÿ¿¡]/.test(k)) return null;
+  // Entero y, si no, por segmentos: "Mañana · en 3h" · "AGO 2026 – SEP 2026" (separadores intactos)
+  function full(k, b){
     var v = one(k, b);
-    // Por segmentos: "Mañana · en 3h" · "AGO 2026 – SEP 2026" (los separadores se conservan)
     if (v == null && (k.indexOf(' · ') > 0 || k.indexOf(' – ') > 0)){
       var changed = false;
       var parts = k.split(/( · | – )/).map(function(p, i){
@@ -105,6 +128,23 @@
         return p;
       });
       if (changed) v = parts.join('');
+    }
+    return v;
+  }
+  // Traduce un texto entero. null = no hay traducción (se deja como está).
+  function tr(s){
+    if (lang === 'es' || s == null) return null;
+    var b = DICT[lang]; if (!b) return null;
+    var raw = String(s), k = norm(raw);
+    if (!k || k.length > 2000 || !/[A-Za-zÀ-ÿ¿¡]/.test(k)) return null;
+    var v = full(k, b);
+    // Trozo que empieza o acaba con separador (" · VÁLIDO 18:00Z · FL340", va detrás de un <b>)
+    if (v == null){
+      var sm = k.match(/^([·–]\s*)?(.*?)(\s*[·–])?$/);
+      if (sm && (sm[1] || sm[3]) && sm[2]){
+        var core = full(sm[2], b);
+        if (core != null) v = (sm[1] || '') + core + (sm[3] || '');
+      }
     }
     if (v == null || v === k) return null;
     // Se conservan los espacios de alrededor: en HTML separan palabras de nodos vecinos.
@@ -118,11 +158,29 @@
     if (vars) out = String(out).replace(/\{(\w+)\}/g, function(m, n){ return vars[n] != null ? vars[n] : m; });
     return out;
   };
-  window.pilotosSetLang = function(l){
-    if (!LANGS[l] || l === lang) return;
-    try { localStorage.setItem(KEY, l); } catch (e) {}
+  // Recarga con un respiro: ppSave acaba de lanzar la subida del perfil a la nube y una
+  // recarga inmediata la cortaría — el otro dispositivo no se enteraría del cambio.
+  var _recargando = false;
+  function recarga(){
+    if (_recargando) return; _recargando = true;
     try { if (navigator.vibrate) navigator.vibrate(20); } catch (e) {}
-    location.reload();
+    setTimeout(function(){ location.reload(); }, 700);
+  }
+  // Los botones ES/EN. Se guarda en el PERFIL (que llama a pilotosI18nSync y recarga).
+  window.pilotosSetLang = function(l){
+    if (!LANGS[l]) return;
+    try { localStorage.setItem(KEY, l); } catch (e) {}
+    var viaPerfil = false;
+    try { if (window.PilotProfile && window.PilotProfile.save) { window.PilotProfile.save({ idioma: l }); viaPerfil = true; } } catch (e) {}
+    try { localStorage.setItem('db_lang', l); } catch (e) {}   // espejo que lee ARIA
+    if (l !== lang && !viaPerfil) recarga();
+  };
+  // Lo llama js/profile.js cada vez que cambia `idioma` (a mano, desde ARIA o bajado de la
+  // nube). "" = Automático → se queda en el idioma de este aparato.
+  window.pilotosI18nSync = function(idioma){
+    if (!LANGS[idioma]) return;
+    try { localStorage.setItem(KEY, idioma); } catch (e) {}
+    if (idioma !== lang) recarga();
   };
 
   // Selector ES/EN (login + panel del piloto). El botón activo sale de html[lang], así que
@@ -146,6 +204,59 @@
   } catch (e) {}
 
   if (lang === 'es') return;
+
+  /* FECHAS Y NÚMEROS. La app formatea con 'es-ES' a mano en ~40 sitios
+     (toLocaleDateString('es-ES')…): en inglés saldría "15 sept 2026". En vez de tocar cada
+     llamada, en inglés se cambia el idioma que piden: 'es'/'es-ES' → 'en-GB' (día-mes-año,
+     como en aviación europea). Lo que no pide 'es' (undefined, 'en-US'…) no se toca. */
+  try {
+    var LOC_EN = 'en-GB';
+    var mapLoc = function(loc){
+      if (typeof loc === 'string') return /^es(-|$)/i.test(loc) ? LOC_EN : loc;
+      if (Array.isArray(loc)) return loc.map(mapLoc);
+      return loc;
+    };
+    ['toLocaleDateString', 'toLocaleTimeString', 'toLocaleString'].forEach(function(fn){
+      var orig = Date.prototype[fn];
+      Date.prototype[fn] = function(loc, opt){ return orig.call(this, mapLoc(loc), opt); };
+    });
+    var numOrig = Number.prototype.toLocaleString;
+    Number.prototype.toLocaleString = function(loc, opt){ return numOrig.call(this, mapLoc(loc), opt); };
+    ['DateTimeFormat', 'NumberFormat'].forEach(function(k){
+      var Orig = Intl[k];
+      var Envuelto = function(loc, opt){ return new Orig(mapLoc(loc), opt); };
+      Envuelto.prototype = Orig.prototype;
+      Envuelto.supportedLocalesOf = Orig.supportedLocalesOf;
+      Intl[k] = Envuelto;
+    });
+  } catch (e) {}
+
+  /* El SERVIDOR también tiene que saber el idioma: CAFI, ARIA y la corrección del examen
+     oral contestan en él, y los mensajes de error vuelven traducidos (i18n-server.js).
+     Va en Accept-Language porque es una cabecera "segura" para CORS: no dispara preflight ni
+     obliga a tocar Access-Control-Allow-Headers en el backend. `x-pilotos` marca que lo
+     elige la app y no el navegador. Solo a NUESTRO backend. */
+  try {
+    var _fetch = window.fetch;
+    var esNuestro = function(u){
+      try {
+        var url = new URL(u, location.href);
+        return url.origin === location.origin || /(^|\.)pilotos\.aero$/.test(url.hostname);
+      } catch (e) { return false; }
+    };
+    if (typeof _fetch === 'function') window.fetch = function(input, init){
+      try {
+        var u = (typeof input === 'string') ? input : (input && input.url) || String(input);
+        if (esNuestro(u)) {
+          init = init || {};
+          var h = new Headers(init.headers || (input && typeof input === 'object' && input.headers) || undefined);
+          if (!h.has('Accept-Language')) h.set('Accept-Language', 'en-x-pilotos');
+          init = Object.assign({}, init, { headers: h });
+        }
+      } catch (e) {}
+      return _fetch.call(this, input, init);
+    };
+  } catch (e) {}
 
   var ATTRS = ['placeholder', 'title', 'aria-label'];
   var SKIP_SEL = 'script,style,textarea,noscript,code,pre,[translate="no"],[contenteditable=""],[contenteditable="true"]';
