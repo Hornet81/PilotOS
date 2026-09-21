@@ -20,6 +20,13 @@
     nombre: '', licencia: '', autoridad: '', tipoLicencia: '',
     compania: '', base: '', flota: '', empleado: '',
     rol: '',            // CPT | FO  -> manda sobre lo que hoy DEDUCE el logbook
+    /* El nombre con el que el piloto sale en SU asiento del logbook (CM1 si es
+       comandante, CM2 si es copiloto), p. ej. «BALCELLS». Pedido el 18-sep: «debería
+       salir por defecto tu nombre, siempre vas a ser tú el que ocupa el puesto».
+       Antes vivía solo en el localStorage del aparato (`pilotOS_myname_cpt/fo`), lo
+       aprendía al guardar el primer vuelo y en un móvil nuevo salía vacío. Aquí
+       sincroniza (es una cadena: /api/profile la copia sin tocar el servidor). */
+    nombreTripulacion: '',
     /* CARGOS en la compañía: TRI · TRE · LSC · GTI, varios a la vez. De aquí sale
        el rol que se PRESELECCIONA al traerse una sesión de simulador del roster:
        hasta tenerlo, un TRI/TRE que IMPARTE cobraba sus simuladores como ALUMNO
@@ -120,6 +127,28 @@
   function ppGet(campo, porDefecto) {
     var v = PROFILE[campo];
     return (v === '' || v === undefined || v === null) ? (porDefecto === undefined ? '' : porDefecto) : v;
+  }
+
+  /* ── El nombre del piloto en su asiento ─────────────────────────────────────
+     Orden: lo que puso en el perfil → lo que ya escribió en sus vuelos en este
+     aparato (el del rol pedido primero) → el apellido de su nombre. Lo último
+     es solo una SUGERENCIA para que no salga vacío: el piloto que lo corrija una
+     vez lo fija en el perfil (ver ldSave). Devuelve '' si no hay nada que
+     proponer: mejor un hueco que un nombre inventado en un documento EASA. */
+  function _lsTxt(k) { try { return String(localStorage.getItem(k) || '').trim(); } catch (e) { return ''; } }
+  function ppApellidoDe(nombre) {
+    var w = String(nombre || '').trim().split(/\s+/).filter(Boolean);
+    if (w.length < 2) return '';
+    return w[1].toUpperCase();                    // nombre + PRIMER apellido
+  }
+  function ppNombreTrip(rol) {
+    var p = String(PROFILE.nombreTripulacion || '').trim();
+    if (p) return p;
+    var r = String(rol || PROFILE.rol || '').toUpperCase();
+    var cpt = _lsTxt('pilotOS_myname_cpt'), fo = _lsTxt('pilotOS_myname_fo');
+    var aprendido = r === 'FO' ? (fo || cpt) : (cpt || fo);
+    if (aprendido) return aprendido;
+    return ppApellidoDe(PROFILE.nombre);
   }
 
   /* ── La FOTO va a IndexedDB, nunca a localStorage ─────────────────────────
@@ -821,6 +850,10 @@
           '<option value="CPT"' + (PROFILE.rol === 'CPT' ? ' selected' : '') + '>Comandante</option>' +
           '<option value="FO"' + (PROFILE.rol === 'FO' ? ' selected' : '') + '>Primer oficial</option>' +
         '</select></div>' +
+      /* El placeholder enseña lo que la app pondría si se deja vacío: así se ve
+         que no está «en blanco», sino deducido, y se puede corregir. */
+      _fila('🧑‍✈️', 'Nombre de chequeo', 'El de la lista de tripulación: sale solo en tu asiento', 'nombreTripulacion',
+            ppNombreTrip() || 'APELLIDO', '120px') +
       _filaCargos() + '</div>';
 
     h += '<div class="pp-sh">Preferencias</div><div class="pp-card">' +
@@ -1340,6 +1373,9 @@
       '#pp-alta .pa-in.no{animation:paNo .42s cubic-bezier(.36,.07,.19,.97)}',
       /* El resalte NO es movimiento: con `prefers-reduced-motion` el zarandeo se
          apaga y esto se queda, que es la mitad que de verdad informa. */
+      '#pp-alta .pa-in-f.pide{border-width:2px}',
+      'html:not(.day) #pp-alta .pa-in-f.pide{border-color:#22D3EE;background:rgba(34,211,238,.10)}',
+      'html.day #pp-alta .pa-in-f.pide{border-color:#0369A1;background:#F0F9FF}',
       '#pp-alta .pa-rol.pide .pa-r{border-width:2px}',
       'html:not(.day) #pp-alta .pa-rol.pide .pa-r{border-color:#22D3EE;background:rgba(34,211,238,.10)}',
       'html.day #pp-alta .pa-rol.pide .pa-r{border-color:#0369A1;background:#F0F9FF}',
@@ -1444,8 +1480,17 @@
 
         '<div class="pa-f"><div class="pa-lbl">Tu nombre</div>' +
           '<input class="pa-in-f" id="pa-nombre" autocomplete="name" placeholder="Como quieres que te llamemos" ' +
-            'value="' + _esc(PROFILE.nombre || '') + '">' +
+            'oninput="PilotProfile.altaSugiereTrip()" value="' + _esc(PROFILE.nombre || '') + '">' +
           '<div class="pa-hint">Lo usa ARIA para saludarte y va en la cabecera del logbook.</div></div>' +
+
+        /* OBLIGATORIO, como el puesto: es lo que la app va a escribir sola en tu
+           asiento de cada vuelo. Se propone a partir del nombre (primer apellido en
+           mayúsculas) mientras el piloto no lo toque; en cuanto lo edita, manda él. */
+        '<div class="pa-f"><div class="pa-lbl">Tu nombre de chequeo <span class="pa-req">OBLIGATORIO</span></div>' +
+          '<input class="pa-in-f" id="pa-trip" autocapitalize="characters" placeholder="APELLIDO" ' +
+            'oninput="this.dataset.tocado=\'1\';PilotProfile.altaBoton()" ' +
+            'value="' + _esc(ppNombreTrip()) + '">' +
+          '<div class="pa-hint">Saldrá ya puesto en tu asiento de cada vuelo del logbook: CM1 si eres comandante, CM2 si eres copiloto.</div></div>' +
 
         '<div class="pa-f"><div class="pa-lbl">Base</div>' +
           '<input class="pa-in-f" id="pa-base" placeholder="BCN" autocapitalize="characters" ' +
@@ -1518,9 +1563,14 @@
     var falta = !_ALTA_ROL;
     var rol = ov.querySelector('.pa-rol');
     if (falta && rol) rol.classList.add('pide');
+    // Y si lo que falta es el nombre de tripulación, se le lleva el foco.
+    var tr = document.getElementById('pa-trip');
+    var faltaTrip = !falta && tr && !_altaTrip();
+    if (faltaTrip) { tr.classList.add('pide'); try { tr.focus(); } catch (e) {} }
     caja.classList.add('no');
     setTimeout(function () { caja.classList.remove('no'); _altaNoOcupado = false; }, 460);
     if (falta && rol) setTimeout(function () { rol.classList.remove('pide'); }, 1400);
+    if (faltaTrip) setTimeout(function () { tr.classList.remove('pide'); }, 1400);
     return true;
   }
 
@@ -1545,10 +1595,23 @@
        rol. Colgarlo de aquí dejaría fuera a los nueve de cada diez pilotos que no
        tienen ninguno. */
   }
+  function _altaTrip() {
+    var e = document.getElementById('pa-trip');
+    return e ? String(e.value || '').trim() : '';
+  }
   function ppAltaBoton() {
     var b = document.getElementById('pa-go'); if (!b) return;
-    b.disabled = !_ALTA_ROL;
-    b.textContent = _ALTA_ROL ? 'Empezar →' : 'Elige tu puesto para empezar';
+    var trip = _altaTrip();
+    b.disabled = !_ALTA_ROL || !trip;
+    b.textContent = !_ALTA_ROL ? 'Elige tu puesto para empezar'
+                  : !trip ? 'Pon tu nombre de chequeo'
+                  : 'Empezar →';
+  }
+  /* Mientras el piloto no haya tocado el campo, sigue al nombre que escribe. */
+  function ppAltaSugiereTrip() {
+    var t = document.getElementById('pa-trip'), n = document.getElementById('pa-nombre');
+    if (t && n && !t.dataset.tocado) t.value = ppApellidoDe(n.value) || ppNombreTrip();
+    ppAltaBoton();
   }
   function ppAltaRol(v) {
     _ALTA_ROL = v;
@@ -1560,7 +1623,7 @@
     ppAltaBoton();
   }
   function ppAltaGuardar() {
-    if (!_ALTA_ROL) return;                       // el botón ya está apagado; esto es el cinturón
+    if (!_ALTA_ROL || !_altaTrip()) return;       // el botón ya está apagado; esto es el cinturón
     var val = function (id) { var e = document.getElementById(id); return e ? String(e.value || '').trim() : ''; };
     /* UN solo ppSave: es la única puerta de escritura y además sube a la nube una
        vez en vez de cinco. */
@@ -1568,6 +1631,7 @@
     ppSave({
       rol: _ALTA_ROL,
       nombre: val('pa-nombre'),
+      nombreTripulacion: val('pa-trip'),
       base: val('pa-base').toUpperCase(),
       /* En el ORDEN de la lista y como CADENA, igual que `ppToggleCargo`: el
          servidor sólo copia string|boolean|number, así que un array se perdería
@@ -1603,8 +1667,13 @@
     // Para el banco: saber si TOCA preguntar sin llegar a abrir la hoja.
     altaToca: ppAltaToca,
     cargos: ppCargos, tieneCargo: ppTieneCargo, toggleCargo: ppToggleCargo,
-    altaCargo: ppAltaCargo, altaZarandea: ppAltaZarandea
+    altaCargo: ppAltaCargo, altaZarandea: ppAltaZarandea,
+    altaBoton: ppAltaBoton, altaSugiereTrip: ppAltaSugiereTrip,
+    nombreTrip: ppNombreTrip
   };
+  /* Lo lee el logbook, que vive en otro <script>: sin exportarlo sería undefined
+     allí y el asiento seguiría saliendo vacío sin un solo error. */
+  window.pilotosNombreTrip = ppNombreTrip;
   // Atajo para los lectores de otros módulos: ppGet('rol','FO')
   window.ppGet = ppGet;
   /* El logbook vive en OTRO bloque <script> y desde allí esto se lee. Si no se

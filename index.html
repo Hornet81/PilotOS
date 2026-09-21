@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.906">
+  <meta name="version" content="Estable.907">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.906","builtAt":"2026-09-18T18:02:32Z","commit":"5b7221a","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.907","builtAt":"2026-09-21T12:02:16Z","commit":"5b7221a","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -24856,13 +24856,14 @@ function ldOpenModal(manual){
   // El destello es corto y con 4,5 s de silencio entre pasadas: llama sin dar la lata.
   var _qa=document.getElementById('ld_qa2_ocr');
   if(_qa) _qa.classList.toggle('call', !!manual);
-  // Auto-fill own name based on current role selection
+  // Tu nombre, ya puesto en TU asiento: el puesto lo ocupas tú siempre.
   var _role=document.getElementById('ld_role').value;
-  var _myFo=lsGet('pilotOS_myname_fo','');
-  var _myCpt=lsGet('pilotOS_myname_cpt','');
+  var _mio=ldMiNombreChequeo(_role);
   var _cm1el=document.getElementById('ld_cm1'), _cm2el=document.getElementById('ld_cm2');
-  if(_role==='FO'&&_myFo&&_cm2el) _cm2el.value=_myFo;
-  else if(_role==='CPT'&&_myCpt&&_cm1el) _cm1el.value=_myCpt;
+  if(_mio){
+    if(_role==='FO'&&_cm2el&&!_cm2el.value) _cm2el.value=_mio;
+    else if(_role==='CPT'&&_cm1el&&!_cm1el.value) _cm1el.value=_mio;
+  }
   // ── Paso 4: autorellenar std/sta/rosterEntryId desde el Roster ──
   (function(){
     try {
@@ -24963,10 +24964,9 @@ function ldRoleChanged(){
      es una cosa o la otra. Sólo se borra un nombre que sea MÍO; el de un
      compañero no se toca nunca, ni aunque el rol cambie. */
   var roleEl=document.getElementById('ld_role'); var role=roleEl?roleEl.value:'';
-  var myFo=lsGet('pilotOS_myname_fo',''), myCpt=lsGet('pilotOS_myname_cpt','');
   var cm1=document.getElementById('ld_cm1'), cm2=document.getElementById('ld_cm2');
   var mio=(role==='FO') ? cm2 : cm1, otro=(role==='FO') ? cm1 : cm2;
-  var nombre=(role==='FO') ? myFo : myCpt;
+  var nombre=ldMiNombreChequeo(role);
   if(otro && ldEsMiNombre(otro.value)) otro.value='';
   /* Mi nombre entra en mi asiento sólo si está LIBRE (o si ya era mío). Antes se
      escribía encima sin mirar, y el apellido del compañero que el piloto acababa
@@ -26144,6 +26144,14 @@ function ldSave(){
     if(_c1) lsSet('pilotOS_myname_cpt',_c1);
     if(_c2) ldNamesSave(_c2);
   }
+  /* Y sube al PERFIL la primera vez, para que el resto de aparatos lo tengan sin
+     volver a teclearlo. Solo si está vacío: si el piloto lo puso en Mi perfil,
+     manda él — un vuelo suelto con el nombre de otra forma no puede reescribirlo. */
+  try{
+    var _mioSeat = (_r==='FO') ? _c2 : _c1;
+    if(_mioSeat && window.ppGet && !ppGet('nombreTripulacion','') && window.PilotProfile)
+      PilotProfile.save({ nombreTripulacion: String(_mioSeat).trim() });
+  }catch(e){}
   if(_c1) ldNamesSave(_c1);
   if(_c2) ldNamesSave(_c2);
   // ── Guardar matrícula en BD de aeronaves ──
@@ -28500,13 +28508,27 @@ function ldRolPreferido(){
   }catch(e){}
   return _ldDominantRole()||lsGet('ld_pref_role','FO')||'FO';
 }
-// ¿Es un nombre MÍO? Los dos que el piloto tiene guardados, comparados sin
-// mayúsculas ni espacios: es lo único que la app puede borrar de un asiento sin
-// riesgo de tirar el nombre de un compañero de verdad.
+/* MI NOMBRE DE CHEQUEO — el que sale en la lista de tripulación (BALCELLS), no
+   el nombre legal del logbook (Alex Balcells). Manda el del PERFIL, que viaja
+   entre aparatos; si no lo hay, el que este aparato aprendió al guardar vuelos, y
+   en último caso el apellido del nombre. Pedido el 18-sep: «debería salir por
+   defecto tu nombre, siempre vas a ser tú el que ocupa el puesto» — y antes solo
+   salía en el aparato donde alguna vez lo habías tecleado a mano. */
+function ldMiNombreChequeo(role){
+  try{ if(typeof window.pilotosNombreTrip==='function') return String(window.pilotosNombreTrip(role)||'').trim(); }catch(e){}
+  var r=String(role||'').toUpperCase();
+  var cpt=lsGet('pilotOS_myname_cpt',''), fo=lsGet('pilotOS_myname_fo','');
+  return String((r==='FO' ? (fo||cpt) : (cpt||fo))||'').trim();
+}
+try { window.ldMiNombreChequeo = ldMiNombreChequeo; } catch(e){}
+// ¿Es un nombre MÍO? Los que el piloto tiene guardados —el del perfil incluido—,
+// comparados sin mayúsculas ni espacios: es lo único que la app puede borrar de un
+// asiento sin riesgo de tirar el nombre de un compañero de verdad.
 function ldEsMiNombre(v){
   var n=String(v||'').trim().toUpperCase(); if(!n) return false;
-  return [lsGet('pilotOS_myname_fo',''), lsGet('pilotOS_myname_cpt','')]
-    .some(function(m){ return String(m||'').trim().toUpperCase()===n; });
+  var mios=[lsGet('pilotOS_myname_fo',''), lsGet('pilotOS_myname_cpt','')];
+  try{ if(window.ppGet) mios.push(ppGet('nombreTripulacion','')); }catch(e){}
+  return mios.some(function(m){ return String(m||'').trim().toUpperCase()===n; });
 }
 // Corrige el ROL GUARDADO de los vuelos importados del roster (ROSTER-DRAFT) que
 // se importaron con un rol equivocado (FO por un default viejo). Los drafts llevan
@@ -48780,6 +48802,10 @@ window.ldRosterImportConfirm = function(){
       sched_out:rStd||'', sched_in:rSta||'', std:'', sta:'',
       block:blockStr, acType:f.acType||'', reg:f.reg||'',
       role:ldRolPreferido(),
+      /* Tu nombre en TU asiento también aquí: el vuelo que baja del roster es
+         tuyo. El asiento del compañero se queda vacío — ese no lo sabe la app. */
+      cm1:(ldRolPreferido()==='CPT' && typeof ldMiNombreChequeo==='function' ? ldMiNombreChequeo('CPT') : ''),
+      cm2:(ldRolPreferido()==='FO' && typeof ldMiNombreChequeo==='function' ? ldMiNombreChequeo('FO') : ''),
       rosterEntryId:f.id||null,
       atd:null, ata:null, aobt:null, aibt:null
     });
