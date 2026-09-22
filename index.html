@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.909">
+  <meta name="version" content="Estable.910">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.909","builtAt":"2026-09-21T17:17:49Z","commit":"e9b9e94","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.910","builtAt":"2026-09-22T13:21:35Z","commit":"e9b9e94","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -43848,6 +43848,10 @@ function rstRenderCalendar(){
     ebt:      { bg:'#566573', bd:'#4a5964',             tx:'#FFFFFF', lbl:'🖥SIM',   gl:'rgba(86,101,115,.5)' },
     eva:      { bg:'#566573', bd:'#4a5964',             tx:'#FFFFFF', lbl:'🖥SIM',   gl:'rgba(86,101,115,.5)' },
     lm:       { bg:'#7f8c8d', bd:'#6c7a7d',             tx:'#FFFFFF', lbl:'🖥LM',   gl:'rgba(127,140,141,.5)' },
+    /* Solo para el SELECTOR del editor del día: el FZ se guarda como el de eCrews
+       ({type:'other', code:'FZ'}) y en el calendario lo pinta su estilo por código.
+       Mismo vino que ese estilo, para que el selector y la tira no discrepen. */
+    fz:       { bg:'#9D174D', bd:'#831843',             tx:'#FFFFFF', lbl:'FZ',    gl:'rgba(157,23,77,.5)' },
     training: { bg:'#566573', bd:'#4a5964',             tx:'#FFFFFF', lbl:'🖥SIM',  gl:'rgba(86,101,115,.5)' },
     sick:     { bg:'#e67e22', bd:'#d35400',             tx:'#FFFFFF', lbl:'🏠SICK', gl:'rgba(230,126,34,.5)' },
     other:    { bg:'#bdc3c7', bd:'#a8b2b8',             tx:'#555',    lbl:'?',      gl:'rgba(189,195,199,.5)' },
@@ -47756,7 +47760,7 @@ function rosterRenderActivitiesList(dateStr, entries){
       + '<div style="width:4px;height:28px;border-radius:3px;background:'+cfg2.bg+'"></div>'
       + '<div style="font-size:12px;font-weight:700;color:#0F172A">'+lbl+'<span style="font-size:11px;font-weight:400;color:#475569">'+timeStr+'</span></div>'
       + '</div>'
-      + '<button onclick="rosterRemoveActivity(\''+dateStr+'\',\''+e.type+'\')" style="width:24px;height:24px;border-radius:50%;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.25);color:#B91C1C;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>';
+      + '<button onclick="rosterRemoveActivity(\''+dateStr+'\',\''+e.type+'\',\''+String(e.code||'').replace(/[^A-Za-z0-9]/g,'')+'\')" style="width:24px;height:24px;border-radius:50%;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.25);color:#B91C1C;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>';
     list.appendChild(row);
   });
 
@@ -47933,7 +47937,7 @@ window.rosterSaveLegEdit = function(idx, dateStr){
 };
 
 // ── Remove one activity type from a day ──
-window.rosterRemoveActivity = function(dateStr, type){
+window.rosterRemoveActivity = function(dateStr, type, code){
   /* Con type=='flight' esto no borra UNA actividad: borra TODOS los vuelos del
      dia. Decir cuantos son, porque el aspa esta al lado de las demas y no lo
      parece. */
@@ -47949,11 +47953,17 @@ window.rosterRemoveActivity = function(dateStr, type){
     // Remove first match of this type on this date
     var found = false;
     RST.entries = RST.entries.filter(function(e){
-      if(!found && e.date===dateStr && e.type===type){ found=true; return false; }
+      /* Con código, ESA actividad: un FZ y un FW son los dos `other`, y el aspa
+         del FZ se llevaba el primero que encontrara. */
+      if(!found && e.date===dateStr && e.type===type && (!code || String(e.code||'')===code)){ found=true; return false; }
       return true;
     });
   }
   rstSave();
+  // Quitar un FZ también tiene que llegar a la nómina, igual que ponerlo.
+  if(/^FZ/.test(code || '') && window.rstPushMonth){
+    setTimeout(function(){ try { window.rstPushMonth(dateStr.slice(0,7)); } catch(e){} }, 50);
+  }
   rstRenderCalendar();
   rstRenderStats();
   rstRenderFlights();
@@ -48312,6 +48322,30 @@ window.rosterSaveEdit = function(){
       if(container){ container.innerHTML=''; }
       rosterAddLegRow({});
       rosterUpdateAddBtn();
+    } else if(type === 'fz'){
+      /* FORZOSO a mano (pedido 22-sep): se guarda EXACTAMENTE como lo trae eCrews
+         —{type:'other', code:'FZ'}— para que el calendario lo pinte con su vino,
+         la tarjeta del Art. 12.6 lo vea y Pay Check lo cobre como imaginaria
+         (/api/paycheck cuenta los días con código FZ). Una forma distinta para lo
+         manual sería otra puerta que mantener. Uno por día: repetirlo no suma. */
+      var yaFz = RST.entries.some(function(e){ return e.date===dateStr && /^FZ/.test(String(e.code||'').toUpperCase()); });
+      if(!yaFz) RST.entries.push({ date:dateStr, type:'other', code:'FZ', manual:true, flightNum:null, dep:null, arr:null });
+      var selFz = document.getElementById('rst-edit-type');
+      if(selFz) selFz.value = 'flight';
+      rosterToggleFlightFields();
+      /* Y a la NUBE ya, no en la próxima sincronización: la nómina se calcula en el
+         servidor con lo que haya allí. Después se recalcula Pay Check si está abierto. */
+      var _mesFz = dateStr.slice(0,7);
+      setTimeout(function(){
+        try {
+          var p = window.rstPushMonth ? window.rstPushMonth(_mesFz) : null;
+          Promise.resolve(p).then(function(){
+            if (typeof curScreen !== 'undefined' && curScreen === 'pay' && typeof pcImportFromLogbook === 'function')
+              pcImportFromLogbook(pcNowMonth(), { tracker:true, form:false, source:(window.PC_FUENTE_ACUM||'roster') });
+          }).catch(function(){});
+        } catch(e){}
+      }, 50);
+      if(typeof showToast==='function') showToast(yaFz ? 'Ese día ya tenía FZ' : '✓ FZ añadido · cuenta en Pay Check', yaFz ? 'info' : 'success');
     } else {
       // Check if this type already exists for the day — if so update, don't duplicate
       var existing = RST.entries.filter(function(e){ return e.date===dateStr && e.type===type; });
@@ -48345,7 +48379,7 @@ window.rosterSaveEdit = function(){
     var refreshed = entriesForDate(dateStr);
     rosterRenderActivitiesList(dateStr, refreshed);
     rosterSelectDay(dateStr);
-    if(typeof showToast==='function') showToast('✓ Añadido');
+    if(type !== 'fz' && typeof showToast==='function') showToast('✓ Añadido');
   } catch(ex){
     if(typeof showToast==='function') showToast('Error: '+ex.message);
   }
@@ -50754,22 +50788,62 @@ window.ecProxyCancel = function(){
 /* Cartel del huso en el importador: qué se ha detectado, qué se va a hacer con
    ello y cómo cambiarlo. El piloto es el único que puede desempatar cuando el
    selector de eCrews no se deja leer. */
+/* ¿Sabemos en qué huso viene? Solo si lo dijo el piloto, si el proxy leyó el
+   selector de eCrews, o si una sonda encontró horas locales. Que ninguna sonda
+   salte NO prueba que sea UTC: con TODO en hora de base (firma incluida) las dos
+   callan — el caso #ZN22A de Marc, importado dos horas corrido. Ahí se pregunta. */
+var _ecHusoCtx = null;
+// Global a propósito: lo llama un onclick del HTML y este bloque no es global.
+window.ecHusoCambiar = function(){
+  window._ecHusoPregunta = true;
+  if (_ecHusoCtx && _ecHusoCtx.sub) ecPintaHuso(_ecHusoCtx.sub, _ecHusoCtx.payload);
+};
+function ecHusoDudoso(payload){
+  if (ecTimesInManual()) return false;
+  if (payload && (payload.TimesIn === 'UTC' || payload.TimesIn === 'LOCAL')) return false;
+  return ecTimesInModo(payload) === 'utc';
+}
+/* Un vuelo del propio roster para preguntar con un ejemplo concreto: «tu VY6500
+   BCN→NAP sale a las 07:18» se contesta sin pensar; «¿en qué huso ves eCrews?» no. */
+function _ecHusoEjemplo(payload){
+  var evs = (payload && payload.SchedulerEvents) || [], ej = null;
+  evs.forEach(function(ev){
+    var m = String(ev && ev.details || '').match(/^\s*(\*?[A-Z0-9]+)\s+-\s+\*?([A-Z]{3})\s+\(\s*[AES]?(\d{2})(\d{2})\)\s*-\s*\*?([A-Z]{3})/m);
+    var d = String(ev && ev.start || '').slice(0,10);
+    if (m && d && (!ej || d > ej.d)) ej = { d:d, fn:/^\d/.test(m[1]) ? 'VY'+m[1] : m[1], dep:m[2], hora:m[3]+':'+m[4], arr:m[5] };
+  });
+  return ej;
+}
 function ecPintaHuso(sub, payload){
+  _ecHusoCtx = { sub: sub, payload: payload };
   var modo = ecTimesInModo(payload);
   var leido = payload && payload.TimesIn;          // 'UTC' | 'LOCAL' | null
   var man   = ecTimesInManual();
+  var btn = function(v, t){
+    return '<button type="button" onclick="ecSetTimesIn(\''+v+'\')" style="margin:4px 4px 0 0;padding:6px 10px;border-radius:8px;border:1.5px solid rgba(14,165,233,.55);background:rgba(14,165,233,.14);color:inherit;font-size:12px;font-weight:700;cursor:pointer">'+t+'</button>';
+  };
+  if (ecHusoDudoso(payload) || window._ecHusoPregunta) {
+    var ej = _ecHusoEjemplo(payload);
+    var base = (function(){ try { return localStorage.getItem('pilotOS_home_base') || 'BCN'; } catch(e){ return 'BCN'; } })();
+    sub.innerHTML = '✅ Roster capturado.<br><b id="ec-huso-q" style="color:inherit">🕑 Antes de importar: ¿en qué hora te enseña eCrews los vuelos?</b>' +
+      (ej ? '<br><span style="opacity:.85">Por ejemplo, tu <b>'+ej.fn+' '+ej.dep+'→'+ej.arr+'</b> del '+ej.d.slice(8,10)+'/'+ej.d.slice(5,7)+' sale a las <b>'+ej.hora+'</b>.</span>' : '') +
+      '<br>' + btn('utc', 'UTC (Z)') + btn('base', 'Hora de mi base<span> ('+base+')</span>') + btn('local', 'Hora de cada aeropuerto') +
+      '<br><span style="opacity:.6;font-size:11px">eCrews no nos ha dejado leer tu ajuste. Lo recordamos para las próximas veces.</span>';
+    sub.style.color = '';
+    return;
+  }
   var comoLoSe = man ? 'lo has puesto tú'
                : (leido ? 'leído de eCrews' : 'deducido de tus horas reales');
   var txt = modo === 'local'
     ? '🕑 eCrews te está dando las horas en <b>hora local de estación</b> ('+comoLoSe+'). '+
       'Se convierten a UTC al importar.'
+    : modo === 'base'
+    ? '🕑 eCrews te está dando las horas en <b>hora de tu base</b> ('+comoLoSe+'). '+
+      'Se convierten a UTC al importar.'
     : '🕑 Horas en <b>UTC</b> ('+comoLoSe+').';
-  var otro = modo === 'local' ? 'utc' : 'local';
   sub.innerHTML = '✅ Roster capturado. ¿Qué mes importar?<br>' + txt +
-    ' <span onclick="ecSetTimesIn(\''+otro+'\')" style="color:#22D3EE;border-bottom:1px dotted rgba(34,211,238,.5);cursor:pointer">'+
-    'no, vienen en '+(otro==='utc'?'UTC':'local')+'</span>' +
-    (man ? ' · <span onclick="ecSetTimesIn(\'\')" style="color:rgba(248,250,252,.45);cursor:pointer">automático</span>' : '');
-  sub.style.color = modo === 'local' ? '#FFB067' : '';
+    ' <span onclick="ecHusoCambiar()" style="color:#22D3EE;border-bottom:1px dotted rgba(34,211,238,.5);cursor:pointer">cambiar</span>';
+  sub.style.color = modo !== 'utc' ? '#FFB067' : '';
 }
 
 var _EC_MES = ['','enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
@@ -50789,12 +50863,28 @@ function ecRenderMonths(){
 }
 function ecPickMonth(ym){
   if(!_ecProxyRoster) return;
+  /* Con el huso por contestar no se importa: sería importar dos horas corrido,
+     que es justo el #ZN22A. Se lleva al piloto a la pregunta. */
+  if(ecHusoDudoso(_ecProxyRoster) || window._ecHusoPregunta){
+    var q = document.getElementById('ec-huso-q');
+    if(q){ try { q.scrollIntoView({ block:'center', behavior:'smooth' }); } catch(e){}
+           q.animate && q.animate([{ transform:'translateX(0)' },{ transform:'translateX(-6px)' },{ transform:'translateX(6px)' },{ transform:'translateX(0)' }], { duration:320 }); }
+    if(typeof showToast==='function') showToast(_ecT('Dinos antes en qué hora te enseña eCrews los vuelos'),'info');
+    return;
+  }
   var evs = (_ecProxyRoster.SchedulerEvents||[]).filter(function(e){ return String(e.start||'').slice(0,7) === ym; });
   // ocultar estados del flujo proxy; _ecHandleData mostrará ec-state-received
   ['ec-state-creds','ec-state-number','ec-state-fetching','ec-state-months'].forEach(function(id){ var el = document.getElementById(id); if(el) el.style.display = 'none'; });
   // mostrar la flecha "volver al listado de meses" (venimos del picker)
   var _bk = document.getElementById('ec-back-months'); if(_bk) _bk.style.display = (_ecProxyByMonth && _ecProxyByMonth.length) ? 'flex' : 'none';
-  _ecHandleData({ SchedulerEvents: evs, BlockDutyTimes: _ecProxyRoster.BlockDutyTimes || {}, PeriodStart: ym + '-01' });
+  /* Con TODO lo que trae el payload, no solo los eventos. Aquí se tiraban
+     `Indicators` (el «$» del flexiworking activado — por eso el día 18 de Marc
+     no salía como FW pagado, #ZN22A), `TimesIn` (el huso que leyó el proxy) y
+     `ScheduleReport` (los posicionales que marca eCrews). El resync de un toque
+     sí los pasaba; el importador por meses, no. */
+  _ecHandleData({ SchedulerEvents: evs, BlockDutyTimes: _ecProxyRoster.BlockDutyTimes || {}, PeriodStart: ym + '-01',
+                  TimesIn: _ecProxyRoster.TimesIn || null, Indicators: _ecProxyRoster.Indicators || null,
+                  IndicatorsDesc: _ecProxyRoster.IndicatorsDesc || null, ScheduleReport: _ecProxyRoster.ScheduleReport || null });
 }
 // Volver de la preview al listado de meses (los datos siguen en memoria)
 window.ecBackToMonths = function(){
@@ -51241,6 +51331,21 @@ window.ecResyncMonth = function(month){
       return;
     }
     if(res.j.status === 'COMPLETE' && res.j.roster){
+      /* Huso sin saber (#ZN22A): aplicarlo sería guardar el mes dos horas corrido
+         en silencio. Se abre la hoja con la pregunta y el mes ya descargado; el
+         piloto contesta una vez y el ↻ ya no vuelve a preguntar. */
+      if(ecHusoDudoso(res.j.roster)){
+        _ecProxyRoster = res.j.roster;
+        _ecProxyByMonth = (res.j.meta && res.j.meta.byMonth && res.j.meta.byMonth.length)
+          ? res.j.meta.byMonth : [{ month: month, flights: '—', events: '—' }];
+        var _ov = document.getElementById('ec-sync-overlay');
+        if(_ov){ _ov.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
+        var _sub = document.getElementById('ec-months-sub');
+        if(_sub) ecPintaHuso(_sub, res.j.roster);
+        ecRenderMonths();
+        _ecShowState('ec-state-months');
+        return;
+      }
       _syncInfo = _ecAplicaMes(res.j.roster, month);
       _syncOk = true;                                 // para el feedback verde
     }
@@ -51289,10 +51394,21 @@ setTimeout(function(){
    Si nada de esto habla, se asume UTC — que es lo que ha hecho la app toda la
    vida y lo que tiene la mayoría. */
 var K_EC_TZ = 'pilotos_ecrews_timesin';
-function ecTimesInManual(){ try { return localStorage.getItem(K_EC_TZ) || ''; } catch(e){ return ''; } }
-window.ecSetTimesIn = function(modo){        // 'local' | 'utc' | '' (=automático)
+/* Lo contestado viaja en el PERFIL (`ecHuso`) además de en este aparato: si no,
+   el piloto tendría que contestar la pregunta del huso en cada móvil. */
+function ecTimesInManual(){
+  var v = '';
+  try { v = localStorage.getItem(K_EC_TZ) || ''; } catch(e){}
+  if (!v) { try { if (window.ppGet) v = ppGet('ecHuso', '') || ''; } catch(e){} }
+  return v;
+}
+window.ecSetTimesIn = function(modo){        // 'local' | 'base' | 'utc' | '' (=automático)
   try { modo ? localStorage.setItem(K_EC_TZ, modo) : localStorage.removeItem(K_EC_TZ); } catch(e){}
+  try { if (window.PilotProfile && PilotProfile.save) PilotProfile.save({ ecHuso: modo || '' }); } catch(e){}
+  window._ecHusoPregunta = false;
   if (typeof ecRenderMonths === 'function') { try { ecRenderMonths(); } catch(e){} }
+  // Y el cartel del huso, que ahora puede ser una pregunta que se acaba de contestar.
+  try { if (_ecHusoCtx && _ecHusoCtx.sub) ecPintaHuso(_ecHusoCtx.sub, _ecHusoCtx.payload); } catch(e){}
 };
 /* Sonda de la FIRMA — la buena, y la que nació de descubrir que eCrews mezcla:
    `ev.report` viene en Zulu pase lo que pase, y la primera salida sale del texto
@@ -51336,7 +51452,7 @@ function _ecSondaFuturo(events){
 }
 function ecTimesInModo(payload){
   var man = ecTimesInManual();
-  if(man === 'local' || man === 'utc') return man;
+  if(man === 'local' || man === 'utc' || man === 'base') return man;
   var ti = payload && (payload.TimesIn || (payload.meta && payload.meta.timesIn));
   if(ti === 'LOCAL') return 'local';
   if(ti === 'UTC')   return 'utc';
@@ -51434,6 +51550,58 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
   var EC_LOCAL = !!(opts && opts.timesIn === 'local');
   var EC_BASE  = (function(){ try { return localStorage.getItem('pilotOS_home_base') || 'BCN'; }
                               catch(e){ return 'BCN'; } })();
+  /* ── HORA DE BASE (#ZN22A, Marc, 22-sep) ──────────────────────────────────
+     El tercer modo de eCrews: TODO en la hora de la base del piloto, la firma y
+     el debrief incluidos (no solo el desglose, como en «estación local»).
+     Medido en su roster: VY6500 BCN-NAP a las 07:18 con firma a las 06:25 (el
+     vuelo sale a las 07:20 hora de Barcelona; otro piloto lo tiene a las 05:12Z
+     en su logbook) y un BCN-LPA con 3:12 de ida y 3:11 de vuelta, que en hora
+     de cada estación daría 4:12 y 2:11. Se leía como UTC y todo el mes quedaba
+     dos horas corrido.
+     Se pasa el payload ENTERO a Zulu antes de analizarlo —campos de fecha-hora,
+     firma, debrief y las horas del desglose— y a partir de ahí el parser trabaja
+     exactamente igual que con un roster en UTC: una sola puerta, ninguna rama
+     nueva en las 600 líneas de abajo. */
+  if (opts && opts.timesIn === 'base') events = _ecBaseAUtc(events, EC_BASE);
+  function _ecBaseAUtc(evs, baseIata){
+    var tz = _ecTz(baseIata);
+    var aMs = function(d, h, m){
+      var p = d.split('-');
+      try { return window.NGasto.localToUTC(+p[0], +p[1], +p[2], h, m, tz); } catch(e){ return null; }
+    };
+    var hhmm = function(s, d){
+      var m = String(s || '').match(/^(\d{1,2}):?(\d{2})$/); if (!m) return null;
+      var t = aMs(d, +m[1], +m[2]); return t == null ? null : new Date(t).toISOString().slice(11,16);
+    };
+    var fechaHora = function(s){
+      var m = String(s || '').match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})/); if (!m) return null;
+      return aMs(m[1], +m[2], +m[3]);
+    };
+    return (evs || []).map(function(ev){
+      if (!ev) return ev;
+      var e = {}; for (var k in ev) e[k] = ev[k];
+      var d0 = String(ev.start || ev.start_date || '').slice(0,10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d0)) return e;
+      /* Un evento de DÍA ENTERO (OFF, NROF, FW, vacaciones…) no tiene hora que
+         convertir: es una FECHA. eCrews lo manda con `all_day:1` y 00:00→23:59:59;
+         pasado a Zulu, el OFF del 4 caía a las 22:00Z del 3 y se pintaba un día
+         antes — TODOS los días libres de Marc corridos (reporte 22-sep 14:26). */
+      var _s = String(ev.start || ''), _en = String(ev.end || '');
+      if (ev.all_day === 1 || ev.all_day === true || ev.all_day === '1' || ev.all_day === 'true' ||
+          (/T00:00(:00)?$/.test(_s) && /T23:59(:59)?$/.test(_en))) return e;
+      ['start','end'].forEach(function(k){ var t = fechaHora(ev[k]); if (t != null) e[k] = new Date(t).toISOString().slice(0,19); });
+      ['start_date','end_date'].forEach(function(k){ var t = fechaHora(ev[k]); if (t != null) e[k] = new Date(t).toISOString().slice(0,19).replace('T',' '); });
+      var r = hhmm(ev.report, d0);  if (r) e.report = r;
+      var b = hhmm(ev.debrief, d0); if (b) e.debrief = b;
+      if (ev.details) e.details = String(ev.details)
+        // (A0718) · (0330) · (E1234): las horas del desglose, siempre entre paréntesis
+        .replace(/(\(\s*[AESL]?)(\d{2})(\d{2})(?=\))/g, function(all, pre, h, m){
+          var t = hhmm(h + ':' + m, d0); return t ? pre + t.replace(':','') : all; })
+        .replace(/((?:Reporting|Debriefing) time\s*:\s*)(\d{2})(\d{2})/gi, function(all, pre, h, m){
+          var t = hhmm(h + ':' + m, d0); return t ? pre + t.replace(':','') : all; });
+      return e;
+    });
+  }
   /* Line check: eCrews manda los indicadores del mes en roster.Indicators (por fecha,
      una entrada por leg separada por comas): "2026-10-07":",k ,k " = legs con "k"
      (IndicatorsDesc: "k - Annual route check"). NO viaja dentro del evento → opts.indicators.
@@ -56835,6 +57003,7 @@ function rstatsCambiosHTML(cache, meses){
             <option value="flight" data-chip="✈">Vuelo</option>
             <option value="standby" data-chip="STBY">STBY — Imaginaria</option>
             <option value="osb" data-chip="OSB">OSB — Out of Standby</option>
+            <option value="fz" data-chip="FZ">FZ — Forzoso (cambio en ejecución)</option>
             <option value="off" data-chip="OFF">OFF — Día libre</option>
             <option value="f" data-chip="F">F — Franco</option>
             <option value="ef" data-chip="EF">EF — Franco ex turna</option>

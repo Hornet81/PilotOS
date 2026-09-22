@@ -27,6 +27,10 @@
        aprendía al guardar el primer vuelo y en un móvil nuevo salía vacío. Aquí
        sincroniza (es una cadena: /api/profile la copia sin tocar el servidor). */
     nombreTripulacion: '',
+    /* En qué hora enseña eCrews los vuelos a ESTE piloto: 'utc' | 'base' | 'local'.
+       Lo contesta una vez en el importador cuando el proxy no puede leer su ajuste
+       (#ZN22A) y viaja aquí para no preguntarlo en cada aparato. */
+    ecHuso: '',
     /* CARGOS en la compañía: TRI · TRE · LSC · GRI, varios a la vez. De aquí sale
        el rol que se PRESELECCIONA al traerse una sesión de simulador del roster:
        hasta tenerlo, un TRI/TRE que IMPARTE cobraba sus simuladores como ALUMNO

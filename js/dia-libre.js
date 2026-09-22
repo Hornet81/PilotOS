@@ -258,6 +258,13 @@ function finActividad(fecha, entries, opts){
   var base = diaMs(fecha);
   if (base == null) return null;
   var mejor = null;
+  /* ¿Hubo SERVICIO ese día? La corrección del piloto solo vale sobre un día con
+     servicio. Reporte del usuario, 22-sep: una corrección «acabó a las 00:00» del
+     29-oct, guardada cuando la ventana del FW aún contaba como actividad, seguía
+     fabricando la invasión del 30 después de arreglar eso — la corrección se
+     aplicaba sin mirar si había jornada. Un FW, un F o un día libre no tienen
+     hora de fin que corregir. */
+  var servicio = false;
 
   /* Arranque del día SIN mover nada, para poder juzgar después si una bandera de
      cruce de medianoche es creíble. */
@@ -292,6 +299,7 @@ function finActividad(fecha, entries, opts){
     if (e.type === 'overnight_continuation') return;
 
     if (e.type === 'flight'){
+      servicio = true;
       var lb  = buscaLogbook(e, opts.logbook, opts.normApt);
       var sta = horaEjecutada(e.sta_actual, lb && lb.sta, e.sta_estimated, e.sta);
       var std = horaEjecutada(e.std_actual, lb && lb.std, e.std_estimated, e.std);
@@ -334,6 +342,22 @@ function finActividad(fecha, entries, opts){
         }
       }
     } else {
+      /* Lo que NO es servicio no cierra ninguna jornada, aunque traiga horas.
+         Reporte #RWOD3 (Marc, 22-sep): eCrews manda el franco con su VENTANA de
+         disponibilidad (`F` 06:55→22:00); esa ventana no es actividad, es el
+         horario en que podrían llamarle. Contada como tal, «acababa» a las 22:00
+         —leídas además como Z, las 00:00 locales— y el OFF del día siguiente salía
+         invadido: 153,99 € por un día en el que no voló. Si al franco lo ACTIVAN,
+         llegan vuelos o actividad encima, y esos sí cuentan. */
+      var _cod = up(e.code);
+      if (e.type === 'f' || e.type === 'off' || e.type === 'vacation' ||
+          /* FW (flexiworking) igual: es el día que el piloto OFRECE, con su ventana
+             de horas. Pedido por él, no invade nada. Si lo convocan (el «$»), los
+             vuelos llegan encima y son ellos los que cuentan. (Reporte del usuario,
+             22-sep: FW del 29 → «día 30 invadido, 153,99 €».) */
+          ['F','F2','FR','FR2','HFR','RF','FW'].indexOf(_cod) > -1 ||
+          COD_DIA_LIBRE.indexOf(_cod) > -1 || COD_VACACIONES.indexOf(_cod) > -1) return;
+      servicio = true;
       // Actividad de tierra (simulador, curso, oficina): acaba cuando acaba.
       var fin = horaEjecutada(e.sta_actual, e.sta_estimated, e.sta, e.end);
       var ini = horaEjecutada(e.std_actual, e.std_estimated, e.std, e.start);
@@ -349,7 +373,7 @@ function finActividad(fecha, entries, opts){
   /* La corrección del piloto manda sobre todo lo demás: es el «contratiempo en
      que llama a la compañía y se lo alargan», que no está en ningún dato. */
   var man = opts.correcciones && opts.correcciones[fecha];
-  if (man && hm(man.fin) != null){
+  if (man && hm(man.fin) != null && servicio){
     var mm = hm(man.fin);
     // La hora corregida es LOCAL; se pasa a UTC con el huso del artículo.
     var ng = motorTz(), p = String(fecha).split('-');
@@ -635,6 +659,26 @@ var ESCENARIOS = [
     hacer: function(T){ return detectar({ mes:'2026-07', entries:[
       { date:'2026-07-14', type:'training', code:'SIM', std:'18:00', sta:'22:30' },
       { date:'2026-07-15', type:'off', code:'OFF' }], tarifas:T }).n; } },
+  // #RWOD3: la VENTANA del franco (06:55→22:00Z) no es actividad → el OFF de después no se invade
+  { nombre: 'un franco con su ventana de horas NO invade el día libre siguiente', espera: 0,
+    hacer: function(T){ return detectar({ mes:'2026-09', entries:[
+      { date:'2026-09-22', type:'f', code:'F', std:'06:55', sta:'22:00' },
+      { date:'2026-09-23', type:'off', code:'OFF' }], tarifas:T }).n; } },
+  { nombre: 'un FW pedido (con su ventana de horas) NO invade el día libre siguiente', espera: 0,
+    hacer: function(T){ return detectar({ mes:'2026-10', entries:[
+      { date:'2026-10-29', type:'other', code:'FW', std:'06:00', sta:'22:00' },
+      { date:'2026-10-30', type:'off', code:'OFF' }], tarifas:T }).n; } },
+  // Reporte del usuario (22-sep): corrección vieja «00:00 del día siguiente» sobre su FW del 29-oct
+  { nombre: 'una corrección guardada sobre un día SIN servicio (FW) no fabrica invasión', espera: 0,
+    hacer: function(T){ return detectar({ mes:'2026-10', entries:[
+      { date:'2026-10-29', type:'other', code:'FW', std:'00:00', sta:'23:59' },
+      { date:'2026-10-30', type:'off', code:'OFF' }], tarifas:T,
+      correcciones:{ '2026-10-29': { fin:'00:00', diaSiguiente:true } } }).n; } },
+  { nombre: '…pero un franco ACTIVADO con vuelo tardío sí invade', espera: 1,
+    hacer: function(T){ return detectar({ mes:'2026-09', entries:[
+      { date:'2026-09-22', type:'f', code:'F', std:'06:55', sta:'22:00' },
+      { date:'2026-09-22', type:'flight', flightNum:'VY1', dep:'BCN', arr:'BCN', std:'19:00', sta:'22:10' },
+      { date:'2026-09-23', type:'off', code:'OFF' }], tarifas:T }).n; } },
   { nombre: 'la víspera con actividad y sin horas se DICE, no se calla', espera: 1,
     hacer: function(T){ return detectar({ mes:'2026-07', entries:[
       { date:'2026-07-14', type:'flight', flightNum:'VY1', dep:'BCN', arr:'BCN', std:'--:--', sta:'--:--' },
