@@ -1637,7 +1637,8 @@ function drawSheet(){
     var fDia = fechaLinea(n, i), movida = fDia !== (l.date || n.date);
     h += '<div class="ex-cp fecha'+(movida?' movida':'')+'" onclick="exSetFecha(\''+n.id+'\','+i+')">'+
       '<div><div class="k">DATE *</div><div class="v">'+esc(fDia.split('-').reverse().join('/'))+'</div>'+
-      '<div class="h">'+(movida ? 'cambiada por ti · ' : '')+ventanaTxt(n)+'</div></div>'+
+      '<div class="h">'+(movida ? 'cambiada por ti · ' : '')+
+        (dentroVentana(n, i, fDia) ? ventanaTxt(n) : '⚠ fuera de los días que admite el portal para este concepto')+'</div></div>'+
       '<div class="c">✎</div></div>';
     h += cp('EXPENSE TYPE', l.subtype);
     /* Con número puesto la fila se comporta como las demás: se toca y se copia
@@ -1809,9 +1810,10 @@ function fechaLinea(n, i){
   var puesta = (EX.fechas || {})[lineKey(n, i)];
   var base = (n.lines[i] && n.lines[i].date) || n.date;
   if (!puesta) return base;
-  /* Si la nota se recalcula y la fecha guardada ya no cabe en la ventana, se
-     descarta: vale más la del roster que una fecha que el portal rechazaría. */
-  return dentroVentana(n, i, puesta) ? puesta : base;
+  /* La fecha la decide el piloto: es la de SU recibo. Si se sale de la ventana
+     del concepto se respeta igual y la hoja lo avisa en ámbar (antes se
+     descartaba en silencio, y no había forma de poner el día de verdad). */
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(puesta)) ? puesta : base;
 }
 function _dias(a, b){ return Math.round((new Date(a+'T12:00:00Z') - new Date(b+'T12:00:00Z')) / 86400000); }
 function ventanaDe(n){
@@ -1848,6 +1850,13 @@ window.exSetFecha = function(id, i){
   exPick({
     ic: '📅', titulo: 'Fecha del ticket',
     sub: 'La que <b>pone en tu recibo</b>, no la del vuelo · ' + ventanaTxt(n),
+    /* El calendario: los tres días de abajo son los que el portal admite
+       contados desde la fecha de la nota, y si ESA está mal no sirven de nada.
+       Aquí se pone el día que sea, el que pone en el recibo. */
+    html: '<div class="ex-grp">ELIGE EL DÍA EN EL CALENDARIO</div>' +
+      '<input class="ex-in" type="date" id="ex-fcal" value="' + actual + '" ' +
+      'onchange="exFechaCal(\'' + n.id + '\',' + i + ',this.value)">' +
+      '<div class="ex-grp">O UNO DE LOS QUE ADMITE EL PORTAL</div>',
     opciones: opciones.map(function(o){
       return {
         txt: o.f.split('-').reverse().join('/'),
@@ -1862,6 +1871,33 @@ window.exSetFecha = function(id, i){
       exRender();
     }
   });
+};
+
+/* Fecha puesta con el calendario. En una nota MANUAL se mueve la nota entera
+   (su fecha es la que el piloto eligió al crearla, y es la que manda en el mes,
+   el plazo y los días que se ofrecen); el id no cambia, así que sus tickets
+   siguen con ella. En una AUTOMÁTICA la fecha del servicio es del roster y no se
+   toca: se guarda aparte, por línea, como las de la lista. */
+window.exFechaCal = function(id, i, v){
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(v))) return;
+  var n = notaDe(id); if (!n || !n.lines[i]) return;
+  exSendClose(); PICK_CB = null;
+  if (n.manual){
+    var m = null; EX.manual.forEach(function(x){ if (x.id === id) m = x; });
+    if (m){
+      var vieja = m.date;
+      (m.lines || []).forEach(function(l, k){
+        if (!l.date || l.date === vieja) l.date = v;
+        delete EX.fechas[lineKey(m, k)];
+      });
+      m.date = v; saveMan(); fechasSave(); syncNota(id);
+      if (EX.mes !== '*') EX.mes = v.slice(0, 7);   // si no, cambia de mes y «desaparece»
+    }
+  } else {
+    EX.fechas[lineKey(n, i)] = v; fechasSave();
+  }
+  if (typeof drawSheet === 'function') drawSheet();
+  exRender();
 };
 
 /* ── UN SELECTOR QUE SE TOCA ──────────────────────────────────────────────────
@@ -2404,7 +2440,18 @@ function bajarYMezclar(){
             items: rw.items||null, source: rw.source||'manual', added: rw.updated_at,
             remoto: true };
           if (loc && loc.blob) rec.blob = loc.blob;       // la foto de aquí no se pierde
-          faenas.push(tkPut(rec));
+          /* Lo que ya está aquí igual que en la nube no se vuelve a escribir:
+             cada ronda reescribía TODAS las fotos, y en iOS volver a guardar un
+             Blob leído de IndexedDB falla a veces. */
+          if (loc && loc.remoto && loc.lineKey === rec.lineKey && Number(loc.amount) === rec.amount &&
+              (loc.shop||null) === rec.shop && (loc.ticket_date||null) === rec.ticket_date &&
+              (loc.source||'manual') === rec.source) return;
+          /* Y si una escritura LOCAL falla, eso no es «sin conexión con tu
+             cuenta» (#6W71R: el servidor había contestado 200 a todo). El dato
+             está en la nube y se reintenta en la ronda siguiente. */
+          faenas.push(tkPut(rec).catch(function(e){
+            try { console.warn('[gastos] no se pudo guardar el ticket en este aparato', rw.id, e); } catch(_){}
+          }));
         });
         return Promise.all(faenas).then(function(){ return true; });
       });
@@ -2597,6 +2644,11 @@ window.exDelNotaYa = function(id){
 function arrancar(){
   if (ARRANCADO) return;
   ARRANCADO = true;      // ANTES de llamar: contarTickets() vuelve a pintar
+  /* Lo que el piloto dejó puesto vive en localStorage y sólo se leía en
+     `exInit`, que sigue sin llamarlo nadie: la fecha que cambiabas en una nota
+     se guardaba y, al reabrir la app, no se leía — volvía a salir la del
+     roster. Se lee aquí, que es por donde SÍ se pasa. */
+  try { portalLoad(); paidLoad(); sheetsLoad(); vistasNLoad(); fechasLoad(); motivosLoad(); } catch(e){}
   rebotePega();
   contarTickets();
   _ultSync = Date.now();
