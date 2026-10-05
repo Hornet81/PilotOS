@@ -602,12 +602,18 @@ function mesesDe(list){
 }
 function mesLbl(k){ return MES[Number(k.slice(5,7))-1].toUpperCase() + ' ' + k.slice(2,4); }
 function mesLargo(k){ return MES[Number(k.slice(5,7))-1].toUpperCase() + ' ' + k.slice(0,4); }
-/* Por defecto, el mes de la nota que caduca ANTES — no el mes en curso: el
-   plazo son 90 días por nota, así que lo urgente es siempre lo viejo. */
-function mesPorDefecto(pend, meses){
+/* Por defecto, el MES EN CURSO: es lo que el piloto viene a mirar al entrar
+   (pedido el 5-oct-2026). Antes se abría el mes de la nota que caduca antes, y
+   entrabas en octubre viendo agosto. Lo urgente no se pierde por esto: el chip
+   de su mes va marcado y la franja «la 1ª caduca en N días · está en …» lo
+   dice arriba, estés en el mes que estés.
+   Si este mes aún no tiene notas, el más reciente que sí tenga. */
+function mesPorDefecto(pend, meses, hoy){
   if (!meses.length) return '*';
-  var urge = pend.slice().sort(function(a,b){ return daysLeft(a.date)-daysLeft(b.date); })[0];
-  return urge ? urge.date.slice(0,7) : meses[0].k;
+  var d = hoy || new Date();
+  var k = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
+  for (var i = 0; i < meses.length; i++) if (meses[i].k === k) return k;
+  return meses[0].k;
 }
 window.exMes = function(k){ EX.mes = k; exRender(); };
 
