@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.912">
+  <meta name="version" content="Estable.913">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.912","builtAt":"2026-10-05T16:45:06Z","commit":"b109ac8","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.913","builtAt":"2026-10-08T11:22:04Z","commit":"eaf9bd7","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -36514,6 +36514,81 @@ function _bLegWindow(leg) {
   var fEnd = eMs ? new Date(eMs + 30 * 60000) : new Date(sMs + 5 * 3600000);
   return { fStart: fStart, fEnd: fEnd, now: now };
 }
+/* ════════ TIPO de NOTAM — a qué parte del vuelo afecta ════════
+   La severidad dice CUÁNTO importa; el tipo dice A QUÉ. Dentro de cada severidad la pestaña
+   NOTAM agrupa por este tipo, en el orden en que se repasa un briefing.
+   Manda el Q-code del NOTAM crudo (Q) LECB/QMRLC/...): lo pone quien lo emite y no depende
+   del idioma ni de cómo esté redactado. El texto sólo decide cuando el Q-code falta o es el
+   comodín XX.
+   ★ Cada NOTAM cae en UN solo tipo, y NUNCA se queda sin ninguno: lo que no encaja va a
+   'other'. Un tipo nuevo sin cajón haría desaparecer NOTAMs de la pantalla. */
+var NOTAM_TIPOS = [
+  { k: 'rwy',  lbl: 'RUNWAY' },
+  { k: 'app',  lbl: 'APPROACH PROCEDURE' },
+  { k: 'ad',   lbl: 'AIRPORT' },
+  { k: 'sid',  lbl: 'SID/STAR' },
+  { k: 'chart', lbl: 'CHART' },
+  { k: 'other', lbl: 'OTROS' }
+];
+function _bNotamTexto(n) {
+  var raw = String((n && n.raw) || '');
+  var e = raw.split(/\bE\)\s*/)[1];
+  return ((e || raw) + ' ' + String((n && n.short) || '')).toUpperCase();
+}
+function _bNotamTipo(n) {
+  var raw = String((n && n.raw) || '');
+  var t = _bNotamTexto(n);
+  var qm = raw.match(/Q\)\s*[A-Z]{4}\/Q([A-Z]{2})[A-Z]{2}/);
+  var q = qm ? qm[1] : '';
+  /* SID/STAR primero: "SID GRAUS 3Q SUSPENDED" suele venir con Q-code de procedimiento
+     genérico, y el piloto lo busca aquí. */
+  if (!/TRIGGER NOTAM/.test(t) && (q === 'PD' || q === 'PA' || /\b(SIDS?|STARS?)\b|STANDARD (INSTRUMENT )?(DEPARTURE|ARRIVAL)/.test(t))) return 'sid';
+  /* Enmienda de carta, sólo si NO anuncia nada operativo: un cierre de pista que cita la
+     carta sigue siendo un cierre de pista. */
+  /* Avisos de publicación (TRIGGER NOTAM, enmienda del AIP): llevan el Q-code de lo que
+     enmiendan —un trigger de grúa viene como obstáculo— pero lo que anuncian es papel. */
+  if (/TRIGGER NOTAM/.test(t) || /^\s*REF (AIP )?(AD|GEN|ENR)\b[^.]*\bWEF\b/.test(t)) return 'chart';
+  if (/\bCHARTS?\b/.test(t) && !/CLSD|CLOSED|U\/S|UNSERVICEABLE|NOT AVBL|SUSPENDED|WITHDRAWN/.test(t)) return 'chart';
+  if (q && q !== 'XX') {
+    var a = q.charAt(0), b = q.charAt(1);
+    if (a === 'I') return 'app';                                  // ILS y sus componentes
+    if (a === 'N') return 'app';                                  // radioayudas
+    if (a === 'P') return (b === 'I' || b === 'M' || b === 'O' || b === 'X' || b === 'U') ? 'app' : 'other';
+    if (a === 'M') {
+      if ('RTDUSWHBG'.indexOf(b) >= 0) return 'rwy';              // pista, umbral, distancias declaradas…
+      return 'ad';                                                // rodaje, plataforma, puestos
+    }
+    if (a === 'L') {
+      if ('APVIGW'.indexOf(b) >= 0) return 'app';                 // luces de aproximación, PAPI, VASIS
+      if ('XYBKU'.indexOf(b) >= 0) return 'ad';                   // rodaje, faro, plataforma
+      return 'rwy';                                               // borde, eje, umbral, TDZ
+    }
+    if (a === 'F' || a === 'S' || a === 'C') return 'ad';         // instalaciones, ATS, comunicaciones
+    if (a === 'O' || a === 'A' || a === 'R' || a === 'W' || a === 'G' || a === 'K' || a === 'T') return 'other';
+  }
+  /* Sin Q-code útil: por el texto. La aproximación va ANTES que la pista porque
+     "ILS RWY 24R U/S" nombra la pista pero lo que se pierde es la aproximación. */
+  if (/\b(ILS|LOC|LLZ|GP|GLS|IAC|IAP|RNP|RNAV|APCH|APPROACH|MINIMA|MDA|OCA|PAPI|VASIS?|ALS|VOR|DME|NDB)\b/.test(t)) return 'app';
+  if (/\b(RWY|RUNWAY|THR|TORA|TODA|ASDA|LDA|RESA)\b/.test(t)) return 'rwy';
+  if (/\b(TWY|TAXIWAY|APRON|STANDS?|GATE|PRKG|PARKING|FUEL|TWR|ATIS|RFFS?|DE-?ICING|FOLLOW ME|AD)\b/.test(t)) return 'ad';
+  if (/TRIGGER NOTAM|\bAIP\b|\bAIRAC\b|\bAMDT\b/.test(t)) return 'chart';
+  return 'other';
+}
+/* Pistas que nombra el NOTAM ("RWY 06L/24R" → 06L, 24R) — para marcar los que tocan la
+   pista en uso. Sólo detrás de RWY: un "02" suelto puede ser un día del campo D). */
+function _bNotamPistas(n) {
+  var out = [], t = _bNotamTexto(n), re = /(?:RWY|RUNWAY)S?\s*((?:\d{2}[LRC]?)(?:\s*(?:\/|AND|,)\s*\d{2}[LRC]?)*)/g, m;
+  while ((m = re.exec(t))) { (m[1].match(/\d{2}[LRC]?/g) || []).forEach(function (d) { if (out.indexOf(d) < 0) out.push(d); }); }
+  return out;
+}
+function _bNotamTocaPista(n, rwy) {
+  var mias = String(rwy || '').toUpperCase().match(/\d{2}[LRC]?/g);
+  if (!mias) return false;
+  var tp = _bNotamTipo(n);
+  if (tp !== 'rwy' && tp !== 'app') return false;
+  var suyas = _bNotamPistas(n);
+  return mias.some(function (d) { return suyas.indexOf(d) >= 0; });
+}
 function _bNotamBucket(n, leg) {
   if (!n || !n.timeStart) return 'flight';
   var w = _bLegWindow(leg);
@@ -40761,6 +40836,9 @@ function TabNotamV2(_refN2) {
             React.createElement("span", { style: { fontFamily: mono, fontSize: 7.5, fontWeight: 700, color: m.c } }, n.id),
             React.createElement("span", { style: { fontFamily: mono, fontSize: 6, fontWeight: 700, color: m.c, background: m.bg, border: "1px solid " + m.bd, borderRadius: 4, padding: "1px 4px" } }, m.label),
             _bNotamIsNew(n) ? React.createElement("span", { style: { fontFamily: mono, fontSize: 6.5, fontWeight: 800, letterSpacing: ".6px", color: "#04231A", background: "#2BE5A0", borderRadius: 4, padding: "1px 5px" } }, "NUEVO") : null,
+            /* Toca la pista que la app da en uso: es el NOTAM de pista/aproximación que no
+               puede pasarse por alto. */
+            _bNotamTocaPista(n, _rwy) ? React.createElement("span", { style: { fontFamily: mono, fontSize: 6.5, fontWeight: 800, letterSpacing: ".6px", color: T.grn, background: T.grnBg, border: "1px solid " + T.grnBd, borderRadius: 4, padding: "1px 5px" } }, "PISTA EN USO") : null,
             /* El horario del campo D) cuando existe: es la diferencia entre "la pista está
                cerrada" y "la pista cierra por las noches". */
             n.schedule ? React.createElement("span", { style: { fontFamily: mono, fontSize: 6, fontWeight: 700, color: T.tx2, background: T.surf3, border: "1px solid " + T.line2, borderRadius: 4, padding: "1px 4px" } }, "SOLO " + String(n.schedule).slice(0, 34)) : null,
@@ -40786,6 +40864,31 @@ function TabNotamV2(_refN2) {
   }
   function sevSorted(ns) { const o = { danger: 0, warning: 1, info: 2 }; return ns.slice().sort((a, b) => (o[a.sev] || 3) - (o[b.sev] || 3)); }
 
+  /* Dentro de una severidad, por TIPO (pista → aproximación → aeropuerto → SID/STAR →
+     carta → otros). Los tipos vacíos no se pintan. La cabecera es deliberadamente más
+     ligera que la de severidad —sin relleno, sin barra— para que se lea como hija suya.
+     "OTROS" llega recogido en INFO: es el relleno, y abierto alarga la lista sin aportar. */
+  function renderTipos(items, k, sev, m) {
+    return NOTAM_TIPOS.map(function (tp) {
+      const its = items.filter(function (n) { return _bNotamTipo(n) === tp.k; });
+      if (!its.length) return null;
+      const tk = k + "_t_" + tp.k;
+      const isC = collapsed[tk] === undefined ? (sev === "info" && tp.k === "other") : collapsed[tk];
+      return React.createElement("div", { key: tk, style: { marginBottom: 4 } },
+        React.createElement("div", {
+          onClick: function () { setCollapsed(function (p) { return Object.assign({}, p, { [tk]: !isC }); }); },
+          style: { display: "flex", alignItems: "center", gap: 7, padding: "5px 4px 5px 6px", cursor: "pointer" }
+        },
+          React.createElement("span", { style: { width: 5, height: 5, borderRadius: "50%", background: m.c, flexShrink: 0 } }),
+          React.createElement("span", { style: { fontFamily: mono, fontSize: 8, fontWeight: 800, letterSpacing: "1.2px", color: T.tx2, whiteSpace: "nowrap" } }, tp.lbl),
+          React.createElement("span", { style: { fontFamily: mono, fontSize: 8, fontWeight: 800, color: m.c } }, its.length),
+          React.createElement("div", { style: { flex: 1, height: 1, background: T.line } }),
+          React.createElement("span", { style: { color: T.tx3, fontSize: 11, transform: isC ? "none" : "rotate(90deg)", transition: ".18s" } }, "›")
+        ),
+        !isC && its.map(NCard)
+      );
+    });
+  }
   // ── Secciones ──
   function renderSevGroups(ns, pfx, subOpen) {
     /* Dentro de CADA grupo (crítico, aviso, info), lo más nuevo arriba. */
@@ -40807,7 +40910,9 @@ function TabNotamV2(_refN2) {
       const isC = collapsed[k] === undefined ? !(subOpen && g.sev === abrePorDefecto) : collapsed[k];
       return React.createElement("div", { key: k, id: "sg_" + k, style: { marginTop: 7 } },
         React.createElement("div", {
-          onClick: () => toggleC(k),
+          /* Se conmuta contra lo que se VE (isC), no contra el valor guardado: un grupo
+             recogido por defecto no tiene valor y el primer toque no lo abría. */
+          onClick: () => setCollapsed(p => Object.assign({}, p, { [k]: !isC })),
           /* Pegajosa: en una lista de 20 NOTAMs hay que saber SIEMPRE si lo que estás
              leyendo es un crítico o un aviso, sin volver a subir. Fondo opaco para que la
              lista no se transparente por detrás. */
@@ -40821,7 +40926,7 @@ function TabNotamV2(_refN2) {
           ),
           React.createElement("span", { style: { color: m.c, fontSize: 12, transform: isC ? "none" : "rotate(90deg)", transition: ".18s" } }, "›")
         ),
-        !isC && React.createElement("div", { style: { marginTop: 6 } }, g.items.map(NCard))
+        !isC && React.createElement("div", { style: { marginTop: 6 } }, renderTipos(g.items, k, g.sev, m))
       );
     });
   }

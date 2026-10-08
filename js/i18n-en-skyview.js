@@ -474,6 +474,7 @@
     "PISTA EN SERVICIO": "RUNWAY IN USE",
     "Pista en servicio · ATIS": "Runway in use · ATIS",
     "PISTA EN USO": "RUNWAY IN USE",
+    "OTROS": "OTHER",
     "Pista única del aeropuerto": "Airport's only runway",
     "Precaución — límite VFR": "Caution — VFR limits",
     "Precipitación en vivo": "Live precipitation",
