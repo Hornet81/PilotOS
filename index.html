@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.913">
+  <meta name="version" content="Estable.914">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.913","builtAt":"2026-10-08T11:22:04Z","commit":"f045586","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.914","builtAt":"2026-10-09T16:58:28Z","commit":"PENDING","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -44047,7 +44047,13 @@ function rstRenderCalendar(){
        Un solo color para los dos estados, a propósito: lo que distingue un día
        ofrecido de uno CONVOCADO lo dice la descripción (`_actBanner` lee
        `e.flexConv`), no un segundo tono que habría que mantener sincronizado. */
-    FW:   { bg:'#D30094', bd:'#B0007B', tx:'#FFFFFF', gl:'rgba(211,0,148,.5)', desc:'Flexiworking' }
+    FW:   { bg:'#D30094', bd:'#B0007B', tx:'#FFFFFF', gl:'rgba(211,0,148,.5)', desc:'Flexiworking' },
+    /* FTG = Fatiga (el piloto declara fatiga). Ese día NO es un día libre normal, pero
+       sin estilo propio caía al verde turquesa del tipo `off` y la ficha decía
+       «Día libre». Rojo propio tipo Cruz Roja + cruz blanca (ver rstIconoActividad),
+       distinto de los otros rojos/cálidos de la app: vuelo #c0392b, franco #ec7063,
+       forzoso #9D174D, sick naranja #e67e22. Blanco sobre #E4002B = 4,85:1. */
+    FTG:  { bg:'#E4002B', bd:'#C00020', tx:'#FFFFFF', gl:'rgba(228,0,43,.5)', desc:'Fatiga' }
   };
   // Tipos de DESCANSO: un día así está LIBRE (no hay jornada propia). Se usa para
   // decidir si un día invadido de madrugada por el duty anterior enseña SOLO el 1/3
@@ -44209,6 +44215,10 @@ function rstRenderCalendar(){
             Sin icono, como el forzoso: el rosa y las letras ya lo dicen, y un
             símbolo inventado para esto sería una marca más que mantener. */
          : (c==='FW') ? ''
+         // FTG = Fatiga: cruz blanca (emblema Cruz Roja) sobre su rojo propio. Va por
+         // CÓDIGO y ANTES que el tipo: FTG llega como type:'off', que sin esto le pondría
+         // la taza del descanso — un día de fatiga declarada no es dormir.
+         : (c==='FTG') ? _SICK_ICON('#FFFFFF')
          : (type==='off' || type==='srof') ? _REST_ICON(tx)
          // RSF va por CÓDIGO y no por tipo: es `type:'other'` a propósito (ver EC_MAP),
          // pero lo que marca es una guardia activada, así que le toca el reloj de las
