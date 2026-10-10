@@ -509,6 +509,136 @@ html.day #pc-tab-gastos .ex-why-bug{color:#B45309;border-bottom-color:rgba(180,8
 #pc-tab-gastos .ex-mesbar .m{font-family:ui-monospace,monospace;font-size:10.5px;
   color:rgba(180,220,255,.62)}
 #pc-tab-gastos .ex-dsgbox{margin:0 0 10px}
+
+/* ════════ LA BARRA DE ACCIÓN ════════ */
+#pc-tab-gastos .ex-actbar{align-items:center;margin-bottom:11px}
+#pc-tab-gastos .ex-acts{display:flex;gap:6px;align-items:center;flex:0 0 auto}
+#pc-tab-gastos .ex-nueva{touch-action:manipulation;cursor:pointer;white-space:nowrap;
+  font-size:10.5px;font-weight:800;padding:8px 13px;border-radius:9px;min-height:36px;
+  display:inline-flex;align-items:center;
+  background:rgba(126,251,254,.14);border:1px solid rgba(126,251,254,.5);color:#7EFBFE}
+#pc-tab-gastos .ex-nueva:active{transform:scale(.97)}
+
+/* ════════ EL HÉROE DE HOY ════════
+   La acción de mayor valor de la pantalla: el ticket está en el bolsillo AHORA.
+   Por eso es un botón y no un renglón más de la lista. */
+#pc-tab-gastos .ex-hoy{position:relative;overflow:hidden;cursor:pointer;
+  touch-action:manipulation;border-radius:16px;padding:14px 15px 15px;margin-bottom:14px;
+  background:linear-gradient(135deg,rgba(126,251,254,.14),rgba(126,251,254,.04) 55%,rgba(255,255,255,.02));
+  border:1px solid rgba(126,251,254,.45);
+  box-shadow:0 10px 30px -14px rgba(126,251,254,.5),inset 0 1px 0 rgba(255,255,255,.14)}
+#pc-tab-gastos .ex-hoy:before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(120% 90% at 100% 0%,rgba(126,251,254,.16),transparent 60%)}
+#pc-tab-gastos .ex-hoy .k{font-size:9px;letter-spacing:.2em;font-weight:800;color:#7EFBFE;
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#pc-tab-gastos .ex-hoy .k i{width:7px;height:7px;border-radius:50%;background:#7EFBFE;
+  display:block;box-shadow:0 0 10px #7EFBFE}
+#pc-tab-gastos .ex-hoy .k .w{font-size:9px;letter-spacing:.04em;font-weight:700;
+  color:rgba(180,220,255,.8);text-transform:none;margin-left:auto}
+/* La tarjeta de dentro pierde su caja: el envoltorio ya es la caja, y dos
+   bordes concéntricos se leen como dos objetos. */
+#pc-tab-gastos .ex-hoy .ex-day{background:transparent;border:0;box-shadow:none;
+  margin:8px 0 0;border-radius:10px}
+#pc-tab-gastos .ex-hoy .go{margin-top:12px;display:flex;align-items:center;justify-content:center;
+  gap:8px;padding:13px;border-radius:12px;font-size:13.5px;font-weight:800;color:#041720;
+  background:linear-gradient(180deg,#8FF6FA,#39D7E4)}
+
+/* ════════ CABECERA DE GRUPO ════════
+   La urgencia vive AQUÍ, no en cada tarjeta: así la fila se queda limpia y el
+   triaje lo hace la estructura. */
+/* ⚠️ Los modificadores van CON PREFIJO, como manda la primera línea de este
+   archivo. `.ex-grp.fut` heredaba el `background:#E2EDF9` de un `.fut{}` GLOBAL
+   y sin prefijo que vive en index.html:406: la cabecera de PRÓXIMAS salía con
+   una barra blanca detrás. Una clase corta sin prefijo es una colisión
+   esperando a que alguien la escriba en el otro archivo. */
+#pc-tab-gastos .ex-grp{display:flex;align-items:center;gap:8px;margin:16px 4px 9px}
+#pc-tab-gastos .ex-grp .ln{flex:1;height:1px;background:rgba(255,255,255,.1)}
+#pc-tab-gastos .ex-grp .t{font-size:10.5px;letter-spacing:.15em;font-weight:800;white-space:nowrap}
+#pc-tab-gastos .ex-grp .c{font-family:ui-monospace,monospace;font-size:10px;white-space:nowrap;
+  color:rgba(180,220,255,.62)}
+
+/* ── LA PÍLDORA, EL HALO Y EL LATIDO ───────────────────────────────────────
+   «Hazlo más llamativo, con glow o parpadeo lento» (8-oct-2026). Los cuatro
+   rótulos CUMPLÍAN AA —medido: 5,56:1 de noche y 7,45 en día— así que lo que
+   faltaba no era contraste: eran 9 px de gris sin superficie y sin forma.
+
+   ⚠⚠ LO QUE LATE ES EL HALO, NUNCA EL TEXTO. Bajarle la opacidad al rótulo
+   sería bajarle el contraste a la mitad de cada ciclo: AA se cumpliría en la
+   cresta y se perdería en el valle, y eso NO lo caza una medición hecha en un
+   instante cualquiera. Es la línea del arrastre del IRPF —un velo encima de un
+   color ya calculado— puesta en movimiento. El color del texto y el fondo de la
+   píldora son FIJOS; sólo respira la sombra, que no tapa nada.
+
+   ⚠ Y el halo va en un `:before`, no en la propia píldora: animar el
+   `box-shadow` de la píldora obligaría al navegador a recomponerla; animar la
+   OPACIDAD de una capa aparte lo hace la GPU y no cuesta un frame. Es la misma
+   cuenta del rebote de los tickets, donde un bucle de animación que nadie
+   miraba costó 209 ms por interacción tres pantallas más allá. */
+#pc-tab-gastos .ex-grp .p{position:relative;flex:0 0 auto;display:inline-flex;align-items:center;
+  gap:6px;padding:5px 11px 5px 9px;border-radius:999px;
+  /* ⚠⚠ EL FONDO VA OPACO, Y ES LO QUE HACE QUE EL CONTRASTE SE PUEDA AFIRMAR.
+     Con un tinte translúcido el color de debajo es el que haya en ese scroll, y
+     el teeth check lo enseñó: con el código anterior —rótulos sin superficie
+     ninguna— el rojo y el ámbar daban 2,78:1 y 3,69:1 en una posición y 7,5 y
+     10,4 en otra. Un contraste que depende de por dónde vayas no es un
+     contraste. Es la regla de la tarjeta de invasión de día libre: «los fondos
+     van opacos a propósito, porque sobre un tinte el contraste depende del panel
+     de debajo y no se puede medir». Estos tonos son el compuesto MEDIDO de cada
+     grupo sobre su panel, así que se ve igual y ya no se mueve. */
+  background:var(--gbg);
+  box-shadow:inset 0 0 0 1px rgb(var(--gc) / var(--gb))}
+#pc-tab-gastos .ex-grp .p:before{content:'';position:absolute;inset:-1px;border-radius:inherit;
+  pointer-events:none;box-shadow:0 0 17px -2px rgb(var(--gc) / var(--gh));
+  animation:ex-grp-late var(--gt) ease-in-out infinite}
+#pc-tab-gastos .ex-grp .mk{display:flex;align-items:center;flex:0 0 auto;color:rgb(var(--gc))}
+@keyframes ex-grp-late{0%,100%{opacity:1}50%{opacity:.3}}
+/* El latido se APAGA y el halo se queda ENCENDIDO: es la mitad que informa.
+   Quitar las dos dejaría a ese piloto donde estábamos (regla de Beta.882). */
+@media (prefers-reduced-motion:reduce){
+  #pc-tab-gastos .ex-grp .p:before{animation:none;opacity:1}
+}
+/* ⚠ Los PERIODOS son primos entre sí (2,9 · 3,7 · 4,3 · 5,9 s): así los cuatro
+   halos no se sincronizan NUNCA y lo que se ve es una respiración, no un
+   intermitente a coro — que es lo que el ojo lee como alarma. Es la aurora de
+   la hoja de bienvenida (13 · 17 · 11 s), aquí con cuatro capas.
+   Y la INTENSIDAD va rankeada por urgencia: si PENDIENTES brillara como FUERA
+   DE PLAZO, la mirada iría al grupo que menos corre. Más visible no es más
+   fuerte que un plazo perdido. */
+#pc-tab-gastos .ex-grp.ex-g-venc{--gc:255 128 149;--gbg:#262143;--gb:.40;--gh:.75;--gt:2.9s}
+#pc-tab-gastos .ex-grp.ex-g-urge{--gc:255 176 103;--gbg:#21243A;--gb:.34;--gh:.62;--gt:3.7s}
+/* PENDIENTES y PRÓXIMAS comparten el CIAN del acento —el de «＋ Nueva»: esto es
+   tuyo y está vivo— y se separan por la FORMA, disco lleno contra anillo hueco.
+   Un color propio para cada uno habría sido el doceavo tono con significado de
+   esta pestaña, al lado de la tira de color de las tarjetas. */
+#pc-tab-gastos .ex-grp.ex-g-pend{--gc:126 251 254;--gbg:#0E2948;--gb:.30;--gh:.52;--gt:4.3s}
+#pc-tab-gastos .ex-grp.ex-g-prox{--gc:126 251 254;--gbg:#091F40;--gb:.20;--gh:.34;--gt:5.9s}
+#pc-tab-gastos .ex-grp.ex-g-venc .t{color:#FF8095}
+#pc-tab-gastos .ex-grp.ex-g-urge .t{color:#FFB067}
+#pc-tab-gastos .ex-grp.ex-g-pend .t,#pc-tab-gastos .ex-grp.ex-g-prox .t{color:#7EFBFE}
+
+/* ════════ PRÓXIMAS ════════ */
+#pc-tab-gastos .ex-prox{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  cursor:pointer;touch-action:manipulation;border-radius:14px;padding:12px 14px;margin-bottom:9px;
+  /* El borde punteado va en el CIAN del grupo —no en un blanco genérico— para
+     que la fila se lea como parte de PRÓXIMAS y no como una tarjeta suelta. No
+     late: dos cosas respirando una encima de otra es ruido. */
+  border:1px dashed rgba(126,251,254,.30);background:rgba(126,251,254,.045)}
+#pc-tab-gastos .ex-prox .l{min-width:0}
+#pc-tab-gastos .ex-prox .t{display:block;font-size:12.5px;font-weight:700;color:#F0F8FF}
+#pc-tab-gastos .ex-prox .s{display:block;font-size:10.5px;color:rgba(180,220,255,.62);margin-top:3px}
+#pc-tab-gastos .ex-prox .v{flex:0 0 auto;font-size:10.5px;font-weight:800;color:#7EFBFE;
+  white-space:nowrap}
+
+/* ════════ LA TARJETA FUTURA ════════
+   Se marca por AUSENCIA de alarma, no con otro color: sin chip ámbar, sin
+   plazo, y la tira lateral PUNTEADA — un borde discontinuo dice «esto todavía
+   no es firme» sin inventarse una paleta nueva ni tocar el color del tipo. */
+#pc-tab-gastos .ex-day.futura{border-style:dashed}
+#pc-tab-gastos .ex-day.futura:before{
+  background:repeating-linear-gradient(180deg,var(--tcol) 0 4px,transparent 4px 8px)}
+#pc-tab-gastos .ex-espera{font-size:10.5px;font-weight:700;padding:5px 10px;border-radius:20px;
+  white-space:nowrap;background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.18);color:rgba(180,220,255,.8)}
 #pc-tab-gastos .ex-dsg{border-radius:12px;padding:9px 11px;
   background:rgba(16,24,40,.44);border:1px solid rgba(126,251,254,.22)}
 #pc-tab-gastos .ex-dsg-r{display:grid;grid-template-columns:52px 1fr 62px 62px;gap:6px;
@@ -1546,6 +1676,43 @@ html.day .ex-ok-mark .c,html.day .ex-ok-mark .t{stroke:#059669}
 #pc-tab-gastos .ex-dsgb:active{transform:scale(.97)}
 /* La fila: el recuento a la izquierda, el botón a la derecha, y el recuento
    cede sitio si hace falta en vez de empujar al botón a otra línea. */
+/* ── Lo nuevo, en modo día: el panel es casi blanco y los alfa de la noche se
+   quedan en fantasmas, así que cada color va opaco y medido. ── */
+html.day #pc-tab-gastos .ex-nueva{background:rgba(2,132,199,.12);border-color:#0284C7;color:#0B4A6F}
+html.day #pc-tab-gastos .ex-hoy{
+  background:linear-gradient(135deg,#DCF2FB,#F2FAFE 60%,#FFFFFF);
+  border-color:#0284C7;box-shadow:0 10px 26px -16px rgba(2,132,199,.7),inset 0 1px 0 #FFF}
+html.day #pc-tab-gastos .ex-hoy:before{background:
+  radial-gradient(120% 90% at 100% 0%,rgba(2,132,199,.10),transparent 60%)}
+html.day #pc-tab-gastos .ex-hoy .k{color:#0B6E8A}
+html.day #pc-tab-gastos .ex-hoy .k i{background:#0284C7;box-shadow:0 0 8px rgba(2,132,199,.6)}
+html.day #pc-tab-gastos .ex-hoy .k .w{color:#3C5468}
+html.day #pc-tab-gastos .ex-hoy .ex-day{background:transparent;border:0;box-shadow:none}
+html.day #pc-tab-gastos .ex-hoy .go{background:linear-gradient(180deg,#0EA5E9,#0284C7);color:#FFF}
+html.day #pc-tab-gastos .ex-grp .ln{background:rgba(15,23,42,.12)}
+html.day #pc-tab-gastos .ex-grp .c{color:#3C5468}
+/* ⚠ EN DÍA EL TRABAJO LO HACE LA SUPERFICIE, NO EL HALO. Un halo claro sobre
+   un panel claro no se ve: el tono del grupo es oscuro aquí, así que la sombra
+   se lee como profundidad y lo que hace visible la cabecera es el fondo teñido.
+   Es la salida de los chips de capa de la carta SIGWX —«darle su propia
+   superficie casi opaca en modo día»— y por eso `--ga` sube y `--gh` baja. */
+html.day #pc-tab-gastos .ex-grp.ex-g-venc{--gc:185 28 28;--gbg:#ECDCE1;--gb:.34;--gh:.30}
+html.day #pc-tab-gastos .ex-grp.ex-g-urge{--gc:154 52 18;--gbg:#EBE1E1;--gb:.30;--gh:.26}
+html.day #pc-tab-gastos .ex-grp.ex-g-pend{--gc:14 116 144;--gbg:#D8E8F0;--gb:.30;--gh:.24}
+html.day #pc-tab-gastos .ex-grp.ex-g-prox{--gc:14 116 144;--gbg:#E1EEF4;--gb:.22;--gh:.16}
+html.day #pc-tab-gastos .ex-grp.ex-g-venc .t{color:#B91C1C}
+html.day #pc-tab-gastos .ex-grp.ex-g-urge .t{color:#9A3412}
+/* ⚠ Un paso MÁS OSCURO que el `#0E7490` del día, y no por gusto: con la
+   superficie teñida puesta el fondo bajo el texto pasa a rgb(216,232,240) y el
+   cian de siempre se quedaba en 4,27:1 — por debajo de AA a 10,5 px. Añadir un
+   fondo BAJA el contraste del texto que lleva encima: es el arrastre del IRPF,
+   aquí provocado por el propio arreglo. Medido: 5,18:1 y 5,50:1. */
+html.day #pc-tab-gastos .ex-grp.ex-g-pend .t,html.day #pc-tab-gastos .ex-grp.ex-g-prox .t{color:#0C6680}
+html.day #pc-tab-gastos .ex-prox{background:#F1F6FB;border-color:rgba(2,132,199,.35)}
+html.day #pc-tab-gastos .ex-prox .t{color:#0B1220}
+html.day #pc-tab-gastos .ex-prox .s{color:#3C5468}
+html.day #pc-tab-gastos .ex-prox .v{color:#0B4A6F}
+html.day #pc-tab-gastos .ex-espera{background:#F1F5F9;border-color:rgba(15,23,42,.18);color:#3C5468}
 #pc-tab-gastos .ex-mesbar{align-items:center}
 #pc-tab-gastos .ex-mesbar .m{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 

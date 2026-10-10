@@ -44,6 +44,16 @@
        y sin tocar el backend, que además es lo que hace que funcione en beta: una
        ruta o un filtro nuevos del servidor nacen rotos en beta hasta producción. */
     cargos: '',
+    /* PLAZOS (js/plazos.js): deciden de qué plazos se avisa. Cadenas, como
+       `cargos`, para que sincronicen sin tocar el servidor.
+       · patron: '' | 'libre' | 'fijo' — sin indicar se avisa de TODO (los XOFF
+         sólo son de patrón libre, pero callarlos por no saberlo sería decidir
+         por él).
+       · reducciones: 'familiar,hijos16,mayores55,anual' — las que tiene o le
+         interesan. Sin ninguna NO se avisa de plazos de reducción: avisar a
+         todos de cada uno es el ruido que hace que se dejen de leer. */
+    patron: '',
+    reducciones: '',
     idioma: '',         // es | en   -> ES el idioma de la app: el selector ES/EN de
                         // ARIA escribe AQUÍ (window.pilotosSetIdioma), no un ajuste
                         // aparte. Hubo las dos precedencias posibles entre este campo
@@ -119,6 +129,26 @@
        versión nueva del perfil por haberlos tocado en otro orden. */
     ppSave({ cargos: PP_CARGOS.filter(function (x) { return l.indexOf(x) >= 0; }).join(',') });
     return ppCargos();
+  }
+
+  /* ── Patrón y reducciones (los lee js/plazos-ui.js) ─────────────────────── */
+  var PP_REDUCCIONES = ['familiar', 'hijos16', 'mayores55', 'anual'];
+  function ppReducciones() {
+    return String(PROFILE.reducciones || '').split(',').map(function (x) { return x.trim(); })
+      .filter(function (x) { return PP_REDUCCIONES.indexOf(x) >= 0; });
+  }
+  function ppAvisaPlazos() { try { if (window.PlazosUI) window.PlazosUI.pinta(); } catch (e) {} }
+  function ppTogglePatron(v) {
+    ppSave({ patron: PROFILE.patron === v ? '' : v });   // tocar el marcado lo desmarca: «sin indicar» se puede volver
+    ppAvisaPlazos();
+  }
+  function ppToggleReduccion(r) {
+    if (PP_REDUCCIONES.indexOf(r) < 0) return ppReducciones();
+    var l = ppReducciones(), i = l.indexOf(r);
+    if (i >= 0) l.splice(i, 1); else l.push(r);
+    ppSave({ reducciones: PP_REDUCCIONES.filter(function (x) { return l.indexOf(x) >= 0; }).join(',') });
+    ppAvisaPlazos();
+    return ppReducciones();
   }
 
   // ── ÚNICA puerta de escritura ────────────────────────────────────────────
@@ -798,6 +828,40 @@
       '<div class="pp-note" style="padding-top:0">Con esto puesto, al traerte un simulador del roster al logbook viene ya marcado como <b>impartido</b>. Sin ello se cuenta como formación de alumno — 119,03 € en vez de 800,99 (TRI) o 924,22 (TRE).</div>';
   }
 
+  /* Patrón y reducciones: de esto salen los avisos de plazos. Mismos chips que
+     los cargos (misma clase, mismas dos paletas), no un cuarto juego de colores. */
+  var _RED_TXT = { familiar: ['Familiar', 'guarda legal', 'Family', 'legal guardian'], hijos16: ['Hijos 12–16', 'año completo', 'Children 12–16', 'full year'],
+                   mayores55: ['Mayores 55', 'desde los 54', 'Over 55', 'from age 54'], anual: ['Anual', '5 años antig.', 'Annual', '5 yrs service'] };
+  function _filaPlazos() {
+    var pat = PROFILE.patron, red = ppReducciones();
+    /* Rótulos de UNA palabra («Libre», «Anual»): como clave del diccionario
+       serían GLOBALES, así que van con data-i18n-en, que es local. */
+    var chip = function (on, onclick, a, b, aEn, bEn) {
+      return '<div class="pp-cargo' + (on ? ' on' : '') + '" role="button" tabindex="0" aria-pressed="' + (on ? 'true' : 'false') + '"' +
+        ' onclick="' + onclick + ';ppRenderScreen()"><span data-i18n-en="' + _esc(aEn) + '">' + _esc(a) + '</span>' +
+        '<small data-i18n-en="' + _esc(bEn) + '">' + _esc(b) + '</small></div>';
+    };
+    return '<div class="pp-row" style="border-bottom:none;padding-bottom:5px"><div class="pp-ico">⏳</div>' +
+      '<div class="pp-lbl"><b>Patrón de programación</b><span>' +
+        (pat === 'fijo' ? 'Patrón fijo' : pat === 'libre' ? 'Patrón libre' : 'Sin indicar · te avisamos de todo') + '</span></div></div>' +
+      '<div class="pp-cargos">' +
+        chip(pat === 'libre', "PilotProfile.togglePatron('libre')", 'Libre', 'XOFF', 'Free', 'XOFF') +
+        chip(pat === 'fijo', "PilotProfile.togglePatron('fijo')", 'Fijo', '5-4', 'Fixed', '5-4') + '</div>' +
+      '<div class="pp-row" style="border-bottom:none;padding-bottom:5px"><div class="pp-ico">👪</div>' +
+      /* Las reducciones marcadas se juntan en ejecución («Familiar · Anual»): esa
+         cadena no puede ser una clave del diccionario, así que lleva su inglés en
+         data-i18n-en, que es local. */
+      '<div class="pp-lbl"><b>Reducción de jornada</b>' +
+        (red.length ? '<span data-i18n-en="' + _esc(red.map(function (r) { return _RED_TXT[r][2]; }).join(' · ')) + '">' +
+          _esc(red.map(function (r) { return _RED_TXT[r][0]; }).join(' · ')) + '</span>'
+          : '<span>Ninguna · marca la que tengas o te interese</span>') + '</div></div>' +
+      '<div class="pp-cargos">' + PP_REDUCCIONES.map(function (r) {
+        var x = _RED_TXT[r];
+        return chip(red.indexOf(r) >= 0, "PilotProfile.toggleReduccion('" + r + "')", x[0], x[1], x[2], x[3]);
+      }).join('') + '</div>' +
+      '<div class="pp-note" style="padding-top:0">Con esto, «Avisos y plazos» te avisa sólo de lo tuyo: los XOFF si estás en patrón libre, y los plazos de la reducción que marques.</div>';
+  }
+
   function ppRenderScreen() {
     ppCss();
     var cont = document.getElementById('pp-screen-body');
@@ -870,7 +934,7 @@
          que no está «en blanco», sino deducido, y se puede corregir. */
       _fila('🧑‍✈️', 'Nombre de chequeo', 'El de la lista de tripulación: sale solo en tu asiento', 'nombreTripulacion',
             ppNombreTrip() || 'APELLIDO', '120px') +
-      _filaCargos() + '</div>';
+      _filaCargos() + _filaPlazos() + '</div>';
 
     h += '<div class="pp-sh">Preferencias</div><div class="pp-card">' +
       '<div class="pp-row"><div class="pp-ico">🗣️</div>' +
@@ -1683,6 +1747,7 @@
     // Para el banco: saber si TOCA preguntar sin llegar a abrir la hoja.
     altaToca: ppAltaToca,
     cargos: ppCargos, tieneCargo: ppTieneCargo, toggleCargo: ppToggleCargo,
+    togglePatron: ppTogglePatron, toggleReduccion: ppToggleReduccion, reducciones: ppReducciones,
     altaCargo: ppAltaCargo, altaZarandea: ppAltaZarandea,
     altaBoton: ppAltaBoton, altaSugiereTrip: ppAltaSugiereTrip,
     nombreTrip: ppNombreTrip

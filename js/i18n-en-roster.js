@@ -5,6 +5,96 @@
 (function(){
   if (typeof window.pilotosI18nAdd !== 'function') return;
   window.pilotosI18nAdd('en', {
+    // Ficha «Límites FTL» rediseñada (27-sep-2026)
+    "POSICIONAL": "POSITIONING",
+    "📋 Límites FTL": "📋 FTL limits",
+    "Dentro de límites": "Within limits",
+    "Pisa tu descanso": "Cuts into your rest",
+    "Solo con discreción del CMD": "Commander's discretion only",
+    "Ilegal · no permitido": "Illegal · not allowed",
+    "Simulando": "Simulating",
+    "↺ Quitar": "↺ Clear",
+    "Empiezas a trabajar. Desde aquí cuenta todo.": "Your duty starts. Everything counts from here.",
+    "Firma real": "Actual report",
+    "Del report a los calzos del último vuelo.": "From report to on-blocks of the last flight.",
+    "Máx FDP": "Max FDP",
+    "Lo máximo legal para hoy": "The legal maximum for today",
+    "({0} sectores).": "({0} sectors).",
+    "({0} sector).": "({0} sector).",
+    "hasta": "until",
+    "Todo tu día. Acaba más tarde que el FDP por el posicional": "Your whole day. It ends after the FDP because of the positioning flight",
+    "Todo tu día: FDP + 20 min de debriefing.": "Your whole day: FDP + 20 min debriefing.",
+    "posicional": "positioning",
+    "duty termina": "duty ends",
+    "máx FDP": "max FDP",
+    "vuelo hoy": "flight today",
+    "Hacer calzos antes de": "On-blocks before",
+    "lo marca tu descanso": "set by your rest",
+    "lo marca el FDP máximo": "set by max FDP",
+    "Detalle y retrasos": "Details and delays",
+    "Ocultar detalle": "Hide details",
+    "te sobran {0} min": "{0} min to spare",
+    "te sobran {0}h{1}": "{0}h{1} to spare",
+    "te sobraron {0} min": "{0} min to spare",
+    "te sobraron {0}h{1}": "{0}h{1} to spare",
+    "te pasas {0} min": "{0} min over",
+    "te pasas {0}h{1}": "{0}h{1} over",
+    "te pasaste {0} min": "{0} min over",
+    "te pasaste {0}h{1}": "{0}h{1} over",
+    "DETALLE": "DETAILS",
+    "Tu día de hoy": "Your day",
+    "Sin problema": "No problem",
+    "Retrasa tu firma de mañana": "Delays tomorrow's report",
+    "Discreción del CMD": "Commander's discretion",
+    "Ilegal": "Illegal",
+    "Programado": "Scheduled",
+    "Simular retrasos": "Simulate delays",
+    "Pon el retraso de salida de cada sector. Pasa entero a los siguientes: la escala programada se conserva.": "Set each sector's departure delay. It carries over in full to the next ones: the scheduled turnaround is kept.",
+    "Todos los sectores han salido: no queda nada que simular.": "All sectors have departed: nothing left to simulate.",
+    "Volado": "Flown",
+    "✓ Volado": "✓ Flown",
+    "En vuelo": "Airborne",
+    "✈ En vuelo": "✈ Airborne",
+    "salió": "departed",
+    "Sale": "Departs",
+    "Arrastra": "Carries",
+    "de los sectores anteriores": "from earlier sectors",
+    "Último sector: sal de calzos antes de las": "Last sector: off-blocks before",
+    "Sal de calzos antes de las": "Off-blocks before",
+    "Límite de salida": "Latest off-blocks",
+    "Último sector: límite de salida": "Last sector: latest off-blocks",
+    "Sal de calzos antes de": "Off-blocks before",
+    "En el último decide la puerta: una vez fuera de calzos se sigue a destino.": "On the last sector the gate decides: once off-blocks you continue to destination.",
+    "En el último, una vez fuera de calzos se sigue a destino.": "On the last sector, once off-blocks you continue to destination.",
+    "Cada sector lleva su última hora de salida: la que aún deja hacer calzos dentro del límite con las escalas programadas.": "Each sector shows its latest off-blocks time: the one that still gets you on-blocks within the limit using scheduled turnarounds.",
+    "Los límites, por orden": "The limits, in order",
+    "Hora a la que tienes que hacer calzos": "Time by which you must be on-blocks",
+    "Tu descanso": "Your rest",
+    "Próxima firma": "Next report",
+    "Si haces calzos más tarde, hay que retrasarla.": "If you're on-blocks later, it has to be delayed.",
+    "Con un DP de más de 12 h, el descanso tiene que igualarlo (ORO.FTL.235).": "With a duty over 12 h, rest must match it (ORO.FTL.235).",
+    // Descanso mínimo en base (12 h) o fuera de base (10 h) — 8-oct-2026
+    "Con un DP de más de 10 h, el descanso tiene que igualarlo (ORO.FTL.235).": "With a duty over 10 h, rest must match it (ORO.FTL.235).",
+    "Acabas fuera de base": "You finish away from base",
+    "descanso mínimo 10 h": "minimum rest 10 h",
+    "Acabas en base": "You finish at base",
+    "descanso mínimo 12 h": "minimum rest 12 h",
+    "Descanso mínimo 12 h (pon tu base en Mi perfil para aplicar las 10 h fuera de base)": "Minimum rest 12 h (set your base in My profile to apply the 10 h away from base)",
+    "Sin jornada siguiente en el roster.": "No next duty in the roster.",
+    "Hoy no te limita": "Doesn't limit you today",
+    "próxima firma": "next report",
+    "Máximo legal": "Legal maximum",
+    "desde la firma": "from report",
+    "Discreción del comandante": "Commander's discretion",
+    "Hasta +2 h, recortado por el descanso mínimo de 10 h.": "Up to +2 h, capped by the 10 h minimum rest.",
+    "Hasta +2 h, solo por imprevistos. Decide y reporta el comandante.": "Up to +2 h, unforeseen circumstances only. The commander decides and reports.",
+    "Reforzada +3 h": "Augmented +3 h",
+    "MANDA": "LIMITING",
+    "Ver cálculo completo (ORO.FTL.205 / 235)": "Full calculation (ORO.FTL.205 / 235)",
+    "sale de calzos": "off-blocks",
+    "· calzos {0}": "· on-blocks {0}",
+    "· calzos {0}+{1}": "· on-blocks {0}+{1}",
+    "hace calzos": "on-blocks",
     // Cambios de programación sin conexión (Beta.922)
     "sin conexión": "offline",
     "Sin conexión · cambios calculados con la última consulta": "Offline · changes worked out from the last check",
@@ -173,6 +263,13 @@
     "actividad asignada en día de reserva": "activity assigned on a reserve day",
     "Actividades del día": "Day's activities",
     "Actualizar roster": "Update roster",
+    /* Los dos del grupo «Traer el roster». El de arriba («Actualizar roster»)
+       se conserva a propósito: el Service Worker no cambia de caché hasta que
+       sube la versión, así que durante un rato el diccionario nuevo atiende a
+       la app anterior. */
+    "Actualizar desde eCrews": "Update from eCrews",
+    "Subir un archivo": "Upload a file",
+    "Reemplaza el mes con un PDF, TXT o foto": "Replaces the month with a PDF, TXT or photo",
     "Ajustes del roster": "Roster settings",
     "al mes": "per month",
     "al report": "to report",
@@ -543,6 +640,17 @@
     "Sincronización directa con eCrews": "Direct sync with eCrews",
     "Sincronizar eCrews": "Sync eCrews",
     "Sincronizar este mes con eCrews": "Sync this month with eCrews",
+    /* La hoja que pregunta antes de REEMPLAZAR el mes. El cuerpo se compone en
+       ejecución con el número de días y la lista, así que va por plantilla: una
+       clave exacta no casaría nunca y el aviso que protege el roster del piloto
+       saldría en castellano en medio de una pantalla inglesa. */
+    "¿Reemplazar el mes?": "Replace the month?",
+    "Sí, reemplazar": "Yes, replace",
+    "Una importación no añade: reemplaza el mes entero.": "An import does not add: it replaces the whole month.",
+    "Lo que subes no trae 1 día que este mes ya tiene, así que se quedará vacío.": "What you are uploading is missing 1 day this month already has, so it will be left empty.",
+    "Lo que subes no trae {0} días que este mes ya tiene, así que se quedarán vacíos.": "What you are uploading is missing {0} days this month already has, so they will be left empty.",
+    "Si has fotografiado una sola página, cancela y sube el roster completo.": "If you photographed a single page, cancel and upload the full roster.",
+    "Importación cancelada · el mes no se ha tocado": "Import cancelled · the month was left untouched",
     "solo cambia la hora E (estimada)": "only the E (estimated) time changes",
     "solo el inicio, justo en el umbral": "start only, exactly at threshold",
     "sólo la hora": "time only",
@@ -616,5 +724,52 @@
     "Ya no hay escala por delante que absorba otro retraso.": "No stop remains ahead to absorb another delay.",
     "Ya tenías una solicitud en marcha — responde a ÉSTA": "You already had a request in progress — respond to THIS one",
     "Ya tienes un roster — subir uno nuevo lo reemplazará": "You already have a roster — uploading a new one will replace it"
+  }, [
+    // Aviso de la ficha «Límites FTL»: el texto se arma por trozos (horas y duraciones
+    // variables) y varias frases caen en el MISMO nodo, así que se traduce frase a frase.
+    [/Rompes el descanso por|Requiere discreción del comandante|Excedes el FDP máximo en|No operable\.|del techo con discreción|Queda .+ de margen\.|El DP cierra a las|El techo real es .+ de llegada|Si ya has despegado, sigues a destino/,
+     function (m) {
+       var s = m.input;
+       var R = [
+         [/Rompes el descanso por/g, 'You break rest by'],
+         [/El DP cierra a las/g, 'Duty ends at'],
+         [/— habría que retrasar la firma a las/g, '— report would have to be delayed to'],
+         [/Requiere discreción del comandante/g, "Requires commander's discretion"],
+         [/Excedes el FDP máximo en/g, 'You exceed max FDP by'],
+         [/El techo real es (.+?) de llegada: el descanso no baja de 10 h\./g,
+          'The real ceiling is arrival at $1: rest cannot go below 10 h.'],
+         [/No operable\./g, 'Not operable.'],
+         [/Te pasas (.+?) del techo con discreción\./g, 'You are $1 over the discretion ceiling.'],
+         [/Si ya has despegado, sigues a destino: el límite se decidía en calzos\./g,
+          'If you have already taken off, continue to destination: the limit was decided at off-blocks.'],
+         [/Queda (.+?) de margen\./g, '$1 of margin left.'],
+         [/Ya no hay escala por delante que absorba otro retraso\./g,
+          'No stop remains ahead to absorb another delay.']
+       ];
+       for (var i = 0; i < R.length; i++) s = s.replace(R[i][0], R[i][1]);
+       return s;
+     }]
+  ]);
+
+  /* Las guardias del año (Beta.1023): el número grande pasa a ser DÍAS y se
+     añade el reparto por mes. */
+  window.pilotosI18nAdd('en', {
+    "Días de guardia · te sacaron": "Standby days · called out",
+    "Guardias · por mes": "Standby · by month",
+    "te sacaron": "called out",
+    "sin sacar": "not called",
+    "en {0} bloque(s) de guardia · te sacaron en {1}": "in {0} standby block(s) · called out on {1}",
+    "un bloque es una vez que te ponen de guardia: un OSB3 son tres días y una sola vez.":
+      "a block is one time they put you on standby: an OSB3 is three days and a single time.",
+    "Media: {0} días de guardia al mes.": "Average: {0} standby days per month.",
+    "te sacaron = te asignaron vuelo o actividad aeroportuaria, el mismo criterio que la nómina.":
+      "called out = you were assigned a flight or airport duty, the same criterion as the payslip.",
+    "Ninguno de los meses importados trae guardias.": "None of the imported months has any standby.",
+    "cuentan OSB*, *SBY (SBY, HSBY, 2SBY…), AA y AAI — todos son guardia, y un día con vuelo encima sigue contando como el día de guardia del que te sacaron.":
+      "OSB*, *SBY (SBY, HSBY, 2SBY…), AA and AAI all count as standby, and a day with a flight on it still counts as the standby day you were called out from.",
+    "cuentan OSB*, *SBY (SBY, HSBY, 2SBY…), AA y AAI — todos son guardia. Un día con vuelo encima sigue contando: es el día de guardia del que te sacaron.":
+      "OSB*, *SBY (SBY, HSBY, 2SBY…), AA and AAI all count as standby. A day with a flight on it still counts: it is the standby day you were called out from.",
+    "una barra a ras es un mes importado SIN guardias; una raya gris es un mes que no tienes importado.":
+      "a flat bar is an imported month with NO standby; a grey line is a month you have not imported."
   });
 })();

@@ -280,6 +280,21 @@ function ventana(d){
     d.inicio = r.inicio;
     d.fin    = r.fin;
   }
+  /* Los vuelos, EN ORDEN DE JORNADA (pedido 27-sep: la ficha del cambio listaba el
+     VY1266 de las 08:10 encima del VY1265 de las 03:50). El orden de llegada aquí
+     es el del roster, que no tiene por qué ser cronológico.
+     Se ordena por minutos DESDE EL ANCLA, no por la hora del reloj: una jornada
+     que sale a las 18:10 y tiene un tramo a las 00:14 lo quiere al FINAL, que es
+     donde está — es el mismo criterio de día de servicio que usa el parser. */
+  (function(){
+    var a = d.inicio != null ? d.inicio : ancla(d);
+    if (a == null) return;
+    var desde = function(t){ return t == null ? 1e9 : ((((t - a) % 1440) + 1440) % 1440); };
+    d.vuelos.sort(function(x, y){
+      var dx = desde(x.std != null ? x.std : x.sta), dy = desde(y.std != null ? y.std : y.sta);
+      return dx - dy;
+    });
+  })();
   // Firma de los vuelos del día, para comparar «cambio de número de vuelo».
   d.numeros = d.vuelos.map(function(v){ return v.num; }).filter(Boolean).sort().join(',');
   return d;

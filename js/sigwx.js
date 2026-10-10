@@ -426,6 +426,9 @@ window.pilotosParseRoute = parseRouteWithNames;
     var _n = useState(0),           nonce = _n[0],    setNonce = _n[1];   // fuerza recarga
     var _of = useState(null),       ofp = _of[0],     setOfp = _of[1];   // cabecera del OFP leido
     var _ob = useState(false),      ofpBusy = _ob[0], setOfpBusy = _ob[1];
+    /* '' | 'leyendo' | 'lento' — el rótulo del botón sale de aquí: «se ha
+       colgado» y «va lento» no pueden verse igual. */
+    var _op = useState(''),         ofpPaso = _op[0], setOfpPaso = _op[1];
     var _fr = useState(null),       fronts = _fr[0],  setFronts = _fr[1];
     var _sc = useState(null),       chart = _sc[0],   setChart = _sc[1];
     /* ALTO = SIGWX de crucero (FL250–630): chorro, CB, turbulencia, hielo,
@@ -589,6 +592,12 @@ window.pilotosParseRoute = parseRouteWithNames;
        `window.COSTAS_MUNDO`, así que no añade dependencia — la hace explícita. Y
        si algún día falta, se DICE en consola en vez de devolver la tierra sin
        coser y dejar que la raya vuelva en silencio. */
+    /* Caja en GRADOS de cada anillo de `PILOTOS_ISLAS`, calculada una vez: el
+       descarte por pantalla tiene que costar cuatro comparaciones y no 1.088
+       proyecciones. Se indexa por la propia tabla, así que si alguien la
+       sustituye en caliente —lo hace el banco— la caché se rehace sola. */
+    var _cajasIslas = { fuente: null, cajas: null };
+
     var _avisado = false;
     function costasUnidas(land) {
       var f = (typeof W !== 'undefined' && W.pilotosCostasUnidas) ||
@@ -1220,6 +1229,71 @@ window.pilotosParseRoute = parseRouteWithNames;
         ctx.stroke();
       }
 
+      /* ── LAS ISLAS QUE NINGUNA DE LAS DOS COSTAS TIENE ──
+         «Además Malta no aparece en el mapa» (26-sep-2026, con el LEBL-LMML
+         delante). Medido: la caja de Malta tiene CERO puntos en las dos tablas
+         que dibuja esta carta — 0 en `COSTAS_MUNDO` (1:110m) y 0 en
+         `LDM.LANDS` (1:50m, y ésa sí tiene Baleares: 21 puntos). O sea que el
+         destino de la ruta se pintaba sobre mar abierto.
+
+         Y el arreglo estaba escrito y precargado en el mapa de al lado:
+         `PILOTOS_ISLAS` son 1.088 islas de menos de 1,5° QUE TIENEN
+         AEROPUERTO, Natural Earth 1:10m, ya en el `<script>` del documento y
+         ya en el precacheo del `sw.js`. El mapa del logbook las dibuja desde
+         que se vio que «con el punto del aeropuerto encima del mar, "no has
+         estado ahí" y "no sabemos dibujarlo" se ven igual». Aquí no llegó —
+         es `.sv-stick` contra `.b-sevstick` otra vez: la misma corrección, un
+         mapa más allá, sin que nada avise.
+
+         El criterio del dato es además el que hace falta aquí: una isla sin
+         aeropuerto no puede ser nunca el extremo de una ruta.
+
+         ⚠ Van DESPUÉS del relieve y fuera de su `clip()`: el recorte se arma
+         con el trazado de las costas, así que una isla que no está en ellas
+         quedaría recortada a nada. Sin relieve encima no se pierde nada —a
+         1,5° el ocre no tendría ni una celda— y el contorno las define igual.
+         ⚠ Y se lee de `window`, que es de donde la publica `islas.js`. */
+      /* ⚠ La caja de cada anillo se calcula UNA vez y en GRADOS, no por frame y
+         en píxeles. Proyectando los 1.088 anillos para tirar 1.084, el
+         repintado pasaba de 1,5 a 3,4 ms — MEDIDO, 1,89 ms por frame de más—, y
+         esta carta repinta mientras se arrastra. Con el descarte en grados sólo
+         se proyecta lo que se ve. Es «leer `clientWidth` por frame era el
+         reflow», por el lado de la geometría. */
+      var islas = window.PILOTOS_ISLAS;
+      if (islas && islas.length && SUELO.tierra) {
+        if (_cajasIslas.fuente !== islas) {
+          var cj = [];
+          for (var ci = 0; ci < islas.length; ci++) {
+            var ri = islas[ci], a0 = 1e9, a1 = -1e9, b0 = 1e9, b1 = -1e9;
+            for (var cp = 0; cp < ri.length; cp++) {
+              if (ri[cp][0] < a0) a0 = ri[cp][0]; if (ri[cp][0] > a1) a1 = ri[cp][0];
+              if (ri[cp][1] < b0) b0 = ri[cp][1]; if (ri[cp][1] > b1) b1 = ri[cp][1];
+            }
+            cj.push([a0, a1, b0, b1]);
+          }
+          _cajasIslas.fuente = islas; _cajasIslas.cajas = cj;
+        }
+        var mX = (W / 2) / (cam.sc * cam.z), mY = (H / 2) / (cam.sc * cam.z);
+        var vLo0 = cam.lon - mX - 0.2, vLo1 = cam.lon + mX + 0.2;
+        var vLa0 = unmy(my(cam.lat) - mY) - 0.2, vLa1 = unmy(my(cam.lat) + mY) + 0.2;
+        ctx.fillStyle = pinta(ctx, SUELO.tierra, H);
+        ctx.strokeStyle = SUELO.costa;
+        ctx.lineWidth = SUELO.anchoCosta;
+        for (var ii = 0; ii < islas.length; ii++) {
+          var cja = _cajasIslas.cajas[ii];
+          if (cja[1] < vLo0 || cja[0] > vLo1 || cja[3] < vLa0 || cja[2] > vLa1) continue;
+          var isl = islas[ii];
+          ctx.beginPath();
+          for (var kI = 0; kI < isl.length; kI++) {
+            var qI = P(isl[kI][0], isl[kI][1]);
+            if (kI === 0) ctx.moveTo(qI[0], qI[1]); else ctx.lineTo(qI[0], qI[1]);
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+      }
+
       /* ── frentes de superficie, con la simbología de la carta ──
          Triángulos al lado del avance en el frío, semicírculos en el cálido,
          alternados en el ocluido, y enfrentados en el estacionario. */
@@ -1680,7 +1754,29 @@ window.pilotosParseRoute = parseRouteWithNames;
        El OFP no imprime coordenadas: da nombres y distancias. El servidor los
        cruza con la base de puntos GPL e interpola los que faltan usando las
        propias distancias del OFP. Aqui solo se pinta lo que devuelve, y se
-       enseña el CONTROL: si las dos fuentes no cuadran, hay que saberlo. */
+       enseña el CONTROL: si las dos fuentes no cuadran, hay que saberlo.
+
+       ★ Y NADA de esto puede quedarse esperando para siempre. Reporte del
+       27-sep-2026: «no funciona el importar el OFP, se queda cargando todo el
+       rato». Reproducido conduciendo la pantalla con un servidor que recibe la
+       petición y no contesta: **«LEYENDO EL OFP…» a los 6 s, sin un solo toast,
+       con el input `disabled` y sin forma de reintentar sin recargar la app.**
+       No había ningún límite de tiempo en ninguna parte.
+
+       Lo que NO era, medido antes de tocar nada — para que nadie lo vuelva a
+       buscar ahí: el parseo con mupdf de 40 páginas densas cuesta **236 ms**
+       (5 pág 45 ms · 20 pág 54 · 40 pág 133 · 40 pág dobles 236), así que el
+       sospechoso obvio queda descartado con una medida y no con una
+       corazonada. Lo que sí puede tardar es la SUBIDA por 4G —un OFP de 700 KB
+       son ~950 KB de base64— y el arranque en frío del backend de producción,
+       que es a quien llama la app también en beta.
+
+       ⚠ Por eso el techo es GENEROSO (90 s) y no un número corto: un techo
+       apretado convertiría un OFP que iba a llegar en un fallo, y «un aviso que
+       salta siempre deja de servir justo para cuando sea verdad». Lo que se
+       arregla no es la espera: es que la espera fuera MUDA y sin salida. */
+    var OFP_TECHO_MS = 90000;      // tope duro: pasado esto se DICE y se suelta
+    var OFP_LENTO_MS = 12000;      // a partir de aquí el rótulo dice que sigue
     function subeOfp(file) {
       if (!file) return;
       if (!/\.pdf$/i.test(file.name || '')) {
@@ -1688,30 +1784,65 @@ window.pilotosParseRoute = parseRouteWithNames;
         return;
       }
       setOfpBusy(true);
+      setOfpPaso('leyendo');
       var fr = new FileReader();
-      fr.onerror = function () { setOfpBusy(false); if (typeof showToast === 'function') showToast('No se ha podido leer el archivo', 'error'); };
+      fr.onerror = function () { setOfpBusy(false); setOfpPaso(''); if (typeof showToast === 'function') showToast('No se ha podido leer el archivo', 'error'); };
       fr.onload = function () {
-        var tok = (typeof ldAuthHeaders === 'function') ? ldAuthHeaders() : null;
-        fetch(ldBackendUrl() + '/api/route/ofp', {
-          method: 'POST',
-          headers: Object.assign({ 'Content-Type': 'application/json' }, tok ? { Authorization: 'Bearer ' + tok } : {}),
-          body: JSON.stringify({ pdf_buffer: String(fr.result).replace(/^data:[^,]+,/, '') })
-        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
-          .then(function (x) {
-            setOfpBusy(false);
-            if (!x.ok || !x.j.ok) {
-              if (typeof showToast === 'function') showToast('❌ ' + ((x.j && x.j.error) || 'No se ha podido leer el OFP'), 'error');
-              return;
-            }
-            var r = x.j;
-            setOfp(r);
-            setRoute({ pts: r.pts, names: r.names, src: 'ofp', label: 'RUTA DEL OFP' });
-                camRef.current.z = 1;
-            if (typeof showToast === 'function') showToast('✅ ' + r.pts.length + ' puntos del plan de vuelo', 'success');
-          }).catch(function () {
-            setOfpBusy(false);
-            if (typeof showToast === 'function') showToast('❌ Sin conexion', 'error');
-          });
+        /* ⚠ TODO el cuerpo va en try: una excepción aquí —`ldAuthHeaders` o
+           `ldBackendUrl` lanzando, o un `camRef` vacío— se escapaba del
+           manejador del FileReader y dejaba el botón muerto y MUDO, sin llegar
+           nunca al `catch` del fetch. Es el mismo cuelgue por otra puerta. */
+        try {
+          var tok = (typeof ldAuthHeaders === 'function') ? ldAuthHeaders() : null;
+          /* Un solo reloj para las dos cosas: el aborto y lo que dice el
+             rótulo. Con dos temporizadores el botón puede decir «va lento»
+             de una petición ya abortada. */
+          var ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+          var vivo = true;
+          var tLento = setTimeout(function () { if (vivo) setOfpPaso('lento'); }, OFP_LENTO_MS);
+          var tTope = setTimeout(function () {
+            if (!vivo) return;
+            vivo = false;
+            try { if (ctl) ctl.abort(); } catch (e) {}
+            setOfpBusy(false); setOfpPaso('');
+            /* Se dice EN QUÉ paso se ha quedado y que se puede reintentar: «se
+               ha colgado» y «no se ha enterado» se veían igual, y el piloto no
+               tenía ni cómo volver a intentarlo. */
+            if (typeof showToast === 'function')
+              showToast('⏱ El servidor no ha contestado al OFP en ' + Math.round(OFP_TECHO_MS / 1000) +
+                        ' s. El PDF se ha leído bien aquí: vuelve a pulsar ADJUNTAR OFP para reintentar.', 'error');
+          }, OFP_TECHO_MS);
+          var suelta = function () { vivo = false; clearTimeout(tLento); clearTimeout(tTope); };
+
+          fetch(ldBackendUrl() + '/api/route/ofp', {
+            method: 'POST',
+            headers: Object.assign({ 'Content-Type': 'application/json' }, tok ? { Authorization: 'Bearer ' + tok } : {}),
+            body: JSON.stringify({ pdf_buffer: String(fr.result).replace(/^data:[^,]+,/, '') }),
+            signal: ctl ? ctl.signal : undefined
+          }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (x) {
+              if (!vivo) return;                       // el tope ya avisó
+              suelta();
+              setOfpBusy(false); setOfpPaso('');
+              if (!x.ok || !x.j.ok) {
+                if (typeof showToast === 'function') showToast('❌ ' + ((x.j && x.j.error) || 'No se ha podido leer el OFP'), 'error');
+                return;
+              }
+              var r = x.j;
+              setOfp(r);
+              setRoute({ pts: r.pts, names: r.names, src: 'ofp', label: 'RUTA DEL OFP' });
+              try { if (camRef.current) camRef.current.z = 1; } catch (e) {}
+              if (typeof showToast === 'function') showToast('✅ ' + r.pts.length + ' puntos del plan de vuelo', 'success');
+            }).catch(function (e) {
+              if (!vivo) return;                       // abortado por el tope
+              suelta();
+              setOfpBusy(false); setOfpPaso('');
+              if (typeof showToast === 'function') showToast('❌ Sin conexion', 'error');
+            });
+        } catch (e) {
+          setOfpBusy(false); setOfpPaso('');
+          if (typeof showToast === 'function') showToast('❌ No se ha podido enviar el OFP: ' + (e && e.message || e), 'error');
+        }
       };
       fr.readAsDataURL(file);
     }
@@ -2188,7 +2319,13 @@ window.pilotosParseRoute = parseRouteWithNames;
                  fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '.8px',
                  opacity: ofpBusy ? .6 : 1 }
       },
-        ofpBusy ? 'LEYENDO EL OFP…' : '📎 ADJUNTAR OFP (PDF)',
+        /* ★ El rótulo dice EN QUÉ paso está. Antes decía «LEYENDO EL OFP…»
+           desde el primer instante, cuando lo que está pasando es que el PDF
+           se está SUBIENDO —un OFP son ~950 KB de base64 por 4G—, y a partir
+           de ahí no volvía a cambiar nunca: a los 3 s y a los 3 min ponía lo
+           mismo. «Va lento» y «se ha colgado» tenían la misma cara. */
+        ofpBusy ? (ofpPaso === 'lento' ? 'SIGUE SUBIENDO EL OFP…' : 'LEYENDO EL OFP…')
+                : '📎 ADJUNTAR OFP (PDF)',
         h('input', {
           type: 'file', accept: 'application/pdf,.pdf', disabled: ofpBusy,
           onChange: function (e) { var f = e.target.files && e.target.files[0]; e.target.value = ''; subeOfp(f); },
@@ -2215,6 +2352,17 @@ window.pilotosParseRoute = parseRouteWithNames;
                    color: ofp.control.peor <= 3 ? T.grn : T.amb }
         }, (ofp.control.peor <= 3 ? '✓ ' : '⚠ ') + 'contraste base de puntos vs distancias del OFP: ' +
            ofp.control.medio + ' NM de media, ' + ofp.control.peor + ' NM el peor (' + ofp.control.tramos + ' tramos)') : null,
+        /* ★ Un punto que la base SÍ tenía y el OFP desmiente NO es lo mismo que
+           uno que falta, y por eso va en su propia línea y en ámbar: el que
+           falta es un hueco y éste era un dato MALO — es el pico que el piloto
+           ve en el mapa. Decir «N no están en la base» de un OSPOK que sí
+           estaba sería esconder justo lo que hay que contar. */
+        ofp.conflictivos && ofp.conflictivos.length ? h('div', {
+          style: { fontSize: 7.5, fontFamily: mono, color: T.amb, marginTop: 5, lineHeight: 1.5 }
+        }, '⚠ ' + ofp.conflictivos.join(' ') + (ofp.conflictivos.length > 1 ? ': sus coordenadas' : ': su coordenada') +
+           ' de la base no cabe' + (ofp.conflictivos.length > 1 ? 'n' : '') +
+           ' en las distancias del propio OFP. Se coloca' + (ofp.conflictivos.length > 1 ? 'n' : '') +
+           ' por distancia, como los que la base no tiene.') : null,
         ofp.interpolados ? h('div', { style: { fontSize: 7, fontFamily: mono, color: T.tx3, marginTop: 5, lineHeight: 1.5 } },
           ofp.resueltos + ' puntos salen de la base; ' + ofp.interpolados + ' no estan en ella y se colocan por su distancia en el OFP: ' +
           ofp.desconocidos.slice(0, 6).join(' ') + (ofp.desconocidos.length > 6 ? '…' : '')) : null) : null));

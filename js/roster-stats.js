@@ -343,7 +343,17 @@ function compara(iniEntries, actEntries, mes){
    de tres que eCrews reescribe cuando te sacan varios días seguidos declara
    más días de los que quedan a la vista, y esa aritmética es del convenio, no
    de una pantalla de estadísticas. Aquí se cuentan los días de guardia que el
-   ROSTER enseña, y la pantalla lo dice así. */
+   ROSTER enseña, y la pantalla lo dice así.
+
+   ⚠ BLOQUE y DÍA son dos cuentas distintas, y las dos viajan porque las dos
+   hacen falta: un bloque es UNA VEZ que te ponen de guardia (un OSB3 son tres
+   días y una sola vez), un día es UNA GUARDIA que haces. El piloto cuenta días
+   —son los que puede contar en su calendario— así que es el día el que manda en
+   el número grande. Medido sobre siete meses reales: 17 días de guardia en 11
+   bloques, y la pantalla enseñaba «11».
+
+   Y `porMes` porque la pregunta se hace por mes («hay que contabilizarlos por
+   mes»): un 17 del año no se puede comprobar contra nada, y doce cifras sí. */
 var COD_AEROPUERTO = ['AA','AAI'];
 function guardias(entries, desde, hasta){
   var J = RC().jornadas(entries || []);
@@ -363,12 +373,31 @@ function guardias(entries, desde, hasta){
   bloques.forEach(function(b){
     b.activada = b.fechas.some(function(d){ return act[d]; });
   });
+  /* Por mes, con la MISMA lista de días y el MISMO `act`: una segunda pasada
+     con su propio criterio sería el caso ES_AIRPORTS / ES_IATA dentro de una
+     función. Las claves son los meses que de verdad tienen guardias; los que
+     no, no están, y quien pinte la serie decide qué hace con el hueco. */
+  var porMes = {};
+  dias.forEach(function(d){
+    var m = d.slice(0, 7);
+    var o = porMes[m] || (porMes[m] = { dias: 0, diasActivados: 0, bloques: 0, activadas: 0 });
+    o.dias++; if (act[d]) o.diasActivados++;
+  });
+  /* Un bloque se cuenta en el mes de su PRIMER día: es cuando te ponen de
+     guardia, y así la suma de los meses es el total aunque un bloque cruce de
+     mes. Repartirlo por los dos lados daría más bloques que los que hubo. */
+  bloques.forEach(function(b){
+    var m = b.desde.slice(0, 7);
+    var o = porMes[m] || (porMes[m] = { dias: 0, diasActivados: 0, bloques: 0, activadas: 0 });
+    o.bloques++; if (b.activada) o.activadas++;
+  });
   return {
     dias: dias.length,
     bloques: bloques,
     total: bloques.length,
     activadas: bloques.filter(function(b){ return b.activada; }).length,
-    diasActivados: dias.filter(function(d){ return act[d]; }).length
+    diasActivados: dias.filter(function(d){ return act[d]; }).length,
+    porMes: porMes
   };
 }
 function diaSig(iso){

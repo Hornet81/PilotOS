@@ -69,6 +69,49 @@ function fdate(s){ var d = new Date(s+'T12:00:00Z');
 function sinDia(s){ return s.split(' ').slice(1).join(' '); }
 function daysLeft(s){ var d = new Date(s+'T12:00:00Z');
   return DEADLINE - Math.round((Date.now() - d.getTime())/86400000); }
+/* ════════ EL FUTURO EXISTE, Y HASTA HOY LA APP NO LO SABÍA ════════
+   El roster se publica un mes antes, así que el motor deriva notas de servicios
+   que TODAVÍA NO HAS VOLADO. Y la lista ordenaba por fecha descendente, con lo
+   que esas notas flotaban arriba del todo y empujaban hacia abajo lo único
+   sobre lo que se puede actuar.
+
+   Peor que el orden: se contaban como pendientes. «Faltan 4 notas por
+   justificar» incluía dos comidas que el piloto no se ha comido — el ámbar
+   encendido por algo que no ha hecho mal y un número grande inflado. Un ticket
+   que NO PUEDE EXISTIR todavía no es un ticket que falta. Es la familia del
+   avión inventado: la app afirmando algo que no sabe.
+
+   Cuatro cubos, y el eje no es la fecha sino QUÉ PUEDES HACER CON ESTO:
+     futura  → nada. Ni chip, ni plazo, ni alarma.
+     hoy     → el ticket lo llevas encima AHORA. Es el momento de capturarlo.
+     vencida / urge → manda el PLAZO, la que caduca antes primero.
+     pend    → el resto.
+   «Hoy» incluye AYER a propósito (criterio del piloto, 8-oct-2026): aterrizar
+   de noche y mirar la app por la mañana es lo normal. */
+var URGE_DIAS = 30;                 // con 90 de plazo, un mes es lo que deja reaccionar
+function hoyISO(d){
+  d = d || new Date(); var p = function(x){ return (x < 10 ? '0' : '') + x; };
+  return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
+}
+/* En LOCAL, no en UTC: `daysLeft` mide contra `Date.now()` y el piloto mira el
+   reloj de su muñeca. Comparar cadenas ISO funciona porque las dos tienen la
+   misma forma y el mismo huso. */
+function esFutura(n){ return String((n && n.date) || '') > hoyISO(); }
+function esReciente(n){
+  var f = String((n && n.date) || ''), hoy = hoyISO();
+  if (f === hoy) return true;
+  var ayer = new Date(); ayer.setDate(ayer.getDate() - 1);
+  return f === hoyISO(ayer);
+}
+function urgenciaDe(n){
+  if (esFutura(n))   return 'futura';
+  if (esReciente(n)) return 'hoy';
+  var d = daysLeft(n.date);
+  if (d < 0)          return 'vencida';
+  if (d <= URGE_DIAS) return 'urge';
+  return 'pend';
+}
+
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 
@@ -800,7 +843,7 @@ function cabeceraTipo(n, T){
       '<svg viewBox="0 0 16 16" width="46" height="46" fill="currentColor">'+
         (ICONOS[n.kind] || ICONOS.ops)+'</svg></span>'+
     '<span class="ex-tipo-ic">'+icono(n.kind)+'</span>'+
-    '<span class="ex-tipo-k">TICKET</span>'+
+    '<span class="ex-tipo-k" data-i18n-en="RECEIPT">TICKET</span>'+
     '<span class="ex-tipo-v">'+esc(T.lbl)+'</span>'+
   '</div>';
 }
@@ -828,9 +871,15 @@ function exRender(){
   function enMes(n){ return EX.mes === '*' || String(n.date||'').slice(0,7) === EX.mes; }
 
   var pend = pendAll.filter(enMes);
+  /* ⚠️ El resumen cuenta lo RECLAMABLE, y una nota futura no lo es. Hasta hoy
+     «0,00 de 196,52 € posibles · faltan 4 notas» metía dentro servicios que el
+     piloto no había volado: el número grande inflado y el aviso ámbar acusando
+     de dos tickets que no pueden existir. */
+  var futuras = pend.filter(esFutura);
+  var pendPas = pend.filter(function(n){ return !esFutura(n); });
   var done = all.filter(function(n){ return EX.sent[n.id]; }).filter(enMes);
-  var tope = sumaDe(pend, topeDe);
-  var recl = sumaDe(pend, reclamaDe);
+  var tope = sumaDe(pendPas, topeDe);
+  var recl = sumaDe(pendPas, reclamaDe);
   var margen = r2(tope - recl);
   /* Ya pasadas: lo que reclamaste según los tickets que tiene la app. Si de esa
      nota no guardaste ninguno, la app no puede saberlo → se enseña su tope. */
@@ -839,7 +888,8 @@ function exRender(){
      filtre el mes: un filtro que esconde un vencimiento es peor que no tener
      filtro. Si la que caduca antes es de otro mes, la baldosa lo dice y lleva
      a ese mes de un toque. */
-  var prox = pendAll.slice().sort(function(a,b){ return daysLeft(a.date)-daysLeft(b.date); })[0];
+  var prox = pendAll.filter(function(n){ return !esFutura(n); })
+    .sort(function(a,b){ return daysLeft(a.date)-daysLeft(b.date); })[0];
   var proxMes = prox ? prox.date.slice(0,7) : null;
   var proxFuera = !!(prox && EX.mes !== '*' && proxMes !== EX.mes);
 
@@ -866,11 +916,22 @@ function exRender(){
   h += '<div class="ex-hero">'+
     '<div class="ex-lbl">RECLAMAS · '+(EX.mes==='*' ? 'TODOS LOS MESES' : mesLargo(EX.mes))+'</div>'+
     '<div class="ex-big">'+eur(recl)+'</div>'+
-    '<div class="ex-sub">de <b>'+eur(tope)+'</b> posibles · '+pend.length+
-      (pend.length===1?' nota' : ' notas')+' · '+
-      pend.reduce(function(a,n){return a+n.lines.length;},0)+' líneas</div>'+
-    (pend.length ? '<div class="ex-pbar"><i style="width:'+pct+'%"></i></div>' : '')+
-    avisos(pend, prox, proxFuera, proxMes)+
+    '<div class="ex-sub">de <b>'+eur(tope)+'</b> reclamables · '+pendPas.length+
+      (pendPas.length===1?' nota que ya ha pasado' : ' notas que ya han pasado')+'</div>'+
+    (pendPas.length ? '<div class="ex-pbar"><i style="width:'+pct+'%"></i></div>' : '')+
+    avisos(pendPas, prox, proxFuera, proxMes)+
+    /* Las futuras se NOMBRAN —son dinero que viene— pero en gris y sin ámbar:
+       no hay nada que arreglar. */
+    /* ⚠ EL BOLD VA DELANTE, Y NO ES ESTÉTICA: el traductor casa NODOS DE TEXTO
+       enteros, así que «Y hay <b>2 notas más (110 €)</b> de servicios…» son tres
+       nodos y ninguno de los tres es una frase — en inglés se quedaba entera en
+       castellano. Con el bold al principio quedan DOS nodos y los dos son una
+       frase traducible. Dos números en la misma línea → plantilla {0}/{1}. */
+    (futuras.length
+      ? '<div class="ex-real info"><b>'+futuras.length+
+        (futuras.length===1 ? ' nota más (' : ' notas más (')+eur(sumaDe(futuras, topeDe))+
+        ')</b> de servicios que aún no has volado</div>'
+      : '')+
     nubeEstado()+'</div>';
 
   /* ════════ LOS TRES PASOS ════════
@@ -879,8 +940,15 @@ function exRender(){
      que filtrar no esconde nada: lo que hay en los otros dos lo dice el propio
      mando. Se eligen los que están, no un número guardado: si no queda nada sin
      ticket, entrar en Gastos abre por el paso que sí tiene trabajo. */
-  var grupos = { falta:[], lista:[], enviado:[] };
-  all.filter(enMes).forEach(function(n){ grupos[estadoDe(n)].push(n); });
+  var grupos = { falta:[], lista:[], enviado:[] }, futLista = [];
+  all.filter(enMes).forEach(function(n){
+    var e = estadoDe(n);
+    /* Una futura sin ticket no está en el paso «SIN TICKET»: no está bloqueada,
+       está esperando. Sale de la cuenta del chip y vive en su propio grupo al
+       final de la lista. */
+    if (e === 'falta' && esFutura(n)) { futLista.push(n); return; }
+    grupos[e].push(n);
+  });
   if (!grupos[EX.estado] || !grupos[EX.estado].length) EX.estado = primerPaso(grupos);
 
   if (all.length){
@@ -891,7 +959,13 @@ function exRender(){
     }).join('') +'</div>';
 
     var lista = grupos[EX.estado];
-    if (lista.length) h += EX.estado === 'enviado' ? porEnvio(lista) : porMeses(lista, false);
+    var hayProx = EX.estado === 'falta' && futLista.length;
+    if (lista.length || hayProx){
+      h += barraAccion(lista);
+      h += EX.estado === 'enviado' ? porEnvio(lista)
+         : EX.estado === 'falta'   ? porUrgencia(lista, futLista)
+         : porMeses(lista, false);
+    }
     else h += '<div class="ex-empty">'+pasoDe(EX.estado).vacio+'</div>';
   }
 
@@ -902,10 +976,17 @@ function exRender(){
 
   /* Al final y no arriba: lo que se viene a hacer a esta pantalla es mirar lo
      que falta, no crear una nota. La app detecta sola las dos que más salen. */
-  h += '<div class="ex-sect">AÑADIR A MANO</div>'+
-    '<div class="ex-new" onclick="exPickTipo()">＋ Nueva nota de gasto</div>'+
-    '<div class="ex-note" style="margin:6px 4px 0">La app detecta sola los posicionales y las '+
-    'pernoctas. Lo demás — una incidencia, el horno, un reconocimiento médico — lo marcas tú.</div>';
+  /* El «＋ Nueva» se ha mudado ARRIBA, a la barra de acción (ver `barraAccion`).
+     Estaba al fondo del todo —detrás incluso del banner del portal— con el
+     argumento de que «a Gastos se viene a mirar, no a crear». Era falso: cuando
+     se crea una nota a mano es porque acaba de pasarte algo, y la quieres ya.
+     Aquí abajo queda sólo la explicación, que sí es para leerla una vez. */
+  /* ⚠ El bold va al FINAL de la frase. Con «…lo marcas tú con <b>＋ Nueva</b>,
+     ahí arriba.» quedaba un «, ahí arriba.» suelto detrás del bold: un nodo que
+     no es una frase y que el traductor no puede casar. */
+  h += '<div class="ex-note" style="margin:16px 4px 0">La app detecta sola los posicionales y las '+
+    'pernoctas. Lo demás — una incidencia, el horno, un reconocimiento médico — lo marcas tú '+
+    'ahí arriba, con <b>＋ Nueva</b></div>';
 
   /* ⚠️ LA TIRA DE MESES SE REHACE EN CADA RENDER, Y CON ELLA SU SCROLL
      `exMes` llama a `exRender`, que reescribe el `innerHTML` entero: la tira
@@ -1007,6 +1088,153 @@ function porMeses(list, isDone){
   return h;
 }
 
+/* ════════ LA BARRA DE ACCIÓN, ENCIMA DE LA LISTA ════════
+   Aquí sube el «＋ Nueva». La fila ya existía para el desglose y tenía sitio de
+   sobra a la derecha, así que el botón no cuesta ni un píxel de alto — que es
+   el motivo por el que no vuelve como caja a lo ancho.
+   En «SIN TICKET» lleva además el recuento y el desglose del paso; en los otros
+   dos pasos el recuento ya lo pone su propio agrupador y repetirlo sería decir
+   dos veces lo mismo en dos filas seguidas. */
+function barraAccion(lista){
+  var falta = EX.estado === 'falta', h = '';
+  var dsg = '';
+  if (falta && (lista||[]).length){
+    var id = 'paso-falta';
+    DSG[id] = lista;
+    dsg = '<span class="ex-dsgb" onclick="event.stopPropagation();exDesglose(\''+id+'\',this)">'+
+            '<span class="l">Desglose</span>'+
+            '<svg viewBox="0 0 10 10" width="9" height="9" fill="currentColor" aria-hidden="true">'+
+              '<path d="M1.1 3.3h7.8L5 8z"/></svg></span>';
+  }
+  h += '<div class="ex-mesbar ex-actbar">'+
+         '<span class="m">'+(falta && (lista||[]).length
+           ? (lista.length + (lista.length===1?' nota · ':' notas · ') + eur(sumaDe(lista, topeDe)))
+           : '')+'</span>'+
+         '<span class="ex-acts">'+
+           '<span class="ex-nueva" onclick="exPickTipo()">＋ Nueva</span>'+ dsg +
+         '</span>'+
+       '</div>';
+  if (falta && (lista||[]).length) h += '<div class="ex-dsgbox" id="dsg-paso-falta" style="display:none"></div>';
+  return h;
+}
+
+/* ════════ SIN TICKET, AGRUPADO POR LO QUE PUEDES HACER ════════
+   Pedido el 8-oct-2026: «los tickets del mismo día arriba; los de días futuros
+   marcados de otra manera». Debajo estaba el orden por fecha descendente, que
+   pone primero justo lo que no se puede tocar.
+
+   El orden de aquí NO es la fecha: es cuándo puedes actuar.
+     1. HOY (y ayer) — el ticket lo llevas encima. Va de HÉROE, no de fila: es
+        la acción de mayor valor de la pantalla y merece un botón, no un renglón.
+        Sólo aparece si hay algo; un héroe permanente que la mitad de los días
+        dice «nada» es ruido.
+     2. VENCIDAS y CADUCA PRONTO — manda el plazo, la que caduca antes arriba.
+     3. PENDIENTES — el resto, también por plazo.
+     4. PRÓXIMAS — plegadas, al final, con su recuento y su importe A LA VISTA:
+        plegar no es esconder mientras la cabecera diga lo que hay dentro.
+
+   ⚠ La urgencia va en el GRUPO, no en cada tarjeta. Meterla en la tira lateral
+   de color sería pintar dos magnitudes en el mismo canal —el tipo de gasto y el
+   plazo—, que es exactamente lo que costó el grosor de los arcos del mapa. */
+EX.proxAbierto = EX.proxAbierto || false;
+window.exProxToggle = function(){ EX.proxAbierto = !EX.proxAbierto; exRender(); };
+
+/* ── LA MARCA DEL GRUPO: DIBUJADA, Y LLENA O HUECA ─────────────────────────
+   «Hazlo más llamativo, con glow o parpadeo lento: tiene que ser más visible»
+   (8-oct-2026). Medido antes de tocar nada: los cuatro rótulos CUMPLEN AA
+   —5,56:1 PENDIENTES y PRÓXIMAS de noche, 7,45 en día—, así que el problema no
+   era el contraste: eran 9 px de gris pizarra sin una forma propia, mientras
+   los dos de arriba llevan emoji y color. Un rótulo puede cumplir AA y aun así
+   no encontrarse al bajar la lista.
+
+   Lo que distingue a estos dos NO es un color nuevo: esta pestaña ya tiene
+   ONCE con significado (los ocho tipos de nota más el ámbar, el rojo y el cian
+   del acento), y meter un doceavo al lado de la tira de color de las tarjetas
+   sería pintar dos cosas distintas con tonos vecinos. Van los dos en el CIAN
+   del acento —el de «＋ Nueva», o sea «esto es tuyo y está vivo»— y lo que los
+   separa es la forma: PENDIENTES el disco LLENO, PRÓXIMAS el anillo HUECO.
+   Lleno contra hueco se lee de lejos; dos azules parecidos, no.
+
+   ⚠ DIBUJADA con <path>, no un carácter: un glifo lo pinta la fuente del móvil
+   del piloto y «no hay nada» y «tu teléfono lo pinta de un pelo» se ven igual.
+   Es la luna de las pernoctas, y por eso los dos emoji de arriba NO se tocan en
+   esta tanda: su texto es una CLAVE del diccionario y moverlo costaría churn de
+   traducción para algo que ya se ve. */
+function marcaGrp(lleno){
+  return '<span class="mk" aria-hidden="true"><svg viewBox="0 0 10 10" width="10" height="10">'+
+    (lleno ? '<circle cx="5" cy="5" r="3.4" fill="currentColor"/>'
+           : '<circle cx="5" cy="5" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/>')+
+    '</svg></span>';
+}
+var URG = [
+  { k:'vencida', c:'ex-g-venc', t:'⛔ FUERA DE PLAZO' },
+  { k:'urge',    c:'ex-g-urge', t:'⚠ CADUCA PRONTO'  },
+  { k:'pend',    c:'ex-g-pend', t:'PENDIENTES', mk:marcaGrp(true) }
+];
+/* La cabecera de grupo, con su marca y su título dentro de la MISMA píldora: el
+   halo y la superficie teñida van en la píldora, no en la fila —que llega hasta
+   el otro extremo con su filete— ni en el texto, que es lo que NO puede
+   cambiar de opacidad (ver el porqué en `expense.css`). */
+function cabGrp(cls, titulo, marca, cuenta){
+  return '<div class="ex-grp '+cls+'">'+
+    '<span class="p">'+(marca || '')+'<span class="t">'+titulo+'</span></span>'+
+    '<span class="ln"></span>'+
+    '<span class="c">'+cuenta+'</span></div>';
+}
+/* ── EL HÉROE DE HOY: PROMOCIONA LA TARJETA, NO LA SUSTITUYE ──
+   La primera versión pintaba un bloque propio EN LUGAR de la tarjeta, y con eso
+   la nota de hoy perdía todo lo que la tarjeta sabe hacer: la papelera, el
+   deslizamiento para enviar, el detalle plegado, el «¿por qué?». Lo cazó
+   `gastos-papelera-test` —no yo— con un «no existe el botón».
+
+   Hoy el héroe es un ENVOLTORIO: cejilla arriba, la tarjeta entera dentro y el
+   botón grande debajo. Destacar no puede quitar funciones.
+
+   ⚠ Y el `onclick` va SÓLO en el botón. En el envoltorio, cualquier toque
+   dentro de la tarjeta —la papelera incluida— habría abierto además la nota. */
+function heroeHoy(n){
+  var esHoy = n.date === hoyISO();
+  return '<div class="ex-hoy">'+
+    '<div class="k"><i></i>'+(esHoy ? 'HOY' : 'AYER')+' · '+esc(fdate(n.date).toUpperCase())+
+      '<span class="w">el ticket lo llevas encima ahora</span></div>'+
+    card(n, false)+
+    '<div class="go" onclick="event.stopPropagation();exOpen(\''+n.id+'\')">'+
+      '📷 Añadir el ticket</div>'+
+  '</div>';
+}
+function porUrgencia(list, futuras){
+  var g = { hoy:[], vencida:[], urge:[], pend:[] };
+  (list||[]).forEach(function(n){ var u = urgenciaDe(n); if (g[u]) g[u].push(n); });
+  /* Dentro de cada grupo, la que caduca ANTES arriba: es la que se pierde. */
+  var porPlazo = function(a,b){ return daysLeft(a.date) - daysLeft(b.date); };
+  var h = '';
+
+  g.hoy.sort(porPlazo).forEach(function(n){ h += heroeHoy(n); });
+
+  URG.forEach(function(u){
+    if (!g[u.k].length) return;
+    h += cabGrp(u.c, u.t, u.mk, g[u.k].length+' · '+eur(sumaDe(g[u.k], topeDe)));
+    g[u.k].sort(porPlazo).forEach(function(n){ h += card(n, false); });
+  });
+
+  if ((futuras||[]).length){
+    var ab = !!EX.proxAbierto;
+    /* La más cercana primero: es la siguiente que te va a tocar. */
+    var fs = futuras.slice().sort(function(a,b){ return a.date.localeCompare(b.date); });
+    h += cabGrp('ex-g-prox', 'PRÓXIMAS', marcaGrp(false),
+           fs.length+' · '+eur(sumaDe(fs, topeDe)))+
+         '<div class="ex-prox'+(ab?' on':'')+'" onclick="exProxToggle()">'+
+           '<span class="l"><span class="t">Aún no las has volado</span>'+
+           '<span class="s">'+esc(sinDia(fdate(fs[0].date)))+
+             (fs.length>1 ? ' – '+esc(sinDia(fdate(fs[fs.length-1].date))) : '')+
+             ' · no se pueden justificar todavía</span></span>'+
+           '<span class="v">'+(ab?'Ocultar':'Ver '+fs.length)+'</span>'+
+         '</div>';
+    if (ab) fs.forEach(function(n){ h += card(n, false); });
+  }
+  return h;
+}
+
 /* ════════ LO ENVIADO, AGRUPADO POR LO QUE TOCA HACER ════════
    Pedido el 14-sep-2026: todas las enviadas eran tarjetas verdes iguales,
    ordenadas por la fecha del servicio, y no se sabía qué se mandó cuándo ni
@@ -1076,7 +1304,7 @@ function diasEntre(a, b){
 }
 function fechasFila(n, isDone){
   var dd = function(f){ return sinDia(fdate(f)).toUpperCase(); };
-  var h = '<span class="f"><i>SERVICIO</i>' + esc(fdate(n.date).toUpperCase()) + '</span>';
+  var h = '<span class="f"><i data-i18n-en="DUTY">SERVICIO</i>' + esc(fdate(n.date).toUpperCase()) + '</span>';
   var fs = (EX.tkFechas || {})[n.id] || [];
   if (fs.length){
     var win = n.ticketWindow || tipoDe(n.kind).win;
@@ -1087,11 +1315,11 @@ function fechasFila(n, isDone){
       return d < Math.min.apply(null, win) || d > Math.max.apply(null, win);
     });
     var txt = (fs.length === 1 && fs[0] === n.date) ? 'MISMO DÍA' : fs.slice().sort().map(dd).join(', ');
-    h += '<span class="f' + (fuera ? ' warn' : '') + '"><i>TICKET</i>' + esc(txt) +
+    h += '<span class="f' + (fuera ? ' warn' : '') + '"><i data-i18n-en="RECEIPT">TICKET</i>' + esc(txt) +
          (fuera ? ' · FUERA DE PLAZO' : '') + '</span>';
   }
   var s = diaLocal(EX.sent[n.id]);
-  if (isDone && s) h += '<span class="f"><i>ENVIADA</i>' + esc(dd(s)) + '</span>';
+  if (isDone && s) h += '<span class="f"><i data-i18n-en="SENT">ENVIADA</i>' + esc(dd(s)) + '</span>';
   return '<span class="ex-dd ex-fechas">' + h + '</span>';
 }
 
@@ -1113,22 +1341,37 @@ function desglose(list){
           '<div class="c">'+esc(etq)+
             '<span>'+esc(l.subtype)+(l.window ? ' · '+esc(l.window) : '')+'</span></div>'+
           '<div class="t">'+(cap ? eur(cap) : '—')+'</div>'+
-          '<div class="k'+(tk ? (cap && tk > cap ? ' over' : '') : ' no')+'">'+
+          /* «falta» es UNA palabra: como clave del diccionario sería GLOBAL y
+             traduciría cualquier nodo de la app que sea exactamente eso. Va por
+             `data-i18n-en`, que es local y es literalmente para lo que existe. */
+          '<div class="k'+(tk ? (cap && tk > cap ? ' over' : '') : ' no')+'"'+
+            (tk ? '' : ' data-i18n-en="missing"')+'>'+
             (tk ? eur(tk) : 'falta')+'</div>'+
         '</div>';
       }).join('');
     }).join('');
   return '<div class="ex-dsg">'+
-    '<div class="ex-dsg-r hd"><div class="d">DÍA</div><div class="c">CONCEPTO</div>'+
-      '<div class="t">TOPE</div><div class="k">TICKET</div></div>'+
+    /* ⚠ Los rótulos de una tabla son palabras sueltas: por `data-i18n-en`, no
+       por el diccionario. Y «TOPE» tiene que ir así a la fuerza — en el
+       diccionario vale «TOP», que es el techo de nubes de SkyView. */
+    '<div class="ex-dsg-r hd"><div class="d">DÍA</div>'+
+      '<div class="c" data-i18n-en="ITEM">CONCEPTO</div>'+
+      '<div class="t" data-i18n-en="CAP">TOPE</div>'+
+      '<div class="k" data-i18n-en="RECEIPT">TICKET</div></div>'+
     filas +
     '<div class="ex-dsg-r tot"><div class="d">TOTAL</div>'+
-      '<div class="c">reclamas <b>'+eur(sumaDe(list, reclamaDe))+'</b></div>'+
+      '<div class="c"><span data-i18n-en="you claim">reclamas</span> <b>'+
+        eur(sumaDe(list, reclamaDe))+'</b></div>'+
       '<div class="t">'+eur(sumaDe(list, topeDe))+'</div>'+
       '<div class="k">'+eur(sumaDe(list, tkDe))+'</div></div>'+
-    '<div class="ex-dsg-f">El <b>tope</b> es el máximo que abona el convenio para esa franja y '+
-      'ese ámbito (art. 10.1 y tablas de dietas); el <b>ticket</b> es lo que llevas justificado. '+
-      'Se cobra lo menor de los dos: sin ticket no se aprueba, y lo que pase del tope no se abona.'+
+    /* ⚠ El bold envuelve «El tope» y «El ticket» ENTEROS, no sólo la palabra:
+       un nodo de una palabra («tope», «ticket») como clave del diccionario sería
+       global y traduciría cualquier otro sitio de la app que diga eso. Así los
+       cuatro nodos son frases propias. */
+    '<div class="ex-dsg-f"><b>El tope</b> es el máximo que abona el convenio para esa '+
+      'franja y ese ámbito (art. 10.1 y tablas de dietas). '+
+      '<b>El ticket</b> es lo que llevas justificado: se cobra lo menor de los dos — '+
+      'sin ticket no se aprueba, y lo que pase del tope no se abona.'+
     '</div></div>';
 }
 /* ⚠️ El texto del botón NO se toca al abrir y cerrar.
@@ -1294,8 +1537,14 @@ function card(n, isDone){
      tickets» que ya salía cuatro veces en la misma tarjeta. */
   /* Enviada: sin chip. «✓ 211,30 € en tickets» en verde se leía como lo que
      cobras, y el estado ya lo dice la franja — era la tercera vez. */
+  var futura = esFutura(n);
   var tkc = isDone
     ? ''
+    /* Una nota futura NO lleva el chip ámbar: no le falta el ticket, es que el
+       servicio no ha ocurrido. Decirle «falta 1 ticket» a una comida que no se
+       ha comido es acusarle de algo que no ha hecho. */
+    : futura
+    ? '<span class="ex-espera">⏳ aún no ha pasado</span>'
     : '<span class="ex-tkchip'+(kL===0 ? '' : kL<nL ? '' : ' ok')+'" '+
         'onclick="event.stopPropagation();exOpen(\''+n.id+'\')">'+
         (kL===0 ? (nL===1 ? 'Falta 1 ticket' : 'Faltan '+nL+' tickets')
@@ -1304,9 +1553,11 @@ function card(n, isDone){
 
   /* Un plazo pasado se dice con palabras. «-158 días» es una resta con signo,
      y a primera vista se lee como si aún quedara algo. */
-  var plazo = isDone ? ''
+  /* Y tampoco plazo: los 90 días cuentan desde el servicio, así que para una
+     futura el número sería mayor que el plazo entero. No es un dato, es ruido. */
+  var plazo = (isDone || futura) ? ''
     : left < 0  ? '<span class="ex-plazo bad">PLAZO VENCIDO</span>'
-    : left <= 20 ? '<span class="ex-plazo warn">'+left+(left===1?' día':' días')+'</span>'
+    : left <= URGE_DIAS ? '<span class="ex-plazo warn">'+left+(left===1?' día':' días')+'</span>'
     : '';
 
   var avisos = '';
@@ -1344,7 +1595,7 @@ function card(n, isDone){
 
      En modo «enviar varias» la tarjeta entera ES la casilla (exSelToggle), así que
      ahí no se cuelga el toggle: si no, el mismo dedo marcaría y desplegaría. */
-  return '<div class="ex-day k-'+esc(n.kind)+' st-'+stE+(isDone?' done':'')+((EX.flash||{})[n.id]?' recien':'')+
+  return '<div class="ex-day k-'+esc(n.kind)+' st-'+stE+(isDone?' done':'')+(futura?' futura':'')+((EX.flash||{})[n.id]?' recien':'')+
       (selble?' selble':'')+(marcada?' marcada':'')+'" style="--tcol:'+T.col+'"'+
       ' data-nota="'+n.id+'"'+(n.manual?' data-man="1"':'')+
       (selble?' onclick="exSelToggle(\''+n.id+'\')"':'')+'>'+
@@ -1385,10 +1636,11 @@ function card(n, isDone){
            («de 211,30 € de ticket») para que no se lea como dinero a cobrar. */
         (isDone
           ? '<span class="ex-amt">'+eur(importeHecho(n))+
-              '<small>'+(tkDe(n) ? 'RECLAMADO' : 'TOPE')+'</small>'+
+              '<small data-i18n-en="'+(tkDe(n) ? 'CLAIMED' : 'CAP')+'">'+
+                (tkDe(n) ? 'RECLAMADO' : 'TOPE')+'</small>'+
               (tkDe(n) > reclamaDe(n) ? '<em class="de">de '+eur(tkDe(n))+' de ticket</em>' : '')+'</span>'
           : '<span class="ex-amt">'+eur(topeDe(n)===null ? tkDe(n) : topeDe(n))+
-              '<small>HASTA</small>'+
+              '<small data-i18n-en="UP TO">HASTA</small>'+
               (tkDe(n) ? '<em>'+eur(reclamaDe(n))+' con tickets</em>' : '')+'</span>')+
         /* El chevron también DIBUJADO: es la misma regla del icono del tipo, y
            un carácter geométrico tampoco lo elige el código. */
@@ -3664,6 +3916,29 @@ function ticketsDe(n){
   })).then(function(l){ return l.filter(Boolean); });
 }
 
+/* ── Una nota que el portal NO aceptó no está enviada ─────────────────────────
+   `status:'OK'` significa «el lote se ha ejecutado», y la verdad de cada nota
+   vive en `results[]`. Esta rama miraba SOLO `b.status`, así que una nota
+   rechazada por algo del piloto —una fecha que no existe, el nº de ISO, un
+   importe a cero— se pintaba «Enviada a Vueling» con el número en `undefined`,
+   se escribía en `EX.sent` y se sincronizaba como «ya la pasé». O sea que la
+   reclamación se perdía y el piloto creía que estaba hecha. Medido con la ruta
+   de verdad.
+
+   Es el 0 mudo de las pernoctas con dinero detrás: «enviada» y «rechazada por
+   falta del motivo» se veían EXACTAMENTE igual, y la que era falsa es la que
+   cuesta. El camino del LOTE ya lo hacía bien —mira `results` antes que
+   `b.status`—, así que esto era la misma pregunta con dos respuestas en el
+   mismo archivo.
+
+   ⚠ Devuelve el resultado caído, no un booleano: su `error` es el motivo que
+   hay que enseñar, y es lo único que dice qué arreglar. */
+function notaCaida(b){
+  if (!b || !Array.isArray(b.results)) return null;
+  var uno = b.results.length === 1 ? b.results[0] : null;
+  return (uno && !uno.ok) ? uno : null;
+}
+
 function enviarAlPortal(n, motivo){
   EX.portal[n.id] = { state: 'sending', at: new Date().toISOString() };
   portalSave(); exRender();
@@ -3687,7 +3962,7 @@ function enviarAlPortal(n, motivo){
         EX.portal[n.id] = { state: 'login', at: new Date().toISOString(),
           msg: 'La sesión con tu cuenta de Vueling ha caducado. Entra otra vez y se manda sola.' };
         pedirLogin(function(){ enviarAlPortal(n, motivo); });
-      } else if (r.status === 200 && b.status === 'OK'){
+      } else if (r.status === 200 && b.status === 'OK' && !notaCaida(b)){
         EX.portal[n.id] = { state: 'sent', number: b.number, portalId: b.id,
                             at: new Date().toISOString(),
                             msg: (b.warnings && b.warnings.length) ? b.warnings.join('\n') : '' };
@@ -3706,8 +3981,10 @@ function enviarAlPortal(n, motivo){
                     importe: reclamaDe(n), sub: tituloDe(n), flash: [n.id] });
         }
       } else {
+        var caida = notaCaida(b);
         EX.portal[n.id] = { state: 'error', at: new Date().toISOString(),
-          msg: b.message || b.error || ('El portal respondió ' + r.status) };
+          msg: (caida && caida.error) || b.message || b.error ||
+               ('El portal respondió ' + r.status) };
         /* El círculo también se cierra cuando sale mal: dejarlo girando para
            siempre es peor que decir que no ha salido. */
         exResultado('mal',

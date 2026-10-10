@@ -61,6 +61,7 @@
   "leo cifras que no tienen forma de kilos, como": "I read figures that aren't kg-shaped, such as",
   "no leo ni una sola cifra en la imagen": "I can't read a single figure in the image",
   "No relleno nada — un número mal leído en el logbook es peor que un hueco.": "I'm filling in nothing — a misread number in the logbook is worse than a blank.",
+  "Las cifras que ves ya estaban puestas: no salen de esta foto.": "The figures you can see were already there \u2014 they do not come from this photo.",
   "cifra leída": "figure read",
   "cifras leídas": "figures read",
   "la columna real está a 0 en la foto, ésa la pones tú": "the actual column is 0 in the photo, that one is yours to fill",
@@ -594,6 +595,16 @@
     "Plan Free ·": "Free plan ·",
     "Plegar o desplegar la lista": "Collapse or expand the list",
     "Plus hora vuelo": "Flight hour allowance",
+    /* El RELOJ con el que se ha medido el bloque de la ficha de vuelo. Van de
+       PLANTILLA porque llevan los dos numeros dentro («0.92h progr. × 39.29 €»)
+       y el motor solo traduce un nodo cuyo contenido COMPLETO este en el
+       diccionario. Son DOS claves y no una porque son dos afirmaciones
+       distintas: lo programado se reclama y lo volado no. */
+    "{0}h progr. \u00d7 {1} \u20ac": "{0}h sched. \u00d7 {1} \u20ac",
+    "{0}h voladas \u00d7 {1} \u20ac": "{0}h flown \u00d7 {1} \u20ac",
+    "\u21b3 sin hora programada: medido con los calzos reales \u2014 no reclamable": "\u21b3 no scheduled time: measured off actual blocks \u2014 not claimable",
+    "Dieta sin clasificar": "Per diem not classified",
+    "\u21b3 sin ruta completa: no se puede saber si es nacional o internacional": "\u21b3 route incomplete: cannot tell domestic from international",
     "Por clase de avión": "By aircraft class",
     "Por el otro lado, el proveedor": "On the other hand, the provider",
     "por rellenar": "to complete",
@@ -792,4 +803,66 @@
     "Σ Total de esta página · se recalcula al editar (": "Σ Page total · recalculated on edit (",
     "Σ Total de esta página · se recalcula al editar ({0} vuelos)": "Σ Page total · recalculated on edit ({0} flights)"
   });
+
+  /* Las dos ventanas largas de ORO.FTL.210 (Beta.1023). El año natural no se
+     enseñaba en ningún sitio y los «12 meses» medían 365 días rodantes. */
+  window.pilotosI18nAdd('en', {
+    "año natural": "calendar year",
+    "Horas año natural (máx. 900h)": "Hours calendar year (max. 900h)",
+    "Horas 12 meses (máx. 1.000h)": "Hours 12 months (max. 1,000h)",
+    /* ⚠ El pie del FTL NO va por el diccionario: su fecha de arranque lleva
+       tres números y `fromTpl` exige tantos huecos como números haya, así que
+       ninguna plantilla casaría. Va por `data-i18n-en` en el marcado, que es
+       local y es para lo que existe. */
+    "12 meses": "12 months"
+  });
+
+  /* ════ La tarjeta de EVOLUCIÓN MENSUAL de Carrera (10-oct-2026) ════
+     Reportada con la captura: el título salía «Evolución mensual · 2026 vs
+     2025» y la nota «2026 va por OCT · a la misma altura: …» con la app en
+     inglés.
+
+     ⚠ Y el diccionario YA tenía cuatro claves para esto —«Evolución mensual ·»,
+     «Evolución mensual · {0} vs», «· a la misma altura:» y «· los meses que
+     faltan no se dibujan», todas en i18n-en-rest.js— y NINGUNA casaba con un
+     nodo real: llevan el separador pegado o la plantilla con un hueco de menos,
+     y el motor casa el nodo ENTERO y luego lo trocea por ` · ` SIN los puntos.
+     Es el `html.day` escrito para una clase que no existe: quien abriera el
+     archivo buscando «¿está cubierto?» encontraba que sí. Se han retirado.
+
+     Lo que sí casa son los TROZOS tal y como salen del troceado. El título va
+     sin su cola («12 meses» / «2026 vs 2025» / «2026») porque ésa es dato. */
+  window.pilotosI18nAdd('en', {
+    "Evolución mensual": "Monthly trend",
+    "a la misma altura:": "at the same point:",
+    "los meses que faltan no se dibujan": "missing months are not plotted",
+    /* La ✕ de la lectura del mes. aria-label SÍ pasa por el diccionario
+       (i18n.js → ATTRS), así que es una clave normal. */
+    "Quitar el mes seleccionado": "Clear the selected month",
+
+    /* ════ El Wrapped, que el mismo barrido dejó al descubierto ════
+       Cuatro rótulos más de este panel que seguían en castellano, y tres de
+       ellos por la MISMA causa que la nota: el diccionario tenía la frase SIN
+       su número —«% madrugador», «% nocturno», «: {0} vuelo(s)»— y el nodo
+       real lo lleva dentro, así que no casaba ninguna. Con su hueco sí. */
+    "Ver la ficha de este vuelo": "Open this flight's record",
+    "{0} aeropuertos": "{0} airports",
+    "{0}% madrugador": "{0}% early bird",
+    "{0}% nocturno": "{0}% night",
+    /* Y el MISMO patrón en Operaciones, que salió en el mismo barrido: la clave
+       era «% de los retrasados» y el nodo real es «5% de los retrasados». */
+    "{0}% de los retrasados": "{0}% of delayed flights",
+    "{0} con retraso": "{0} delayed",
+    /* El título de cada celda del mapa de calor. Tres números, tres huecos:
+       `fromTpl` exige tantos huecos como números haya en la cadena. */
+    "{0}/{1}: {2} vuelo(s)": "{0}/{1}: {2} flight(s)",
+    "{0}/{1}: sin vuelo": "{0}/{1}: no flight"
+  }, [
+    /* «2026 va por OCT» lleva el año Y el mes dentro, así que ninguna clave lo
+       cubre y una plantilla haría falta doce veces (una por mes). Patrón, como
+       el subtítulo de las pernoctas de i18n-en-paycheck.js.
+       El mes se traduce con T(): sólo ENE/ABR/AGO/DIC cambian en inglés y los
+       otros ocho vuelven tal cual, que es lo que hace T() sin traducción. */
+    [/^(\d{4}) va por ([A-Z]{3})$/, function(m, T){ return m[1] + ' up to ' + T(m[2]); }]
+  ]);
 })();

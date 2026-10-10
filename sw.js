@@ -1,7 +1,7 @@
 // PilotOS Service Worker
 // APP_VERSION lo reescribe scripts/stamp-version.js en cada deploy → cambia el
 // nombre del caché → los cachés de versiones viejas se borran al activar.
-const APP_VERSION = 'Estable.915';
+const APP_VERSION = 'Estable.1032';
 
 const STATIC_CACHE  = 'pilotos-static-' + APP_VERSION;
 const FONT_CACHE    = 'pilotos-fonts-'  + APP_VERSION;
@@ -38,6 +38,7 @@ const PRECACHE_URLS = [
   'manifest.json',
   'guide.html',
   'descent-profile.html',
+  'mockup-flashcards.html',
   // Los motores del convenio y de gastos. Sin ellos el roster ABRE pero no calcula
   // nada: ni invasión de día libre, ni cambios de programación, ni dietas. Se
   // cacheaban solos al pedirlos la página, pero solo DESPUÉS de una carga completa
@@ -47,6 +48,8 @@ const PRECACHE_URLS = [
   'js/i18n-en-forzoso.js',
   'js/roster-changes.js',
   'js/roster-stats.js',
+  'js/plazos.js',
+  'js/plazos-ui.js',
   // Beta.722 lo trajo y se quedó fuera de esta lista: `offline-test` lo cazó al
   // instante («ningún fichero propio falta sin red» → /js/ecrews-legs-import.js).
   // Un módulo nuevo en public/js/ que no se añada aquí funciona con cobertura y
@@ -160,11 +163,31 @@ function precacheFuentes(){
           cache.put(href, res);
           // Los .woff2 salen del propio CSS: no hay lista que mantener a mano.
           var urls = (css.match(/https:\/\/fonts\.gstatic\.com\/[^)'"]+/g) || []);
-          return Promise.all(urls.map(function(u){ return cache.add(u).catch(function(){}); }));
+          return Promise.all(urls.map(function(u){ return cache.add(_frescoDeRed(u)).catch(function(){}); }));
         });
       }).catch(function(){});
     }));
   });
+}
+
+/* ⚠⚠ `cache.add(url)` VA POR EL CACHÉ HTTP DEL NAVEGADOR, y eso dejaba la app
+   con el `index.html` NUEVO y un `js/*.js` VIEJO — sin un solo error.
+
+   Reproducido (1-oct-2026) sirviendo los .js con `Cache-Control: max-age` de un
+   año, como un CDN: al subir la versión, el SW nuevo precacheó el diccionario
+   **sin pedirlo a la red ni una vez** y la app siguió ejecutando el de antes.
+   El síntoma llegó así: la app en INGLÉS con tres píldoras del roster en
+   castellano, porque su clave vivía en un `i18n-en-roster.js` rancio mientras el
+   `index.html` ya era el nuevo.
+
+   Y NO se cura subiendo la versión: el nombre del caché cambia, pero lo que se
+   mete dentro sale del caché HTTP igual. `cache: 'reload'` salta ese caché y
+   además lo refresca — es la única forma de que un precacheo signifique lo que
+   dice. Vale para TODO `PRECACHE_URLS`, no sólo para el diccionario: los motores
+   del convenio (`dia-libre.js`, `roster-changes.js`, `expense-engine.js`) iban
+   por la misma puerta, así que un arreglo de cálculo podía no llegar nunca. */
+function _frescoDeRed(u) {
+  try { return new Request(u, { cache: 'reload' }); } catch (e) { return u; }
 }
 
 self.addEventListener('install', function(e) {
@@ -178,7 +201,7 @@ self.addEventListener('install', function(e) {
   e.waitUntil(
     caches.open(STATIC_CACHE).then(function(cache) {
       return Promise.all(PRECACHE_URLS.map(function(u) {
-        return cache.add(u).catch(function() {});
+        return cache.add(_frescoDeRed(u)).catch(function() {});
       }));
     }).then(precacheFuentes).catch(function() {})
   );
@@ -385,3 +408,34 @@ function cacheFirst(request, cacheName) {
     // de texto haría que un <script> intentara EJECUTAR ese texto.
   });
 }
+
+/* ── Avisos de plazos con la app CERRADA (Web Push) ──────────────────────────
+   El servidor (`plazos-avisador.js`) manda { title, body, tag, url }. El `tag`
+   lleva el plazo y la fase: si el mismo aviso llegara dos veces, el segundo
+   SUSTITUYE al primero en la bandeja en vez de apilarse.
+   Al tocarlo: si la app ya está abierta se enfoca y se le pide que abra la hoja
+   «Avisos y plazos»; si no, se abre con ?avisos=1, que hace lo mismo al cargar. */
+self.addEventListener('push', function(e) {
+  var d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (er) { d = { title: 'PilotOS', body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'PilotOS', {
+    body: d.body || '', tag: d.tag || 'pilotos', renotify: true,
+    icon: 'icon-192.png', badge: 'icon-192.png',
+    /* El SONIDO no se puede cambiar: ninguna plataforma deja que una web ponga
+       el suyo (la opción `sound` no la implementa ningún navegador). Lo que SÍ
+       se distingue es la vibración, en Android: dos toques cortos y uno largo,
+       que no se confunde con el zumbido único de cualquier otra app. iOS la ignora. */
+    vibrate: [90, 70, 90, 70, 260],
+    data: { url: d.url || './?avisos=1' }
+  }));
+});
+self.addEventListener('notificationclick', function(e) {
+  e.notification.close();
+  var url = (e.notification.data && e.notification.data.url) || './?avisos=1';
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(cs) {
+    for (var i = 0; i < cs.length; i++) {
+      if ('focus' in cs[i]) { cs[i].postMessage({ tipo: 'pilotos-abre-avisos' }); return cs[i].focus(); }
+    }
+    return self.clients.openWindow(url);
+  }));
+});

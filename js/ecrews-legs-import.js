@@ -15,8 +15,12 @@
      · La tripulación. La ventana trae "Crew members on board" y devuelve
        "(No crew found)" incluso en vuelos ya volados. Los nombres siguen a mano.
 
-   UN MES POR IMPORTACIÓN. El backend abre una ventana por pairing (~14 en un mes),
-   así que un año serían varios minutos de navegador headless.
+   UN MES POR LLAMADA — pero el TRAMO puede cruzar de mes. El backend abre una
+   ventana por pairing (~14 en un mes), así que un año serían varios minutos de
+   navegador headless, y `/api/ecrews/legs` exige que los dos extremos de un tramo
+   caigan en el mismo mes (el capturador acota por la columna del periodo cargado).
+   Quien parte 20/09→04/10 en dos llamadas EN SERIE y funde el resultado es este
+   archivo, en `porMeses` + la cadena de `ldECrewsLegsFetch`.
 
    Tema: la hoja se reconstruye entera en cada apertura leyendo `html.day`, con la
    MISMA paleta que la hoja del menú del logbook (ldToggleMenu). Por eso no hay
@@ -277,7 +281,7 @@
         '<div style="position:relative;width:170px;height:3px;margin:16px auto 0;border-radius:99px;background:' + t.cardLine + ';overflow:hidden">' +
           '<div id="eclg-barra-in" style="background:' + A + '"></div>' +
         '</div>' +
-        '<div style="font-family:\'Space Mono\',monospace;font-size:10.5px;color:' + t.faint + ';margin-top:14px">Puede tardar un minuto · no cierres la app</div>' +
+        '<div id="eclg-paso" style="font-family:\'Space Mono\',monospace;font-size:10.5px;color:' + t.faint + ';margin-top:14px">Puede tardar un minuto · no cierres la app</div>' +
       '</div>';
   }
 
@@ -327,7 +331,14 @@
   // Lunes = 0, para que la fila sea L M X J V S D como en el roster.
   function primerHueco(ym) { return (new Date(+ym.slice(0, 4), +ym.slice(5, 7) - 1, 1).getDay() + 6) % 7; }
 
-  window.ldECrewsLegsMes = function (n) { CAL = mueveMes(CAL, n); SEL_A = SEL_B = null; pintarSelector(); };
+  /* ★ Navegar de mes NO borra lo elegido. Esto es el reporte del 3-oct-2026: «si
+     eliges por ej. 20 de Septiembre al 4 de Octubre no te deja el sistema». La
+     causa cabía en este `SEL_A = SEL_B = null` — pulsabas el 20 de septiembre,
+     pasabas a octubre para el otro extremo, y el primero ya no estaba. Cambiar de
+     mes en un calendario es MIRAR, no elegir; quien quiera empezar de nuevo pulsa
+     un tercer día (o la ✕ de la línea del tramo). */
+  window.ldECrewsLegsMes = function (n) { CAL = mueveMes(CAL, n); pintarSelector(); };
+  window.ldECrewsLegsBorra = function () { SEL_A = SEL_B = null; pintarSelector(); };
 
   window.ldECrewsLegsDia = function (iso) {
     // 1ª pulsación abre el tramo, la 2ª lo cierra. Si la 2ª cae antes, se empieza de
@@ -342,6 +353,29 @@
     if (!SEL_A) return;
     window.ldECrewsLegsFetch({ from: SEL_A, to: SEL_B || SEL_A });
   };
+
+  /* Un tramo que cruza de mes se parte en uno POR MES, y no es una limitación que
+     se pueda levantar desde aquí: `/api/ecrews/legs` rechaza un tramo con los dos
+     extremos en meses distintos («el tramo debe estar dentro del mismo mes»), y
+     con razón — el capturador trabaja sobre el PERIODO que eCrews tiene cargado y
+     acota los días por su columna del calendario (día del mes, `c.d >= d1`). Con
+     20/09 → 04/10 eso sería d1=20, d2=4: ni un día.
+     Así que la unión la hace el cliente: dos llamadas en SERIE (cada una abre un
+     Chromium headless; en paralelo serían dos) y los vuelos se funden con el
+     mismo dedup de siempre. Y va aquí a propósito: `server.js` no llega a beta
+     hasta el deploy a producción, así que un arreglo de servidor no lo vería
+     nadie. */
+  function porMeses(a, b) {
+    var out = [], ym = a.slice(0, 7), fin = b.slice(0, 7), guarda = 0;
+    while (ym <= fin && guarda++ < 14) {
+      out.push({
+        from: (ym === a.slice(0, 7)) ? a : ym + '-01',
+        to:   (ym === fin)           ? b : ym + '-' + String(diasDe(ym)).padStart(2, '0')
+      });
+      ym = mueveMes(ym, 1);
+    }
+    return out;
+  }
   window.ldECrewsLegsMesEntero = function () { window.ldECrewsLegsFetch(CAL); };
 
   function pintarSelector() {
@@ -368,6 +402,7 @@
     }
 
     var nDias = SEL_A ? (SEL_B ? (Math.round((new Date(SEL_B) - new Date(SEL_A)) / 86400000) + 1) : 1) : 0;
+    var fecha = function (iso) { return iso.slice(8, 10) + '/' + iso.slice(5, 7); };
     function flecha(dir, on) {
       return '<button ' + (on ? 'onclick="ldECrewsLegsMes(' + dir + ')"' : 'disabled') +
         ' style="width:34px;height:34px;border-radius:10px;background:' + (on ? t.accSoft : 'transparent') +
@@ -396,10 +431,23 @@
         '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">' + celdas + '</div>' +
       '</div>' +
 
+      /* ★ El tramo se DICE, no sólo se pinta. Desde que se puede cruzar de mes, los
+         dos extremos pueden caer en meses que no se están viendo: con un «Traer 15
+         días» y ni un día resaltado, «tengo 15 elegidos» y «no he elegido nada» se
+         ven igual. La línea nombra las dos fechas y trae su ✕ para empezar de nuevo
+         sin tener que adivinar que un tercer día reinicia. */
       (nDias
-        ? '<button onclick="ldECrewsLegsTraer()" style="width:100%;margin-top:14px;padding:15px;background:' + t.btnBg + ';border:1.5px solid ' + t.btnLine + ';border-radius:15px;color:' + t.acc + ';font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:700;cursor:pointer">Traer ' + nDias + (nDias === 1 ? ' día' : ' días') + '</button>' +
-          '<div style="font-family:\'Space Mono\',monospace;font-size:10px;color:' + t.faint + ';text-align:center;margin-top:8px">Pulsa otro día para ampliar el tramo.</div>'
-        : '<div style="font-family:\'Space Mono\',monospace;font-size:10.5px;color:' + t.faint + ';text-align:center;margin-top:13px;line-height:1.7">Pulsa un día — y otro más si quieres un tramo.</div>') +
+        ? '<div style="display:flex;align-items:center;gap:9px;margin-top:13px;padding:9px 11px;background:' + t.accSoft + ';border:1px solid ' + t.accLine + ';border-radius:11px">' +
+            '<span id="eclg-tramo" style="flex:1;min-width:0;font-family:\'Space Mono\',monospace;font-size:11.5px;font-weight:700;color:' + t.acc + '">' +
+              fecha(SEL_A) + (SEL_B && SEL_B !== SEL_A ? ' – ' + fecha(SEL_B) : '') +
+              '<span style="font-weight:400;color:' + t.sub + '"> · ' + nDias + (nDias === 1 ? ' día' : ' días') + '</span>' +
+            '</span>' +
+            '<button onclick="ldECrewsLegsBorra()" aria-label="Quitar la selección" style="width:34px;height:34px;flex-shrink:0;border-radius:9px;background:transparent;border:1px solid ' + t.cardLine + ';color:' + t.sub + ';font-size:15px;line-height:1;cursor:pointer">✕</button>' +
+          '</div>' +
+          '<button onclick="ldECrewsLegsTraer()" style="width:100%;margin-top:10px;padding:15px;background:' + t.btnBg + ';border:1.5px solid ' + t.btnLine + ';border-radius:15px;color:' + t.acc + ';font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:700;cursor:pointer">Traer ' + nDias + (nDias === 1 ? ' día' : ' días') + '</button>' +
+          '<div style="font-family:\'Space Mono\',monospace;font-size:10px;color:' + t.faint + ';text-align:center;margin-top:8px">' +
+            (SEL_B && SEL_B !== SEL_A ? 'Puedes cambiar de mes con ‹ › sin perder el tramo.' : 'Pulsa otro día para ampliar el tramo — vale de un mes a otro.') + '</div>'
+        : '<div style="font-family:\'Space Mono\',monospace;font-size:10.5px;color:' + t.faint + ';text-align:center;margin-top:13px;line-height:1.7">Pulsa un día — y otro más si quieres un tramo.<br>El tramo puede cruzar de mes.</div>') +
 
       '<div style="height:1px;background:' + t.cardLine + ';margin:16px 0 14px"></div>' +
       '<button onclick="ldECrewsLegsMesEntero()" style="width:100%;padding:13px;background:transparent;border:1.5px solid ' + t.accLine + ';border-radius:13px;color:' + t.acc + ';font-family:\'Space Grotesk\',sans-serif;font-size:14px;font-weight:700;cursor:pointer">Traer ' + mesNombre(CAL) + ' entero</button>' +
@@ -429,10 +477,11 @@
     var tramo = (q && typeof q === 'object') ? q : null;
     ULTIMA = q;
     MONTH = (tramo ? tramo.from : q).slice(0, 7);
-    var dm = function (iso) { return iso.slice(8, 10) + '/' + iso.slice(5, 7); };
-    sub(tramo
-      ? (tramo.from === tramo.to ? dm(tramo.from) + '/' + tramo.from.slice(0, 4) : dm(tramo.from) + ' – ' + dm(tramo.to) + '/' + tramo.to.slice(0, 4))
-      : mesLabel(MONTH));
+    /* El rótulo sale de `loQuePedi()` —lo que el piloto pidió, dicho como lo
+       pidió—: con un tramo de 20/09 a 04/10, `mesLabel(MONTH)` diría «SEP 2026» de
+       un periodo que llega a octubre. Es el mismo resolutor que ya usan las
+       pantallas de error y la de «sin vuelos». */
+    sub(loQuePedi());
     body(cargadorHTML());
     arrancarRotador();
     CARGANDO = true;
@@ -441,41 +490,88 @@
     // respuesta llegaba después, repintando una pantalla que el piloto ya había cerrado.
     if (ABORT) { try { ABORT.abort(); } catch (e) {} }
     ABORT = (typeof AbortController === 'function') ? new AbortController() : null;
+    var MI = ABORT;   // la señal de ESTA tanda: si llega otra, la cadena se para
 
-    fetch(api() + '/api/ecrews/legs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok() },
-      signal: ABORT ? ABORT.signal : undefined,
-      body: JSON.stringify(tramo ? { from: tramo.from, to: tramo.to } : { month: q })
-    })
-      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, s: r.status, j: j }; }); })
-      .then(function (res) {
-        CARGANDO = false;
-        if (res.j && res.j.status === 'NEEDS_LOGIN') return necesitaLogin();
-        // eCrews no contestó y la sesión sigue viva: un error que se reintenta, NO un
-        // MFA. Mismo criterio que /resync (ver server.js).
-        if (res.j && res.j.status === 'ECREWS_NO_RESPONDE')
-          return error('eCrews no ha contestado a tiempo. Tu sesión sigue activa: vuelve a intentarlo.');
-        if (!res.ok) return error(res.j && (res.j.error || res.j.detail) || ('HTTP ' + res.s));
-        LEGS = (res.j && res.j.legs) || [];
-        // Las jornadas SIN VUELOS (guardias, tierra) no son un fallo: no hay nada que
-        // traer. Avisar de ellas asustaba con un mes que en realidad estaba completo.
-        ERRORES = (res.j && res.j.errores) || [];
-        SIN_VUELOS = ((res.j && res.j.sinVuelos) || []).length;
-        RANGO = (res.j && res.j.rango) || null;
-        NOMBRE = (res.j && res.j.nombre) || '';
-        // Por defecto se marca lo que aún no está en el logbook y NO es posicionamiento:
-        // una leg DHC es un vuelo como pasajero, no horas del piloto.
-        SEL = {};
-        LEGS.forEach(function (l) { SEL[legKey(l)] = !yaEsta(l) && !l.isPositioning; });
-        render();
+    // Un tramo de un mes a otro son N llamadas; un mes entero o un tramo de dentro
+    // de un mes siguen siendo UNA.
+    var lotes = tramo ? porMeses(tramo.from, tramo.to) : [q];
+
+    LEGS = []; SEL = {}; ERRORES = []; SIN_VUELOS = 0; RANGO = null; NOMBRE = '';
+    var vistas = {};   // dedup entre lotes: el periodo de eCrews desborda al siguiente
+
+    function paso(i) {
+      if (MI !== ABORT) return;                       // llegó otra petición: esta cadena muere
+      if (lotes.length > 1) {
+        var e = document.getElementById('eclg-paso');
+        if (e) e.textContent = 'Mes ' + (i + 1) + ' de ' + lotes.length + ' · ' +
+          mesLabel(lotes[i].from.slice(0, 7)) + ' · no cierres la app';
+      }
+      var x = lotes[i];
+      fetch(api() + '/api/ecrews/legs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok() },
+        signal: MI ? MI.signal : undefined,
+        body: JSON.stringify((typeof x === 'object') ? { from: x.from, to: x.to } : { month: x })
       })
-      .catch(function (e) {
-        CARGANDO = false;
-        // Abortar es una decisión del piloto, no un fallo: no se le enseña un error.
-        if (e && e.name === 'AbortError') return;
-        error(e.message);
-      });
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, s: r.status, j: j }; }); })
+        .then(function (res) {
+          if (MI !== ABORT) return;
+          // Un login caducado o un eCrews que no contesta paran la cadena: seguir con
+          // el mes siguiente sería gastar otro minuto para el mismo final.
+          if (res.j && res.j.status === 'NEEDS_LOGIN') { CARGANDO = false; return necesitaLogin(); }
+          if (res.j && res.j.status === 'ECREWS_NO_RESPONDE') {
+            CARGANDO = false;
+            return error('eCrews no ha contestado a tiempo. Tu sesión sigue activa: vuelve a intentarlo.');
+          }
+          if (!res.ok) {
+            var msg = (res.j && (res.j.error || res.j.detail)) || ('HTTP ' + res.s);
+            /* ★ Un fallo en el 2.º mes NO puede tirar lo que ya trajo el 1.º: el
+               piloto ha esperado un minuto por esos vuelos. Se queda lo traído y el
+               hueco se DICE — `ERRORES` es lo que enciende el aviso de «esto está
+               incompleto», que para eso está. Sin nada traído sí es un error a secas. */
+            if (!LEGS.length) { CARGANDO = false; return error(msg); }
+            ERRORES.push(mesLabel(lotes[i].from.slice(0, 7)) + ': ' + msg);
+            CARGANDO = false;
+            return terminar();
+          }
+          ((res.j && res.j.legs) || []).forEach(function (l) {
+            var k = legKey(l);
+            if (vistas[k]) return;                    // mismo vuelo en los dos periodos
+            vistas[k] = 1; LEGS.push(l);
+          });
+          ERRORES = ERRORES.concat((res.j && res.j.errores) || []);
+          SIN_VUELOS += ((res.j && res.j.sinVuelos) || []).length;
+          // El rango y el apellido salen de la ficha del piloto: son los mismos en los
+          // dos meses. Se coge el primero que venga con dato.
+          if (!RANGO && res.j && res.j.rango) RANGO = res.j.rango;
+          if (!NOMBRE && res.j && res.j.nombre) NOMBRE = res.j.nombre;
+
+          if (i + 1 < lotes.length) return paso(i + 1);
+          CARGANDO = false;
+          return terminar();
+        })
+        .catch(function (e) {
+          if (MI !== ABORT) return;
+          CARGANDO = false;
+          // Abortar es una decisión del piloto, no un fallo: no se le enseña un error.
+          if (e && e.name === 'AbortError') return;
+          if (!LEGS.length) return error(e.message);
+          ERRORES.push(mesLabel(lotes[i].from.slice(0, 7)) + ': ' + e.message);
+          return terminar();
+        });
+    }
+
+    /* No cierra nada: es el final de la cadena — marca lo que toca y pinta. */
+    function terminar() {
+      // Por defecto se marca lo que aún no está en el logbook y NO es posicionamiento:
+      // una leg DHC es un vuelo como pasajero, no horas del piloto.
+      LEGS.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+      SEL = {};
+      LEGS.forEach(function (l) { SEL[legKey(l)] = !yaEsta(l) && !l.isPositioning; });
+      render();
+    }
+
+    paso(0);
   };
 
   function necesitaLogin(ym) {
@@ -568,7 +664,9 @@
     LEGS.forEach(function (l) { (dias[l.date] = dias[l.date] || []).push(l); });
     var fechas = Object.keys(dias).sort();
     var nSel = Object.keys(SEL).filter(function (k) { return SEL[k]; }).length;
-    sub(mesLabel(MONTH) + ' · ' + LEGS.length + ' vuelos · ' + nSel + ' seleccionados');
+    /* `loQuePedi()` y no `mesLabel(MONTH)`: con un tramo de 20/09 a 04/10 aquello
+       decía «SEP 2026» encima de una lista que llega a octubre. */
+    sub(loQuePedi() + ' · ' + LEGS.length + ' vuelos · ' + nSel + ' seleccionados');
 
     var h = '';
     if (ERRORES.length) {

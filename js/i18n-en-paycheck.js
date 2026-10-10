@@ -926,4 +926,130 @@
     "Σ deducciones = Total retenido (855)": "Σ deductions = Total deductions (855)",
     "Σ devengos = Total devengado (301)": "Σ earnings = Total earnings (301)"
   });
+
+  /* ════════ NOTAS DE GASTO · lo que entró entre Beta.770 y Beta.1020 ════════
+     Los tres pasos, el bloque de «qué falta», el héroe de HOY, los grupos por
+     urgencia y el concepto de FUTURO. Va en su propia llamada —`pilotosI18nAdd`
+     se puede llamar las veces que haga falta— para que se vea de un tirón qué
+     entró con la tanda y no quede repartido por el orden alfabético.
+
+     ⚠ Lo que NO está aquí y no es un olvido: los rótulos de UNA PALABRA
+     («falta», «reclamas», «TICKET», «TOPE», «CONCEPTO», «SERVICIO», «ENVIADA»,
+     «HASTA») van por `data-i18n-en` en el propio marcado. Una palabra sola como
+     clave de este diccionario es GLOBAL: traduciría cualquier nodo de la app que
+     sea exactamente eso. Y «TOPE» además ya está cogido — vale «TOP», que es el
+     techo de nubes de SkyView. */
+  window.pilotosI18nAdd('en', {
+    /* ── el resumen de arriba ── */
+    "RECLAMAS": "YOU CLAIM",
+    "reclamables": "claimable",
+    "{0} nota que ya ha pasado": "{0} claim already due",
+    "{0} notas que ya han pasado": "{0} claims already due",
+    ": falta 1 nota por justificar": ": 1 claim still needs a receipt",
+    ": faltan {0} notas por justificar": ": {0} claims still need a receipt",
+    "caducó hace 1 día": "expired 1 day ago",
+    "caducó hace {0} días": "expired {0} days ago",
+    /* El bold va delante, así que la frase son DOS nodos y los dos están aquí. */
+    "{0} nota más ({1} €)": "{0} more claim ({1} €)",
+    "{0} notas más ({1} €)": "{0} more claims ({1} €)",
+    "de servicios que aún no has volado": "for duties you haven't flown yet",
+
+    /* ── los tres pasos y la barra de acción ── */
+    "ENVIADO": "SUBMITTED",
+    "＋ Nueva": "＋ New",
+
+    /* ── el héroe de HOY ── */
+    "AYER": "YESTERDAY",
+    "el ticket lo llevas encima ahora": "you've got the receipt on you right now",
+    "📷 Añadir el ticket": "📷 Add the receipt",
+
+    /* ── los grupos por urgencia, y las PRÓXIMAS ── */
+    "⛔ FUERA DE PLAZO": "⛔ PAST THE DEADLINE",
+    "⚠ CADUCA PRONTO": "⚠ EXPIRING SOON",
+    "PENDIENTES": "PENDING",
+    "PRÓXIMAS": "UPCOMING",
+    "Aún no las has volado": "You haven't flown these yet",
+    "no se pueden justificar todavía": "can't be backed with a receipt yet",
+    "Ver {0}": "Show {0}",
+
+    /* ── la tarjeta ── */
+    "⏳ aún no ha pasado": "⏳ hasn't happened yet",
+    "PLAZO VENCIDO": "DEADLINE PASSED",
+    "FUERA DE PLAZO": "PAST THE DEADLINE",
+    "{0} de {1} líneas": "{0} of {1} lines",
+    "✓ {0} € en tickets": "✓ {0} € in receipts",
+    "ticket {0} €": "receipt {0} €",
+    "pasa del tope": "over the cap",
+    "A MANO": "MANUAL",
+    "1 noche": "1 night",
+
+    /* ── «qué falta para cobrarla» ── */
+    "INCOMPLETO": "INCOMPLETE",
+    "COMPLETO": "COMPLETE",
+    "TOPE SUPERADO": "OVER THE CAP",
+    "hasta {0} €": "up to {0} €",
+    "{0} € justificados": "{0} € backed up",
+    "reclamas {0} €": "you claim {0} €",
+    "te faltan {0} €": "{0} € short",
+    "tope alcanzado": "cap reached",
+
+    /* ── el desglose del mes. El pie va en CUATRO nodos: el bold envuelve «El
+       tope» y «El ticket» enteros, no sólo la palabra. ── */
+    "El tope": "The cap",
+    "es el máximo que abona el convenio para esa franja y ese ámbito (art. 10.1 y tablas de dietas).": "is the most the agreement pays for that time band and scope (art. 10.1 and the per-diem tables).",
+    "El ticket": "The receipt",
+    "es lo que llevas justificado: se cobra lo menor de los dos — sin ticket no se aprueba, y lo que pase del tope no se abona.": "is what you've backed up: you get the lower of the two — no receipt means no approval, and anything above the cap isn't paid.",
+
+    /* ⚠ «{0} con tickets» YA estaba en el diccionario y NO casaba: el nodo
+       lleva el € dentro («11,00 € con tickets») y la plantilla pedía el número
+       a secas. Lo mismo con «Te pasas del tope — reclamas», que estaba sin el
+       importe del final. Una clave que no casa con ningún nodo real es el
+       `html.day` escrito para una clase que no existe: parece cubierto y no lo
+       está. Las dos viejas se quedan — el SW sirve la app anterior un rato. */
+    "{0} € con tickets": "{0} € with receipts",
+    "Te pasas del tope — reclamas {0} €": "Over the cap — you claim {0} €",
+
+    /* ── lo enviado ── */
+    "RECHAZADAS O NO SALIERON": "REJECTED OR NOT SENT",
+    "PAGADAS": "PAID",
+    "€ Marcar cobrada": "€ Mark as paid",
+    "€ Pagada": "€ Paid",
+
+    /* ── la hoja del calco del portal ── */
+    /* Los días que el portal admite para el ticket. Se compone con comas, así
+       que el troceado por separadores no lo alcanza — y son CUATRO
+       combinaciones, que caben enumeradas. */
+    "admite el mismo día": "accepts the same day",
+    "admite el mismo día, el siguiente": "accepts the same day or the next",
+    "admite el día antes, el mismo día": "accepts the day before or the same day",
+    "admite el día antes, el mismo día, el siguiente": "accepts the day before, the same day or the next",
+
+    "Toca cada campo para copiarlo": "Tap each field to copy it",
+    "{0} línea en una sola nota": "{0} line in a single claim",
+    "{0} líneas en una sola nota": "{0} lines in a single claim",
+    "tope {0} €": "cap {0} €",
+
+    /* ── la cola de subida ── */
+    "{0} ticket sin subir": "{0} receipt not uploaded",
+    "{0} tickets sin subir": "{0} receipts not uploaded",
+    "— se sube solo en cuanto haya red. La foto vive en este teléfono; a tu cuenta viaja el importe.": "— it uploads on its own as soon as there's a connection. The photo stays on this phone; only the amount goes to your account.",
+    "— se suben solos en cuanto haya red. La foto vive en este teléfono; a tu cuenta viaja el importe.": "— they upload on their own as soon as there's a connection. The photos stay on this phone; only the amounts go to your account.",
+    "☁ {0} cambio sin subir": "☁ {0} change not uploaded",
+    "☁ {0} cambios sin subir": "☁ {0} changes not uploaded",
+    "sube solo en cuanto haya red": "uploads on its own as soon as there's a connection",
+
+    /* ── el pie de la pantalla. El bold («＋ Nueva») va al FINAL de la frase. ── */
+    "La app detecta sola los posicionales y las pernoctas. Lo demás — una incidencia, el horno, un reconocimiento médico — lo marcas tú ahí arriba, con": "The app spots positioning flights and layovers by itself. The rest — an incident, the oven, a medical check — you add yourself up there, with"
+  }, [
+    /* El subtítulo de una pernocta se compone con «+», no con « · », así que el
+       troceado por separadores de i18n.js no lo alcanza y las combinaciones son
+       demasiadas para una clave por cada una. Aquí sí toca un patrón. */
+    [/^(\d+) noches? ?(\+ \d+ guardias?)? ?(\+ firma tarde)?$/,
+      function(m){
+        var o = m[1] + (m[1] === '1' ? ' night' : ' nights');
+        if (m[2]) { var g = m[2].match(/\d+/)[0]; o += ' + ' + g + (g === '1' ? ' standby' : ' standbys'); }
+        if (m[3]) o += ' + late report';
+        return o;
+      }]
+  ]);
 })();
