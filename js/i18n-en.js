@@ -34,7 +34,9 @@
     'Iniciar sesión': 'Sign in',
     'Registro': 'Sign up',
     'Contraseña': 'Password',
-    'piloto@aerolinea.com': 'pilot@airline.com',
+    'tucorreo@ejemplo.com': 'youremail@example.com',
+    'Usa tu correo personal, no el de la compañía: la cuenta es tuya y te acompaña si cambias de aerolínea.':
+      'Use your personal email, not your company one: the account is yours and stays with you if you change airline.',
     '¿Olvidaste tu contraseña?': 'Forgot your password?',
     'Aerolínea': 'Airline',
     'Flota': 'Fleet',
