@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.1032">
+  <meta name="version" content="Estable.1033">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1032","builtAt":"2026-10-10T18:30:28Z","commit":"51956c8","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1033","builtAt":"2026-10-10T18:40:14Z","commit":"4e37d8d","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -21511,12 +21511,6 @@ function pcInvAutorrellena(month){
   if (typeof RCAMB !== 'undefined' && RCAMB.sim){
     if (des){ des.innerHTML = '🔬 Modo prueba activo en el roster — la nómina no se rellena desde un mes simulado. Sal del modo prueba y vuelve a entrar aquí.'; des.style.display='block'; }
     if (wrap) wrap.style.display = 'block';
-    return;
-  }
-  /* Producción no calcula la invasión (ver pilotosInvasionOn): los contadores
-     van a mano y no se toca nada de lo que el piloto haya escrito. */
-  if (typeof window.pilotosInvasionOn === 'function' && !window.pilotosInvasionOn()){
-    if (des){ des.innerHTML = ''; des.style.display = 'none'; }
     return;
   }
   var q = pcInvDesdeRoster(month);
@@ -57526,7 +57520,6 @@ function rdlCalcula(){
       return e && e.date && (String(e.date).slice(0,7) === mes || e.date === previo);
     });
     RDL.firmaLb = rdlFirmaLogbook(mes, previo);
-    if (!rcambEsBeta()) { RDL.mes = mes; RDL.data = null; return null; }
     if (!ent.some(function(e){ return String(e.date).slice(0,7) === mes; })) { RDL.mes = mes; RDL.data = null; return null; }
     var esp = (document.getElementById('pc_esp')||{}).value || 'cmd';
     RDL.mes  = mes;
@@ -58380,7 +58373,7 @@ function rcambPintaSimBar(){
    (para que una app vieja en caché no se encienda sola) y la BUILD que se
    ejecuta. La app de producción va sellada `stable`: aunque el backend al que
    llama dijera beta, ahí no se enciende nada de lo de beta (reportes, 🧪
-   Pruebas, la invasión de día libre, «Enviar prueba»). */
+   Pruebas, «Enviar prueba»). La invasión de día libre NO es de beta: va en las dos. */
 function pilotosBuildBeta(){
   try { var v = window.__PILOTOS_VERSION__; return !v || !v.channel || v.channel === 'beta'; } catch(e){ return true; }
 }
@@ -58390,11 +58383,6 @@ function rcambEsBeta(){
   catch(e){ return false; }
 }
 window.rcambEsBeta = rcambEsBeta;
-/* La INVASIÓN DE DÍA LIBRE (Art. 13.23) es, por decisión del piloto
-   (10-oct-2026), sólo de BETA: en producción no se calcula en el roster ni
-   rellena la nómina. Una puerta, con el mismo gate que 🧪 Pruebas — lo decide el
-   BACKEND (`channel`), no el build —, y la usan el roster y el Pay Check. */
-window.pilotosInvasionOn = function(){ return rcambEsBeta(); };
 
 /* ── Sellar la programación inicial ──
    Hace falta igualmente, no solo para probar: es lo que rescata los meses que ya
@@ -67553,7 +67541,6 @@ document.addEventListener('DOMContentLoaded', function(){
           try {
             var _esBeta = !!(v && v.channel === 'beta') && (typeof window.pilotosBuildBeta !== 'function' || window.pilotosBuildBeta());
             window.__pilotosBeta = _esBeta;
-            try { if (typeof RDL !== 'undefined') RDL.mes = null; if (window.rdlAsegura) window.rdlAsegura(); } catch(_r){}
             if (_esBeta) localStorage.setItem('pilotos_beta', '1');
             else if (v) localStorage.removeItem('pilotos_beta');
           } catch(_e){}
