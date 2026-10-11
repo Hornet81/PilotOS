@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.1033">
+  <meta name="version" content="Estable.1034">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1033","builtAt":"2026-10-10T18:40:14Z","commit":"013d89b","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1034","builtAt":"2026-10-11T08:37:56Z","commit":"df2773f","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -14092,6 +14092,9 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           <input class="fi" type="number" id="pc_hn" value="0" step="0.01" min="0" oninput="pcPintaReparto()">
         </div>
       </div>
+      <!-- Actividad sindical: el bloque incluye 8 h por día (Art. 14.3) y eso no se
+           deduce de los vuelos del mes. Sin decirlo, el número parece un error. -->
+      <div class="pc-hint" id="pc_sind_desglose" style="display:none"></div>
       <div class="pc-hint" style="margin-bottom:6px">Las nocturnas van <b>dentro</b> del bloque total, no aparte. La nómina las paga en el <b>2111</b> a su tarifa y las resta del <b>2104</b>.</div>
       <div id="pc_hv_reparto" class="pc-reparto" style="display:none;margin-bottom:10px"></div>
       <div id="pc_noct_det" class="pc-noct-det" style="display:none;margin-bottom:10px"></div>
@@ -22171,6 +22174,38 @@ async function pcImportFromLogbook(month, opts) {
          otro mes, un campo que ya no se rellene se quedaría marcado en falso. */
       pcLimpiaImportados();
       setVal('pc_hv', data.block_hours||0); setVal('pc_hn', data.night_hours||0);
+      /* ── Días de actividad sindical (Art. 14.3) ──────────────────────────────
+         El bloque que acaba de entrar lleva 8 h por cada día sindical, y la dieta
+         internacional de cada uno. No sale de ningún vuelo, así que hay que
+         decirlo: si no, el piloto ve un bloque que no cuadra con su mes y lo
+         reporta como fallo —o peor, se lo cree y no reclama lo que falte. */
+      try {
+        var _sd = data.sindical || {}, _sdEl = document.getElementById('pc_sind_desglose');
+        if (_sdEl) {
+          var _n = +_sd.dias || 0, _h = +_sd.horas || 0, _d = +_sd.dietas || 0;
+          if (_n > 0) {
+            /* Frases ENTERAS por `t()`, no trozos pegados: el traductor trabaja por
+               texto español completo y una concatenación no le llega nunca (además
+               de que el orden de las palabras cambia en inglés). */
+            var _f = (_sd.fechas || []).map(function(x){ return String(x).slice(8); }).join(', ');
+            var _l1 = _n === 1
+              ? t('✦ <b>{n}</b> día de <b>actividad sindical</b> ({fechas})', { n:_n, fechas:_f })
+              : t('✦ <b>{n}</b> días de <b>actividad sindical</b> ({fechas})', { n:_n, fechas:_f });
+            var _l2 = t('Cada día cuenta como <b>8 h de vuelo</b> y <b>una dieta internacional</b> '
+                      + '(Art. 14.3), y suma igual para el bono de productividad.');
+            var _l3 = _d === 0 ? t('Suman <b>+{h} h</b> al bloque.', { h:_h })
+                    : _d === 1 ? t('Suman <b>+{h} h</b> al bloque y <b>1</b> dieta internacional.', { h:_h })
+                               : t('Suman <b>+{h} h</b> al bloque y <b>{d}</b> dietas internacionales.', { h:_h, d:_d });
+            var _l4 = _d < _n
+              ? t('<b>{k}</b> de esos días ya devengaban dieta por su actividad: un día natural '
+                + 'no devenga dos (Art. 15.18).', { k:_n - _d })
+              : '';
+            _sdEl.innerHTML = _l1 + '<br><span style="opacity:.75">' + _l2 + ' ' + _l3 + '</span>'
+                            + (_l4 ? '<br><span style="opacity:.75">' + _l4 + '</span>' : '');
+            _sdEl.style.display = 'block';
+          } else { _sdEl.style.display = 'none'; _sdEl.textContent = ''; }
+        }
+      } catch(_e){}
       /* Con qué reloj se midió lo que acaba de entrar en la casilla. `data.source`
          y no `source`: lo que el servidor USÓ, no lo que se le pidió. Un valor
          que no sea ninguno de los dos no afirma nada. */

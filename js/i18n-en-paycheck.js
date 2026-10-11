@@ -5,6 +5,24 @@
 (function(){
   if (typeof window.pilotosI18nAdd !== 'function') return;
   window.pilotosI18nAdd('en', {
+    /* Actividad sindical (Art. 14.3). Van por `t()` desde el código, con sus huecos
+       {n} {fechas} {h} {d} {k} — por eso la clave los lleva literales y la traducción
+       tiene que conservar los MISMOS nombres. «Dieta» se traduce «per diem», como el
+       resto de la pantalla. */
+    "✦ <b>{n}</b> día de <b>actividad sindical</b> ({fechas})":
+      "✦ <b>{n}</b> day of <b>union duties</b> ({fechas})",
+    "✦ <b>{n}</b> días de <b>actividad sindical</b> ({fechas})":
+      "✦ <b>{n}</b> days of <b>union duties</b> ({fechas})",
+    "Cada día cuenta como <b>8 h de vuelo</b> y <b>una dieta internacional</b> (Art. 14.3), y suma igual para el bono de productividad.":
+      "Each day counts as <b>8 flight hours</b> and <b>one international per diem</b> (Art. 14.3), and counts the same towards the productivity bonus.",
+    "Suman <b>+{h} h</b> al bloque.":
+      "They add <b>+{h} h</b> to the block.",
+    "Suman <b>+{h} h</b> al bloque y <b>1</b> dieta internacional.":
+      "They add <b>+{h} h</b> to the block and <b>1</b> international per diem.",
+    "Suman <b>+{h} h</b> al bloque y <b>{d}</b> dietas internacionales.":
+      "They add <b>+{h} h</b> to the block and <b>{d}</b> international per diem.",
+    "<b>{k}</b> de esos días ya devengaban dieta por su actividad: un día natural no devenga dos (Art. 15.18).":
+      "<b>{k}</b> of those days already accrued a per diem for their activity: a calendar day cannot accrue two (Art. 15.18).",
     "día convocado — del roster": "day called up — from the roster",
     "días convocados — del roster": "days called up — from the roster",
     "ofrecido sin convocar — no se devenga": "offered but not called up — not accrued",
