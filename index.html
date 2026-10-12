@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.1035">
+  <meta name="version" content="Estable.1036">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1035","builtAt":"2026-10-12T13:57:58Z","commit":"eb78b81","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1036","builtAt":"2026-10-12T14:05:04Z","commit":"b451b17","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -46854,14 +46854,20 @@ function rstRenderStats(){
   // PDF/manual no traen dutyH por entrada → se conserva el cálculo por reglas (+ override pdfDuty).
   (function(){
     var ecByDate = {};
+    var sindDays = {};
     RST.entries.forEach(function(e){
       var _dp2 = e.date.split('-');
       if(parseInt(_dp2[0])!==y || parseInt(_dp2[1])-1!==mo) return;
       if(e.dutyH && String(e.dutyH).indexOf(':')>-1 && !(e.date in ecByDate)) ecByDate[e.date] = t2m(e.dutyH);
+      if(e.code==='SIND' || e.code==='SIN') sindDays[e.date] = 480; // Art. 14.3: 8 h fijas
     });
     var _ecDays = Object.keys(ecByDate);
     if(_ecDays.length){
-      dutyMin = _ecDays.reduce(function(s,d){ return s + ecByDate[d]; }, 0);
+      // Días sindicales que la compañía NO manda en Item2: este override REEMPLAZA dutyMin,
+      // así que sin esto borraría las 8 h/día del Art. 14.3 que el bucle de arriba ya contó.
+      // Solo se añaden si ese día no tiene ya un Item2 oficial (no duplicar).
+      Object.keys(sindDays).forEach(function(d){ if(!(d in ecByDate)) ecByDate[d] = sindDays[d]; });
+      dutyMin = Object.keys(ecByDate).reduce(function(s,d){ return s + ecByDate[d]; }, 0);
     }
   })();
 
