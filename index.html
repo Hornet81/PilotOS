@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.1036">
+  <meta name="version" content="Estable.1037">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1036","builtAt":"2026-10-12T14:05:04Z","commit":"a0cca24","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1037","builtAt":"2026-10-12T14:39:42Z","commit":"1efbcd4","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -46054,6 +46054,13 @@ function rstRenderCalendar(){
     ART:  { bg:'#a67c52', bd:'#8c6743', tx:'#FFFFFF', gl:'rgba(166,124,82,.5)', emoji:'🎓', desc:'ART · Annual Recurrent Training' },
     TRT:  { bg:'#8d6e63', bd:'#6d534b', tx:'#FFFFFF', gl:'rgba(141,110,99,.5)', emoji:'🎓', desc:'TRT · Triannual Recurrent Training' },
     REUT: { bg:'#0891b2', bd:'#0e7490', tx:'#FFFFFF', gl:'rgba(8,145,178,.5)',  emoji:'👥', desc:'Reunión (training)' },
+    /* VICC = curso de formación (confirmado por el usuario). Icono de birrete (_GRAD_ICON) y color
+       propio. ⚠ La paleta está saturada: con SIND ya en el único hueco verde que pasa las 2 barreras
+       (blanco >=4,5:1, ΔE >=25), el único slot ΔE>=25 restante es un marrón que choca con la familia
+       de formación marrón (ART/TRT). VICC es un curso → va en la familia azul/teal: #005F73 petróleo
+       profundo (blanco 7,3:1), distinto de SIND (ΔE 33,7) y más oscuro/azul que el teal de TR y el cian
+       de REU. Se apoya en el birrete + el texto «VICC» de la pastilla para distinguirse de FOS/ART/TRT. */
+    VICC: { bg:'#005F73', bd:'#004A5A', tx:'#FFFFFF', gl:'rgba(0,95,115,.5)', desc:'Curso VICC' },
     FOS:  { bg:'#4d7ea8', bd:'#3d6789', tx:'#FFFFFF', gl:'rgba(77,126,168,.5)', emoji:'🎓', desc:'FOS · Flight Operations (clase teórica)' },
     // ELAT = Días de Lactancia (permiso). Color lila propio + icono de biberón.
     ELAT: { bg:'#c79bd6', bd:'#a878bd', tx:'#FFFFFF', gl:'rgba(199,155,214,.5)', desc:'Días de lactancia' },
@@ -46286,7 +46293,7 @@ function rstRenderCalendar(){
     return (c==='DS') ? _DSCHG_ICON('#FFFFFF')
          : (c==='ELAT') ? _BOTTLE_ICON(tx)
          : (c==='REU' || c==='MTG' || c==='REUT') ? _MEET_ICON(tx, bg)
-         : (c==='FOS' || c==='ART' || c==='TRT') ? _GRAD_ICON(tx)
+         : (c==='FOS' || c==='ART' || c==='TRT' || c==='VICC') ? _GRAD_ICON(tx)
          : (c==='OFIT') ? _OFFICE_ICON(tx)
          : (c==='VAC' || c==='RVAC' || c==='PVAC' || type==='vacation') ? _VAC_ICON('#FFFFFF')
          : (c==='TR' || c==='LMAF' || c.slice(0,2)==='LM') ? _LEARN_ICON(tx)
@@ -46637,6 +46644,12 @@ function rstRenderStats(){
      como dos días. Con el conjunto, un día es un día venga con lo que venga. */
   var _diasAct = {};
   var _marcaDia = function(d){ if(d) _diasAct[d] = true; };
+  // Duty por reglas acumulado POR FECHA para los días que NO son vuelo (guardia 25%, OSB 25%,
+  // sindical 8 h, e-learning/cursos/reuniones por ventana). El override de eCrews solo trae el
+  // Item2 oficial de los días CON VUELO; para los días de tierra usa este mapa como fallback —
+  // si no, se perdían (medido en el roster de Alex F.: 46:09 solo-vuelos vs 116:39 oficial).
+  var _dutyByDate = {};
+  var _addDutyD = function(d, min){ if(d && min>0) _dutyByDate[d] = (_dutyByDate[d]||0) + min; };
   // Bloques de duty de actividad de tierra por fecha (LM, EBT, EVA, training, AAI):
   // fusiona la ventana de TODAS las actividades del día (primer inicio → último fin)
   // en un único duty, que se añade a dutyMin/dutyDays tras el bucle. Evita doble
@@ -46721,7 +46734,7 @@ function rstRenderStats(){
           // 25% credit (non-activated standby)
           // El día solo cuenta como día de actividad si NO hay ya vuelos: una guardia
           // activada y sus vuelos son UNA jornada, no dos.
-          if(_sbEff > 0){ dutyMin += Math.round(_sbEff * 0.25);
+          if(_sbEff > 0){ var _sbCred = Math.round(_sbEff * 0.25); dutyMin += _sbCred; _addDutyD(e.date, _sbCred);
                           if(!e.midnightTail) _marcaDia(e.date); }
         }
       } else if(e.type==='osb'){
@@ -46732,7 +46745,7 @@ function rstRenderStats(){
           if(_osbD < 0) _osbD += 1440;
           // 25% monthly credit for the standby window before activation
           // dutyDays NOT incremented — the flight entries handle the day count
-          if(_osbD > 0) dutyMin += Math.round(_osbD * 0.25);
+          if(_osbD > 0){ var _osbCred = Math.round(_osbD * 0.25); dutyMin += _osbCred; _addDutyD(e.date, _osbCred); }
         }
       }
     } else if(e.type==='lm'){
@@ -46747,7 +46760,7 @@ function rstRenderStats(){
         // Actividad sindical (Art. 14.3): 8 h de DUTY fijas por día (0900-1700 LT), igual
         // que las 8 h de vuelo que se pagan. No depende de que la ventana del evento venga
         // exacta de eCrews (a veces llega sin horas); el artículo fija el día en 8 h.
-        dutyMin += 480; _marcaDia(e.date);
+        dutyMin += 480; _addDutyD(e.date, 480); _marcaDia(e.date);
       } else {
         // Formación / EBT / EVA / reuniones (REU): el duty es la ventana completa
         // (std→sta o start→end). Cuenta para el total mensual de DUTY HOURS.
@@ -46843,7 +46856,7 @@ function rstRenderStats(){
     var b = _lmBlocks[date];
     var d = t2m(b.end) - t2m(b.start);
     if(d < 0) d += 1440;
-    if(d > 0){ dutyMin += d; _marcaDia(date); }
+    if(d > 0){ dutyMin += d; _addDutyD(date, d); _marcaDia(date); }
   });
 
   // ── OVERRIDE duty con el valor OFICIAL de eCrews (Item2) por día ──
@@ -46854,20 +46867,29 @@ function rstRenderStats(){
   // PDF/manual no traen dutyH por entrada → se conserva el cálculo por reglas (+ override pdfDuty).
   (function(){
     var ecByDate = {};
-    var sindDays = {};
     RST.entries.forEach(function(e){
       var _dp2 = e.date.split('-');
       if(parseInt(_dp2[0])!==y || parseInt(_dp2[1])-1!==mo) return;
       if(e.dutyH && String(e.dutyH).indexOf(':')>-1 && !(e.date in ecByDate)) ecByDate[e.date] = t2m(e.dutyH);
-      if(e.code==='SIND' || e.code==='SIN') sindDays[e.date] = 480; // Art. 14.3: 8 h fijas
     });
     var _ecDays = Object.keys(ecByDate);
     if(_ecDays.length){
-      // Días sindicales que la compañía NO manda en Item2: este override REEMPLAZA dutyMin,
-      // así que sin esto borraría las 8 h/día del Art. 14.3 que el bucle de arriba ya contó.
-      // Solo se añaden si ese día no tiene ya un Item2 oficial (no duplicar).
-      Object.keys(sindDays).forEach(function(d){ if(!(d in ecByDate)) ecByDate[d] = sindDays[d]; });
-      dutyMin = Object.keys(ecByDate).reduce(function(s,d){ return s + ecByDate[d]; }, 0);
+      // eCrews SOLO manda el Item2 oficial de los días CON VUELO. El override anterior
+      // REEMPLAZABA dutyMin por Σ Item2 → tiraba el duty de TODOS los días de tierra
+      // (sindical, cursos VICC, reuniones, e-learning, guardia). Medido en el roster real de
+      // Alex F.: solo-vuelos 46:09 vs oficial 116:39 (= +5 SIND 40h +VICC 28h +e-learning 2:30).
+      // Ahora: por cada día de actividad, el Item2 OFICIAL si lo hay; si no, el duty por reglas
+      // de ESE día (_dutyByDate). Reproduce el total oficial al minuto. PDF/manual no traen
+      // dutyH → _ecDays vacío → no entra aquí → se conserva el cálculo por reglas (+ pdfDuty).
+      var _allD = {};
+      Object.keys(ecByDate).forEach(function(d){ _allD[d] = 1; });
+      Object.keys(_dutyByDate).forEach(function(d){
+        var _dp3 = d.split('-');
+        if(parseInt(_dp3[0])===y && parseInt(_dp3[1])-1===mo) _allD[d] = 1;
+      });
+      dutyMin = Object.keys(_allD).reduce(function(s,d){
+        return s + ((d in ecByDate) ? ecByDate[d] : (_dutyByDate[d]||0));
+      }, 0);
     }
   })();
 
@@ -54503,6 +54525,9 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
     'RFT':  {type:'training', code:'TR'},   // Reserved for training
     'MTG':  {type:'training', code:'REU'},  // Meeting
     'REU':  {type:'training', code:'REU'},  // Reunión
+    'VICC': {type:'training', code:'VICC'}, // Curso VICC (formación). type training → su duty es
+                                            // la ventana (first→last) vía _accDuty, que cuenta en
+                                            // el total mensual por _dutyByDate (fallback del override).
     'E':    {type:'training', code:'TR'},   // Actividad corporativa
     'OFIT': {type:'training', code:'TR'},   // Office for training dept
     'GRM':  {type:'training', code:'TR'},   // Grooming
