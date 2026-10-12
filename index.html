@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.1037">
+  <meta name="version" content="Estable.1038">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1037","builtAt":"2026-10-12T14:39:42Z","commit":"5f4b951","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1038","builtAt":"2026-10-12T19:39:01Z","commit":"5c36bb6","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -55230,6 +55230,31 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
       }
     });
     if(add.length) entries.push.apply(entries, add);
+  })();
+
+  // ── Post-proceso: FUSIONAR sesiones del mismo (fecha,código) de tierra en UNA entrada ──
+  // eCrews parte un día de curso en varias sesiones (p.ej. 7× VICC "Instructor course"), ya sea
+  // como un evento con varias en el desglose o como varios eventos sueltos. TODAS comparten el id
+  // de sync (fecha+código, sin hora) → al sincronizar solo sobrevive la ÚLTIMA y su ventana se
+  // trunca a esa sesión. Medido en el roster real de Alex F. (sep): 7× VICC 07:30-16:30 quedaban
+  // en 15:00-16:30 = 1:30 en vez de 9:00 → el duty del mes salía 109:09 en vez de 116:39. eCrews
+  // cuenta el duty como el bloque entero first-start→last-end (con huecos), así que se fusionan en
+  // UNA entrada con std=inicio más temprano y sta=fin más tardío. Vuelos, continuaciones y días
+  // libres NO se tocan; CÓDIGOS DISTINTOS del mismo día (REU vs VICC, LMSJ vs LMSD) quedan aparte.
+  (function(){
+    var _hm = function(s){ var p=String(s||'').split(':'); return p.length===2 ? parseInt(p[0],10)*60+parseInt(p[1],10) : null; };
+    var _mergeable = function(e){ return e && e.date && e.code && e.std && e.sta &&
+        e.type!=='flight' && e.type!=='overnight_continuation' && e.type!=='off'; };
+    var out = [], first = {};
+    entries.forEach(function(e){
+      if(!_mergeable(e)){ out.push(e); return; }
+      var k = e.date+'|'+e.code, g = first[k];
+      if(!g){ first[k] = e; out.push(e); return; }
+      if(_hm(e.std)!=null && (_hm(g.std)==null || _hm(e.std)<_hm(g.std))) g.std = e.std;
+      if(_hm(e.sta)!=null && (_hm(g.sta)==null || _hm(e.sta)>_hm(g.sta))) g.sta = e.sta;
+      // e se absorbe en g (su ventana) → no se añade a out
+    });
+    entries = out;
   })();
 
   // ── Post-proceso: adjuntar bloque/duty OFICIALES (Item1/Item2) por fecha a TODA entrada ──
