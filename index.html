@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.1034">
+  <meta name="version" content="Estable.1035">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1034","builtAt":"2026-10-11T08:37:56Z","commit":"f1e7627","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1035","builtAt":"2026-10-12T13:57:58Z","commit":"74c0221","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -46061,6 +46061,18 @@ function rstRenderCalendar(){
     // e icono propios (libro), distinto del gris+gamepad de EBT/EVA/SIM.
     TR:   { bg:'#0e8a8a', bd:'#0a6e6e', tx:'#FFFFFF', gl:'rgba(14,138,138,.5)', emoji:'📚', desc:'Formación en tierra' },
     LMAF: { bg:'#0e8a8a', bd:'#0a6e6e', tx:'#FFFFFF', gl:'rgba(14,138,138,.5)', emoji:'📚', desc:'E-learning' },
+    /* SIND = Actividad sindical (Art. 14.3): 8 h de vuelo + 1 dieta internacional por día.
+       NO es e-learning (teal) ni simulador. Color propio.
+       ⚠ COLOR PROVISIONAL: la regla de esta app es copiar el tono de eCrews (como AA/RSF/FW)
+       y pasar las dos barreras —blanco >=4,5:1 y ΔE >=25 del vecino con significado más
+       cercano—. El tono de eCrews para SIND NO está muestreado todavía. Además, barrido TODO
+       el espacio de color, el ÚNICO hueco que cumple las dos barreras está en la banda verde:
+       rojo/naranja/azul/violeta y TODO el clúster rosa (DS #d6457d, FW #D30094, FZ #9D174D,
+       stats #F472B6) quedan a ΔE <25. #215610 = verde profundo: blanco 8,7:1, ΔE 30 al vecino
+       más cercano (TR/LMAF teal). Cuando el piloto pase la captura de eCrews, fijar al rosa
+       exacto de SIND asumiendo (si hace falta) la excepción de ΔE, como se hizo con el FW. */
+    SIND: { bg:'#215610', bd:'#184010', tx:'#FFFFFF', gl:'rgba(33,86,16,.5)', desc:'Actividad sindical' },
+    SIN:  { bg:'#215610', bd:'#184010', tx:'#FFFFFF', gl:'rgba(33,86,16,.5)', desc:'Actividad sindical' },
     // Franco (F / F2 / FR / servicio de franco): color coral propio, NO turquesa de OFF.
     F:    { bg:'#ec7063', bd:'#d35f55', tx:'#FFFFFF', gl:'rgba(236,112,99,.5)', desc:'Franco' },
     F2:   { bg:'#ec7063', bd:'#d35f55', tx:'#FFFFFF', gl:'rgba(236,112,99,.5)', desc:'Franco' },
@@ -46298,6 +46310,10 @@ function rstRenderCalendar(){
          // guardias — el mismo que le pone la app de Vueling. Dibujado, no un carácter.
          : (type==='standby' || c==='RSF') ? _STBY_ICON(tx)
          : (type==='sick')    ? _SICK_ICON(tx)
+         // SIND = actividad sindical: va por CÓDIGO y ANTES que el tipo. Llega como
+         // type:'training' (EC_MAP) y sin esto la cascada le pondría el gamepad del simulador.
+         // Sin icono, como el FW y el forzoso: el color propio y las letras «SIND» ya lo dicen.
+         : (c==='SIND' || c==='SIN') ? ''
          : (type==='ebt' || type==='eva' || type==='training') ? _SIM_ICON(tx)
          : (emo || '');
   }
@@ -46727,9 +46743,16 @@ function rstRenderStats(){
       // are included. Accumulated in _lmBlocks; added to dutyMin after the loop.
       _accDuty(e.date, e.start, e.end);
     } else if(e.type==='ebt' || e.type==='eva' || e.type==='training'){
-      // Formación / EBT / EVA / reuniones (REU): el duty es la ventana completa
-      // (std→sta o start→end). Cuenta para el total mensual de DUTY HOURS.
-      _accDuty(e.date, e.std||e.start, e.sta||e.end);
+      if(e.code==='SIND' || e.code==='SIN'){
+        // Actividad sindical (Art. 14.3): 8 h de DUTY fijas por día (0900-1700 LT), igual
+        // que las 8 h de vuelo que se pagan. No depende de que la ventana del evento venga
+        // exacta de eCrews (a veces llega sin horas); el artículo fija el día en 8 h.
+        dutyMin += 480; _marcaDia(e.date);
+      } else {
+        // Formación / EBT / EVA / reuniones (REU): el duty es la ventana completa
+        // (std→sta o start→end). Cuenta para el total mensual de DUTY HOURS.
+        _accDuty(e.date, e.std||e.start, e.sta||e.end);
+      }
     } else if(e.type==='sick') { /* count separately if needed */ }
     else if(e.type !== 'flight' && e.type !== 'overnight_continuation'){
       // Cualquier actividad de TIERRA con ventana horaria (REUT, FOS, F de reserva y
@@ -54478,7 +54501,12 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
     'OFIT': {type:'training', code:'TR'},   // Office for training dept
     'GRM':  {type:'training', code:'TR'},   // Grooming
     'OFIC': {type:'training', code:'TR'},   // Oficina
-    'SIND': {type:'training', code:'TR'},   // Horas sindicales
+    // Actividad sindical (Art. 14.3): NO es formación en tierra. Antes caía a code:'TR'
+    // → tira teal con el libro de e-learning y 0 h de duty. Code propio 'SIND' → estilo,
+    // color e icono propios + 8 h de duty fijas (0900-1700 LT) en rstRenderStats.
+    // eCrews lo manda como 'SIND' (visto en el roster de Alex F.) o 'SIN' (variante).
+    'SIND': {type:'training', code:'SIND'}, // Horas sindicales (8 h de vuelo/duty)
+    'SIN':  {type:'training', code:'SIND'}, // idem (variante de código de eCrews)
     'TR':   {type:'training', code:'TR'},   // Training genérico
     'GRND': {type:'training', code:'TR'},   // Ground training
 
