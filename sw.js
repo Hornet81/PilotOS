@@ -48,6 +48,7 @@ const PRECACHE_URLS = [
   'js/i18n-en-forzoso.js',
   'js/roster-changes.js',
   'js/roster-stats.js',
+  'js/roster-stats-viz.js',
   'js/plazos.js',
   'js/plazos-ui.js',
   // Beta.722 lo trajo y se quedó fuera de esta lista: `offline-test` lo cazó al

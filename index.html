@@ -17172,6 +17172,7 @@ html.day #ec-sync-overlay [style*="background:rgba(8,145,178,.15)"]{
   <div class="la-tabbar">
     <div class="la-tab la-on" id="rstats-tab-mes" onclick="rstatsTab('mes')">ESTE MES</div>
     <div class="la-tab" id="rstats-tab-ano" onclick="rstatsTab('ano')">TU AÑO</div>
+    <div class="la-tab" id="rstats-tab-vue" onclick="rstatsTab('vue')">VUELO</div>
     <button class="rs-per" id="rstats-per" onclick="rstatsPeriodo()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
       <span id="rstats-per-lbl">—</span>
@@ -34203,6 +34204,7 @@ document.addEventListener('focusin',function(e){
   <script src="js/dia-libre.js"></script>
   <script src="js/forzoso.js"></script>
 <script src="js/roster-stats.js"></script>
+<script src="js/roster-stats-viz.js"></script>
 <!-- Costas del mundo para el globo de las estadísticas. Fichero aparte y no
      dentro de este HTML: son 49 kB de geometría que el navegador cachea una vez
      y no vuelve a descargar en cada despliegue del index. -->
@@ -45962,7 +45964,7 @@ function rstDiasFuera(y, mo, base){
   var fuera = {};
   var homeBase = base != null ? base : rstBaseEfectiva().base;
   if(!homeBase) return fuera;
-  var _curPos = homeBase;
+  var _curPos = homeBase, _pos = {};
   var _dim = new Date(y, mo+1, 0).getDate();
   for(var _aw=1; _aw<=_dim; _aw++){
     var _awDs = y+'-'+String(mo+1).padStart(2,'0')+'-'+String(_aw).padStart(2,'0');
@@ -45982,7 +45984,12 @@ function rstDiasFuera(y, mo, base){
       if(_awArr2.length===3 || _awArr2.length===4) _curPos = _awArr2;
     }
     fuera[_awDs] = !window.pilotosMismoApt(_curPos, homeBase);
+    _pos[_awDs] = _curPos;
   }
+  /* DÓNDE se duerme cada noche, para los layovers de las estadísticas. Va como
+     propiedad NO enumerable: quien recorre `Object.keys(fuera)` —el calendario y
+     el contador de noches— sigue viendo exactamente las mismas claves que antes. */
+  try { Object.defineProperty(fuera, 'posiciones', { value: _pos, enumerable: false }); } catch(e){}
   return fuera;
 }
 window.rstDiasFuera = rstDiasFuera;
@@ -58835,7 +58842,7 @@ function rstatsAnos(){
   return a.length ? a : [String(new Date().getFullYear())];
 }
 function rstatsPeriodo(){
-  if (RSTATS.tab !== 'ano') return;
+  if (RSTATS.tab !== 'ano' && RSTATS.tab !== 'vue') return;
   var as = rstatsAnos(), i = as.indexOf(String(RSTATS.ano));
   RSTATS.ano = +as[(i + 1) % as.length];
   rstatsRender();
@@ -58866,8 +58873,10 @@ function rstatsSigno(m){ return (m > 0 ? '+' : '') + RstStats.hhmm(m); }
 function rstatsRender(){
   var host = document.getElementById('rstats-body'); if (!host) return;
   var tm = document.getElementById('rstats-tab-mes'), ta = document.getElementById('rstats-tab-ano');
+  var tv = document.getElementById('rstats-tab-vue');
   if (tm) tm.classList.toggle('la-on', RSTATS.tab === 'mes');
   if (ta) ta.classList.toggle('la-on', RSTATS.tab === 'ano');
+  if (tv) tv.classList.toggle('la-on', RSTATS.tab === 'vue');
   var lbl = document.getElementById('rstats-per-lbl');
   if (lbl){
     if (RSTATS.tab === 'mes'){
@@ -58876,10 +58885,12 @@ function rstatsRender(){
     } else lbl.textContent = String(RSTATS.ano);
   }
   var per = document.getElementById('rstats-per');
-  if (per) per.style.opacity = (RSTATS.tab === 'ano') ? '1' : '.62';
+  if (per) per.style.opacity = (RSTATS.tab === 'mes') ? '.62' : '1';
   var tk = ++RSTATS.tk;
   host.innerHTML = '<div class="la-card"><div class="rs-sub">Calculando…</div></div>';
-  if (RSTATS.tab === 'mes') rstatsRenderMes(host, tk); else rstatsRenderAno(host, tk);
+  if (RSTATS.tab === 'mes') rstatsRenderMes(host, tk);
+  else if (RSTATS.tab === 'vue') rstatsRenderVuelo(host, tk);
+  else rstatsRenderAno(host, tk);
 }
 window.rstatsRender = rstatsRender;
 
@@ -59093,7 +59104,22 @@ async function rstatsRenderAno(host, tk){
      +   '<div class="rs-itn">' + RstStats.hhmm(med.dutyMin) + ' / ' + RstStats.hhmm(med.bloqueMin) + '</div></div>'
      + '</div>';
 
+  /* Lo nuevo del 17-oct-2026 (js/roster-stats-viz.js): anillos, tipos de día
+     con SROF/NROF/leave/sick, la puja, long duty y el año día a día. SUSTITUYE
+     a la barra de «Tu año, repartido» —dos gráficos del mismo reparto acabarían
+     discrepando—, y sale de la MISMA `claseDia`, sólo partida más fino. Si el
+     módulo no ha cargado, la barra de siempre sigue ahí. */
+  var _viz = '';
+  try {
+    if (window.RstViz && RstStats.diasFinos){
+      _viz = RstViz.anoHTML({ y: y, meses: meses,
+        fin: RstStats.diasFinos(ent, desde, hasta),
+        ld:  RstStats.longDuty(ent, desde, hasta) });
+    }
+  } catch(e){ console.warn('[rstats] viz año', e); _viz = ''; }
+  if (_viz) h += _viz;
   // El reparto del año. Va antes que los cambios porque no espera a la red.
+  else {
   var COLS = { vuelo:'#22D3EE', guardia:'#F59E0B', libre:'#10B981', vacaciones:'#7C3AED', formacion:'#64748B', franco:'#0E7490', otros:'#475569' };
   var NOM  = { vuelo:'vuelo', guardia:'guardia', libre:'libre', vacaciones:'vacaciones', formacion:'formación', franco:'franco', otros:'otros' };
   var barra = '', leyenda = '';
@@ -59104,6 +59130,7 @@ async function rstatsRenderAno(host, tk){
   });
   h += '<div class="la-card"><div class="rs-lab">Tu año, repartido · ' + rep.total + ' días</div>'
      + '<div class="rs-rep">' + barra + '</div><div class="rs-leg">' + leyenda + '</div></div>';
+  }
 
   h += '<div class="la-card" id="rstats-camb"><div class="rs-lab">Cambios de programación · por mes</div>'
      + '<div class="rs-sub">Consultando…</div></div>';
@@ -59118,6 +59145,68 @@ async function rstatsRenderAno(host, tk){
   if (tk !== RSTATS.tk) return;
   var box = document.getElementById('rstats-camb');
   if (box) box.innerHTML = '<div class="rs-lab">Cambios de programación · por mes</div>' + rstatsCambiosHTML(datos, meses);
+}
+
+/* ─────────────── VUELO ───────────────
+   Duty vs block, sectores y aterrizajes, layovers, distancia, radiación y la
+   Luna. Todo sale del roster LOCAL (y del logbook para PF/PM): funciona sin
+   cobertura, como TU AÑO. La cobertura se dice arriba por lo mismo que allí. */
+function rstatsLogbook(){
+  try { return JSON.parse(localStorage.getItem('pilotOS_logbook_v1') || '[]') || []; } catch(e){ return []; }
+}
+async function rstatsRenderVuelo(host, tk){
+  var y = RSTATS.ano, desde = y + '-01-01', hasta = y + '-12-31';
+  var ent = rstatsEnt(desde, hasta);
+  var meses = RstStats.meses(ent);
+  if (!meses.length){
+    host.innerHTML = rstatsAviso('No hay roster de ' + y,
+      'Importa algún mes y esta pantalla se llena sola. Cambia de año tocando la píldora de arriba.');
+    return;
+  }
+  if (!window.RstViz){
+    host.innerHTML = rstatsAviso('No se han podido cargar los gráficos', 'Vuelve a abrir la app con cobertura una vez y quedarán guardados.');
+    return;
+  }
+  var h = rstatsAviso('Cuenta sobre ' + meses.length + ' mes(es) de ' + y,
+        meses.map(function(m){ return RSTATS_MESES[(+m.slice(5,7))-1]; }).join(' · ')
+        + '.<br>Todo lo de esta pantalla cuenta sólo lo que tienes importado.');
+  try {
+    var coords = function(c){ try { return ldCoordsApt(String(c||'').replace(/^\*/,'')); } catch(e){ return null; } };
+    var ld = RstStats.longDuty(ent, desde, hasta);
+    var rt = RstStats.rutas(ent, desde, hasta, coords);
+    /* Block por mes: la MISMA medida que «Horas de vuelo» de TU AÑO (lo volado,
+       sin posicionales). Duty por mes: la del long duty, sólo días de vuelo. */
+    var porMes = {};
+    meses.forEach(function(m){
+      var md = RstStats.medidas(ent, m, 'volada');
+      porMes[m] = { block: md.bloqueMin, sect: md.sectores, duty: 0 };
+    });
+    Object.keys(ld.porMes).forEach(function(m){ if (porMes[m]) porMes[m].duty = ld.porMes[m].dutyMin; });
+    var todo = (typeof RST!=='undefined' && RST.entries) || [];
+    var mesesTodo = RstStats.meses(todo);
+    var bse = rstBaseEfectiva().base, noches = {};
+    if (bse){
+      meses.forEach(function(m){
+        var f = rstDiasFuera(+m.slice(0,4), (+m.slice(5,7)) - 1, bse), pos = f.posiciones || {};
+        Object.keys(f).forEach(function(dd){
+          if (f[dd] && dd >= desde && dd <= hasta && pos[dd]) noches[pos[dd]] = (noches[pos[dd]] || 0) + 1;
+        });
+      });
+    }
+    h += RstViz.vueloHTML({
+      y: y, meses: meses, porMes: porMes, ld: ld, rt: rt,
+      rtCarrera: RstStats.rutas(todo, null, null, coords), desdeCarrera: mesesTodo[0] || '',
+      op: RstStats.operacionLogbook(rstatsLogbook(), desde, hasta),
+      base: bse || '', baseC: bse ? coords(bse) : null, coords: coords,
+      lands: (window.LDM && LDM.LANDS) || [], noches: noches
+    });
+    if (!bse) h += rstatsAviso('Falta tu base', 'Ponla en tu perfil y aparecen el mapa de rutas y los layovers.');
+  } catch(e){
+    console.warn('[rstats] vuelo', e);
+    h += rstatsAviso('No se ha podido dibujar esta pestaña', String(e && e.message || e));
+  }
+  if (tk !== RSTATS.tk) return;
+  host.innerHTML = h;
 }
 
 async function rstatsCambiosAno(y, meses, tk){

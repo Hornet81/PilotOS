@@ -462,12 +462,245 @@ function hhmm(min){
   return s + Math.floor(a/60) + 'h' + String(a%60).padStart(2,'0');
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   LO NUEVO DE «TU AÑO» Y «VUELO» (17-oct-2026)
+   ══════════════════════════════════════════════════════════════════════════
+   Pedido del piloto: long duty (>10:30), SROF y NROF, el reparto con leave,
+   stand-by, sick y training, duty vs block mes a mes, sectores y aterrizajes,
+   layovers y distancia, radiación cósmica y «trip to the Moon».
+
+   Todo lo de aquí SUMA lo que ya devuelven `jornadas()`, `claseDia()` y
+   `volado()`. No hay una regla nueva de qué es un día libre, una guardia o un
+   posicional: si alguna falta, se arregla en su sitio y llega aquí sola.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ─────────────── el día, más fino que `claseDia` ───────────────
+   `claseDia` decide la familia y esto sólo PARTE dentro de ella. Así la suma
+   de las clases finas es siempre la del reparto de siempre, y las dos tarjetas
+   no pueden discrepar.
+     libre       → SROF (ganado en la puja) · NROF (no ganado, asignado) · OFF
+     franco/otros→ baja (sick) · vacaciones (leave), si traen su código
+   ⚠ Vacaciones se miran también aquí, y no sólo por `esDiaLibre`: aquélla las
+   devuelve como `null` cuando el 13.23 no las cuenta (`cuentaVacaciones`), y
+   entonces caían en «otros». Para el 13.23 es correcto; para decir cuántos
+   días de leave has tenido, no. */
+var COD_BAJA = ['SICK','INC','HOSP','MED'];
+function claseFina(j){
+  var c = claseDia(j);
+  if (c === 'libre'){
+    if (j.codes.indexOf('SROF') > -1 || j.tipos.indexOf('srof') > -1) return 'srof';
+    if (j.codes.indexOf('NROF') > -1 || j.tipos.indexOf('nrof') > -1) return 'nrof';
+    return 'off';
+  }
+  if (c === 'franco' || c === 'otros'){
+    if (j.tipos.indexOf('sick') > -1 || enLista(j.codes, COD_BAJA)) return 'baja';
+    if (j.tipos.indexOf('vacation') > -1 || enLista(j.codes, DL().COD_VACACIONES || [])) return 'vacaciones';
+  }
+  return c;
+}
+var CLASES_FINAS = ['vuelo','guardia','formacion','srof','nrof','off','vacaciones','baja','franco','otros'];
+
+/* ─────────────── el DUTY de un día de vuelo ───────────────
+   ⚠ NO es la medida del comparador (firma → última hora, sin más). Para «long
+   duty» lo que cuenta es el duty que el piloto ve en su roster, así que el orden
+   es el de la tira de pills (`rstRenderStats`):
+     1) `dutyH` de eCrews (BlockDutyTimes.Item2) — el oficial;
+     2) firma → debrief, cuando eCrews manda los dos;
+     3) la ventana de `jornadas()` con la hora VOLADA + 20 min de debrief, que
+        no se suman si el último tramo es posicional (vas de pasajero).
+   Sólo días CON VUELO: un día de simulador o de oficina no es un FDP y no se
+   compara con 10:30. Y se dice de qué fuente sale cada día. */
+var DEBRIEF_MIN = 20;
+function hmLibre(v){
+  if (v == null) return null;
+  var m = /^[ASE]?(\d{1,2}):(\d{2})$/.exec(String(v).trim());
+  return m ? (+m[1]) * 60 + (+m[2]) : null;
+}
+function dutyDias(entries, desde, hasta){
+  var porFecha = {};
+  (entries || []).forEach(function(e){
+    if (!e || !e.date) return;
+    if ((desde && e.date < desde) || (hasta && e.date > hasta)) return;
+    (porFecha[e.date] || (porFecha[e.date] = [])).push(e);
+  });
+  var rango = (entries || []).filter(function(e){
+    return e && e.date && (!desde || e.date >= desde) && (!hasta || e.date <= hasta);
+  });
+  var J = RC().jornadas(volado(rango));
+  var out = {};
+  Object.keys(porFecha).forEach(function(d){
+    var j = J[d];
+    if (!j || !j.vuelos || !j.vuelos.length) return;
+    var dia = porFecha[d], min = null, fuente = null;
+    for (var i = 0; i < dia.length && min == null; i++){
+      var o = hmLibre(dia[i].dutyH);
+      if (o != null && o > 0){ min = o; fuente = 'oficial'; }
+    }
+    if (min == null){
+      var ck = null, db = null;
+      dia.forEach(function(e){
+        if (e.type !== 'flight') return;
+        var c = hmLibre(e.checkin); if (c != null && (ck == null || c < ck)) ck = c;
+        var b = hmLibre(e.debrief); if (b != null) db = b;
+      });
+      if (ck != null && db != null){ min = ((db - ck) % 1440 + 1440) % 1440; fuente = 'firma-debrief'; }
+    }
+    /* Los tramos EN ORDEN DE JORNADA, que es lo que dibuja la línea de tiempo y
+       lo que decide cuál es el último. El reloj a pelo pondría primero el que
+       sale a las 00:10 de una jornada que empezó a las 18:00. */
+    var ini = j.inicio, legs = [];
+    (j.vuelos || []).forEach(function(v){
+      if (v.std == null || v.sta == null || ini == null) return;
+      var s = ini + (((v.std - ini) % 1440) + 1440) % 1440;
+      var e2 = s + durLeg(v);
+      legs.push({ dep: v.dep.replace(/^\*/, ''), arr: v.arr, pos: esPos(v.dep), ini: s, fin: e2, num: v.num });
+    });
+    legs.sort(function(a, b){ return a.ini - b.ini; });
+    if (min == null && j.inicio != null && j.fin != null && j.fin > j.inicio){
+      var ult = legs[legs.length - 1];
+      min = (j.fin - j.inicio) + (ult && ult.pos ? 0 : DEBRIEF_MIN);
+      fuente = 'calculado';
+    }
+    if (min == null) return;
+    out[d] = { date: d, min: min, fuente: fuente, inicio: j.inicio, legs: legs };
+  });
+  return out;
+}
+
+/* ─────────────── long duty ───────────────
+   «Long duty es días de más de 10:30 h de duty» (piloto, 17-oct-2026): MÁS de,
+   así que un 10:30 justo no entra. El histograma parte justo en 10:30 para que
+   la frontera se vea, y el umbral viaja como parámetro por si el convenio lo
+   mueve. */
+var LONG_DUTY_MIN = 630;
+var HIST_CORTES = [0, 360, 420, 480, 540, 600, 630, 660, 720, 780];
+var HIST_ETQ    = ['<6h','6h','7h','8h','9h','10h','10:30','11h','12h','13h+'];
+function longDuty(entries, desde, hasta, umbral){
+  var u = umbral || LONG_DUTY_MIN;
+  var D = dutyDias(entries, desde, hasta);
+  var dias = Object.keys(D).sort().map(function(k){ return D[k]; });
+  var largos = dias.filter(function(x){ return x.min > u; });
+  var porMes = {}, hist = HIST_CORTES.map(function(){ return 0; });
+  dias.forEach(function(x){
+    var m = x.date.slice(0, 7);
+    var o = porMes[m] || (porMes[m] = { dias: 0, largos: 0, dutyMin: 0 });
+    o.dias++; o.dutyMin += x.min; if (x.min > u) o.largos++;
+    for (var i = HIST_CORTES.length - 1; i >= 0; i--) if (x.min >= HIST_CORTES[i]){ hist[i]++; break; }
+  });
+  var fuentes = { oficial: 0, 'firma-debrief': 0, calculado: 0 };
+  dias.forEach(function(x){ fuentes[x.fuente]++; });
+  return {
+    umbral: u, diasVuelo: dias.length, total: largos.length,
+    top: largos.slice().sort(function(a, b){ return b.min - a.min; }).slice(0, 3),
+    porMes: porMes, hist: hist, histEtq: HIST_ETQ, histCortes: HIST_CORTES,
+    fechas: largos.map(function(x){ return x.date; }),
+    fuentes: fuentes, porDia: D
+  };
+}
+
+/* ─────────────── el año, día a día y por mes, con la clase fina ─────────────── */
+function diasFinos(entries, desde, hasta){
+  var J = RC().jornadas(entries || []);
+  var porDia = {}, porMes = {}, total = {};
+  CLASES_FINAS.forEach(function(k){ total[k] = 0; });
+  Object.keys(J).forEach(function(d){
+    if ((desde && d < desde) || (hasta && d > hasta)) return;
+    var c = claseFina(J[d]);
+    porDia[d] = c; total[c]++;
+    var m = d.slice(0, 7);
+    var o = porMes[m] || (porMes[m] = {});
+    o[c] = (o[c] || 0) + 1;
+  });
+  return { porDia: porDia, porMes: porMes, total: total };
+}
+
+/* ─────────────── distancia y radiación ───────────────
+   La coordenada la pone QUIEN LLAMA (`coords(code) → {lat, lon}`): en la app es
+   `ldCoordsApt`, que ya junta las tres tablas de aeropuertos que hay. Aquí no
+   entra una cuarta.
+   Los posicionales NO suman: no los vuelas tú. Y un sector sin coordenadas no
+   suma 0 en silencio: se cuenta aparte.
+
+   Radiación: ESTIMACIÓN ORIENTATIVA, y la pantalla lo dice. Tasa por hora de
+   bloque según la latitud media del tramo — sube hacia los polos porque el
+   campo magnético protege menos —, ya promediada con subida y bajada para un
+   corto/medio radio europeo:
+       µSv/h = 0,75 × (1 + 3 × clamp((|lat| − 20) / 40, 0, 1))
+   ≈ 1,9 µSv/h a la latitud de BCN y ≈ 2,6 en Londres. No modela el ciclo solar
+   ni el nivel de vuelo real: la dosis oficial es la de la compañía. */
+var R_TIERRA = 6371;
+function gcKm(a, b){
+  var r = Math.PI / 180, dl = (b.lat - a.lat) * r, dn = (b.lon - a.lon) * r;
+  var h = Math.sin(dl/2) * Math.sin(dl/2) + Math.cos(a.lat*r) * Math.cos(b.lat*r) * Math.sin(dn/2) * Math.sin(dn/2);
+  return 2 * R_TIERRA * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+function tasaRad(latMedia){
+  var x = Math.max(0, Math.min(1, (Math.abs(latMedia) - 20) / 40));
+  return 0.75 * (1 + 3 * x);
+}
+function rutas(entries, desde, hasta, coords){
+  var V = volado(entries || []), porMes = {}, pares = {}, apts = {};
+  var o = { km: 0, sectores: 0, sinCoords: 0, uSv: 0, bloqueMin: 0, maxKm: null };
+  V.forEach(function(e){
+    if (!e || e.type !== 'flight' || !e.date) return;
+    if ((desde && e.date < desde) || (hasta && e.date > hasta)) return;
+    if (esPos(e.dep)) return;
+    var dep = up(e.dep).replace(/^\*/, ''), arr = up(e.arr).replace(/^\*/, '');
+    var A = coords ? coords(dep) : null, B = coords ? coords(arr) : null;
+    var m = e.date.slice(0, 7);
+    var pm = porMes[m] || (porMes[m] = { km: 0, uSv: 0, sectores: 0, bloqueMin: 0 });
+    pm.sectores++; o.sectores++;
+    var dur = (RC().hm(e.std) != null && RC().hm(e.sta) != null)
+      ? durLeg({ std: RC().hm(e.std), sta: RC().hm(e.sta) }) : 0;
+    pm.bloqueMin += dur; o.bloqueMin += dur;
+    if (!A || !B){ o.sinCoords++; return; }
+    var km = gcKm(A, B);
+    o.km += km; pm.km += km;
+    var u = tasaRad((A.lat + B.lat) / 2) * dur / 60;
+    o.uSv += u; pm.uSv += u;
+    var k = dep < arr ? dep + '-' + arr : arr + '-' + dep;
+    var p = pares[k] || (pares[k] = { a: dep < arr ? dep : arr, b: dep < arr ? arr : dep, n: 0, km: Math.round(km) });
+    p.n++;
+    apts[dep] = A; apts[arr] = B;
+    if (!o.maxKm || km > o.maxKm.km) o.maxKm = { km: Math.round(km), dep: dep, arr: arr, date: e.date };
+  });
+  o.km = Math.round(o.km); o.uSv = Math.round(o.uSv);
+  o.porMes = porMes;
+  o.pares = Object.keys(pares).map(function(k){ return pares[k]; }).sort(function(a, b){ return b.n - a.n; });
+  o.apts = apts;
+  return o;
+}
+
+/* ─────────────── despegues y aterrizajes ───────────────
+   El roster NO sabe quién vuela cada tramo: eso vive en el LOGBOOK (`func`
+   PF/PM, `toDay/toNight`, `ldgDay/ldgNight`). Se cuenta de ahí y, si el
+   logbook está vacío para el periodo, se devuelve vacío y la pantalla lo dice:
+   inventar un 50/50 sería un dato falso con cara de dato. */
+function operacionLogbook(lb, desde, hasta){
+  var porMes = {}, o = { tramos: 0, pf: 0, pm: 0, to: 0, ldg: 0, ldgNoche: 0 };
+  (lb || []).forEach(function(e){
+    if (!e || !e.date) return;
+    if ((desde && e.date < desde) || (hasta && e.date > hasta)) return;
+    var m = e.date.slice(0, 7);
+    var pm = porMes[m] || (porMes[m] = { tramos: 0, pf: 0, pm: 0, to: 0, ldg: 0 });
+    var to = (+e.toDay || 0) + (+e.toNight || 0), ld = (+e.ldgDay || 0) + (+e.ldgNight || 0);
+    o.tramos++; pm.tramos++;
+    if (e.func === 'PF'){ o.pf++; pm.pf++; } else if (e.func === 'PM'){ o.pm++; pm.pm++; }
+    o.to += to; pm.to += to; o.ldg += ld; pm.ldg += ld; o.ldgNoche += (+e.ldgNight || 0);
+  });
+  o.porMes = porMes;
+  return o;
+}
+
 var API = {
   CATEGORIAS: CATEGORIAS, categoriaTocado: categoriaTocado,
   medidas: medidas, compara: compara, volado: volado, horaVolada: horaVolada, guardias: guardias, reparto: reparto,
   findes: findes, meses: meses, claseDia: claseDia, conActividad: conActividad,
   esGuardia: esGuardia, esPos: esPos, esPosLeg: esPosLeg, durLeg: durLeg, hhmm: hhmm,
-  COD_AEROPUERTO: COD_AEROPUERTO
+  COD_AEROPUERTO: COD_AEROPUERTO,
+  claseFina: claseFina, CLASES_FINAS: CLASES_FINAS, diasFinos: diasFinos,
+  dutyDias: dutyDias, longDuty: longDuty, LONG_DUTY_MIN: LONG_DUTY_MIN,
+  rutas: rutas, gcKm: gcKm, tasaRad: tasaRad, operacionLogbook: operacionLogbook
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = API;
 else root.RstStats = API;
