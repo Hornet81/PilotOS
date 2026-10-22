@@ -57,9 +57,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
   -webkit-backdrop-filter:none !important;
 }
 </style>
-  <meta name="version" content="Estable.1039">
+  <meta name="version" content="Estable.1040">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1039","builtAt":"2026-10-17T10:50:25Z","commit":"04a9fe1","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1040","builtAt":"2026-10-22T10:38:38Z","commit":"a3b7069","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -18480,6 +18480,76 @@ document.addEventListener('DOMContentLoaded', function(){ setTimeout(dhApplyStat
 window.isPosLeg = function(f){
   return !!(f && (f.isPositioning || f.positioning || (f.dep && String(f.dep).charAt(0)==='*')));
 };
+
+/* ── Tiempo de vuelo en 28 días (ORO.FTL.210(a): 100 h en 28 días consecutivos) ──
+   Reporte 22-oct-2026: el roster decía «Block · 28d 82:12» y el logbook 86:16.
+   Tres causas, medidas sobre datos reales:
+     · el roster sumaba un POSICIONAL (VY8249 CDG-BCN, 1:43). Ir de pasajero no
+       es tiempo de vuelo.
+     · el roster no tenía horas de dos sectores (VY1884/1885 del 21-oct) y los
+       contaba como 0, aunque el logbook sí los tenía volados (5:12).
+     · ventanas distintas: el roster miraba 29 días (hoy−28..hoy), el logbook 28.
+   La regla: es tiempo de vuelo VOLADO (calzos fuera → calzos dentro), no
+   programado. Así que UNA cuenta para las dos pantallas:
+     1. el logbook manda — es lo volado de verdad;
+     2. lo que está en el roster y aún no en el logbook se suma con sus horas
+        reales (A/E); si no las tiene, con las programadas (estimado);
+     3. los sectores de HOY que todavía no han llegado van aparte (`prog`): se
+        enseñan como «+programado», pero no se suman a lo volado.
+   Ventana: los 28 días naturales que acaban hoy (hoy−27 … hoy, en UTC). */
+window.ftlBlock28 = function(){
+  var now = new Date();
+  var hoy = now.toISOString().slice(0,10);
+  var d0  = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()-27)).toISOString().slice(0,10);
+  var nowMin = now.getUTCHours()*60 + now.getUTCMinutes();
+  var T = function(t){
+    if(!t) return null; var p = String(t).split(':'); if(p.length < 2) return null;
+    var h = parseInt(p[0],10), m = parseInt(p[1],10);
+    return (isNaN(h) || isNaN(m)) ? null : h*60+m;
+  };
+  var dur = function(s, a){ if(s == null || a == null) return 0; var m = a - s; if(m < 0) m += 1440; return m; };
+  var key = function(e){
+    var n = String(e.flightNum || e.flight || e.flight_number || e.fn || '').replace(/\D/g,'').replace(/^0+/,'');
+    return n ? (String(e.date||'').slice(0,10) + '|' + n) : null;
+  };
+  var res = { min:0, est:0, prog:0, desde:d0, hasta:hoy };
+  var vistos = {};
+
+  // 1 · Logbook
+  var lb = [];
+  try{
+    lb = (typeof ldEntries !== 'undefined' && ldEntries && ldEntries.length) ? ldEntries
+       : JSON.parse(localStorage.getItem(typeof LD_KEY !== 'undefined' ? LD_KEY : 'pilotOS_logbook_v1') || '[]');
+  }catch(e){ lb = []; }
+  lb.forEach(function(e){
+    if(!e || e.type === '__ac_db__' || e.deleted || e.is_deleted) return;
+    if(typeof LD_AC_DB_ENTRY_ID !== 'undefined' && e.id === LD_AC_DB_ENTRY_ID) return;
+    if(typeof ldIsSim === 'function' && ldIsSim(e)) return;
+    var d = String(e.date||'').slice(0,10);
+    if(d < d0 || d > hoy) return;
+    var m = T(e.block) || 0;
+    if(m <= 0) return;
+    res.min += m;
+    var k = key(e); if(k) vistos[k] = 1;
+  });
+
+  // 2 · Roster: lo que todavía no está en el logbook
+  var rs = (window.RST && RST.entries) || [];
+  rs.forEach(function(e){
+    if(!e || e.type !== 'flight' || window.isPosLeg(e)) return;
+    var d = String(e.date||'').slice(0,10);
+    if(d < d0 || d > hoy) return;
+    var k = key(e); if(k && vistos[k]) return;
+    var sA = T(e.std_actual || e.std_estimated), aA = T(e.sta_actual || e.sta_estimated);
+    if(sA != null && aA != null){ res.min += dur(sA, aA); return; }
+    var s = T(e.std), a = T(e.sta);
+    if(s == null || a == null) return;           // sin horas: no se puede contar
+    var m = dur(s, a);
+    if(d < hoy || a <= nowMin){ res.min += m; res.est += m; }   // ya debería haber llegado
+    else res.prog += m;                                          // hoy, pendiente
+  });
+  return res;
+};
 // ── Safe localStorage wrapper (iOS private mode, storage full) ──
 function lsGet(k,def){try{var v=localStorage.getItem(k);return v!==null?v:def||null;}catch(e){return def||null;}}
 function lsSet(k,v){try{localStorage.setItem(k,v);return true;}catch(e){return false;}}
@@ -28781,7 +28851,9 @@ function ldStats(){
   var now=Date.now(),d28=28*24*60*60*1000;
   // OJO: el contador de 100h/28 días es tiempo de vuelo RECIENTE. Ni simulador ni saldo
   // de partida entran aquí — meterle las horas previas pintaría un exceso de FTL falso.
-  var m28=_fl.filter(function(e){return now-new Date(e.date).getTime()<=d28;}).reduce(function(s,e){return s+ldT2m(e.block);},0);
+  // Misma cuenta que la tarjeta «Block · 28d» del roster (window.ftlBlock28): logbook + lo
+  // volado que aún no se ha apuntado, sin posicionales. Antes cada pantalla daba un número.
+  var m28=(typeof window.ftlBlock28==='function')?window.ftlBlock28().min:_fl.filter(function(e){return now-new Date(e.date).getTime()<=d28;}).reduce(function(s,e){return s+ldT2m(e.block);},0);
   // Total de carrera = lo detallado + las horas previas resumidas del PDF importado.
   // El piloto quiere ver TODAS sus horas, no sólo las que hay como fila.
   var bal=(typeof ldBalanceActive==='function')?ldBalanceActive():null;
@@ -47825,6 +47897,7 @@ function _rstLimPendiente(i){
   var LL = RST_LIM_DATA && RST_LIM_DATA.LL;
   return !!(LL && LL[i] && !LL[i].factDep);
 }
+var RST_LIM_SKIP_LEGS = false;
 function _rstLimDelayOf(i){ return Math.max(0, +(RST_LIM_SIM.delays||{})[i] || 0); }
 // El número y el slider enseñan el retraso del sector ELEGIDO.
 // `from` evita que el control que estás usando se repinte a sí mismo y te mueva el cursor.
@@ -47864,6 +47937,18 @@ window.rstLimSetLegDelay = function(i, v){
   if(!RST_LIM_SIM.delays) RST_LIM_SIM.delays = {};
   RST_LIM_SIM.delays[i] = Math.max(0, Math.min(240, Math.round(+v || 0)));
   rstLimSimRender();
+};
+// Escribiendo en el cuadro: se guarda y se repinta TODO menos las filas (si se
+// repintaran, el campo se recrea y el móvil cierra el teclado a mitad de número).
+window.rstLimTypeLeg = function(i, el){
+  if(!_rstLimPendiente(i) || !el) return;
+  var v = String(el.value||'').replace(/\D/g,'').slice(0,3);
+  if(el.value !== v) el.value = v;
+  if(!RST_LIM_SIM.delays) RST_LIM_SIM.delays = {};
+  RST_LIM_SIM.leg = i;
+  RST_LIM_SIM.delays[i] = Math.max(0, Math.min(240, +v || 0));
+  RST_LIM_SKIP_LEGS = true;
+  try { rstLimSimRender(); } finally { RST_LIM_SKIP_LEGS = false; }
 };
 window.rstLimStepLeg = function(i, n){ rstLimSetLegDelay(i, _rstLimDelayOf(i) + (+n || 0)); };
 // Un atajo pulsado otra vez se quita: es un interruptor, no un sumador.
@@ -48338,7 +48423,17 @@ function rstLimLegsHTML(proj){
       };
       right = '<div style="display:flex;align-items:center;border:1px solid rgba(15,23,42,.16);border-radius:8px;overflow:hidden;background:#fff">'
         + btn(-5, '−', '−5 min')
-        + '<span data-lim-legd="'+i+'" style="min-width:42px;text-align:center;'+MONO+';font-size:13px;font-weight:800;color:'+(d ? '#92400E' : '#0F172A')+'">+'+d+'</span>'
+        /* «Que el cuadro de los minutos lo puedas poner 1 a 1» (22-oct-2026):
+           antes era un texto que sólo se movía de 5 en 5 con −/+. Ahora es un
+           campo donde se escribe el retraso exacto (p. ej. 36). Mientras se
+           escribe no se repintan las filas —perdería el foco y el teclado—;
+           al salir del campo o pulsar Intro se repinta todo. */
+        + '<label style="display:flex;align-items:center;justify-content:center;min-width:46px;'+MONO+';font-size:13px;font-weight:800;color:'+(d ? '#92400E' : '#0F172A')+'">+'
+        +   '<input data-lim-legd="'+i+'" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" autocomplete="off" aria-label="Minutos de retraso" value="'+d+'"'
+        +   ' onfocus="this.select()" oninput="rstLimTypeLeg('+i+',this)" onchange="rstLimSetLegDelay('+i+',this.value)"'
+        +   ' onkeydown="if(event.key===\'Enter\'){this.blur();}"'
+        +   ' style="width:34px;border:none;background:transparent;padding:0;margin:0;text-align:center;font:inherit;font-size:16px;color:inherit;outline:none">'
+        + '</label>'
         + btn(5, '+', '+5 min')
         + '</div>';
     }
@@ -48448,7 +48543,7 @@ function rstLimSimRender(){
   }
 
   // ── Filas del simulador ──
-  var lg = $g('rst-lim-legs'); if(lg) lg.innerHTML = rstLimLegsHTML(proj);
+  var lg = $g('rst-lim-legs'); if(lg && !RST_LIM_SKIP_LEGS) lg.innerHTML = rstLimLegsHTML(proj);
 
   /* Fila REAL del medidor. Los elementos se crean UNA vez y luego solo se
      mueven: así se DESPLAZAN (transición CSS), que es lo que hace que se
@@ -49012,14 +49107,9 @@ function rstRenderFatigue(){
     }
 
     // ── BLOCK HOURS 28d ──
-    var d28 = new Date(now); d28.setDate(d28.getDate()-28);
-    var d28Str = d28.toISOString().slice(0,10);
-    var bhMins = 0;
-    allFlights.forEach(function(e){
-      if(e.date < d28Str || e.date > todayStr) return;
-      var s=t2m(e.std_actual||e.std), a=t2m(e.sta_actual||e.sta);
-      if(s&&a){ var m=a-s; if(m<0)m+=1440; bhMins+=m; }
-    });
+    // Tiempo de vuelo VOLADO, la misma cuenta que el logbook (ver window.ftlBlock28).
+    var _ftl28 = window.ftlBlock28();
+    var bhMins = _ftl28.min;
     var bhH=Math.floor(bhMins/60), bhM=bhMins%60;
     var bhPct=Math.min(100,Math.round(bhMins/6000*100));
     var bhVal=document.getElementById('rst-bh-val');
@@ -49038,7 +49128,15 @@ function rstRenderFatigue(){
       bhBadge.style.color=isCrit?'#fca5a5':isWarn?'#fed7aa':'#6ee7b7';
       bhBadge.style.border='1px solid '+(isCrit?'rgba(239,68,68,.3)':isWarn?'rgba(251,146,60,.25)':'rgba(52,211,153,.2)');
     }
-    if(bhSub) bhSub.textContent=bhPct+'% · '+Math.round((6000-bhMins)/60)+'h libres';
+    if(bhSub){
+      var _pg = _ftl28.prog;
+      bhSub.textContent = bhPct+'% · '+Math.round((6000-bhMins)/60)+'h libres'
+        + (_pg ? ' · +'+Math.floor(_pg/60)+':'+String(_pg%60).padStart(2,'0')+' prog. hoy' : '');
+      bhSub.title = 'Tiempo de vuelo volado (calzos a calzos) del '+_ftl28.desde+' al '+_ftl28.hasta
+        + '. Sin posicionales ni simulador.'
+        + (_ftl28.est ? ' Incluye '+Math.floor(_ftl28.est/60)+':'+String(_ftl28.est%60).padStart(2,'0')+' con hora programada (sin horas reales).' : '')
+        + (_pg ? ' Los sectores de hoy pendientes se muestran aparte.' : '');
+    }
 
     // ── NEXT DUTY card ──
     var ndCard   = document.getElementById('rst-next-duty');
@@ -62803,7 +62901,8 @@ function laRenderAnalytics() {
   // sobre `entries`, o sea sin simulador y sin saldo. Meter ahí las horas previas
   // pintaría un exceso de FTL falso.
   var now = Date.now();
-  var mins28  = entries.filter(function(e){ return now-new Date(e.date||0).getTime()<=28*864e5; }).reduce(function(s,e){ return s+ldT2m(e.block||''); },0);
+  var mins28  = (typeof window.ftlBlock28==='function') ? window.ftlBlock28().min   // misma cuenta que el roster
+              : entries.filter(function(e){ return now-new Date(e.date||0).getTime()<=28*864e5; }).reduce(function(s,e){ return s+ldT2m(e.block||''); },0);
   var mins30d = entries.filter(function(e){ return now-new Date(e.date||0).getTime()<=30*864e5; }).reduce(function(s,e){ return s+ldT2m(e.block||''); },0);
   /* ★ 365 días RODANTES. No es ningún límite de ORO.FTL.210 —los dos que hablan
      de un año son «900 h en un AÑO NATURAL» y «1.000 h en 12 MESES CALENDARIO
