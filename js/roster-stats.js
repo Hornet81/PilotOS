@@ -397,6 +397,10 @@ function guardias(entries, desde, hasta){
     total: bloques.length,
     activadas: bloques.filter(function(b){ return b.activada; }).length,
     diasActivados: dias.filter(function(d){ return act[d]; }).length,
+    /* Los que el reparto del año cuenta como VUELO (`claseDia` manda el vuelo
+       por delante de la guardia). Sin esto la tarjeta decía 28 y el donut 14
+       del mismo año y nadie podía cuadrarlos: guardia del donut + estos = días. */
+    diasConVuelo: dias.filter(function(d){ return J[d].vuelos && J[d].vuelos.length > 0; }).length,
     porMes: porMes
   };
 }

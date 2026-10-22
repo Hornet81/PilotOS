@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Prueba ventana flotante</title>
+<!-- DIAGNÓSTICO de la ventana flotante (Picture-in-Picture) del post-it del
+     callsign. iOS contestó NotSupportedError tanto en la PWA como en Safari,
+     así que en vez de adivinar qué vídeo acepta, esta página prueba varias
+     formas EN EL APARATO DEL PILOTO y dice cuál funciona. No la enlaza la app;
+     se abre a mano: <origen>/pip/ -->
+<style>
+  body{margin:0;padding:16px 16px 40px;background:#F8FAFC;color:#0F172A;font:15px -apple-system,system-ui,sans-serif}
+  h1{font-size:19px;margin:6px 0 4px}
+  p.i{color:#334155;margin:0 0 14px;font-size:13.5px}
+  .c{background:#fff;border:1px solid #CBD5E1;border-radius:14px;padding:12px;margin:0 0 12px}
+  .t{font-weight:800;margin-bottom:6px}
+  video{width:200px;height:113px;background:#FDE68A;border-radius:8px;display:block;margin:6px 0}
+  button{min-height:44px;padding:0 14px;border:0;border-radius:11px;background:#B45309;color:#fff;font-weight:800;font-size:15px}
+  .r{font:12.5px ui-monospace,Menlo,monospace;margin-top:6px;white-space:pre-wrap;color:#334155}
+  .ok{color:#166534;font-weight:800}.ko{color:#B91C1C;font-weight:800}
+  #env{font:12px ui-monospace,Menlo,monospace;white-space:pre-wrap;color:#334155}
+  #copiar{background:#0F172A;width:100%}
+</style>
+</head>
+<body>
+<h1>Prueba de la ventana flotante</h1>
+<p class="i">Pulsa «Probar» en cada caja, de una en una. Cuando acabes, pulsa «Copiar resultados» y pégamelos (o haz una captura).</p>
+<div class="c"><div class="t">Este aparato</div><div id="env"></div></div>
+<div id="casos"></div>
+<button id="copiar">Copiar resultados</button>
+<div class="r" id="copiado"></div>
+<script>
+(function(){
+  var R = {};
+  function sup(v){ try { return typeof v.webkitSupportsPresentationMode === 'function' ? String(v.webkitSupportsPresentationMode('picture-in-picture')) : 'n/a'; } catch(e){ return 'err'; } }
+  var env = [
+    'UA: ' + navigator.userAgent,
+    'standalone: ' + (navigator.standalone === true) + ' · display-mode standalone: ' + (window.matchMedia && matchMedia('(display-mode: standalone)').matches),
+    'pictureInPictureEnabled: ' + document.pictureInPictureEnabled,
+    'requestPictureInPicture: ' + ('requestPictureInPicture' in HTMLVideoElement.prototype),
+    'webkitSetPresentationMode: ' + ('webkitSetPresentationMode' in HTMLVideoElement.prototype),
+    'MediaRecorder: ' + (typeof MediaRecorder !== 'undefined' ? ['video/mp4','video/webm'].filter(function(m){ try { return MediaRecorder.isTypeSupported(m); } catch(e){ return false; } }).join(',') || 'sin tipos' : 'no')
+  ].join('\n');
+  document.getElementById('env').textContent = env;
+
+  // Un lienzo amarillo, como el post-it, para los casos que salen de él.
+  var cv = document.createElement('canvas'); cv.width = 480; cv.height = 270;
+  function pinta(){ var c = cv.getContext('2d'); c.fillStyle = '#FDE68A'; c.fillRect(0,0,480,270); c.fillStyle = '#0F172A'; c.font = '800 80px ui-monospace,monospace'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('VY06JB', 240, 135 + Math.sin(Date.now()/500)); }
+  pinta(); setInterval(pinta, 100);
+  var stream = null; try { stream = cv.captureStream(10); } catch(e){}
+
+  var casos = [
+    { k:'A', t:'A · Fichero MP4 sin audio, silenciado', prep:function(v){ v.muted = true; v.src = 'muda.mp4'; } },
+    { k:'B', t:'B · Fichero MP4 con pista de audio muda, silenciado', prep:function(v){ v.muted = true; v.src = 'audio.mp4'; } },
+    { k:'C', t:'C · Fichero MP4 con pista de audio muda, SIN silenciar', prep:function(v){ v.muted = false; v.src = 'audio.mp4'; } },
+    { k:'D', t:'D · Con controles nativos: usa el botón PiP del propio reproductor', controles:true, prep:function(v){ v.muted = true; v.src = 'audio.mp4'; v.controls = true; } },
+    { k:'E', t:'E · Clip grabado del lienzo (como la app)', clip:true, prep:function(v){ v.muted = true; } },
+    { k:'F', t:'F · Directo del lienzo (stream)', prep:function(v){ v.muted = true; if (stream) v.srcObject = stream; } }
+  ];
+  var cont = document.getElementById('casos');
+  casos.forEach(function(cs){
+    var d = document.createElement('div'); d.className = 'c';
+    d.innerHTML = '<div class="t">' + cs.t + '</div><video playsinline webkit-playsinline loop autoplay></video>' +
+      (cs.controles ? '<div class="r">Pulsa ▶ y luego el icono de ventana flotante del reproductor. Después pulsa «Anotar».</div>' : '') +
+      '<button>' + (cs.controles ? 'Anotar' : 'Probar') + '</button><div class="r">—</div>';
+    cont.appendChild(d);
+    var v = d.querySelector('video'), b = d.querySelector('button'), out = d.querySelectorAll('.r'); out = out[out.length - 1];
+    v.addEventListener('enterpictureinpicture', function(){ R[cs.k] = 'OK (entró en flotante)'; out.innerHTML = '<span class="ok">✓ FUNCIONA</span>'; });
+    v.addEventListener('webkitpresentationmodechanged', function(){ if (v.webkitPresentationMode === 'picture-in-picture') { R[cs.k] = 'OK (presentationmode)'; out.innerHTML = '<span class="ok">✓ FUNCIONA</span>'; } });
+    cs.prep(v);
+    if (cs.clip && stream && typeof MediaRecorder !== 'undefined') {
+      var mime = ['video/mp4','video/webm'].filter(function(m){ try { return MediaRecorder.isTypeSupported(m); } catch(e){ return false; } })[0];
+      if (mime) { var tr = [], rec = new MediaRecorder(stream, { mimeType: mime });
+        rec.ondataavailable = function(e){ if (e.data && e.data.size) tr.push(e.data); };
+        rec.onstop = function(){ v.src = URL.createObjectURL(new Blob(tr, { type: mime })); v.play().catch(function(){}); };
+        rec.start(); setTimeout(function(){ rec.stop(); }, 1500); }
+    }
+    var p = v.play(); if (p && p.catch) p.catch(function(){});
+    function estado(){ return 'readyState ' + v.readyState + ' · paused ' + v.paused + ' · muted ' + v.muted + ' · soporta ' + sup(v) + ' · duración ' + (isFinite(v.duration) ? v.duration.toFixed(1) : v.duration); }
+    b.addEventListener('click', function(){
+      if (cs.controles) { R[cs.k] = R[cs.k] || 'no entró (' + estado() + ')'; out.textContent = R[cs.k]; return; }
+      var info = estado();
+      try { if (v.paused) v.play(); } catch(e){}
+      var pr;
+      try {
+        if (v.requestPictureInPicture) pr = v.requestPictureInPicture();
+        else if (v.webkitSetPresentationMode) { v.webkitSetPresentationMode('picture-in-picture'); pr = Promise.resolve(); }
+        else pr = Promise.reject({ name: 'SinAPI', message: '' });
+      } catch(e){ pr = Promise.reject(e); }
+      Promise.resolve(pr).then(function(){ R[cs.k] = R[cs.k] || 'OK'; out.innerHTML = '<span class="ok">✓ FUNCIONA</span>'; })
+        .catch(function(e){ R[cs.k] = 'FALLO ' + (e && e.name) + ': ' + (e && e.message) + ' · ' + info; out.innerHTML = '<span class="ko">✗ ' + (e && e.name) + '</span>\n' + (e && e.message || '') + '\n' + info; });
+    });
+  });
+  document.getElementById('copiar').addEventListener('click', function(){
+    var txt = env + '\n' + casos.map(function(c){ return c.k + ': ' + (R[c.k] || 'sin probar'); }).join('\n');
+    document.getElementById('copiado').textContent = txt;
+    try { navigator.clipboard.writeText(txt).then(function(){ document.getElementById('copiado').textContent = '✓ Copiado\n\n' + txt; }); } catch(e){}
+  });
+})();
+</script>
+</body>
+</html>

@@ -20,6 +20,12 @@
     nombre: '', licencia: '', autoridad: '', tipoLicencia: '',
     compania: '', base: '', flota: '', empleado: '',
     rol: '',            // CPT | FO  -> manda sobre lo que hoy DEDUCE el logbook
+    /* Career Tracker (js/career.js): de la fecha de contrato sale la antigüedad y
+       cuándo se cumple la permanencia del Art. 4.8; `fechaNivel` es cuándo entró en
+       su nivel actual (vacío = desde el contrato) y `hfIngreso` las horas
+       factorizadas que usó la compañía al contratarle (Art. 4.11). Cadenas: así
+       sincronizan por /api/profile sin tocar el servidor. */
+    fechaContrato: '', fechaNivel: '', hfIngreso: '',
     /* El nombre con el que el piloto sale en SU asiento del logbook (CM1 si es
        comandante, CM2 si es copiloto), p. ej. «BALCELLS». Pedido el 18-sep: «debería
        salir por defecto tu nombre, siempre vas a ser tú el que ocupa el puesto».
@@ -923,6 +929,10 @@
       _fila('🏢', 'Compañía', 'Para dietas y pernoctas', 'compania', 'Vueling', '110px') +
       _fila('📍', 'Base', 'Tu aeropuerto base', 'base', 'BCN', '80px') +
       _fila('✈️', 'Flota', 'Qué avión vuelas', 'flota', 'A320 family', '120px') +
+      '<div class="pp-row"><div class="pp-ico">📅</div>' +
+        '<div class="pp-lbl"><b>Fecha de contrato</b><span>De aquí salen tu antigüedad y tus cambios de nivel</span></div>' +
+        '<input class="pp-in" type="date" id="pp-f-fechaContrato" value="' + _esc(PROFILE.fechaContrato) + '" style="width:140px"' +
+        ' onchange="PilotProfile.save({fechaContrato:this.value});try{careerRender()}catch(e){}"></div>' +
       '<div class="pp-row"><div class="pp-ico">🎖️</div>' +
         '<div class="pp-lbl"><b>Rol por defecto</b><span>Al añadir un vuelo nuevo</span></div>' +
         '<select class="pp-in" onchange="PilotProfile.save({rol:this.value})">' +
@@ -959,6 +969,9 @@
          compañero en Barcelona ve otra, del mismo vuelo. Se dice, y se enseña la zona en la
          que está anclado AHORA, que es lo que despeja la duda cada vez que lo mira. */
       (PROFILE.husoVista === 'local' ? _avisoHusoHtml() : '') +
+      /* El interruptor del Swap lo pinta js/swap.js (su estado vive en el servidor).
+         Va ANTES de CAFI: la nota de CAFI tiene que quedar pegada a su interruptor. */
+      (typeof window.swapFilaPerfil === 'function' ? window.swapFilaPerfil() : '') +
       '<div class="pp-row"><div class="pp-ico">🤖</div>' +
         '<div class="pp-lbl"><b>CAFI sabe quién eres</b><span id="pp-ia-sub">' +
           (ppContextoIA() ? _esc(ppContextoIA()) : 'Rellena rol, compañía y base') + '</span></div>' +
@@ -1190,7 +1203,9 @@
     } catch (e) { return false; }
   }
   function ppAltaMarca() {
-    try { localStorage.setItem(ALTA_KEY, JSON.stringify({ uid: _uid(), at: new Date().toISOString() })); } catch (e) {}
+    // Conserva la marca de «completar» (compDia) que vive en la misma clave.
+    try { var o = {}; try { var v = localStorage.getItem(ALTA_KEY); if (v && v.charAt(0) === '{') o = JSON.parse(v); } catch (x) {}
+      o.uid = _uid(); o.at = new Date().toISOString(); localStorage.setItem(ALTA_KEY, JSON.stringify(o)); } catch (e) {}
   }
 
   /* ¿Es de verdad un PRIMER login? Lo pedido es «que en el primer login obligue a
@@ -1241,7 +1256,29 @@
     return true;
   }
 
-  function ppAltaSiToca() { if (ppAltaToca()) ppAltaAbrir(); }
+  /* ── COMPLETAR EL PERFIL (17-oct-2026, pedido del usuario) ─────────────────
+     La hoja de arriba solo sale en un PRIMER login, así que los pilotos que ya
+     estaban dentro se quedaron sin rol ni nombre de chequeo — y el Swap no
+     puede encontrarlos ni distinguir CPT de FO (medido: 12 de 25 con el Swap
+     sin rol; varios salían con el nombre de su correo). A ellos se les abre la
+     MISMA hoja, con lo que ya tengan puesto, hasta que la completen. Como mucho
+     una vez al día: obligatoria, pero no una pared en cada arranque. La marca va
+     dentro de `pilotos_perfil_alta` (sobrevive al logout, lleva el UID). */
+  function _altaObj() { try { var v = localStorage.getItem(ALTA_KEY); return v && v.charAt(0) === '{' ? JSON.parse(v) : {}; } catch (e) { return {}; } }
+  function ppCompletaToca() {
+    if (!_tok()) return false;
+    if (PROFILE.rol && String(PROFILE.nombreTripulacion || '').trim()) return false;
+    if (document.getElementById('pp-alta')) return false;
+    var o = _altaObj(), hoy = new Date().toISOString().slice(0, 10);
+    return !(o.compDia === hoy && (!o.uid || o.uid === _uid()));
+  }
+  function ppAltaSiToca() {
+    if (ppAltaToca()) return ppAltaAbrir();
+    if (ppCompletaToca()) {
+      ppAltaAbrir(true);
+      try { var o = _altaObj(); o.uid = o.uid || _uid(); o.compDia = new Date().toISOString().slice(0, 10); localStorage.setItem(ALTA_KEY, JSON.stringify(o)); } catch (e) {}
+    }
+  }
 
   function ppAltaCss() {
     if (document.getElementById('pp-alta-style')) return;
@@ -1501,7 +1538,7 @@
     return [REG.compania, f].filter(Boolean).join(' · ');
   }
 
-  function ppAltaAbrir() {
+  function ppAltaAbrir(completar) {
     ppAltaCss();
     var REG = _delRegistro();
     var ov = document.createElement('div');
@@ -1526,14 +1563,20 @@
            necesita arriba es POR QUÉ le preguntamos, en una frase; el detalle
            —que las tarifas cambian con el rango— baja a la pista del propio
            campo, que es donde sirve para decidir. */
-        '<div class="pa-k">Bienvenido a bordo</div>' +
+        (completar
+          ? '<div class="pa-k">Completa tu perfil</div>' +
+            '<div class="pa-t" id="pa-t">Dos datos y listo</div>' +
+            '<div class="pa-s">Tu puesto y tu nombre de chequeo: con ellos el Swap te encuentra entre los pilotos de tu base y ' +
+              'separa comandantes de copilotos, y el logbook pone tu nombre en tu asiento.</div>'
+          : '<div class="pa-k">Bienvenido a bordo</div>') +
         /* «Calibremos» y no «Ajustemos»: el subtítulo de debajo dice «PilotOS
              AJUSTA cada cálculo», así que el título repetía el verbo dos
              líneas más arriba. Y calibrar es lo que de verdad pasa aquí: fijar
              una referencia —el rango— de la que salen las tarifas. */
+        (completar ? '' :
         '<div class="pa-t" id="pa-t">Calibremos los instrumentos</div>' +
         '<div class="pa-s">Cuéntanos quién vuela y PilotOS ajusta cada cálculo a tu ' +
-          'convenio: dietas, pernoctas, horas y nómina.</div>' +
+          'convenio: dietas, pernoctas, horas y nómina.</div>') +
 
         '<div class="pa-lbl">Tu puesto <span class="pa-req">OBLIGATORIO</span></div>' +
         '<div class="pa-rol">' +
@@ -1611,8 +1654,10 @@
     document.body.appendChild(ov);
     /* Vista = preguntada. Si sólo se marca al guardar, cerrar la app la deja
        viva para siempre y sale en cada arranque — que es el reporte. */
-    ppAltaMarca();
+    if (!completar) ppAltaMarca();
     _ALTA_ROL = '';
+    // Al completar, lo que ya tenga puesto llega marcado (el rol sí: lo escribió él).
+    if (completar && (PROFILE.rol === 'CPT' || PROFILE.rol === 'FO')) ppAltaRol(PROFILE.rol);
     _ALTA_CARGOS = ppCargos();
     _ALTA_CARGOS.forEach(function (c) {
       try {
@@ -1743,6 +1788,9 @@
     clear: ppClear, foto: ppFoto, firma: ppFirma, setFirma: ppSetFirma, quitarFirma: ppQuitarFirma, hydrate: ppHydrate, setFoto: ppSetFoto, quitarFoto: ppQuitarFoto,
     stats: ppStats, contextoIA: ppContextoIA, cloudPull: ppCloudPull,
     altaSiToca: ppAltaSiToca, altaRol: ppAltaRol, altaGuardar: ppAltaGuardar,
+    // El Swap la abre a quien entra sin rol o sin nombre de chequeo.
+    completar: function () { if (!document.getElementById('pp-alta')) ppAltaAbrir(true); },
+    completaToca: ppCompletaToca,
     notaVirgen: ppNotaVirgen,
     // Para el banco: saber si TOCA preguntar sin llegar a abrir la hoja.
     altaToca: ppAltaToca,

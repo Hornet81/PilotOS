@@ -694,8 +694,42 @@ function autotest(tarifas){
   });
 }
 
+/* ─────────────── ¿Este día se duerme en CASA? ───────────────
+   #4PA7N (Pau, 16-oct-2026): la rotación de IBZ acababa el 9-oct en Ibiza (le
+   cancelaron el posicional de vuelta) y el calendario y los vouchers de Gastos
+   heredaban IBZ en el LMF3 del 10 —formación BCN-BCN— y en las diez RVAC: once
+   «pernoctas» en vacaciones. La posición sólo se movía con vuelos.
+   Un día SIN vuelos devuelve al piloto a casa en dos casos, y sólo en dos:
+   · es día libre o vacaciones (la lista de este módulo — el FRANCO no: se puede
+     seguir de destacamento);
+   · una actividad de tierra con salida o llegada en la base (formación, oficina).
+   Una GUARDIA sin aeropuerto no cuenta: puede ser en el hotel (reporte AD8BF,
+   el 2SBY en Palma que paga su pernocta). `mismo` compara IATA/ICAO. */
+function diaEnBase(entries, base, mismo){
+  if (!base) return false;
+  var eq = typeof mismo === 'function' ? mismo : function(a, b){ return up(a) === up(b); };
+  var codes = [], tipos = [], tierraEnBase = false;
+  for (var i = 0; i < (entries || []).length; i++){
+    var e = entries[i] || {}, raw = e.raw_data || {};
+    var t = String(e.type || e.entry_type || raw.type || '').toLowerCase();
+    if (t === 'flight') return false;
+    tipos.push(t);
+    var c = up(e.code || raw.code || '');
+    if (c) codes.push(c);
+    var dep = up(String(e.dep || raw.dep || '').replace(/^\*/, '')),
+        arr = up(String(e.arr || raw.arr || '').replace(/^\*/, ''));
+    if (t !== 'standby' && ((dep && eq(dep, base)) || (arr && eq(arr, base)))) tierraEnBase = true;
+  }
+  if (!codes.length && !tipos.length) return false;
+  if (enLista(codes, COD_VACACIONES) || tipos.indexOf('vacation') > -1) return true;
+  if (enLista(codes, COD_NO_LIBRE) || tipos.indexOf('f') > -1) return tierraEnBase;
+  if (enLista(codes, COD_DIA_LIBRE)) return true;
+  return tierraEnBase;
+}
+
 /* ─────────────── export ─────────────── */
 var API = {
+  diaEnBase: diaEnBase,
   REGLAS: REGLAS, TARIFAS_2026: TARIFAS_2026, DIETA_NAC: DIETA_NAC,
   COD_DIA_LIBRE: COD_DIA_LIBRE, COD_NO_LIBRE: COD_NO_LIBRE,
   COD_VACACIONES: COD_VACACIONES,

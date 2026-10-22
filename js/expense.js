@@ -356,7 +356,14 @@ function construirDias(rows){
      vuelos (guardia) le deja donde estaba — si se encadena por "¿mañana sale
      de aquí?", una guardia en medio de la línea hace perder las pernoctas. */
   var donde = EX.base, place = {};
-  dates.forEach(function(d){ donde = finDe(d) || donde; place[d] = donde; });
+  /* …salvo que el día devuelva a casa: libre, vacaciones o tierra en la base
+     (#4PA7N, DiaLibre.diaEnBase — la MISMA regla que la luna del calendario). */
+  function enBase(d){
+    try { var DL = window.DiaLibre;
+      return !!(DL && DL.diaEnBase && DL.diaEnBase(byDay[d] || [], EX.base, window.pilotosMismoApt)); }
+    catch(e){ return false; }
+  }
+  dates.forEach(function(d){ donde = finDe(d) || (enBase(d) ? EX.base : donde); place[d] = donde; });
 
   return dates.map(function(d, i){
     var day = rawDay(d);

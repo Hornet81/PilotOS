@@ -50,6 +50,14 @@
       vigente_desde: '2025-01-01', vigente_hasta: null };
   }
   var FAM = { reduccion: ['familiar'] };
+  /* Reglas RETIRADAS: no se pintan ni avisan aunque lleguen de una caché vieja
+     (la del aparato dura 6 h, la del servidor 10 min). La puja de ROFF especial
+     de enero (6 nov) se quitó el 19-oct-2026: el ROFF va del 5 al 11/12 todos
+     los meses (criterio del piloto). Y las fechas de descuento de enero (1–5 nov)
+     tampoco existen ya: se quitaron el mismo día. */
+  var RETIRADAS = { roff_puja_enero: 1, vac_descuento_enero: 1, vac_dia31: 1 };
+  function retirada(r) { return !r || r.activo === false || RETIRADAS[r.id] === 1; }
+
   var REGLAS_DEFECTO = [
     R('roff_puja','roff','ventana','Puja de ROFF · {mes}',
       'Se puede pujar hasta una hora aleatoria entre las 12:00 del día 11 y las 10:00 del día 12, dos meses antes del mes de disfrute.',
@@ -67,35 +75,47 @@
       'anual',0, 10,13,'00:00', 10,21,'23:59', null,null, [], {}, C + '12.11.3', 31, true),
     R('vac_asignacion','vacaciones','hito','Publicación de las vacaciones asignadas',
       null,'anual',0, null,null,null, 11,1,'00:00', null,null, [], {}, C + '12.11.4', 32, true),
-    R('vac_dia31','vacaciones','ventana','Vacaciones · pedir el día 31',
-      'Comunica por escrito a la oficina del piloto si quieres desplazar un bloque al día 31.',
-      'anual',0, 11,1,'00:00', 11,10,'23:59', null,null, [], {}, C + '12.11.1', 33, true),
-    R('vac_descuento_enero','vacaciones','ventana','Fechas de descuento de enero',
-      'Elige qué días libres de enero pasan a ser de trabajo por tus vacaciones.',
-      'anual',0, 11,1,'00:00', 11,5,'23:59', null,null, [], { patron: 'fijo' }, C + '12.11.1', 34, true),
-    R('redfam_pct_febmay','reduccion','limite','Reducción familiar · solicitar % de feb–may',
-      'Para febrero–mayo del año siguiente.','anual',0, null,null,null, 5,31,'23:59', null,null, [], FAM, C + '5.11.1', 40, true),
-    R('redfam_pct_junsep','reduccion','limite','Reducción familiar · solicitar % de jun–sep',
-      'Para junio–septiembre del año siguiente.','anual',0, null,null,null, 9,30,'23:59', null,null, [], FAM, C + '5.11.1', 41, true),
-    R('redfam_pct_octene','reduccion','limite','Reducción familiar · solicitar % de oct–ene',
-      'Para octubre–enero de este año.','anual',0, null,null,null, 1,31,'23:59', null,null, [], FAM, C + '5.11.1', 42, true),
+    /* «hasta el día 25 de dos meses antes de la PUBLICACIÓN de la programación del
+       mes del disfrute»: la programación de un mes se publica el mes anterior, así
+       que son dos meses antes de ÉSE — el tercer mes anterior al disfrute, la misma
+       cuenta que la permuta de la reducción (5.11.8), que sí trae un ejemplo
+       resuelto. La otra lectura posible (el segundo mes anterior) daría una fecha
+       MÁS TARDE, y de las dos se coge la más temprana: decirle a alguien que su
+       plazo acaba antes no le cuesta nada; lo contrario le cuesta la permuta. */
+    R('vac_permuta','vacaciones','limite','Permuta de vacaciones · {mes}',
+      'Acordada con otro piloto de tu base y especialidad, por CREW: hasta el día 25 del tercer mes anterior.',
+      'mensual',3, null,null,null, null,25,'23:59', null,null, [], {}, C + '12.11.5', 35, true),
+    R('redfam_pct_febmay','reduccion','limite','Reducción ex novo · solicitud para feb–may',
+      'Fecha límite para pedirla de febrero a mayo del año siguiente.','anual',0, null,null,null, 11,15,'23:59', null,null, [], FAM, null, 40, true),
+    R('redfam_pct_junsep','reduccion','limite','Reducción ex novo · solicitud para jun–sep',
+      'Fecha límite para pedirla de junio a septiembre de este año.','anual',0, null,null,null, 3,15,'23:59', null,null, [], FAM, null, 41, true),
+    R('redfam_pct_octene','reduccion','limite','Reducción ex novo · solicitud para oct–ene',
+      'Fecha límite para pedirla de octubre a enero.','anual',0, null,null,null, 7,15,'23:59', null,null, [], FAM, null, 42, true),
     R('redfam_var_febmay','reduccion','limite','Reducción familiar · variar o cancelar feb–may',
       'Una sola vez por cuatrimestre.','anual',0, null,null,null, 9,30,'23:59', null,null, [], FAM, C + '5.11.6', 43, true),
     R('redfam_var_junsep','reduccion','limite','Reducción familiar · variar o cancelar jun–sep',
       'Una sola vez por cuatrimestre.','anual',0, null,null,null, 1,31,'23:59', null,null, [], FAM, C + '5.11.6', 44, true),
     R('redfam_var_octene','reduccion','limite','Reducción familiar · variar o cancelar oct–ene',
       'Una sola vez por cuatrimestre.','anual',0, null,null,null, 5,31,'23:59', null,null, [], FAM, C + '5.11.6', 45, true),
-    R('redfam_baja_febmay','reduccion','ventana','Reducción familiar · bajar el % de feb–may',
+    R('redfam_baja_febmay','reduccion','ventana','Reducción · modificación para feb–may',
       'Al porcentaje inmediato inferior, una vez por periodo.','anual',0, 10,1,'00:00', 11,15,'23:59', null,null, [], FAM, C + '5.11.7', 46, true),
-    R('redfam_baja_junsep','reduccion','ventana','Reducción familiar · bajar el % de jun–sep',
-      'Al porcentaje inmediato inferior, una vez por periodo.','anual',0, 2,1,'00:00', 3,15,'23:59', null,null, [], FAM, C + '5.11.7', 47, true),
-    R('redfam_baja_octene','reduccion','ventana','Reducción familiar · bajar el % de oct–ene',
+    R('redfam_baja_junsep','reduccion','ventana','Reducción · modificación para jun–sep',
+      'Al porcentaje inmediato inferior, una vez por periodo.','anual',0, 3,1,'00:00', 3,15,'23:59', null,null, [], FAM, null, 47, true),
+    R('redfam_baja_octene','reduccion','ventana','Reducción · modificación para oct–ene',
       'Al porcentaje inmediato inferior, una vez por periodo.','anual',0, 6,1,'00:00', 8,15,'23:59', null,null, [], FAM, C + '5.11.7', 48, true),
     R('redfam_fechas','reduccion','limite','Reducción familiar · fechas de {mes}',
       'Elige tu bloque de reducción: como muy tarde el último día del tercer mes anterior.',
       'mensual',3, null,null,null, null,-1,'23:59', null,null, [12, 1], FAM, C + '5.11.1', 49, true),
     R('redfam_fechas_dicene','reduccion','limite','Reducción familiar · fechas de diciembre y enero',
       'Antes del 30 de septiembre, para poder asignar los XOFF.','anual',0, null,null,null, 9,29,'23:59', null,null, [], FAM, C + '5.11.1', 50, true),
+    /* «antes del día 25 del tercer mes anterior al de la permuta», con su ejemplo
+       resuelto en el propio convenio —la de junio, del 16 al 24 de marzo—, así que
+       cierra el 24 y no el 25. El plazo ABRE con el bloque (16 de marzo, de agosto
+       o de noviembre); eso va en el detalle y no en `abre_*`, porque las tres
+       aperturas no son una regla mensual y lo que hay que cumplir es el cierre. */
+    R('redfam_permuta','reduccion','limite','Permuta de reducción · {mes}',
+      'Antes del día 25 del tercer mes anterior. El plazo abre con el bloque: 16 de marzo, de agosto o de noviembre.',
+      'mensual',3, null,null,null, null,24,'23:59', null,null, [], FAM, C + '5.11.8', 51, true),
     R('red_hijos16','reduccion','limite','Reducción por hijos de 12 a 16 años · solicitud',
       'Antes del 10 de septiembre, para todo el año siguiente.','anual',0, null,null,null, 9,9,'23:59', null,null, [], { reduccion: ['hijos16'] }, C + '5.12', 60, true),
     R('red_mayores55','reduccion','limite','Reducción para mayores de 55 · solicitud o cambio',
@@ -104,6 +124,19 @@
       'La compañía confirma antes del 1 de septiembre.','anual',0, null,null,null, 8,31,'23:59', null,null, [], { reduccion: ['mayores55'], edad_min_en_anio: 54 }, C + '5.16', 62, true),
     R('red_anual','reduccion','limite','Reducción de jornada anual · solicitud',
       'Antes del 10 de septiembre, para todo el año siguiente.','anual',0, null,null,null, 9,9,'23:59', null,null, [], { reduccion: ['anual'] }, C + '5.17', 63, true),
+    /* Dinero con fecha que no avisa nadie. Los dos `hito` llevan la fecha que
+       NOMBRA el convenio, sin restarle el día de «antes del D»: en un hito no hay
+       nada a lo que llegar tarde, y restarlo haría que la pantalla dijera «el 27 de
+       febrero» de algo que el convenio pone el 28. */
+    R('uniforme_dotacion','retribucion','hito','Dotación de vestuario disponible',
+      'Los 700 € del año (o los puntos) ya están disponibles. El importe adicional por objetivo, a 31 de marzo.',
+      'anual',0, null,null,null, 1,31,'00:00', null,null, [], {}, C + '11.2', 90, true),
+    R('benef_vuelo','retribucion','limite','Beneficios de vuelo del año anterior',
+      'Las reservas del año pasado se pueden consumir hasta el 31 de enero. No se acumulan para el año siguiente.',
+      'anual',0, null,null,null, 1,31,'23:59', null,null, [], {}, C + '17.1', 91, true),
+    R('bono_productividad','retribucion','hito','Bono de productividad',
+      'Se abona antes del 28 de febrero por las horas del año anterior que pasen de 700. Compruébalo en la nómina.',
+      'anual',0, null,null,null, 2,28,'00:00', null,null, [], {}, C + '15.15', 92, true),
     R('patron_fijo_abr','patron','ventana','Vacantes de patrón fijo · 1.er proceso',
       'Asignación antes del 25 de abril; empieza el 1 de julio.','anual',0, 4,1,'00:00', 4,15,'23:59', null,null, [], {}, C + '12.2.2', 70, false),
     R('patron_fijo_sep','patron','ventana','Vacantes de patrón fijo · 2.º proceso',
@@ -127,23 +160,26 @@
     vac_ronda1: ['Leave · 1st round', 'Enter next year’s leave periods in CREW.'],
     vac_ronda2: ['Leave · 2nd round', 'Enter your periods for the second allocation.'],
     vac_asignacion: ['Leave allocation published', null],
-    vac_dia31: ['Leave · request the 31st', 'Tell the pilot office in writing if you want a block moved to the 31st.'],
-    vac_descuento_enero: ['January offset days', 'Choose which January days off become work days because of your leave.'],
-    redfam_pct_febmay: ['Family reduction · request % for Feb–May', 'For February–May next year.'],
-    redfam_pct_junsep: ['Family reduction · request % for Jun–Sep', 'For June–September next year.'],
-    redfam_pct_octene: ['Family reduction · request % for Oct–Jan', 'For October–January this year.'],
+    vac_permuta: ['Leave swap · {mes}', 'Agreed with another pilot of your base and rank, through CREW: up to the 25th of the third month before.'],
+    redfam_pct_febmay: ['New reduction · request for Feb–May', 'Deadline to request it for February to May next year.'],
+    redfam_pct_junsep: ['New reduction · request for Jun–Sep', 'Deadline to request it for June to September this year.'],
+    redfam_pct_octene: ['New reduction · request for Oct–Jan', 'Deadline to request it for October to January.'],
     redfam_var_febmay: ['Family reduction · change or cancel Feb–May', 'Once per four-month period.'],
     redfam_var_junsep: ['Family reduction · change or cancel Jun–Sep', 'Once per four-month period.'],
     redfam_var_octene: ['Family reduction · change or cancel Oct–Jan', 'Once per four-month period.'],
-    redfam_baja_febmay: ['Family reduction · lower the % for Feb–May', 'To the next lower percentage, once per period.'],
-    redfam_baja_junsep: ['Family reduction · lower the % for Jun–Sep', 'To the next lower percentage, once per period.'],
-    redfam_baja_octene: ['Family reduction · lower the % for Oct–Jan', 'To the next lower percentage, once per period.'],
+    redfam_baja_febmay: ['Reduction · change for Feb–May', 'To the next lower percentage, once per period.'],
+    redfam_baja_junsep: ['Reduction · change for Jun–Sep', 'To the next lower percentage, once per period.'],
+    redfam_baja_octene: ['Reduction · change for Oct–Jan', 'To the next lower percentage, once per period.'],
     redfam_fechas: ['Family reduction · dates for {mes}', 'Choose your reduction block: by the last day of the third month before.'],
     redfam_fechas_dicene: ['Family reduction · December and January dates', 'Before 30 September, so the XOFF can be allocated.'],
+    redfam_permuta: ['Reduction swap · {mes}', 'Before the 25th of the third month before. The window opens with the block: 16 March, August or November.'],
     red_hijos16: ['Reduction for children aged 12–16 · request', 'Before 10 September, for the whole of next year.'],
     red_mayores55: ['Over-55 reduction · request or change', 'Before 20 August. First possible in the year you turn 54.'],
     red_mayores55_conf: ['Over-55 reduction · confirmation', 'The company confirms before 1 September.'],
     red_anual: ['Annual reduction · request', 'Before 10 September, for the whole of next year.'],
+    uniforme_dotacion: ['Uniform allowance available', 'Your €700 for the year (or the points) are available now. The extra bonus amount, on 31 March.'],
+    benef_vuelo: ['Last year’s flight benefits', 'Bookings made last year can be flown until 31 January. They do not carry over.'],
+    bono_productividad: ['Productivity bonus', 'Paid before 28 February for last year’s hours above 700. Check it on your payslip.'],
     patron_fijo_abr: ['Fixed pattern vacancies · 1st round', 'Allocated before 25 April; starts 1 July.'],
     patron_fijo_sep: ['Fixed pattern vacancies · 2nd round', 'Allocated before 25 September; starts 1 February.'],
     estac_venta_libres: ['Summer days-off sale', 'Offer up to two days off a month for June–September next year.'],
@@ -258,7 +294,7 @@
     (opts.excepciones || []).forEach(function (e) { exc[e.regla_id + '|' + e.ocurrencia] = e; });
     var d0 = new Date(desde), d1 = new Date(hasta), out = [];
     (reglas || REGLAS_DEFECTO).forEach(function (r) {
-      if (!r || r.activo === false) return;
+      if (retirada(r)) return;
       if (tipos && tipos[r.tipo] === false) return;
       if (perfil && !aplica(r, Object.assign({ anio: d0.getUTCFullYear() }, perfil))) return;
       var cand = [];
@@ -397,7 +433,7 @@
   }
 
   return {
-    REGLAS_DEFECTO: REGLAS_DEFECTO, EN: EN, URGE_MS: URGE_MS, AHORA_LIMITE_MS: AHORA_LIMITE_MS, fase: fase,
+    REGLAS_DEFECTO: REGLAS_DEFECTO, RETIRADAS: RETIRADAS, retirada: retirada, EN: EN, URGE_MS: URGE_MS, AHORA_LIMITE_MS: AHORA_LIMITE_MS, fase: fase,
     ocurrencias: ocurrencias, estado: estado, aplica: aplica,
     titulo: titulo, detalle: detalle, cuando: cuando, falta: falta, cuentaTxt: cuentaTxt, progreso: progreso,
     fechaCorta: fechaCorta, hora: hora, localAMs: localAMs, offsetMin: offsetMin

@@ -59,7 +59,19 @@
   "cifras de kilos y ninguna cae en su columna — la m\u00e1s cerca se queda a": "kg-shaped figures and none falls inside its column \u2014 the closest one is off by",
   "cifras demasiado borrosas para fiarme": "figures too blurry to trust",
   "leo cifras que no tienen forma de kilos, como": "I read figures that aren't kg-shaped, such as",
+  /* ⚠ La de arriba se queda aunque ya no la use nadie: el Service Worker
+     sirve la app anterior un rato despues de subir la version. Las tres de
+     abajo son las del 13-oct-2026 — el ejemplo pasa a salir de la BANDA. */
+  "donde ten\u00edan que ir sus cifras leo cosas como": "where its figures should be I read things like",
+  "no leo NADA debajo de su cabecera": "I read NOTHING under its header",
+  "veo la tabla \u2014las filas Takeoff y Landing\u2014 pero no he podido leer sus cifras": "I can see the table \u2014 the Takeoff and Landing rows \u2014 but I couldn't read its figures",
+  "Prueba otra vez acercando la foto a la tabla, o con una captura de pantalla en vez de una foto.": "Try again with the photo closer to the table, or with a screenshot instead of a photo.",
   "no leo ni una sola cifra en la imagen": "I can't read a single figure in the image",
+  /* La segunda lectura de cerca (21-oct-2026): el aviso mientras repasa y la
+     duda con sus valores. */
+  "La foto no se lee a la primera: repaso las cifras de cerca, fila a fila…": "The photo doesn't read first time: I'm going over the figures up close, row by row…",
+  "la leo de varias formas y no coinciden:": "I read it several ways and they don't agree:",
+  "— con la diferencia saldría": "— the difference printed below gives",
   "No relleno nada — un número mal leído en el logbook es peor que un hueco.": "I'm filling in nothing — a misread number in the logbook is worse than a blank.",
   "Las cifras que ves ya estaban puestas: no salen de esta foto.": "The figures you can see were already there \u2014 they do not come from this photo.",
   "cifra leída": "figure read",

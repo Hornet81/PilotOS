@@ -116,6 +116,7 @@
 
     // ── Barra inferior / avisos globales ──
     'Inicio': 'Home',
+    'Más': 'More',
     '📡 Sin conexión': '📡 Offline',
     'App funcionando offline': 'App working offline',
     'Arrastra para actualizar': 'Pull to refresh',
@@ -148,6 +149,7 @@
     'BAJO': 'LOW',
     'Punto débil': 'Weak spot',
     'Licencias': 'Licences',
+    'Cambios entre pilotos': 'Swaps between pilots',
     'Simulador': 'Simulator',
     'Entrenamiento': 'Training',
     'Horas, ratings y upgrade': 'Hours, ratings & upgrade',

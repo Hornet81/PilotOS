@@ -1,7 +1,7 @@
 // PilotOS Service Worker
 // APP_VERSION lo reescribe scripts/stamp-version.js en cada deploy → cambia el
 // nombre del caché → los cachés de versiones viejas se borran al activar.
-const APP_VERSION = 'Estable.1040';
+const APP_VERSION = 'Estable.1155';
 
 const STATIC_CACHE  = 'pilotos-static-' + APP_VERSION;
 const FONT_CACHE    = 'pilotos-fonts-'  + APP_VERSION;
@@ -49,8 +49,13 @@ const PRECACHE_URLS = [
   'js/roster-changes.js',
   'js/roster-stats.js',
   'js/roster-stats-viz.js',
+  'js/career.js',
   'js/plazos.js',
   'js/plazos-ui.js',
+  'js/postit-dibujo.js',
+  'js/callsign.js',
+  'js/home-orden.js',
+  'js/admin-testers.js',
   // Beta.722 lo trajo y se quedó fuera de esta lista: `offline-test` lo cazó al
   // instante («ningún fichero propio falta sin red» → /js/ecrews-legs-import.js).
   // Un módulo nuevo en public/js/ que no se añada aquí funciona con cobertura y
@@ -88,6 +93,11 @@ const PRECACHE_URLS = [
   'js/expense.js',
   'js/profile.js',
   'js/docs.js',
+  'js/swap-motor.js',
+  'js/swap.js',
+  'css/swap.css',
+  'icons/swap.png',
+  'js/bottom-nav.js',
   'js/runways.js',
   'js/airports-coords.js',
   // Las islas pequeñas con aeropuerto. Sin esto, volando y sin red un St Barth
@@ -419,6 +429,13 @@ function cacheFirst(request, cacheName) {
 self.addEventListener('push', function(e) {
   var d = {};
   try { d = e.data ? e.data.json() : {}; } catch (er) { d = { title: 'PilotOS', body: e.data ? e.data.text() : '' }; }
+  var esSwap = /^swap/.test(d.tag || '');
+  /* Swap con la app ABIERTA: que suene su campanilla propia y se refresque la campana. */
+  if (esSwap) {
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (cs) {
+      cs.forEach(function (c) { try { c.postMessage({ tipo: 'pilotos-swap-aviso' }); } catch (x) {} });
+    });
+  }
   e.waitUntil(self.registration.showNotification(d.title || 'PilotOS', {
     body: d.body || '', tag: d.tag || 'pilotos', renotify: true,
     icon: 'icon-192.png', badge: 'icon-192.png',
@@ -426,7 +443,9 @@ self.addEventListener('push', function(e) {
        el suyo (la opción `sound` no la implementa ningún navegador). Lo que SÍ
        se distingue es la vibración, en Android: dos toques cortos y uno largo,
        que no se confunde con el zumbido único de cualquier otra app. iOS la ignora. */
-    vibrate: [90, 70, 90, 70, 260],
+    /* El Swap tiene SU ritmo (tres toques rápidos y uno largo: «ta-ta-ta… taaa»),
+       distinto del de los plazos, para que el piloto sepa qué es sin mirar. */
+    vibrate: esSwap ? [60, 45, 60, 45, 60, 160, 320] : [90, 70, 90, 70, 260],
     data: { url: d.url || './?avisos=1' }
   }));
 });

@@ -366,7 +366,10 @@ html.day .calc::after{
   background:linear-gradient(100deg,transparent,rgba(255,255,255,.6),transparent);
   transform:skewX(-18deg);animation:apcShine 3.4s ease-in-out infinite;
 }
-@keyframes apcShine{0%{left:-65%}55%{left:135%}100%{left:135%}}
+/* Se mueve con `transform`, no con `left`: animar `left` rehace el layout en cada
+   frame (~35 por segundo, para siempre). 200 % del botón son 476 % de este brillo
+   (que mide el 42 %): el mismo recorrido, compuesto por la GPU. */
+@keyframes apcShine{0%{transform:translateX(0) skewX(-18deg)}55%{transform:translateX(476.19%) skewX(-18deg)}100%{transform:translateX(476.19%) skewX(-18deg)}}
 /* Leyenda + SVG */
 html.day .pf-leg{color:#3C5A49 !important}
 html.day .leg-std i{border-top-color:#64748B !important}
@@ -413,7 +416,9 @@ html.day .warn.cold{background:rgba(254,226,226,.72) !important;border-color:rgb
 <div class="wrap">
 
   <div class="hdr">
-    <div class="back" onclick="if(window.parent&&window.parent!==window&&window.parent.goTo){window.parent.goTo('tools')}">‹ Tools</div>
+    <!-- Vuelve a la pantalla DE LA QUE VIENES (la tarjeta puede vivir en Inicio o en
+         Herramientas). El rótulo lo pone index.html (descentCarga) cada vez que se abre. -->
+    <div class="back" id="dp-back" onclick="var P=window.parent;if(P&&P!==window){if(P.navVuelve){P.navVuelve('tools')}else if(P.goTo){P.goTo('tools')}}">‹ Tools</div>
     <div class="hdr-t">Approach Path Calculator</div>
     <div class="hdr-chip">ICAO · DOC 8168</div>
   </div>

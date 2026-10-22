@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0F172A">
+<title>Callsign</title>
+<!-- EL POST-IT, SUELTO, PARA SAFARI.
+
+     iOS no deja abrir la ventana flotante (Picture-in-Picture) dentro de una
+     web abierta desde la pantalla de inicio: contesta NotSupportedError
+     (WebKit bug 303885). En Safari sí — medido en el iPhone del piloto el
+     12-oct-2026 con /pip/: el clip grabado del lienzo entra en flotante.
+
+     Por eso desde la app el botón «Fijar» abre ESTA página en Safari
+     (x-safari-https://…), con el callsign y el vuelo en la URL, y aquí se fija.
+
+     ⚠ Esta página NO lleva <link rel="manifest">, y es a propósito: es la forma
+     de la página de diagnóstico que funcionó. No añadírselo «por coherencia».
+     Tampoco usa la base de datos ni la sesión: todo lo que necesita va en la URL. -->
+<style>
+  html,body{margin:0;background:#0F172A;color:#F8FAFC;font:16px -apple-system,system-ui,sans-serif}
+  main{max-width:520px;margin:0 auto;padding:calc(18px + env(safe-area-inset-top)) 18px calc(24px + env(safe-area-inset-bottom));text-align:center}
+  h1{font-size:15px;font-weight:700;letter-spacing:.8px;color:#CBD5E1;margin:4px 0 14px;text-transform:uppercase}
+  video{width:100%;aspect-ratio:16/9;background:#334155;border-radius:16px;display:block;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+  button{display:block;width:100%;min-height:56px;margin-top:18px;border:0;border-radius:16px;background:#B45309;color:#fff;font-weight:800;font-size:18px}
+  button[disabled]{background:#334155;color:#CBD5E1}
+  .m{margin-top:12px;color:#E2E8F0;font-size:14.5px;line-height:1.45;min-height:42px}
+</style>
+</head>
+<body>
+<main>
+  <h1 id="tit">Callsign</h1>
+  <video id="v" playsinline webkit-playsinline muted loop autoplay></video>
+  <button id="fijar" disabled>…</button>
+  <div class="m" id="msg" aria-live="polite"></div>
+</main>
+<script src="../js/postit-dibujo.js"></script>
+<script>
+(function(){
+  var q = new URLSearchParams(location.search);
+  var limpia = function(s, n){ return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, n); };
+  var hora = function(s){ var m = String(s || '').match(/^(\d{1,2}):(\d{2})$/); return m ? m[0] : ''; };
+  var EN = q.get('l') === 'en';
+  var T = function(es, en){ return EN ? en : es; };
+  document.documentElement.lang = EN ? 'en' : 'es';
+  document.getElementById('tit').textContent = T('Post-it del vuelo', 'Flight note');
+  // Todo va en la URL (esta página no tiene sesión). El tema llega RESUELTO por la app.
+  var D = {
+    cs: limpia(q.get('cs'), 7), fl: limpia(q.get('fl'), 6), conf: q.get('c') !== '0',
+    dep: limpia(q.get('dep'), 4), arr: limpia(q.get('arr'), 4), std: hora(q.get('sd')), sta: hora(q.get('sa')),
+    suf: q.get('suf') === 'LT' ? 'LT' : (q.get('suf') === 'z' ? 'z' : ''), cpt: limpia(q.get('cpt'), 6), fo: limpia(q.get('fo'), 6),
+    pax: String(q.get('pax') || '').replace(/\D/g, '').slice(0, 3), wch: String(q.get('wch') || '').replace(/\D/g, '').slice(0, 2),
+    wchR: String(q.get('wr') || '').replace(/\D/g, '').slice(0, 2), wchS: String(q.get('ws') || '').replace(/\D/g, '').slice(0, 2), wchC: String(q.get('wc') || '').replace(/\D/g, '').slice(0, 2)
+  };
+  var E = { color: q.get('col'), tema: q.get('tema'), forma: q.get('forma') };
+  /* Los tramos que vienen (`sec`): esta página no puede leer el roster, así que la
+     app le pasa los del día con su llegada en minutos UTC y aquí se elige por el
+     reloj. Al aterrizar (+30 min) pasa sola al siguiente: si no, el post-it de la
+     mañana seguía flotando a media tarde (16-oct-2026). El de AHORA lleva «=». */
+  var SEC = String(q.get('sec') || '').split('~').map(function(t){
+    var p = t.split('.'); if (p.length < 9) return null;
+    return { fl: limpia(p[0], 6), dep: limpia(p[1], 4), arr: limpia(p[2], 4), std: hora(p[3]), sta: hora(p[4]),
+      suf: p[5] === 'LT' ? 'LT' : (p[5] === 'z' ? 'z' : ''), d: +p[6] || 0, a: +p[7] || 0, cs: p[8] === '=' ? '=' : limpia(p[8], 7) };
+  }).filter(function(x){ return x && x.fl && x.a; });
+  /* Sólo cuentan el de AHORA y los que van detrás. Sin «=», el post-it es uno
+     escrito a mano que no está en el roster: ése no lo cambia el reloj. */
+  var iAct = -1; SEC.forEach(function(x, i){ if (iAct < 0 && x.cs === '=') iAct = i; });
+  SEC = iAct < 0 ? [] : SEC.slice(iAct);
+  var BASE = JSON.parse(JSON.stringify(D)), TRAS = 30;   // minutos tras calzos
+  // El tramo que toca ahora: el primero que no ha aterrizado. null = sin tramos (o todos pasados).
+  function tramoAhora(){
+    var ahora = Date.now() / 6e4;
+    for (var i = 0; i < SEC.length; i++) if (SEC[i].a + TRAS >= ahora) return SEC[i];
+    return null;
+  }
+  var pasado = false;
+  function eligeTramo(){
+    if (!SEC.length) return false;
+    var t = tramoAhora(), antes = JSON.stringify(D);
+    pasado = !t;
+    if (!t || t.cs === '=') D = JSON.parse(JSON.stringify(BASE));
+    else {
+      // Otro tramo: su vuelo, su ruta y sus horas. Callsign del histórico, SIN confirmar;
+      // pasajeros y sillas eran del tramo anterior y no se arrastran.
+      D = JSON.parse(JSON.stringify(BASE));
+      D.fl = t.fl; D.dep = t.dep; D.arr = t.arr; D.std = t.std; D.sta = t.sta; D.suf = t.suf;
+      D.cs = t.cs; D.conf = false; D.pax = ''; D.wch = ''; D.wchR = ''; D.wchS = ''; D.wchC = '';
+    }
+    return JSON.stringify(D) !== antes;
+  }
+  eligeTramo();
+  // El MISMO dibujo que el post-it de la app: js/postit-dibujo.js.
+  var cv = document.createElement('canvas');
+  function pinta(){ if (window.PilotosPostit) window.PilotosPostit.pinta(cv, D, E, { sinConf: T('SIN CONFIRMAR', 'NOT CONFIRMED') }); }
+  pinta();
+  var v = document.getElementById('v'), b = document.getElementById('fijar'), msg = document.getElementById('msg');
+  try { v.autoPictureInPicture = true; } catch(e) {}
+  var stream = null;
+  try { stream = cv.captureStream(10); v.srcObject = stream; v.play().catch(function(){}); } catch(e) {}
+
+  // Clip grabado (el caso E de /pip/, el que entró en flotante en el iPhone).
+  var mime = (typeof MediaRecorder !== 'undefined') ? ['video/mp4', 'video/webm'].filter(function(m){ try { return MediaRecorder.isTypeSupported(m); } catch(e){ return false; } })[0] : null;
+  function listo(){ b.disabled = false; b.textContent = '📌 ' + T('Fijar en pantalla', 'Pin on screen'); }
+  function aviso(){
+    if (pasado) msg.textContent = T('Este post-it es de un vuelo que ya ha aterrizado. Vuelve a fijarlo desde PilotOS.', 'This note is for a flight that has already landed. Pin it again from PilotOS.');
+  }
+  var grabando = false;
+  function graba(fin){
+    if (!(stream && mime)) { if (fin) fin(); return; }
+    grabando = true;
+    var tr = [], rec = new MediaRecorder(stream, { mimeType: mime }), tic = setInterval(pinta, 100);
+    rec.ondataavailable = function(e){ if (e.data && e.data.size) tr.push(e.data); };
+    rec.onstop = function(){
+      clearInterval(tic); grabando = false;
+      if (tr.length) {
+        // Se cambia el `src` del MISMO vídeo: si está flotando, la ventana sigue y cambia de contenido.
+        var viejo = v.src;
+        v.srcObject = null; v.src = URL.createObjectURL(new Blob(tr, { type: mime })); v.play().catch(function(){});
+        if (viejo && viejo.indexOf('blob:') === 0) setTimeout(function(){ try { URL.revokeObjectURL(viejo); } catch(e) {} }, 3000);
+      }
+      if (fin) fin();
+    };
+    rec.start(); setTimeout(function(){ try { rec.stop(); } catch(e) { clearInterval(tic); grabando = false; if (fin) fin(); } }, 1200);
+  }
+  if (stream && mime) { b.textContent = T('Preparando…', 'Preparing…'); graba(listo); } else listo();
+  aviso();
+  /* Al volver a esta página (o cada minuto mientras se ve): si ha aterrizado,
+     se pasa al tramo siguiente y se regraba. Con Safari en segundo plano iOS
+     congela la página: el cambio entra en cuanto se vuelve a ella. */
+  function revisa(){ if (document.hidden || grabando) return; if (eligeTramo()) { pinta(); graba(); } aviso(); }
+  document.addEventListener('visibilitychange', revisa);
+  setInterval(revisa, 60000);
+  window.__postitTramo = function(){ return { fl: D.fl, std: D.std, sta: D.sta, cs: D.cs, pasado: pasado, src: v.src }; };   // para el banco
+
+  v.addEventListener('enterpictureinpicture', function(){ msg.textContent = T('✓ Fijado. Ya puedes volver a PilotOS o al EFB.', '✓ Pinned. You can go back to PilotOS or the EFB.'); });
+  // Sin cobertura: el SW propio de /pip/ guarda esta página la primera vez que se
+  // abre con red (Safari no comparte el SW de la app). Ver pip/sw.js.
+  try { if (navigator.serviceWorker) navigator.serviceWorker.register('sw.js', { scope: './' }).catch(function(){}); } catch(e) {}
+  b.addEventListener('click', function(){
+    var pr;
+    try {
+      if (v.paused) v.play();
+      if (v.requestPictureInPicture) pr = v.requestPictureInPicture();
+      else if (v.webkitSetPresentationMode) { v.webkitSetPresentationMode('picture-in-picture'); pr = Promise.resolve(); }
+      else pr = Promise.reject({ name: 'SinAPI' });
+    } catch(e) { pr = Promise.reject(e); }
+    Promise.resolve(pr).then(function(){ msg.textContent = T('✓ Fijado. Ya puedes volver a PilotOS o al EFB.', '✓ Pinned. You can go back to PilotOS or the EFB.'); })
+      .catch(function(e){ msg.textContent = T('Este aparato no ha dejado abrir la ventana flotante', 'This device did not allow the floating window') + (e && e.name ? ' (' + e.name + ')' : '') + '.'; });
+  });
+})();
+</script>
+</body>
+</html>

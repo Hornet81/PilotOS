@@ -197,7 +197,9 @@ function banda(cajas) {
      desplazamiento sin comerse la columna de al lado — y si aun así se
      solapan, `separa` corta por la mitad del hueco. */
   var w = x1 - x0, m = Math.max(w * 0.55, (y1 - y0) * 6);
-  return { x0: x0 - m, x1: x1 + m, yCab: y1 };
+  /* `xd` es el borde DERECHO de la cabecera, que es contra lo que eCrews
+     alinea sus cifras: lo usa la segunda lectura para mirar sólo ahí. */
+  return { x0: x0 - m, x1: x1 + m, yCab: y1, xd: x1 };
 }
 
 /* Dos bandas ensanchadas pueden solaparse, y un número que cae en las dos se
@@ -323,14 +325,30 @@ function revisa(v) {
 
    Esto NO decide nada: sólo cuenta lo que se ha visto para poder decirlo. */
 function porQueNada(pal, col) {
-  var d = { n: 0, arriba: 0, flojas: 0, raras: 0, ej: '', dx: null, cerca: null };
+  var d = { n: 0, arriba: 0, flojas: 0, raras: 0, ej: '', dx: null, cerca: null, banda: 0 };
   for (var i = 0; i < pal.length; i++) {
     var w = pal[i], v = _kg(w.text);
+    /* ⚠⚠ EL EJEMPLO SALE DE LA BANDA, NO DE LA PÁGINA. Reportado el 13-oct-2026:
+       el aviso decía «leo cifras que no tienen forma de kilos, como «VY1883/13»»
+       —la clave del vuelo, de la cabecera de la página— y con eso no se puede
+       seguir. `raras` y `ej` recorrían TODAS las palabras y se quedaban con la
+       primera en orden de lectura, que en un pantallazo es siempre la barra de
+       estado o el título: medido contra la foto real del reporte anterior, el
+       ejemplo era «7:05», el reloj del iPad. O sea que la única prueba que el
+       aviso enseña era, por construcción, la menos relacionada con el fallo.
+
+       Medido en el mismo caso con la banda: lo que hay debajo de la cabecera
+       del plan es «65 53», «63 65», «21 00», «19 77» — las cuatro cifras
+       partidas en dos por el lector. Eso SÍ dice qué ha pasado y qué repetir.
+       Es «el diagnóstico existía y se tiraba», un piso más abajo. */
+    var enBanda = cx(w.bbox) >= col.x0 && cx(w.bbox) <= col.x1 &&
+                  (col.yCab == null || cy(w.bbox) >= col.yCab);
+    if (enBanda) d.banda++;
     if (v == null) {
-      if (/[0-9]/.test(w.text)) { d.raras++; if (!d.ej) d.ej = w.text; }
+      if (enBanda && /[0-9]/.test(w.text)) { d.raras++; if (!d.ej) d.ej = w.text; }
       continue;
     }
-    if (w.conf < CONF_MIN) { d.flojas++; continue; }
+    if (w.conf < CONF_MIN) { if (enBanda) d.flojas++; continue; }
     /* ⚠ Lo que está POR ENCIMA de la cabecera no cuenta como «cifra que podría
        haber usado»: ahí vive la barra de estado del iPad, y en la foto real hay
        una. Contándola, el aviso decía «leo 1 cifra de kilos y ninguna cae en su
@@ -422,8 +440,587 @@ function envoltura(res, margen) {
   return { x0: x0 - m, y0: y0 - m, x1: x1 + m, y1: y1 + m };
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   SEGUNDA LECTURA — cuando la primera no llega (21-oct-2026)
+
+   «Compruebe por qué no detecta los datos de combustible», con una FOTO de la
+   pantalla del iPad hecha con otro aparato: trama de moiré por toda la imagen,
+   un reflejo y una mano. Medido con el Tesseract REAL sobre esa foto:
+
+     · la lectura de la página entera saca 8276, 2100 y 1943 a 95-96 de
+       confianza… y el 8545 a 53, por debajo de CONF_MIN → «sólo veo 3 de 4»;
+     · la cabecera «Actual Fuel on Board(kg)» no sale NUNCA (la real se queda
+       sin cabecera), y «Takeoff» tampoco (no hay filas que anclar);
+     · y la columna real, en sus cajas grises, no la lee ninguna pasada — ni
+       siquiera en una réplica LIMPIA de la pantalla: la diferencia que eCrews
+       escribe debajo de cada cifra se mezcla con ella.
+
+   Lo que SÍ la lee es mirar de cerca: recortar la celda, ampliarla ×3 y leer
+   sólo cifras. Así salieron las ocho exactas — 8545 · 8276 · 2100 · 1943 y
+   8900 · 8700 · 2800 · 2660 —. Pero también salieron 8780, 8908 y 2666 con
+   otros ajustes, a 63-81 de confianza: aquí la confianza NO separa una lectura
+   buena de una mala. Lo que las separa es esto:
+
+     · UNANIMIDAD de las lecturas de cerca: dos que coinciden y ninguna en
+       contra. Con mayoría a secas la celda del 8700 salía «8780» (dos contra
+       uno) y pasaba el checksum;
+     · la DIFERENCIA que eCrews escribe debajo de cada real («+424» = real −
+       plan): se lee también, y una pareja plan/real que la cumple al kilo
+       queda probada por tres números leídos por separado;
+     · y si nada de eso cierra, la celda se queda VACÍA y se dice con los
+       valores delante — «no coinciden (8780 / 8700)» es un diagnóstico; un
+       8780 escrito en el logbook es el avión inventado con la firma detrás.
+
+   El checksum de siempre sigue detrás: cuatro cifras que no bajan no se
+   escriben. Medido sobre la foto del reporte a cuatro escalas y sobre una
+   réplica con diez grados de trama: ni UN número equivocado escrito — y en
+   una de esas réplicas la primera lectura sola SÍ escribía un plan falso, que
+   ahora sale como duda.
+
+   CUÁNDO corre: sólo si la primera lectura no llena las DOS columnas y ha
+   encontrado al menos una cabecera. Un pantallazo que se lee entero no paga
+   nada (es el camino de siempre, intacto), y una foto sin tabla tampoco.
+
+   DÓNDE mira, sin una coordenada cableada: las FILAS salen de una columna ya
+   leída entera (sus cuatro cajas) o, si no hay ninguna, de las etiquetas
+   Takeoff/Landing; las COLUMNAS, de su cabecera — y si la de la real no se ha
+   leído, se busca otra vez en una franja estrecha alrededor de la del plan.
+   Sin filas no se lee nada de cerca: repartir cifras a ojo en una tabla de
+   cuatro es justo lo que este archivo no hace.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Dos lecturas que COINCIDEN valen más que una sola de mucha confianza: es la
+   validación cruzada de `pernoctas-masivo-test` aplicada a una cifra. Por eso
+   un valor con dos votos sube al listón (CONF_MIN) aunque cada lectura por
+   separado se quedara por debajo — el 8545 a 53 de la foto del reporte lo
+   leyeron bien las dos pasadas de página entera. (Eso sólo da las FILAS: los
+   números que se escriben los deciden las lecturas de cerca, más abajo.) */
+var VOTOS_MIN = 2;
+
+/* Misma celda: los centros caen a menos de ~media caja en las dos direcciones.
+   No se compara el texto: dos lecturas DISTINTAS del mismo sitio son justo lo
+   que hay que encontrar. */
+function _mismaCelda(a, b) {
+  var h = Math.max(a.y1 - a.y0, b.y1 - b.y0), w = Math.max(a.x1 - a.x0, b.x1 - b.x0);
+  return Math.abs(cy(a) - cy(b)) < h * 0.6 && Math.abs(cx(a) - cx(b)) < w * 0.6;
+}
+
+/* El voto de UNA celda. `lect` = [{valor, conf, bbox}]. Devuelve el valor si
+   hay mayoría clara de al menos dos; con UNA sola lectura se queda como está
+   (su confianza decide, igual que antes); con lecturas que no coinciden,
+   `valor:null` y `duda` con los valores vistos. */
+function vota(lect) {
+  if (!lect || !lect.length) return { valor: null };
+  if (lect.length === 1) return { valor: lect[0].valor, conf: lect[0].conf, bbox: lect[0].bbox, votos: 1 };
+  var g = {}, orden = [];
+  lect.forEach(function (l) { var k = String(l.valor); if (!g[k]) { g[k] = []; orden.push(k); } g[k].push(l); });
+  orden.sort(function (a, b) { return g[b].length - g[a].length; });
+  var top = g[orden[0]], seg = orden.length > 1 ? g[orden[1]].length : 0;
+  if (top.length >= VOTOS_MIN && top.length > seg) {
+    var mejor = top[0];
+    top.forEach(function (l) { if (l.conf > mejor.conf) mejor = l; });
+    return { valor: mejor.valor, conf: Math.max(mejor.conf, CONF_MIN), bbox: mejor.bbox, votos: top.length };
+  }
+  return { valor: null, duda: orden.map(Number), bbox: top[0].bbox, votos: 0 };
+}
+
+/* Funde varias pasadas de la MISMA imagen (mismas coordenadas). Las cifras se
+   votan por celda; el resto de palabras se juntan sin repetir. Devuelve la
+   lista en el formato del reconocedor, para que `lee` no note la diferencia. */
+function funde(listas) {
+  var otras = [], celdas = [];
+  (listas || []).forEach(function (lista) {
+    normaliza(lista).forEach(function (w) {
+      var v = _kg(w.text);
+      if (v == null) {
+        for (var i = 0; i < otras.length; i++) {
+          if (otras[i].text === w.text && _mismaCelda(otras[i].bbox, w.bbox)) {
+            if (w.conf > otras[i].conf) otras[i] = w;
+            return;
+          }
+        }
+        otras.push(w); return;
+      }
+      var c = null;
+      for (var j = 0; j < celdas.length; j++) if (_mismaCelda(celdas[j].bbox, w.bbox)) { c = celdas[j]; break; }
+      if (!c) { c = { bbox: w.bbox, lect: [] }; celdas.push(c); }
+      c.lect.push({ valor: v, conf: w.conf, bbox: w.bbox });
+    });
+  });
+  var pal = otras.map(function (w) { return { text: w.text, confidence: w.conf, bbox: w.bbox }; });
+  var dudas = [];
+  celdas.forEach(function (c) {
+    var d = vota(c.lect);
+    if (d.valor != null) pal.push({ text: String(d.valor), confidence: d.conf, bbox: d.bbox });
+    else if (d.duda) dudas.push({ valores: d.duda, bbox: d.bbox });
+  });
+  return { pal: pal, dudas: dudas };
+}
+
+/* Dónde volver a buscar las cabeceras: franjas alrededor de la que SÍ se ha
+   leído (la del plan o la de la real; sin ninguna, «Scheduled»), desde un poco
+   a su izquierda hasta el borde derecho —las de combustible son las últimas
+   columnas—. Sin ninguna, no hay dónde mirar y se devuelve [].
+
+   ⚠ Son DOS franjas y ESTRECHAS, y eso salió de medir. Con ±2,5 altos de
+   cabecera la franja se llena de trama y Tesseract no lee ni «Planned»; con
+   ±0,6 y ±0,8 sale «Actual Fuel on Board(kg)» entera en la foto del reporte,
+   pero cada una falla en una escala distinta de la misma foto. Se prueba la
+   primera y, si aún falta una cabecera, la segunda. */
+var CAB_ANCLA = /^scheduled$/i;
+var FRANJA_ALTOS = [0.6, 0.85];
+function franjaCabecera(palabras, W, H) {
+  var pal = normaliza(palabras);
+  var c = busca(pal, CAB_PLAN).concat(busca(pal, CAB_PLAN2), busca(pal, CAB_REAL));
+  if (!c.length) c = busca(pal, CAB_ANCLA);
+  if (!c.length) return [];
+  var x0 = Infinity, y0 = Infinity, y1 = -Infinity, h = 0;
+  c.forEach(function (w) {
+    x0 = Math.min(x0, w.bbox.x0); y0 = Math.min(y0, w.bbox.y0); y1 = Math.max(y1, w.bbox.y1);
+    h = Math.max(h, w.bbox.y1 - w.bbox.y0);
+  });
+  /* Una cabecera de más de un 6 % del alto no es una cabecera: es una lectura
+     rota que ha juntado media pantalla. Sin un alto creíble no se amplía nada. */
+  if (!(h > 0) || h > H * 0.06) return [];
+  return FRANJA_ALTOS.map(function (m) {
+    return { x0: Math.max(0, x0 - 4 * h), x1: W, y0: Math.max(0, y0 - m * h), y1: Math.min(H, y1 + m * h) };
+  });
+}
+
+/* La REJILLA de la segunda lectura: las cuatro filas y, para cada columna que
+   falta, la zona donde van sus cifras. `cajas` son las de una columna ya leída
+   entera (es lo más fiable que hay: cuatro cifras que han pasado el checksum);
+   sin ellas, las filas salen de Takeoff/Landing; sin nada, null. */
+function rejilla(palabras, cajas, faltan, fuenteK) {
+  var pal = normaliza(palabras), filas = null, alto = 0, ancho = 0;
+  if (cajas) {
+    filas = CLAVES.map(function (f) { return cy(cajas[f]); });
+    CLAVES.forEach(function (f) { alto += (cajas[f].y1 - cajas[f].y0) / 4; ancho += (cajas[f].x1 - cajas[f].x0) / 4; });
+  } else {
+    var t = busca(pal, FILA_2), l = busca(pal, FILA_3);
+    if (t.length && l.length) {
+      var yT = cy(t[0].bbox), yL = cy(l[0].bbox), s = yL - yT;
+      if (s > 0) {
+        filas = [yT - s, yT, yL, yL + s];
+        alto = ((t[0].bbox.y1 - t[0].bbox.y0) + (l[0].bbox.y1 - l[0].bbox.y0)) / 2;
+        ancho = alto * 3.2;              // un grupo de cuatro cifras ≈ 3 altos
+      }
+    }
+  }
+  if (!filas || !(alto > 0)) return null;
+  var difs = [filas[1] - filas[0], filas[2] - filas[1], filas[3] - filas[2]];
+  if (difs.some(function (d) { return !(d > 0); })) return null;
+  difs.sort(function (a, b) { return a - b; });
+  var paso = difs[1];
+  /* Filas a intervalos iguales o no es esta tabla: con un hueco el doble que
+     otro, alguna de las cuatro cajas no es de la fila que dice ser. */
+  if (difs[2] > difs[0] * 1.6) return null;
+  var cols = columnas(pal);
+  var g = { filas: filas, paso: paso, alto: alto, k: Math.max(1, Math.min(4, 64 / alto)), cols: {}, celdas: [] };
+  /* La columna que da las filas sabe EXACTAMENTE dónde están sus cifras: sus
+     cuatro cajas. Su zona sale de ahí, y la de la otra columna empieza donde
+     acaba ésta. ⚠ Sin ese corte, con la cabecera de la real sin leer, la banda
+     del plan llega hasta la real: el recorte de cada fila tenía DOS cifras, no
+     votaba ninguna, y la foto del reporte al 90 % daba «8908» en la fila del
+     plan — la real de esa fila leída donde iba el plan. */
+  var src = null;
+  if (cajas && fuenteK) {
+    src = { x0: Math.min.apply(null, CLAVES.map(function (f) { return cajas[f].x0; })) - 0.6 * ancho,
+            x1: Math.max.apply(null, CLAVES.map(function (f) { return cajas[f].x1; })) + 0.6 * ancho };
+  }
+  (faltan || []).forEach(function (k) {
+    var b = cols[k]; if (!b) return;
+    var x0, x1;
+    if (src && k === fuenteK) { x0 = src.x0; x1 = src.x1; }
+    else {
+      var lim0 = b.x0, lim1 = b.x1;
+      if (src) {
+        if (cx(b) > (src.x0 + src.x1) / 2) lim0 = Math.max(lim0, src.x1);
+        else lim1 = Math.min(lim1, src.x0);
+      }
+      if (!(lim1 > lim0)) return;
+      /* La zona se ESTRECHA a donde ya se ha visto alguna cifra de esa columna
+         —en cualquier pasada y con cualquier confianza— si cae en una de sus
+         filas. Medido: la banda entera de la cabecera es casi todo trama, y
+         leída de cerca la trama se convierte en dígitos (el 2100 desaparecía
+         con la banda ancha y salía con la estrecha). */
+      var cs = pal.filter(function (w) {
+        if (_kg(w.text) == null) return false;
+        var x = cx(w.bbox), y = cy(w.bbox);
+        return x >= lim0 && x <= lim1 && y >= b.yCab &&
+               filas.some(function (f) { return Math.abs(y - f) < paso * 0.5; });
+      });
+      /* Sin ninguna cifra vista, la zona se pega al borde derecho de la
+         cabecera, que es contra lo que van alineadas: con la banda entera, la
+         foto del reporte leyó «8780» dos veces seguidas donde ponía 8700. */
+      x0 = Math.max(lim0, b.xd - 2.6 * ancho); x1 = Math.min(lim1, b.xd + 0.8 * ancho);
+      if (cs.length) {
+        x0 = Math.max(lim0, Math.min.apply(null, cs.map(function (w) { return w.bbox.x0; })) - 0.6 * ancho);
+        x1 = Math.min(lim1, Math.max.apply(null, cs.map(function (w) { return w.bbox.x1; })) + 0.6 * ancho);
+      }
+      if (!(x1 > x0)) return;
+    }
+    g.cols[k] = { x0: x0, x1: x1, banda: b };
+    filas.forEach(function (y, i) {
+      /* ±0,17 del paso: la cifra entera y NADA de la diferencia que eCrews
+         escribe debajo (en la foto, 0,22 del paso más abajo). */
+      var y0 = y - paso * 0.17, y1 = y + paso * 0.17;
+      if (y0 < b.yCab) return;
+      g.celdas.push({ col: k, fila: i, rect: { x0: x0, x1: x1, y0: y0, y1: y1 } });
+    });
+  });
+  return g;
+}
+
+/* Cambia las cifras de las columnas releídas por las votadas. Se quitan TODAS
+   las cifras de su banda (no sólo las de las celdas): una suelta de la trama
+   dejaría cinco candidatas y la columna se perdería por eso. */
+function inyecta(palabras, g, decisiones) {
+  var out = (palabras || []).filter(function (w) {
+    if (_kg(w.text) == null) return true;
+    var b = caja(w);
+    return !Object.keys(g.cols).some(function (k) {
+      var c = g.cols[k].banda;
+      return cx(b) >= c.x0 && cx(b) <= c.x1 && cy(b) >= c.yCab;
+    });
+  });
+  (decisiones || []).forEach(function (d) {
+    if (d.valor != null) out.push({ text: String(d.valor), confidence: d.conf, bbox: d.bbox });
+  });
+  return out;
+}
+
+/* De varios resultados, el que más columnas ha llenado. Empate → el PRIMERO:
+   la primera lectura es la que traen afinados los avisos de la pantalla. */
+function elige(lista) {
+  var mejor = null, n = -1;
+  (lista || []).forEach(function (r) {
+    if (!r) return;
+    var k = (r.plan ? 1 : 0) + (r.real ? 1 : 0);
+    if (k > n) { n = k; mejor = r; }
+  });
+  return mejor;
+}
+
+/* ── La lectura completa, en el navegador ────────────────────────────────
+   `worker` es un worker de Tesseract ya creado; `lienzo`, el canvas de la
+   foto; `avisa(fase)` opcional, para decir en pantalla que se está repasando.
+   Todo va EN SERIE sobre el mismo worker: un worker reconoce una cosa a la
+   vez, y dos en paralelo es el cuelgue que ya costó una vuelta. */
+var PSM_PAGINA = '6';      // el de siempre (el valor por defecto del worker)
+var PSM_DISPERSO = '11';   // texto suelto: lee la franja de las cabeceras
+/* Una celda se lee como BLOQUE y no como una línea: en eCrews la diferencia va
+   pegada debajo de la cifra real, y medido con la réplica de la pantalla, el
+   recorte de la fila se lleva las dos — leído como una sola línea no salía
+   NADA. Como bloque salen las dos por separado y la diferencia, con su signo,
+   no tiene forma de kilos. */
+var PSM_CELDA = '6';
+var SOLO_CIFRAS = '0123456789+-';
+
+function _palabras(r) {
+  var pal = [];
+  ((r && r.data && r.data.blocks) || []).forEach(function (b) { (b.paragraphs || []).forEach(function (p) {
+    (p.lines || []).forEach(function (l) { (l.words || []).forEach(function (x) { pal.push(x); }); }); }); });
+  return pal;
+}
+function _reconoce(worker, canvas, psm, lista) {
+  /* Los parámetros se ponen SIEMPRE, también en la primera pasada: el worker
+     los conserva entre llamadas, y una foto leída después de un repaso se
+     quedaría con el modo de una sola línea y sólo cifras. */
+  var pon = worker.setParameters ? worker.setParameters({ tessedit_pageseg_mode: psm, tessedit_char_whitelist: lista || '' })
+                                 : Promise.resolve();
+  return Promise.resolve(pon).then(function () { return worker.recognize(canvas, {}, { blocks: true }); })
+    .then(_palabras);
+}
+/* Un trozo del lienzo, ampliado ×k, en grises y con el contraste estirado
+   (percentiles 2–98). A mano y no con `ctx.filter`: Safari ha ido tarde con
+   el filtro del canvas, y un filtro que se ignora en el iPad del piloto haría
+   que las tres lecturas «distintas» fueran la misma. `suave` añade un
+   desenfoque 3×3, que es lo que se come la trama. */
+function _zona(lienzo, r, k, suave) {
+  var x0 = Math.max(0, Math.floor(r.x0)), y0 = Math.max(0, Math.floor(r.y0));
+  var x1 = Math.min(lienzo.width, Math.ceil(r.x1)), y1 = Math.min(lienzo.height, Math.ceil(r.y1));
+  var w = Math.max(1, Math.round((x1 - x0) * k)), h = Math.max(1, Math.round((y1 - y0) * k));
+  var c = document.createElement('canvas'); c.width = w; c.height = h;
+  var g = c.getContext('2d');
+  g.imageSmoothingEnabled = true; try { g.imageSmoothingQuality = 'high'; } catch (e) {}
+  g.drawImage(lienzo, x0, y0, x1 - x0, y1 - y0, 0, 0, w, h);
+  var d = g.getImageData(0, 0, w, h), p = d.data, n = w * h, L = new Float32Array(n), i;
+  for (i = 0; i < n; i++) L[i] = 0.299 * p[i * 4] + 0.587 * p[i * 4 + 1] + 0.114 * p[i * 4 + 2];
+  if (suave) {
+    var M = new Float32Array(n);
+    for (var yy = 0; yy < h; yy++) for (var xx = 0; xx < w; xx++) {
+      var s = 0, m = 0;
+      for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) {
+        var X = xx + dx, Y = yy + dy;
+        if (X >= 0 && X < w && Y >= 0 && Y < h) { s += L[Y * w + X]; m++; }
+      }
+      M[yy * w + xx] = s / m;
+    }
+    L = M;
+  }
+  var hist = new Array(256).fill(0);
+  for (i = 0; i < n; i++) hist[Math.max(0, Math.min(255, L[i] | 0))]++;
+  var lo = 0, hi = 255, acc = 0;
+  for (i = 0; i < 256; i++) { acc += hist[i]; if (acc >= n * 0.02) { lo = i; break; } }
+  acc = 0;
+  for (i = 255; i >= 0; i--) { acc += hist[i]; if (acc >= n * 0.02) { hi = i; break; } }
+  var esc = hi > lo ? 255 / (hi - lo) : 1;
+  for (i = 0; i < n; i++) {
+    var v = Math.max(0, Math.min(255, (L[i] - lo) * esc));
+    p[i * 4] = p[i * 4 + 1] = p[i * 4 + 2] = v; p[i * 4 + 3] = 255;
+  }
+  g.putImageData(d, 0, 0);
+  c._x0 = x0; c._y0 = y0; c._k = k;
+  return c;
+}
+/* Las cajas de un trozo, devueltas a las coordenadas del lienzo entero. */
+function _mapea(pal, c) {
+  return (pal || []).map(function (w) {
+    var b = w.bbox;
+    return { text: w.text, confidence: w.confidence,
+             bbox: { x0: c._x0 + b.x0 / c._k, y0: c._y0 + b.y0 / c._k, x1: c._x0 + b.x1 / c._k, y1: c._y0 + b.y1 / c._k } };
+  });
+}
+
+/* Los ajustes de cerca, en orden. Los dos primeros siempre (sin dos lecturas
+   no hay voto); el tercero sólo si no han coincidido. Medido sobre la foto del
+   reporte: ×3 en grises lee las ocho; ×2 se equivoca en una (87080); con el
+   suavizado vuelve a leerlas todas. */
+function _ajustes(k) {
+  return [{ k: k, suave: false }, { k: Math.max(1, k * 0.67), suave: false }, { k: k, suave: true }];
+}
+
+/* La DIFERENCIA que eCrews escribe debajo de cada cifra real: «+424» es
+   real − plan, en verde y con signo. Hasta hoy se tiraba a propósito (un
+   signo no es una masa, Beta.932); aquí se LEE, porque es la única prueba
+   independiente que tiene la tabla: está escrita con otros glifos, en otro
+   sitio, y dice cuánto tiene que valer la real si el plan es el que es. */
+function _delta(t) {
+  /* Los dos puntos se QUEDAN: «+00:02» es la diferencia de una HORA y no puede
+     convertirse en 2 kg. */
+  var m = /^([+\-−])([0-9]{1,4})$/.exec(String(t == null ? '' : t).replace(/[^0-9:+\-−]/g, ''));
+  return m ? (m[1] === '+' ? 1 : -1) * parseInt(m[2], 10) : null;
+}
+
+/* ── Las decisiones, puras (el banco las conduce en Node) ──────────────────
+   ⚠ Aquí sólo votan las lecturas DE CERCA. Las de página entera no, y salió
+   de medir: con la foto del reporte reducida al 90 %, las dos pasadas de
+   página entera leyeron «2108» donde pone 2100 — el MISMO error dos veces,
+   porque las dos miran los mismos píxeles a la misma escala—, mientras que de
+   cerca salió 2100 con los tres ajustes. Dos lecturas que se equivocan igual
+   no son dos pruebas.
+
+   La regla es UNANIMIDAD: dos lecturas de cerca que coinciden y ninguna en
+   contra. Con mayoría a secas, la celda del 8700 salía «8780» (dos votos
+   contra uno) y pasaba el checksum. */
+function _uno(lect, v) {
+  var mejor = null;
+  lect.forEach(function (l) { if (l.valor === v && (!mejor || l.conf > mejor.conf)) mejor = l; });
+  return mejor;
+}
+function _distintos(lect) {
+  var out = [];
+  lect.forEach(function (l) { if (out.indexOf(l.valor) === -1) out.push(l.valor); });
+  return out;
+}
+function _acepta(l, extra) {
+  var r = { valor: l.valor, conf: Math.max(l.conf, CONF_MIN), bbox: l.bbox };
+  for (var k in (extra || {})) r[k] = extra[k];
+  return r;
+}
+/* Una celda. `cerca` = lecturas de cerca; `antes` = el valor que ya traía esa
+   celda de una columna leída entera (o null). */
+function decideCelda(cerca, antes) {
+  cerca = cerca || [];
+  if (!cerca.length) {
+    /* Ninguna lectura nueva: no hay nada que contradiga lo que ya había. Sin
+       nada antes, la celda está VACÍA — es el 0 de relleno de eCrews. */
+    return antes ? { valor: antes.valor, conf: antes.conf, bbox: antes.bbox } : { valor: null, vacia: true };
+  }
+  var vs = _distintos(cerca);
+  if (vs.length === 1 && cerca.length >= VOTOS_MIN) return _acepta(_uno(cerca, vs[0]));
+  if (vs.length === 1 && antes && antes.valor === vs[0]) return _acepta(_uno(cerca, vs[0]));
+  if (antes && vs.indexOf(antes.valor) === -1) vs.push(antes.valor);
+  return { valor: null, duda: vs, bbox: cerca[0].bbox };
+}
+/* Una FILA entera: plan, real y las lecturas de la diferencia (`Dl`). La
+   diferencia MANDA: se busca la pareja de lecturas —de cerca o la que ya
+   había— que la cumple EXACTAMENTE. Que tres números leídos por separado, con
+   glifos distintos y en sitios distintos, cuadren al kilo no pasa por
+   casualidad; por eso aquí basta con UNA lectura de la diferencia que
+   cuadre, aunque otra la haya leído distinto (en la foto del reporte, «+424»
+   y «+626»: sólo el 424 cuadra con 8700 − 8276).
+   Si la diferencia se ha leído dos veces igual y NINGUNA pareja la cumple, la
+   fila se contradice a sí misma y no se escribe ninguna de las dos. Si no se
+   ha podido leer, cada celda va por su cuenta. */
+function decideFila(P, R, Dl, antesP, antesR) {
+  P = P || []; R = R || []; Dl = Dl || [];
+  var cp = P.concat(antesP ? [antesP] : []), cr = R.concat(antesR ? [antesR] : []);
+  var ds = _distintos(Dl), D = (Dl.length >= VOTOS_MIN && ds.length === 1) ? ds[0] : null;
+  if (ds.length && cp.length && cr.length) {
+    var parejas = [];
+    cp.forEach(function (p) { cr.forEach(function (r) { ds.forEach(function (d) {
+      if (r.valor - p.valor !== d) return;
+      for (var i = 0; i < parejas.length; i++) if (parejas[i].p === p.valor && parejas[i].r === r.valor) return;
+      parejas.push({ p: p.valor, r: r.valor, d: d });
+    }); }); });
+    /* Dos parejas distintas que cuadran las dos: no se elige a ojo. */
+    if (parejas.length === 1) {
+      var q = parejas[0];
+      return [_acepta(_uno(cp, q.p), { cruzada: true, delta: q.d }),
+              _acepta(_uno(cr, q.r), { cruzada: true, delta: q.d })];
+    }
+  }
+  var dp = decideCelda(P, antesP), dr = decideCelda(R, antesR);
+  if (D != null && dp.valor != null && dr.valor != null) {
+    /* Las dos celdas votadas y la diferencia NO cuadra: una de las tres está
+       mal y desde aquí no se sabe cuál. */
+    return [{ valor: null, duda: [dp.valor], contra: dr.valor - D, bbox: dp.bbox, delta: D },
+            { valor: null, duda: [dr.valor], contra: dp.valor + D, bbox: dr.bbox, delta: D }];
+  }
+  return [dp, dr];
+}
+
+/* Lee UNA zona de cerca con los ajustes. Los dos primeros siempre; el tercero
+   sólo si no han coincidido. `lector` convierte un texto en valor (o null). */
+function _leeZona(worker, lienzo, rect, k, lector) {
+  var lect = [], aj = _ajustes(k), i = 0;
+  var paso = function () {
+    if (i >= aj.length) return Promise.resolve(lect);
+    var a = aj[i++], c = _zona(lienzo, rect, a.k, a.suave);
+    return _reconoce(worker, c, PSM_CELDA, SOLO_CIFRAS).then(function (p) {
+      /* Una celda es UNA cifra. Con dos en el mismo trozo no se sabe cuál es
+         la de la fila: esa lectura no vota. */
+      /* Lo que el recorte CORTA no vale: medio «+717» cortado por el borde de
+         abajo se leyó «4717» a 91 de confianza — una cifra de kilos perfecta
+         que no está en la pantalla. Un trozo que toca el borde es medio glifo. */
+      var mg = Math.max(2, c.height * 0.03);
+      var ok = _mapea(p.filter(function (w) { return w.bbox.y0 > mg && w.bbox.y1 < c.height - mg; }), c)
+        .filter(function (w) { return lector(w.text) != null; });
+      if (ok.length === 1) lect.push({ valor: lector(ok[0].text), conf: ok[0].confidence, bbox: ok[0].bbox });
+      if (i < 2) return paso();
+      if (!lect.length) return lect;               // dos miradas y ni una cifra: vacía (el 0 de relleno)
+      if (lect.length >= 2 && _distintos(lect).length === 1) return lect;
+      return paso();
+    });
+  };
+  return paso();
+}
+
+function leeFoto(worker, lienzo, avisa) {
+  var di = function (f, n) { try { if (avisa) avisa(f, n); } catch (e) {} };
+  var pasadas = [], res1, res2, F, decisiones = [], g = null;
+  return _reconoce(worker, lienzo, PSM_PAGINA).then(function (p1) {
+    pasadas.push(p1);
+    res1 = lee(p1);
+    if (res1.plan && res1.real) return res1;
+    /* Sin ninguna cabecera no hay ni columnas que releer ni dónde buscarlas:
+       la segunda lectura no puede ganar nada y, medido con una réplica llena
+       de trama, una pasada de texto suelto sobre ruido tardó 22 s para decir
+       lo mismo. Se queda la primera, con su aviso de siempre. */
+    if (res1.motivos.global) return res1;
+    di('repaso');
+    /* Sin ninguna columna no hay filas: otra pasada de página entera, en modo
+       de texto suelto, que en la foto del reporte leyó las cuatro del plan. */
+    return (res1.plan || res1.real ? Promise.resolve(null) : _reconoce(worker, lienzo, PSM_DISPERSO)).then(function (p2) {
+      if (p2) pasadas.push(p2);
+      F = pasadas.length > 1 ? funde(pasadas) : { pal: p1.slice(), dudas: [] };
+      var falta = function () { var c = columnas(normaliza(F.pal)); return !c.plan || !c.real; };
+      if (!falta()) return;
+      return franjaCabecera(F.pal, lienzo.width, lienzo.height).reduce(function (pr, fr) {
+        return pr.then(function () {
+          if (!falta()) return;
+          var c = _zona(lienzo, fr, 2, false);
+          return _reconoce(worker, c, PSM_DISPERSO).then(function (p3) {
+            /* De la franja sólo se toman las PALABRAS: sus cifras son las de
+               la barra de estado y la cabecera del vuelo, no las de la tabla. */
+            _mapea(p3, c).forEach(function (w) { if (_kg(w.text) == null) F.pal.push(w); });
+          });
+        });
+      }, Promise.resolve());
+    }).then(function () {
+      res2 = lee(F.pal);
+      if (res2.plan && res2.real) return res2;
+      /* La columna que da las FILAS, con lo que ya traía: sus cajas dicen
+         dónde está cada fila aunque alguno de sus números resulte dudoso. */
+      var fuente = res2.plan ? { k: 'plan', v: res2.plan, c: res2.cajas.plan, f: res2.confs.plan }
+                 : res2.real ? { k: 'real', v: res2.real, c: res2.cajas.real, f: res2.confs.real }
+                 : res1.plan ? { k: 'plan', v: res1.plan, c: res1.cajas.plan, f: res1.confs.plan }
+                 : res1.real ? { k: 'real', v: res1.real, c: res1.cajas.real, f: res1.confs.real } : null;
+      g = rejilla(F.pal, fuente ? fuente.c : null, ['plan', 'real'], fuente ? fuente.k : null);
+      if (!g || !g.celdas.length) return elige([res1, res2]);
+      var antes = function (k, i) {
+        if (!fuente || fuente.k !== k) return null;
+        var f = CLAVES[i];
+        return { valor: fuente.v[f], conf: (fuente.f && fuente.f[f]) || CONF_MIN, bbox: fuente.c[f] };
+      };
+      var zona = function (k, i) {
+        var c = g.celdas.filter(function (x) { return x.col === k && x.fila === i; })[0];
+        return c ? c.rect : null;
+      };
+      /* Fila a fila, y dentro de cada fila plan → real → diferencia, EN SERIE
+         sobre el mismo worker. */
+      return [0, 1, 2, 3].reduce(function (pr, i) {
+        return pr.then(function () {
+          di('fila', i + 1);
+          var zp = zona('plan', i), zr = zona('real', i), P = [], R = [], Dl = [];
+          return (zp ? _leeZona(worker, lienzo, zp, g.k, _kg) : Promise.resolve([])).then(function (l) {
+            P = l;
+            return zr ? _leeZona(worker, lienzo, zr, g.k, _kg) : [];
+          }).then(function (l) {
+            R = l;
+            /* La diferencia va debajo de la cifra REAL, así que sólo se mira si
+               hay una real leída y algo del plan con qué compararla. */
+            var hayP = P.length || antes('plan', i), hayR = R.length || antes('real', i);
+            if (!hayP || !hayR) return [];
+            var base = zr || (fuente && fuente.k === 'real' ? fuente.c[CLAVES[i]] : null);
+            if (!base) return [];
+            var y = g.filas[i];
+            return _leeZona(worker, lienzo, { x0: base.x0, x1: base.x1, y0: y + g.paso * 0.1, y1: y + g.paso * 0.36 }, g.k, _delta);
+          }).then(function (l) {
+            Dl = l;
+            var d = decideFila(P, R, Dl, antes('plan', i), antes('real', i));
+            d[0].col = 'plan'; d[1].col = 'real';
+            [0, 1].forEach(function (j) {
+              d[j].fila = i;
+              d[j].lect = (j ? R : P).map(function (x) { return x.valor; });
+              d[j].deltas = Dl.map(function (x) { return x.valor; });
+              if ((j ? zr : zp) || d[j].valor != null) decisiones.push(d[j]);
+            });
+          });
+        });
+      }, Promise.resolve()).then(function () {
+        /* La segunda lectura DECIDE las columnas que ha releído: si una celda
+           salió dudosa, no se vuelve a la primera lectura de esa columna —
+           sería escribir justo el número que acaba de ponerse en duda. */
+        return lee(inyecta(F.pal, g, decisiones));
+      });
+    }).then(function (res) {
+      /* Lo que no se ha escrito por DUDA se dice con los valores delante. */
+      ['plan', 'real'].forEach(function (k) {
+        if (res[k]) return;
+        var du = decisiones.filter(function (d) { return d.col === k && d.duda; });
+        if (du.length) res.motivos[k] = { motivo: 'dudosa', nombre: k,
+          dudas: du.map(function (d) { return { fila: CLAVES[d.fila], valores: d.duda, contra: d.contra == null ? null : d.contra }; }) };
+      });
+      /* Lo que se ha hecho, para poder diagnosticar un reporte sin la foto. */
+      res.repaso = { pasadas: pasadas.length, celdas: decisiones.map(function (d) {
+        return { col: d.col, fila: CLAVES[d.fila], valor: d.valor, duda: d.duda || null, cruzada: !!d.cruzada,
+                 contra: d.contra == null ? null : d.contra, delta: d.delta == null ? null : d.delta,
+                 lect: d.lect, deltas: d.deltas };
+      }) };
+      return res;
+    });
+  });
+}
+
 var API = {
-  lee: lee, envoltura: envoltura,
+  lee: lee, envoltura: envoltura, leeFoto: leeFoto,
+  funde: funde, vota: vota, rejilla: rejilla, inyecta: inyecta, elige: elige,
+  franjaCabecera: franjaCabecera, decideCelda: decideCelda, decideFila: decideFila,
+  VOTOS_MIN: VOTOS_MIN, _delta: _delta,
+  _zona: _zona, _reconoce: _reconoce, _mapea: _mapea,
   CLAVES: CLAVES, RE_NUM: RE_NUM, CONF_MIN: CONF_MIN, TAXI_MAX: TAXI_MAX,
   MIN_KG: MIN_KG, MAX_KG: MAX_KG,
   _columnas: columnas, _revisa: revisa, _kg: _kg, _limpiaCab: _limpiaCab
