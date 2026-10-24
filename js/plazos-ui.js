@@ -37,7 +37,7 @@
   /* Lo NUEVO de la campana: {id: cuándo se vio por primera vez}. -1 = «Entendido». */
   var K_NUEVO  = 'pilotos_avisos_nuevo';
   var NUEVO_MS = 24 * 3600e3;
-  var TIPOS = ['roff', 'vacaciones', 'xoff', 'reduccion', 'retribucion'];
+  var TIPOS = ['programacion', 'roff', 'vacaciones', 'xoff', 'reduccion', 'retribucion'];
   var URGE_MS = P.URGE_MS;                 // últimas 48 h: rojo, cuenta atrás y la campana vuelve a sonar
   var AHORA_LIMITE_MS = P.AHORA_LIMITE_MS; // un plazo «hasta el día D» entra en Ahora a 45 días
   /* Los dos números viven en plazos.js: el servidor decide con ellos cuándo
@@ -309,6 +309,7 @@
     xoff: '<path d="M12 2v20M4 6l16 12M20 6L4 18"/><path d="M9 3.5l3 2 3-2M9 20.5l3-2 3 2"/>',
     reduccion: '<circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2.3"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M14.5 20c0-2 1.2-3.6 3-3.6s3 1.6 3 3.6"/>',
     retribucion: '<rect x="2" y="6" width="20" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 10.5v3M18 10.5v3"/>',
+    programacion: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4M12 18.5v-5.5M9.5 15.5L12 13l2.5 2.5"/>',
     reloj: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/>',
     ok: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
     gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.6 1.6 0 00-1.8-.3 1.6 1.6 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.6 1.6 0 00-1-1.5 1.6 1.6 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.6 1.6 0 00.3-1.8 1.6 1.6 0 00-1.5-1H3a2 2 0 110-4h.1a1.6 1.6 0 001.5-1 1.6 1.6 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.6 1.6 0 001.8.3H9a1.6 1.6 0 001-1.5V3a2 2 0 114 0v.1a1.6 1.6 0 001 1.5 1.6 1.6 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.6 1.6 0 00-.3 1.8V9a1.6 1.6 0 001.5 1H21a2 2 0 110 4h-.1a1.6 1.6 0 00-1.5 1z"/>'
@@ -344,7 +345,7 @@
       /* El gris por defecto va ANTES: con la misma especificidad, el que va
          detrás gana, y declarado después pintaba de gris los cuatro trámites. */
       '.plz-it,.plz-tli,.plz-fc,.plz-lane{--c:#94A3B8}',
-      '.plz-c-roff{--c:#2DD4BF}.plz-c-xoff{--c:#F472B6}.plz-c-vacaciones{--c:#FB923C}.plz-c-reduccion{--c:#A78BFA}.plz-c-retribucion{--c:#15AFFE}',
+      '.plz-c-programacion{--c:#FACC15}.plz-c-roff{--c:#2DD4BF}.plz-c-xoff{--c:#F472B6}.plz-c-vacaciones{--c:#FB923C}.plz-c-reduccion{--c:#A78BFA}.plz-c-retribucion{--c:#15AFFE}',
       '.plz-it{position:relative;display:flex;gap:11px;padding:12px 12px 12px 15px;margin-bottom:9px;background-color:#0F1F35;background-image:linear-gradient(100deg,color-mix(in srgb,var(--c) 13%,transparent),transparent 48%);border:1px solid color-mix(in srgb,var(--c) 28%,#1E3A5F);border-radius:14px;overflow:hidden}',
       '.plz-it:before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:var(--c);box-shadow:0 0 10px var(--c)}',
       '.plz-it.urge{border-color:#7F2A3A}',
@@ -454,7 +455,7 @@
          Lo que late es un halo aparte (opacidad), nunca el texto: el contraste no
          puede depender del instante en que se mire. ── */
       '.plz-nvc{--c:#94A3B8}',
-      '.plz-nvc.plz-c-roff{--c:#2DD4BF}.plz-nvc.plz-c-xoff{--c:#F472B6}.plz-nvc.plz-c-vacaciones{--c:#FB923C}.plz-nvc.plz-c-reduccion{--c:#A78BFA}.plz-nvc.plz-c-retribucion{--c:#15AFFE}.plz-nvc.gen{--c:#22D3EE}',
+      '.plz-nvc.plz-c-programacion{--c:#FACC15}.plz-nvc.plz-c-roff{--c:#2DD4BF}.plz-nvc.plz-c-xoff{--c:#F472B6}.plz-nvc.plz-c-vacaciones{--c:#FB923C}.plz-nvc.plz-c-reduccion{--c:#A78BFA}.plz-nvc.plz-c-retribucion{--c:#15AFFE}.plz-nvc.gen{--c:#22D3EE}',
       '#plz-nuevo{margin-bottom:14px}',
       '#plz-nuevo[hidden]{display:none!important}',
       '.plz-nvh{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:800;letter-spacing:1.4px;color:#FFFFFF;margin:2px 2px 9px}',
@@ -485,7 +486,7 @@
       '.plz-nva .plz-nvx{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.32);color:#F1F5F9}',
       '@media (prefers-reduced-motion:reduce){.plz-nvc,.plz-nvc:after{animation:none}.plz-nvc:before{animation:none;opacity:.7}.plz-nvdot{animation:none}}',
       'html.day .plz-nvc{--c:#334155}',
-      'html.day .plz-nvc.plz-c-roff{--c:#0B5F57}html.day .plz-nvc.plz-c-xoff{--c:#9D1448}html.day .plz-nvc.plz-c-vacaciones{--c:#A33A07}html.day .plz-nvc.plz-c-reduccion{--c:#4C1D95}html.day .plz-nvc.plz-c-retribucion{--c:#076697}html.day .plz-nvc.gen{--c:#0E7490}',
+      'html.day .plz-nvc.plz-c-programacion{--c:#6B5400}html.day .plz-nvc.plz-c-roff{--c:#0B5F57}html.day .plz-nvc.plz-c-xoff{--c:#9D1448}html.day .plz-nvc.plz-c-vacaciones{--c:#A33A07}html.day .plz-nvc.plz-c-reduccion{--c:#4C1D95}html.day .plz-nvc.plz-c-retribucion{--c:#076697}html.day .plz-nvc.gen{--c:#0E7490}',
       'html.day .plz-nvh{color:#0B2545}',
       'html.day .plz-nvh b{background:#B91C1C;color:#FFFFFF}',
       'html.day .plz-nvdot{background:#DC2626}',
@@ -504,7 +505,7 @@
       'html.day .plz-nva .plz-nvx{background:#FFFFFF;border-color:#94A3B8;color:#0F172A}',
       /* ── MODO DÍA ── el gris por defecto otra vez ANTES de los cuatro tonos */
       'html.day .plz-it,html.day .plz-tli,html.day .plz-fc,html.day .plz-lane{--c:#334155}',
-      'html.day .plz-c-roff{--c:#0B5F57}html.day .plz-c-xoff{--c:#9D1448}html.day .plz-c-vacaciones{--c:#A33A07}html.day .plz-c-reduccion{--c:#4C1D95}html.day .plz-c-retribucion{--c:#076697}',
+      'html.day .plz-c-programacion{--c:#6B5400}html.day .plz-c-roff{--c:#0B5F57}html.day .plz-c-xoff{--c:#9D1448}html.day .plz-c-vacaciones{--c:#A33A07}html.day .plz-c-reduccion{--c:#4C1D95}html.day .plz-c-retribucion{--c:#076697}',
       'html.day #av-sheet .plz-gear{background:rgba(255,255,255,.55);border-color:rgba(255,255,255,.85);-webkit-backdrop-filter:blur(16px) saturate(170%);backdrop-filter:blur(16px) saturate(170%);box-shadow:0 6px 16px -8px rgba(8,76,97,.45);color:#334155}',
       'html.day #av-sheet .plz-tabs{background:rgba(255,255,255,.42);border-color:rgba(255,255,255,.85);-webkit-backdrop-filter:blur(16px) saturate(170%);backdrop-filter:blur(16px) saturate(170%)}',
       'html.day #av-sheet .plz-tabs button{color:#334155}',
@@ -614,6 +615,24 @@
     if (!ic || !lb || !va || !su) return;
     var abiertos = g.ahora.filter(function (x) { return !x.hecho; });
     var o = abiertos[0];
+    /* Lo que publica la compañía (la programación del mes, cada mes) en los 3
+       días antes: va delante de un plazo abierto que aún no urge. Sin esto no
+       saldría nunca: la permuta de vacaciones (día 25) siempre está abierta. */
+    var hito = g.proximos.filter(function (x) { return x.clase === 'hito' && x.cierra - ahora < 3 * 864e5; })
+      .sort(function (a, b) { return a.cierra - b.cierra; })[0];
+    if (hito && !(o && o.urge)) {
+      el.classList.remove('plz-urge');
+      var fc = function (ms) { return P.fechaCorta(ms, L, hito.tz); };
+      ic.className = 'dh-stat-icon dh-si-blue';
+      ic.innerHTML = svg(hito.tipo, 'currentColor', 16);
+      lb.textContent = T('Próximo plazo', 'Next deadline');
+      va.textContent = P.titulo(hito, L);
+      su.textContent = (hito.tipo === 'programacion' ? T('se publica ', 'published ') : '') +
+        (fc(hito.cierra) === fc(ahora) ? T('hoy', 'today')
+        : fc(hito.cierra) === fc(ahora + 864e5) ? T('mañana', 'tomorrow') : T('el ', 'on ') + fc(hito.cierra));
+      el.setAttribute('aria-label', P.titulo(hito, L) + ' · ' + P.cuando(hito, ahora, L));
+      _cardClave = null; para(); return;
+    }
     el.classList.toggle('plz-urge', !!(o && o.urge));
     if (!o) {
       /* Nada abierto: el próximo que abre. Un cuadro vacío no dice si es que no
@@ -672,7 +691,7 @@
   var K_FIL = 'pilotos_plazos_filtro';
   var _fil = lee(K_FIL, 'todo');
   function catNom(t, may) {
-    var n = { roff: ['OFF / ROFF', 'OFF / ROFF'], xoff: ['XOFF', 'XOFF'], vacaciones: ['Vacaciones', 'Leave'], reduccion: ['Reducciones', 'Reductions'], retribucion: ['Retribución', 'Pay'] }[t];
+    var n = { programacion: ['Programación', 'Roster'], roff: ['OFF / ROFF', 'OFF / ROFF'], xoff: ['XOFF', 'XOFF'], vacaciones: ['Vacaciones', 'Leave'], reduccion: ['Reducciones', 'Reductions'], retribucion: ['Retribución', 'Pay'] }[t];
     var x = n ? T(n[0], n[1]) : String(t || '');
     if (may && t === 'reduccion') x = T('Reducción', 'Reduction');
     if (may && t === 'retribucion') x = T('Retrib.', 'Pay');
@@ -708,11 +727,12 @@
         if (o.abre != null && o.clase === 'ventana') {
           var x0 = pos(o.abre), x1 = pos(o.fin || o.cierra);
           if (x1 > x0) s += '<i class="plz-seg" style="left:' + x0.toFixed(2) + '%;width:' + (x1 - x0).toFixed(2) + '%"></i>';
-        } else if (!o.objetivo && o.cierra >= a0 && o.cierra < a1) s += '<i class="plz-pin" style="left:' + pos(o.cierra).toFixed(2) + '%"></i>';
+        } else if ((!o.objetivo || t === 'programacion') && o.cierra >= a0 && o.cierra < a1) s += '<i class="plz-pin" style="left:' + pos(o.cierra).toFixed(2) + '%"></i>';
         /* Un límite MENSUAL (las fechas de la reducción, cada mes) no va en la
-           cinta: doce puntos seguidos tapan los que importan. Sigue en la lista. */
+           cinta: doce puntos seguidos tapan los que importan. Sigue en la lista.
+           La publicación de la programación SÍ: va sola en su línea, no tapa nada. */
       });
-      var cor = { roff: 'ROFF', xoff: 'XOFF', vacaciones: T('VAC', 'LEAVE'), reduccion: T('RED', 'REDUC'), retribucion: T('RETR', 'PAY') }[t];
+      var cor = { programacion: T('PROG', 'ROSTER'), roff: 'ROFF', xoff: 'XOFF', vacaciones: T('VAC', 'LEAVE'), reduccion: T('RED', 'REDUC'), retribucion: T('RETR', 'PAY') }[t];
       return '<div class="plz-lane plz-c-' + t + (_fil !== 'todo' && _fil !== t ? ' off' : '') + '" data-plz-lane="' + t + '"><span class="k">' + cor + '</span><div class="plz-trk">' + s + '</div></div>';
     }).join('');
     if (!lanes) return '';
@@ -863,7 +883,7 @@
   }
   function cfgHtml() {
     var p = prefs(), pf = perfil();
-    var nom = { roff: ['Puja de ROFF', 'ROFF bidding'], vacaciones: ['Vacaciones', 'Annual leave'], xoff: ['XOFF de Navidad', 'Christmas XOFF'], reduccion: ['Reducciones de jornada', 'Part-time reductions'], retribucion: ['Retribución y beneficios', 'Pay and benefits'] };
+    var nom = { programacion: ['Publicación de la programación', 'Roster publication'], roff: ['Puja de ROFF', 'ROFF bidding'], vacaciones: ['Vacaciones', 'Annual leave'], xoff: ['XOFF de Navidad', 'Christmas XOFF'], reduccion: ['Reducciones de jornada', 'Part-time reductions'], retribucion: ['Retribución y beneficios', 'Pay and benefits'] };
     var canal = '<div class="plz-cfg plz-canal"><div class="plz-ct">' + esc(T('CÓMO TE AVISAMOS', 'HOW WE NOTIFY YOU')) + '</div>' +
       '<div id="plz-push" class="plz-push"></div>' +
       '<label><span>' + esc(T('También por email', 'Also by email')) + '</span><input type="checkbox" data-plz-pref="email"' + (emailOn() ? ' checked' : '') + '></label>' +

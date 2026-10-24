@@ -59,6 +59,16 @@
   function retirada(r) { return !r || r.activo === false || RETIRADAS[r.id] === 1; }
 
   var REGLAS_DEFECTO = [
+    /* MO-A 7.1.2.1: «the roster is then published 14 days before the first day of
+       the roster period». Se cuenta en el mes ANTERIOR al de la programación con
+       `cierra_dia` negativo: -14 es el 14.º día empezando por el final, o sea, 14
+       días antes del día 1 (el 17 en un mes de 30, el 18 en uno de 31, el 15 en
+       febrero). El convenio no le da fecha; el MO sí. 23:59 para que el mismo
+       día siga en «Próximos» y la tarjeta diga «hoy». El título, corto: medido,
+       «Publicación de la programación · …» no cabe en la tarjeta del Home. */
+    R('prog_publicacion','programacion','hito','Programación · {mes}',
+      'La compañía la publica en Vueling Crew 14 días antes del primer día del mes.',
+      'mensual',1, null,null,null, null,-14,'23:59', null,null, [], {}, 'MO-A · 7.1.2.1', 5, true),
     R('roff_puja','roff','ventana','Puja de ROFF · {mes}',
       'Se puede pujar hasta una hora aleatoria entre las 12:00 del día 11 y las 10:00 del día 12, dos meses antes del mes de disfrute.',
       'mensual',2, null,5,'00:00', null,11,'12:00', 12,'10:00', [], {}, null, 10, true),
@@ -154,6 +164,7 @@
      exacta posible, y una palabra suelta como clave es GLOBAL. Una regla nueva
      de la tabla sin entrada aquí sale en castellano — dicho, no inventado. */
   var EN = {
+    prog_publicacion: ['Roster · {mes}', 'The company publishes it in Vueling Crew 14 days before the first day of the month.'],
     roff_puja: ['ROFF bidding · {mes}', 'Bidding closes at a random time between 12:00 on the 11th and 10:00 on the 12th, two months before the month you want off.'],
     xoff_preferencias: ['XOFF preferences', 'Send your Christmas period preferences in Vueling Crew.'],
     xoff_publicacion: ['The company publishes the XOFF', null],
@@ -215,7 +226,8 @@
   }
   function diasMes(y, m) { return new Date(Date.UTC(y, m, 0)).getUTCDate(); }
   function sumaMes(y, m, n) { var i = y * 12 + (m - 1) + n; return { y: Math.floor(i / 12), m: (i % 12) + 1 }; }
-  function dia(y, m, d) { return d === -1 ? diasMes(y, m) : Math.min(d, diasMes(y, m)); }
+  /* -1 = último día; -N = N-ésimo empezando por el final (N días antes del 1 del mes siguiente). */
+  function dia(y, m, d) { return d < 0 ? Math.max(1, diasMes(y, m) + d + 1) : Math.min(d, diasMes(y, m)); }
   function ym(y, m) { return y + '-' + (m < 10 ? '0' : '') + m; }
   function hhmm(h) { return String(h || '00:00').slice(0, 5); }
 
@@ -432,8 +444,23 @@
     return 'abre';
   }
 
+  /* ── La tabla + las reglas de la copia que la tabla AÚN NO tiene ──
+     Beta y producción comparten `plazos_reglas`: meter una fila nueva la enseña
+     también a la app de producción, que no la sabe pintar (le falta el tipo, el
+     color o la cuenta del día). Así una regla nueva sale con el CÓDIGO que la
+     entiende y la fila se mete al promover. Se compara contra TODAS las filas,
+     activas o no: una regla apagada en la tabla no vuelve desde la copia. */
+  function completa(filas) {
+    var hay = {};
+    (filas || []).forEach(function (r) { if (r && r.id) hay[r.id] = 1; });
+    var out = (filas || []).filter(function (r) { return r && r.activo !== false; });
+    REGLAS_DEFECTO.forEach(function (r) { if (r.activo && !hay[r.id] && !retirada(r)) out.push(r); });
+    out.sort(function (a, b) { return (a.orden || 100) - (b.orden || 100); });
+    return out;
+  }
+
   return {
-    REGLAS_DEFECTO: REGLAS_DEFECTO, RETIRADAS: RETIRADAS, retirada: retirada, EN: EN, URGE_MS: URGE_MS, AHORA_LIMITE_MS: AHORA_LIMITE_MS, fase: fase,
+    REGLAS_DEFECTO: REGLAS_DEFECTO, RETIRADAS: RETIRADAS, retirada: retirada, completa: completa, EN: EN, URGE_MS: URGE_MS, AHORA_LIMITE_MS: AHORA_LIMITE_MS, fase: fase,
     ocurrencias: ocurrencias, estado: estado, aplica: aplica,
     titulo: titulo, detalle: detalle, cuando: cuando, falta: falta, cuentaTxt: cuentaTxt, progreso: progreso,
     fechaCorta: fechaCorta, hora: hora, localAMs: localAMs, offsetMin: offsetMin
