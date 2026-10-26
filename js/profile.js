@@ -1210,9 +1210,13 @@
     } catch (e) { return false; }
   }
   function ppAltaMarca() {
-    // Conserva la marca de «completar» (compDia) que vive en la misma clave.
+    /* Conserva la marca de «completar» (compDia) que vive en la misma clave, y la
+       pone a HOY: ver la bienvenida ya es la pregunta del día. Sin esto, quien la
+       cerraba recargando se encontraba en el acto la hoja «Completa tu perfil» —
+       la misma pregunta dos veces seguidas (perfil-alta-una-vez-test, caso 2). */
     try { var o = {}; try { var v = localStorage.getItem(ALTA_KEY); if (v && v.charAt(0) === '{') o = JSON.parse(v); } catch (x) {}
-      o.uid = _uid(); o.at = new Date().toISOString(); localStorage.setItem(ALTA_KEY, JSON.stringify(o)); } catch (e) {}
+      o.uid = _uid(); o.at = new Date().toISOString(); o.compDia = o.at.slice(0, 10);
+      localStorage.setItem(ALTA_KEY, JSON.stringify(o)); } catch (e) {}
   }
 
   /* ¿Es de verdad un PRIMER login? Lo pedido es «que en el primer login obligue a

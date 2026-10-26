@@ -97,6 +97,9 @@
     "El «ID» de la cabecera de tu roster": "The «ID» in your roster header",
     "Pon tu ID de tripulante": "Enter your crew ID",
     "Tres datos y listo": "Three details and you're done",
+    // 27-oct: la hoja de alta salía con estos dos en español (prueba-e2e-test, bloque 9)
+    "Completa tu perfil": "Complete your profile",
+    "OBLIGATORIO": "REQUIRED",
     "Tu puesto, tu nombre de chequeo y tu ID: con ellos el Swap te encuentra entre los pilotos de tu base y separa comandantes de copilotos, y el logbook pone tu nombre en tu asiento.": "Your position, crew-list name and crew ID: with them Swap finds you among the pilots at your base and tells captains from first officers, and the logbook puts your name in your seat.",
     "🎁 Empiezan tus {0} días de PilotOS Pro gratis": "🎁 Your {0} free days of PilotOS Pro start now",
     "Este ID de tripulante ya usó su prueba gratuita · sigues en el plan Free": "This crew ID has already used its free trial · you stay on the Free plan",
