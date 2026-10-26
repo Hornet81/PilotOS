@@ -185,9 +185,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
 }
 </style>
 
-  <meta name="version" content="Estable.1191">
+  <meta name="version" content="Estable.1192">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1191","builtAt":"2026-10-26T18:12:07Z","commit":"76ff547","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1192","builtAt":"2026-10-26T21:27:51Z","commit":"2bfd97f","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -58030,7 +58030,7 @@ async function pagForgot() {
   try {
     var r = await fetch(cafiBackendUrl + '/auth/forgot', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email, origin: location.origin })
+      body: JSON.stringify({ email: email, origin: location.origin, lang: window.pilotosLang || 'es' })   // el correo sale en el idioma de la app
     });
     var d = await r.json().catch(function(){ return {}; });
     // El servidor responde lo mismo exista o no la cuenta (no se filtra quién está
@@ -58162,7 +58162,8 @@ async function pagDoAuth() {
 
   try {
     var endpoint = isLogin ? '/auth/login' : '/auth/register';
-    var body = isLogin ? { email, password: pass } : { email, password: pass, name: email.split('@')[0], airline };
+    // `lang`: los correos de la cuenta (solicitud recibida, boarding complete) salen en el idioma de la app.
+    var body = isLogin ? { email, password: pass } : { email, password: pass, name: email.split('@')[0], airline, lang: window.pilotosLang || 'es' };
     var _ctrl = new AbortController();
     var _timer = setTimeout(function(){ _ctrl.abort(); }, 35000);
     var res = await fetch(cafiBackendUrl + endpoint, {
