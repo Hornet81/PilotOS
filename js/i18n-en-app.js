@@ -90,6 +90,16 @@
     "El de la lista de tripulación: sale solo en tu asiento": "As on the crew list: filled in your own seat",
     "Pon tu nombre de chequeo": "Enter your crew-list name",
     "Saldrá ya puesto en tu asiento de cada vuelo del logbook: CM1 si eres comandante, CM2 si eres copiloto.": "It will be filled in your seat on every logbook flight: CM1 if you're captain, CM2 if you're first officer.",
+    // ID de tripulante (26-oct-2026): obligatorio, decide la prueba gratuita una vez por piloto
+    "Tu ID de tripulante": "Your crew ID",
+    "ID de tripulante": "Crew ID",
+    "El «ID» que sale arriba en tu roster, junto a tu apellido.": "The «ID» shown at the top of your roster, next to your surname.",
+    "El «ID» de la cabecera de tu roster": "The «ID» in your roster header",
+    "Pon tu ID de tripulante": "Enter your crew ID",
+    "Tres datos y listo": "Three details and you're done",
+    "Tu puesto, tu nombre de chequeo y tu ID: con ellos el Swap te encuentra entre los pilotos de tu base y separa comandantes de copilotos, y el logbook pone tu nombre en tu asiento.": "Your position, crew-list name and crew ID: with them Swap finds you among the pilots at your base and tells captains from first officers, and the logbook puts your name in your seat.",
+    "🎁 Empiezan tus {0} días de PilotOS Pro gratis": "🎁 Your {0} free days of PilotOS Pro start now",
+    "Este ID de tripulante ya usó su prueba gratuita · sigues en el plan Free": "This crew ID has already used its free trial · you stay on the Free plan",
     "Tu puesto": "Your position",
     "Tus cosas": "Your stuff",
     "Va en la cabecera del logbook": "Shown in the logbook header"

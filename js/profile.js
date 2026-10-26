@@ -33,6 +33,12 @@
        aprendía al guardar el primer vuelo y en un móvil nuevo salía vacío. Aquí
        sincroniza (es una cadena: /api/profile la copia sin tocar el servidor). */
     nombreTripulacion: '',
+    /* El ID de tripulante, el de la cabecera del roster («NAME: BALCELLS · ID: 6578»).
+       Obligatorio en la hoja de bienvenida desde el 26-oct-2026: con él se decide la
+       prueba gratuita de Pro, UNA por piloto (prueba-id.js en el servidor). El
+       servidor manda el ID que lee del propio roster; éste es el respaldo cuando el
+       roster no lo trae. Cadena, sólo cifras. */
+    idTripulante: '',
     /* En qué hora enseña eCrews los vuelos a ESTE piloto: 'utc' | 'base' | 'local'.
        Lo contesta una vez en el importador cuando el proxy no puede leer su ajuste
        (#ZN22A) y viaja aquí para no preguntarlo en cada aparato. */
@@ -944,6 +950,7 @@
          que no está «en blanco», sino deducido, y se puede corregir. */
       _fila('🧑‍✈️', 'Nombre de chequeo', 'El de la lista de tripulación: sale solo en tu asiento', 'nombreTripulacion',
             ppNombreTrip() || 'APELLIDO', '120px') +
+      _fila('🪪', 'ID de tripulante', 'El «ID» de la cabecera de tu roster', 'idTripulante', '1234', '90px') +
       _filaCargos() + _filaPlazos() + '</div>';
 
     h += '<div class="pp-sh">Preferencias</div><div class="pp-card">' +
@@ -1267,7 +1274,7 @@
   function _altaObj() { try { var v = localStorage.getItem(ALTA_KEY); return v && v.charAt(0) === '{' ? JSON.parse(v) : {}; } catch (e) { return {}; } }
   function ppCompletaToca() {
     if (!_tok()) return false;
-    if (PROFILE.rol && String(PROFILE.nombreTripulacion || '').trim()) return false;
+    if (PROFILE.rol && String(PROFILE.nombreTripulacion || '').trim() && _idValido(PROFILE.idTripulante)) return false;
     if (document.getElementById('pp-alta')) return false;
     var o = _altaObj(), hoy = new Date().toISOString().slice(0, 10);
     return !(o.compDia === hoy && (!o.uid || o.uid === _uid()));
@@ -1565,8 +1572,8 @@
            campo, que es donde sirve para decidir. */
         (completar
           ? '<div class="pa-k">Completa tu perfil</div>' +
-            '<div class="pa-t" id="pa-t">Dos datos y listo</div>' +
-            '<div class="pa-s">Tu puesto y tu nombre de chequeo: con ellos el Swap te encuentra entre los pilotos de tu base y ' +
+            '<div class="pa-t" id="pa-t">Tres datos y listo</div>' +
+            '<div class="pa-s">Tu puesto, tu nombre de chequeo y tu ID: con ellos el Swap te encuentra entre los pilotos de tu base y ' +
               'separa comandantes de copilotos, y el logbook pone tu nombre en tu asiento.</div>'
           : '<div class="pa-k">Bienvenido a bordo</div>') +
         /* «Calibremos» y no «Ajustemos»: el subtítulo de debajo dice «PilotOS
@@ -1614,6 +1621,14 @@
             'oninput="this.dataset.tocado=\'1\';PilotProfile.altaBoton()" ' +
             'value="' + _esc(ppNombreTrip()) + '">' +
           '<div class="pa-hint">Saldrá ya puesto en tu asiento de cada vuelo del logbook: CM1 si eres comandante, CM2 si eres copiloto.</div></div>' +
+
+        /* OBLIGATORIO también: es el «ID» que sale arriba en el roster, junto al
+           apellido. Con él el servidor da la prueba gratuita UNA vez por piloto. */
+        '<div class="pa-f"><div class="pa-lbl">Tu ID de tripulante <span class="pa-req">OBLIGATORIO</span></div>' +
+          '<input class="pa-in-f" id="pa-id" inputmode="numeric" autocomplete="off" maxlength="7" placeholder="1234" ' +
+            'oninput="this.value=this.value.replace(/\\D/g,\'\');PilotProfile.altaBoton()" ' +
+            'value="' + _esc(PROFILE.idTripulante || '') + '">' +
+          '<div class="pa-hint">El «ID» que sale arriba en tu roster, junto a tu apellido.</div></div>' +
 
         '<div class="pa-f"><div class="pa-lbl">Base</div>' +
           '<input class="pa-in-f" id="pa-base" placeholder="BCN" autocapitalize="characters" ' +
@@ -1692,6 +1707,9 @@
     var tr = document.getElementById('pa-trip');
     var faltaTrip = !falta && tr && !_altaTrip();
     if (faltaTrip) { tr.classList.add('pide'); try { tr.focus(); } catch (e) {} }
+    var idf = document.getElementById('pa-id');
+    var faltaId = !falta && !faltaTrip && idf && !_idValido(_altaId());
+    if (faltaId) { idf.classList.add('pide'); try { idf.focus(); } catch (e) {} setTimeout(function () { idf.classList.remove('pide'); }, 1400); }
     caja.classList.add('no');
     setTimeout(function () { caja.classList.remove('no'); _altaNoOcupado = false; }, 460);
     if (falta && rol) setTimeout(function () { rol.classList.remove('pide'); }, 1400);
@@ -1724,12 +1742,19 @@
     var e = document.getElementById('pa-trip');
     return e ? String(e.value || '').trim() : '';
   }
+  function _altaId() {
+    var e = document.getElementById('pa-id');
+    return e ? String(e.value || '').replace(/\D/g, '') : '';
+  }
+  // Un ID de verdad tiene de 3 a 7 cifras (el de Vueling, 4). Menos es un error de dedo.
+  function _idValido(v) { return /^\d{3,7}$/.test(String(v || '').replace(/\D/g, '')); }
   function ppAltaBoton() {
     var b = document.getElementById('pa-go'); if (!b) return;
-    var trip = _altaTrip();
-    b.disabled = !_ALTA_ROL || !trip;
+    var trip = _altaTrip(), id = _idValido(_altaId());
+    b.disabled = !_ALTA_ROL || !trip || !id;
     b.textContent = !_ALTA_ROL ? 'Elige tu puesto para empezar'
                   : !trip ? 'Pon tu nombre de chequeo'
+                  : !id ? 'Pon tu ID de tripulante'
                   : 'Empezar →';
   }
   /* Mientras el piloto no haya tocado el campo, sigue al nombre que escribe. */
@@ -1748,7 +1773,7 @@
     ppAltaBoton();
   }
   function ppAltaGuardar() {
-    if (!_ALTA_ROL || !_altaTrip()) return;       // el botón ya está apagado; esto es el cinturón
+    if (!_ALTA_ROL || !_altaTrip() || !_idValido(_altaId())) return;   // el botón ya está apagado; esto es el cinturón
     var val = function (id) { var e = document.getElementById(id); return e ? String(e.value || '').trim() : ''; };
     /* UN solo ppSave: es la única puerta de escritura y además sube a la nube una
        vez en vez de cinco. */
@@ -1757,6 +1782,7 @@
       rol: _ALTA_ROL,
       nombre: val('pa-nombre'),
       nombreTripulacion: val('pa-trip'),
+      idTripulante: _altaId(),
       base: val('pa-base').toUpperCase(),
       /* En el ORDEN de la lista y como CADENA, igual que `ppToggleCargo`: el
          servidor sólo copia string|boolean|number, así que un array se perdería

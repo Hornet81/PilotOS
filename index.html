@@ -185,9 +185,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
 }
 </style>
 
-  <meta name="version" content="Estable.1188">
+  <meta name="version" content="Estable.1189">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1188","builtAt":"2026-10-26T08:17:29Z","commit":"63ac086","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1189","builtAt":"2026-10-26T09:59:07Z","commit":"97df65b","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -26306,6 +26306,27 @@ function pilotTrialDias(){
   var t = u ? Date.parse(u) : NaN;
   return (t > Date.now()) ? Math.ceil((t - Date.now()) / 86400000) : 0;
 }
+/* La prueba se decide al importar el PRIMER roster (prueba-id.js en el servidor):
+   una por piloto, con el ID de tripulante de la cabecera del roster. Las rutas que
+   importan devuelven `trial` y esto lo apunta y lo DICE — también cuando se niega,
+   porque «sigues en Free» sin motivo parecería un fallo. Va con retraso para no
+   pisarse con el toast de «roster importado». */
+function pilotosPruebaRoster(t){
+  if (!t) return;
+  // La misma decisión puede llegar por dos respuestas (importar y guardar): se dice una vez.
+  var _k = t.activa ? 'a' + t.until : (t.denegada ? 'd' : '');
+  if (!_k || window._pruebaRosterDicho === _k) return;
+  window._pruebaRosterDicho = _k;
+  if (t.activa && t.until) {
+    pilotosGuardaPrueba(t);
+    lsSet('pilotOS_plan', 'pro');
+    try { if (typeof upgUpdateCards === 'function') upgUpdateCards(); } catch(e){}
+    setTimeout(function(){ try { showToast('🎁 Empiezan tus ' + (t.dias || 30) + ' días de PilotOS Pro gratis'); } catch(e){} }, 2600);
+  } else if (t.denegada) {
+    setTimeout(function(){ try { showToast('Este ID de tripulante ya usó su prueba gratuita · sigues en el plan Free'); } catch(e){} }, 2600);
+  }
+}
+window.pilotosPruebaRoster = pilotosPruebaRoster;
 function isPro(){      var _p=pilotPlan(); return _p === 'pro' || _p === 'unlimited' || _p === 'beta'; }
 function isUnlimited(){ return pilotPlan() === 'unlimited'; }
 function isLoggedIn(){ var t=lsGet('cafi_auth_token',''); return !!(t&&t!=='demo-bypass-token'); }
@@ -52391,6 +52412,7 @@ async function rosterRunHTML(htmlText){
       body: JSON.stringify({ html_content: htmlText })
     });
     var data = await res.json();
+    try { if (res.ok && data && data.trial) pilotosPruebaRoster(data.trial); } catch(_pe){}
     if(!res.ok){
       if(data.error === 'plan_limit'){
         if(typeof showToast==='function') showToast('🔒 '+(data.message || 'Necesitas plan Pro para importar roster'));
@@ -52476,6 +52498,7 @@ async function rosterRunPDF(pdfBase64){
       body: JSON.stringify({ pdf_buffer: pdfBase64 })
     });
     var data = await res.json();
+    try { if (res.ok && data && data.trial) pilotosPruebaRoster(data.trial); } catch(_pe){}
     console.log('[Roster] server response status:', res.status, 'data:', JSON.stringify(data).slice(0,200));
     if(!res.ok){
       // Plan limit — show upgrade prompt
@@ -52591,6 +52614,7 @@ async function rosterRunAIText(textContent){
       body: JSON.stringify({ text_content: textContent })
     });
     var data = await res.json();
+    try { if (res.ok && data && data.trial) pilotosPruebaRoster(data.trial); } catch(_pe){}
     if(!res.ok){
       if(data.error === 'plan_limit'){
         if(typeof showToast==='function') showToast('🔒 '+(data.message || 'Necesitas plan Pro para importar roster'));
@@ -52722,6 +52746,7 @@ async function rosterRunAI(dataUrl, mimeType){
       body: JSON.stringify({ image_base64: b64, media_type: mt })
     });
     var data = await res.json();
+    try { if (res.ok && data && data.trial) pilotosPruebaRoster(data.trial); } catch(_pe){}
     if(!res.ok){
       if(data.error === 'plan_limit'){
         if(typeof showToast==='function') showToast('🔒 '+(data.message || 'Necesitas plan Pro para importar roster'));
@@ -53552,6 +53577,7 @@ window.rstPushMonth = async function(month){
     var r0 = await _save(true);
     if(!r0.ok) throw new Error('POST '+r0.status);
     var b0 = null; try{ b0 = await r0.json(); }catch(e){}
+    try{ if(b0 && b0.trial) pilotosPruebaRoster(b0.trial); }catch(e){}
     if(!(b0 && b0.replaced === true)){
       var r1 = await fetch(ldBackendUrl()+'/api/roster?month='+month,{
         method:'DELETE', headers:{'Authorization':'Bearer '+token}
@@ -54580,6 +54606,7 @@ function _ecProxyStartPoll(){
       if(v.status === 'COMPLETE'){
         clearInterval(_ecProxyPollTimer); _ecProxyPollTimer = null;
         _ecProxyRoster = v.roster; _ecProxyByMonth = (v.meta && v.meta.byMonth) || [];
+        try{ if(v.trial) pilotosPruebaRoster(v.trial); }catch(e){}
         var secs = v.meta && v.meta.seconds;
         var sub = document.getElementById('ec-months-sub');
         if(sub) sub.textContent = '✅ Roster capturado' + (secs ? (' en '+secs+'s') : '') + '. ¿Qué mes importar?';
@@ -55155,6 +55182,7 @@ window.ecImportarDesdeECrews = function(){
       return;
     }
     if(res.j.status !== 'COMPLETE' || !res.j.roster) throw new Error('Respuesta inesperada de eCrews');
+    try{ if(res.j.trial) pilotosPruebaRoster(res.j.trial); }catch(e){}
 
     var by = res.j.meta && res.j.meta.byMonth;
     if(by && by.length){
@@ -55246,6 +55274,7 @@ window.ecResyncMonth = function(month){
       return;
     }
     if(res.j.status === 'COMPLETE' && res.j.roster){
+      try{ if(res.j.trial) pilotosPruebaRoster(res.j.trial); }catch(e){}
       /* Huso sin saber (#ZN22A): aplicarlo sería guardar el mes dos horas corrido
          en silencio. Se abre la hoja con la pregunta y el mes ya descargado; el
          piloto contesta una vez y el ↻ ya no vuelve a preguntar. */
