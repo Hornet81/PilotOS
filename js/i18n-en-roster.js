@@ -848,4 +848,28 @@
     "No se han podido cargar los gráficos": "The charts could not be loaded",
     "No se ha podido dibujar esta pestaña": "This tab could not be drawn"
   });
+
+  /* Estadísticas del roster (26-oct-2026): trozos que se arman con números o que
+     empiezan por «—» y el motor no partía, así que salían a medias en español. */
+  window.pilotosI18nAdd('en', {
+    "trabajados": "worked",
+    "informativo: meter actividad en un franco no es un cambio pagable.": "for information only: activity placed on a day off is not a paid change."
+  }, [
+    // «+3h26 de vuelo · +4 sectores» (tarjeta «Sobre lo programado · duty»)
+    [/^([+\-−]?\d+h\d{2}) de vuelo$/, '$1 flight time'],
+    [/^([+\-−]?\d+) sectores$/, '$1 sectors'],
+    // «29 OCT — día libre con actividad» (tarjeta «Días libres tocados»)
+    [/^— (día libre|vacaciones) con (?:(actividad)|(\d+) vuelo\(s\))$/, function (m) {
+      return '— ' + (m[1] === 'vacaciones' ? 'leave' : 'day off') + ' with '
+           + (m[2] ? 'activity' : m[3] + ' flight(s)');
+    }],
+    // Fecha de esa misma lista con el mes en español (ENE, ABR, AGO, DIC)
+    [/^(\d{1,2}) (ENE|ABR|AGO|DIC)$/, function (m) {
+      return m[1] + ' ' + { ENE: 'JAN', ABR: 'APR', AGO: 'AUG', DIC: 'DEC' }[m[2]];
+    }],
+    // Pie «Comparado con la programación inicial del 2026-09-16 — en plazo.»
+    [/^— en plazo\.$/, '— published on time.'],
+    [/^— sellada (\d+) día\(s\) después de la ventana de publicación\.$/, '— saved $1 day(s) after the publication window.'],
+    [/^— sellada con el mes ya empezado —$/, '— saved after the month had started —']
+  ]);
 })();
