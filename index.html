@@ -185,9 +185,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
 }
 </style>
 
-  <meta name="version" content="Estable.1187">
+  <meta name="version" content="Estable.1188">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1187","builtAt":"2026-10-26T07:59:36Z","commit":"c0345a3","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1188","builtAt":"2026-10-26T08:17:29Z","commit":"3011eb4","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -26291,6 +26291,21 @@ var PLAN_FREE_LOGBOOK_LIMIT = 25;
 var PLAN_FREE_OES_LIMIT     = 20;
 
 function pilotPlan(){ return lsGet('pilotOS_plan', 'free'); }
+/* Prueba gratuita de Pro (26-oct-2026): el servidor ya devuelve plan 'pro' mientras
+   dura; esto sólo recuerda HASTA CUÁNDO, para que la pantalla de planes lo diga y
+   para que «suscribirse» vaya al pago y no a «cambiar de plan» (en prueba no hay
+   suscripción en Stripe que cambiar). Lo escriben las respuestas del servidor. */
+function pilotosGuardaPrueba(t){
+  try {
+    if (t && t.activa && t.until) lsSet('pilotOS_trial_until', t.until);
+    else localStorage.removeItem('pilotOS_trial_until');
+  } catch(e){}
+}
+function pilotTrialDias(){
+  var u = lsGet('pilotOS_trial_until', '');
+  var t = u ? Date.parse(u) : NaN;
+  return (t > Date.now()) ? Math.ceil((t - Date.now()) / 86400000) : 0;
+}
 function isPro(){      var _p=pilotPlan(); return _p === 'pro' || _p === 'unlimited' || _p === 'beta'; }
 function isUnlimited(){ return pilotPlan() === 'unlimited'; }
 function isLoggedIn(){ var t=lsGet('cafi_auth_token',''); return !!(t&&t!=='demo-bypass-token'); }
@@ -30241,12 +30256,15 @@ function upgUpdateCards() {
   var plan   = pilotPlan();
   var cycle  = lsGet('pilotOS_cycle', 'month');   // ciclo de la suscripción viva
   var isBeta = (plan === 'beta');
-  var paid   = (plan === 'pro' || plan === 'unlimited');
-  var cur    = (UPG_RANK[plan] != null) ? UPG_RANK[plan] : 0;
+  var prueba = (plan === 'pro') ? pilotTrialDias() : 0;
+  var paid   = !prueba && (plan === 'pro' || plan === 'unlimited');
+  var cur    = prueba ? 0 : ((UPG_RANK[plan] != null) ? UPG_RANK[plan] : 0);
 
   var chip = document.getElementById('upg-current-chip');
   if (chip) {
     if (isBeta)      { chip.textContent = 'PLAN ACTUAL · BETA (TESTER)'; chip.hidden = false; }
+    else if (prueba) { chip.textContent = 'PRUEBA GRATUITA · PRO · ' +
+                         (prueba === 1 ? 'QUEDA 1 DÍA' : 'QUEDAN ' + prueba + ' DÍAS'); chip.hidden = false; }
     else if (paid)   { chip.textContent = 'PLAN ACTUAL · ' + UPG_NAME[plan].toUpperCase() +
                                           ' ' + (cycle === 'year' ? 'ANUAL' : 'MENSUAL'); chip.hidden = false; }
     else             { chip.hidden = true; }
@@ -30262,6 +30280,10 @@ function upgUpdateCards() {
     if (isBeta) {
       if (p === 'free') { txt = 'Plan Beta (tester)'; off = true; }
       else              { txt = 'Mejorar a ' + UPG_NAME[p] + ' →'; }
+    } else if (prueba) {
+      if (p === 'free')      { txt = 'Tras la prueba'; off = true; }
+      else if (p === 'pro')  { txt = 'Quedarme con Pro →'; }
+      else                   { txt = 'Mejorar a ' + UPG_NAME[p] + ' →'; }
     } else if (r === cur) {
       // mismo plan pero otro ciclo → dejar cambiar mensual ⇄ anual
       if (paid && cycle !== upgCycle) txt = (upgCycle === 'year' ? 'Cambiar a anual' : 'Cambiar a mensual');
@@ -30291,6 +30313,9 @@ function upgSyncBilling() {
     headers: { 'Authorization': 'Bearer ' + token }
   }).then(function(r){ return r.json(); }).then(function(d){
     var changed = false;
+    var _tr0 = lsGet('pilotOS_trial_until','');
+    pilotosGuardaPrueba(d.trial);
+    if (_tr0 !== lsGet('pilotOS_trial_until','')) changed = true;
     if (d.plan && d.plan !== lsGet('pilotOS_plan','free')) { lsSet('pilotOS_plan', d.plan); changed = true; }
     if (d.billing && d.billing.cycle && d.billing.cycle !== lsGet('pilotOS_cycle','month')) {
       lsSet('pilotOS_cycle', d.billing.cycle); changed = true;
@@ -30315,6 +30340,7 @@ function upgPlanAction(plan) {
   if (!lsGet('cafi_auth_token', '')) { pagShow(); return; }
   var cur = pilotPlan();
   if (plan === 'free') return upgPortal();                       // cancelar → portal
+  if (cur === 'pro' && pilotTrialDias()) return upgStartCheckout(plan);   // en prueba no hay suscripción que cambiar
   if (cur === 'pro' || cur === 'unlimited') return upgChangePlan(plan);
   return upgStartCheckout(plan);
 }
@@ -58148,6 +58174,7 @@ async function pagDoAuth() {
       lsSet('cafi_auth_token', data.token);
       localStorage.setItem('cafi_auth_user', JSON.stringify(data.user));
       lsSet('pilotOS_plan', data.user.plan || 'free');
+      pilotosGuardaPrueba(data.user.trial);
       if (airline) lsSet('pag_airline', airline);
       localStorage.setItem('pilotOS_last_uid', _newUid);
       updateUserAvatar(data.user);
@@ -58421,6 +58448,7 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
       if (!d) return;
       if (d.plan) {
         lsSet('pilotOS_plan', d.plan);
+        pilotosGuardaPrueba(d.trial);
         if (typeof sbUpdatePlanBadge === 'function') sbUpdatePlanBadge();
       }
     }).catch(function(){
