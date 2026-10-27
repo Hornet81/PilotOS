@@ -39,6 +39,9 @@
        servidor manda el ID que lee del propio roster; éste es el respaldo cuando el
        roster no lo trae. Cadena, sólo cifras. */
     idTripulante: '',
+    /* Fatiga: el perfil de sueño del cuestionario de la primera entrada
+       (public/fatiga/perfil.js), como cadena JSON para que sincronice. */
+    fatPerfil: '',
     /* En qué hora enseña eCrews los vuelos a ESTE piloto: 'utc' | 'base' | 'local'.
        Lo contesta una vez en el importador cuando el proxy no puede leer su ajuste
        (#ZN22A) y viaja aquí para no preguntarlo en cada aparato. */
@@ -1276,19 +1279,37 @@
      una vez al día: obligatoria, pero no una pared en cada arranque. La marca va
      dentro de `pilotos_perfil_alta` (sobrevive al logout, lleva el UID). */
   function _altaObj() { try { var v = localStorage.getItem(ALTA_KEY); return v && v.charAt(0) === '{' ? JSON.parse(v) : {}; } catch (e) { return {}; } }
+  function _hoy() { return new Date().toISOString().slice(0, 10); }
+  /* ⚠ LA MARCA DEL DÍA VA POR CUENTA, no suelta en el objeto.
+     Estaba como `o.compDia` + un `o.uid` que se escribía con `o.uid || _uid()`,
+     o sea el PRIMER piloto que la estrenó y nunca más. En este aparato hay dos
+     cuentas (el usuario prueba con las dos): con la marca a nombre de la primera,
+     para la segunda `o.uid === _uid()` nunca era cierto y la hoja —obligatoria—
+     salía CADA VEZ que entraba. Ahora cada uid tiene su día. Se sigue leyendo la
+     marca vieja para quien ya la tenga: no se le puede reabrir por cambiar el
+     formato. `o.uid` se deja en paz, que es de la hoja de BIENVENIDA. */
+  function _compDiaDe(o) {
+    var u = _uid();
+    if (o.comp && typeof o.comp === 'object') return o.comp[u] || '';
+    return (o.compDia && (!o.uid || o.uid === u)) ? o.compDia : '';
+  }
+  function ppCompletaMarca() {
+    try {
+      var o = _altaObj();
+      if (!o.comp || typeof o.comp !== 'object') o.comp = {};
+      o.comp[_uid()] = _hoy();
+      localStorage.setItem(ALTA_KEY, JSON.stringify(o));
+    } catch (e) {}
+  }
   function ppCompletaToca() {
     if (!_tok()) return false;
     if (PROFILE.rol && String(PROFILE.nombreTripulacion || '').trim() && _idValido(PROFILE.idTripulante)) return false;
     if (document.getElementById('pp-alta')) return false;
-    var o = _altaObj(), hoy = new Date().toISOString().slice(0, 10);
-    return !(o.compDia === hoy && (!o.uid || o.uid === _uid()));
+    return _compDiaDe(_altaObj()) !== _hoy();
   }
   function ppAltaSiToca() {
     if (ppAltaToca()) return ppAltaAbrir();
-    if (ppCompletaToca()) {
-      ppAltaAbrir(true);
-      try { var o = _altaObj(); o.uid = o.uid || _uid(); o.compDia = new Date().toISOString().slice(0, 10); localStorage.setItem(ALTA_KEY, JSON.stringify(o)); } catch (e) {}
-    }
+    if (ppCompletaToca()) { ppAltaAbrir(true); ppCompletaMarca(); }
   }
 
   function ppAltaCss() {
@@ -1818,8 +1839,10 @@
     clear: ppClear, foto: ppFoto, firma: ppFirma, setFirma: ppSetFirma, quitarFirma: ppQuitarFirma, hydrate: ppHydrate, setFoto: ppSetFoto, quitarFoto: ppQuitarFoto,
     stats: ppStats, contextoIA: ppContextoIA, cloudPull: ppCloudPull,
     altaSiToca: ppAltaSiToca, altaRol: ppAltaRol, altaGuardar: ppAltaGuardar,
-    // El Swap la abre a quien entra sin rol o sin nombre de chequeo.
-    completar: function () { if (!document.getElementById('pp-alta')) ppAltaAbrir(true); },
+    /* El Swap la abre a quien entra sin rol o sin nombre de chequeo. Y DEJA LA
+       MARCA del día: sin ella, cada vuelta al Swap abría otra vez la misma hoja
+       obligatoria — el límite de una vez al día sólo lo ponía el arranque. */
+    completar: function () { if (!document.getElementById('pp-alta')) { ppAltaAbrir(true); ppCompletaMarca(); } },
     completaToca: ppCompletaToca,
     notaVirgen: ppNotaVirgen,
     // Para el banco: saber si TOCA preguntar sin llegar a abrir la hoja.

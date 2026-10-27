@@ -229,10 +229,18 @@
         // Vuelo nuevo: se parte del roster y del histórico, nunca del post-it de ayer.
         var s = sugerencia(fl);
         var yo = miChequeo(), r = datosRoster(pv);
+        /* El compañero es el MISMO todo el día (25-oct-2026: «cuando inserta el ID
+           del compañero, que se ponga en los siguientes vuelos del día»). Al pasar
+           al tramo siguiente se arrastra el nº del post-it anterior, pero sólo si
+           era de ESTE día: de ayer no, que mañana vuela con otro. El tuyo sale
+           siempre del escalafón; sin rol conocido se arrastran los dos. */
+        var mismoDia = !!(h && h.date && h.date === pv.date);
+        var arrCpt = mismoDia && yo.rol !== 'CPT' ? (h.cpt || '') : '';
+        var arrFo  = mismoDia && yo.rol !== 'FO'  ? (h.fo  || '') : '';
         h = { flight: fl, date: pv.date, callsign: s ? s.cs : '', fuente: s ? 'historico' : '', conf: false,
               ref: s ? { date: s.date, flight: s.flight, src: s.src } : null, roster: true, at: Date.now(),
               dep: r.dep, arr: r.arr, std: r.std, sta: r.sta,
-              cpt: yo.rol === 'CPT' ? yo.num : '', fo: yo.rol === 'FO' ? yo.num : '' };
+              cpt: yo.rol === 'CPT' ? yo.num : arrCpt, fo: yo.rol === 'FO' ? yo.num : arrFo };
         guarda(K_HOY, h);
       } else if (h && !otro) {
         var r2 = datosRoster(pv);

@@ -92,8 +92,18 @@ function clasifica(h){
     return p;
   }
   var p1 = paso('p1', 'etaF', 'staI');
-  if (p1.cumple == null)
+  if (p1.cumple == null){
+    /* Sin ETA(F) —eCrews mete el vuelo nuevo SOLO con horas reales, sin
+       programada ni estimada (caso real del 25-oct-2026, PMI → XRY)— la primera
+       pregunta no se puede contestar. Pero si ATA(F) − STA(I) > 120 se paga
+       en las DOS ramas: o la primera pregunta da sí (FZ/FZNA) o da no y entonces
+       la tercera da FZNA. Lo único que queda en duda es si cuenta para el límite. */
+    if (h.etaF == null && h.staI != null && h.ataF != null && (h.ataF - h.staI) > U){
+      paso('p3', 'ataF', 'staI');
+      return { veredicto:null, pasos:pasos, falta:['etaF'], pagado:true, dudaFZ:true, porLlegadaReal:true };
+    }
     return { veredicto:null, pasos:pasos, falta:faltan(['etaF','staI'], h), pagado:null };
+  }
   if (p1.cumple){
     var p2 = paso('p2', 'etaF', 'etaI');
     /* Sin ETA(I) no se sabe si es FZ o FZNA, pero SÍ que se paga: las dos ramas
@@ -353,6 +363,22 @@ var ESCENARIOS = [
     espera:{ veredicto:'FZ', pagado:true },   // el código del roster decide mientras
     opts:{ fecha:'2026-09-04', entries:[{date:'2026-09-04',code:'FZ',type:'off'}, V('2026-09-04','VY7822','BCN','LGW',null,null,{checkin:'15:50',std_actual:'18:22',sta_actual:'20:48',std:'18:22',sta:'20:48'}), V('2026-09-04','VY7823','LGW','BCN',null,null,{checkin:'15:50',std_actual:'21:26',sta_actual:'23:25',std:'21:26',sta:'23:25'})],
            datos:{ staI:'19:00', etaF:'23:20' }, diaSigLibre:false } },
+  /* 25-oct-2026: PMI ida y vuelta (llegada programada 12:45Z) cambiado en la
+     jornada por XRY ida y vuelta. eCrews trae los vuelos nuevos SOLO con horas
+     reales: no hay ETA(F). Calzos 14:55 → +2h10 → se paga. */
+  { id:'sin_etaF', nombre:'vuelo nuevo sin estimada, calzos +2h10 sobre lo programado → se paga',
+    espera:{ veredicto:null, pagado:true },
+    opts:{ fecha:'2026-10-25', entries:[
+      V('2026-10-25','VY6110','BCN','BLQ','04:55','06:35',{checkin:'04:00',std_actual:'04:43',sta_actual:'06:16'}),
+      V('2026-10-25','VY6111','BLQ','BCN','07:20','09:05',{checkin:'04:00',std_actual:'07:24',sta_actual:'09:02'}),
+      { date:'2026-10-25', type:'flight', flightNum:'VY1224', dep:'BCN', arr:'XRY', checkin:'04:00', std_actual:'10:18', sta_actual:'11:55' },
+      { date:'2026-10-25', type:'flight', flightNum:'VY1225', dep:'XRY', arr:'BCN', checkin:'04:00', std_actual:'12:59', sta_actual:'14:55' }],
+      inicial:{ staI: 12*60+45, pernoctaIni:'BCN' }, diaSigLibre:false } },
+  { id:'sin_etaF_120', nombre:'vuelo nuevo sin estimada, calzos +2h00 justos → no se paga',
+    espera:{ veredicto:null, pagado:false },
+    opts:{ fecha:'2026-10-25', entries:[
+      { date:'2026-10-25', type:'flight', flightNum:'VY1225', dep:'XRY', arr:'BCN', checkin:'04:00', std_actual:'12:49', sta_actual:'14:45' }],
+      inicial:{ staI: 12*60+45 }, diaSigLibre:false } },
   { id:'externo', nombre:'AOG / huelga / espacio aéreo → no es cambio en ejecución',
     espera:{ veredicto:'EXCLUIDO', pagado:false },
     opts:{ fecha:'2026-09-10', entries:[V('2026-09-10','VY1003','MAD','PMI','16:40','18:00',{checkin:'07:00'})],

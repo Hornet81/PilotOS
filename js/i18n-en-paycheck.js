@@ -315,6 +315,9 @@
     "Bruto antes deducciones": "Gross before deductions",
     "Caduca en": "Expires in",
     "Caduca en {0} días": "Expires in {0} days",
+    "Caduca en 1 día": "Expires in 1 day",
+    "Caduca hoy": "Expires today",
+    "Fuera de plazo": "Past the deadline",
     "caduca hoy": "expires today",
     "caducó hace": "expired",
     "CALCO DEL PORTAL": "PORTAL COPY",
@@ -802,6 +805,19 @@
     "Se crearán": "This will create",
     "Se envía la nota…": "Sending the claim…",
     "se envía tal cual · lo puedes cambiar": "sent as is · you can change it",
+    "COMENTARIO": "COMMENT",
+    "{0} LÍNEAS": "{0} LINES",
+    "LÍNEA {0} de {1}": "LINE {0} of {1}",
+    "Añadir otra línea a esta nota": "Add another line to this claim",
+    "otra comida, otra noche u otra fecha · en una sola nota del portal": "another meal, night or date · in a single portal claim",
+    "Misma nota del portal · después puedes cambiarle la fecha": "Same portal claim · you can change its date afterwards",
+    "✕ quitar": "✕ remove",
+    "· en el portal: «Add new expense line»": "· in the portal: «Add new expense line»",
+    "sin tope: lo que sume el ticket": "no cap: whatever the receipt adds up to",
+    "lo lee la Compañía · lo puedes cambiar": "the company reads it · you can change it",
+    "lo lee la Compañía · toca para cambiarlo": "the company reads it · tap to change it",
+    "desplegable del portal · se cambia en la hoja": "portal dropdown · change it in the sheet",
+    "TICKET FUERA DE PLAZO": "RECEIPT OUT OF WINDOW",
     "Se pagan": "They are",
     "Seguro de salud": "Health insurance",
     "Selecciona los productos que tienes activos": "Select your active products",
@@ -1026,6 +1042,12 @@
        está. Las dos viejas se quedan — el SW sirve la app anterior un rato. */
     "{0} € con tickets": "{0} € with receipts",
     "Te pasas del tope — reclamas {0} €": "Over the cap — you claim {0} €",
+
+    /* ── el pase de cada nota (24-oct-2026) ── */
+    "CADUCA EN {0} DÍAS": "EXPIRES IN {0} DAYS",
+    "CADUCA EN 1 DÍA": "EXPIRES IN 1 DAY",
+    "FALTAN {0}": "{0} MISSING",
+    "LISTA PARA ENVIAR": "READY TO SUBMIT",
 
     /* ── lo enviado ── */
     "RECHAZADAS O NO SALIERON": "REJECTED OR NOT SENT",

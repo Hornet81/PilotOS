@@ -464,7 +464,80 @@ function detectar(rows){
       legs: (d && d.legs) || []
     };
   });
+  aplicaExtras();
 }
+
+/* ════════ LÍNEAS AÑADIDAS A MANO DENTRO DE UNA NOTA ════════
+   Pedido el 24-oct-2026: en la hoja del portal ponía «ADD NEW EXPENSE LINE» y
+   no hacía nada — era el rótulo del paso del portal, no un botón. Ahora hay un
+   botón de verdad: otra comida, otra noche, otra fecha en la MISMA nota (el
+   portal admite varias líneas por hoja). En una nota a mano la línea se guarda
+   en la propia nota y viaja con ella; en una que detecta el roster se guarda
+   aparte, porque esa nota se vuelve a derivar en cada render y la perdería. */
+var K_EXTRA = 'pilotos_gastos_lineas_extra';
+function extrasLoad(){ try { EX.extra = JSON.parse(localStorage.getItem(K_EXTRA) || '{}') || {}; } catch(e){ EX.extra = {}; } }
+function extrasSave(){ try { localStorage.setItem(K_EXTRA, JSON.stringify(EX.extra || {})); } catch(e){} }
+function aplicaExtras(){
+  if (!EX.extra) extrasLoad();
+  (EX.auto || []).forEach(function(n){
+    (EX.extra[n.id] || []).forEach(function(l){
+      n.lines.push(Object.assign({}, l));
+      n.maxTotal = r2((Number(n.maxTotal)||0) + (Number(l.cap)||0));
+    });
+  });
+}
+function opcionesLinea(n){
+  var T = tipoDe(n.kind), sc = n.scope === 'int' ? 'int' : 'nat';
+  if (T.meals) return MEAL_SUB.map(function(m){
+    return { v:{ subtype:m[sc], cap:T.cap[sc], slot:m.slot, slotLabel:m.lbl },
+             txt: m.lbl, hint: m[sc] + ' · ' + eur(T.cap[sc]) }; });
+  if (T.vouchers) return VOU_SUB.map(function(v){
+    return { v:{ subtype:v.s, cap:v.cap, slot:null, slotLabel:'Pernocta' },
+             txt: v.s, hint: eur(v.cap) }; });
+  var s0 = (n.lines[0] && n.lines[0].subtype) || T.lbl;
+  return [{ v:{ subtype:s0, cap:0, slot:null, slotLabel:T.lbl }, txt: 'Otra línea de ' + T.lbl, hint:'sin tope: lo que sume el ticket' }];
+}
+window.exAddLinea = function(id){
+  var n = notaDe(id); if (!n) return;
+  if (EX.sent[id]) { alert('Esta nota ya está enviada: una línea nueva iría en otra nota.'); return; }
+  var ops = opcionesLinea(n);
+  exPick({
+    ic: '＋', titulo: 'Añadir otra línea a esta nota',
+    sub: 'Misma nota del portal · después puedes cambiarle la fecha',
+    opciones: ops.map(function(o, i){ return { v: String(i), txt: o.txt, hint: o.hint }; })
+      .concat([{ v:'', txt:'Cancelar', ic:'undo', ghost:true }]),
+    onPick: function(v){
+      if (v === '' || v == null) return;
+      var o = ops[Number(v)]; if (!o) return;
+      var ult = n.lines[n.lines.length - 1] || {};
+      var l = { date: ult.date || n.date, subtype: o.v.subtype, cap: o.v.cap, slot: o.v.slot,
+                slotLabel: o.v.slotLabel, window: null, where: ult.where || null, extra: true };
+      if (n.manual){
+        n.lines.push(l); n.maxTotal = r2((Number(n.maxTotal)||0) + (Number(l.cap)||0));
+        saveMan(); syncNota(n.id);
+      } else {
+        if (!EX.extra) extrasLoad();
+        (EX.extra[id] = EX.extra[id] || []).push(l); extrasSave();
+        n.lines.push(Object.assign({}, l)); n.maxTotal = r2((Number(n.maxTotal)||0) + (Number(l.cap)||0));
+      }
+      if (typeof drawSheet === 'function') drawSheet();
+      exRender();
+    }
+  });
+};
+/* Sólo se quita la ÚLTIMA línea añadida y sin tickets: los tickets se guardan
+   por número de línea, y quitar una del medio los movería de sitio. */
+window.exQuitarLinea = function(id){
+  var n = notaDe(id); if (!n || n.lines.length < 2) return;
+  var i = n.lines.length - 1, l = n.lines[i];
+  if (!l.extra) return;
+  if (tksOf(lineKey(n, i)).length){ alert('Esa línea tiene tickets: bórralos antes de quitarla.'); return; }
+  n.lines.pop(); n.maxTotal = r2((Number(n.maxTotal)||0) - (Number(l.cap)||0));
+  if (n.manual){ saveMan(); syncNota(n.id); }
+  else if (EX.extra && EX.extra[id]){ EX.extra[id].pop(); if (!EX.extra[id].length) delete EX.extra[id]; extrasSave(); }
+  if (typeof drawSheet === 'function') drawSheet();
+  exRender();
+};
 
 /* ── RESCATE DE LAS MARCAS YA GUARDADAS ────────────────────────────────────────
    Arreglar cómo se calcula el id no arregla lo que ya está guardado — es el caso
@@ -646,6 +719,7 @@ function mesesDe(list){
     if (!g[k]){ g[k] = { k:k, notas:0, tope:0, tickets:0, urge:false }; orden.push(k); }
     g[k].notas++; g[k].tope += topeDe(n)||0; g[k].tickets += tkDe(n);
     if (!EX.sent[n.id] && daysLeft(n.date) <= 20) g[k].urge = true;
+    if (!EX.sent[n.id] && !esFutura(n) && !lineasConTk(n)) g[k].sinTk = (g[k].sinTk||0) + 1;
   });
   orden.sort(function(a,b){ return b.localeCompare(a); });   // el más reciente primero
   return orden.map(function(k){ g[k].tope = r2(g[k].tope); g[k].tickets = r2(g[k].tickets); return g[k]; });
@@ -701,13 +775,25 @@ function nubeEstado(){
 }
 
 function mesesStrip(meses){
+  /* ── REDISEÑO 24-oct-2026: botones 3D con su barra de comparación ──
+     La barra dice cuánto pesa ese mes contra el más cargado —la pregunta que
+     se hace al mirar la tira es «¿dónde está el dinero?»— y la insignia ámbar
+     cuántas notas de ese mes siguen SIN ticket, que es lo que bloquea cobrarlo.
+     El ancho va en línea porque es un DATO; el color, por clase. */
+  var max = 0;
+  meses.forEach(function(m){ if (m.tope > max) max = m.tope; });
   var chips = meses.map(function(m){
+    var pc = max > 0 ? Math.max(4, Math.round(m.tope / max * 100)) : 0;
     return '<div class="ex-mchip'+(EX.mes===m.k?' on':'')+(m.urge?' urge':'')+'" '+
-      'onclick="exMes(\''+m.k+'\')">'+mesLbl(m.k)+'<span>'+eur(m.tope)+'</span></div>';
+      'onclick="exMes(\''+m.k+'\')">'+mesLbl(m.k)+'<span>'+eur(m.tope)+'</span>'+
+      '<i class="ex-mbar"><i style="width:'+pc+'%"></i></i>'+
+      (m.sinTk ? '<b class="ex-mbd" title="'+m.sinTk+'">'+m.sinTk+'</b>' : '')+'</div>';
   }).join('');
-  return '<div class="ex-meses">'+chips+
-    '<div class="ex-mchip'+(EX.mes==='*'?' on':'')+'" onclick="exMes(\'*\')">TODO'+
-      '<span>'+eur(sumaDe(meses, function(m){ return m.tope; }))+'</span></div></div>';
+  /* Tira FINA (24-oct-2026): una línea por mes, TODO delante. La barra de peso
+     se queda en el DOM pero no se pinta: en una píldora de 32 px no se lee. */
+  return '<div class="ex-meses ex-meses-f">'+
+    '<div class="ex-mchip ex-mtodo'+(EX.mes==='*'?' on':'')+'" onclick="exMes(\'*\')">TODO'+
+      '<span>'+eur(sumaDe(meses, function(m){ return m.tope; }))+'</span></div>'+chips+'</div>';
 }
 
 /* ════════ LOS TRES PASOS DE UNA NOTA ════════
@@ -855,6 +941,141 @@ function cabeceraTipo(n, T){
   '</div>';
 }
 
+/* ════════ REDISEÑO 24-oct-2026 · LA BARRA DEL DINERO ════════
+   Tres tramos, y los tres son dinero de verdad: lo ya ENVIADO, lo que ya
+   tiene TICKET (se cobra al pasarlo) y lo que FALTA justificar (se pierde si
+   no). Así el número grande —lo que reclamas— lleva al lado de dónde sale y
+   qué queda, en vez de una barra de progreso sin rótulos. */
+function barraDinero(env, conTk, falta){
+  var tot = env + conTk + falta;
+  if (!(tot > 0)) return '';
+  var seg = function(v, c){ return v > 0 ? '<i class="'+c+'" style="flex:'+v.toFixed(2)+'"></i>' : ''; };
+  var ley = function(c, lbl, en, v){
+    return '<span class="ex-ley '+c+'"><i></i><span data-i18n-en="'+en+'">'+lbl+'</span> '+
+      '<b>'+eur(v)+'</b></span>'; };
+  return '<div class="ex-seg">'+seg(env,'s-env')+seg(conTk,'s-tk')+seg(falta,'s-falta')+'</div>'+
+    '<div class="ex-leyenda">'+
+      (env > 0 ? ley('s-env','Enviado','Sent',env) : '')+
+      ley('s-tk','Con ticket','With receipt',conTk)+
+      ley('s-falta','Falta ticket','Needs receipt',falta)+
+    '</div>';
+}
+
+/* ════════ EL PRÓXIMO TICKET ════════
+   Una sola tarea, grande: la nota pasada sin ticket que caduca antes. Va
+   cuando no hay héroe de HOY —ése ya es una tarea de cámara— y «Luego» la
+   aparta sólo en esta sesión para enseñar la siguiente: no marca ni borra
+   nada, porque una nota apartada sigue debajo en su grupo. */
+EX.capLuego = EX.capLuego || {};
+window.exCapLuego = function(id){ EX.capLuego[id] = 1; exRender(); };
+function capturaSiguiente(list){
+  var c = (list||[]).filter(function(n){
+    return !esFutura(n) && !esReciente(n) && !lineasConTk(n) && !EX.capLuego[n.id];
+  }).sort(function(a,b){ return daysLeft(a.date) - daysLeft(b.date); });
+  if (!c.length) return '';
+  var n = c[0], T = tipoDe(n.kind), d = daysLeft(n.date);
+  var resto = c.length - 1;
+  return '<div class="ex-cap" style="--tcol:'+T.col+'">'+
+    '<div class="ex-cap-k"><span data-i18n-en="NEXT RECEIPT">PRÓXIMO TICKET</span>'+
+      (resto > 0 ? '<span class="ex-cap-n">+'+resto+'</span>' : '')+'</div>'+
+    '<div class="ex-cap-row">'+
+      '<span class="ex-cap-ic">'+icono(n.kind)+'</span>'+
+      '<span class="ex-cap-tx"><span class="ex-cap-t">'+esc(tituloDe(n))+'</span>'+
+        '<span class="ex-cap-s">'+esc(fdate(n.date))+'</span></span>'+
+      '<span class="ex-cap-v">'+eur(topeDe(n)||0)+'</span>'+
+    '</div>'+
+    '<div class="ex-cap-plazo'+(d < 0 ? ' bad' : d <= URGE_DIAS ? ' warn' : '')+'">'+
+      (d < 0 ? 'Fuera de plazo' : d === 0 ? 'Caduca hoy' : d === 1 ? 'Caduca en 1 día' : 'Caduca en '+d+' días')+
+    '</div>'+
+    '<div class="ex-cap-go" onclick="event.stopPropagation();exOpen(\''+n.id+'\')">'+
+      '<span class="vf" aria-hidden="true"><i></i><i></i><i></i><i></i></span>'+
+      '<span data-i18n-en="Snap the receipt">Fotografiar el ticket</span></div>'+
+    '<div class="ex-cap-luego" onclick="event.stopPropagation();exCapLuego(\''+n.id+'\')">'+
+      '<span data-i18n-en="Later">Luego</span></div>'+
+  '</div>';
+}
+
+/* ════════ EL BLOQUE DEL SERVICIO ════════
+   Pedido el 24-oct-2026: «cuando hay una línea, se agrupan todas a la vez».
+   Los tickets se recogen POR DÍA —el del desayuno, el de la cena y el del
+   hotel salen del mismo servicio—, así que las notas del mismo día van juntas
+   bajo una cabecera con la fecha en grande, la ruta del roster y una ficha por
+   tipo con su recuento. Se pliega tocando la cabecera; ABIERTO por defecto,
+   porque plegar no puede esconder la tarea. Un día con UNA sola nota no lleva
+   bloque: sería una cabecera para decir lo que ya dice la tarjeta. */
+EX.dutyCerrado = EX.dutyCerrado || {};
+window.exDutyToggle = function(k){ EX.dutyCerrado[k] = !EX.dutyCerrado[k]; exRender(); };
+function rutaDia(fecha){
+  var rows = rosterRows().filter(function(e){ return (e.date || (e.raw_data||{}).date) === fecha; });
+  var legs = rows.map(function(e){ var v = e.raw_data || e;
+      return { dep:String(e.dep||v.dep||'').replace(/\*/g,''), arr:String(e.arr||v.arr||'').replace(/\*/g,''),
+               t:String(e.std||v.std||e.std_actual||'') }; })
+    .filter(function(l){ return /^[A-Z]{3,4}$/.test(l.dep) && /^[A-Z]{3,4}$/.test(l.arr); })
+    .sort(function(a,b){ return a.t.localeCompare(b.t); });
+  if (!legs.length) return '';
+  var r = [legs[0].dep];
+  legs.forEach(function(l){ if (r[r.length-1] !== l.dep) r.push(l.dep); r.push(l.arr); });
+  return r.join(' · ');
+}
+/* ── LA LÍNEA DEL DÍA, PEGADA ARRIBA (24-oct-2026) ──
+   «Cuando haga scroll down, que la fecha se quede arriba como los vuelos del
+   logbook, hasta que cambia». Cada día va en su envoltorio (`.ex-dia`) y su
+   primera línea es `sticky`: se queda pegada mientras se ven notas de ESE día y
+   la empuja la del día siguiente, porque un sticky no sale de su padre. Va con
+   fondo propio casi opaco: las tarjetas pasan POR DEBAJO. */
+function lineaDia(fecha, notas, isDone){
+  var tag = fecha === hoyISO() ? '<span class="ex-dia-tag" data-i18n-en="TODAY">HOY</span>'
+          : esReciente({date:fecha}) ? '<span class="ex-dia-tag" data-i18n-en="YESTERDAY">AYER</span>' : '';
+  var n = notas.length;
+  return '<div class="ex-dia-h">'+
+    '<span class="ex-dia-d">'+esc(fdate(fecha).toUpperCase())+'</span>'+tag+
+    '<span class="ex-dia-ln"></span>'+
+    '<span class="ex-dia-c"><b>'+n+'</b> <span data-i18n-en="'+(n>1?'notes':'note')+'">'+(n>1?'notas':'nota')+'</span>'+
+      '<span class="ex-dia-t">'+eur(sumaDe(notas, isDone ? importeHecho : topeDe))+'</span></span>'+
+  '</div>';
+}
+function bloqueDia(fecha, notas, isDone, sufijo){
+  var k = fecha + (sufijo||'');
+  var cerrado = !!EX.dutyCerrado[k];
+  var cnt = {}, ord = [];
+  notas.forEach(function(n){ if (!cnt[n.kind]){ cnt[n.kind] = 0; ord.push(n.kind); } cnt[n.kind]++; });
+  var sinTk = isDone ? 0 : notas.filter(function(n){ return !lineasConTk(n) && !esFutura(n); }).length;
+  var ruta = rutaDia(fecha);
+  var chips = ord.map(function(kd){ var T = tipoDe(kd);
+    return '<span class="ex-duty-chip" style="--tcol:'+T.col+'" title="'+esc(T.lbl)+'">'+
+      icono(kd)+'<b>'+cnt[kd]+'</b></span>'; }).join('');
+  /* La fecha y el total viven en la línea pegada de arriba; la cabecera del
+     cuadro se queda con lo que es del servicio: la ruta y qué hay dentro. */
+  var h = '<div class="ex-dia multi">'+lineaDia(fecha, notas, isDone)+
+    '<div class="ex-duty'+(cerrado?' cerrado':'')+'">'+
+    '<div class="ex-duty-h" onclick="exDutyToggle(\''+k+'\')">'+
+      '<span class="ex-duty-l1">'+
+        (ruta ? '<span class="ex-duty-r">'+esc(ruta)+'</span>'
+              : '<span class="ex-duty-r" data-i18n-en="Same duty">Mismo servicio</span>')+
+        '<svg class="ex-duty-chev" viewBox="0 0 10 10" width="10" height="10" fill="currentColor" aria-hidden="true">'+
+          '<path d="M1.1 3.3h7.8L5 8z"/></svg></span>'+
+      '<span class="ex-duty-l3">'+chips+
+        (sinTk ? '<span class="ex-duty-falta"><b>'+sinTk+'</b> sin ticket</span>' : '')+'</span>'+
+    '</div>';
+  if (!cerrado){
+    h += '<div class="ex-duty-b">';
+    notas.forEach(function(n){ h += card(n, isDone); });
+    h += '</div>';
+  }
+  return h + '</div></div>';
+}
+/* Pinta una lista YA ORDENADA agrupando por día, conservando su orden: el
+   bloque cae donde caía su primera nota. Las notas del mismo día van en UN
+   cuadro; un día con una sola nota lleva igualmente su línea pegada. */
+function porDias(list, isDone, sufijo){
+  var g = {}, ord = [];
+  list.forEach(function(n){ var d = n.date; if (!g[d]){ g[d] = []; ord.push(d); } g[d].push(n); });
+  return ord.map(function(d){
+    return g[d].length > 1 ? bloqueDia(d, g[d], isDone, sufijo)
+      : '<div class="ex-dia">'+lineaDia(d, g[d], isDone)+card(g[d][0], isDone)+'</div>';
+  }).join('');
+}
+
 /* ════════ RENDER ════════ */
 function exRender(){
   var host = document.getElementById('pc-tab-gastos');
@@ -920,12 +1141,16 @@ function exRender(){
      vas a cobrar con los tickets que llevas puestos. La barra enseña cuánto de
      ese tope llevas cubierto, que es el trabajo que queda por hacer. */
   var pct = tope > 0 ? Math.max(0, Math.min(100, Math.round(recl / tope * 100))) : 0;
-  h += '<div class="ex-hero">'+
-    '<div class="ex-lbl">RECLAMAS · '+(EX.mes==='*' ? 'TODOS LOS MESES' : mesLargo(EX.mes))+'</div>'+
-    '<div class="ex-big">'+eur(recl)+'</div>'+
+  /* Cabecera CORTA (24-oct-2026): el número a la izquierda y de cuánto a la
+     derecha, en una fila. Antes eran cinco filas apiladas y el primer pase
+     quedaba bajo el pliegue. */
+  h += '<div class="ex-hero ex-hero-c">'+
+    '<div class="ex-hero-r"><div class="ex-hero-l">'+
+      '<div class="ex-lbl">RECLAMAS · '+(EX.mes==='*' ? 'TODOS LOS MESES' : mesLargo(EX.mes))+'</div>'+
+      '<div class="ex-big">'+eur(recl)+'</div></div>'+
     '<div class="ex-sub">de <b>'+eur(tope)+'</b> reclamables · '+pendPas.length+
-      (pendPas.length===1?' nota que ya ha pasado' : ' notas que ya han pasado')+'</div>'+
-    (pendPas.length ? '<div class="ex-pbar"><i style="width:'+pct+'%"></i></div>' : '')+
+      (pendPas.length===1?' nota que ya ha pasado' : ' notas que ya han pasado')+'</div></div>'+
+    barraDinero(totS, recl, margen)+
     avisos(pendPas, prox, proxFuera, proxMes)+
     /* Las futuras se NOMBRAN —son dinero que viene— pero en gris y sin ámbar:
        no hay nada que arreglar. */
@@ -959,11 +1184,14 @@ function exRender(){
   if (!grupos[EX.estado] || !grupos[EX.estado].length) EX.estado = primerPaso(grupos);
 
   if (all.length){
-    h += '<div class="ex-pasos">'+ PASOS.map(function(p){
+    /* Los tres pasos y «＋ Nueva» en UNA fila (24-oct-2026). */
+    h += '<div class="ex-pasofila"><div class="ex-pasos ex-segc">'+ PASOS.map(function(p){
       return '<div class="ex-paso'+(EX.estado===p.k?' on':'')+
         (p.k==='falta' && grupos.falta.length ? ' urge':'')+'" onclick="exPaso(\''+p.k+'\')">'+
         '<div class="n">'+grupos[p.k].length+'</div><div class="l">'+p.l+'</div></div>';
-    }).join('') +'</div>';
+    }).join('') +'</div>'+
+      '<div class="ex-nueva ex-nueva-g" role="button" onclick="exPickTipo()">'+
+        '<span class="i" aria-hidden="true">＋</span><span data-i18n-en="New">Nueva</span></div></div>';
 
     var lista = grupos[EX.estado];
     var hayProx = EX.estado === 'falta' && futLista.length;
@@ -1090,7 +1318,7 @@ function porMeses(list, isDone){
            '</span>'+
          '</div>'+
          '<div class="ex-dsgbox" id="dsg-'+id+'" style="display:none"></div>';
-    g[k].forEach(function(n){ h += card(n, isDone); });
+    h += porDias(g[k], isDone, isDone ? '-d' : '-l');
   });
   return h;
 }
@@ -1118,7 +1346,7 @@ function barraAccion(lista){
            ? (lista.length + (lista.length===1?' nota · ':' notas · ') + eur(sumaDe(lista, topeDe)))
            : '')+'</span>'+
          '<span class="ex-acts">'+
-           '<span class="ex-nueva" onclick="exPickTipo()">＋ Nueva</span>'+ dsg +
+           dsg +
          '</span>'+
        '</div>';
   if (falta && (lista||[]).length) h += '<div class="ex-dsgbox" id="dsg-paso-falta" style="display:none"></div>';
@@ -1173,10 +1401,14 @@ function marcaGrp(lleno){
            : '<circle cx="5" cy="5" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/>')+
     '</svg></span>';
 }
+/* Orden pedido el 24-oct-2026: «los últimos arriba del todo». Lo más reciente
+   es lo que el piloto tiene en la cabeza y el ticket en la cartera; lo que ya
+   no se cobra (fuera de plazo) baja al final. La urgencia no se pierde: cada
+   pase lleva su «caduca en N días», en ámbar cuando aprieta. */
 var URG = [
-  { k:'vencida', c:'ex-g-venc', t:'⛔ FUERA DE PLAZO' },
+  { k:'pend',    c:'ex-g-pend', t:'PENDIENTES', mk:marcaGrp(true) },
   { k:'urge',    c:'ex-g-urge', t:'⚠ CADUCA PRONTO'  },
-  { k:'pend',    c:'ex-g-pend', t:'PENDIENTES', mk:marcaGrp(true) }
+  { k:'vencida', c:'ex-g-venc', t:'⛔ FUERA DE PLAZO' }
 ];
 /* La cabecera de grupo, con su marca y su título dentro de la MISMA píldora: el
    halo y la superficie teñida van en la píldora, no en la fila —que llega hasta
@@ -1199,29 +1431,34 @@ function cabGrp(cls, titulo, marca, cuenta){
 
    ⚠ Y el `onclick` va SÓLO en el botón. En el envoltorio, cualquier toque
    dentro de la tarjeta —la papelera incluida— habría abierto además la nota. */
-function heroeHoy(n){
-  var esHoy = n.date === hoyISO();
-  return '<div class="ex-hoy">'+
-    '<div class="k"><i></i>'+(esHoy ? 'HOY' : 'AYER')+' · '+esc(fdate(n.date).toUpperCase())+
+function heroeHoy(fecha, notas){
+  var esHoy = fecha === hoyISO();
+  /* Las del mismo día van en UN héroe (24-oct-2026), con su línea pegada. */
+  return '<div class="ex-dia hoy">'+lineaDia(fecha, notas, false)+
+    '<div class="ex-hoy">'+
+    '<div class="k"><i></i>'+(esHoy ? 'HOY' : 'AYER')+
       '<span class="w">el ticket lo llevas encima ahora</span></div>'+
-    card(n, false)+
-    '<div class="go" onclick="event.stopPropagation();exOpen(\''+n.id+'\')">'+
-      '📷 Añadir el ticket</div>'+
-  '</div>';
+    /* Sin botón grande debajo: el pase ya lleva su matriz «Añadir ticket», y
+       con los dos el piloto veía la misma orden repetida (24-oct-2026). */
+    notas.map(function(n){ return card(n, false); }).join('')+
+  '</div></div>';
 }
 function porUrgencia(list, futuras){
   var g = { hoy:[], vencida:[], urge:[], pend:[] };
   (list||[]).forEach(function(n){ var u = urgenciaDe(n); if (g[u]) g[u].push(n); });
-  /* Dentro de cada grupo, la que caduca ANTES arriba: es la que se pierde. */
-  var porPlazo = function(a,b){ return daysLeft(a.date) - daysLeft(b.date); };
+  /* Dentro de cada grupo, la MÁS RECIENTE arriba (24-oct-2026). */
+  var porPlazo = function(a,b){ return String(b.date).localeCompare(String(a.date)); };
   var h = '';
 
-  g.hoy.sort(porPlazo).forEach(function(n){ h += heroeHoy(n); });
+  (function(){ var gd = {}, od = [];
+    g.hoy.sort(porPlazo).forEach(function(n){ if (!gd[n.date]){ gd[n.date] = []; od.push(n.date); } gd[n.date].push(n); });
+    od.forEach(function(d){ h += heroeHoy(d, gd[d]); }); })();
+  if (!g.hoy.length) h += capturaSiguiente(list);
 
   URG.forEach(function(u){
     if (!g[u.k].length) return;
     h += cabGrp(u.c, u.t, u.mk, g[u.k].length+' · '+eur(sumaDe(g[u.k], topeDe)));
-    g[u.k].sort(porPlazo).forEach(function(n){ h += card(n, false); });
+    h += porDias(g[u.k].sort(porPlazo), false, '-'+u.k);
   });
 
   if ((futuras||[]).length){
@@ -1237,7 +1474,7 @@ function porUrgencia(list, futuras){
              ' · no se pueden justificar todavía</span></span>'+
            '<span class="v">'+(ab?'Ocultar':'Ver '+fs.length)+'</span>'+
          '</div>';
-    if (ab) fs.forEach(function(n){ h += card(n, false); });
+    if (ab) h += porDias(fs, false, '-prox');
   }
   return h;
 }
@@ -1279,7 +1516,7 @@ function porEnvio(list){
 
   if (mal.length){
     h += '<div class="ex-sect ex-gsect bad">RECHAZADAS O NO SALIERON · ' + cnt(mal) + '</div>';
-    mal.sort(porFecha).forEach(function(n){ h += card(n, true); });
+    h += porDias(mal.sort(porFecha), true, '-mal');
   }
   if (ordV.length){
     h += '<div class="ex-sect ex-gsect">EN VUELING · PENDIENTES DE COBRO</div>';
@@ -1287,7 +1524,7 @@ function porEnvio(list){
       h += '<div class="ex-mesbar"><span class="m">' +
         (k === 'sin' ? 'Sin fecha de envío' : 'Enviadas el ' + fdate(k).toLowerCase()) +
         ' · ' + cnt(viv[k]) + '</span></div>';
-      viv[k].sort(porFecha).forEach(function(n){ h += card(n, true); });
+      h += porDias(viv[k].sort(porFecha), true, '-viv'+k);
     });
   }
   if (ordP.length){
@@ -1298,7 +1535,7 @@ function porEnvio(list){
         '<span class="m">' + (k === 'sin' ? 'Sin fecha' : 'Cobradas en ' + mesLbl(k)) + ' · ' + cnt(pag[k]) + '</span>' +
         '<svg viewBox="0 0 10 10" width="9" height="9" fill="currentColor" aria-hidden="true">' +
           '<path d="M1.1 3.3h7.8L5 8z"/></svg></div>';
-      if (ab) pag[k].sort(porFecha).forEach(function(n){ h += card(n, true); });
+      if (ab) h += porDias(pag[k].sort(porFecha), true, '-pag'+k);
     });
   }
   return h;
@@ -1472,13 +1709,170 @@ function bloqueFalta(n, isDone){
   '</div>';
 }
 
+/* ════════ LA TARJETA COMO PASE DE EMBARQUE ════════
+   Pedido el 24-oct-2026 con la maqueta delante: «falta poner este tipo de
+   gastos así». La cara plegada es un PASE: banda de color y tinte del TIPO,
+   ficha con el icono de siempre (pedido: «mantén los iconos que ya tiene»), la
+   ruta en grande, el importe, y a la derecha —detrás de una línea perforada—
+   la MATRIZ, que es la única tarea: fotografiar el ticket, o el sello que dice
+   que ya está. El pase es CLARO en los dos temas, con una sola paleta y fondo
+   opaco: así su contraste se mide leyendo estilos, como la tarjeta del día del
+   roster. Las muescas de la perforación son una MÁSCARA, no círculos del
+   color del fondo: detrás puede haber el bloque del servicio, la pestaña o el
+   cielo de día, y un círculo pintado acertaría sólo en uno. */
+var SVG_CAM = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" '+
+  'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+
+  '<path d="M3 8a2 2 0 0 1 2-2h2l2-2h6l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'+
+  '<circle cx="12" cy="13" r="4"/></svg>';
+var SVG_OK = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" '+
+  'stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+var SVG_RELOJ = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" '+
+  'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+
+  '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+var SVG_FLECHA = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" '+
+  'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+
+  '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>';
+
+/* El tramo que se reclama: en un posicional, el que lleva ✱; si sólo hay uno,
+   ése. Con varios y ninguno marcado no se elige a ojo: va el título. */
+function tramoPase(n){
+  var legs = [], m, re = /(✱|\*)?([A-Z]{3,4})→([A-Z]{3,4})/g, r = String(n.route||'');
+  while ((m = re.exec(r))) legs.push({ pos: !!m[1], dep: m[2], arr: m[3] });
+  var p = legs.filter(function(l){ return l.pos; });
+  if (n.kind === 'position' && p.length === 1) return p[0];
+  if (legs.length === 1) return legs[0];
+  return null;
+}
+
+/* La ficha del pase lleva el tipo CORTO: en 210 px con la fecha al lado,
+   «Incidencia operativa» salía «INCIDEN…». El nombre entero sigue en el
+   `title` y en el cuerpo desplegado. */
+var TIPO_CORTO = {
+  position:['POSICIONAL','POSITIONING'], voucher:['HOTEL','HOTEL'], incident:['INCIDENCIA','INCIDENT'],
+  oven:['HORNO','OVEN'], second:['2ª RESIDENCIA','2ND HOME'], medical:['MÉDICO','MEDICAL'],
+  training:['TRAINING','TRAINING'], ops:['FLIGHT OPS','FLIGHT OPS']
+};
+/* El MOTIVO de una incidencia —y su nº de ISO— bajo el título. Pedido el
+   24-oct-2026: «en las operational incident debería mostrar el motivo». Es lo
+   que distingue una incidencia de otra en la lista; el que VIAJA al portal es
+   el inglés, y en castellano se lee el suyo. */
+function motivoPase(n){
+  if (!tipoDe(n.kind).iso) return '';
+  var m = motivoDe(n); if (!m) return '';
+  var iso = isoDe(n);
+  return '<div class="ex-pase-mot"><span class="q" aria-hidden="true">'+
+    '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" '+
+    'stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/>'+
+    '<circle cx="12" cy="12" r="9"/></svg></span>'+
+    '<span class="t" data-i18n-en="'+esc(m)+'">'+esc(REASON_ES[m] || m)+'</span>'+
+    (iso ? '<span class="iso">ISO '+esc(iso)+'</span>' : '')+'</div>';
+}
+/* De dónde sale la nota (24-oct-2026): la detectó la app del ROSTER o la puso
+   el piloto A MANO. Antes sólo se decía dentro, plegado, en una ficha suelta. */
+function origenPase(n){
+  return n.manual
+    ? '<span class="ex-origen mano"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" '+
+        'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/>'+
+        '<path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg><span data-i18n-en="MANUAL">A MANO</span></span>'
+    : '<span class="ex-origen auto"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" '+
+        'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/>'+
+        '<path d="M3 10h18M8 3v4M16 3v4"/></svg><span data-i18n-en="FROM ROSTER">DEL ROSTER</span></span>';
+}
+function tacoFecha(f){
+  var p = String(fdate(f)).split(' ');      // «JUE 15 oct»
+  return '<span class="ex-dd ex-fechas ex-taco"><span class="f"><i data-i18n-en="DUTY">SERVICIO</i>'+
+    '<b>'+esc(p[1]||'')+'</b><em>'+esc(String(p[2]||'').toUpperCase())+' · '+esc(String(p[0]||'').toUpperCase())+
+    '</em></span></span>';
+}
+function paseCara(n, T, isDone, futura, nL, kL, tk, titulo, sub){
+  var stE = estadoEnvio(n);
+  var listo = !isDone && !futura && nL > 0 && kL >= nL;
+  var leg = tramoPase(n);
+  var ruta = rutaDia(n.date);
+  var grande = leg
+    ? '<div class="ex-pase-ruta"><span>'+esc(leg.dep)+'</span>'+SVG_FLECHA+'<span>'+esc(leg.arr)+'</span></div>'
+    : '<div class="ex-pase-tit ex-title">'+esc(titulo || T.lbl)+'</div>';
+  var bajo = leg
+    ? (ruta ? '<span data-i18n-en="Duty">Servicio</span> '+esc(ruta) : esc(n.route||''))
+    : esc(sub || (ruta ? ruta : ''));
+
+  /* El plazo: siempre que corra, no sólo cuando urge — en el pase es el dato
+     que acompaña al importe. Una futura no lleva: no ha empezado a contar. */
+  var left = daysLeft(n.date);
+  /* Un ticket con fecha fuera de la ventana del portal se dice en una ficha:
+     antes vivía en la columna de fechas, que en el pase sólo lleva el día. */
+  var tkFuera = !isDone && /class="f warn"/.test(fechasFila(n, false))
+    ? '<span class="ex-plazo bad" data-i18n-en="RECEIPT OUT OF WINDOW">TICKET FUERA DE PLAZO</span>' : '';
+  var plazo = tkFuera + ((isDone || futura || listo) ? ''
+    : left < 0 ? '<span class="ex-plazo bad" data-i18n-en="PAST DEADLINE">FUERA DE PLAZO</span>'
+    : '<span class="ex-plazo'+(left <= URGE_DIAS ? ' warn' : '')+'">'+
+        (left === 1 ? 'CADUCA EN 1 DÍA' : 'CADUCA EN '+left+' DÍAS')+'</span>');
+
+  /* La matriz. La foto es la tarea, así que es un botón de 44 px o más; con el
+     ticket puesto, un SELLO — que sigue abriendo la nota para verlo. */
+  var stub;
+  if (isDone){
+    /* El sello de una enviada lleva su DÍA dentro: era la tercera fecha de la
+       columna de arriba y hacía la tarjeta el doble de alta. */
+    var sd = diaLocal(EX.sent[n.id]);
+    stub = '<span class="ex-sello hecho'+(stE==='paid'?' paid':'')+'">'+SVG_OK+
+      (stE === 'paid' ? '<span data-i18n-en="PAID">PAGADA</span>' : '<span data-i18n-en="SENT">ENVIADA</span>')+
+      (sd ? '<b>'+esc(sinDia(fdate(sd)).toUpperCase())+'</b>' : '')+'</span>';
+  } else if (futura){
+    stub = '<span class="ex-espera ex-mtz">'+SVG_RELOJ+'<span data-i18n-en="NOT YET">AÚN NO</span></span>';
+  } else if (listo){
+    stub = '<span class="ex-tkchip ok ex-sello" role="button" onclick="event.stopPropagation();exOpen(\''+n.id+'\')">'+
+      SVG_OK+'<span data-i18n-en="RECEIPT OK">TICKET OK</span></span>';
+  } else {
+    stub = '<span class="ex-tkchip ex-mtz'+(kL ? ' parcial' : '')+'" role="button" '+
+      'onclick="event.stopPropagation();exOpen(\''+n.id+'\')">'+SVG_CAM+
+      (kL ? '<span>'+kL+' / '+nL+'</span>'
+          : nL > 1 ? '<span>FALTAN '+nL+'</span>'
+          : '<span data-i18n-en="ADD RECEIPT">AÑADIR TICKET</span>')+'</span>';
+  }
+
+  /* El importe: el TOPE con su «hasta», o lo reclamado si ya se envió. */
+  var amt = isDone
+    ? '<span class="ex-amt">'+eur(importeHecho(n))+
+        '<small data-i18n-en="'+(tkDe(n) ? 'CLAIMED' : 'CAP')+'">'+(tkDe(n) ? 'RECLAMADO' : 'TOPE')+'</small></span>'
+    : '<span class="ex-amt">'+eur(topeDe(n)===null ? tkDe(n) : topeDe(n))+
+        '<small data-i18n-en="UP TO">HASTA</small>'+
+        (tk ? '<em>'+eur(reclamaDe(n))+' con tickets</em>' : '')+'</span>';
+
+  return '<div class="ex-pase">'+
+    '<div class="ex-pase-main ex-head">'+
+      '<div class="ex-pase-top">'+
+        '<span class="ex-tipo" title="'+esc(T.lbl)+'"><span class="ex-tipo-ic">'+icono(n.kind)+'</span>'+
+          '<span class="ex-tipo-v" data-i18n-en="'+esc((TIPO_CORTO[n.kind]||[0,T.lbl])[1])+'">'+
+            esc((TIPO_CORTO[n.kind]||[T.lbl])[0])+'</span></span>'+
+        /* La fecha en TACO: el día en grande, mes y día de la semana debajo.
+           Pedido el 24-oct-2026: «que la fecha quede ordenada y visible al
+           momento» — en una lista de pases lo que se busca primero es el día. */
+        tacoFecha(n.date)+
+        '<span class="ex-caret" aria-hidden="true"><svg viewBox="0 0 10 10" width="10" '+
+          'height="10" fill="currentColor"><path d="M1.1 3.3h7.8L5 8z"/></svg></span>'+
+      '</div>'+
+      grande+
+      (bajo ? '<div class="ex-pase-sub ex-route">'+bajo+'</div>' : '')+
+      motivoPase(n)+
+      '<div class="ex-pase-bot">'+
+        '<span class="ex-pase-chips">'+origenPase(n)+
+          (nL > 1 ? '<span class="ex-nlin">'+nL+' LÍNEAS</span>' : '')+
+          franjaEstado(n, listo)+plazo+'</span>'+amt+
+      '</div>'+
+    '</div>'+
+    '<div class="ex-pase-perf" aria-hidden="true"></div>'+
+    '<div class="ex-pase-stub">'+stub+'</div>'+
+  '</div>';
+}
+
 function card(n, isDone){
   var T = tipoDe(n.kind), left = daysLeft(n.date);
   var nL = (n.lines||[]).length, kL = lineasConTk(n), tk = tkDe(n);
 
   var chip = n.kind==='voucher'
     ? '<span class="ex-chip tipo">'+n.lines.length+' VOUCHER'+(n.lines.length===1?'':'S')+'</span>'
-    : '<span class="ex-chip tipo">'+(n.manual?'A MANO':'AUTO')+'</span>';
+    : '';   // de dónde sale ya lo dice el pase (ex-origen)
   var sc = (n.kind!=='voucher' && n.scope==='int') ? '<span class="ex-chip int">INT</span>' : '';
 
   var bar = '';
@@ -1602,7 +1996,7 @@ function card(n, isDone){
 
      En modo «enviar varias» la tarjeta entera ES la casilla (exSelToggle), así que
      ahí no se cuelga el toggle: si no, el mismo dedo marcaría y desplegaría. */
-  return '<div class="ex-day k-'+esc(n.kind)+' st-'+stE+(isDone?' done':'')+(futura?' futura':'')+((EX.flash||{})[n.id]?' recien':'')+
+  return '<div class="ex-day pase k-'+esc(n.kind)+' st-'+stE+(isDone?' done':'')+(futura?' futura':'')+((EX.flash||{})[n.id]?' recien':'')+
       (selble?' selble':'')+(marcada?' marcada':'')+'" style="--tcol:'+T.col+'"'+
       ' data-nota="'+n.id+'"'+(n.manual?' data-man="1"':'')+
       (selble?' onclick="exSelToggle(\''+n.id+'\')"':'')+'>'+
@@ -1628,34 +2022,7 @@ function card(n, isDone){
        '<span class="ac"><span class="dk">'+iconoPapelera()+'</span>'+
        '<span class="tx">Eliminar</span></span></div>' : '')+
     '<div class="ex-tap"'+(selble?'':' onclick="exToggle(\''+n.id+'\',this)"')+'>'+
-    cabeceraTipo(n, T)+
-    franjaEstado(n)+
-    '<div class="ex-head">'+
-      '<span class="ex-hmid">'+
-        fechasFila(n, isDone)+
-        (titFuera ? '<span class="ex-title">'+esc(titulo)+'</span>' : '')+
-        (sub ? '<span class="ex-route">'+esc(sub)+'</span>' : '')+
-      '</span>'+
-      '<span class="ex-right">'+
-        /* El importe grande es el TOPE (por eso el "hasta"); debajo, lo que de
-           verdad reclamas con los tickets que llevas puestos. */
-        /* Enviada: manda lo RECLAMADO, y el total del recibo va debajo en gris
-           («de 211,30 € de ticket») para que no se lea como dinero a cobrar. */
-        (isDone
-          ? '<span class="ex-amt">'+eur(importeHecho(n))+
-              '<small data-i18n-en="'+(tkDe(n) ? 'CLAIMED' : 'CAP')+'">'+
-                (tkDe(n) ? 'RECLAMADO' : 'TOPE')+'</small>'+
-              (tkDe(n) > reclamaDe(n) ? '<em class="de">de '+eur(tkDe(n))+' de ticket</em>' : '')+'</span>'
-          : '<span class="ex-amt">'+eur(topeDe(n)===null ? tkDe(n) : topeDe(n))+
-              '<small data-i18n-en="UP TO">HASTA</small>'+
-              (tkDe(n) ? '<em>'+eur(reclamaDe(n))+' con tickets</em>' : '')+'</span>')+
-        /* El chevron también DIBUJADO: es la misma regla del icono del tipo, y
-           un carácter geométrico tampoco lo elige el código. */
-        '<span class="ex-caret" aria-hidden="true"><svg viewBox="0 0 10 10" width="10" '+
-          'height="10" fill="currentColor"><path d="M1.1 3.3h7.8L5 8z"/></svg></span>'+
-      '</span>'+
-    '</div>'+
-    (tkc || plazo ? '<div class="ex-chips">'+tkc+plazo+'</div>' : '')+
+    paseCara(n, T, isDone, futura, nL, kL, tk, titulo, sub)+
     avisoDup(n)+
     '</div>'+
     '</div>'+
@@ -1668,8 +2035,11 @@ function card(n, isDone){
          su ciclo — Ver la nota → Enviar → Enviada → Pagada — y cambia de color
          con él. "No enviado" se queda para deshacer una marca a mano. */
       '<div class="ex-row">'+
-        '<div class="ex-btn" onclick="event.stopPropagation();exOpen(\''+n.id+'\')">'+
-          (nTk ? '🧾 '+nTk+' ticket'+(nTk>1?'s':'')+' · abrir' : '📷 Añadir tickets')+'</div>'+
+        /* Sin «📷 Añadir tickets» aquí: la matriz del pase ya lo hace, y con los
+           dos el piloto veía la misma orden dos veces (24-oct-2026). Con
+           tickets puestos sí se queda, porque dice cuántos hay. */
+        (nTk ? '<div class="ex-btn" onclick="event.stopPropagation();exOpen(\''+n.id+'\')">'+
+          '🧾 '+nTk+' ticket'+(nTk>1?'s':'')+' · abrir</div>' : '')+
         botonCiclo(n)+
         /* ⋯ = TODO lo que se puede hacer desde este estado. Es el que rompe el
            carril único: «ya me la han pagado» está aquí también cuando la nota
@@ -1883,6 +2253,10 @@ function drawSheet(){
     '<div class="ex-sh-s">Toca cada campo para copiarlo · '+n.lines.length+
       (n.lines.length===1?' línea':' líneas')+' en una sola nota</div>';
   h += cp('SELECT EXPENSE TYPE', n.portalType);
+  /* El comentario es de la NOTA, no de cada línea: va una vez, arriba. */
+  h += '<div class="ex-cp coment" onclick="exSetComentario(\''+n.id+'\')">'+
+    '<div><div class="k">COMMENT</div><div class="v">'+esc(comentarioDe(n))+'</div>'+
+    '<div class="h">lo lee la Compañía · toca para cambiarlo</div></div><div class="c">✎</div></div>';
 
   n.lines.forEach(function(l,i){
     var key = lineKey(n,i), tks = tksOf(key);
@@ -1890,7 +2264,10 @@ function drawSheet(){
     suma = Math.round(suma*100)/100;
     var claim = Math.min(suma, l.cap), room = Math.round((l.cap-claim)*100)/100;
 
-    h += '<div class="ex-grp">▸ ADD NEW EXPENSE LINE · '+(i+1)+' de '+n.lines.length+'</div>';
+    h += '<div class="ex-grp ex-linea-h"><span>LÍNEA '+(i+1)+' de '+n.lines.length+
+      ' <i>· en el portal: «Add new expense line»</i></span>'+
+      (l.extra && i === n.lines.length - 1 && !EX.sent[n.id]
+        ? '<span class="q" role="button" onclick="exQuitarLinea(\''+n.id+'\')">✕ quitar</span>' : '')+'</div>';
     /* ★ La FECHA se puede cambiar, y es el campo que más notas tumba.
        El portal admite el ticket aunque la hora y el sitio no cuadren con tu
        actividad —eso la guía lo permite expresamente— pero NO que la fecha se
@@ -1939,7 +2316,11 @@ function drawSheet(){
            es lo único que distingue «está en tu cuenta» de «sólo en este
            teléfono». */
         (EX.pend['t:' + t.id] ? '<div class="nb" title="Aún sin subir">'+iconoNube()+'</div>' : '')+
-        '<div class="a">'+(Number(t.amount)||0).toFixed(2).replace('.',',')+'</div>'+
+        /* El importe se TOCA para cambiarlo (24-oct-2026: «poder modificar el
+           valor del importe una vez realizado»). */
+        '<div class="a" role="button" title="Cambiar el importe" onclick="exTkImporte(\''+t.id+'\')">'+
+          (Number(t.amount)||0).toFixed(2).replace('.',',')+' <i aria-hidden="true">✎</i></div>'+
+
         '<div class="x" onclick="exDelTk(\''+t.id+'\')">✕</div>'+
         '<div class="dl" onclick="exOutTk(\''+t.id+'\')">↓</div></div>'; }).join('')+
       /* La casilla de lo que se está subiendo va DONDE VA A CAER el ticket, en
@@ -1980,6 +2361,10 @@ function drawSheet(){
         : 'Sin tickets. <b>Sin ticket adjunto no se aprueba.</b>')+
       '</div></div>';
   });
+
+  if (!EX.sent[n.id]) h += '<div class="ex-addlinea" role="button" onclick="exAddLinea(\''+n.id+'\')">'+
+    '<span class="i">＋</span><span><b>Añadir otra línea a esta nota</b>'+
+    '<small>otra comida, otra noche u otra fecha · en una sola nota del portal</small></span></div>';
 
   /* La entrada compartida por los botones de Cámara y Galería (ver exPickTk).
      ⚠️ NO con `display:none`: un <input type=file> oculto así lo ignora el
@@ -2239,6 +2624,28 @@ var REASONS = ['Airport activity', 'Crew meal not loaded', 'Oven not working',
 /* Los tipos cuyo Reason es DESPLEGABLE en el portal. En el resto es texto. */
 function reasonCerrado(n){ return n.kind === 'incident'; }
 
+/* ── El COMENTARIO de la nota ──
+   Es el campo `Comment` de la hoja del portal, lo que el revisor de la
+   Compañía lee primero. Se mandaba SIEMPRE «título · ruta» y no había dónde
+   cambiarlo: lo que el piloto quería contar no llegaba (24-oct-2026). Ahora se
+   edita en la hoja y en el envío, y viaja lo suyo. */
+var K_COMENT = 'pilotos_gastos_comentarios';
+function comentLoad(){ try { EX.coment = JSON.parse(localStorage.getItem(K_COMENT) || '{}') || {}; } catch(e){ EX.coment = {}; } }
+function comentSave(){ try { localStorage.setItem(K_COMENT, JSON.stringify(EX.coment || {})); } catch(e){} }
+function comentarioDe(n){
+  if (!EX.coment) comentLoad();
+  var c = EX.coment[n.id];
+  return (c != null && String(c).trim()) ? String(c) : tituloDe(n) + (n.route ? ' · ' + n.route : '');
+}
+window.exSetComentario = function(id){
+  var n = notaDe(id); if (!n) return;
+  var v = prompt('Comentario para la Compañía\n\nEs lo primero que lee quien revisa la nota (máx. 400).', comentarioDe(n));
+  if (v === null) return;
+  if (!EX.coment) comentLoad();
+  EX.coment[id] = String(v).trim().slice(0, 400);
+  comentSave();
+  if (typeof drawSheet === 'function') drawSheet();
+};
 var K_MOTIVOS = 'pilotos_gastos_motivos';
 function motivosLoad(){
   try { EX.motivos = JSON.parse(localStorage.getItem(K_MOTIVOS) || '{}') || {}; }
@@ -2282,6 +2689,7 @@ window.exSetMotivo = function(id){
         if (!v) return;
         EX.motivos[id] = v; motivosSave();
         if (typeof drawSheet === 'function') drawSheet();
+        exRender();     // el pase de detrás dice el motivo: tiene que cambiar ya
       }
     });
     return;
@@ -2292,6 +2700,7 @@ window.exSetMotivo = function(id){
   if (!v){ alert('El motivo no puede quedar vacío: el portal lo rechaza.'); return; }
   EX.motivos[id] = v; motivosSave();
   if (typeof drawSheet === 'function') drawSheet();
+  exRender();
 };
 
 function isoDe(n){ return (n && n.iso) ? String(n.iso) : ''; }
@@ -2408,7 +2817,10 @@ window.exNewTk = function(input, key){
       faseTk(key, 'guardando');
       var rec = { id:id, lineKey:key, blob:blob, amount:amount,
         shop: ia && ia.shop || null, ticket_date: ia && ia.date || null,
-        items: ia && ia.items || null, source: ia ? 'ai' : 'manual',
+        items: ia && ia.items || null,
+        /* «IA» sólo si el importe es el que leyó ella sin tocarlo; si el
+           piloto lo cambia, el número es suyo y se dice «a mano». */
+        source: (ia && sug && amount === parseFloat(String(sug).replace(',', '.'))) ? 'ai' : 'manual',
         added: new Date().toISOString() };
       TK_SUCIO = true;
       /* `cargarTickets` ANTES de subir: la miniatura aparece en cuanto está
@@ -2454,6 +2866,30 @@ window.exDelTk = function(id){
                 { v:'no', txt:'No, dejarlo', ic:'undo', ghost:true } ],
     onPick: function(v){ if (v === 'si') exDelTkYa(id); }
   });
+};
+/* ── Cambiar el importe de un ticket ya guardado ──
+   El aviso de «0 €» llevaba meses diciendo «puedes cambiarle el importe
+   luego» y no había dónde. Se reescribe el MISMO registro (misma foto, mismo
+   id) y viaja a la nube por la cola de siempre. */
+window.exTkImporte = function(id){
+  var t = null; TICKETS.forEach(function(x){ if (x.id===id) t = x; });
+  if (!t) return;
+  var txt = prompt('Importe del ticket (€)', (Number(t.amount)||0).toFixed(2).replace('.',','));
+  if (txt === null) return;
+  var amount = parseFloat(String(txt).replace(',', '.'));
+  if (!isFinite(amount) || amount < 0) { alert('Importe no válido'); return; }
+  amount = r2(amount);
+  if (amount === r2(Number(t.amount)||0)) return;
+  var nota = String(t.lineKey).split('#')[0];
+  var rec = {}; Object.keys(t).forEach(function(k){ if (k !== 'url') rec[k] = t[k]; });
+  rec.amount = amount; rec.source = 'manual'; rec.edited = new Date().toISOString();
+  TK_SUCIO = true;
+  tkPut(rec).then(function(){
+    marcarPend('t:' + id, 'up', nota);
+    exSync();
+    return cargarTickets();
+  }).then(function(){ drawSheet(); if (window.exRender) exRender(); })
+    .catch(function(){ alert('No se pudo guardar el importe en este navegador.'); });
 };
 window.exDelTkYa = function(id){
   var t = null; TICKETS.forEach(function(x){ if (x.id===id) t = x; });
@@ -3197,16 +3633,23 @@ var EST_TXT = {
   go:'PENDIENTE', sending:'ENVIANDO', sent:'ENVIADO', paid:'PAGADO',
   rej:'RECHAZADO', err:'NO SE ENVIÓ'
 };
-function franjaEstado(n){
+function franjaEstado(n, listo){
   var st = estadoEnvio(n), e = envioDe(n);
   /* El estado fino del portal (en revisión, a cobrar…) se enseña si lo hay: es
      más informativo que un "enviado" genérico, y no cambia el color. */
   var txt = EST_TXT[st] || 'PENDIENTE';
   if (st === 'sent' && e && ENV_UI[e.state] && e.state !== 'sent') txt = ENV_UI[e.state].txt;
+  /* En el pase: pendiente y con todos los tickets = lista para enviar. Sin
+     tickets el «PENDIENTE» lo dice ya la matriz, y se calla (`mudo`). */
+  var extra = '';
+  if (listo === true && st === 'go') { txt = 'LISTA PARA ENVIAR'; extra = ' listo'; }
+  else if (listo === false && st === 'go') extra = ' mudo';
+  /* Enviada o pagada sin nada más que decir: el sello de la matriz ya lo dice. */
+  else if (listo === false && (st === 'sent' || st === 'paid') && txt === EST_TXT[st] && !(e && e.number)) extra = ' mudo';
   var pulsable = (st === 'rej' || st === 'err') && e && e.msg;
-  return '<div class="ex-estado es-' + st + '"' +
+  return '<div class="ex-estado es-' + st + extra + '"' +
     (pulsable ? ' onclick="event.stopPropagation();exEnvioDetalle(\'' + n.id + '\')"' : '') + '>' +
-    '<span class="k">ESTADO</span><span class="v">' + txt + '</span>' +
+    '<span class="k" data-i18n-en="STATUS">ESTADO</span><span class="v">' + txt + '</span>' +
     (st === 'sending' ? '<i class="ex-dots"><b></b><b></b><b></b></i>' : '') +
     (e && e.number ? '<span class="n">' + esc(e.number) + '</span>' : '') +
     (pulsable ? '<span class="q">ver por qué ›</span>' : '') +
@@ -3253,7 +3696,8 @@ function pegasDe(n){
 }
 
 /* ── La hoja de confirmación (dos pasos) ─────────────────────────────────── */
-var SEND = null;                       // { id, motivo, paso }
+var SEND = null;                       // { id, motivo, comentario, paso }
+var SEND_COM = {};                     // el comentario confirmado, por nota
 function sendEl(){
   var el = document.getElementById('ex-send');
   if (!el){
@@ -3285,6 +3729,10 @@ window.exSendPaso = function(p){
   if (!SEND) return;
   var t = document.getElementById('ex-send-motivo');
   if (t) SEND.motivo = t.value;                 // no se pierde lo que haya escrito
+  var c = document.getElementById('ex-send-com');
+  if (c){ SEND.comentario = c.value;
+    /* Lo escrito se queda en la nota: si cancela y vuelve, sigue ahí. */
+    if (!EX.coment) comentLoad(); EX.coment[SEND.id] = String(c.value).trim().slice(0,400); comentSave(); }
   SEND.paso = p; drawSend();
 };
 window.exSendCheck = function(el){
@@ -3325,9 +3773,18 @@ function drawSend(){
         '<div class="ex-send-k">TIPO EN EL PORTAL</div>' +
         '<div class="ex-send-v">' + esc(n.portalType) + '</div>' +
         (isoDe(n) ? '<div class="ex-send-k">Nº DE ISO</div><div class="ex-send-v">' + esc(isoDe(n)) + '</div>' : '') +
-        '<div class="ex-send-k">MOTIVO <span>se envía tal cual · lo puedes cambiar</span></div>' +
-        '<textarea class="ex-send-txt" id="ex-send-motivo" maxlength="400" rows="2">' +
-          esc(SEND.motivo) + '</textarea>' +
+        /* En una incidencia el motivo es un DESPLEGABLE cerrado del portal: un
+           texto libre aquí no casaría con ninguna de sus seis opciones. Se
+           enseña el elegido y se cambia en la hoja (REASON). */
+        (reasonCerrado(n)
+          ? '<div class="ex-send-k">MOTIVO <span>desplegable del portal · se cambia en la hoja</span></div>' +
+            '<div class="ex-send-v">' + esc(SEND.motivo) + '</div>'
+          : '<div class="ex-send-k">MOTIVO <span>se envía tal cual · lo puedes cambiar</span></div>' +
+            '<textarea class="ex-send-txt" id="ex-send-motivo" maxlength="400" rows="2">' +
+              esc(SEND.motivo) + '</textarea>') +
+        '<div class="ex-send-k">COMENTARIO <span>lo lee la Compañía · lo puedes cambiar</span></div>' +
+        '<textarea class="ex-send-txt" id="ex-send-com" maxlength="400" rows="2">' +
+          esc(SEND.comentario != null ? SEND.comentario : comentarioDe(n)) + '</textarea>' +
         '<div class="ex-send-k">LÍNEAS</div>' +
         '<div class="ex-send-lines">' + lineas.map(function(l){
           return '<div class="ex-send-l"><div class="d">' + esc(sinDia(fdate(l.date))) + '</div>' +
@@ -3368,6 +3825,7 @@ window.exSendGo = function(){
   if (!b || b.classList.contains('off')) return;      // sin marcar la casilla no sale
   var n = notaDe(SEND && SEND.id); if (!n) return;
   var motivo = SEND.motivo, id = n.id;
+  SEND_COM[id] = SEND.comentario != null ? SEND.comentario : comentarioDe(n);
   exSendClose();
   enviarAlPortal(n, motivo);
 };
@@ -3493,7 +3951,7 @@ function enviarLote(notas){
       return Promise.all(notas.map(function(n){
         return ticketsDe(n).then(function(tk){
           return { ref: n.id, lines: lineasParaEnviar(n, motivoDe(n)), tickets: tk,
-                   comment: tituloDe(n) + (n.route ? ' · ' + n.route : '') };
+                   comment: comentarioDe(n) };
         });
       }));
     })
@@ -3958,7 +4416,7 @@ function enviarAlPortal(n, motivo){
       return conTope(api('/api/expense/portal/submit', { method: 'POST', body: {
         lines: lineasParaEnviar(n, motivo),
         tickets: tickets,
-        comment: tituloDe(n) + (n.route ? ' · ' + n.route : ''),
+        comment: (SEND_COM && SEND_COM[n.id] != null) ? SEND_COM[n.id] : comentarioDe(n),
         draft: false,          // va a la Compañía: lo acaba de confirmar el piloto
         confirm: true          // segundo cerrojo, exigido por el backend
       }}), ENVIO_MS, MSG_TARDA);

@@ -48,6 +48,29 @@
   function T(es, eng) { return en() ? eng : es; }
   function lee(k, def) { try { var v = JSON.parse(localStorage.getItem(k) || 'null'); return v == null ? def : v; } catch (e) { return def; } }
   function guarda(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  /* ⚠ «Entendido» es de UNA cuenta y sobrevive al logout (ver `clearAllUserData`).
+     Antes era un objeto plano que el logout borraba: se volvía a entrar y la
+     campana repetía todos los avisos ya despachados. El formato viejo —claves de
+     aviso en la raíz— se toma como del piloto que está dentro. */
+  function _avUid() { try { var u = JSON.parse(localStorage.getItem('cafi_auth_user') || '{}'); return String(u.id || u.email || ''); } catch (e) { return ''; } }
+  /* Basta mirar el primer valor: en el formato viejo son números (cuándo se vio,
+     o -1 si «Entendido»); en el nuevo, el mapa de cada cuenta. Vacío = nuevo. */
+  function _esMapaPorUid(o) {
+    var ks = Object.keys(o || {});
+    if (!ks.length) return true;
+    return !!(o[ks[0]] && typeof o[ks[0]] === 'object');
+  }
+  function leeNuevo() {
+    var raw = lee(K_NUEVO, {}) || {};
+    if (!_esMapaPorUid(raw)) return raw;                 // formato viejo
+    return raw[_avUid()] || {};
+  }
+  function guardaNuevo(m) {
+    var raw = lee(K_NUEVO, {}) || {};
+    var cont = _esMapaPorUid(raw) ? raw : {};
+    cont[_avUid()] = m;
+    guarda(K_NUEVO, cont);
+  }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 
   // ── Reglas: la tabla manda; la copia del módulo, si no contesta ──────────
@@ -927,14 +950,14 @@
   function apuntaNuevos(ctx) {
     if (!ctx || !ctx.avisos) return;
     _nvAv = ctx.avisos.slice();
-    var v = ctx.vistos || [], m = lee(K_NUEVO, {}) || {}, ahora = Date.now();
+    var v = ctx.vistos || [], m = leeNuevo(), ahora = Date.now();
     _nvAv.forEach(function (a) { if (a && a.id && v.indexOf(a.id) < 0 && m[a.id] == null) m[a.id] = ahora; });
     Object.keys(m).forEach(function (k) { if (m[k] > 0 && ahora - m[k] > 7 * 864e5) delete m[k]; });
-    guarda(K_NUEVO, m);
+    guardaNuevo(m);
   }
   function claveDe(id) { var r = String(id).slice(6); var i = r.lastIndexOf(':'); return i > 0 ? r.slice(0, i) : r; }
   function nuevos(g, ahora) {
-    var m = lee(K_NUEVO, {}) || {}, vistas = {}, out = [];
+    var m = leeNuevo(), vistas = {}, out = [];
     _nvAv.forEach(function (a) {
       var t = m[a && a.id];
       if (!(t > 0) || ahora - t > NUEVO_MS) return;
@@ -1070,10 +1093,10 @@
     var t = e.target && e.target.closest ? e.target.closest('[data-plz-nv-ok],[data-plz-nv-ir],[data-plz-hecho],[data-plz-deshacer],[data-plz-ver],[data-plz-tab],[data-plz-cfg],[data-plz-perfil],[data-plz-push],[data-plz-fil]') : null;
     if (!t) return;
     e.stopPropagation();
-    if (t.hasAttribute('data-plz-nv-ok')) { var mm = lee(K_NUEVO, {}) || {}; mm[t.getAttribute('data-plz-nv-ok')] = -1; guarda(K_NUEVO, mm); return hoja(); }
+    if (t.hasAttribute('data-plz-nv-ok')) { var mm = leeNuevo(); mm[t.getAttribute('data-plz-nv-ok')] = -1; guardaNuevo(mm); return hoja(); }
     if (t.hasAttribute('data-plz-nv-ir')) {
       var idv = t.getAttribute('data-plz-nv-ir'), av = _nvAv.filter(function (x) { return x.id === idv; })[0];
-      var m2 = lee(K_NUEVO, {}) || {}; m2[idv] = -1; guarda(K_NUEVO, m2);
+      var m2 = leeNuevo(); m2[idv] = -1; guardaNuevo(m2);
       try { window.pilotosAvisosCerrar && window.pilotosAvisosCerrar(); } catch (er) {}
       try { if (av && av.ir) av.ir(); } catch (er) {}
       return;

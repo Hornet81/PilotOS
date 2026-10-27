@@ -63,7 +63,36 @@
     return o.filter(function (x, i) { return x && o.indexOf(x) === i; });
   }
   var _origenBueno = null;
-  function api(path, body) {
+  /* ── SIN CONEXIÓN (23-oct-2026, «que esta parte de swap esté disponible offline») ──
+     Cada GET que sale bien se guarda en el aparato; si luego no hay red, el Swap
+     enseña lo último que vio (compañeros, propuestas, tablón, días) y lo DICE con su
+     hora en una franja arriba. Lo que manda algo —proponer, aceptar, publicar— no se
+     puede hacer sin red, y el mensaje lo dice en vez de soltar el error del navegador.
+     Va con el uid dentro: la copia de otra cuenta en el mismo móvil no se enseña. El
+     prefijo pilotos_ hace que el cierre de sesión se la lleve. */
+  var SW_CACHE = 'pilotos_swap_cache_v1', SW_CACHE_MAX = 30, SW_CACHE_TAM = 450000;
+  function uidAhora() { try { return (JSON.parse(localStorage.getItem('cafi_user') || '{}') || {}).id || ''; } catch (e) { return ''; } }
+  function cacheTodo() {
+    try { var c = JSON.parse(localStorage.getItem(SW_CACHE) || 'null'); if (c && c.uid === uidAhora() && c.e) return c; } catch (e) {}
+    return { uid: uidAhora(), e: {} };
+  }
+  function cacheGuarda(path, j) {
+    try {
+      var txt = JSON.stringify(j); if (txt.length > SW_CACHE_TAM) return;
+      var c = cacheTodo(); c.e[path] = { at: Date.now(), j: j };
+      var ks = Object.keys(c.e).sort(function (x, y) { return c.e[y].at - c.e[x].at; });
+      ks.slice(SW_CACHE_MAX).forEach(function (k) { delete c.e[k]; });
+      localStorage.setItem(SW_CACHE, JSON.stringify(c));
+    } catch (e) {}
+  }
+  function cacheLee(path) { var c = cacheTodo(); return c.e[path] || null; }
+  function errSinRed(manda) {
+    var e = new Error(manda ? L('Sin conexión: esto necesita cobertura. Inténtalo cuando vuelvas a tenerla.', 'No connection: this needs signal. Try again when you\'re back online.')
+      : L('Sin conexión y todavía no hay nada guardado de esto en el móvil.', 'No connection, and nothing of this is saved on the phone yet.'));
+    e.__sinRed = true; return e;
+  }
+  function desdeCache(c) { S.offAt = S.offAt ? Math.min(S.offAt, c.at) : c.at; pintaOff(); return JSON.parse(JSON.stringify(c.j)); }
+  function apiRed(path, body) {
     var o = _origenBueno ? [_origenBueno] : origenes(), i = 0;
     function prueba(ult) {
       if (i >= o.length) return Promise.reject(ult || new Error(L('Sin conexión', 'No connection')));
@@ -79,10 +108,47 @@
           if (!r.ok) throw new Error(j.error || ('Error ' + r.status));
           return j;
         });
-      }, function (e) { return prueba(e); });
+      }, function (e) { e = e || new Error('red'); e.__red = true; return prueba(e); });
     }
     return prueba();
   }
+  function api(path, body) {
+    var off = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (off) {
+      if (body) return Promise.reject(errSinRed(true));
+      var c0 = cacheLee(path);
+      return c0 ? Promise.resolve(desdeCache(c0)) : Promise.reject(errSinRed(false));
+    }
+    return apiRed(path, body).then(function (j) {
+      if (!body) { cacheGuarda(path, j); if (S.offAt) { S.offAt = null; pintaOff(); } }
+      return j;
+    }, function (e) {
+      if (e && e.__red) {
+        if (body) throw errSinRed(true);
+        var c = cacheLee(path); if (c) return desdeCache(c);
+        throw errSinRed(false);
+      }
+      throw e;
+    });
+  }
+  function horaCache(ms) {
+    var d = new Date(ms), hh = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    return iso(d) === today() ? hh : fCorta(iso(d)) + ' ' + hh;
+  }
+  function pintaOff() {
+    var el = $('sw-off'); if (!el) return;
+    if (!S.offAt) { el.hidden = true; el.innerHTML = ''; return; }
+    el.hidden = false;
+    el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8.8a15 15 0 0 1 4.2-2.7M10.7 5a15 15 0 0 1 11.3 3.8M5 12.4a10 10 0 0 1 4.6-2.3M14.3 10.2A10 10 0 0 1 19 12.4M8.5 16a5 5 0 0 1 7 0M12 20h.01M3 3l18 18"/></svg>' +
+      '<div><b>' + esc(L('Sin conexión · lo de las ', 'Offline · as of ') + horaCache(S.offAt)) + '</b>' +
+      '<span>' + esc(L('Proponer, aceptar o publicar necesita cobertura.', 'Proposing, accepting or posting needs signal.')) + '</span></div>';
+  }
+  /* Al volver la cobertura se refresca lo que se esté viendo. */
+  window.addEventListener('online', function () {
+    if (!$('scr-swap')) return;
+    S.offAt = null; pintaOff();
+    try { if (S.partner) openPair(S.partner); else if (S.view === 'board') loadBoard(); else { loadHome(); loadPlan(true); } } catch (e) {}
+  });
   function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
   function addDays(isoStr, n) { var d = new Date(isoStr + 'T12:00:00'); d.setDate(d.getDate() + n); return iso(d); }
   function today() { return iso(new Date()); }
@@ -127,6 +193,7 @@
         '<button class="sw-tab" role="tab" data-st="board"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h12.5M14.5 4l3 3-3 3"/><path d="M19 17H6.5M9.5 14l-3 3 3 3"/></svg>' +
           '<span class="tx">Swap Board</span><span class="n" hidden></span></button>' +
       '</div>' +
+      '<div class="sw-off" id="sw-off" role="status" translate="no" hidden></div>' +
       '<div class="scroll-body" id="sw-body" translate="no"></div>';
     var tools = $('scr-tools');
     (tools && tools.parentNode ? tools.parentNode : document.body).insertBefore(sc, tools ? tools.nextSibling : null);
@@ -227,9 +294,16 @@
     if (typeof goTo === 'function') goTo('swap');
     /* Sin rol o sin nombre de chequeo el Swap no sirve: no se te puede encontrar ni
        saber si cambias con comandantes o copilotos. Se abre la hoja del perfil. */
+    /* ⚠ Y se pregunta por `completaToca()`, no mirando el perfil a pelo: el de la
+       nube puede no haber bajado todavía (al volver a entrar, el aparato empieza
+       en blanco) y entonces esto abría una hoja OBLIGATORIA a quien ya lo tenía
+       todo relleno — «al entrar de nuevo me hace rellenar el perfil con número ID
+       todas las veces». `completaToca` espera a tener perfil y además lleva el
+       límite de una vez al día; `completar` a secas se salta las dos cosas. */
     try {
-      if (token() && window.PilotProfile && typeof window.PilotProfile.completar === 'function' && typeof window.ppGet === 'function' &&
-          (!window.ppGet('rol') || !String(window.ppGet('nombreTripulacion') || '').trim())) setTimeout(window.PilotProfile.completar, 350);
+      if (token() && window.PilotProfile && typeof window.PilotProfile.completaToca === 'function' &&
+          typeof window.PilotProfile.completar === 'function' && window.PilotProfile.completaToca())
+        setTimeout(window.PilotProfile.completar, 350);
     } catch (e) {}
     rotulaAtras();
     loadHome();
@@ -264,6 +338,7 @@
       S.dir = r[0]; S.contacts = r[1].contacts || []; S.proposals = r[2].proposals || [];
       if (!S.partner && S.view !== 'board') renderHome();
       badge(); pintaTabs();
+      celebraPendiente();      // ¡SWAP! si te han aceptado un cambio y aún no lo has visto
     }, function (e) {
       if (!S.partner && S.view !== 'board') $('sw-body').innerHTML = '<div class="sw-pad"><div class="sw-err">' + esc(e.message) + '</div></div>';
     });
@@ -369,6 +444,55 @@
     return '<div class="sw-steps">' + t.map(function (x, i) { return '<i class="' + (i < n ? 'd' : '') + '">' + (i < n ? '✓' : i + 1) + '</i>' + (i === n ? '<b>' + x + '</b>' : x); }).join('') + '</div>';
   }
 
+  /* ── «Te toca a ti», cara a cara (23-oct-2026, propuesta F elegida por el piloto) ──
+     Distinta a propósito del tablón (que va en magenta con taco y pastilla partida):
+     aquí es un trato entre DOS compañeros, así que manda la gente — el avatar del otro
+     frente a «TÚ», y debajo de cada uno lo que da con el color de su tipo de día (los
+     mismos colores que el tablón: eso es lo que ata las dos secciones). En el CIAN de la
+     pestaña Compañeros. La barra dice en qué paso está y el botón lo que toca: cian
+     para eCrews, ámbar para el correo (quedan < 5 días). */
+  /* ★ SIN las tarjetas de esos días no se inventa nada (reporte del piloto, 23-oct-2026:
+     «al pulsar sobre el piloto que dice que te lo puede hacer aparece los vuelos en
+     vacío»). `gives`/`gets` llegan a null cuando el servidor no pudo leer el roster
+     —su `catch` es mudo— o cuando contesta un servidor anterior, y entonces
+     `MOT.catDe([])` devuelve «OTRO»: la pastilla AFIRMABA un tipo de día que nadie sabe
+     y debajo no había ni una línea. Medido: `.sw-ff-s` con 0 px de alto y el chip
+     diciendo OTRO en los dos lados. El bloque anterior (`tradeHtml`) se quitaba ENTERO
+     con la guarda `if (!p.gives || !p.gets) return ''`; al rehacer la tarjeta cara a
+     cara (Beta.1160) esa guarda se perdió. Hoy: sin chip, y lo que falta se DICE. */
+  function ladoTrato(av, quien, cards, base) {
+    var hay = !!(cards && cards.length);
+    var k = hay ? MOT.catDe(cards, base) : '';
+    return '<div class="sw-ff-p">' + av + '<div class="sw-ff-n">' + esc(quien) + '</div>' +
+      (hay ? '<span class="sw-ff-chip pk-' + esc(k) + '">' + catIco(k) + esc(catNom(k).toUpperCase()) + '</span>' : '') +
+      '<div class="sw-ff-s' + (hay ? '' : ' nd') + '">' + (hay
+        ? cards.map(function (c) { return esc(rutaDe(c)).replace(' · ', '<br>'); }).join('<br>')
+        : esc(L('No he podido leer el roster de esos días', 'Could not read the roster for those days'))) + '</div></div>';
+  }
+  function cardTrato(p, kind) {
+    var base = (S.plan && S.plan.base) || (S.dir && S.dir.me && S.dir.me.base) || '';
+    var hoyS = today(), d0 = p.dates.slice().sort()[0], left = dayDiff(hoyS, d0), ec = left >= 5;
+    var nom = firstName({ nombre: p.partnerName }) || p.partnerName || '';
+    var cd = left <= 0 ? L('HOY', 'TODAY') : left === 1 ? L('MAÑANA', 'TOMORROW') : L('EN ' + left + ' DÍAS', 'IN ' + left + ' DAYS');
+    var st = kind === 'acc' ? '<span class="sw-ff-ok">✓ ' + L('Aceptado', 'Accepted') + '</span>'
+      : '<span class="sw-ff-new">' + L('Te lo propone', 'Proposed to you') + '</span>';
+    var yo = '<div class="sw-av sw-ff-yo"><span>' + L('TÚ', 'YOU') + '</span></div>';
+    var paso = kind === 'acc' ? (ec ? L('Pedirlo', 'Request it') : L('Correo', 'Email')) : L('Aceptar', 'Accept');
+    var mail = kind === 'acc' && !ec;
+    var h = '<div class="sw-card sw-ff' + (mail ? ' mail' : '') + '">' +
+      '<div class="sw-ff-hd"><span class="sw-ff-d">' + esc(diasTxtB(p.dates).toUpperCase()) + '</span>' +
+        '<span class="sw-ff-cd' + (left < 5 ? ' hot' : '') + '">' + esc(cd) + '</span>' + st + '</div>' +
+      (kind === 'in' && p.expires_at ? '<div class="sw-ff-cad">' + esc(caducaTxt(p.expires_at)) + '</div>' : '') +
+      '<div class="sw-ff-duo">' +
+        ladoTrato(avatar(socio(p.partnerId), ''), nom + L(' te da', ' gives you'), p.gets, base) +
+        '<span class="sw-ff-x">' + ICO_CAMBIO + '</span>' +
+        ladoTrato(yo, L('Tú das', 'You give'), p.gives, base) + '</div>' +
+      '<div class="sw-ff-ln"><span>' + (kind === 'acc' ? L('Propuesto · Aceptado', 'Proposed · Accepted') : L('Propuesto', 'Proposed')) + '</span>' +
+        '<span class="sw-ff-bar"><i style="width:' + (kind === 'acc' ? 66 : 33) + '%"></i></span><b>' + esc(paso) + '</b></div>';
+    if (kind === 'acc') h += '<div class="sw-sub sw-ff-sub">' + (ec ? L('Uno lo pide en eCrews y el otro lo acepta.', 'One of you requests it in eCrews and the other accepts.') : L('Quedan menos de 5 días: va por correo a la oficina de pilotos.', 'Less than 5 days to go: it goes by email to the pilots\' office.')) + '</div>';
+    var btn = kind === 'acc' ? (ec ? L('Pedirlo en eCrews', 'Request it in eCrews') : '✉ ' + L('Mandar el correo', 'Send the email')) : L('Ver y responder', 'See and reply');
+    return h + '<button class="sw-ff-go" data-prop="' + p.id + '">' + btn + '</button></div>';
+  }
   /* «caduca en 1 d 5 h»: lo pendiente caduca solo (7 días una conexión, 48 h un swap). */
   function caducaTxt(iso) {
     var m = Math.round((Date.parse(iso || '') - Date.now()) / 60000);
@@ -417,18 +541,8 @@
              '<div class="sw-sub">' + L('Si aceptas, los dos veréis el roster del otro y podréis proponeros cambios.', 'If you accept, you will both see each other\'s roster and can propose swaps.') + '</div>' +
              '<div style="display:flex;gap:8px"><button class="sw-btn" style="flex:1" data-rm="' + c.id + '">' + L('Ahora no', 'Not now') + '</button><button class="sw-go" style="flex:2" data-acc="' + c.id + '">' + L('Aceptar', 'Accept') + '</button></div></div>';
       });
-      pIn.forEach(function (p) {
-        h += '<div class="sw-card sw-act"><div class="sw-who">' + avatar(socio(p.partnerId), 'sm') + '<div><b>' + esc(p.partnerName) + '</b><span>' + esc(diasTxtB(p.dates)) + (p.expires_at ? ' · ' + esc(caducaTxt(p.expires_at)) : '') + '</span></div><span class="sw-st sg">' + L('Te lo propone', 'Proposed to you') + '</span></div>' +
-             tradeHtml(p) + pasos(1).replace(L('Aceptado', 'Accepted'), L('Aceptar', 'Accept')) +
-             '<button class="sw-go" style="width:100%" data-prop="' + p.id + '">' + L('Ver y responder', 'See and reply') + '</button></div>';
-      });
-      pAcc.forEach(function (p) {
-        var left = dayDiff(hoyS, p.dates.slice().sort()[0]), ec = left >= 5;
-        h += '<div class="sw-card sw-act"><div class="sw-who">' + avatar(socio(p.partnerId), 'sm') + '<div><b>' + esc(p.partnerName) + '</b><span>' + esc(diasTxtB(p.dates)) + '</span></div><span class="sw-st ok">✓ ' + L('Aceptado', 'Accepted') + '</span></div>' +
-             tradeHtml(p) + pasos(2) +
-             '<div class="sw-sub">' + (ec ? L('Quedan ' + left + ' días: lo pide uno en eCrews y el otro lo acepta.', left + ' days to go: one of you requests it in eCrews and the other accepts.') : L('Quedan menos de 5 días: va por correo a la oficina de pilotos.', 'Less than 5 days to go: it goes by email to the pilots\' office.')) + '</div>' +
-             '<button class="sw-go" style="width:100%" data-prop="' + p.id + '">' + (ec ? L('Pedirlo en eCrews', 'Request it in eCrews') : L('Mandar el correo', 'Send the email')) + '</button></div>';
-      });
+      pIn.forEach(function (p) { h += cardTrato(p, 'in'); });
+      pAcc.forEach(function (p) { h += cardTrato(p, 'acc'); });
     }
     /* 2 · En marcha */
     if (pOut.length || outC.length) {
@@ -687,6 +801,24 @@
       }, function (er) { b.disabled = false; b.textContent = L('Pedir conexión', 'Request connection'); alertErr(er); });
     };
   }
+  /* Propuesta enviada (23-oct-2026): como el «Roster sincronizado» de eCrews pero en el
+     magenta del tablón. El BOTÓN se vuelve magenta con un ✓ que se dibuja y dos ondas
+     (es donde mira el piloto) y arriba sale la tarjeta de aviso común (_ecAviso, tipo
+     'swap') con un avión de papel, a quién y qué días. Una sola tarjeta para toda la
+     app: si cada sección tuviera la suya acabarían comportándose distinto. */
+  var ICO_OK = '<svg class="sw-sent-ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5 10-11"/></svg>';
+  function enviadoFx(b, nombre, ds) {
+    if (b) {
+      b.classList.remove('sw-sent'); void b.offsetWidth;
+      b.innerHTML = ICO_OK + '<span>' + esc(L('Propuesta enviada a ', 'Proposal sent to ') + nombre) + '</span><i class="sw-sent-r"></i><i class="sw-sent-r"></i>';
+      b.classList.add('sw-sent');
+    }
+    try {
+      if (typeof window._ecAviso === 'function') window._ecAviso('swap', L('Propuesta enviada a ', 'Proposal sent to ') + nombre,
+        (ds && ds.length ? '<b>' + esc(diasTxtB(ds)) + '</b> · ' : '') + esc(L('Te avisamos cuando conteste', 'We\'ll let you know when they reply')), { dur: 3600 });
+    } catch (x) {}
+    try { window.swapChime && window.swapChime(); } catch (x) {}
+  }
   function alertErr(e) { try { if (typeof showToast === 'function') return showToast(e.message); } catch (x) {} alert(e.message); }
 
   /* ── SWAP BOARD: el tablón de la base ───────────────────────────────────────
@@ -714,7 +846,7 @@
   }
   function resumenDia(c) {
     if (!c || c.kind === 'empty') return L('Sin roster', 'No roster');
-    if (c.kind === 'flight') {
+    if (c.kind === 'flight' && c.legs && c.legs.length) {
       var ap = [c.legs[0].dep].concat(c.legs.map(function (l) { return l.arr; }));
       return ap.join('–') + ' · ' + L('firma ', 'report ') + clock(c.report);
     }
@@ -737,10 +869,11 @@
   function motivoKo(p) {
     var v = p.verdict || {}, nm = firstName(p.poster);
     var quien = function (w) { return w === 'me' ? L('Tú', 'You') : nm; };
-    if (v.worst) return quien(v.worst.who) + ': ' + hhmm(v.worst.rest) + L(' de descanso antes del ', ' rest before ') + fCorta(v.worst.day);
+    if (v.worst) return quien(v.worst.who) + ': ' + hhmm(v.worst.rest) + (v.worst.fuera ? L(' de descanso fuera de base antes del ', ' rest away from base before ') : v.worst.sim ? L(' de descanso antes del simulador del ', ' rest before the simulator on ') : L(' de descanso antes del ', ' rest before ')) + fCorta(v.worst.day);
     if (v.sLib) return quien(v.sLib.who) + ': ' + v.sLib.n + L(' imaginarias antes de libre en ', ' standbys before a day off in ') + MES[+v.sLib.mes.slice(5, 7) - 1];
     if (v.s3) return quien(v.s3.who) + ': ' + L('3 imaginarias a ', '3 standbys only ') + v.s3.gap + L(' días del bloque anterior', ' days after the previous block');
     if (v.corte) return quien(v.corte.who) + ': ' + L('las STBY van en bloque (', 'standbys go as a block (') + fCorta(v.corte.a) + (v.corte.b !== v.corte.a ? ' – ' + fCorta(v.corte.b) : '') + ')';
+    if (v.linea) return quien(v.linea.who) + ': ' + L('la línea con pernocta va entera (', 'the layover line goes whole (') + fCorta(v.linea.a) + ' – ' + fCorta(v.linea.b) + ')';
     if (v.inv) return quien(v.inv.who) + ': ' + L('posible invasión de día libre (calzos ', 'possible day-off invasion (on-blocks ') + finLocal(v.inv.fin) + L(' del ', ' on ') + fCorta(v.inv.day) + ')';
     if (v.over7) return L('Más de 60 h de actividad en 7 días', 'Over 60 h of duty in 7 days');
     return L('No cuadra', 'Doesn\'t work');
@@ -784,6 +917,61 @@
     $('sw-m-ver').onclick = function () { cierra(); setTimeout(function () { openPost(p); }, 200); };
   }
   window.swapCelebraMatch = celebraMatch;    // para probarlo a mano
+
+  /* ── ¡SWAP! — un cambio cerrado (21-oct, pedido del usuario) ─────────────────
+     La misma celebración que el ¡MATCH!, cuando un compañero ACEPTA un cambio:
+     a quien acepta, al pulsar «Aceptar»; a quien lo propuso, al abrir el Swap
+     (o al momento si lo tiene abierto: loadHome se repite cada 20 s). Una vez por
+     propuesta y aparato (localStorage). El botón lleva al siguiente paso. */
+  var CERRADOS_KEY = 'pilotos_swap_cerrados';
+  function cerradoVisto(id) { try { return (JSON.parse(localStorage.getItem(CERRADOS_KEY) || '[]')).indexOf(id) >= 0; } catch (e) { return true; } }
+  function marcaCerrado(id) {
+    try { var l = JSON.parse(localStorage.getItem(CERRADOS_KEY) || '[]'); if (l.indexOf(id) < 0) l.push(id); localStorage.setItem(CERRADOS_KEY, JSON.stringify(l.slice(-100))); } catch (e) {}
+  }
+  function celebraSwap(p, yoAcepto) {
+    marcaCerrado(p.id);
+    sheetEls();
+    var root = $('sw-sheet-root'), viejo = $('sw-match'); if (viejo) viejo.remove();
+    var yo = (S.dir && S.dir.me) || { nombre: L('Tú', 'You') }, otro = socio(p.partnerId);
+    if (!otro.nombre) otro = { id: p.partnerId, nombre: p.partnerName };
+    var ds = (p.dates || []).slice().sort(), left = dayDiff(today(), ds[0]), ec = left >= 5;
+    var cols = ['#22d3ee', '#fb923c', '#d946ef', '#f472b6', '#facc15', '#4ade80'], conf = '';
+    for (var i = 0; i < 40; i++) {
+      conf += '<i style="left:' + Math.round(Math.random() * 100) + '%;background:' + cols[i % cols.length] +
+        ';animation-delay:' + (0.45 + Math.random() * 0.6).toFixed(2) + 's;animation-duration:' + (1.6 + Math.random() * 1.2).toFixed(2) +
+        's;--r:' + Math.round(Math.random() * 720 - 360) + 'deg;--x:' + Math.round(Math.random() * 120 - 60) + 'px"></i>';
+    }
+    var nm = firstName(otro);
+    var el = document.createElement('div'); el.id = 'sw-match'; el.className = 'sw-match';
+    el.innerHTML = '<div class="sw-mconf">' + conf + '</div><div class="sw-mbox">' +
+      '<div class="sw-mavs">' + avatar(yo, 'xl sw-mav l') + avatar(otro, 'xl sw-mav r') + '<div class="sw-mswp">⇄</div></div>' +
+      '<div class="sw-mtit">¡SWAP!</div>' +
+      '<div class="sw-msub">' + (yoAcepto ? L('Has aceptado el cambio con ', 'You accepted the swap with ') + esc(nm)
+                                         : esc(nm) + L(' ha aceptado tu cambio', ' accepted your swap')) +
+        '<br><b>' + esc(diasTxtB(ds)) + '</b></div>' +
+      '<div class="sw-msub" style="opacity:.8">' + (ec
+        ? L('Ahora lo pide uno en eCrews y el otro lo acepta allí.', 'Now one of you requests it in eCrews and the other accepts it there.')
+        : L('Faltan menos de 5 días: va por correo a la oficina de pilotos.', 'Less than 5 days to go: it goes by email to the pilots\' office.')) + '</div>' +
+      '<button class="sw-go" id="sw-m-ver" style="width:100%;margin-top:16px">' + (ec ? L('Pedirlo en eCrews', 'Request it in eCrews') : L('Mandar el correo', 'Send the email')) + '</button>' +
+      '<button class="sw-btn" id="sw-m-luego" style="width:100%;margin-top:8px">' + L('Luego', 'Later') + '</button></div>';
+    root.appendChild(el);
+    requestAnimationFrame(function () { el.classList.add('on'); });
+    setTimeout(function () { try { window.swapChime && window.swapChime(); } catch (x) {} }, 420);
+    if (navigator.vibrate) try { navigator.vibrate([30, 60, 30]); } catch (x) {}
+    var cierra = function () { el.classList.remove('on'); setTimeout(function () { el.remove(); }, 300); };
+    $('sw-m-luego').onclick = cierra;
+    // Quien acepta ya está en la pantalla del cambio con sus botones: solo se cierra.
+    $('sw-m-ver').onclick = function () { cierra(); if (!yoAcepto) setTimeout(function () { abrePropuesta(p); }, 200); };
+  }
+  window.swapCelebraSwap = celebraSwap;      // para probarlo a mano
+  /* A quien propuso: el primer cambio suyo aceptado (últimos 7 días) que aún no ha visto. */
+  function celebraPendiente() {
+    if (pantalla() !== 'swap' || S.partner || S.view === 'board' || $('sw-match') || $('pp-alta')) return;
+    var p = S.proposals.filter(function (x) {
+      return !x.incoming && x.status === 'accepted' && Date.now() - (Date.parse(x.responded_at || '') || 0) < 7 * 864e5 && !cerradoVisto(x.id);
+    })[0];
+    if (p) setTimeout(function () { celebraSwap(p, false); }, 400);
+  }
   /* Desde la campana: abre el Swap en el tablón y, cuando carga, ese anuncio. */
   function abreMatch(postId) {
     try { window.swapOpen && window.swapOpen(); } catch (e) {}
@@ -958,43 +1146,131 @@
   function cuentaAtras(left) {
     return left <= 0 ? L('Hoy', 'Today') : left === 1 ? L('Mañana', 'Tomorrow') : L('En ' + left + ' días', 'In ' + left + ' days');
   }
+  /* ── La tarjeta del tablón (22-oct-2026, propuesta H2 elegida por el piloto) ──
+     A la izquierda un taco de calendario magenta con la FECHA (sólo la fecha: el color
+     del día lo lleva la pastilla). Debajo de las rutas, una pastilla partida en diagonal:
+     a la izquierda lo que da (color de su tipo de día) y a la derecha lo que pide (color
+     de lo que busca, con brillo), con las flechas ⇄ en medio. Los iconos van DIBUJADOS. */
+  var CAT_ICO = {
+    early: '<path d="M3 18h18M7 18a5 5 0 0 1 10 0"/><path d="M12 4v3M5.2 9.2l2 2M18.8 9.2l-2 2M2 14h2M20 14h2"/>',
+    late: '<path fill="currentColor" stroke="none" d="M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a8.5 8.5 0 1 0 11.1 11.1z"/>',
+    linea: '<path d="M10.5 3.5v6.2L3 14v2l7.5-2.4V19L8 20.6V22l4-1 4 1v-1.4L13.5 19v-5.4L21 16v-2l-7.5-4.3V3.5a1.5 1.5 0 0 0-3 0z"/>',
+    pernocta: '<path d="M3 18V7M3 13h18v5M21 13a3 3 0 0 0-3-3h-7v3"/><circle cx="7" cy="10.5" r="1.8"/>',
+    imag: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    libre: '<path d="M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M16 10.5h1.5a2.5 2.5 0 0 1 0 5H16M8 3.5c0 1.4 1 1.6 1 3M12 3.5c0 1.4 1 1.6 1 3"/>',
+    otro: '<circle cx="12" cy="12" r="3.5"/>',
+    any: '<path d="M12 3.5l2.5 5.2 5.6.8-4 4 1 5.6-5.1-2.7-5.1 2.7 1-5.6-4-4 5.6-.8z"/>'
+  };
+  function catIco(k) {
+    return '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (CAT_ICO[k] || CAT_ICO.otro) + '</svg>';
+  }
+  var ICO_CAMBIO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h14l-4-4M20 16H6l4 4"/></svg>';
+  function tacoFecha(ds) {
+    var a = ds[0], b = ds[ds.length - 1], ma = MES3[+a.slice(5, 7) - 1].toUpperCase(), mb = MES3[+b.slice(5, 7) - 1].toUpperCase();
+    var dia = WDN[wd(a)].slice(0, 3).toUpperCase();
+    var num = ds.length > 1 ? dnum(a) + '–' + dnum(b) : '' + dnum(a);
+    return '<div class="sw-bd-taco' + (ds.length > 1 ? ' rango' : '') + '"><span class="dw">' + esc(dia) + '</span><b>' + num + '</b><span class="dm">' + esc(ma === mb ? ma : ma + '–' + mb) + '</span></div>';
+  }
+  function pastillaCambio(p) {
+    var ws = (p.wants && p.wants.length && p.wants.indexOf('any') < 0) ? p.wants : ['any'];
+    var wk = ws.length > 1 ? 'varios' : ws[0];
+    var wn = ws.length > 1 ? ws.map(catNom).join(' · ') : catNom(ws[0]);
+    var k = p.cat || 'otro';
+    var kl = catNom(k).length > 6, wl = wn.length > 6;   // rótulo largo: sin icono, que el texto quepa
+    return '<div class="sw-bd-pas pw-' + esc(wk) + '">' +
+      '<span class="lado da pk-' + esc(k) + '">' + (kl ? '' : catIco(k)) + '<span class="tx"><small>' + (p.mine ? L('DAS', 'YOU GIVE') : L('TE DA', 'GIVES')) + '</small><b>' + esc(catNom(k).toUpperCase()) + '</b></span></span>' +
+      '<span class="lado pide pk-' + esc(wk) + '"><span class="tx"><small>' + (p.mine ? L('BUSCAS', 'YOU WANT') : L('PIDE', 'WANTS')) + '</small><b>' + esc(wn.toUpperCase()) + '</b></span>' + (ws.length > 1 ? '' : catIco(wk)) + '</span>' +
+      '<span class="mid">' + ICO_CAMBIO + '</span></div>';
+  }
   function cardBoard(p) {
     var e = estadoDe(p), nm = p.poster.nombre || '';
     var left = dayDiff(today(), p.dates[0]), hot = left >= 0 && left <= HOT_DIAS;
     var vtxt = e === 'mine' ? '' : e === 'ok' ? '✓ ' + L('Te cuadra', 'Works for you') + ' · ' + balTxt(p.bal) : e === 'ko' ? '✗ ' + motivoKo(p) : firstName(p.poster) + L(' busca ', ' wants ') + wantsTxt(p.wants);
     var h = '<div class="sw-bd-card ' + e + (p.match ? ' match' : '') + (hot ? ' hot' : '') + ' k-' + esc(p.cat || 'otro') + '" data-bp="' + p.id + '" role="button" tabindex="0">' +
+      tacoFecha(p.dates) + '<div class="sw-bd-cu">' +
       (p.match || hot ? '<div class="sw-bd-tags">' + (p.match ? '<span class="sw-bd-mtag">¡MATCH!</span>' : '') +
         (hot ? '<span class="sw-bd-hot' + (left <= 1 ? ' ya' : '') + '">⏳ ' + esc(cuentaAtras(left)) + '</span>' : '') + '</div>' : '') +
-      '<div class="sw-bd-top">' + (p.mine ? '' : avatar({ nombre: nm, foto: p.poster.foto }, 'sm')) + '<div class="who"><b>' + (p.mine ? esc(diasTxtB(p.dates)) : esc(corto(nm))) + '</b><span>' + esc(hace(p.created_at)) + '</span></div>' +
-      '<span class="sw-cat k-' + esc(p.cat) + '">' + esc(catNom(p.cat).toUpperCase()) + '</span></div>' +
-      '<div class="sw-bd-gw"><span class="k">' + (p.mine ? L('DAS', 'YOU GIVE') : L('DA', 'GIVES')) + '</span><span class="v">' + (p.gets || []).map(function (c) { return '<b>' + esc(resumenDia(c)) + '</b>'; }).join('<br>') + '</span>' +
-      '<span class="k">' + L('BUSCA', 'WANTS') + '</span><span class="v">' + esc(wantsTxt(p.wants)) + (p.note ? '<br><i>«' + esc(p.note) + '»</i>' : '') + '</span></div>';
+      '<div class="sw-bd-quien">' + (p.mine ? '<b>' + L('Tu anuncio', 'Your post') + '</b>' : '<b>' + esc(corto(nm)) + '</b>') +
+        '<span>' + esc((p.dates.length > 1 ? p.dates.length + L(' días', ' days') + ' · ' : '') + hace(p.created_at)) + '</span></div>' +
+      '<div class="sw-bd-rts">' + (p.gets || []).map(function (c) { return '<div>' + esc(resumenDia(c)) + '</div>'; }).join('') +
+        (p.note ? '<i>«' + esc(p.note) + '»</i>' : '') + '</div>' +
+      pastillaCambio(p);
     if (p.mine) h += '<div class="sw-bd-ft"><span class="sw-sub">' + L('Se retira solo al pasar el día o si cambia tu roster', 'Withdrawn automatically when the day passes or your roster changes') + '</span>' +
       '<span class="sw-bd-ftb"><button class="sw-btn" data-ed="' + p.id + '">' + L('Editar', 'Edit') + '</button><button class="sw-btn" data-wd="' + p.id + '">' + L('Retirar', 'Withdraw') + '</button></span></div>';
     else h += '<div class="sw-bd-ft"><span class="sw-bd-v ' + e + '">' + esc(vtxt) + '</span>' +
       (p.interest ? '<span class="sw-st ok">' + (p.interest === 'accepted' ? L('Aceptado', 'Accepted') : p.interest === 'rejected' ? L('Rechazado', 'Declined') : L('Propuesto', 'Proposed')) + '</span>'
         : e === 'ok' ? '<span class="sw-bd-go">' + L('Me interesa', 'I\'m interested') + '</span>' : '') + '</div>';
-    return h + '</div>';
+    return h + '</div></div>';
   }
 
   /* Detalle de un anuncio en la hoja inferior: lo que das, lo que recibes y las reglas. */
+  /* La ficha de un anuncio sigue el diseño de su tarjeta (mezcla A+B elegida por el
+     piloto, 23-oct-2026): a la IZQUIERDA lo que te da (columna teñida con su tipo, como
+     el lado izquierdo de la pastilla) y a la DERECHA lo que tú das (teñida con lo que
+     pide). Dentro, cada día lleva el color de lo que ES de verdad: un OFF que das sale
+     verde aunque la columna sea la del early que pide. Los colores son los de la
+     pastilla (tonos claros con tinta oscura), así el contraste no depende del tema. */
+  function wantsKey(p) {
+    var ws = (p.wants && p.wants.length && p.wants.indexOf('any') < 0) ? p.wants : ['any'];
+    return { k: ws.length > 1 ? 'varios' : ws[0], n: ws.length > 1 ? ws.map(catNom).join(' · ') : catNom(ws[0]) };
+  }
+  function celdaDia(c, base) {
+    if (!c || c.kind === 'empty') return '<div class="sw-dx-c pk-otro vacio"><span class="k">—</span><div class="tm">' + L('Sin roster', 'No roster') + '</div></div>';
+    var k = MOT.catDe([c], base);
+    var h = '<div class="sw-dx-c pk-' + esc(k) + (c.kind !== 'flight' ? ' tierra' : '') + '"><span class="k">' + catIco(k) + esc(catNom(k).toUpperCase()) + '</span>';
+    if (c.kind !== 'flight') {
+      // Un OFF sin horas no repite «OFF» dos veces: sale el rótulo grande con su icono.
+      var txt = c.report != null ? '' : (c.code && c.code !== 'OFF' ? c.code : 'OFF');
+      if (txt && txt.toUpperCase() === catNom(k).toUpperCase()) return '<div class="sw-dx-c pk-' + esc(k) + ' tierra"><div class="tm big">' + catIco(k) + esc(txt) + '</div></div>';
+      return h + '<div class="tm big">' + (c.report != null ? esc(c.code) + '<small>' + clockN(c.report) + '–' + clockN(c.end) + '</small>' : esc(c.code && c.code !== 'OFF' ? c.code : 'OFF')) + '</div></div>';
+    }
+    return h + '<div class="tm">' + clockN(c.report) + '<span>→</span>' + clockN(c.end) + '</div>' +
+      c.legs.map(function (l) { return '<div class="lg"><b>' + esc(l.dep + '-' + l.arr) + '</b><span>' + clockN(l.std) + '–' + clockN(l.sta) + '</span></div>'; }).join('') +
+      '<div class="ft">' + (c.ac ? esc(c.ac) + ' · ' : '') + hhmm(c.block || 0) + L(' vuelo · ', ' flt · ') + hhmm(dutyMin(c)) + L(' act.', ' duty') + '</div></div>';
+  }
+  function trackDx(a, b, base) {
+    var off = useLT() ? -new Date().getTimezoneOffset() : 0;
+    var bar = function (c, top) {
+      if (!c || c.report == null) return '';
+      var s = ((c.report + off) % 1440 + 1440) % 1440, len = Math.min(1440 - s, (c.end + (c.kind === 'flight' ? POST : 0)) - c.report);
+      return '<div class="bar pk-' + esc(MOT.catDe([c], base)) + '" style="left:' + (s / 14.4) + '%;width:' + Math.max(2, len / 14.4) + '%;top:' + top + 'px"></div>';
+    };
+    return '<div class="sw-track sw-dx-tr">' + [6, 12, 18].map(function (hh) { return '<i style="left:' + (hh / 24 * 100) + '%"></i><em style="left:' + (hh / 24 * 100) + '%">' + hh + 'h</em>'; }).join('') +
+      bar(a, 3) + bar(b, 12) + '</div>';
+  }
+  function fichaCambio(p) {
+    var base = (S.board && S.board.me && S.board.me.base) || '', k = p.cat || 'otro', w = wantsKey(p);
+    /* La columna derecha dice lo que DAS DE VERDAD (tus días), no lo que pide el otro:
+       si das un early y él pide OFF, poner «Tú das OFF» encima de tu early mentía
+       (reporte del piloto, 23-oct-2026). Si no es lo que pide, se dice debajo. */
+    var rk = MOT.catDe(p.gives || [], base), ws = (p.wants || []).filter(function (x) { return x !== 'any'; });
+    var pideOtro = ws.length && ws.indexOf(rk) < 0;
+    var h = '<div class="sw-dx">' +
+      '<div class="sw-dx-bg l pk-' + esc(k) + '"></div><div class="sw-dx-bg r pk-' + esc(rk) + '"></div>' +
+      '<div class="sw-dx-hd pk-' + esc(k) + '"><small>' + L('TE DA', 'YOU GET') + '</small><b>' + esc(catNom(k).toUpperCase()) + '</b></div>' +
+      '<div class="sw-dx-hd r pk-' + esc(rk) + '"><small>' + L('TÚ DAS', 'YOU GIVE') + '</small><b>' + esc(catNom(rk).toUpperCase()) + '</b>' +
+        (pideOtro ? '<em class="sw-dx-pide">' + esc(firstName(p.poster) + L(' pide ', ' wants ') + w.n) + '</em>' : '') + '</div>';
+    p.dates.forEach(function (d, i) {
+      h += '<div class="sw-dx-d"><b>' + esc(fCorta(d)) + '</b>' + trackDx(p.gets[i], p.gives[i], base) + '</div>' +
+        celdaDia(p.gets[i], base) + celdaDia(p.gives[i], base);
+    });
+    return h + '<span class="sw-dx-x">' + ICO_CAMBIO + '</span></div>';
+  }
   function openPost(p) {
     var ev = sheetEls(), e = estadoDe(p), nm = firstName(p.poster);
-    var h = '<div class="grab"></div><div class="sw-row" style="justify-content:flex-start;gap:12px">' + (p.mine ? '' : avatar({ nombre: p.poster.nombre, foto: p.poster.foto }, '')) +
-      '<div style="flex:1"><div class="sw-name" style="font-size:17px">' + (p.mine ? L('Tu anuncio', 'Your post') : esc(p.poster.nombre)) + '</div><div class="sw-sub">' + esc(diasTxtB(p.dates)) + '</div></div>' +
-      '<span class="sw-cat k-' + esc(p.cat) + '">' + esc(catNom(p.cat).toUpperCase()) + '</span></div>';
+    var h = '<div class="grab"></div><div class="sw-row sw-dx-top">' + (p.mine ? '' : avatar({ nombre: p.poster.nombre, foto: p.poster.foto }, '')) +
+      '<div style="flex:1;min-width:0"><div class="sw-name" style="font-size:17px">' + (p.mine ? L('Tu anuncio', 'Your post') : esc(p.poster.nombre)) + '</div><div class="sw-sub">' + esc(diasTxtB(p.dates)) + '</div></div>' +
+      tacoFecha(p.dates) + '</div>';
     if (p.note) h += '<div class="sw-sub" style="margin-top:8px"><i>«' + esc(p.note) + '»</i></div>';
     if (p.match) h += '<div class="sw-bd-mban"><b>¡MATCH!</b> ' + esc(nm) + L(' busca justo lo que ofreces en tu anuncio de esos días, y tú buscas lo que ofrece su anuncio.', ' wants exactly what you offer in your post for those days, and you want what their post offers.') + '</div>';
     if (!p.mine) {
-      p.dates.forEach(function (d, i) {
-        h += '<div class="sw-tday" style="margin-top:12px"><div class="sw-tday-h"><b>' + esc(fCorta(d)) + '</b>' + track(p.gives[i], p.gets[i]) + '</div>' +
-          '<div class="sw-tix">' + ticket(p.gives[i], L('DAS', 'YOU GIVE'), 'me') + '<div class="sw-swp">⇄</div>' + ticket(p.gets[i], L('RECIBES', 'YOU GET'), 'mk') + '</div></div>';
-      });
+      h += fichaCambio(p);
       var v = p.verdict || {};
       h += '<div class="sw-verdict show" style="margin-top:14px;background:var(' + (v.ok ? '--sw-ok-bg' : '--sw-ko-bg') + ');color:var(' + (v.ok ? '--sw-ok' : '--sw-ko') + ')">' +
            (v.ok ? L('✓ Vueling lo acepta', '✓ Vueling accepts it') : '✗ ' + esc(motivoKo(p))) + '</div>';
-      h += '<div style="margin-top:8px">' + checks({ vBad: v.vBad, ftlBad: v.ftlBad, over7: v.over7, max7: v.max7 || 0, sLib: v.sLib, s3: v.s3, inv: v.inv, corte: v.corte }) +
-        notaFOff(v.fOff && { who: v.fOff.who === 'me' ? L('Tú', 'You') : nm, day: v.fOff.day }, fCorta) + '</div>';
+      h += '<div style="margin-top:8px">' + checks({ vBad: v.vBad, ftlBad: v.ftlBad, fueraAplica: v.fueraAplica, fueraBad: v.fueraBad, over7: v.over7, max7: v.max7 || 0, sLib: v.sLib, s3: v.s3, inv: v.inv, corte: v.corte, linea: v.linea }) +
+        notaFOff(v.fOff && { who: v.fOff.who === 'me' ? L('Tú', 'You') : nm, day: v.fOff.day }, fCorta) +
+        notaAerop(v.aerop && { who: v.aerop.who === 'me' ? L('Tú', 'You') : nm, day: v.aerop.day, apt: v.aerop.apt }, fCorta) + '</div>';
       if (v.ok) h += '<div class="sw-sub" style="margin-top:8px">' + L('Tu balance: ', 'Your balance: ') + esc(balTxt(p.bal)) + (p.wantsMatch ? '' : ' · ' + esc(nm + L(' busca ', ' wants ') + wantsTxt(p.wants))) + '</div>';
       if (p.interest) h += '<div class="sw-info" style="margin-top:12px">' + L('Ya le has propuesto este cambio. Lo verás en Propuestas.', 'You have already proposed this swap. You will see it under Proposals.') + '</div>';
       else if (v.ok) h += '<button class="sw-go" id="sw-bd-int" style="width:100%;margin-top:14px">' + L('Proponer a ', 'Propose to ') + esc(nm) + '</button>' +
@@ -1012,9 +1288,8 @@
     if (b) b.onclick = function () {
       b.disabled = true; b.textContent = L('Enviando…', 'Sending…');
       api('/api/swap/board/' + p.id + '/interest', {}).then(function () {
-        b.textContent = L('✓ Propuesta enviada a ', '✓ Proposal sent to ') + nm; p.interest = 'proposed';
-        try { window.swapChime && window.swapChime(); } catch (x) {}
-        setTimeout(function () { closeSheet(); renderBoard(); loadBoard(); loadHome(); }, 900);
+        enviadoFx(b, nm, p.dates); p.interest = 'proposed';
+        setTimeout(function () { closeSheet(); renderBoard(); loadBoard(); loadHome(); }, 1500);
       }, function (er) { b.disabled = false; b.textContent = L('Proponer a ', 'Propose to ') + nm; alertErr(er); loadBoard(); });
     };
   }
@@ -1139,7 +1414,10 @@
   function corteP() {
     var P = PUB, ds = P.days; if (!ds || !P.picked.length) return '';
     var c = MOT.corteStby(ds, P.picked[0], P.picked[P.picked.length - 1], 'me');
-    return c ? L('Las STBY van en bloque: elige el bloque entero (', 'Standbys go as a block: pick the whole block (') + fCorta(ds[c.a].date) + (c.b !== c.a ? ' – ' + fCorta(ds[c.b].date) : '') + ')' : '';
+    if (c) return L('Las STBY van en bloque: elige el bloque entero (', 'Standbys go as a block: pick the whole block (') + fCorta(ds[c.a].date) + (c.b !== c.a ? ' – ' + fCorta(ds[c.b].date) : '') + ')';
+    var base = S.dir && S.dir.me && S.dir.me.base;
+    var l = MOT.corteLinea(ds, P.picked[0], P.picked[P.picked.length - 1], 'me', base);
+    return l ? L('Las líneas con pernocta van enteras: elige la línea completa (', 'Layover lines go as a whole: pick the complete line (') + fCorta(ds[l.a].date) + ' – ' + fCorta(ds[l.b].date) + ')' : '';
   }
   function isSegP() { var p = PUB.picked; return p.length > 0 && p[p.length - 1] - p[0] + 1 === p.length; }
 
@@ -1164,6 +1442,11 @@
       });
     };
     pidePar(from).then(function (j) {
+      /* Un día «vuelo» sin tramos (vuelos importados sin hora programada) tumbaba el
+         dibujo entero en c.legs[0]: carriles vacíos y sin un solo error. Se trata como
+         una actividad sin horas. El servidor ya no los manda, pero un servidor viejo sí. */
+      var sana = function (c) { return c && c.kind === 'flight' && !(c.legs && c.legs.length) ? { date: c.date, kind: 'other', code: c.code || 'FLT', report: null, end: null, legs: [], block: 0 } : c; };
+      j.me = (j.me || []).map(sana); j.them = (j.them || []).map(sana);
       S.dates = j.me.map(function (c) { return c.date; });
       S.orig = { me: j.me, them: j.them };
       S.me = j.me.slice(); S.them = j.them.slice(); S.prof = j.profiles;
@@ -1192,7 +1475,7 @@
       '<button class="sw-go dim" id="sw-go">SWAP</button></div>' +
       '<div class="sw-sug" id="sw-sug"></div><div class="sw-verdict" id="sw-vd"></div><div class="sw-info" id="sw-info"></div></div>' +
       '<div id="sw-dr"></div>' +
-      '<div class="sw-note">' + L('Se comprueba: 13:30 h de descanso entre vuelos (calzos + 20 min hasta la presentación) o la duración de la actividad anterior si es mayor, descanso FTL de 12 h con cualquier actividad, 60 h de actividad en 7 días, una sola imaginaria antes de libre al mes y 5 días entre bloques de 3 imaginarias. La decisión final es de Vueling.', 'Checks: 13:30 h rest between flights (on-blocks + 20 min to report) or the previous duty length if longer, 12 h FTL rest after any duty, 60 h of duty in 7 days, only one standby before a day off per month and 5 days between blocks of 3 standbys. Vueling has the final say.') + '</div>';
+      '<div class="sw-note">' + L('Se comprueba: 13:30 h de descanso entre vuelos (calzos + 20 min hasta la presentación) o la duración de la actividad anterior si es mayor, descanso FTL de 12 h con cualquier actividad, 10 h fuera de base, 60 h de actividad en 7 días, una sola imaginaria antes de libre al mes y 5 días entre bloques de 3 imaginarias. La decisión final es de Vueling.', 'Checks: 13:30 h rest between flights (on-blocks + 20 min to report) or the previous duty length if longer, 12 h FTL rest after any duty, 10 h away from base, 60 h of duty in 7 days, only one standby before a day off per month and 5 days between blocks of 3 standbys. Vueling has the final say.') + '</div>';
     $('sw-go').onclick = onGo;
     var wr = $('sw-wrap'); if (wr) wr.addEventListener('scroll', mesVisible, { passive: true });
     draw(); ui();
@@ -1223,7 +1506,7 @@
         c.legs.map(function (l) { return '<div class="lg"><span>' + esc(l.dep + '-' + l.arr) + '</span><span>' + clockN(l.std) + '–' + clockN(l.sta) + '</span></div>'; }).join('') +
         '<div class="ft"><span>' + L('Calzos ', 'In ') + clock(c.end) + '</span><span>' + hhmm(c.block || 0) + ' h</span></div>' };
     }
-    if (c.kind === 'flight') {
+    if (c.kind === 'flight' && c.legs && c.legs.length) {
       var ap = [c.legs[0].dep].concat(c.legs.map(function (l) { return l.arr; }));
       var route = ap.length > 3 ? ap[0] + '-…-' + ap[ap.length - 1] + ' (' + c.legs.length + ')' : ap.join('-');
       return { cls: 'flight', html: '<b>' + clock(c.report) + '</b>' + esc(route) + '<br>' + clock(c.end) };
@@ -1236,18 +1519,26 @@
   var MOT = window.SwapMotor;
   function dutyMin(c) { return MOT.dutyMin(c); }
   function hasDuty(c) { return MOT.hasDuty(c); }
-  function gaps(R) { return MOT.gaps(R); }
+  /* La base del dueño del carril: fuera de base el descanso mínimo es de 10 h. */
+  function gaps(R) {
+    var pr = S.prof || {}, b = R === S.them ? (pr.them && pr.them.base) || (pr.me && pr.me.base) : pr.me && pr.me.base;
+    return MOT.gaps(R, null, b || '');
+  }
   function swapped(s, e) { return MOT.swapped(S.orig.me, S.orig.them, s, e); }
   function quienEs(k) { return k === 'me' ? L('Tú', 'You') : firstName(S.partner); }
   function check(s, e) {
     var r = MOT.check({ dates: S.dates, me: S.orig.me, them: S.orig.them, s: s, e: e,
       rolMe: S.prof && S.prof.me && S.prof.me.rol, rolThem: S.prof && S.prof.them && S.prof.them.rol,
-      baseMe: S.prof && S.prof.me && S.prof.me.base, baseThem: S.prof && S.prof.them && S.prof.them.base });
+      baseMe: S.prof && S.prof.me && S.prof.me.base, baseThem: S.prof && S.prof.them && S.prof.them.base,
+      left: dayDiff(today(), S.dates[s]) });
     if (r.worst) r.worst.who = quienEs(r.worst.who);
+    if (r.training) r.training.who = quienEs(r.training.who);
+    if (r.aerop) r.aerop.who = quienEs(r.aerop.who);
     if (r.sLib) r.sLib.who = quienEs(r.sLib.who);
     if (r.s3) r.s3.who = quienEs(r.s3.who);
     if (r.inv) r.inv.who = quienEs(r.inv.who);
     if (r.corte) r.corte.who = quienEs(r.corte.who);
+    if (r.linea) r.linea.who = quienEs(r.linea.who);
     if (r.fOff) r.fOff.who = quienEs(r.fOff.who);
     return r;
   }
@@ -1495,6 +1786,13 @@
     return who + ': ' + L('calzos a las ', 'on-blocks at ') + cuando + L(' la víspera de un día libre. Vueling no lo aceptará por posible invasión de día libre', ' the day before a day off. Vueling won\'t accept it: possible day-off invasion');
   }
   /* Bloques de STBY: «del 21 al 23». Se cambian enteros (piloto, 20-oct-2026). */
+  /* Las líneas con pernocta se cambian ENTERAS (piloto, 25-oct-2026): partir una
+     deja a uno durmiendo fuera y al otro empezando el día siguiente en otro sitio. */
+  function txtLinea(who, a, b, nom) {
+    var yo = who === L('Tú', 'You');
+    return (yo ? L('Tu línea con pernocta (', 'Your layover line (') : who + L(': su línea con pernocta (', ': their layover line ('))
+      + nom(a) + ' – ' + nom(b) + L(') va entera: hay que cambiar la línea completa', ') goes as a whole: the complete line must be swapped');
+  }
   function txtCorte(who, a, b, nom) {
     return who + ': ' + L('las STBY van en bloque (', 'standbys go as a block (') + nom(a) + (b !== a ? ' – ' + nom(b) : '') + L('): hay que cambiar el bloque entero', '): the whole block must be swapped');
   }
@@ -1508,14 +1806,105 @@
           : esc(f.who) + L(' tendrá que estar contactable durante el OFF de la víspera: el franco se programa hasta el día anterior.',
                            ' will have to be reachable during the OFF the day before: the F day can be scheduled up to the day before.')) + '</div>';
   }
+  /* Simulador o actividad en tierra dentro del cambio: se puede, pero lo valida
+     Training y no puede afectar a las caducidades (Planning, 27-oct-2026). */
+  function notaTraining(t, nom) {
+    if (!t) return '';
+    return '<div class="sw-info"><b>' + L('Incluye un simulador o formación', 'Includes a simulator or training') + ' (' + esc(nom(t.day)) + ').</b> ' +
+      L('Se puede cambiar, pero siempre lo valida Training y no puede afectar a las caducidades de ninguno de los dos.',
+        'It can be swapped, but Training always has to approve it and it can\'t affect either pilot\'s expiry dates.') + '</div>';
+  }
+  /* Florencia, San Sebastián, Keflavik y Reykjavik tienen requisitos propios de
+     habilitación o especialidad: la app no sabe si el que lo recibe los cumple. */
+  function notaAerop(a, nom) {
+    if (!a) return '';
+    return '<div class="sw-info"><b>' + esc(a.who) + ': ' + esc(a.apt) + ' (' + esc(nom(a.day)) + ').</b> ' +
+      L('Es un aeropuerto con requisitos propios de habilitación y especialidad: comprueba que quien lo recibe puede operarlo antes de pedir el cambio.',
+        'This airport has its own qualification and position requirements: check that whoever takes it can operate it before requesting the swap.') + '</div>';
+  }
+  /* Fatiga prevista antes → después del cambio (public/fatiga/swap.js, el MISMO
+     motor que la pantalla de Fatiga). No bloquea: Planning sólo comprueba las 60 h
+     en 7 días. Se dice también cuando NO cambia, para que «igual» y «no lo he
+     mirado» no se vean iguales. */
+  var FAT_NIV = { bajo: ['Baja', 'Low'], moderado: ['Moderada', 'Moderate'], alto: ['Alta', 'High'] };
+  function fatNiv(n) { var t = FAT_NIV[n] || [n, n]; return L(t[0], t[1]); }
+  function fatKss(v) { return v == null ? '' : (EN ? String(v) : String(v).replace('.', ',')); }
+  function fatChip(x) {
+    if (!x) return '<span class="sw-fz n-no">' + L('Sin jornada', 'No duty') + '</span>';
+    return '<span class="sw-fz n-' + x.nivel + '">' + fatNiv(x.nivel) + ' · KSS ' + fatKss(x.kss) + '</span>';
+  }
+  /* Por qué empeora: los dos primeros factores del día de DESPUÉS que no tenía antes. */
+  function fatPorQue(d) {
+    if (!d.peor || !d.despues) return '';
+    var antes = {}; (d.antes && d.antes.factores || []).forEach(function (f) { antes[f.k] = 1; });
+    var hm = function (m) { m = Math.round(m); return Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0'); };
+    var hl = function (m) { return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(Math.round(m % 60)).padStart(2, '0'); };
+    var t = (d.despues.factores || []).filter(function (f) { return !antes[f.k]; }).map(function (f) {
+      switch (f.k) {
+        case 'firma_wocl': return L('firma a las ', 'report at ') + hl(f.h) + L(', antes de las 05:00', ', before 05:00');
+        case 'madrugada': return L('madrugada: firma a las ', 'early start: report at ') + hl(f.h);
+        case 'madrugadas_seguidas': return f.n + L('ª madrugada seguida', ' early starts in a row');
+        case 'tarde': return L('último aterrizaje a las ', 'last landing at ') + hl(f.h);
+        case 'wocl': return L('vuelas entre las 02:00 y las 06:00', 'flying between 02:00 and 06:00');
+        case 'poco_sueno': return L('sueño posible: ', 'possible sleep: ') + hm(f.min);
+        case 'sectores': return f.n + L(' sectores', ' sectors');
+        case 'despierto': return hm(f.min) + L(' despierto', ' awake');
+        case 'deuda': return L('deuda de sueño: ', 'sleep debt: ') + hm(f.min);
+        default: return '';
+      }
+    }).filter(Boolean).slice(0, 2);
+    return t.length ? '<div class="sw-fat-pq">' + esc(t.join(' · ')) + '</div>' : '';
+  }
+  function fatCambio(a, e) {
+    if (!window.FatigaSwap || !window.FatigaMotor) return null;
+    var pr = S.prof || {}, bMe = (pr.me && pr.me.base) || '', bTh = (pr.them && pr.them.base) || bMe;
+    var sw = swapped(a, e);
+    function off(base) { return function (ms) { return MOT.offMin(new Date(ms).toISOString().slice(0, 10), base); }; }
+    try {
+      return {
+        // Tu perfil de sueño (Fatiga › Tus datos) sólo vale para ti: el compañero, con el modelo de siempre.
+        me: FatigaSwap.compara({ dates: S.dates, antes: S.orig.me, despues: sw.me, base: bMe, offset: off(bMe), s: a, e: e, perfil: window.FatigaPerfil ? FatigaPerfil.actual() : null }),
+        them: FatigaSwap.compara({ dates: S.dates, antes: S.orig.them, despues: sw.them, base: bTh, offset: off(bTh), s: a, e: e })
+      };
+    } catch (err) { try { console.warn('[swap] fatiga', err); } catch (_) {} return null; }
+  }
+  function notaFatiga(a, e) {
+    var f = fatCambio(a, e);
+    if (!f || (!f.me && !f.them)) return '';
+    var nm = firstName(S.partner);
+    function bloque(r, quien, yo) {
+      if (!r || !r.dias.length) return '';
+      var dias = r.dias.slice().sort(function (x, y) { return (y.peor - x.peor) || (y.dNivel - x.dNivel) || (y.dKss - x.dKss); }).slice(0, 4)
+        .sort(function (x, y) { return x.i - y.i; });
+      var tono = r.sube || r.altoNuevo ? 'peor' : r.baja ? 'mejor' : dias.some(function (d) { return d.peor; }) ? 'peor' : 'mejor';
+      return '<div class="sw-fat-p ' + tono + '"><div class="sw-fat-q"><span class="sw-tag ' + (yo ? 'me' : 'mk') + '">' + esc(quien) + '</span>' +
+        '<span class="sw-fat-r">' + (r.altoNuevo ? L('Queda en fatiga alta', 'Ends up at high fatigue') : tono === 'peor' ? L('Más cansancio', 'More tired') : L('Menos cansancio', 'Less tired')) + '</span></div>' +
+        dias.map(function (d) {
+          return '<div class="sw-fat-d" data-fat-dia="' + d.fecha + '"><span class="sw-fat-dn">' + esc(dayName(d.i)) + '</span>' + fatChip(d.antes) +
+            '<span class="sw-fat-ar ' + (d.peor ? 'peor' : d.mejor ? 'mejor' : '') + '">→</span>' + fatChip(d.despues) + '</div>' + fatPorQue(d);
+        }).join('') + '</div>';
+    }
+    var h = bloque(f.me, L('TÚ', 'YOU'), true) + bloque(f.them, nm.toUpperCase(), false);
+    var hay = !!h;
+    return '<div class="sw-fat" data-fat="' + (hay ? 'cambia' : 'igual') + '">' +
+      '<div class="sw-fat-h"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>' +
+      '<b>' + L('Fatiga prevista', 'Forecast fatigue') + '</b></div>' +
+      (hay ? h : '<div class="sw-fat-eq">' + L('No cambia con este cambio: ni para ti ni para ', 'This swap doesn\'t change it: not for you or for ') + esc(nm) + '.</div>') +
+      '<div class="sw-fat-pie">' + L('Estimación con el modelo de fatiga de la app (población media, el sueño se supone desde el roster). Orientativa: no impide el cambio.',
+        'Estimate from the app\'s fatigue model (population average, sleep assumed from the roster). For guidance only: it doesn\'t stop the swap.') + '</div></div>';
+  }
   function checks(r) {
     return [[L('Descanso de Vueling (13:30 h entre vuelos)', 'Vueling rest (13:30 h between flights)'), !r.vBad],
-            [L('Descanso FTL (12 h o la actividad anterior)', 'FTL rest (12 h or the previous duty)'), !r.ftlBad],
+            [L('Descanso FTL (12 h o la actividad anterior)', 'FTL rest (12 h or the previous duty)'), !r.ftlBad]]
+      .concat(r.fueraAplica ? [[L('Descanso fuera de base (10 h o la actividad anterior)', 'Rest away from base (10 h or the previous duty)'), !r.fueraBad]] : [])
+      .concat(r.simAplica ? [[L('Descanso antes del simulador (13:30 h a 5 días o más · 12 h a menos)', 'Rest before the simulator (13:30 h at 5+ days · 12 h with less)'), !r.simBad]] : [])
+      .concat([
             [L('Actividad en 7 días ≤ 60 h (', 'Duty in 7 days ≤ 60 h (') + hhmm(r.max7) + ' h)', !r.over7],
             [L('Una sola imaginaria antes de libre al mes', 'Only one standby before a day off per month'), !r.sLib],
             [L('5 días entre bloques de 3 imaginarias', '5 days between blocks of 3 standbys'), !r.s3],
             [L('Sin posible invasión de día libre (calzos antes de las ', 'No possible day-off invasion (on-blocks before ') + finLocal(MOT.INV_LIBRE_MIN) + L(' la víspera)', ' the day before)'), !r.inv],
-            [L('Los bloques de STBY se cambian enteros', 'Standby blocks are swapped whole'), !r.corte]]
+            [L('Los bloques de STBY se cambian enteros', 'Standby blocks are swapped whole'), !r.corte],
+            [L('Las líneas con pernocta se cambian enteras', 'Layover lines are swapped whole'), !r.linea]])
       .map(function (c) { return '<div class="sw-chk"><span style="color:var(' + (c[1] ? '--sw-ok' : '--sw-ko') + ');font-weight:800">' + (c[1] ? '✓' : '✗') + '</span>' + c[0] + '</div>'; }).join('');
   }
 
@@ -1524,13 +1913,14 @@
     var st = $('sw-st'), ss = $('sw-ss');
     st.textContent = L('No cuadra', 'Doesn\'t work');
     if (r.roles) ss.textContent = L('Solo se cambia entre la misma especialidad (', 'Swaps only within the same position (') + S.prof.me.rol + ' / ' + S.prof.them.rol + ')';
-    else if (r.worst) ss.textContent = r.worst.who + ': ' + hhmm(r.worst.rest) + L(' de descanso antes del ', ' rest before ') + dayName(r.worst.day) + L(' · faltan ', ' · short by ') + hhmm(r.worst.miss);
+    else if (r.worst) ss.textContent = r.worst.who + ': ' + hhmm(r.worst.rest) + (r.worst.fuera ? L(' de descanso fuera de base antes del ', ' rest away from base before ') : r.worst.sim ? L(' de descanso antes del simulador del ', ' rest before the simulator on ') : L(' de descanso antes del ', ' rest before ')) + dayName(r.worst.day) + L(' · faltan ', ' · short by ') + hhmm(r.worst.miss);
     else if (r.sLib) ss.textContent = r.sLib.who + ': ' + r.sLib.n + L(' imaginarias antes de libre en ', ' standbys before a day off in ') + MES[+r.sLib.mes.slice(5, 7) - 1] + L(' (máximo 1)', ' (max 1)');
     else if (r.corte) ss.textContent = txtCorte(r.corte.who, r.corte.a, r.corte.b, dayName);
+    else if (r.linea) ss.textContent = txtLinea(r.linea.who, r.linea.a, r.linea.b, dayName);
     else if (r.inv) ss.textContent = txtInv(r.inv.who, finLocal(r.inv.fin) + L(' del ', ' on ') + dayName(r.inv.day));
     else if (r.s3) ss.textContent = r.s3.who + ': ' + L('bloque de 3 imaginarias el ', 'block of 3 standbys on ') + dayName(r.s3.day) + L(' con solo ', ' with only ') + r.s3.gap + L(' días desde el anterior (mínimo 5)', ' days since the previous one (min 5)');
     else ss.textContent = L('Pasa de 60 h de actividad en 7 días (', 'Over 60 h of duty in 7 days (') + hhmm(r.max7) + ' h)';
-    $('sw-info').innerHTML = notaFOff(r.fOff, dayName) + checks(r);
+    $('sw-info').innerHTML = notaFOff(r.fOff, dayName) + notaAerop(r.aerop, dayName) + checks(r);
     if (r.roles) return;
     var opts = [], n0 = e - a + 1;
     /* `len` y no `L`: un `var L` aquí tapaba la función L() de los idiomas en TODA
@@ -1564,13 +1954,14 @@
     var dMe = blockOf(S.me, a, e) - blockOf(S.orig.me, a, e), dTh = blockOf(S.them, a, e) - blockOf(S.orig.them, a, e);
     var uMe = dutyOf(S.me, a, e) - dutyOf(S.orig.me, a, e);
     var left = dayDiff(today(), S.dates[a]);
-    var h = notaFOff(r.fOff, dayName) + checks(r);
+    var h = notaFOff(r.fOff, dayName) + notaTraining(r.training, dayName) + notaAerop(r.aerop, dayName) + notaFatiga(a, e) + checks(r);
     h += '<div class="sw-money"><div class="sw-mc me"><span class="sw-tag me">' + L('TÚ', 'YOU') + '</span><b>' + sgn(dMe) + ' h</b><span>' + L('de vuelo · ', 'flight · ') + sgn(uMe) + L(' h de actividad', ' h duty') + '</span></div>' +
          '<div class="sw-mc mk"><span class="sw-tag mk">' + esc(nm.toUpperCase()) + '</span><b>' + sgn(dTh) + ' h</b><span>' + L('de vuelo · lo que cobra lo ve él', 'flight · their pay is theirs to see') + '</span></div></div>';
     h += '<div class="sw-sub" style="margin-top:6px">' + L('El efecto en euros lo calcula Pay Check con las horas programadas; de tu compañero solo se enseñan horas.', 'Pay Check works out the effect in euros from scheduled hours; for your colleague only hours are shown.') + '</div>';
     if (left < 0) h += '<div class="sw-info">' + L('<b>Es un día pasado.</b> Solo sirve para simular.', '<b>This day has passed.</b> It\'s only a simulation.') + '</div>';
     else if (left >= 5) h += '<div class="sw-info">' + L('<b>Se pide en eCrews.</b> Empieza dentro de ', '<b>Request it in eCrews.</b> It starts in ') + '' + left + '' + L(' días: uno lo pide en eCrews, el otro lo acepta y el cambio es inmediato.', ' days: one of you requests it in eCrews, the other accepts and the change is immediate.') + '</div>';
-    else h += '<div class="sw-info"><b>' + L('Correo a ', 'Email ') + MAIL_TO + '.</b> ' + L('Empieza dentro de ', 'It starts in ') + left + ' ' + (left === 1 ? L('día', 'day') : L('días', 'days')) + L(': ya no entra por eCrews. Lo manda uno con el otro en copia.', ': too late for eCrews. One of you sends it with the other in copy.') + '</div>' + mail(a, e);
+    else h += '<div class="sw-info"><b>' + L('Correo a ', 'Email ') + MAIL_TO + '.</b> ' + L('Empieza dentro de ', 'It starts in ') + left + ' ' + (left === 1 ? L('día', 'day') : L('días', 'days')) + L(': ya no entra por eCrews. Lo manda uno con el otro en copia y lo acepta el Jefe de Base.', ': too late for eCrews. One of you sends it with the other in copy, and the Base Manager approves it.') + '</div>' + mail(a, e);
+    if (left >= 0) h += '<div class="sw-sub" style="margin-top:6px">' + L('Cumplir estas reglas no garantiza la aprobación: a veces la oficina revisa el cambio a mano.', 'Meeting these rules doesn\'t guarantee approval: the office sometimes reviews a swap by hand.') + '</div>';
     h += actions(a, e, left);
     $('sw-info').innerHTML = h;
     wireActions(a, e);
@@ -1596,11 +1987,11 @@
       b.disabled = true; b.textContent = L('Enviando…', 'Sending…');
       var ds = S.dates.slice(a, e + 1);
       api('/api/swap/proposals', { partnerId: S.partner.id, dates: ds, summary: { from: ds[0], to: ds[ds.length - 1] } }).then(function () {
-        b.textContent = L('✓ Propuesta enviada a ', '✓ Proposal sent to ') + firstName(S.partner);
+        enviadoFx(b, firstName(S.partner), ds);
       }, function (er) { b.disabled = false; b.textContent = L('Proponer a ', 'Propose to ') + firstName(S.partner); alertErr(er); });
     };
     var acc = $('sw-acc'), rej = $('sw-rej'), can = $('sw-cancel');
-    if (acc) acc.onclick = function () { api('/api/swap/proposals/' + p.id + '/respond', { accept: true }).then(function () { p.status = 'accepted'; showOk(a, e, check(a, e)); }, alertErr); };
+    if (acc) acc.onclick = function () { api('/api/swap/proposals/' + p.id + '/respond', { accept: true }).then(function () { p.status = 'accepted'; showOk(a, e, check(a, e)); celebraSwap(p, true); }, alertErr); };
     if (rej) rej.onclick = function () { api('/api/swap/proposals/' + p.id + '/respond', { accept: false }).then(function () { S.partner = null; renderHome(); loadHome(); }, alertErr); };
     if (can) can.onclick = function () { api('/api/swap/proposals/' + p.id + '/cancel', {}).then(function () { S.partner = null; renderHome(); loadHome(); }, alertErr); };
   }
@@ -1617,7 +2008,7 @@
     var subj = 'Solicitud de cambio de servicio ' + dd(a) + (e > a ? ' – ' + dd(e) : '') + ' – ' + (pm.nombre || '') + ' / ' + (pt.nombre || '');
     var body = 'Buenos días,\n\nSolicitamos el siguiente cambio de servicio entre tripulantes. Ambos estamos de acuerdo (' + (firstName(pt)) + ' en copia).\n\n' +
       who(pm) + ' pasa a realizar:\n' + lines(S.me) + '\n\n' + who(pt) + ' pasa a realizar:\n' + lines(S.them) +
-      '\n\nHemos comprobado que los dos cumplimos el descanso mínimo de 13:30 h entre servicios.\n\nUn saludo,\n' + (pm.nombre || '');
+      '\n\nHemos comprobado que los dos cumplimos con los descansos mínimos.\n\nUn saludo,\n' + (pm.nombre || '');
     var href = 'mailto:' + MAIL_TO + '?cc=' + encodeURIComponent(pt.email || '') + '&subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(body);
     var falta = [];
     if (!pm.nombre) falta.push(L('tu nombre', 'your name')); if (!pm.empleado) falta.push(L('tu nº de empleado', 'your employee no.'));

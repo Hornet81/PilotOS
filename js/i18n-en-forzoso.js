@@ -14,6 +14,7 @@
     "No es cambio en ejecución": "Not an in-duty change",
     "Forzoso": "Forced change",
     "{d} sobre la llegada programada": "{d} over the scheduled arrival",
+    "Forzoso detectado el {d} · cuenta en Pay Check": "Forced change detected on {d} · counts in Pay Check",
     "Toca para completar las horas": "Tap to fill in the times",
     "Toca para ver el cálculo": "Tap to see the calculation",
     "{c} en tu roster": "{c} in your roster",

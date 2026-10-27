@@ -50,6 +50,25 @@ var CSS = [
 /* El código ya enviado: MISMO tamaño y sitio que el campo, pero sin borde y
    sin cursor — se lee como "esto ya está puesto", no como algo que tocar. */
 '.msmfa-otc-off{border-color:transparent!important;opacity:.55;user-select:none}',
+/* ── ESPERANDO A MICROSOFT (26-oct-2026) ─────────────────────────────────────
+   Tras escribir el número en Outlook la hoja se quedaba quieta y el piloto
+   pulsaba Cancelar creyendo que se había colgado. Que se MUEVA: el número late,
+   los puntos avanzan, y Cancelar pide confirmación donde el piloto ya ha hecho
+   su parte. Sin movimiento para quien lo pide al sistema. */
+'.msmfa-numw{position:relative;display:inline-block;padding:2px 26px;margin:4px 0 8px;border-radius:22px}',
+'.msmfa-numw .msmfa-num{margin:0}',
+'.msmfa-numw::before,.msmfa-numw::after{content:"";position:absolute;inset:0;border-radius:22px;border:2px solid;opacity:0;animation:msmfaLate 2.4s ease-out infinite}',
+'.msmfa-numw::after{animation-delay:1.2s}',
+'@keyframes msmfaLate{0%{transform:scale(.92);opacity:.55}100%{transform:scale(1.18);opacity:0}}',
+/* Tres puntos que se encienden por turnos. NO con `content` animado: Safari
+   (los iPhone) no anima `content` y se quedarían quietos justo donde más se usa. */
+'.msmfa-dots i{font-style:normal;animation:msmfaDot 1.2s infinite;opacity:.15}',
+'.msmfa-dots i:nth-child(2){animation-delay:.2s}.msmfa-dots i:nth-child(3){animation-delay:.4s}',
+'@keyframes msmfaDot{0%,100%{opacity:.15}40%{opacity:1}}',
+'.msmfa-tras{font-size:11px;line-height:1.55;max-width:300px;margin:0 auto 10px;min-height:0;opacity:0;transition:opacity .5s}',
+'.msmfa-tras.on{opacity:1}',
+'.msmfa-x.arm{font-weight:700;text-decoration:underline}',
+'@media (prefers-reduced-motion:reduce){.msmfa-numw::before,.msmfa-numw::after,.msmfa-dots i{animation:none}.msmfa-dots i{opacity:1}}',
 /* ── paleta de NOCHE (por defecto) ── */
 '.msmfa{color:rgba(248,250,252,.88)}',
 '.msmfa-t{color:#F8FAFC}',
@@ -63,6 +82,9 @@ var CSS = [
 '.msmfa-alt{color:#22D3EE}',
 '.msmfa-x{color:rgba(248,250,252,.35)}',
 '.msmfa-tries{color:rgba(251,191,36,.9)}',
+'.msmfa-numw::before,.msmfa-numw::after{border-color:#22D3EE}',
+'.msmfa-tras{color:rgba(248,250,252,.78)}',
+'.msmfa-x.arm{color:#FBBF24}',
 /* ── paleta de DÍA ──
    El contenedor de gastos y el del roster son CLAROS en modo día, así que
    aquí hay que declarar la segunda paleta entera: un bloque que cambia de
@@ -78,7 +100,10 @@ var CSS = [
 'html.day .msmfa-m:hover{border-color:#0E7490}',
 'html.day .msmfa-alt{color:#0E7490}',
 'html.day .msmfa-x{color:#64748B}',
-'html.day .msmfa-tries{color:#92400E}'
+'html.day .msmfa-tries{color:#92400E}',
+'html.day .msmfa-numw::before,html.day .msmfa-numw::after{border-color:#0E7490}',
+'html.day .msmfa-tras{color:#334155}',
+'html.day .msmfa-x.arm{color:#92400E}'
 ].join('');
 
 function ponCSS() {
@@ -201,14 +226,17 @@ function pinta(v) {
   } else if (m === 'number') {
     h = '<div class="msmfa-t">Aprueba en Microsoft Authenticator</div>' +
         '<div class="msmfa-s">Abre tu app de Microsoft (Authenticator u Outlook) y escribe este número</div>' +
-        '<div class="msmfa-num">' + esc(v.number || '··') + '</div>' +
-        '<div class="msmfa-s">Esperando tu aprobación…</div>' +
+        '<div class="msmfa-numw"><div class="msmfa-num">' + esc(v.number || '··') + '</div></div>' +
+        '<div class="msmfa-s"><span>Esperando tu aprobación</span><span class="msmfa-dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></div>' +
+        '<div class="msmfa-tras" id="msmfa-tras" aria-live="polite"></div>' +
         '<button class="msmfa-alt" id="msmfa-alt">Usar otro método</button><br>' +
         '<button class="msmfa-x" id="msmfa-x">Cancelar</button>';
 
   } else if (m === 'approval') {
     h = '<div class="msmfa-t">Aprueba la verificación</div>' +
         '<div class="msmfa-s">Aprueba la notificación en tu móvil, o responde la llamada de Microsoft.</div>' +
+        '<div class="msmfa-s"><span>Esperando tu aprobación</span><span class="msmfa-dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></div>' +
+        '<div class="msmfa-tras" id="msmfa-tras" aria-live="polite"></div>' +
         '<button class="msmfa-alt" id="msmfa-alt">Usar otro método</button><br>' +
         '<button class="msmfa-x" id="msmfa-x">Cancelar</button>';
 
@@ -256,12 +284,45 @@ function pinta(v) {
   S.ultima = v;
   S.host.innerHTML = '<div class="msmfa">' + h + '</div>';
   engancha(v);
+  /* A los 8 s con el número (o el aviso) delante, se le dice al piloto que ya
+     ha hecho su parte. Es el momento en que pulsaba Cancelar: había escrito el
+     número en Outlook y la hoja seguía igual. */
+  if (S.trasT) { clearTimeout(S.trasT); S.trasT = null; }
+  if (m === 'number' || m === 'approval') {
+    var yo = S;
+    S.trasT = setTimeout(function () {
+      if (S !== yo || !S.host) return;
+      var t = S.host.querySelector('#msmfa-tras');
+      if (!t) return;
+      t.textContent = m === 'number'
+        ? '¿Ya lo has escrito? En cuanto Microsoft lo confirme seguimos solos: no hace falta tocar nada.'
+        : '¿Ya lo has aprobado? En cuanto Microsoft lo confirme seguimos solos: no hace falta tocar nada.';
+      t.classList.add('on');
+    }, TRAS_MS);
+  }
+}
+
+/* Donde el piloto YA ha hecho su parte (número escrito, aviso aprobado, código
+   enviado), un toque suelto en Cancelar tiraba la sesión justo antes de entrar.
+   Ahí Cancelar pide un segundo toque; en el resto, cancela al primero. */
+var TRAS_MS = 8000, ARMA_MS = 4000;
+function cancelaConfirmando(v) {
+  return !!v && (v.method === 'number' || v.method === 'approval' || (v.method === 'code' && comprobando(v)));
 }
 
 function engancha(v) {
   var cfg = S.cfg;
   var x = S.host.querySelector('#msmfa-x');
-  if (x) x.onclick = function () { cancela(); };
+  if (x) x.onclick = function () {
+    if (!cancelaConfirmando(v) || x.classList.contains('arm')) { cancela(); return; }
+    x.classList.add('arm');
+    x.textContent = '¿Seguro? Toca otra vez para cancelar';
+    setTimeout(function () {
+      if (!x.isConnected) return;
+      x.classList.remove('arm');
+      x.textContent = 'Cancelar';
+    }, ARMA_MS);
+  };
 
   var alt = S.host.querySelector('#msmfa-alt');
   if (alt) alt.onclick = function () {
@@ -396,6 +457,7 @@ function para() {
   if (!S) return;
   if (S.timer) clearInterval(S.timer);
   if (S.auto) clearTimeout(S.auto);
+  if (S.trasT) clearTimeout(S.trasT);
   S = null;
 }
 
