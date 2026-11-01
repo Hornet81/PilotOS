@@ -185,9 +185,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
 }
 </style>
 
-  <meta name="version" content="Estable.1211">
+  <meta name="version" content="Estable.1233">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1211","builtAt":"2026-10-27T21:48:33Z","commit":"77dda8d","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1233","builtAt":"2026-11-01T13:39:58Z","commit":"5e5b030","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -21633,9 +21633,35 @@ function pcNivelHistApunta(payslip){
   if (!nivel) return;
   var esp = null;
   try { esp = ppEspToValue(pr.especialidad); } catch(e){}
+  if (esp !== 'cop' && esp !== 'cmd') esp = pcEspDeTexto(pr.especialidad);
   var h = pcNivelHist();
-  h[String(payslip.month).slice(0,7)] = { nivel: nivel, esp: esp || null };
+  var ap = { nivel: nivel, esp: esp || null };
+  var red = pcReduDeNomina(payslip, esp, nivel);
+  if (red != null) ap.redu = red;
+  h[String(payslip.month).slice(0,7)] = ap;
   try { lsSet(PC_NIVEL_HIST_KEY, JSON.stringify(h)); } catch(e){}
+}
+/* «SEGUNDO PILOTO NIVEL 2» es como lo escribe la cabecera de la nómina, y
+   ppEspToValue no lo reconoce (busca «copil»/«2p»). */
+function pcEspDeTexto(v){
+  v = String(v || '').toLowerCase();
+  if (v === 'cop' || v.indexOf('segundo') >= 0 || v.indexOf('copil') >= 0) return 'cop';
+  if (v === 'cmd' || v.indexOf('primer piloto') >= 0 || v.indexOf('coman') >= 0) return 'cmd';
+  return null;
+}
+/* % de reducción de jornada que aplicó la nómina ESE mes: el salario base pagado
+   contra el de tablas (art. 5.11, «disminución proporcional del salario»). Es el
+   dato de la compañía, así que manda sobre cualquier deducción. null = no se sabe. */
+function pcReduDeNomina(payslip, esp, nivel){
+  try {
+    var T = esp && CONVENIO[esp]; var tabla = T && T.salBase && T.salBase[nivel];
+    if (!tabla) return null;
+    var ln = (payslip.lines || []).filter(function(l){ return String(l.code) === '0001'; })[0];
+    var pag = ln && parseFloat(ln.devengo);
+    if (!pag || pag <= 0) return null;
+    var pct = Math.round((1 - pag / tabla) * 100);
+    return (pct >= 1 && pct <= 60) ? pct : 0;
+  } catch(e){ return null; }
 }
 /* Nivel en el mes `ym`: el último apuntado que no sea posterior. Si no hay ninguno
    anterior se coge el más antiguo conocido (mejor el nivel de una nómina real que
@@ -21670,8 +21696,74 @@ function pcTrimestralAuto(tabla, mesAct, espAct, nivelAct){
   Object.keys(porNivel).forEach(function(nv){ imp += (tabla[nv] || tabla[nivelAct] || 0) * porNivel[nv] / 3; });
   return { importe: Math.round(imp*100)/100, meses: meses, porNivel: porNivel };
 }
+/* ── La paga trimestral también se reduce con la jornada (#1JGIG) ─────────────
+   El art. 5.11 dice que la reducción «conllevará la disminución proporcional del
+   salario», y la nómina lo confirma con la trimestral: un copiloto Nivel 2 con
+   reducción cobró el 3T a 725,13 € — 929,67 × 0,78, o sea un 22 % en jul-ago-sep —
+   mientras la app pintaba los 929,67 enteros. Y no vale el % del mes de la nómina:
+   en octubre ese piloto estaba al 11 % (3 días PT) y en agosto y septiembre al
+   22 % (7 días PT). Se reparte MES A MES, igual que el cambio de nivel.
+
+   De dónde sale el % de cada mes, de mejor a peor:
+     1. la nómina de ese mes (salario base pagado / tablas) — lo que aplicó Vueling;
+     2. el roster de ese mes: el bloque PT tiene la longitud del Cuadro 1, y de
+        ahí sale el % sin preguntar nada (un mes con roster y sin PT = jornada
+        completa);
+     3. lo que diga el formulario («Reducción de jornada»).
+   Un nº de días PT que no está en el cuadro no se adivina: cae al formulario. */
+var PC_RED_CUADRO1 = {
+  libre: { 3:11, 5:17, 7:22, 8:28, 12:39, 15:50 },
+  fijo:  { 4:13, 6:20, 7:24, 9:30, 12:42, 15:53 }
+};
+function pcReduDePT(nPT, patron){
+  var t = PC_RED_CUADRO1[patron === 'fijo' ? 'fijo' : 'libre'];
+  return (nPT && t[nPT] != null) ? t[nPT] : null;
+}
+function pcReduRosterMes(entries, ym, patron){
+  if (!entries || !entries.length || !ym) return null;
+  var hay = false, dias = {};
+  entries.forEach(function(e){
+    if (!e || String(e.date || '').slice(0,7) !== ym) return;
+    hay = true;
+    if (String(e.code || '').toUpperCase() === 'PT') dias[e.date] = 1;
+  });
+  if (!hay) return null;                       // sin roster de ese mes: no se sabe
+  var n = Object.keys(dias).length;
+  return n ? pcReduDePT(n, patron) : 0;
+}
+function pcTrimReduccion(mesAct, entries, patron, pctForm){
+  var m = /^(\d{4})-(\d{2})$/.exec(String(mesAct || ''));
+  var pf = Math.max(0, parseFloat(pctForm) || 0);
+  if (!m) return { factor: 1 - pf / 100, meses: [] };
+  var y = +m[1], mm = +m[2], h = pcNivelHist(), meses = [], suma = 0;
+  for (var k = 2; k >= 0; k--){
+    var yy = y, n = mm - k;
+    while (n < 1){ n += 12; yy--; }
+    var ym = yy + '-' + String(n).padStart(2,'0'), pct = null, src = null;
+    if (h[ym] && h[ym].redu != null) { pct = h[ym].redu; src = 'nomina'; }
+    if (pct == null) { var r = pcReduRosterMes(entries, ym, patron); if (r != null) { pct = r; src = 'roster'; } }
+    if (pct == null) { pct = pf; src = 'form'; }
+    meses.push({ ym: ym, pct: pct, src: src });
+    suma += 1 - pct / 100;
+  }
+  return { factor: suma / 3, meses: meses };
+}
+function pcRosterEntries(){
+  var ent = [];
+  try { ent = JSON.parse(localStorage.getItem('pilotOS_roster') || '[]'); } catch(e){}
+  if ((!ent || !ent.length) && window.RST && Array.isArray(RST.entries)) ent = RST.entries;
+  return ent || [];
+}
+function pcTrimReduDeUI(){
+  var v = function(id){ var e = document.getElementById(id); return e ? e.value : null; };
+  var redu = { pct: 0 };
+  try { redu = pcReduInfo(); } catch(e){}
+  return pcTrimReduccion(v('pc_mes_sel'), pcRosterEntries(),
+                         (typeof PC_STATE !== 'undefined' && PC_STATE.pat) || 'libre', redu.pct);
+}
 try { window.pcNivelEnMes = pcNivelEnMes; window.pcTrimestralAuto = pcTrimestralAuto;
-      window.pcNivelHistApunta = pcNivelHistApunta; } catch(e){}
+      window.pcNivelHistApunta = pcNivelHistApunta; window.pcTrimReduccion = pcTrimReduccion;
+      window.pcReduDeNomina = pcReduDeNomina; } catch(e){}
 
 /* Coletilla de la fila 289, para que en el desglose se vea POR QUÉ sale ese número
    y no el de tabla — un importe que no está en ninguna tabla y sin explicación es
@@ -21683,9 +21775,23 @@ function pcTrimEtiqueta(det, nivelAct){
     p.push(det.mesesPre + '/3 a Nivel ' + det.nivelPre + ' + ' + (3-det.mesesPre) + '/3 a Nivel ' + (nivelAct||'—'));
   else if (det.auto)
     p.push(Object.keys(det.auto).map(function(nv){ return nv + ' × ' + det.auto[nv] + '/3'; }).join(' + '));
+  if (det.redu && det.redu.factor < 1) p.push(pcTrimReduTexto(det.redu));
   if (det.punt === false)   p.push('sin el 50% de puntualidad');
   if (det.noShow === false) p.push('sin el 50% del no-show');
   return p.length ? ' (' + p.join(' · ') + ')' : '';
+}
+
+/* «jornada reducida: jul −22 % · ago −22 % · sep −22 %». Mes a mes, para que se
+   vea de dónde sale el número y se pueda cuadrar contra la nómina. */
+var PC_MES_CORTO = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+function pcTrimReduTexto(r){
+  var esEN = false; try { esEN = window.pilotosLang === 'en'; } catch(e){}
+  var MEN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var ms = (r.meses || []).map(function(m){
+    var i = +String(m.ym).slice(5,7) - 1;
+    return (esEN ? MEN[i] : PC_MES_CORTO[i]) + (m.pct ? ' −' + m.pct + ' %' : (esEN ? ' full' : ' completa'));
+  }).join(' · ');
+  return (esEN ? 'reduced hours: ' : 'jornada reducida: ') + ms;
 }
 
 /* Lee de la pantalla lo que necesita pcTrimestralImporte. Separado de la función
@@ -21698,15 +21804,17 @@ function pcTrimestralDeUI(tabla, nivelAct) {
   var c = function(id, def){ var e = document.getElementById(id); return e ? e.checked : def; };
   var punt = c('pc_trim_punt', true), nosh = c('pc_trim_noshow', true);
   var pre = v('pc_trim_nivel_pre', '') || null, meses = parseFloat(v('pc_trim_meses_pre', 0)) || 0;
+  var rf = 1;
+  try { rf = pcTrimReduDeUI().factor; } catch(e){}
   if (!pre) {
     var auto = null;
     try { auto = pcTrimestralAuto(tabla, v('pc_mes_sel', null), v('pc_esp', null), nivelAct); } catch(e){}
     if (auto) {
       var factor = (punt ? 0.5 : 0) + (nosh ? 0.5 : 0);
-      return Math.round(auto.importe * factor * 100) / 100;
+      return Math.round(auto.importe * factor * rf * 100) / 100;
     }
   }
-  return pcTrimestralImporte(tabla, nivelAct, pre, meses, punt, nosh);
+  return Math.round(pcTrimestralImporte(tabla, nivelAct, pre, meses, punt, nosh) * rf * 100) / 100;
 }
 
 /* Rellena el desplegable de niveles anteriores (los de la especialidad elegida) y
@@ -21770,6 +21878,21 @@ function pcTrimUpdate() {
   if (!okP) leg.push('<span class="off"><i style="background:rgba(255,255,255,.18)"></i><b>50% de puntualidad</b> · no se devenga</span>');
   if (!okN) leg.push('<span class="off"><i style="background:rgba(255,255,255,.18)"></i><b>50% por no-show</b> · no se devenga</span>');
   if (tramos.length > 1 && !(pre && m)) leg.push('<span style="opacity:.72">Tu ascenso, sacado de tus nóminas</span>');
+  /* La reducción de jornada recorta la trimestral igual que el salario (#1JGIG).
+     Se dice mes a mes y de dónde sale cada %, o el importe no se puede cuadrar. */
+  try {
+    var rr = pcTrimReduDeUI();
+    if (rr && rr.factor < 1) {
+      var EN = window.pilotosLang === 'en';
+      var SRC = EN ? { nomina:'your payslip', roster:'PT days in your roster', form:'the form' }
+                   : { nomina:'tu nómina', roster:'días PT del roster', form:'el formulario' };
+      var txt = pcTrimReduTexto(rr);
+      leg.push('<span><i style="background:#A78BFA"></i><b>' + txt.charAt(0).toUpperCase() + txt.slice(1) + '</b></span>');
+      var srcs = {}; rr.meses.forEach(function(x){ srcs[SRC[x.src]] = 1; });
+      leg.push('<span style="opacity:.72">× ' + (rr.factor*100).toFixed(1).replace('.', EN ? '.' : ',') + ' % · ' +
+               (EN ? 'from ' : 'sacado de ') + Object.keys(srcs).join(EN ? ' and ' : ' y ') + '</span>');
+    }
+  } catch(e){}
   legEl.innerHTML = leg.join('');
 
   var eurEl = document.getElementById('pc_trim_eur'); if (eurEl) eurEl.textContent = eur(imp);
@@ -22135,7 +22258,9 @@ function pcHuellaForm(){
       // compararía contra un teórico viejo diciendo que está al día.
       if (e.type === 'checkbox') return e.checked ? '1' : '0';
       return String(e.value == null ? '' : e.value);
-    }).join('|') + '|' + (window.PC_STATE ? (PC_STATE.pat||'') + (PC_STATE.cargo||'') : '');
+    }).join('|') + '|' + (window.PC_STATE ? (PC_STATE.pat||'') + (PC_STATE.cargo||'') : '') +
+      // La reducción de los meses del trimestre sale de nóminas y roster, no de un campo.
+      (function(){ try { var f = pcTrimReduDeUI().factor; return f < 1 ? '|tr' + f.toFixed(4) : ''; } catch(e){ return ''; } })();
   } catch(e){ return ''; }
 }
 
@@ -22849,7 +22974,8 @@ function pcCalc() {
       if (!pre) { try { auto = pcTrimestralAuto(T.trimestral, g('pc_mes_sel'), esp, nivel); } catch(e){} }
       return { nivelPre:pre, mesesPre:parseFloat(g('pc_trim_meses_pre'))||0,
                punt:c('pc_trim_punt'), noShow:c('pc_trim_noshow'),
-               auto: auto ? auto.porNivel : null };
+               auto: auto ? auto.porNivel : null,
+               redu: (function(){ try { var r = pcTrimReduDeUI(); return r.factor < 1 ? r : null; } catch(e){ return null; } })() };
     })(),
     /* Con qué MES de actividad se ha calculado. Sin esto, la Auditoría comparaba
        la nómina de un mes contra un teórico hecho con las horas de otro y no lo
