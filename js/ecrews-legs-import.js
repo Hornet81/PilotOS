@@ -43,6 +43,14 @@
   var CARGANDO = false;   // hay una importación andando (para avisar antes de cerrarla)
   var NOMBRE = '';        // apellido del piloto según la ficha de eCrews (respaldo)
   var SIN_VUELOS = 0;     // guardias/tierra sin nada que traer (informativo, no es fallo)
+  /* Las sesiones de SIMULADOR del tramo (#WMOM5). eCrews no las devuelve como
+     legs —no son vuelos y el capturador sólo lee el detalle de las jornadas de
+     vuelo—, pero el roster que la app ya tiene guardado sí las trae (EVAL, SBTO,
+     LPC…). Se leen de ahí con las MISMAS funciones que «Importar desde roster»
+     (`rstSimsDelDia`, `ldSimDelDia`, `ldSimEntradaDeRoster`): una sesión importada
+     por una puerta o por la otra queda igual en el logbook y en la nómina. */
+  var SIMS = [];          // {key, date, code, sv, rol, sugerido, ya}
+  var SIN_ROSTER = false; // el roster local no tiene ningún día del tramo
 
   function api() { return (typeof lsGet === 'function' ? lsGet('cafi_backend_url', 'https://api.pilotos.aero') : 'https://api.pilotos.aero'); }
   function tok() { return localStorage.getItem('cafi_auth_token'); }
@@ -52,6 +60,37 @@
     var u = String(x || '').toUpperCase(); return (window.RST_IATA_ICAO && window.RST_IATA_ICAO[u]) || u;
   }
   function legKey(l) { return l.date + '|' + l.flightNum + '|' + l.dep + '|' + l.arr; }
+
+  /** Los días que se pidieron: un mes entero ('YYYY-MM') o un tramo {from,to}. */
+  function diasPedidos(q) {
+    var a, b;
+    if (q && typeof q === 'object') { a = q.from; b = q.to || q.from; }
+    else if (typeof q === 'string' && /^\d{4}-\d{2}$/.test(q)) {
+      a = q + '-01'; b = q + '-' + String(new Date(+q.slice(0, 4), +q.slice(5, 7), 0).getDate()).padStart(2, '0');
+    } else return [];
+    var out = [], d = new Date(a + 'T12:00:00Z'), fin = new Date(b + 'T12:00:00Z'), g = 0;
+    while (d <= fin && g++ < 400) { out.push(d.toISOString().slice(0, 10)); d.setUTCDate(d.getUTCDate() + 1); }
+    return out;
+  }
+
+  function simsDelTramo(q) {
+    SIMS = []; SIN_ROSTER = false;
+    if (typeof window.rstSimsDelDia !== 'function') return;
+    try { if (typeof window.rstLoad === 'function') window.rstLoad(); } catch (e) {}
+    var dias = diasPedidos(q);
+    var ent = (window.RST && Array.isArray(window.RST.entries)) ? window.RST.entries : [];
+    var set = {}; dias.forEach(function (f) { set[f] = 1; });
+    SIN_ROSTER = !ent.some(function (e) { return e && set[e.date]; });
+    dias.forEach(function (f) {
+      var ya = typeof window.ldSimDelDia === 'function' ? !!window.ldSimDelDia(f) : false;
+      window.rstSimsDelDia(f).forEach(function (sv, i) {
+        var code = String(sv.code || '').toUpperCase().replace(/[^A-Z0-9_\-]/g, '');
+        var sug = typeof window.ldSimRolSugerido === 'function' ? window.ldSimRolSugerido(code) : { rol: 'SIM' };
+        SIMS.push({ key: 'SIM|' + f + '|' + code + '|' + i, date: f, code: code, sv: sv,
+          rol: sug.rol || 'SIM', sugerido: !!sug.sugerido, ya: ya });
+      });
+    });
+  }
 
   // ── Paleta ─────────────────────────────────────────────────────────────────
   // Los valores son los mismos que usa la hoja del menú del logbook: si allí se
@@ -496,7 +535,7 @@
     // de un mes siguen siendo UNA.
     var lotes = tramo ? porMeses(tramo.from, tramo.to) : [q];
 
-    LEGS = []; SEL = {}; ERRORES = []; SIN_VUELOS = 0; RANGO = null; NOMBRE = '';
+    LEGS = []; SEL = {}; ERRORES = []; SIN_VUELOS = 0; RANGO = null; NOMBRE = ''; SIMS = []; SIN_ROSTER = false;
     var vistas = {};   // dedup entre lotes: el periodo de eCrews desborda al siguiente
 
     function paso(i) {
@@ -568,6 +607,8 @@
       LEGS.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
       SEL = {};
       LEGS.forEach(function (l) { SEL[legKey(l)] = !yaEsta(l) && !l.isPositioning; });
+      simsDelTramo(ULTIMA);
+      SIMS.forEach(function (x) { SEL[x.key] = !x.ya; });
       render();
     }
 
@@ -635,7 +676,7 @@
   } catch (e) {}
 
   function render() {
-    if (!LEGS.length) {
+    if (!LEGS.length && !SIMS.length) {
       // Decir EXACTAMENTE lo que se pidió. Antes ponía siempre el mes, así que pedir un
       // día suelto y no haber volado ese día se leía como "el mes entero está vacío" —
       // imposible distinguirlo de un fallo de lectura.
@@ -646,6 +687,9 @@
         (SIN_VUELOS
           ? 'eCrews sí tenía ' + SIN_VUELOS + ' jornada' + (SIN_VUELOS === 1 ? '' : 's') + ', pero sin vuelos:<br>guardia, tierra o día libre.'
           : 'eCrews no tiene vuelos anotados ahí.') +
+        (SIN_ROSTER
+          ? '<br><br>Los simuladores salen de tu roster, y no tengo el roster de esas fechas: impórtalo y vuelve a intentarlo.'
+          : '') +
         '</div></div>';
       // Los fallos también se enseñan AQUÍ. Antes sólo salían junto a la lista, así que
       // cuando no había ni un vuelo el motivo se quedaba escondido.
@@ -660,13 +704,16 @@
       return;
     }
 
-    var dias = {};
+    var dias = {}, simsDia = {};
     LEGS.forEach(function (l) { (dias[l.date] = dias[l.date] || []).push(l); });
+    SIMS.forEach(function (x) { (simsDia[x.date] = simsDia[x.date] || []).push(x); if (!dias[x.date]) dias[x.date] = []; });
     var fechas = Object.keys(dias).sort();
     var nSel = Object.keys(SEL).filter(function (k) { return SEL[k]; }).length;
     /* `loQuePedi()` y no `mesLabel(MONTH)`: con un tramo de 20/09 a 04/10 aquello
        decía «SEP 2026» encima de una lista que llega a octubre. */
-    sub(loQuePedi() + ' · ' + LEGS.length + ' vuelos · ' + nSel + ' seleccionados');
+    sub(loQuePedi() + ' · ' + LEGS.length + ' vuelos' +
+      (SIMS.length ? ' · ' + SIMS.length + ' simulador' + (SIMS.length === 1 ? '' : 'es') : '') +
+      ' · ' + nSel + ' seleccionados');
 
     var h = '';
     if (ERRORES.length) {
@@ -711,18 +758,36 @@
           (l.acType ? ' ' + l.acType : '') +
           '</div></div></div>';
       });
+      (simsDia[f] || []).forEach(function (x) {
+        var on = !!SEL[x.key];
+        var bg = on ? t.cardOn : t.cardOff, bd = on ? t.cardOnLine : t.cardLine;
+        var hs = (x.sv.std || x.sv.std_estimated || x.sv.std_actual || '--:--') + ' → ' +
+                 (x.sv.sta || x.sv.sta_estimated || x.sv.sta_actual || '--:--') + ' z';
+        h += '<div data-eclg-sim="' + x.key + '" onclick="ldECrewsLegsToggle(\'' + x.key.replace(/'/g, "\\'") + '\')" style="background:' + bg + ';border:1px solid ' + bd + ';border-radius:11px;padding:10px 12px;margin-bottom:7px;cursor:pointer;display:flex;align-items:center;gap:11px' + (x.ya && !on ? ';opacity:.62' : '') + '">' +
+          '<div style="width:19px;height:19px;flex-shrink:0;border-radius:5px;border:1.5px solid ' + (on ? t.check : t.cardLine) + ';background:' + (on ? t.check : 'transparent') + ';display:flex;align-items:center;justify-content:center;color:' + t.checkTxt + ';font-size:12px;font-weight:900">' + (on ? '✓' : '') + '</div>' +
+          '<div style="flex:1;min-width:0">' +
+          '<div style="font-family:\'Space Mono\',monospace;font-size:12.5px;color:' + t.txt + ';font-weight:700">' +
+          x.code + ' <span style="background:' + t.chipBg + ';color:' + t.chipTxt + ';font-size:9px;padding:1px 5px;border-radius:4px;letter-spacing:.5px" data-i18n-en="SIMULATOR">SIMULADOR</span>' +
+          (x.ya ? ' <span style="background:' + t.chipBg + ';color:' + t.chipTxt + ';font-size:9px;padding:1px 5px;border-radius:4px">YA ESTÁ</span>' : '') +
+          '</div>' +
+          '<div style="font-family:\'Space Mono\',monospace;font-size:10.5px;color:' + t.faint + ';margin-top:3px">' +
+          hs + '  ·  ' + x.rol + (x.sugerido ? ' <span data-i18n-en="(suggested)">(propuesto)</span>' : '') + '  ·  <span data-i18n-en="from roster">del roster</span>' +
+          '</div></div></div>';
+      });
     });
 
     h += '<button onclick="ldECrewsLegsConfirm()" style="width:100%;margin-top:18px;padding:15px;background:' + t.btnBg + ';border:1.5px solid ' + t.btnLine + ';border-radius:15px;color:' + t.acc + ';font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:.3px">' +
-      'Importar ' + nSel + ' vuelo' + (nSel === 1 ? '' : 's') + '</button>' +
-      '<div style="font-family:\'Space Mono\',monospace;font-size:10px;color:' + t.faint + ';text-align:center;margin-top:10px;line-height:1.6">Entran con las horas de calzos reales.<br>El despegue y el aterrizaje los pones tú.</div>';
+      (SIMS.length ? 'Importar ' + nSel : 'Importar ' + nSel + ' vuelo' + (nSel === 1 ? '' : 's')) + '</button>' +
+      '<div style="font-family:\'Space Mono\',monospace;font-size:10px;color:' + t.faint + ';text-align:center;margin-top:10px;line-height:1.6">Entran con las horas de calzos reales.<br>El despegue y el aterrizaje los pones tú.' +
+      (SIMS.length ? '<br>Los simuladores salen de tu roster, con sus horas programadas.' : '') + '</div>';
     body(h);
   }
 
   // ── 4) Alta en el logbook ──────────────────────────────────────────────────
   window.ldECrewsLegsConfirm = function () {
     var elegidas = LEGS.filter(function (l) { return SEL[legKey(l)]; });
-    if (!elegidas.length) { toast('No has seleccionado ningún vuelo', 'info'); return; }
+    var simsElegidas = SIMS.filter(function (x) { return SEL[x.key]; });
+    if (!elegidas.length && !simsElegidas.length) { toast('No has seleccionado ningún vuelo', 'info'); return; }
 
     // Rol: manda lo que dice eCrews. `_ldDominantRole()` lo deduce del historial y, sin
     // historial, devuelve 'FO' por defecto — así que un comandante que estrena la app se
@@ -785,12 +850,26 @@
       n++;
     });
 
+    var nSim = 0;
+    if (typeof window.ldSimEntradaDeRoster === 'function') {
+      simsElegidas.forEach(function (x) {
+        if (n + nSim >= libres) { tope = true; return; }
+        ldEntries.unshift(window.ldSimEntradaDeRoster(x.sv, x.date, x.code, x.rol));
+        nSim++;
+      });
+    }
+    n += nSim;
+
     if (!n) { if (typeof showPlanToast === 'function') showPlanToast('limit'); return; }
     if (typeof ldSaveData === 'function') ldSaveData();
     if (typeof ldRender === 'function') ldRender();
     if (typeof ldStats === 'function') ldStats();
     if (typeof ldBgSync === 'function') ldBgSync({ delay: 3000, force: true });
     window.ldECrewsLegsClose();
-    toast('✅ ' + n + ' vuelo' + (n === 1 ? '' : 's') + ' con horas reales' + (tope ? ' (tope del plan gratuito)' : ''), 'success');
+    var nVue = n - nSim;
+    var partes = [];
+    if (nVue) partes.push(nVue + ' vuelo' + (nVue === 1 ? '' : 's') + ' con horas reales');
+    if (nSim) partes.push(nSim + ' sesi' + (nSim === 1 ? 'ón' : 'ones') + ' de simulador');
+    toast('✅ ' + partes.join(' y ') + (tope ? ' (tope del plan gratuito)' : ''), 'success');
   };
 })();

@@ -185,9 +185,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
 }
 </style>
 
-  <meta name="version" content="Estable.1233">
+  <meta name="version" content="Estable.1236">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1233","builtAt":"2026-11-01T13:39:58Z","commit":"5e5b030","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1236","builtAt":"2026-11-03T14:04:51Z","commit":"9ab8ceb4","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -25258,6 +25258,42 @@ function rstSimsDelDia(fecha){
    `pcSimsDelMes` usa para no pagar dos veces la misma sesión (238,06 € por una,
    que es el 2104 + 2111 otra vez). Escribir aquí un segundo criterio dejaría la
    hoja ofreciendo una sesión que la nómina ya cuenta. */
+/* La entrada de logbook de una sesión de simulador del ROSTER. UNA puerta: la usan
+   «Importar desde roster» y «Vuelos de eCrews» (#WMOM5). Escrita dos veces, un
+   simulador entraría por una vía con `instr` y por la otra sin él, y la nómina
+   (`pcSimsDelMes`) sólo cobraría el de una. */
+function ldSimEntradaDeRoster(sv, fecha, code, rol){
+  if(['SIM','TRI','TRE'].indexOf(rol)<0) rol='SIM';
+  var sStd=sv.std||sv.std_estimated||sv.std_actual||'';
+  var sSta=sv.sta||sv.sta_estimated||sv.sta_actual||'';
+  var sBlock='';
+  var _a=/^(\d{1,2}):(\d{2})$/.exec(sStd), _b=/^(\d{1,2}):(\d{2})$/.exec(sSta);
+  if(_a&&_b){ var bm=(+_b[1]*60+ +_b[2])-(+_a[1]*60+ +_a[2]); if(bm<0)bm+=1440;
+              sBlock=Math.floor(bm/60)+':'+String(bm%60).padStart(2,'0'); }
+  return {
+    id:ldGenDeterministicId('RSTSIM', fecha, code, '', sStd||''),
+    savedAt:new Date().toISOString(),
+    source:'ROSTER-DRAFT',
+    date:fecha, flight:'', dep:'', arr:'',
+    sched_out:sStd||'', sched_in:sSta||'', std:'', sta:'',
+    block:sBlock, flightTime:'', acType:'', reg:'',
+    role:ldRolPreferido(),
+    /* El mapeo de `opType`/`flightType`/`instr` es EL MISMO que escribe el
+       modal (`ldSave`): un simulador guardado de otra forma saldría del
+       logbook EASA y del CSV por otro sitio, o por ninguno. */
+    opType:'TRNG', flightType:rol, instr:rol,
+    /* Sólo se mapea lo que coincide LITERALMENTE con una opción del selector.
+       Un `EVA` no es un «Skill Test» ni un `SBTO` un «LOFT» mientras nadie lo
+       confirme. El código crudo va a las notas, que es donde se ve. */
+    simSession:(code==='LPC'||code==='OPC')?code:'',
+    simType:'', trainCenter:'', examiner:'',
+    notes:'Sesión '+code+' · del roster',
+    rosterEntryId:sv.id||null,
+    toDay:null, toNight:null, ldgDay:null, ldgNight:null,
+    atd:null, ata:null, aobt:null, aibt:null
+  };
+}
+
 function ldSimDelDia(fecha){
   var l = window.ldEntries || [];
   for (var i=0;i<l.length;i++) if (l[i] && l[i].date===fecha && ldEsSesionSim(l[i])) return l[i];
@@ -25272,6 +25308,7 @@ try {
   window.ldSimRolSugerido = ldSimRolSugerido;
   window.rstSimsDelDia = rstSimsDelDia;
   window.ldSimDelDia = ldSimDelDia;
+  window.ldSimEntradaDeRoster = ldSimEntradaDeRoster;
 } catch(e){}
 
 /* ── Días de simulador del mes en el ROSTER ───────────────────────────────────
@@ -54699,35 +54736,7 @@ window.ldRosterImportConfirm = function(){
       var sug=(typeof ldSimRolSugerido==='function')?ldSimRolSugerido(code):{rol:'SIM'};
       var rol=_rstImportSimRol[key]||sug.rol;
       if(['SIM','TRI','TRE'].indexOf(rol)<0) rol='SIM';   // nada que no venga del desplegable
-      var sStd=sv.std||sv.std_estimated||sv.std_actual||'';
-      var sSta=sv.sta||sv.sta_estimated||sv.sta_actual||'';
-      var sBlock='';
-      var _a=/^(\d{1,2}):(\d{2})$/.exec(sStd), _b=/^(\d{1,2}):(\d{2})$/.exec(sSta);
-      if(_a&&_b){ var bm=(+_b[1]*60+ +_b[2])-(+_a[1]*60+ +_a[2]); if(bm<0)bm+=1440;
-                  sBlock=Math.floor(bm/60)+':'+String(bm%60).padStart(2,'0'); }
-      ldEntries.unshift({
-        id:ldGenDeterministicId('RSTSIM', selDate, code, '', sStd||''),
-        savedAt:new Date().toISOString(),
-        source:'ROSTER-DRAFT',
-        date:selDate, flight:'', dep:'', arr:'',
-        sched_out:sStd||'', sched_in:sSta||'', std:'', sta:'',
-        block:sBlock, flightTime:'', acType:'', reg:'',
-        role:ldRolPreferido(),
-        /* El mapeo de `opType`/`flightType`/`instr` es EL MISMO que escribe el
-           modal (`ldSave`): un simulador guardado de otra forma saldría del
-           logbook EASA y del CSV por otro sitio, o por ninguno. */
-        opType:'TRNG', flightType:rol, instr:rol,
-        /* Sólo se mapea lo que coincide LITERALMENTE con una opción del selector.
-           Un `EVA` no es un «Skill Test» ni un `SBTO` un «LOFT» mientras nadie lo
-           confirme, y ponerlo sería inventarse el tipo de sesión en un documento
-           que firma el piloto. El código crudo va a las notas, que es donde se ve. */
-        simSession:(code==='LPC'||code==='OPC')?code:'',
-        simType:'', trainCenter:'', examiner:'',
-        notes:'Sesión '+code+' · del roster',
-        rosterEntryId:sv.id||null,
-        toDay:null, toNight:null, ldgDay:null, ldgNight:null,
-        atd:null, ata:null, aobt:null, aibt:null
-      });
+      ldEntries.unshift(ldSimEntradaDeRoster(sv, selDate, code, rol));
       simsIn++;
     });
   }

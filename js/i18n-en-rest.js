@@ -883,6 +883,8 @@
     "entradas importadas": "entries imported",
     "entradas)": "entries)",
     "Entran con las horas de calzos reales.": "They come in with actual block times.",
+    "Los simuladores salen de tu roster, con sus horas programadas.": "Simulator sessions come from your roster, with their scheduled times.",
+    "Los simuladores salen de tu roster, y no tengo el roster de esas fechas: impórtalo y vuelve a intentarlo.": "Simulator sessions come from your roster, and I don't have your roster for those dates: import it and try again.",
     "Entrar": "Sign in",
     "Enviada": "Sent",
     "Enviada a Vueling": "Sent to Vueling",
