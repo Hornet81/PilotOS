@@ -185,9 +185,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
 }
 </style>
 
-  <meta name="version" content="Estable.1236">
+  <meta name="version" content="Estable.1239">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1236","builtAt":"2026-11-03T14:04:51Z","commit":"9ab8ceb4","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1239","builtAt":"2026-11-05T10:21:22Z","commit":"e15269e","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -56735,6 +56735,24 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
     var text = (ev.text||'').trim();
     var details = (ev.details||'').trim();
 
+    /* ── Evento de TIERRA/GUARDIA que trae TRAMOS DE VUELO (5-nov-2026, Alex) ──
+       Un cambio de programación dejó el 15-nov así en eCrews: posicional
+       8003 ORY→BCN + e-learnings LMSH y LMPB, todo en UN evento que no es de tipo
+       vuelo. Las ramas de tierra/guardia leen el desglose con `_ecActsDeDetails`,
+       que solo acepta líneas que empiezan por LETRA (LMSH, OSB3…) — a propósito,
+       para que una leg no se cuele como actividad—, así que la línea
+       «8003 - *ORY (0750) - *BCN (1015)» se tiraba y el posicional desaparecía
+       del roster; solo quedaban los dos e-learnings.
+       Si el desglose trae al menos un tramo con NÚMERO de vuelo, el evento va por
+       la rama de vuelo, que ya sabe leer vuelos y actividades A→A (LM*, guardias)
+       en la misma jornada. Sin tramos de vuelo no cambia nada. */
+    if(type !== 'flight' && type !== 'default' && type !== 'off' &&
+       details.split('\n').some(function(l){
+         return /^\*?(\d{3,4}[A-Z]?|TBD\d+)\s+-\s+\*?[A-Z]{3}\s+\(/.test(l.trim());
+       })){
+      type = 'flight';
+    }
+
     // ── OFF / free day ──
     if(type === 'off'){
       var code = _extractCode(text);
@@ -56891,8 +56909,11 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
         _blob.replace(/\*(\d{3,4}[A-Z]?)\b/g, function(_m, n){ _starVuelos[n] = true; return _m; });
       } catch(_e){}
       var isDeadhead = ev.IsDeadhead === true || ev.isDeadhead === true || (ev.type||'').toLowerCase() === 'deadhead';
+      /* Solo cuentan los tramos con NÚMERO de vuelo: un e-learning o una
+         actividad A→A en la misma jornada (LMSH, REU…) no es un vuelo, y contarla
+         impedía marcar como posicional el único tramo de una jornada deadhead. */
       var flightLegCount = legLines.filter(function(l){
-        return !_isStandbyCode((l.trim().split(/\s+/)[0]||''));
+        return /^\*?(\d{3,4}[A-Z]?|TBD\d+)\s/.test(l.trim());
       }).length;
       var markPositioning = isDeadhead && flightLegCount === 1;
 
@@ -56992,6 +57013,9 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
           var sameAptEntry = {
             date: legDate, type: 'training',
             code: fNum,   // 'LMF1', 'LMSK', 'REU', etc.
+            /* El aeropuerto, igual que en _ecActsDeDetails: la dieta (Art. 15.18)
+               se decide por dónde se hace la actividad. */
+            dep: depIATA, arr: arrIATA,
             source: 'ECREWS'
           };
           if(legActual){ sameAptEntry.std_actual = tDep; sameAptEntry.sta_actual = tArr; }
