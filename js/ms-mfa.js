@@ -188,6 +188,9 @@ function pinta(v) {
   if (!S) return;
   var m = v.method || '';
   var h = '';
+  // La espera cuenta desde que se ENTRA en «Conectando», no desde el login: tras
+  // aprobar el número se vuelve aquí y no puede salir ya diciendo que tarda.
+  var eraEspera = S.enEspera; S.enEspera = false;
 
   if (m === 'code' && comprobando(v)) {
     /* ── CÓDIGO EN VUELO ────────────────────────────────────────────────────
@@ -266,8 +269,13 @@ function pinta(v) {
         '<button class="msmfa-x" id="msmfa-x">Cancelar</button>';
 
   } else {
+    /* 9-nov-2026: tras aprobar el número Microsoft y eCrews pueden tardar más de
+       medio minuto (medido: 33 s) y aquí sólo ponía «Un momento…». Ahora el texto
+       avanza con el tiempo (lo escribe `esperaTic`) y pide paciencia: lo que no
+       puede pasar es que parezca colgado y se cancele. */
+    S.enEspera = true; if (!eraEspera) S.esperaDesde = Date.now();
     h = '<div class="msmfa-t">Conectando con Microsoft</div>' +
-        '<div class="msmfa-s">Un momento…</div>' +
+        '<div class="msmfa-s" id="msmfa-espera">' + esc(textoEspera()) + '</div>' +
         '<button class="msmfa-x" id="msmfa-x">Cancelar</button>';
   }
 
@@ -406,6 +414,20 @@ function manda(code) {
     });
 }
 
+function textoEspera() {
+  var t = S && S.esperaDesde ? (Date.now() - S.esperaDesde) / 1000 : 0;
+  if (t >= 45) return 'Sigue en marcha. A veces Microsoft tarda hasta un minuto: no hace falta que hagas nada, espera un momento.';
+  if (t >= 15) return 'Está tardando un poco más de lo normal. Seguimos conectando, ten paciencia.';
+  return 'Un momento…';
+}
+function esperaTic() {
+  if (!S || !S.host) return;
+  var e = S.host.querySelector('#msmfa-espera');
+  if (!e) return;
+  var t = textoEspera();
+  if (e.textContent !== t) e.textContent = t;
+}
+
 function sondea() {
   if (!S) return;
   pide(S.cfg, '/status?sessionId=' + encodeURIComponent(S.sid)).then(function (r) {
@@ -458,6 +480,7 @@ function para() {
   if (S.timer) clearInterval(S.timer);
   if (S.auto) clearTimeout(S.auto);
   if (S.trasT) clearTimeout(S.trasT);
+  if (S.esperaT) clearInterval(S.esperaT);
   S = null;
 }
 
@@ -472,6 +495,7 @@ function arranca(cfg, vista) {
   ponCSS();
   para();
   S = { cfg: cfg, sid: cfg.sessionId, host: cfg.host, firma: null, timer: null, auto: null, enviando: false };
+  S.esperaT = setInterval(esperaTic, 1000);
   if (vista) pinta(vista);
   else pinta({});
   S.timer = setInterval(sondea, POLL_MS);
