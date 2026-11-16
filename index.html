@@ -185,9 +185,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
 }
 </style>
 
-  <meta name="version" content="Estable.1246">
+  <meta name="version" content="Estable.1247">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1246","builtAt":"2026-11-16T18:23:07Z","commit":"4c3c55a","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1247","builtAt":"2026-11-16T20:01:42Z","commit":"4c3c55a","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -33832,6 +33832,11 @@ function ldParseImportFile(file){
         // Logbook EASA en Excel (template estándar: fila de números 1..40 + cabeceras
         // DATE/PLACE/TIME, fechas serial y horas en fracción). Parser propio; si no lo es,
         // sigue por el CSV genérico de abajo.
+        // FLYLOG.io: tabla plana con cabeceras DEPARTURE_AIRPORT/DURATION_BLOCK…
+        try{
+          var _flAoa=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:''});
+          if(_flAoa.length && ldIsFlylogHeader(_flAoa[0])){ ldImportFlylog(_flAoa,file.name); return; }
+        }catch(e){}
         if(ldTryImportEasaXlsx(wb, file.name)) return;
         var ws=wb.Sheets[wb.SheetNames[0]];
         // Fix broken !ref: compute actual range from all cells present
@@ -34209,6 +34214,140 @@ function ldTryImportEasaXlsx(wb, fname){
   ldImportProcess(parsed.rows,fname);
   return true;
 }
+/* ══ FLYLOG.io (export Excel o CSV) ══════════════════════════════════════════
+   Una tabla plana con cabeceras en MAYÚSCULAS (DATE, DEPARTURE_AIRPORT,
+   DURATION_BLOCK, DURATION_PIC…, NAME_PIC…). Fechas YYYY-MM-DD y tiempos H:MM.
+   El importador genérico no la entendía: casi ninguna cabecera casa con un alias.
+   - Función EASA = columna de tiempo con valor. Un instructor anota PIC E
+     INSTRUCTOR a la vez → Instructor (Carrera ya lo cuenta como PIC). Examinador
+     también es PIC → Instructor.
+   - Simulador = AIRCRAFT_TYPE "SIM" o DURATION_SIMULATOR; su tiempo va ahí,
+     no en DURATION_BLOCK. Sesiones sin tiempo se saltan (no hay nada que sumar).
+   - Línea vs carrera por DURATION_MULTI_PILOT (mismo criterio que Swift/LogTen).
+   - "SELF" en un nombre = el propio piloto → no es tripulante.
+   Muestra: Sección Logbook\Formato FLYLOG.io\ (2639 vuelos + 26 sims, 4416:22). */
+function ldIsFlylogHeader(h){
+  var s='|'+(h||[]).map(function(x){return String(x||'').trim().toUpperCase();}).join('|')+'|';
+  return s.indexOf('|DEPARTURE_AIRPORT|')>=0 && s.indexOf('|DURATION_BLOCK|')>=0 && s.indexOf('|TIME_BLOCK_START|')>=0;
+}
+// Tipos OACI de monomotor/bimotor que no reconoce ldIsAirliner (escuela, ejecutivos).
+var LD_FL_ME=/^(P06T|PA34|PA44|DA42|DA62|BE76|BE58|C310|C340|P68|CL3[05]|CL60|C25[ABC]|C56X|C68A|C750|E55P|GLF\d|GLEX|F2TH|FA[5-8]X|LJ\d\d|BE20|BE9L|PC12X|A[12][019]N)$/i;
+var LD_FL_SE=/^(SIRA|C1[5-8]\d|C1[5-8]\dT?|C206|C210|P208|P28[ABRT]|PA28|PA18|DA20|DA40|DV20|TB\d+|SR2[02]|PC12|M20P|M20T|BE35|BE36|P210|ECHO|P92|TOBA)$/i;
+function _flDur(v){ // "1:12" | número (fracción de día en Excel) → "H:MM"; vacío/0 → ''
+  if(typeof v==='number'){ if(!isFinite(v)||v<=0) return ''; var m=Math.round(v*1440); return Math.floor(m/60)+':'+String(m%60).padStart(2,'0'); }
+  var s=String(v==null?'':v).trim(); var a=s.match(/^(\d{1,4}):(\d{2})(?::\d{2})?$/);
+  if(!a) return ''; return ((+a[1])*60+(+a[2]))>0 ? (+a[1])+':'+a[2] : '';
+}
+function _flClock(v){
+  if(typeof v==='number'&&isFinite(v)){ var m=Math.round((v%1)*1440); return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+  var a=String(v==null?'':v).trim().match(/^(\d{1,2}):(\d{2})/); return a?a[1].padStart(2,'0')+':'+a[2]:'';
+}
+function _flDate(v){
+  if(typeof v==='number'&&isFinite(v)){ var d=new Date(Math.round((v-25569)*86400000)); return isNaN(d.getTime())?'':d.toISOString().slice(0,10); }
+  var s=String(v==null?'':v).trim(); if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  var m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/); return m?(m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0')):'';
+}
+// CSV con comillas (un REMARKS puede llevar comas o saltos de línea).
+function _flParseCsv(text){
+  var first=text.slice(0,text.indexOf('\n')<0?text.length:text.indexOf('\n'));
+  var d=','; if(first.split(';').length>first.split(',').length) d=';'; if(first.split('\t').length>first.split(d).length) d='\t';
+  var recs=[],row=[],f='',q=false,st=true;
+  for(var i=0;i<text.length;i++){ var c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){f+='"';i++;} else q=false; } else f+=c; }
+    else if(c==='"'&&st){ q=true; st=false; }
+    else if(c===d){ row.push(f); f=''; st=true; }
+    else if(c==='\n'){ row.push(f); recs.push(row); row=[]; f=''; st=true; }
+    else if(c!=='\r'){ f+=c; st=false; }
+  }
+  if(f!==''||row.length){ row.push(f); recs.push(row); }
+  return recs;
+}
+function ldFlylogToRows(aoa){
+  var hdr=(aoa[0]||[]).map(function(x){return String(x||'').trim().toUpperCase();});
+  var idx={}; hdr.forEach(function(h,i){ if(!(h in idx)) idx[h]=i; });
+  var rows=[], simN={}, fnSeen={}, acMeta={}, stats={flights:0,sims:0,skipped:0,simSinTiempo:0,ga:0,airline:0};
+  for(var r=1;r<aoa.length;r++){
+    var c=aoa[r]||[];
+    var g=function(n){ var i=idx[n]; if(i==null) return ''; var v=c[i]; return (typeof v==='number')?v:String(v==null?'':v).trim(); };
+    var gs=function(n){ return String(g(n)); };
+    var name=function(n){ var v=gs(n); return /^self$/i.test(v)?'':v; };
+    var date=_flDate(g('DATE'));
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){ if(c.join('').trim()) stats.skipped++; continue; }
+    var type=gs('AIRCRAFT_TYPE'), reg=gs('AIRCRAFT_REGISTRATION');
+    var simT=_flDur(g('DURATION_SIMULATOR'));
+    var isSim=!!simT || /^(SIM|FFS|FNPT|FTD|FSTD)/i.test(type);
+    var pic=_flDur(g('DURATION_PIC')), picus=_flDur(g('DURATION_PICUS')), sic=_flDur(g('DURATION_SIC')),
+        dual=_flDur(g('DURATION_DUAL')), ins=_flDur(g('DURATION_INSTRUCTOR')), exa=_flDur(g('DURATION_EXAMINER'));
+    var func='', role='FO';
+    if(ins||exa){ func='Instructor'; role='CPT'; }
+    else if(pic){ func='PIC'; role='CPT'; }
+    else if(picus){ func='PICUS'; role='FO'; }
+    else if(dual){ func='Dual'; role='FO'; }
+    else if(sic){ func='Copiloto'; role='FO'; }
+    var notas=[gs('REMARKS'),gs('PERSONAL_NOTE')].filter(Boolean).join(' · ');
+    if(isSim){
+      var sblk=simT||_flDur(g('DURATION_BLOCK'));
+      if(!sblk){ stats.simSinTiempo++; continue; }
+      simN[date]=(simN[date]||0)+1;
+      var simType=[gs('SIMULATOR_TYPE'),reg].filter(function(x){return x&&!/^generic$/i.test(x);}).join(' ')||type;
+      rows.push({ fecha:date, vuelo:'', origen:'', destino:'', idseq:'sim'+simN[date],
+        optype:'SIM', simtype:simType, activitytype:'sim', block:sblk, tipo:simType,
+        ldg_dia:0, ldg_noche:0, pilot_function:func, notas:notas });
+      stats.sims++; continue;
+    }
+    var blk=_flDur(g('DURATION_BLOCK'));
+    if(!blk){ stats.skipped++; continue; }
+    var mp=!!_flDur(g('DURATION_MULTI_PILOT'));
+    var seMe=LD_FL_ME.test(type)||ldIsAirliner(type)?'ME':(LD_FL_SE.test(type)?'SE':'');
+    var activity=mp?'':'ga';
+    if(activity==='ga') stats.ga++; else stats.airline++;
+    var fn=gs('FLIGHT_NUMBER').replace(/\s+/g,'');
+    var atd=_flClock(g('TIME_BLOCK_START'));
+    // Mismo nº el mismo día = retorno a plataforma + el vuelo de verdad (7721 DBV-DBV y
+    // DBV-BCN). El dedup casa por fecha+nº y fundía el 2º en el 1º. El primero va sin
+    // desempate (no le cambia el id a nada ya importado); los siguientes, con su hora.
+    var fnKey=date+'|'+fn.toUpperCase().replace(/^[A-Z]+/,'').replace(/[A-Z]+$/,'');
+    var fnRep=fn ? (fnSeen[fnKey]=(fnSeen[fnKey]||0)+1) : 0;
+    var tags=gs('TAGS').toUpperCase();
+    rows.push({
+      fecha:date, vuelo:fn, origen:gs('DEPARTURE_AIRPORT').toUpperCase(), destino:gs('ARRIVAL_AIRPORT').toUpperCase(),
+      matricula:reg, tipo:type, seme:seMe, spmp:mp?'MP':'SP',
+      atd:atd, ata:_flClock(g('TIME_BLOCK_END')),
+      block:blk, nocturno:_flDur(g('DURATION_NIGHT')),
+      reglas:_flDur(g('DURATION_IFR'))?'IFR':'VFR',
+      to_dia:gs('TAKEOFFS_DAY'), to_noche:gs('TAKEOFFS_NIGHT'),
+      ldg_dia:gs('LDGS_DAY')||'0', ldg_noche:gs('LDGS_NIGHT')||'0',
+      func:/\bPF\b/.test(tags)?'PF':(/\bPM\b/.test(tags)?'PM':''),
+      rol:role, cm1:name('NAME_PIC')||name('NAME_INSTRUCTOR')||name('NAME_EXAMINER'),
+      cm2:name('NAME_COPILOT')||name('NAME_STUDENT')||name('NAME_PICUS'),
+      pilot_function:func, activitytype:activity,
+      idseq: (fn && fnRep<2) ? '' : ('fl'+(atd.replace(':','')||('r'+r))),
+      notas:notas
+    });
+    if(reg) acMeta[reg]={acType:type,seMe:seMe};
+    stats.flights++;
+  }
+  return { rows:rows, acMeta:acMeta, stats:stats };
+}
+function ldImportFlylog(aoa,fname){
+  var parsed=ldFlylogToRows(aoa);
+  if(!parsed.rows.length){ ldImportError('El export de FLYLOG.io no tiene vuelos legibles'); return; }
+  try{
+    var db=ldAcDbLoad();
+    Object.keys(parsed.acMeta).forEach(function(reg){
+      var m=parsed.acMeta[reg], prev=db[reg]||{};
+      db[reg]=Object.assign({},prev,{acType:prev.acType||m.acType||'', seMe:prev.seMe||m.seMe||''});
+    });
+    ldAcDbSave(db);
+  }catch(e){}
+  var s=parsed.stats;
+  _ldPendingBalance=null;
+  _ldPdfSummary='<div class="ldbal-hint">FLYLOG.io · '+s.flights+' vuelos + '+s.sims+' simuladores · '+Object.keys(parsed.acMeta).length+' aviones'
+    +(s.simSinTiempo?' · '+s.simSinTiempo+' sesiones de simulador sin tiempo omitidas':'')
+    +(s.skipped?' · '+s.skipped+' filas sin tiempo omitidas':'')
+    +'. Los vuelos ya existentes se enriquecen, no se duplican.</div>';
+  ldImportProcess(parsed.rows,fname);
+}
 /* ══ LOS FICHEROS HERMANOS DE UNA EXPORTACIÓN ════════════════════════════════
    RB Logbook (CAE, el de RosterBuster) no exporta UN csv: exporta TRES —vuelos,
    AVIONES y personas— y el piloto elige uno. Con el de aviones el importador
@@ -34265,6 +34404,8 @@ function ldImportAcTable(rows, fname){
 function ldImportCSV(text,fname){
   if(ldIsLogTen(text)){ ldImportLogTen(text,fname); return; }
   if(ldIsSwift(text)){ ldImportSwift(text,fname); return; }
+  var _flRecs=_flParseCsv(text.replace(/^﻿/,''));
+  if(_flRecs.length && ldIsFlylogHeader(_flRecs[0])){ ldImportFlylog(_flRecs,fname); return; }
   var lines=text.split(/\r?\n/).filter(function(l){return l.trim();});
   if(lines.length<2){ldImportError('Archivo vacío o sin datos');return;}
   // Detect delimiter
@@ -35187,7 +35328,8 @@ function ldImportConfirm(){
         savedAt:new Date().toISOString(),
         date:r.date||'',flight:r.flight||'',
         dep:_ldOACI(r.dep),arr:_ldOACI(r.arr),   // el logbook va en OACI
-        acType:r.acType||'',engine:r.engine||'CFM56',reg:(r.reg||'').toUpperCase(),
+        // CFM56 por defecto SOLO en aviones de línea: una avioneta (Tecnam, Cessna) salía con motor de A320.
+        acType:r.acType||'',engine:r.engine||(ldIsAirliner(r.acType)&&!/^A[12][019]N$/i.test(r.acType||'')?'CFM56':''),reg:(r.reg||'').toUpperCase(),
         fl:r.fl||'',std:r.std||'',atd:r.atd||'',sta:r.sta||'',ata:r.ata||'',
         // flightTime = tiempo de vuelo (la pastilla ✈ y algunas stats lo leen). Los imports
         // sólo traían block; sin esto el vuelo salía sin horas en la ficha. seMe (SE/ME/MP)
