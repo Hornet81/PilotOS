@@ -598,7 +598,10 @@
     "Pág {0} / {1} · {2} vuelos": "Pg {0} / {1} · {2} flights",
     "Pantalla MCDU": "MCDU screen",
     "Papelera · copias del logbook": "Trash · logbook backups",
-    "PDF Jeppesen EASA (PilotLog) · LogTen Pro · Swift · Logbook EASA (Excel) · FOTO del logbook (lo lee la IA) · o CSV/Excel con estas columnas": "Jeppesen EASA PDF (PilotLog) · LogTen Pro · Swift · EASA Logbook (Excel) · PHOTO of your logbook (read by AI) · or CSV/Excel with these columns",
+    /* Totales de apertura (Nueva entrada → Other type, y el cuadro antes de importar). Los textos
+       que llevan números o fechas dentro se escriben ya en los dos idiomas en index.html (_ldL). */
+    "Totales de apertura": "Opening totals",
+    "PDF Jeppesen EASA (PilotLog) · LogTen Pro · Swift · FLYLOG.io · Logbook EASA (Excel) · FOTO del logbook (lo lee la IA) · o CSV/Excel con estas columnas": "Jeppesen EASA PDF (PilotLog) · LogTen Pro · Swift · FLYLOG.io · EASA Logbook (Excel) · PHOTO of your logbook (read by AI) · or CSV/Excel with these columns",
     "Perfil del tripulante": "Crew member profile",
     "Período": "Period",
     "Periodo de la línea principal": "Main line period",

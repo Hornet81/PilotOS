@@ -185,9 +185,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
 }
 </style>
 
-  <meta name="version" content="Estable.1247">
+  <meta name="version" content="Estable.1248">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1247","builtAt":"2026-11-16T20:01:42Z","commit":"7d9fb66","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1248","builtAt":"2026-11-16T21:19:01Z","commit":"7d9fb66","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -16036,6 +16036,14 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
   #ldo-detail.in>*:nth-child(n+4){animation-delay:.25s}
   @keyframes ldoRise{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:none}}
 
+  /* Totales de apertura dentro del formulario claro de «Other type»: el editor
+     agrupado nace con la paleta oscura del pop-up de importación (etiquetas claras,
+     casillas negras) y aquí, sobre crema, las etiquetas no se leían. */
+  #ldo-detail .ldpp-group{background:rgba(245,158,11,.08);border-color:rgba(180,83,9,.25)}
+  #ldo-detail .ldpp-gh{color:#B45309}
+  #ldo-detail .ldpp-l{color:#64748B}
+  #ldo-detail .ldpp-inp{background:#fff;border-color:rgba(180,83,9,.4);color:#92400E}
+
   /* Accesibilidad — sin teatro si el sistema lo pide, pero el estado se mantiene */
   @media (prefers-reduced-motion:reduce){
     .ldo-chip,.ldo-chip .i,.ldo-chip::before,.ldo-chip::after,.ldo-sh,#ldo-detail>*{
@@ -16074,7 +16082,9 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
     {k:'sim',i:'🖥️',n:'Simulador',                            c:'#4F46E5', s:'rgba(79,70,229,.15)',  g:'rgba(79,70,229,.38)'},
     {k:'other',i:'✈️',n:'Otra compañía',                      c:'#1D4ED8', s:'rgba(29,78,216,.15)',  g:'rgba(29,78,216,.38)'},
     {k:'ferry',i:'🧭',n:'Ferry / Posic.',                     c:'#0D9488', s:'rgba(13,148,136,.15)', g:'rgba(13,148,136,.38)'},
-    {k:'custom',i:'✨',n:'Custom',                             c:'#DB2777', s:'rgba(219,39,119,.15)', g:'rgba(219,39,119,.38)'}
+    {k:'custom',i:'✨',n:'Custom',                             c:'#DB2777', s:'rgba(219,39,119,.15)', g:'rgba(219,39,119,.38)'},
+    // NO es un vuelo: abre el editor de los totales de apertura (el «saldo de partida»).
+    {k:'opening',i:'🕘',n:'Totales de apertura',               c:'#B45309', s:'rgba(180,83,9,.15)',   g:'rgba(180,83,9,.38)'}
   ];
   function _ldoAct(k){ for(var i=0;i<LDO_ACTS.length;i++){ if(LDO_ACTS[i].k===k) return LDO_ACTS[i]; } return null; }
   var _ldoType=null;
@@ -16094,6 +16104,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       if(tv){tv.classList.remove('on-v');} if(to){to.classList.add('on-o');}
     } else {
       if(vf)vf.style.display=''; if(of)of.style.display='none';
+      _ldoSaveLabel(false);
       if(sheet)sheet.classList.remove('otro-cream');
       if(ocr&&window.ldManual!==false)ocr.style.display='';
       if(tv){tv.classList.add('on-v');} if(to){to.classList.remove('on-o');}
@@ -16101,7 +16112,7 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
     var subEl=document.getElementById('ld_modal_sub'); if(subEl) subEl.textContent=otro?'OTRO VUELO · GA · velero · acro · sim':(window.ldManual===false?'MCDU OCR · UTC':'MANUAL · UTC');
   }
   window.ldModalMode=ldModalMode;
-  function ldOtroOpen(){ if(typeof ldOpenModal==='function') ldOpenModal(true); setTimeout(function(){ ldModalMode('otro'); },40); }
+  function ldOtroOpen(){ window._ldOpeningThenImport=false; if(typeof ldOpenModal==='function') ldOpenModal(true); setTimeout(function(){ ldModalMode('otro'); },40); }
   function ldOtroClose(){ if(typeof ldCloseModal==='function') ldCloseModal(); }
   function ldOtroToVueling(){ ldModalMode('vueling'); }
   function ldOtroPick(k){
@@ -16219,8 +16230,14 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
       c.classList.toggle('on', c.getAttribute('data-k')===_ldoType);
     });
   }
+  // El botón de abajo del modal es común: con «Totales de apertura» no guarda un vuelo.
+  function _ldoSaveLabel(opening){
+    var btn=document.querySelector('#ld_modal .ldm-btn-save'); if(!btn||!btn.lastChild) return;
+    btn.lastChild.nodeValue=opening?_ldL(' Guardar totales ',' Save totals '):_ldL(' Guardar vuelo ',' Save flight ');
+  }
   function ldOtroRender(){
     var body=document.getElementById('ld-otro-form')||document.getElementById('ldo-body'); if(!body) return;
+    _ldoSaveLabel(_ldoType==='opening');
     var ai='<div class="ldo-ai"><div style="font-weight:700;margin-bottom:7px">🤖 Añadir con IA</div><textarea id="ldo_ai" placeholder="Ayer volé un Extra 300 en Sabadell, 45 min, acrobacia, looping y tonneau, G +5 -2."></textarea><div class="ldo-mini" style="background:linear-gradient(135deg,#8B5CF6,#6d28d9);color:#fff" onclick="ldOtroAI()">✨ Analizar y rellenar</div><div id="ldo_ai_out"></div></div>';
     var photo='<div class="ldo-mini" style="border:1px dashed rgba(16,185,129,.5);color:#10B981;margin-bottom:13px" onclick="ldOtroPhoto()">📷 Importar por foto / logbook de papel</div>';
     // Esqueleto estable: intro (IA+foto) · picker · detalle
@@ -16236,6 +16253,12 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
     // El formulario adopta el color del tipo elegido (el cuadro específico y los focos)
     var _a=_ldoAct(_ldoType);
     if(_a){ detail.style.setProperty('--ldo-accent',_a.c); detail.style.setProperty('--ldo-soft',_a.s); detail.style.setProperty('--ldo-glow',_a.g); }
+    if(_ldoType==='opening'){
+      detail.innerHTML=ldOpeningHtml();
+      ldOpeningCut();
+      detail.classList.remove('in'); void detail.offsetWidth; detail.classList.add('in');
+      return;
+    }
     var common=_box('Datos del vuelo','<div class="ldo-fld"><label>Fecha</label><input id="ldo_date" type="date" onchange="ldoAutoTiempos()"></div><div class="ldo-g2">'+_f('dep','Salida','LELL','oninput="this.value=this.value.toUpperCase()" onchange="ldoAutoTiempos()"')+_f('arr','Llegada','LELL','oninput="this.value=this.value.toUpperCase()" onchange="ldoAutoTiempos()"')+_f('type','Avión','Extra 300')+_f('reg','Matrícula','EC-XTR')+'</div>'+ldoHoras()+'<div class="ldo-g2">'+_s('func','Función',['PIC','Copiloto','Dual','Instructor','PICUS','SPIC'])+_f('block','Block','0:55')+_f('ft','Flight time','0:45')+_f('night','Noche','0:00')+'</div><div class="ldo-g2">'+_s('ifr','IFR/VFR',['VFR','IFR'])+_s('smp','Mono/Multi piloto',['SP','MP'])+_s('sme','Mono/Multi motor',['SE','ME'])+'</div>'
       /* DESPEGUES Y ATERRIZAJES, DÍA Y NOCHE. Aquí había UN campo «Aterrizajes» y
          el guardado escribía `ldgNight:0` CABLEADO, así que un vuelo de aviación
@@ -16277,8 +16300,137 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
     });
     return m;
   }
+  /* ── TOTALES DE APERTURA ───────────────────────────────────────────────────
+     Las horas de antes de PilotOS (de otra app, de papel), resumidas. Es el MISMO
+     «saldo de partida» que trae un PDF Jeppesen (pilotos_careerBalance), con el
+     mismo editor agrupado y la MISMA regla: un vuelo con fecha ≤ «hasta» ya está
+     dentro de estos totales y no suma otra vez; todo lo POSTERIOR —de Vueling o de
+     Other type— suma encima. Por eso el corte por defecto es la víspera del primer
+     vuelo del logbook: así todo lo que ya tienes detallado suma. Suma en el total
+     del logbook y en Carrera; NUNCA en FTL, recencia ni Pay Check. */
+  function _ldoFirstFlightDate(){
+    var min='';
+    (window.ldEntries||[]).forEach(function(e){
+      if(!e||!e.date||e.id===(window.LD_AC_DB_ENTRY_ID||'__pilotOS_ac_db__')||e.type==='__ac_db__') return;
+      if(!min||e.date<min) min=e.date;
+    });
+    return min;
+  }
+  function ldOpeningHtml(){
+    var b=(typeof ldBalanceGet==='function'&&ldBalanceGet())||{};
+    var first=_ldoFirstFlightDate();
+    /* Fecha de corte OPCIONAL. Con logbook vacío (el caso de «horas iniciales y luego
+       importo») va vacía: sin corte no se excluye ningún vuelo y TODO lo que se importe
+       o se añada suma encima. Con vuelos ya en el logbook se propone la víspera del
+       primero, que es lo mismo pero explícito. */
+    var hasta=(b.flightTime?(b.hasta||''):(first&&typeof _ldVispera==='function'?_ldVispera(first):''));
+    var L=_ldL;
+    var flujo=!!window._ldOpeningThenImport;
+    return _box(L('Totales de apertura','Opening totals'),
+        '<div class="ldo-mini-note" style="font-size:12px;line-height:1.45;opacity:.85;margin-bottom:10px">'
+        +L('Tus horas <b>anteriores</b> a PilotOS (de otra app o del logbook de papel), en resumen. '
+          +'Suman al total del logbook y a Carrera, junto a los vuelos que importes o vayas añadiendo (de Vueling y de otro tipo). '
+          +'No cuentan en el FTL, la recencia ni la nómina.',
+           'Your hours from <b>before</b> PilotOS (another app or a paper logbook), as a summary. '
+          +'They add to the logbook total and to Career, together with the flights you import or add (Vueling or other types). '
+          +'They don\'t count towards FTL, recency or payroll.')+'</div>'
+        +(flujo?'<div style="font-size:12px;line-height:1.45;font-weight:600;color:#B45309;margin-bottom:10px">'
+          +L('Al guardar se abrirá el importador: los vuelos de tu archivo se sumarán a estas horas.',
+             'When you save, the importer will open: the flights in your file will be added to these hours.')+'</div>':'')
+        +'<div class="ldo-fld"><label>'+L('Hasta (fecha de corte) · opcional','Up to (cut-off date) · optional')+'</label><input id="ldopen_hasta" type="date" value="'+hasta+'" oninput="ldOpeningCut()" onchange="ldOpeningCut()"></div>'
+        +'<div id="ldopen_cut_note" style="font-size:11.5px;line-height:1.4;opacity:.8;margin:-2px 0 6px"></div>'
+        +_ldoOpeningFields(b)
+        +(b.flightTime?'<div class="ldo-mini" style="border:1px solid rgba(180,83,9,.45);color:#B45309;margin-top:12px" onclick="ldOpeningDelete()">'+L('Borrar totales de apertura','Delete opening totals')+'</div>':''),
+      'ldo-b-main');
+  }
+  /* Las casillas. Mismo esquema y mismos ids que el pop-up de importación (prefijo
+     `ldopen_` + clave de LD_BAL_FIELDS ⇒ las lee el mismo _ldBalRead), pero con las
+     HORAS TOTALES arriba, solas y grandes. En el orden del Jeppesen la primera casilla
+     es «MP time»: el piloto escribía ahí sus 2.500 h, el total quedaba a 0 y no se
+     guardaba nada. */
+  function _ldoOpeningFields(b){
+    b=b||{};
+    var L=_ldL;
+    var fmt=function(k,hm){ return hm?_ldBalFmt(b[k]||0):String(b[k]||0); };
+    var cell=function(k,l,hm){
+      return '<div class="ldpp-cell"><div class="ldpp-l">'+l+'</div>'
+        +'<input class="ldpp-inp" id="ldopen_'+k+'" value="'+fmt(k,hm)+'" autocomplete="off" spellcheck="false"'+(hm?' inputmode="text" placeholder="h:mm"':' inputmode="numeric"')+'></div>';
+    };
+    var grp=function(h,cells){ return '<div class="ldpp-group"><div class="ldpp-gh">'+h+'</div><div class="ldpp-grid">'+cells+'</div></div>'; };
+    return '<div class="ldpp-wrap">'
+      +'<div class="ldpp-group" style="border-width:2px"><div class="ldpp-gh">'+L('Horas totales de vuelo','Total flight hours')+'</div>'
+        +'<input class="ldpp-inp" id="ldopen_flightTime" value="'+fmt('flightTime',1)+'" autocomplete="off" spellcheck="false" placeholder="2500:00" style="font-size:20px;padding:8px 10px;margin-top:4px">'
+        +'<div class="ldpp-l" style="margin-top:5px">'+L('Total time of flight · en horas:minutos (2500 = 2500:00)','Total time of flight · in hours:minutes (2500 = 2500:00)')+'</div></div>'
+      +grp(L('Desglose (opcional)','Breakdown (optional)'),
+           cell('mp','MP time',1)+cell('pic','Pilot in command',1)+cell('cop','Co-pilot',1)+cell('dual','Dual',1)+cell('instr','Instructor',1)
+          +cell('night','Night',1)+cell('ifr','IFR',1)+cell('sim','SIM',1))
+      +grp(L('Despegues y aterrizajes','Take-offs and landings'),
+           cell('toDay',L('T/O día','T/O day'))+cell('toNight',L('T/O noche','T/O night'))
+          +cell('ldgDay',L('LDG día','LDG day'))+cell('ldgNight',L('LDG noche','LDG night')))
+      +'</div>';
+  }
+  // Explica en vivo qué vuelos quedan DENTRO del corte (no suman) y cuáles suman encima.
+  function ldOpeningCut(){
+    var el=document.getElementById('ldopen_cut_note'), h=document.getElementById('ldopen_hasta'); if(!el||!h) return;
+    var cut=h.value, dentro=0, fuera=0;
+    (window.ldEntries||[]).forEach(function(e){
+      if(!e||!e.date||e.id==='__pilotOS_ac_db__'||(typeof ldIsSim==='function'&&ldIsSim(e))) return;
+      if(cut&&e.date<=cut) dentro++; else fuera++;
+    });
+    var L=_ldL;
+    if(!cut){
+      el.innerHTML=L('✓ Sin fecha de corte: todos los vuelos del logbook —los que importes y los que añadas— suman encima de estas horas.',
+                     '✓ No cut-off date: every flight in the logbook — imported or added — is added on top of these hours.');
+      return;
+    }
+    el.innerHTML=dentro
+      ? L('⚠ <b>'+dentro+'</b> vuelo'+(dentro>1?'s':'')+' de tu logbook '+(dentro>1?'son':'es')+' de esa fecha o anterior: se consideran ya incluidos en estos totales y <b>no</b> suman otra vez. '+(fuera===1?'El posterior sí suma.':'Los '+fuera+' posteriores sí suman.'),
+          '⚠ <b>'+dentro+'</b> flight'+(dentro>1?'s':'')+' in your logbook '+(dentro>1?'are':'is')+' on or before that date: '+(dentro>1?'they are':'it is')+' treated as already included in these totals and do <b>not</b> add again. '+(fuera===1?'The later one does add.':'The '+fuera+' later ones do add.'))
+      : (fuera===1 ? L('✓ El vuelo de tu logbook es posterior y suma encima de estos totales.','✓ The flight in your logbook is later and adds on top of these totals.')
+         : fuera ? L('✓ Los '+fuera+' vuelos de tu logbook son posteriores y suman encima de estos totales.','✓ The '+fuera+' flights in your logbook are later and add on top of these totals.')
+         : L('✓ Los vuelos con fecha posterior a la de corte sumarán encima de estas horas.','✓ Flights dated after the cut-off will add on top of these hours.'));
+  }
+  function ldOpeningSave(){
+    var b={};
+    if(typeof _ldBalRead==='function') _ldBalRead(b,'ldopen_');
+    // Las celdas de HH:MM del editor agrupado: _ldBalRead lee las de LD_BAL_FIELDS
+    // (mismos ids). Fecha de corte aparte.
+    var L=_ldL;
+    var h=(document.getElementById('ldopen_hasta')||{}).value||'';
+    if(h && !/^\d{4}-\d{2}-\d{2}$/.test(h)) h='';
+    if(!((parseInt(b.flightTime)||0)>0)){
+      if(window.showToast)showToast(L('Falta el «Total time of flight»: sin esa cifra los totales no cuentan en ninguna pantalla',
+                                       'The «Total time of flight» is missing: without it the totals don\'t count on any screen'),'info');
+      return;
+    }
+    if(h) b.hasta=h;   // sin fecha = no se excluye ningún vuelo: todo suma
+    b.fuente='manual';
+    ldBalanceSet(b);
+    try{ if(typeof ldStats==='function')ldStats(); if(typeof ldRender==='function')ldRender(); if(typeof ldRenderCarrera==='function')ldRenderCarrera(); }catch(_){}
+    var luegoImportar=!!window._ldOpeningThenImport; window._ldOpeningThenImport=false;
+    ldOtroClose();
+    var hh=(typeof _ldBalFmt==='function'?_ldBalFmt(b.flightTime):'');
+    if(window.showToast)showToast(L('Totales de apertura guardados ✓ ('+hh+' h'+(h?' hasta el '+h:'')+')',
+                                    'Opening totals saved ✓ ('+hh+' h'+(h?' up to '+h:'')+')'),'success');
+    // Flujo «horas iniciales y luego importo»: ahora sí, el importador.
+    if(luegoImportar) setTimeout(function(){ try{ ldShowImport(true); }catch(e){} },350);
+  }
+  function ldOpeningDelete(){
+    window._ldOpeningThenImport=false;
+    ldBalanceSet(null);
+    try{ if(typeof ldStats==='function')ldStats(); if(typeof ldRenderCarrera==='function')ldRenderCarrera(); }catch(_){}
+    ldOtroClose();
+    if(window.showToast)showToast(_ldL('Totales de apertura borrados','Opening totals deleted'),'info');
+  }
+  // Abrir el editor directamente (menú de la turbina).
+  function ldOpeningOpen(){
+    ldOtroOpen();
+    setTimeout(function(){ try{ ldOtroPick('opening'); }catch(e){} },120);
+  }
+  window.ldOpeningSave=ldOpeningSave; window.ldOpeningDelete=ldOpeningDelete; window.ldOpeningCut=ldOpeningCut; window.ldOpeningOpen=ldOpeningOpen;
   function ldOtroSave(ret){
     if(!_ldoType){ if(window.showToast)showToast('Elige el tipo de vuelo'); return; }
+    if(_ldoType==='opening'){ ldOpeningSave(); return; }
     var func=_gv('func')||'PIC';
     var role=(func==='PIC'||func==='Instructor'||func==='PICUS'||func==='SPIC')?'CPT':'FO';
     // Al EDITAR hay que conservar el id original: si no, se creaba una entrada nueva
@@ -29985,6 +30137,9 @@ function ldStats(){
   var tmCareer=tm+((bal&&bal.flightTime)?bal.flightTime:0);
   var el=function(id){return document.getElementById(id);};
   if(el('ld_total'))  el('ld_total').textContent=ldM2s(tmCareer);
+  // Noche y aterrizajes también llevan los totales de apertura, como el total y Carrera:
+  // si no, la cabecera mezclaba un total con saldo y una noche sin él.
+  if(bal){ nm+=(bal.night||0); tl+=(bal.ldgDay||0)+(bal.ldgNight||0); }
   if(el('ld_night'))  el('ld_night').textContent=ldM2s(nm);
   if(el('ld_ldg'))    el('ld_ldg').textContent=tl;
   if(el('ld_flights')) el('ld_flights').textContent=_fl.length+' registrados';
@@ -30112,6 +30267,17 @@ function ldToggleMenu(){
     +sec('Traer vuelos')
     +mi('📥',icoB,'Importar fichero','Jeppesen · LogTen · MCC · CSV · foto','ldShowImport()',lbl,'')
     +mi('🛫',icoB,'Vuelos de eCrews','Ya volados · matrícula y horas reales','ldECrewsLegsOpen()',lbl,'')
+    // Totales de apertura: las horas de antes de PilotOS. Aquí se ven y se cambian
+    // siempre (además de en Nueva entrada → Other type y al importar con el logbook vacío).
+    +(function(){
+      var _b=(typeof ldBalanceGet==='function')?ldBalanceGet():null;
+      var _L=(typeof _ldL==='function')?_ldL:function(es){return es;};
+      var _sub=(_b&&_b.flightTime)
+        ? _L(_ldBalFmt(_b.flightTime)+' h · '+(_b.hasta?'hasta el '+_b.hasta:'suman todos los vuelos')+' · editar',
+             _ldBalFmt(_b.flightTime)+' h · '+(_b.hasta?'up to '+_b.hasta:'every flight adds')+' · edit')
+        : _L('Horas iniciales de otro logbook o del papel','Starting hours from another logbook or paper');
+      return mi('🕘',icoB,_L('Totales de apertura','Opening totals'),_sub,'ldOpeningOpen()',lbl,'ld-menu-opening-btn');
+    })()
     +sec('Nube')
     +mi('☁️',icoB,'Sincronizar','Bajar los cambios del servidor','ldManualPull()',lbl,'ld-menu-sync-btn')
     +mi('🔄',icoB,'Sincronizar desde cero','Resetea la caché y baja todo','ldResetSync()',lbl,'')
@@ -30522,7 +30688,8 @@ function ldApplyBackup(){
   }
   // El saldo de partida solo se pone si no hay: sobrescribirlo duplicaría horas de carrera.
   if(ex.careerBalance&&!lsGet('pilotos_careerBalance',null)){
-    try{ lsSet('pilotos_careerBalance',JSON.stringify(ex.careerBalance)); }catch(e){}
+    // Por ldBalanceSet: sella la hora y lo sube a la nube (si no, los otros aparatos no lo ven).
+    try{ if(typeof ldBalanceSet==='function') ldBalanceSet(ex.careerBalance); else lsSet('pilotos_careerBalance',JSON.stringify(ex.careerBalance)); }catch(e){}
   }
 
   ldSaveData();
@@ -32972,7 +33139,51 @@ var _ldImportData = null;
 var _ldImportFileName = '';   // fichero de origen del import en curso (sella el lote)
 var _ldiProcTimer = null;
 
-function ldShowImport(){
+/* ── ¿Horas iniciales antes de importar? ───────────────────────────────────────
+   Con el logbook VACÍO y sin totales de apertura, al pulsar Importar se pregunta
+   primero si quiere apuntar sus horas iniciales (de otro logbook o del papel).
+   Sí → editor de Totales de apertura → al guardar se abre el importador, y lo que
+   importe SUMA encima (sin fecha de corte no se excluye ningún vuelo). Se pregunta
+   una vez por sesión: si dice que no, no se le vuelve a insistir. */
+function _ldL(es,en){ return window.pilotosLang==='en'?en:es; }
+function _ldNeedsOpeningAsk(){
+  try{ if(sessionStorage.getItem('pilotos_open_ask')) return false; }catch(e){}
+  var b=(typeof ldBalanceGet==='function')?ldBalanceGet():null;
+  if(b&&b.flightTime>0) return false;
+  return !(window.ldEntries||[]).some(function(e){
+    return e&&e.date&&e.type!=='__ac_db__'&&e.id!==LD_AC_DB_ENTRY_ID;
+  });
+}
+function ldAskOpening(){
+  try{ sessionStorage.setItem('pilotos_open_ask','1'); }catch(e){}
+  var old=document.getElementById('ld_open_ask'); if(old) old.remove();
+  var ov=document.createElement('div');
+  ov.id='ld_open_ask';
+  ov.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(3,6,18,.62);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)';
+  var day=document.documentElement.classList.contains('day');
+  var card=day?'background:#fff;color:#0F172A;border:1px solid rgba(180,83,9,.25)':'background:#111827;color:#E2E8F0;border:1px solid rgba(245,158,11,.3)';
+  ov.innerHTML='<div style="'+card+';max-width:380px;width:100%;border-radius:18px;padding:22px 20px 18px;box-shadow:0 20px 60px rgba(0,0,0,.45);font-family:\'Space Grotesk\',sans-serif">'
+    +'<div style="font-size:30px;line-height:1;margin-bottom:10px">🕘</div>'
+    +'<div style="font-size:17px;font-weight:700;margin-bottom:8px">'+_ldL('¿Quieres añadir tus horas iniciales?','Do you want to add your starting hours?')+'</div>'
+    +'<div style="font-size:13px;line-height:1.5;opacity:.82;margin-bottom:18px">'
+      +_ldL('Si vienes de otro logbook o del papel, apunta primero tus horas totales. Los vuelos que importes después se sumarán a ellas.',
+            'If you come from another logbook or from paper, enter your total hours first. The flights you import afterwards will be added on top.')+'</div>'
+    +'<button id="ld_open_ask_yes" style="width:100%;padding:12px;border:0;border-radius:12px;background:#B45309;color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-bottom:8px">'+_ldL('Sí, añadir horas iniciales','Yes, add starting hours')+'</button>'
+    +'<button id="ld_open_ask_no" style="width:100%;padding:11px;border:1px solid '+(day?'rgba(15,23,42,.15)':'rgba(226,232,240,.18)')+';border-radius:12px;background:transparent;color:inherit;font-weight:600;font-size:13px;cursor:pointer">'+_ldL('No, importar directamente','No, import directly')+'</button>'
+    +'</div>';
+  document.body.appendChild(ov);
+  var close=function(){ ov.remove(); };
+  ov.addEventListener('click',function(ev){ if(ev.target===ov){ close(); } });
+  document.getElementById('ld_open_ask_no').onclick=function(){ close(); ldShowImport(true); };
+  document.getElementById('ld_open_ask_yes').onclick=function(){
+    close();
+    if(typeof ldOtroOpen==='function') ldOtroOpen();
+    window._ldOpeningThenImport=true;
+    setTimeout(function(){ try{ ldOtroPick('opening'); }catch(e){} },120);
+  };
+}
+function ldShowImport(force){
+  if(force!==true && _ldNeedsOpeningAsk()){ ldAskOpening(); return; }
   var m=document.getElementById('ld_import_modal');
   var tabs=document.getElementById('btabs');
   if(m){ m.style.display='flex'; document.body.style.overflow='hidden'; }
@@ -34342,10 +34553,13 @@ function ldImportFlylog(aoa,fname){
   }catch(e){}
   var s=parsed.stats;
   _ldPendingBalance=null;
-  _ldPdfSummary='<div class="ldbal-hint">FLYLOG.io · '+s.flights+' vuelos + '+s.sims+' simuladores · '+Object.keys(parsed.acMeta).length+' aviones'
-    +(s.simSinTiempo?' · '+s.simSinTiempo+' sesiones de simulador sin tiempo omitidas':'')
-    +(s.skipped?' · '+s.skipped+' filas sin tiempo omitidas':'')
-    +'. Los vuelos ya existentes se enriquecen, no se duplican.</div>';
+  var L=_ldL, nAc=Object.keys(parsed.acMeta).length;
+  _ldPdfSummary='<div class="ldbal-hint">FLYLOG.io · '
+    +L(s.flights+' vuelos + '+s.sims+' simuladores · '+nAc+' aviones', s.flights+' flights + '+s.sims+' simulator sessions · '+nAc+' aircraft')
+    +(s.simSinTiempo?' · '+L(s.simSinTiempo+' sesiones de simulador sin tiempo omitidas', s.simSinTiempo+' simulator sessions without time skipped'):'')
+    +(s.skipped?' · '+L(s.skipped+' filas sin tiempo omitidas', s.skipped+' rows without time skipped'):'')
+    +L('. Los vuelos ya existentes se enriquecen, no se duplican.','. Flights you already have are enriched, not duplicated.')
+    +'</div>';
   ldImportProcess(parsed.rows,fname);
 }
 /* ══ LOS FICHEROS HERMANOS DE UNA EXPORTACIÓN ════════════════════════════════
@@ -34552,7 +34766,12 @@ function ldImportProcess(rows,fname){
       status.innerHTML='<span class="ldi-status-icon">✓</span>'
         +'<div><span class="ldi-count">'+mapped.length+'</span>'
         +'<span style="font-size:10px;opacity:.92;letter-spacing:.3px">vuelos detectados en <strong style="color:inherit">'+fname+'</strong> · '+(_ldImportEditable?'Revisa y corrige:':'Vista previa:')+'</span></div>'
-        +(_ldPdfSummary||'');
+        +(_ldPdfSummary||'')
+        // Con totales de apertura (y sin un saldo del propio PDF, que los sustituiría):
+        // decirle que lo que importa SUMA encima, que es justo lo que espera ver.
+        +(function(){ var b=(typeof ldBalanceGet==='function')?ldBalanceGet():null; if(!b||!b.flightTime||_ldPendingBalance) return '';
+            return '<div class="ldbal-hint">'+_ldL('🕘 Estos vuelos se sumarán a tus totales de apertura ('+_ldBalFmt(b.flightTime)+' h).',
+                                                    '🕘 These flights will be added to your opening totals ('+_ldBalFmt(b.flightTime)+' h).')+'</div>'; })();
     }
     if(_ldImportEditable){
       // Import por foto: tabla EDITABLE con TODOS los vuelos (la IA se equivoca a mano).
@@ -35050,7 +35269,68 @@ document.addEventListener('visibilitychange', function(){
 // si el piloto sube después su histórico completo.
 var LD_BALANCE_KEY='pilotos_careerBalance';
 function ldBalanceGet(){ try{ return JSON.parse(lsGet(LD_BALANCE_KEY,'null')); }catch(e){ return null; } }
-function ldBalanceSet(b){ try{ lsSet(LD_BALANCE_KEY,JSON.stringify(b)); }catch(e){} }
+/* ── Totales de apertura en la NUBE (user_settings 'logbook_opening') ──
+   Antes vivían sólo en este aparato: metidos en el PC, en el móvil salía 0. Cada
+   escritura sella la hora y sube; el pull sólo pisa lo local si lo de la nube es
+   MÁS nuevo (mismo criterio que la nómina). Las TRES puertas: arranque (ldBalInit),
+   login (pagDoAuth) y vuelta al primer plano. `null` también viaja: si el piloto
+   los borra en un aparato, el otro no puede resucitarlos. */
+var LD_BALANCE_AT_KEY='pilotos_careerBalance_at';
+function ldBalanceSet(b, opts){
+  try{ lsSet(LD_BALANCE_KEY,JSON.stringify(b||null)); }catch(e){}
+  if(opts&&opts.fromCloud) return;
+  var at=new Date().toISOString();
+  try{ lsSet(LD_BALANCE_AT_KEY,at); }catch(e){}
+  try{ ldBalCloudPush(b||null, at); }catch(e){}
+}
+function _ldBalBases(){ return (typeof ppApiBases==='function')?ppApiBases():[lsGet('cafi_backend_url','https://api.pilotos.aero')]; }
+function ldBalCloudPush(b, at){
+  var token=lsGet('cafi_auth_token',''); if(!token) return Promise.resolve(false);
+  var bases=_ldBalBases();
+  return (function intenta(i){
+    if(i>=bases.length) return Promise.resolve(false);
+    return fetch(bases[i]+'/api/logbook/opening',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({balance:b, updatedAt:at})
+    }).then(function(r){ return r.ok?true:intenta(i+1); }).catch(function(){ return intenta(i+1); });
+  })(0);
+}
+var _ldBalPullEnCurso=null;
+function ldBalCloudPull(){
+  var token=lsGet('cafi_auth_token',''); if(!token) return Promise.resolve(false);
+  if(_ldBalPullEnCurso) return _ldBalPullEnCurso;
+  var bases=_ldBalBases();
+  _ldBalPullEnCurso=(function intenta(i){
+    if(i>=bases.length) return Promise.resolve(false);
+    return fetch(bases[i]+'/api/logbook/opening',{headers:{'Authorization':'Bearer '+token}})
+      .then(function(r){ return r.ok?r.json():Promise.reject(new Error('http '+r.status)); })
+      .then(function(j){
+        var rem=j&&j.opening;
+        var mio=lsGet(LD_BALANCE_AT_KEY,'');
+        if(!rem||!rem.updatedAt){
+          // La nube no tiene nada y aquí sí (p.ej. un PDF importado antes de esto): subirlo.
+          var loc=ldBalanceGet();
+          if(loc){ var at=mio||new Date().toISOString(); lsSet(LD_BALANCE_AT_KEY,at); ldBalCloudPush(loc,at); }
+          return false;
+        }
+        if(mio && mio>=rem.updatedAt) return false;
+        ldBalanceSet(rem.balance||null,{fromCloud:true});
+        lsSet(LD_BALANCE_AT_KEY,rem.updatedAt);
+        try{ if(typeof ldStats==='function') ldStats(); }catch(e){}
+        try{ if(typeof ldRenderCarrera==='function') ldRenderCarrera(); }catch(e){}
+        return true;
+      })
+      .catch(function(){ return intenta(i+1); });
+  })(0);
+  var fin=function(){ _ldBalPullEnCurso=null; };
+  _ldBalPullEnCurso.then(fin,fin);
+  return _ldBalPullEnCurso;
+}
+try{ window.ldBalCloudPull=ldBalCloudPull; }catch(e){}
+try{
+  document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible'){ try{ ldBalCloudPull(); }catch(e){} } });
+  setTimeout(function(){ try{ ldBalCloudPull(); }catch(e){} },1500);
+}catch(e){}
 
 // La víspera de una fecha ISO, en UTC. `new Date('2015-07-01T00:00:00')` es hora LOCAL y
 // `toISOString()` la devuelve a UTC, así que en cualquier huso UTC+ —o sea, aquí— el corte
@@ -35159,13 +35439,15 @@ function _ldRenderPrevPages(b,prefix){
 // El saldo se revisa y se corrige en el pop-up de importación, antes de entrar.
 function ldBalanceCardHtml(){
   var b=ldBalanceActive(); if(!b) return '';
-  return '<div class="crr-sec">Saldo de partida</div>'
+  var L=(typeof _ldL==='function')?_ldL:function(es){return es;};
+  return '<div class="crr-sec">'+L('Totales de apertura','Opening totals')+'</div>'
     +'<div class="crr-total" style="border-color:rgba(245,158,11,.4)">'
-      +'<div><div class="ld-stat-label ldbal-lbl">Horas anteriores a PilotOS</div>'
-      +'<div class="crr-muted" style="font-size:11px;margin-top:3px">Hasta el '+(b.hasta||'—')+' · '
-        +(b.fuente==='jeppesen-pdf'?'importado del PDF Jeppesen'
-          :b.fuente==='jeppesen-photo'?'leído por IA de una foto — revísalo'
-          :'editado a mano')+'</div></div>'
+      +'<div><div class="ld-stat-label ldbal-lbl">'+L('Horas anteriores a PilotOS','Hours before PilotOS')+'</div>'
+      +'<div class="crr-muted" style="font-size:11px;margin-top:3px">'
+        +(b.hasta?L('Hasta el '+b.hasta,'Up to '+b.hasta):L('Sin fecha de corte: suman todos los vuelos','No cut-off date: every flight adds'))+' · '
+        +(b.fuente==='jeppesen-pdf'?L('importado del PDF Jeppesen','imported from the Jeppesen PDF')
+          :b.fuente==='jeppesen-photo'?L('leído por IA de una foto — revísalo','read by AI from a photo — check it')
+          :L('editado a mano','edited by hand'))+'</div></div>'
       +'<div class="ld-stats" style="grid-template-columns:repeat(4,1fr);margin:12px 0 0">'+_ldBalCells(b,false,'ldbal_')+'</div>'
       +'<div class="crr-muted" style="font-size:10.5px;margin-top:10px">Resumen de tus horas previas. Suman a los totales de carrera, pero no son vuelos: no aparecen en la lista ni en el mapa.</div>'
     +'</div>';
@@ -35183,6 +35465,12 @@ function ldBalanceCardHtml(){
 // instante y nos cargaríamos el dato), simplemente no cuenta.
 function ldBalanceActive(){
   var b=ldBalanceGet(); if(!b||!b.flightTime) return null;
+  /* Los TOTALES DE APERTURA que el piloto mete a mano cuentan SIEMPRE, también con el
+     logbook vacío. Reportado (16-nov): «he puesto 2500 h y no me las ha sumado» — la
+     cuenta tenía 0 vuelos y esta regla los escondía. La regla de abajo es del saldo que
+     trae un PDF (si borras el logbook, desaparece con él); un dato tecleado a propósito
+     se borra a propósito, desde el menú de la turbina. */
+  if(b.fuente==='manual') return b;
   var hay=(window.ldEntries||[]).some(function(e){
     return e && e.date && e.type!=='__ac_db__' && e.id!==LD_AC_DB_ENTRY_ID;
   });
@@ -59182,6 +59470,7 @@ async function pagDoAuth() {
          que volver a subir la nómina del portátil — gastando cupo de IA otra vez. */
       setTimeout(function(){
         try { if (typeof ppCloudPull === 'function') ppCloudPull(); } catch(e){}
+        try { if (typeof ldBalCloudPull === 'function') ldBalCloudPull(); } catch(e){}
       }, 900);
       /* login: mensaje Conectado como eliminado — borraba la pantalla de bienvenida de CAFI */
     }
@@ -66943,7 +67232,7 @@ function laShareWrapped() {
     </div>
     <div class="ldi-body">
       <div class="ldi-info">
-        <div class="ldi-info-title">PDF Jeppesen EASA (PilotLog) · LogTen Pro · Swift · Logbook EASA (Excel) · FOTO del logbook (lo lee la IA) · o CSV/Excel con estas columnas</div>
+        <div class="ldi-info-title">PDF Jeppesen EASA (PilotLog) · LogTen Pro · Swift · FLYLOG.io · Logbook EASA (Excel) · FOTO del logbook (lo lee la IA) · o CSV/Excel con estas columnas</div>
         <div class="ldi-info-cols">fecha/date · vuelo/flight · origen/dep · destino/arr · matrícula/reg · tipo/actype · atd block · ata block · total block · nocturno/night · ldg_dia · ldg_noche · rol/role · cm1 · cm2 · notas/notes</div>
       </div>
       <div id="ldi_zone" class="ldi-zone"
