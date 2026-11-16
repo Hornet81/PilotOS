@@ -61,14 +61,16 @@
   var REGLAS_DEFECTO = [
     /* MO-A 7.1.2.1: «the roster is then published 14 days before the first day of
        the roster period». Se cuenta en el mes ANTERIOR al de la programación con
-       `cierra_dia` negativo: -14 es el 14.º día empezando por el final, o sea, 14
-       días antes del día 1 (el 17 en un mes de 30, el 18 en uno de 31, el 15 en
-       febrero). El convenio no le da fecha; el MO sí. 23:59 para que el mismo
+       `cierra_dia` negativo. Son 14 días COMPLETOS antes del día 1: diciembre se
+       publica el 16-nov (del 17 al 30 quedan 14 días). Por eso -15 = 15.º día
+       empezando por el final (el 16 en un mes de 30, el 17 en uno de 31, el 14 en
+       febrero). Con -14 salía un día tarde (corregido 16-nov-2026 por el piloto).
+       El convenio no le da fecha; el MO sí. 23:59 para que el mismo
        día siga en «Próximos» y la tarjeta diga «hoy». El título, corto: medido,
        «Publicación de la programación · …» no cabe en la tarjeta del Home. */
     R('prog_publicacion','programacion','hito','Programación · {mes}',
       'La compañía la publica en Vueling Crew 14 días antes del primer día del mes.',
-      'mensual',1, null,null,null, null,-14,'23:59', null,null, [], {}, 'MO-A · 7.1.2.1', 5, true),
+      'mensual',1, null,null,null, null,-15,'23:59', null,null, [], {}, 'MO-A · 7.1.2.1', 5, true),
     R('roff_puja','roff','ventana','Puja de ROFF · {mes}',
       'Se puede pujar hasta una hora aleatoria entre las 12:00 del día 11 y las 10:00 del día 12, dos meses antes del mes de disfrute.',
       'mensual',2, null,5,'00:00', null,11,'12:00', 12,'10:00', [], {}, null, 10, true),

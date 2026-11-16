@@ -791,6 +791,14 @@
   function fraseFechas(r, o) {
     var a = o.abre != null ? diaMad(o.abre) : null, c = diaMad(o.cierra);
     if (r.recurrencia === 'mensual') {
+      /* Un hito mensual (la publicación de la programación) cae en un día distinto
+         cada mes (16 nov, 17 dic, 14 feb): «el 17 de cada mes» engañaba. Se dice
+         la fecha PREVISTA de la próxima y de qué mes es (pedido 16-nov-2026). */
+      if (r.clase === 'hito') {
+        var ob = o.objetivo ? +String(o.objetivo).slice(5, 7) : 0;
+        return T('Prevista el ' + c.d + ' de ' + mesL(c.m) + (ob ? ' · la de ' + mesL(ob) : ''),
+          'Expected on ' + c.d + ' ' + mesL(c.m) + (ob ? ' · ' + mesL(ob) + ' roster' : ''));
+      }
       if (r.clase === 'ventana') return T('Del ' + a.d + ' al ' + c.d + ' de cada mes', a.d + '–' + c.d + ' of every month');
       return r.cierra_dia === -1 ? T('Hasta el último día de cada mes', 'By the last day of every month') : T('Hasta el ' + c.d + ' de cada mes', 'By the ' + c.d + ' of every month');
     }
@@ -833,9 +841,10 @@
          hablaría de un mes concreto; aquí se describe la regla. */
       var tit = String((L === 'en' && P.EN[r.id] && P.EN[r.id][0]) || r.titulo || '').replace('{mes}', T('cada mes', 'every month'));
       var det = P.detalle(o, L), solo = x.mia ? '' : soloPara(r);
+      var ciclo = r.recurrencia === 'mensual' && r.clase !== 'hito';   // el hito enseña SU día, no ↻
       var pie = [tipoTxt[r.clase] || '', r.fuente || ''].filter(Boolean).join(' · ');
       return '<div class="plz-if' + (x.mia ? '' : ' ajena') + '">' +
-        '<div class="plz-ifd" aria-hidden="true"><b>' + (r.recurrencia === 'mensual' ? '↻' : d.d) + '</b><span>' + esc(r.recurrencia === 'mensual' ? T('MES', 'MONTH') : mesL(d.m).slice(0, 3).toUpperCase()) + '</span></div>' +
+        '<div class="plz-ifd" aria-hidden="true"><b>' + (ciclo ? '↻' : d.d) + '</b><span>' + esc(ciclo ? T('MES', 'MONTH') : mesL(d.m).slice(0, 3).toUpperCase()) + '</span></div>' +
         '<div class="plz-ift"><div class="plz-ifn">' + esc(tit) + '</div>' +
         '<div class="plz-iff">' + esc(fraseFechas(r, o)) + '</div>' +
         (det ? '<div class="plz-ifx">' + esc(det) + '</div>' : '') +
