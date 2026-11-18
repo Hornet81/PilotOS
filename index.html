@@ -185,9 +185,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
 }
 </style>
 
-  <meta name="version" content="Estable.1248">
+  <meta name="version" content="Estable.1261">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1248","builtAt":"2026-11-16T21:19:01Z","commit":"1aa03ec","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1261","builtAt":"2026-11-18T18:14:29Z","commit":"7a15b1a","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -25179,8 +25179,38 @@ function pcGross(data) {
     imag:+_ra.imaginaria_days||0,
     tri:+_sims.tri||0, tre:+_sims.tre||0, form:+_sims.formacion||0
   };
+  /* ── Lo que el roster ya ha devengado y no es vuelo ni dieta ────────────────
+     Vacaciones (2108), flexiworking convocado (226), invasión de día libre (2043
+     + su dieta) y cambios de programación (2081). La Nómina los cobraba y el
+     Acumulado no: un piloto con cinco días de RVAC ya disfrutados veía un bruto sin
+     ellos (j.masachs, 18-nov-2026). Se cuentan con LAS MISMAS funciones que rellenan
+     las casillas de la Nómina —una sola regla, recortada a hoy en el mes en curso—,
+     con el servidor de respaldo si el mes no está en este aparato. */
+  var _mes = data.month || '';
+  var _niv6 = (esp === 'cop' && String(_niv) === '6');
+  var rVac = (T.compVacaciones && typeof T.compVacaciones === 'object')
+    ? (_niv6 ? T.compVacaciones.nivel6 : T.compVacaciones.normal) : (T.compVacaciones || 0);
+  var rFlex = T.flexiworking || 0;
+  q.vac = +_ra.vacation_days || 0;
+  q.flex = +_ra.flexiworking_days || 0;
+  q.inv = 0; var eurInv = 0;
+  var _sim = (typeof RCAMB !== 'undefined' && RCAMB && RCAMB.sim);
+  if (_mes && !_sim) {
+    try { var _v = pcVacFromRoster(_mes); if (_v.hayMes) q.vac = _v.dias; } catch(_e){}
+    /* El flexiworking del SERVIDOR manda cuando tiene el roster —es lo que hace la
+       Nómina, que lo escribe después del local—; sin él, el del aparato. */
+    try { if (!data.roster_available) { var _f = pcFlexFromRoster(_mes); if (_f.hayMes) q.flex = _f.dias; } } catch(_e){}
+    try { var _iv = pcInvDesdeRoster(_mes); if (_iv.hayMes && _iv.r) { q.inv = _iv.r.n || 0; eurInv = +_iv.r.total || 0; } } catch(_e){}
+  }
+  var _c = data.cambios || {};
+  q.camb = (_c.disponible && !_sim) ? (+_c.nComputables || 0) : 0;
+  /* Las nocturnas salen de DENTRO del bloque (2104 diurnas + 2111 nocturnas): el
+     bloque entero a tarifa de día más las nocturnas a la suya las pagaba dos veces
+     — los 297,82 € de más que ya costó en la Nómina. */
+  var _diur = Math.max(0, q.blk - q.noct);
   var e = {
-    hv:q.blk*rateHV, noct:q.noct*rateNoct, nac:q.dnac*dietaNac, int:q.dint*dietaInt,
+    hv:_diur*rateHV, noct:q.noct*rateNoct, nac:q.dnac*dietaNac, int:q.dint*dietaInt,
+    vac:q.vac*rVac, flex:q.flex*rFlex, inv:eurInv, camb:(q.camb ? (+_c.importe || 0) : 0),
     pnac:q.pnac*pernNac, pint:q.pint*pernInt, pos:q.pos*ratePos, elearn:q.elearn*rElearn,
     ofi:q.ofi*rOfi, grnd:q.grnd*rGti, spar:q.spar*rSpar, imag:q.imag*rImag,
     tri:q.tri*rTri, tre:q.tre*rTre, form:q.form*rForm
@@ -25855,7 +25885,10 @@ function pcRenderTracker(data) {
   // ── Detalle del cálculo (solo lectura): concepto → cantidad → € ──
   function _n2(x){ return x.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2}); }
   var det = [
-    ['🛫','Horas de vuelo',                _n2(qBlk)+' h',    eurHV],
+    /* Con nocturnas, esta fila son las DIURNAS (las otras van en la suya): la
+       cantidad tiene que ser la que multiplica el importe de al lado. */
+    [ '🛫', qNoct > 0 ? 'Horas de vuelo (diurnas)' : 'Horas de vuelo',
+      _n2(Math.max(0, qBlk - qNoct))+' h', eurHV],
     ['🌙','Nocturnas',                     _n2(qNoct)+' h',   eurNoct],
     ['🍽️','Dietas nacionales',            qDnac+' días',      eurNac],
     ['🌍','Dietas internacionales',        qDint+' días',      eurInt],
@@ -25869,7 +25902,11 @@ function pcRenderTracker(data) {
     ['⏱️','Imaginarias',                   qImag+' días',      eurImag],
     ['🎮','Simulador TRI',                 qTri+' ses.',       eurTri],
     ['🎮','Simulador TRE',                 qTre+' ses.',       eurTre],
-    ['🎓','Simulador (alumno/formación)',  qForm+' ses.',      eurForm]
+    ['🎓','Simulador (alumno/formación)',  qForm+' ses.',      eurForm],
+    ['🏖️','Vacaciones',                    _q.vac+' días',     _e.vac],
+    ['💲','Flexiworking',                  _q.flex+' días',    _e.flex],
+    ['🌙','Invasión de día libre',         _q.inv+' días',     _e.inv],
+    ['🔁','Cambios de programación',       _q.camb+' cambios', _e.camb]
   ];
   /* Colores por CLASE, no en línea. Iban en línea y por eso el modo día no podía
      tocarlos: el nombre del concepto se quedaba en rgba(255,255,255,.82) sobre
