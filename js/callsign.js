@@ -123,7 +123,36 @@
     if (real == null && lb != null) sa = lb;
     var arr = sa == null ? dep + 4 * 36e5 : d0 + sa * 6e4;
     if (arr < dep) arr += 864e5;
+    /* Sin calzos reales, la llegada no puede ser antes de SALIDA REAL + BLOQUE
+       programado. En vuelo no hay ↻ de eCrews: con el vuelo retrasado la E no
+       se actualiza y la programada (o una E vieja) cerraba el tramo con el avión
+       todavía en el aire (20-nov-2026, «el callsign se me ha cambiado en vuelo
+       antes de llegar a destino»). La salida real: A de eCrews o el OUT del logbook. */
+    if (real == null && lb == null) {
+      var ss = hora(e, ['std_scheduled', 'std']), sx = hora(e, ['sta_scheduled', 'sta']);
+      var ad = hora(e, ['std_actual']); if (ad == null) ad = salidaLogbook(e);
+      if (ss != null && sx != null && ad != null) {
+        var bloque = sx - ss; if (bloque < 0) bloque += 1440;
+        var adMs = d0 + ad * 6e4;
+        if (adMs < dep - 6 * 36e5) adMs += 864e5;   // salió pasada la medianoche
+        if (adMs + bloque * 6e4 > arr) arr = adMs + bloque * 6e4;
+      }
+    }
     return { dep: dep, arr: arr };
+  }
+  /* El OUT (calzos fuera) que el piloto apuntó en el logbook para ese vuelo. */
+  function salidaLogbook(e) {
+    var l = entradaLogbook(e);
+    return l ? hora(l, ['atd']) : null;
+  }
+  function entradaLogbook(e) {
+    var n = numDe({ flight: e.flightNum }); if (!n) return null;
+    var lb = lee('pilotOS_logbook_v1', []);
+    if (!Array.isArray(lb)) return null;
+    for (var i = 0; i < lb.length; i++) {
+      var l = lb[i]; if (l && l.date === e.date && numDe(l) === n) return l;
+    }
+    return null;
   }
   /* Los calzos (IN) —o, sin ellos, el aterrizaje (ON)— que el piloto apuntó en el
      logbook para ESE vuelo y ese día. En este esquema `ata` = IN y `sta` = ON; un
@@ -134,7 +163,12 @@
     if (!Array.isArray(lb)) return null;
     for (var i = 0; i < lb.length; i++) {
       var l = lb[i]; if (!l || l.date !== e.date || numDe(l) !== n) continue;
-      var m = hora(l, ['ata', 'sta']); if (m != null) return m;
+      // Una hora que el ADS-B ha ESTIMADO no son calzos: no cierra el tramo.
+      var so = l.source_origin || {}, est = l.estado === 'estimado';
+      var cam = [];
+      if (!(est && so.in === 'adsb')) cam.push('ata');
+      if (!(est && so.on === 'adsb')) cam.push('sta');
+      var m = hora(l, cam); if (m != null) return m;
     }
     return null;
   }
