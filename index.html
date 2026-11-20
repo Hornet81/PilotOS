@@ -185,9 +185,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
 }
 </style>
 
-  <meta name="version" content="Estable.1261">
+  <meta name="version" content="Estable.1265">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1261","builtAt":"2026-11-18T18:14:29Z","commit":"065d922","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1265","builtAt":"2026-11-20T13:56:11Z","commit":"7d11ab1","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -26799,7 +26799,23 @@ function ldDelClear(ids){
 var PLAN_FREE_LOGBOOK_LIMIT = 25;
 var PLAN_FREE_OES_LIMIT     = 20;
 
-function pilotPlan(){ return lsGet('pilotOS_plan', 'free'); }
+/* El plan que manda en la app. La prueba de Pro NO es un plan propio: en la base
+   el piloto sigue en `free` con `trial_until`, y el servidor le da Pro hasta esa
+   fecha (planEfectivo). Aquí se aplica la MISMA regla con la fecha guardada, para
+   que no dependa de que el servidor conteste a tiempo (arranque en frío, sin
+   cobertura): con la prueba vigente es Pro aunque lo guardado diga free, y con la
+   prueba ya pasada vuelve a Free aunque lo guardado aún diga pro. Un plan de pago
+   no lleva `pilotOS_trial_until` (el servidor sólo lo manda con plan free), así que
+   esto no lo toca. */
+function pilotPlan(){
+  var p = lsGet('pilotOS_plan', 'free') || 'free';
+  var u = lsGet('pilotOS_trial_until', ''), t = u ? Date.parse(u) : NaN;
+  if (t === t) {
+    if (p === 'free' && t > Date.now()) return 'pro';
+    if (p === 'pro'  && t <= Date.now()) return 'free';
+  }
+  return p;
+}
 /* Prueba gratuita de Pro (26-oct-2026): el servidor ya devuelve plan 'pro' mientras
    dura; esto sólo recuerda HASTA CUÁNDO, para que la pantalla de planes lo diga y
    para que «suscribirse» vaya al pago y no a «cambiar de plan» (en prueba no hay
@@ -59727,6 +59743,9 @@ document.addEventListener('DOMContentLoaded', function pagInit(){
         lsSet('pilotOS_plan', d.plan);
         pilotosGuardaPrueba(d.trial);
         if (typeof sbUpdatePlanBadge === 'function') sbUpdatePlanBadge();
+        // Lo que ya se pintó con el plan de antes se vuelve a pintar con éste.
+        try { if (typeof ldUpdatePlanBanners === 'function') ldUpdatePlanBanners(); } catch(_e){}
+        try { if (typeof upgUpdateCards === 'function') upgUpdateCards(); } catch(_e){}
       }
     }).catch(function(){
       // Network error — allow offline access with cached token (don't force logout)
@@ -59989,7 +60008,12 @@ function updateUserAvatar(user) {
   if (ddEmail) ddEmail.textContent = user.email || '';
 
   // ── Plan badge ──
-  if (user.plan) lsSet('pilotOS_plan', user.plan);
+  /* El plan NO se escribe desde aquí. `user` es casi siempre el `cafi_auth_user`
+     guardado en el LOGIN, y la prueba de Pro empieza DESPUÉS (al importar el primer
+     roster): ese objeto dice «free» para siempre y, al arrancar, pisaba el «pro» que
+     el servidor ya había dado — el Pay Check y el logbook salían capados hasta que
+     contestaba /api/user/plan, y sin cobertura no lo hacía nunca (20-nov-2026). El
+     plan lo escriben el login y las respuestas del servidor. */
   sbUpdatePlanBadge();
 }
 
