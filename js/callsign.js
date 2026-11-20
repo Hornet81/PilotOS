@@ -108,6 +108,7 @@
     return null;
   }
   // Cuándo sale y cuándo llega un tramo, en ms UTC (las horas del roster son zulú).
+  var SIN_CONFIRMAR_MIN = 30;   // margen sin calzos ni hora real (criterio del piloto, 20-nov-2026)
   function ventana(e) {
     if (!e || e.type !== 'flight' || !e.flightNum || !/^\d{4}-\d{2}-\d{2}$/.test(e.date || '')) return null;
     if (/\*/.test(e.dep || '') || e.isPositioning || e.positioning) return null;   // un posicional no lo llamas tú
@@ -137,6 +138,12 @@
         if (adMs < dep - 6 * 36e5) adMs += 864e5;   // salió pasada la medianoche
         if (adMs + bloque * 6e4 > arr) arr = adMs + bloque * 6e4;
       }
+      /* Y sin NINGUNA confirmación de llegada (ni A de eCrews ni calzos en el
+         logbook), 30 min de margen: la hora es una previsión y la app no sabe si
+         vais con retraso (20-nov-2026, «íbamos con retraso y se me ha vuelto a
+         desaparecer»: el roster sólo tenía las programadas). Con calzos apuntados
+         o la A importada, cambia en ese mismo momento. */
+      arr += SIN_CONFIRMAR_MIN * 6e4;
     }
     return { dep: dep, arr: arr };
   }
