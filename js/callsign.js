@@ -212,10 +212,17 @@
     } catch (e) { return []; }
   }
 
+  /* Tramos que el piloto ha dado por acabados con «Siguiente tramo» (20-nov-2026,
+     «que el botón fuerce al siguiente leg si no cambia solo»). Cuentan como
+     aterrizados aquí, en el Home y en Safari. Se guardan 3 días. */
+  var K_SALTA = 'pilotos_cs_salta';
+  function saltados() { var m = lee(K_SALTA, {}); return m && typeof m === 'object' ? m : {}; }
+  function saltado(e) { return !!saltados()[claveTramo(e)]; }
   function proximosVuelos(ahora) {
     var now = ahora || Date.now(), out = [], ent = entradasRoster();
     ent.forEach(function (e) {
       var w = ventana(e); if (!w) return;
+      if (saltado(e)) return;                      // dado por acabado a mano
       if (w.arr + TRAS_CALZOS < now) return;      // ya ha aterrizado
       if (w.dep - now > 36 * 36e5) return;         // más allá de hoy y mañana no es «el vuelo»
       out.push({ dep: w.dep, arr: w.arr, e: e });
@@ -230,6 +237,7 @@
     var ent = entradasRoster();
     for (var i = 0; i < ent.length; i++) {
       var e = ent[i]; if (!e || e.date !== date || numDe({ flight: e.flightNum }) !== n) continue;
+      if (saltado(e)) return true;
       var w = ventana(e); if (w && w.arr + TRAS_CALZOS < Date.now()) return true;
     }
     return false;
@@ -291,6 +299,44 @@
   };
 
   // ── Estado del día ─────────────────────────────────────────────────────
+  /* El post-it de un tramo del roster: se parte del roster y del histórico, nunca
+     del post-it de ayer. `antes` es el post-it de antes (para el compañero). */
+  function postitDe(pv, antes) {
+    var h = antes, fl = limpia(pv.flightNum, MAX_FL);
+    var s = sugerencia(fl);
+    var yo = miChequeo(), r = datosRoster(pv);
+    /* El compañero es el MISMO todo el día (25-oct-2026: «cuando inserta el ID
+       del compañero, que se ponga en los siguientes vuelos del día»). Al pasar
+       al tramo siguiente se arrastra el nº del post-it anterior, pero sólo si
+       era de ESTE día: de ayer no, que mañana vuela con otro. El tuyo sale
+       siempre del escalafón; sin rol conocido se arrastran los dos. */
+    var mismoDia = !!(h && h.date && h.date === pv.date);
+    var arrCpt = mismoDia && yo.rol !== 'CPT' ? (h.cpt || '') : '';
+    var arrFo  = mismoDia && yo.rol !== 'FO'  ? (h.fo  || '') : '';
+    return { flight: fl, date: pv.date, callsign: s ? s.cs : '', fuente: s ? 'historico' : '', conf: false,
+      ref: s ? { date: s.date, flight: s.flight, src: s.src } : null, roster: true, at: Date.now(),
+      dep: r.dep, arr: r.arr, std: r.std, sta: r.sta,
+      cpt: yo.rol === 'CPT' ? yo.num : arrCpt, fo: yo.rol === 'FO' ? yo.num : arrFo };
+  }
+  function mismoAp(a, b) {
+    a = String(a || '').replace(/\*/g, '').toUpperCase(); b = String(b || '').replace(/\*/g, '').toUpperCase();
+    if (!a || !b) return false; if (a === b) return true;
+    try { if (typeof window.pilotosMismoApt === 'function') return !!window.pilotosMismoApt(a, b); } catch (e) {}
+    return false;
+  }
+  /* El tramo del roster que va de `dep` a `arr`, el más cercano por delante (o el
+     de hoy). Para la flecha de invertir: dar la vuelta a BCN-IST trae el IST-BCN
+     de verdad, con su número, sus horas y su callsign (20-nov-2026). */
+  function tramoRuta(dep, arr, fecha) {
+    var ent = entradasRoster(), now = Date.now(), best = null, bd = Infinity;
+    ent.forEach(function (e) {
+      var w = ventana(e); if (!w || !mismoAp(e.dep, dep) || !mismoAp(e.arr, arr)) return;
+      var d = Math.abs(w.dep - now) + (fecha && e.date !== fecha ? 864e5 : 0);
+      if (w.dep - now > 36 * 36e5 || now - w.arr > 24 * 36e5) return;
+      if (d < bd) { bd = d; best = e; }
+    });
+    return best;
+  }
   function estado() {
     var h = lee(K_HOY, null), pv = proximoVuelo();
     if (pv) {
@@ -302,21 +348,7 @@
          que YA ha aterrizado: de un día de cuatro tramos, el piloto escribe el
          1.º y a partir de ahí la app tiene que seguir sola (16-oct-2026). */
       if (otro && (!h || h.roster !== false || !h.date || h.date < pv.date || yaVolado(h.flight, h.date))) {
-        // Vuelo nuevo: se parte del roster y del histórico, nunca del post-it de ayer.
-        var s = sugerencia(fl);
-        var yo = miChequeo(), r = datosRoster(pv);
-        /* El compañero es el MISMO todo el día (25-oct-2026: «cuando inserta el ID
-           del compañero, que se ponga en los siguientes vuelos del día»). Al pasar
-           al tramo siguiente se arrastra el nº del post-it anterior, pero sólo si
-           era de ESTE día: de ayer no, que mañana vuela con otro. El tuyo sale
-           siempre del escalafón; sin rol conocido se arrastran los dos. */
-        var mismoDia = !!(h && h.date && h.date === pv.date);
-        var arrCpt = mismoDia && yo.rol !== 'CPT' ? (h.cpt || '') : '';
-        var arrFo  = mismoDia && yo.rol !== 'FO'  ? (h.fo  || '') : '';
-        h = { flight: fl, date: pv.date, callsign: s ? s.cs : '', fuente: s ? 'historico' : '', conf: false,
-              ref: s ? { date: s.date, flight: s.flight, src: s.src } : null, roster: true, at: Date.now(),
-              dep: r.dep, arr: r.arr, std: r.std, sta: r.sta,
-              cpt: yo.rol === 'CPT' ? yo.num : arrCpt, fo: yo.rol === 'FO' ? yo.num : arrFo };
+        h = postitDe(pv, h);
         guarda(K_HOY, h);
       } else if (h && !otro) {
         var r2 = datosRoster(pv);
@@ -499,6 +531,9 @@
            vuelo detectado, y darles la vuelta dejaría la llegada antes de la
            salida. */
         '<div class="cs-rt">' + rutaHtml(h) + '</div>' +
+        '<div class="cs-nav">' + (hoySaltados() ? '<button type="button" class="cs-nv" data-a="anterior">‹ ' + T('Tramo anterior', 'Previous leg') + '</button>' : '') +
+          '<button type="button" class="cs-nv cs-nv-sig" data-a="siguiente">' + T('Siguiente tramo', 'Next leg') + ' ›</button></div>' +
+        '<div class="cs-nav-msg" aria-live="polite"></div>' +
         '<div class="cs-lab">CALLSIGN</div>' +
         '<div class="cs-fila' + (sug ? ' sug' : '') + '">' + campoTxt('cs') + '</div>' +
         '<div class="cs-ref-w">' + (sug ? '<div class="cs-ref">' + refTxt + '<button type="button" class="cs-ok" data-a="confirmar">✓ ' + T('Confirmar', 'Confirm') + '</button></div>' : '') + '</div>' +
@@ -595,10 +630,56 @@
       delete S.h.wch;   // en cuanto hay tipos, el número suelto de antes deja de mandar
       render(); pintaPostit(); return;
     }
-    if (a === 'invierte') { var dp = S.h.dep; S.h.dep = S.h.arr || ''; S.h.arr = dp || ''; render(); pintaPostit(); return; }
+    if (a === 'invierte') {
+      var nd = S.h.arr || '', na = S.h.dep || '', tr = tramoRuta(nd, na, S.h.date);
+      if (tr) return irATramo(tr);
+      S.h.dep = nd; S.h.arr = na;
+      render(); pintaPostit(); return;
+    }
+    if (a === 'siguiente') { return siguienteTramo(); }
+    if (a === 'anterior') { return tramoAnterior(); }
     if (a === 'guardar') { guardaHoja(); if (_pipVivo) actualizaPip(); cierra(); return; }
     if (a === 'fijar') { guardaHoja(); fija(); return; }
   }
+  /* «Siguiente tramo»: da el tramo del post-it por acabado y pasa al que viene.
+     No cuesta nada (no pregunta a eCrews) y vale sin cobertura. */
+  function siguienteTramo() {
+    var l = proximosVuelos(), nh = numDe({ flight: S.h.flight }), i = -1;
+    for (var k = 0; k < l.length; k++) if (numDe({ flight: l[k].e.flightNum }) === nh && l[k].e.date === S.h.date) { i = k; break; }
+    var sig = l[i + 1];
+    if (!sig) { avisoHoja(T('No hay más tramos en el roster.', 'No more legs in the roster.')); return; }
+    irATramo(sig.e);
+  }
+  /* Poner el post-it en el tramo `e`: los tramos que salen ANTES quedan dados por
+     acabados, y él y los de después dejan de estarlo (por si se vuelve atrás).
+     Lo usan «Siguiente tramo» y la flecha de invertir. */
+  function irATramo(e) {
+    var we = ventana(e); if (!we) return;
+    var m = saltados(), now = Date.now();
+    entradasRoster().forEach(function (x) {
+      var w = ventana(x); if (!w) return;
+      var k = claveTramo(x);
+      if (w.dep < we.dep && w.arr + TRAS_CALZOS >= now - 24 * 36e5) m[k] = now; else if (w.dep >= we.dep) delete m[k];
+    });
+    Object.keys(m).forEach(function (q) { if (m[q] < now - 3 * 864e5) delete m[q]; });
+    guarda(K_SALTA, m);
+    S.h = postitDe(e, S.h); guarda(K_HOY, S.h);
+    pinta(); render(); pintaPostit(); if (_pipVivo) actualizaPip();
+  }
+  function tramoAnterior() {
+    var m = saltados(), k = null;
+    Object.keys(m).forEach(function (q) { if (k == null || m[q] > m[k] || (m[q] === m[k] && q > k)) k = q; });
+    if (k == null) return;
+    delete m[k]; guarda(K_SALTA, m);
+    var ent = entradasRoster(), pv = null;
+    for (var i = 0; i < ent.length; i++) if (ventana(ent[i]) && claveTramo(ent[i]) === k) { pv = ent[i]; break; }
+    if (pv) { S.h = postitDe(pv, S.h); guarda(K_HOY, S.h); }
+    pinta(); render(); pintaPostit(); if (_pipVivo) actualizaPip();
+  }
+  function hoySaltados() {
+    var m = saltados(), d = S && S.h.date; return Object.keys(m).some(function (q) { return !d || q.indexOf(d) === 0 || m[q] > Date.now() - 864e5; });
+  }
+  function avisoHoja(t) { var x = document.querySelector('#cs-ov .cs-nav-msg'); if (x) x.textContent = t; }
   function guardaHoja() {
     var h = S.h;
     if (soloPrefijo(h.callsign)) { h.callsign = ''; h.conf = false; }
