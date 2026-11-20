@@ -109,6 +109,19 @@
   }
   // Cuándo sale y cuándo llega un tramo, en ms UTC (las horas del roster son zulú).
   var SIN_CONFIRMAR_MIN = 30;   // margen sin calzos ni hora real (criterio del piloto, 20-nov-2026)
+  var CON_ETA_MIN = 10;         // margen sobre una ETA traída de eCrews justo antes de despegar
+  /* ↻ automático antes de despegar (20-nov-2026, «que antes de la hora de despegue
+     actualice el roster, coja la estimada de llegada y a ETA+10 cambie al siguiente
+     leg»). Una vez por tramo, en los 40 min antes de su salida programada, con la
+     sesión de eCrews guardada. Lo traído se apunta por tramo: sólo una E traída ahí
+     se fía con 10 min; una E vieja de la importación sigue con los 30. */
+  var AUTO_ANTES_MIN = 40, AUTO_DESPUES_MIN = 5, ETA_FRESCA_H = 3;
+  var K_AUTO = 'pilotos_cs_autosync';
+  function claveTramo(e) { return e.date + '|' + numDe({ flight: e.flightNum }); }
+  function etaFresca(e, dep) {
+    var m = lee(K_AUTO, {}) || {}, t = m[claveTramo(e)];
+    return !!(t && t.ok && t.at >= dep - ETA_FRESCA_H * 36e5);
+  }
   function ventana(e) {
     if (!e || e.type !== 'flight' || !e.flightNum || !/^\d{4}-\d{2}-\d{2}$/.test(e.date || '')) return null;
     if (/\*/.test(e.dep || '') || e.isPositioning || e.positioning) return null;   // un posicional no lo llamas tú
@@ -143,7 +156,8 @@
          vais con retraso (20-nov-2026, «íbamos con retraso y se me ha vuelto a
          desaparecer»: el roster sólo tenía las programadas). Con calzos apuntados
          o la A importada, cambia en ese mismo momento. */
-      arr += SIN_CONFIRMAR_MIN * 6e4;
+      var eta = hora(e, ['sta_estimated']);
+      arr += ((eta != null && etaFresca(e, dep)) ? CON_ETA_MIN : SIN_CONFIRMAR_MIN) * 6e4;
     }
     return { dep: dep, arr: arr };
   }
@@ -797,5 +811,40 @@
   window.addEventListener('pilotos-roster-updated', pinta);
   window.addEventListener('storage', function (e) { if (!e.key || /logbook|callsign/.test(e.key)) pinta(); });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) pinta(); });
-  setInterval(function () { if (!document.hidden) pinta(); }, 60 * 1000);   // el vuelo cambia al aterrizar (a la ETA)
+  setInterval(function () { if (!document.hidden) { pinta(); autoSync(); } }, 60 * 1000);   // el vuelo cambia al aterrizar (a la ETA)
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) autoSync(); });
+  setTimeout(autoSync, 8000);
+
+  /* El tramo que sale en los próximos 40 min (o salió hace menos de 5) y aún no se
+     ha actualizado: un ↻ silencioso de su mes. Sólo con roster de eCrews, red y
+     sesión; nunca abre nada. */
+  var _autoVivo = false;
+  function autoSync(ahora) {
+    if (_autoVivo || typeof window.ecResyncSilencioso !== 'function') return null;
+    if (navigator.onLine === false) return null;
+    try { if (!localStorage.getItem('cafi_auth_token')) return null; } catch (x) { return null; }
+    var now = ahora || Date.now(), lista = proximosVuelos(now), m = lee(K_AUTO, {}) || {};
+    for (var i = 0; i < lista.length; i++) {
+      var it = lista[i], e = it.e;
+      if (e.source && e.source !== 'ECREWS') continue;
+      if (it.dep - now > AUTO_ANTES_MIN * 6e4 || now - it.dep > AUTO_DESPUES_MIN * 6e4) continue;
+      var k = claveTramo(e), y = m[k];
+      // Ya hecho, o fallido hace menos de 10 min (un fallo se reintenta UNA vez).
+      if (y && (y.ok || y.r || now - y.at < 10 * 6e4)) continue;
+      m[k] = { at: now, ok: false, r: !!y };
+      // Se guardan sólo los de los últimos 3 días.
+      Object.keys(m).forEach(function (q) { if (m[q].at < now - 3 * 864e5) delete m[q]; });
+      try { localStorage.setItem(K_AUTO, JSON.stringify(m)); } catch (x) {}
+      _autoVivo = true;
+      return window.ecResyncSilencioso(e.date.slice(0, 7)).then(function (ok) {
+        _autoVivo = false;
+        var mm = lee(K_AUTO, {}) || {};
+        if (ok) { mm[k] = { at: Date.now(), ok: true }; try { localStorage.setItem(K_AUTO, JSON.stringify(mm)); } catch (x) {} }
+        pinta();
+        return ok;
+      }, function () { _autoVivo = false; return false; });
+    }
+    return null;
+  }
+  window.PilotosCallsign.autoSync = autoSync;   // para el banco
 })();

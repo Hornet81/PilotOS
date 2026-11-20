@@ -185,9 +185,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
 }
 </style>
 
-  <meta name="version" content="Estable.1273">
+  <meta name="version" content="Estable.1274">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1273","builtAt":"2026-11-20T18:41:08Z","commit":"3ee6e53","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1274","builtAt":"2026-11-20T19:20:47Z","commit":"031ac39","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -56573,7 +56573,7 @@ window.ecImportarDesdeECrews = function(opts){
 /* Meter UN mes de un roster de eCrews en RST. Lo usan el ↻ / el menú y el botón
    «Importar desde eCrews» de la pantalla sin roster: escrito dos veces, el día que
    cambie el parseo o el recorte del mes sólo cambiaría en una de las dos puertas. */
-function _ecAplicaMes(roster, month){
+function _ecAplicaMes(roster, month, silencioso){
   var parsedAll = _ecParseSchedulerEvents(roster.SchedulerEvents || [], roster.BlockDutyTimes || {},
                                          { timesIn: ecTimesInModo(roster), husoProbado: ecHusoProbado(roster), report: roster.ScheduleReport || null, indicators: roster.Indicators || null });
   // El periodo de eCrews DESBORDA al mes siguiente (p.ej. junio llega al 02/07) →
@@ -56581,10 +56581,39 @@ function _ecAplicaMes(roster, month){
   var parsedMonth = parsedAll.filter(function(e){ return e.date && e.date.slice(0,7)===month; });
   var diff = _ecDiffMonth(parsedMonth, month);  // 1) calcular cambios (solo del mes)
   _ecApplyMonthReplace(parsedMonth, month);      // 2) eCrews = fuente de verdad (conserva lo manual)
-  var info = _ecShowChangeSummary(month, diff, true) || {};   // 3) detalle (si hay cambios)
+  /* El ↻ automático antes de despegar (post-it del callsign) no levanta la hoja
+     de cambios: el piloto está embarcando y una E nueva sale en ella como CAMBIO. */
+  var info = silencioso ? { n: diff.added.length + diff.removed.length + diff.changed.length }
+                        : (_ecShowChangeSummary(month, diff, true) || {});   // 3) detalle (si hay cambios)
   info.mes = month;
   return info;
 }
+
+/* ↻ SILENCIOSO de un mes, con la sesión guardada: lo usa el post-it del callsign
+   antes de cada despegue para traer la llegada ESTIMADA (20-nov-2026). Nunca abre
+   nada: sin sesión, con eCrews sin contestar o con el huso por contestar, se calla.
+   Devuelve una promesa con true si aplicó el mes. */
+window.ecResyncSilencioso = function(month){
+  if (typeof _ecEnCurso === 'function' && _ecEnCurso()) return Promise.resolve(false);
+  var tok = _ecApiTok(); if (!tok || !month) return Promise.resolve(false);
+  var ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+  var t = ctl ? setTimeout(function(){ try{ ctl.abort(); }catch(e){} }, 90000) : null;
+  return fetch(_ecApiBase()+'/api/ecrews/resync', {
+    method:'POST', signal: ctl ? ctl.signal : undefined,
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},
+    body: JSON.stringify({ month: month })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(j){
+    if (!j || j.status !== 'COMPLETE' || !j.roster) return false;
+    if (ecHusoDudoso(j.roster)) return false;
+    _ecAplicaMes(j.roster, month, true);
+    try { _ecRefreshSyncLabel(); } catch(e){}
+    return true;
+  })
+  .catch(function(){ return false; })
+  .then(function(ok){ if (t) clearTimeout(t); return ok; });
+};
 
 // Sincroniza el mes en vista sin preguntar (reutiliza sesión). NEEDS_LOGIN → credenciales.
 window.ecResyncMonth = function(month, _reint){
