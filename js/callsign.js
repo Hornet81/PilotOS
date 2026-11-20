@@ -115,11 +115,32 @@
     var sd = hora(e, ['std_scheduled', 'std', 'std_estimated', 'std_actual']);
     var sa = hora(e, ['sta_actual', 'sta_estimated', 'sta', 'sta_scheduled']);
     var dep = d0 + (sd == null ? 0 : sd) * 6e4;
+    /* Llegada: los calzos reales de eCrews (A) → los que el piloto apuntó en el
+       logbook (IN, o el aterrizaje ON) → la estimada (E) → la programada.
+       Con calzos apuntados el tramo se cierra en ese momento (20-nov-2026: «en la
+       escala no puedes poner el callsign del siguiente»). */
+    var real = hora(e, ['sta_actual']), lb = real == null ? calzosLogbook(e) : null;
+    if (real == null && lb != null) sa = lb;
     var arr = sa == null ? dep + 4 * 36e5 : d0 + sa * 6e4;
     if (arr < dep) arr += 864e5;
     return { dep: dep, arr: arr };
   }
-  var TRAS_CALZOS = 30 * 6e4;   // hasta media hora después de llegar, sigue siendo «el vuelo»
+  /* Los calzos (IN) —o, sin ellos, el aterrizaje (ON)— que el piloto apuntó en el
+     logbook para ESE vuelo y ese día. En este esquema `ata` = IN y `sta` = ON; un
+     borrador sembrado del roster los lleva vacíos, así que sólo cuenta lo tecleado. */
+  function calzosLogbook(e) {
+    var n = numDe({ flight: e.flightNum }); if (!n) return null;
+    var lb = lee('pilotOS_logbook_v1', []);
+    if (!Array.isArray(lb)) return null;
+    for (var i = 0; i < lb.length; i++) {
+      var l = lb[i]; if (!l || l.date !== e.date || numDe(l) !== n) continue;
+      var m = hora(l, ['ata', 'sta']); if (m != null) return m;
+    }
+    return null;
+  }
+  /* El tramo cambia a la hora ESTIMADA de llegada, sin margen: en la escala hay
+     que poder escribir ya el callsign del siguiente. */
+  var TRAS_CALZOS = 0;
   /* Los tramos que quedan: los que no han aterrizado (+30 min) y salen dentro de
      36 h, en orden de salida. El primero es «el vuelo». */
   /* El roster de memoria (RST) sólo se llena al ENTRAR en el Roster, y el Home se
@@ -735,5 +756,5 @@
   window.addEventListener('pilotos-roster-updated', pinta);
   window.addEventListener('storage', function (e) { if (!e.key || /logbook|callsign/.test(e.key)) pinta(); });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) pinta(); });
-  setInterval(function () { if (!document.hidden) pinta(); }, 5 * 60 * 1000);   // el vuelo cambia al aterrizar
+  setInterval(function () { if (!document.hidden) pinta(); }, 60 * 1000);   // el vuelo cambia al aterrizar (a la ETA)
 })();
