@@ -185,9 +185,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
 }
 </style>
 
-  <meta name="version" content="Estable.1267">
+  <meta name="version" content="Estable.1271">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1267","builtAt":"2026-11-20T16:10:28Z","commit":"55817a4","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1271","builtAt":"2026-11-20T17:10:52Z","commit":"59f08f8","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -14466,17 +14466,11 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
           📅 La nómina paga las variables (vuelo, dietas, nocturnas) del <b>mes anterior</b>. Para la nómina de julio, importa <b>junio</b>. Por defecto: el mes pasado.
         </div>
       </div>
-      <!-- De dónde salen las horas: el roster son las PROGRAMADAS y el logbook las
-           REALES. Ojo, que aquí ponía lo contrario: la nómina NO paga lo real, paga
-           «el tiempo programado teórico de cada salto» (respuesta escrita de Vueling,
-           31-ago-2026) y el Art. 15.5 dice lo mismo del plus de horas de vuelo («el
-           tiempo de bloque COMERCIAL»). Los «26 minutos cortos» de julio no eran el
-           roster equivocándose: eCrews sólo manda `std_scheduled` en la 1.ª importación
-           del mes. El porqué largo está en el comentario de `PC_FUENTE`. -->
-      <div class="pc-tog-row" style="display:flex;gap:6px;padding:3px;margin-bottom:8px;background:rgba(255,255,255,.03);border-radius:11px">
-        <button type="button" class="pc-tog-btn on" data-val="roster" onclick="pcTogFuente(this)">Roster · programado</button>
-        <button type="button" class="pc-tog-btn" data-val="logbook" onclick="pcTogFuente(this)">Logbook · real</button>
-      </div>
+      <!-- Sin selector de fuente (20-nov-2026, criterio del piloto): la nómina paga
+           «el tiempo programado teórico de cada salto» (Vueling, por escrito,
+           31-ago-2026; Art. 15.5), así que las horas salen SIEMPRE del roster. Si el
+           servidor no tiene el roster del mes cae al logbook él solo, y el rótulo del
+           bloque lo dice (`pcBloqueDe`, por `data.source`). -->
       <button id="pc-import-btn" onclick="pcImportFromLogbook(null,{tracker:false,form:true,source:(window.PC_FUENTE||'roster')})" style="width:100%;padding:11px 14px;margin-bottom:14px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:12px;color:#FBBF24;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
         <span>📥</span><span>Importar datos desde PilotOS</span>
       </button>
@@ -22638,13 +22632,9 @@ var PC_FUENTE = 'roster';
    roster en el servidor sigue viendo lo suyo. Y se DICE cuál se ha usado, que si no
    «he volado menos» y «esto cuenta otra cosa» se ven igual. */
 try { window.PC_FUENTE_ACUM = 'roster'; } catch(e){}
-window.pcTogFuente = function(btn){
-  btn.closest('.pc-tog-row').querySelectorAll('.pc-tog-btn').forEach(function(b){ b.classList.remove('on'); });
-  btn.classList.add('on');
-  PC_FUENTE = btn.getAttribute('data-val') || 'roster';
-  try { lsSet('pilotos_pay_fuente', PC_FUENTE); } catch(e){}
-};
-try { PC_FUENTE = lsGet('pilotos_pay_fuente', 'roster') || 'roster'; } catch(e){}
+/* Sin selector (20-nov-2026): el roster es la fuente de las horas de pago, siempre.
+   Una elección guardada de antes ('logbook') se ignora y se borra. */
+try { localStorage.removeItem('pilotos_pay_fuente'); } catch(e){}
 
 /* El desglose en texto plano, para pegarlo donde haga falta. Cuando un mes no cuadra
    con la nómina, esto es lo que hay que poder mandar: sin ello el diagnóstico va a
@@ -23755,11 +23745,6 @@ function pcSwitchTab(tab) {
   btns.forEach(function(b) { b.classList.toggle('active', b.dataset.tab === tab); });
   if (tab === 'nom'){
     pcSetDefaultImportMonth();
-    // Dejar marcada la fuente que el piloto eligió la última vez.
-    try {
-      document.querySelectorAll('.pc-tog-row .pc-tog-btn[data-val="roster"],.pc-tog-row .pc-tog-btn[data-val="logbook"]')
-        .forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-val') === (window.PC_FUENTE||'roster')); });
-    } catch(e){}
   }
   var gast = document.getElementById('pc-tab-gastos');
   if (gast) gast.style.display = (tab === 'gastos') ? '' : 'none';
@@ -34420,6 +34405,13 @@ function ldEasaXlsxToRows(wb){
   var hRow=-1;
   for(var i=0;i<Math.min(8,aoa.length);i++){ var j=aoa[i].map(function(x){return String(x).toUpperCase();}).join('|'); if(/(^|\|)DATE(\||$)/.test(j)&&/REGISTRATION/.test(j)){ hRow=i; break; } }
   if(hRow<0) return null;   // no es el template EASA
+  /* Las columnas de abajo son FIJAS (las del template EASA). Un Excel cualquiera que
+     también tenga «Date» y «Registration» entraba por aquí y leía las noches, los
+     aterrizajes y la función de columnas que no eran: salían a 0 sin un aviso.
+     Sólo se acepta si la fecha y la matrícula están donde las pone el template;
+     si no, sigue por el lector genérico, que va por el NOMBRE de cada columna. */
+  var _hc=function(c){ var t=''; for(var q=Math.max(0,hRow-2);q<=hRow;q++) t+=' '+String((aoa[q]||[])[c]||''); return t.toUpperCase(); };
+  if(!/DATE/.test(_hc(0)) || !/REGISTRATION/.test(_hc(6))) return null;
   var C={date:0,depP:1,depT:2,arrP:3,arrT:4,ac:5,reg:6, mpSE:11,mpME:12, total:13, picName:14,
          toD:15,toN:16, ldD:17,ldN:18, night:19, ifr:20, fPic:23,fCop:24,fDual:25,fInstr:26, fstd:27, rem:38};
   var rows=[], simN={}, acMeta={}, stats={flights:0,sims:0,skipped:0,ga:0,airline:0};
@@ -34683,7 +34675,30 @@ function ldImportCSV(text,fname){
   if(lines[0].split('\t').length>lines[0].split(',').length) delim='\t';
   else if(lines[0].split(';').length>lines[0].split(',').length) delim=';';
   var headers=lines[0].split(delim).map(function(h){return h.trim().replace(/^"|"$/g,'').toLowerCase();});
-  var rows=lines.slice(1).map(function(l){
+  /* Cabecera en DOS filas, la de casi todos los logbooks en Excel: «LANDINGS» con
+     celdas combinadas encima y «Day | Night» debajo. Leyendo sólo la primera, la
+     columna de noche se quedaba sin nombre («») y sus datos no iban a ninguna parte.
+     Se reconoce la segunda fila porque no lleva fecha ni números y sí palabras de
+     sub-cabecera; entonces cada columna se llama «arriba abajo», arrastrando el
+     título de arriba por las celdas que la combinación dejó vacías. */
+  var _sub=lines[1].split(delim).map(function(h){return h.trim().replace(/^"|"$/g,'').toLowerCase();});
+  // Hace falta la combinación de verdad: celdas vacías arriba y al menos dos
+  // sub-cabeceras de día/noche abajo. Con menos, una fila de datos sin cifras (la
+  // tabla de aviones de RB) se tomaba por cabecera y el fichero salía vacío.
+  var _esSub=headers.some(function(h){ return !h; })
+    && _sub.filter(function(c){ return /^(day|night|dia|día|noche|d|n|se|me|time|place|hora|lugar)$/.test(c); }).length>=2
+    && !_sub.some(function(c){ return /\d/.test(c); });
+  var _start=1;
+  if(_esSub){
+    var _arr='';
+    headers=headers.map(function(h,i){
+      if(h) _arr=h;
+      var sub=_sub[i]||'';
+      return sub ? ((h||_arr)+' '+sub).trim() : h;
+    });
+    _start=2;
+  }
+  var rows=lines.slice(_start).map(function(l){
     var cols=l.split(delim).map(function(c){return c.trim().replace(/^"|"$/g,'');});
     var obj={};
     headers.forEach(function(h,i){ obj[h]=cols[i]||''; });
@@ -34702,21 +34717,21 @@ function ldImportCSV(text,fname){
 var LD_COL_MAP={
   date:['fecha','date','flt_date','dia'],
   flight:['vuelo','flight','numero_vuelo','flt','nflight'],
-  dep:['origen','dep','departure','from','salida','icao_dep','org'],
-  arr:['destino','arr','arrival','to','llegada','icao_arr','dst'],
+  dep:['origen','dep','departure','from','salida','icao_dep','org','departure place','dep place','from place','departure airport','origin'],
+  arr:['destino','arr','arrival','to','llegada','icao_arr','dst','arrival place','arr place','to place','arrival airport','destination'],
   reg:['matricula','reg','registration','tail','ac_reg','ec','reg (a319/a320/a321)'],
-  acType:['tipo','type','actype','aircraft_type','ac_type','aeronave'],
+  acType:['tipo','type','actype','aircraft_type','ac_type','aeronave','tipo ac','tipo_avion','aircraft','model'],
   engine:['motor','engine','eng'],
-  atd:['atd','out','blk_out','actual_off','atd block'],
-  std:['std','off','sched_dep','sched_off'],
-  ata:['ata','in','blk_in','actual_on','ata block'],
-  sta:['sta','on','sched_arr','sched_on'],
-  block:['block','blk','block_time','tiempo_bloque','bloque','total block'],
-  night:['nocturno','night','night_time','tiempo_nocturno'],
-  toDay:['to_dia','to_day','day_to','day_takeoff','desp_dia','takeoff_day'],
-  toNight:['to_noche','to_night','night_to','night_takeoff','desp_noche','takeoff_night'],
-  ldgDay:['ldg_dia','ldg_day','day_ldg','day_landing'],
-  ldgNight:['ldg_noche','ldg_night','night_ldg','night_landing'],
+  atd:['atd','out','blk_out','actual_off','atd block','atd (out)','block off','dep time','departure time','time out','out time','departure_time','salida hora','hora salida','off block','blocks off','chocks off'],
+  std:['std','off','sched_dep','sched_off','std (off)','takeoff time','t/o time','time off','despegue hora'],
+  ata:['ata','in','blk_in','actual_on','ata block','ata (in)','block on','arr time','arrival time','time in','in time','arrival_time','llegada hora','hora llegada','on block','blocks on','chocks on'],
+  sta:['sta','on','sched_arr','sched_on','sta (on)','landing time','ldg time','time on','aterrizaje hora'],
+  block:['block','blk','block_time','tiempo_bloque','bloque','total block','block time','total time','total flight time','total time of flight','tiempo total','duration'],
+  night:['nocturno','night','night_time','tiempo_nocturno','night hours','night flight','night flying','horas nocturnas','horas noche','noche','night_hrs','nocturnas'],
+  toDay:['to_dia','to_day','day_to','day_takeoff','desp_dia','takeoff_day','t/o dia','t/o day','t/o d','takeoffs day','day takeoffs','despegues dia'],
+  toNight:['to_noche','to_night','night_to','night_takeoff','desp_noche','takeoff_night','t/o noche','t/o night','t/o n','takeoffs night','night takeoffs','despegues noche'],
+  ldgDay:['ldg_dia','ldg_day','day_ldg','day_landing','ldg d','day landings','landings day','landing day','aterrizajes dia','aterr. dia','day ldgs'],
+  ldgNight:['ldg_noche','ldg_night','night_ldg','night_landing','ldg n','night landings','landings night','landing night','aterrizajes noche','aterr. noche','night ldgs'],
   // SE/ME (motores) y SP/MP (pilotos) son ejes distintos: 'sp_mp' estaba en los alias de
   // seMe, así que una columna SP/MP del fichero acababa en la casilla de motores.
   seMe:['seme','se_me','single_multi'],
@@ -34735,12 +34750,43 @@ var LD_COL_MAP={
   idSeq:['idseq','id_seq'],
   rules:['rules','ifr_vfr','reglas']
 };
+/* Nombre de columna NORMALIZADO: minúsculas, sin acentos y cualquier separador a «_».
+   Los alias se comparaban a pelo, así que «Ldg Noche», «Night Landings» o «LDG N»
+   —la cabecera de un Excel cualquiera, y la de la propia exportación de PilotOS—
+   no casaban con «ldg_noche» y la columna se perdía entera, sin un solo aviso: en
+   Carrera salían 0 aterrizajes y 0 horas de noche (20-nov-2026). */
+function ldColKey(k){
+  return String(k==null?'':k).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+}
+// Columnas de NOCHE que ningún alias recoge: se reconocen por sus palabras.
+function _ldColNoche(keys, out){
+  var tok=function(k){ return k.split('_'); };
+  var esNoche=function(t){ return t.some(function(w){ return /^(night|nigth|nite|noche|nocturn[oa]s?|noct|nct|ngt|nt|n)$/.test(w); }); };
+  var esLdg=function(t){ return t.some(function(w){ return /^(ldg|ldgs|land|landing|landings|lndg|lnd|ld|aterr|aterrizaje|aterrizajes|atz)$/.test(w); }); };
+  var esTo=function(t){ return t.some(function(w){ return /^(to|tos|t|takeoff|takeoffs|tkof|tko|desp|despegue|despegues)$/.test(w); }) && !t.some(function(w){ return w==='total'; }); };
+  var conLetras=function(t){ return t.some(function(w){ return /[a-z]{3,}/.test(w); }); };
+  keys.forEach(function(k){
+    var t=tok(k.key), v=k.val;
+    if(v===undefined||v==='') return;
+    // «n» suelto sólo cuenta si va pegado a ldg/to (LDG N, T/O N), nunca solo.
+    var noche = esNoche(t) && (t.indexOf('n')<0 || t.length>1);
+    if(!noche) return;
+    if(esLdg(t)){ if(out.ldgNight===undefined) out.ldgNight=v; return; }
+    if(t.indexOf('o')>=0||esTo(t)){ if(out.toNight===undefined) out.toNight=v; return; }
+    if(t.indexOf('n')>=0 && !conLetras(t.filter(function(w){return w!=='n';}))) return;
+    if(out.night===undefined) out.night=v;
+  });
+}
 function ldMapRow(row){
   // Build a lowercase-trimmed key map regardless of how the caller prepared the row
-  var lc={};
+  var lc={}, norm={}, lista=[];
   Object.keys(row).forEach(function(k){
     var v=row[k];
-    lc[k.toLowerCase().trim()]=typeof v==='string'?v.trim():v;
+    v=typeof v==='string'?v.trim():v;
+    lc[k.toLowerCase().trim()]=v;
+    var nk=ldColKey(k);
+    if(nk&&norm[nk]===undefined){ norm[nk]=v; lista.push({key:nk,val:v}); }
   });
   var out={};
   Object.keys(LD_COL_MAP).forEach(function(field){
@@ -34748,10 +34794,18 @@ function ldMapRow(row){
     for(var i=0;i<aliases.length;i++){
       var a=aliases[i].toLowerCase().trim();
       if(lc[a]!==undefined&&lc[a]!==''){
-        out[field]=lc[a]; break;
+        out[field]=lc[a]; return;
+      }
+    }
+    // Segunda pasada: el mismo alias con la cabecera normalizada («Ldg Noche» = ldg_noche).
+    for(var j=0;j<aliases.length;j++){
+      var na=ldColKey(aliases[j]);
+      if(norm[na]!==undefined&&norm[na]!==''){
+        out[field]=norm[na]; return;
       }
     }
   });
+  if(out.night===undefined||out.ldgNight===undefined||out.toNight===undefined) _ldColNoche(lista,out);
   return out;
 }
 // Normaliza fecha a YYYY-MM-DD (acepta DD-MM-YYYY, DD/MM/YYYY, Date objects)
@@ -34775,6 +34829,28 @@ function ldNormTime(v){
   if(m) return m[1].padStart(2,'0')+':'+m[2];
   return s;
 }
+/* Duración (block, nocturno) a H:MM. Además de «H:MM» y «H:MM:SS», un Excel trae:
+   · la FRACCIÓN DE DÍA de una celda sin formato de hora (0,0625 = 1:30);
+   · horas DECIMALES (1.5 = 1:30), que es como las apuntan muchos logbooks;
+   · «1h30». ldT2m('0.0625') daba 4 minutos en vez de 90.
+   Se distingue la fracción de las horas decimales por la forma: < 1 con 4 o más
+   decimales es fracción de día (una celda de Excel); lo demás, horas. */
+function ldNormDur(v){
+  if(v===undefined||v===null) return '';
+  if(typeof v==='number'){ if(!isFinite(v)||v<=0) return v===0?'0:00':''; v=String(v); }
+  var s=String(v).trim(); if(!s) return '';
+  var m=s.match(/^(\d{1,3}):(\d{1,2})(?::\d{2})?$/);
+  if(m) return (+m[1])+':'+String(+m[2]).padStart(2,'0');
+  m=s.match(/^(\d{1,3})\s*h\s*(\d{1,2})?\s*(?:m|min)?$/i);
+  if(m) return (+m[1])+':'+String(+(m[2]||0)).padStart(2,'0');
+  m=s.match(/^(\d{0,3})[.,](\d+)$/);
+  if(m||/^\d{1,3}$/.test(s)){
+    var x=parseFloat(s.replace(',','.')); if(!isFinite(x)) return s;
+    var min=(x<1&&m&&m[2].length>=4)?Math.round(x*1440):Math.round(x*60);
+    return Math.floor(min/60)+':'+String(min%60).padStart(2,'0');
+  }
+  return s;
+}
 // Aplica normalización de formatos a una fila ya mapeada
 // ¿Es un avión de línea? (A320, B737, E-Jet, CRJ, ATR, Dash…) ⇒ multimotor y multipiloto.
 // Estaba metido dentro de ldOtroLoad; se saca aquí para que lo use también el import.
@@ -34788,8 +34864,15 @@ function ldNormalizeRow(r){
   if(r.ata)   r.ata   = ldNormTime(r.ata);
   if(r.std)   r.std   = ldNormTime(r.std);
   if(r.sta)   r.sta   = ldNormTime(r.sta);
-  if(r.block) r.block = ldNormTime(r.block);
-  if(r.night) r.night = ldNormTime(r.night);
+  if(r.block) r.block = ldNormDur(r.block);
+  if(r.night) r.night = ldNormDur(r.night);
+  // Contadores: un Excel trae «1.0», «1,0» o un número; ldgNight como texto acababa
+  // concatenado en las sumas de Carrera («0»+«1»+«2» = «012»).
+  ['ldgDay','ldgNight','toDay','toNight'].forEach(function(k){
+    if(r[k]===undefined||r[k]===null||String(r[k]).trim()==='') return;
+    var n=parseFloat(String(r[k]).replace(',','.'));
+    r[k]=isFinite(n)?Math.max(0,Math.round(n)):'';
+  });
   if(r.dep)   r.dep   = String(r.dep).trim();
   if(r.arr)   r.arr   = String(r.arr).trim();
   if(r.reg)   r.reg   = String(r.reg).trim();
@@ -34799,11 +34882,66 @@ function ldNormalizeRow(r){
   if(!r.spMp && ldIsAirliner(r.acType||r.simType)) r.spMp='MP';
   return r;
 }
+/* ══ LA NOCHE QUE EL FICHERO NO TRAE ═════════════════════════════════════════
+   Muchos Excel de vuelos (o de otra app) sólo llevan fecha, ruta y horas. Sin
+   columnas de noche, Carrera salía con 0 aterrizajes y 0 horas nocturnas, que no
+   es un dato: es un hueco. Se calcula con `ldNocturnoDe` —LA MISMA cuenta que el
+   formulario (sol a −6°, cada extremo en SU aeropuerto)— y sólo para lo que FALTA:
+   · horas de noche, si la fila no trae ninguna (un «0:00» del fichero es un dato);
+   · día/noche del aterrizaje y del despegue, si la fila no trae los de noche. El
+     TOTAL que traiga el fichero se respeta (0 aterrizajes sigue siendo 0) y sólo se
+     cambia de lado; sin ningún dato vale 1, que es un sector.
+   Horas: el despegue y el aterrizaje (OFF/ON), y si no hay, los calzos (OUT/IN),
+   como el formulario. Se toman como UTC, que es como va el logbook.
+   Cada fila calculada lleva `_nocheCalc` para que la fusión con un vuelo ya
+   guardado reparta sobre SU total en vez de sumar un aterrizaje de más. */
+function _ldCalculaNoche(rows){
+  var nd=(typeof ldNocturnoDe==='function')?ldNocturnoDe:window.ldNocturnoDe;
+  var res={ n:0, sinHoras:0, sinCoords:[] };
+  if(typeof nd!=='function') return res;
+  var vacio=function(v){ return v===undefined||v===null||String(v).trim()===''; };
+  (rows||[]).forEach(function(r){
+    var sim=/^sim$/i.test(String(r.opType||''))||/^sim$/i.test(String(r.activityType||''))||!!r.simType&&!r.dep;
+    if(sim) return;
+    var faltaNoche=vacio(r.night), faltaLdg=vacio(r.ldgNight), faltaTo=vacio(r.toNight);
+    if(!faltaNoche&&!faltaLdg&&!faltaTo) return;
+    var off=r.std||r.atd, on=r.sta||r.ata;
+    if(!/^\d{1,2}:\d{2}$/.test(off||'')||!/^\d{1,2}:\d{2}$/.test(on||'')||!/^\d{4}-\d{2}-\d{2}$/.test(r.date||'')){
+      if(r.dep&&r.arr) res.sinHoras++; return;
+    }
+    var x=nd({ dep:r.dep, arr:r.arr, date:r.date, off:off, on:on });
+    if(!x||x.estado!=='ok'){
+      if(x&&x.estado==='sin_coords') x.falta.forEach(function(c){ if(res.sinCoords.indexOf(c)<0) res.sinCoords.push(c); });
+      return;
+    }
+    var hizo=false;
+    if(faltaNoche){ r.night=Math.floor(x.nightMin/60)+':'+String(x.nightMin%60).padStart(2,'0'); hizo=true; }
+    var reparte=function(kD,kN,esNoche){
+      var d=parseInt(r[kD],10), tot=isNaN(d)?1:d;
+      r[kD]=esNoche?0:tot; r[kN]=esNoche?tot:0; hizo=true;
+    };
+    if(faltaLdg){ reparte('ldgDay','ldgNight',x.ldgNight); r._ldgNoche=!!x.ldgNight; }
+    if(faltaTo){ reparte('toDay','toNight',x.toNight); r._toNoche=!!x.toNight; }
+    if(hizo){ r._nocheCalc=true; res.n++; }
+  });
+  return res;
+}
 function ldImportProcess(rows,fname){
   // El nombre del fichero viaja hasta el alta para sellar el lote: sin él, una
   // importación equivocada no se puede identificar después (ver ldImportConfirm).
   _ldImportFileName = fname || '';
   var mapped=rows.map(ldMapRow).map(ldNormalizeRow).filter(function(r){ return r.date||r.dep||r.arr||r.flight; });
+  // Un Excel/CSV sin columnas de noche: se CALCULA con la misma cuenta del formulario.
+  // Foto y PDF no: ahí la noche la lee el documento, y si no está es que no la trae.
+  var _calc=null;
+  if(/\.(xlsx?|csv|txt)$/i.test(fname||'')) _calc=_ldCalculaNoche(mapped);
+  if(_calc&&(_calc.n||_calc.sinCoords.length||_calc.sinHoras)){
+    _ldPdfSummary=(_ldPdfSummary||'')+'<div class="ldbal-hint">🌙 '
+      +(_calc.n?'Noche calculada en <b>'+_calc.n+'</b> vuelo'+(_calc.n!==1?'s':'')+' (el fichero no la trae): horas nocturnas y aterrizajes/despegues de día o de noche, por la posición del sol en cada aeropuerto a la hora UTC del vuelo.':'')
+      +(_calc.sinHoras?' '+_calc.sinHoras+' sin hora de salida y llegada: ahí no se puede calcular.':'')
+      +(_calc.sinCoords.length?' Sin coordenadas de '+_calc.sinCoords.slice(0,6).join(', ')+(_calc.sinCoords.length>6?'…':'')+': esos vuelos quedan sin noche.':'')
+      +' Revísalo en la tabla antes de importar.</div>';
+  }
   if(mapped.length===0){
     var keys=rows.length>0?Object.keys(rows[0]).slice(0,5).join(' · '):'(sin filas)';
     ldImportError('Sin filas válidas · '+rows.length+' leídas · Cols: '+keys);
@@ -35613,13 +35751,28 @@ function ldImportConfirm(){
   // Merge fields from src into dst keeping non-empty values from src
   function mergeEntry(dst, src){
     var enrichFields=['atd','ata','std','sta','block','flightTime','reg','acType','engine',
-                      'night','cm1','cm2','ldgDay','ldgNight','fl','notes'];
+                      'night','cm1','cm2','ldgDay','ldgNight','toDay','toNight','fl','notes'];
     var changed=false;
+    /* Noche CALCULADA sobre un vuelo ya guardado: se reparte SU total de aterrizajes
+       y despegues (un roster deja 1 de día por defecto), no se suma uno de noche. */
+    var _calcChanged=false;
+    if(src._nocheCalc){
+      [['ldgDay','ldgNight','_ldgNoche'],['toDay','toNight','_toNoche']].forEach(function(t){
+        if(src[t[2]]===undefined) return;
+        src=Object.assign({},src); delete src[t[0]]; delete src[t[1]];
+        if(parseInt(dst[t[1]])>0) return;            // ya tiene noche: es un dato
+        var d=parseInt(dst[t[0]],10), tot=isNaN(d)?(parseInt(src[t[0]])||0)+(parseInt(src[t[1]])||0):d;
+        var nd=src[t[2]]?0:tot, nn=src[t[2]]?tot:0;
+        if(dst[t[0]]!==nd||dst[t[1]]!==nn){ dst[t[0]]=nd; dst[t[1]]=nn; _calcChanged=true; }
+      });
+    }
+    var _cero=function(f,v){ return f==='night'&&/^0{1,2}:00$/.test(String(v||'').trim()); };
     enrichFields.forEach(function(f){
       var sv=src[f], dv=dst[f];
-      var hasNew=sv&&String(sv).trim()!=='';
-      var hasOld=dv&&String(dv).trim()!=='';
-      if(hasNew&&!hasOld){ dst[f]=sv; changed=true; }
+      var hasNew=sv!==undefined&&sv!==null&&String(sv).trim()!==''&&!_cero(f,sv)&&!(/Night$/.test(f)&&f!=='night'&&!+sv);
+      // Un «0:00» de noche guardado no es un dato: es el hueco que deja el roster.
+      var hasOld=dv&&String(dv).trim()!==''&&!_cero(f,dv);
+      if(hasNew&&!hasOld){ dst[f]=/^(ldg|to)(Day|Night)$/.test(f)?(parseInt(sv)||0):sv; changed=true; }
     });
     // Rol y función EASA: aquí NO vale con rellenar huecos. Si el documento dice otra cosa
     // que lo guardado, manda el documento — es la única forma de que reimportar REPARE un
@@ -35632,6 +35785,7 @@ function ldImportConfirm(){
         if(sv&&String(sv).trim()!==''&&sv!==dst[f]){ dst[f]=sv; changed=true; }
       });
     }
+    if(_calcChanged) changed=true;
     return changed;
   }
 
@@ -35691,6 +35845,9 @@ function ldImportConfirm(){
         // falseaba la recencia (3 aterrizajes/90 días). Sólo se asume 1 si NO viene el dato.
         ldgDay:(r.ldgDay!==undefined&&r.ldgDay!=='')?(parseInt(r.ldgDay)||0):1,
         ldgNight:(parseInt(r.ldgNight)||0),
+        // Los despegues del fichero se tiraban al dar de alta: la columna se leía y no llegaba.
+        toDay:(r.toDay!==undefined&&r.toDay!=='')?(parseInt(r.toDay)||0):null,
+        toNight:(r.toNight!==undefined&&r.toNight!=='')?(parseInt(r.toNight)||0):null,
         night:r.night||'',cm1:r.cm1||'',cm2:r.cm2||'',
         pilotFunction:r.pilotFunction||'',activityType:r.activityType||'',
         idSeq:r.idSeq||'',
@@ -65941,13 +66098,15 @@ function laRenderAnalytics() {
   var nightMins = _post.reduce(function(s,e){ return s+ldT2m(e.night||''); },0) + _b('night');
   var picMins   = _post.filter(function(e){ return e.role==='CPT'; }).reduce(function(s,e){ return s+ldT2m(e.block||''); },0) + _b('pic');
   var foMins    = _post.filter(function(e){ return e.role==='FO';  }).reduce(function(s,e){ return s+ldT2m(e.block||''); },0) + _b('cop');
-  var ldgDay    = _post.reduce(function(s,e){ return s+(e.ldgDay||0);   },0) + _b('ldgDay');
-  var ldgNight  = _post.reduce(function(s,e){ return s+(e.ldgNight||0); },0) + _b('ldgNight');
+  // parseInt: un vuelo importado puede traer el contador como texto («1») y la suma
+  // acababa concatenada en vez de sumada.
+  var ldgDay    = _post.reduce(function(s,e){ return s+(parseInt(e.ldgDay)||0);   },0) + _b('ldgDay');
+  var ldgNight  = _post.reduce(function(s,e){ return s+(parseInt(e.ldgNight)||0); },0) + _b('ldgNight');
   /* Despegues: campo nuevo, así que un vuelo antiguo no lo trae. Se cuenta en cuántos
      está para poder decirlo — un 0 al lado de una carrera entera no es un total. */
   var _toCon    = _post.filter(function(e){ return e.toDay!=null||e.toNight!=null; }).length;
-  var toDay     = _post.reduce(function(s,e){ return s+(e.toDay||0);    },0) + _b('toDay');
-  var toNight   = _post.reduce(function(s,e){ return s+(e.toNight||0);  },0) + _b('toNight');
+  var toDay     = _post.reduce(function(s,e){ return s+(parseInt(e.toDay)||0);    },0) + _b('toDay');
+  var toNight   = _post.reduce(function(s,e){ return s+(parseInt(e.toNight)||0);  },0) + _b('toNight');
   var totalLdg  = ldgDay + ldgNight;
   var totalH    = Math.floor(totalMins/60);
 
