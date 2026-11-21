@@ -70,7 +70,7 @@
      puede hacer sin red, y el mensaje lo dice en vez de soltar el error del navegador.
      Va con el uid dentro: la copia de otra cuenta en el mismo móvil no se enseña. El
      prefijo pilotos_ hace que el cierre de sesión se la lleve. */
-  var SW_CACHE = 'pilotos_swap_cache_v1', SW_CACHE_MAX = 30, SW_CACHE_TAM = 450000;
+  var SW_CACHE = 'pilotos_swap_cache_v1', SW_CACHE_MAX = 30, SW_CACHE_TAM = 450000, SW_GET_TOPE = 10000;
   function uidAhora() { try { return (JSON.parse(localStorage.getItem('cafi_user') || '{}') || {}).id || ''; } catch (e) { return ''; } }
   function cacheTodo() {
     try { var c = JSON.parse(localStorage.getItem(SW_CACHE) || 'null'); if (c && c.uid === uidAhora() && c.e) return c; } catch (e) {}
@@ -79,13 +79,22 @@
   function cacheGuarda(path, j) {
     try {
       var txt = JSON.stringify(j); if (txt.length > SW_CACHE_TAM) return;
-      var c = cacheTodo(); c.e[path] = { at: Date.now(), j: j };
+      var c = cacheTodo(), base = path.split('?')[0];
+      Object.keys(c.e).forEach(function (k) { if (k !== path && k.split('?')[0] === base) delete c.e[k]; });
+      c.e[path] = { at: Date.now(), j: j };
       var ks = Object.keys(c.e).sort(function (x, y) { return c.e[y].at - c.e[x].at; });
       ks.slice(SW_CACHE_MAX).forEach(function (k) { delete c.e[k]; });
       localStorage.setItem(SW_CACHE, JSON.stringify(c));
     } catch (e) {}
   }
-  function cacheLee(path) { var c = cacheTodo(); return c.e[path] || null; }
+  /* El rango de fechas de la URL cambia cada día: sin esto, el roster de un compañero
+     guardado ayer no se encontraba hoy. */
+  function cacheLee(path) {
+    var c = cacheTodo(), base = path.split('?')[0];
+    if (c.e[path]) return c.e[path];
+    var k = Object.keys(c.e).filter(function (x) { return x.split('?')[0] === base; })[0];
+    return k ? c.e[k] : null;
+  }
   function errSinRed(manda) {
     var e = new Error(manda ? L('Sin conexión: esto necesita cobertura. Inténtalo cuando vuelvas a tenerla.', 'No connection: this needs signal. Try again when you\'re back online.')
       : L('Sin conexión y todavía no hay nada guardado de esto en el móvil.', 'No connection, and nothing of this is saved on the phone yet.'));
@@ -97,18 +106,26 @@
     function prueba(ult) {
       if (i >= o.length) return Promise.reject(ult || new Error(L('Sin conexión', 'No connection')));
       var org = o[i++];
+      var ctl = !body && typeof AbortController !== 'undefined' ? new AbortController() : null;
+      var tope = ctl ? setTimeout(function () { ctl.abort(); }, SW_GET_TOPE) : 0;
       return fetch(org + path, {
-        method: body ? 'POST' : 'GET', cache: 'no-store',
+        method: body ? 'POST' : 'GET', cache: 'no-store', signal: ctl ? ctl.signal : undefined,
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token() },
         body: body ? JSON.stringify(body) : undefined
       }).then(function (r) {
+        clearTimeout(tope);
         if (r.status === 404 && !/json/.test(r.headers.get('content-type') || '')) return prueba(new Error('404'));
         _origenBueno = org;
         return r.json().catch(function () { return {}; }).then(function (j) {
           if (!r.ok) throw new Error(j.error || ('Error ' + r.status));
           return j;
         });
-      }, function (e) { e = e || new Error('red'); e.__red = true; return prueba(e); });
+      }, function (e) {
+        clearTimeout(tope);
+        e = e || new Error('red'); e.__red = true;
+        if (e.name === 'AbortError') throw e;   // ya se ha esperado bastante: a la copia
+        return prueba(e);
+      });
     }
     return prueba();
   }
@@ -143,6 +160,61 @@
       '<div><b>' + esc(L('Sin conexión · lo de las ', 'Offline · as of ') + horaCache(S.offAt)) + '</b>' +
       '<span>' + esc(L('Proponer, aceptar o publicar necesita cobertura.', 'Proposing, accepting or posting needs signal.')) + '</span></div>';
   }
+  /* Mientras llegan los datos NO se pinta ninguna tarjeta: sin saber el estado, la de
+     «tienes el Swap desconectado» era mentira. Pantalla entera del color del Swap. */
+  function pintaCarga(txt) {
+    var b = $('sw-body'); if (!b) return;
+    b.innerHTML = '<div class="sw-carga" role="status"><img src="icons/swap.png" alt="" width="84" height="84">' +
+      '<b>Swap</b><span>' + esc(txt || L('Cargando…', 'Loading…')) + '</span><i aria-hidden="true"></i></div>';
+  }
+  function pintaFallo(e, reintenta) {
+    var b = $('sw-body'); if (!b) return;
+    if (!e || !e.__sinRed) { b.innerHTML = '<div class="sw-pad"><div class="sw-err">' + esc(e && e.message) + '</div></div>'; return; }
+    b.innerHTML = '<div class="sw-carga quieta" role="status"><img src="icons/swap.png" alt="" width="84" height="84">' +
+      '<b>' + esc(L('Sin conexión', 'No connection')) + '</b>' +
+      '<span>' + esc(L('Esto aún no está guardado en este aparato. Ábrelo una vez con cobertura y luego lo tendrás sin ella.', 'This isn\'t saved on this device yet. Open it once with signal and it will be available without it.')) + '</span>' +
+      '<button id="sw-reintenta">' + esc(L('Reintentar', 'Try again')) + '</button></div>';
+    $('sw-reintenta').onclick = reintenta;
+  }
+  /* Lo último que se vio, al instante: abre igual con y sin red, y la red lo pone al día. */
+  function hidrata() {
+    var d = cacheLee('/api/swap/dir'), c = cacheLee('/api/swap/contacts'), p = cacheLee('/api/swap/proposals'), pl = cacheLee('/api/swap/plan?days=14');
+    var copia = function (x) { return JSON.parse(JSON.stringify(x.j)); };
+    if (!S.dir && d) S.dir = copia(d);
+    if (!S.contacts.length && c) S.contacts = copia(c).contacts || [];
+    if (!S.proposals.length && p) S.proposals = copia(p).proposals || [];
+    if (!S.plan && pl) { S.plan = copia(pl); S.planAt = 0; }
+  }
+  function rangoPar() {
+    var t = today();
+    return { from: addDays(t, -7).slice(0, 8) + '01', to: addDays(t, 45) };
+  }
+  /* Con red, se guardan los rosters de los compañeros conectados para poder abrirlos
+     en vuelo aunque hoy no se haya entrado en ellos. Uno a uno, como mucho cada 6 h y
+     con tope de tamaño: localStorage es el mismo sitio donde vive el logbook. */
+  var PRE_MAX = 8, PRE_CADA = 6 * 36e5, PRE_TAM = 1200000, _prePidiendo = false;
+  function precargaPares() {
+    if (_prePidiendo || !token() || navigator.onLine === false) return;
+    var r = rangoPar(), ahora = Date.now();
+    /* Quien ya no es tu contacto no se queda con su roster guardado en tu aparato. */
+    try {
+      var okIds = S.contacts.filter(function (c) { return c.status === 'accepted' && c.partner; }).map(function (c) { return c.partner.id; });
+      var todo = cacheTodo(), quita = Object.keys(todo.e).filter(function (k) { var m = k.match(/^\/api\/swap\/pair\/([^?]+)/); return m && okIds.indexOf(m[1]) < 0; });
+      if (quita.length) { quita.forEach(function (k) { delete todo.e[k]; }); localStorage.setItem(SW_CACHE, JSON.stringify(todo)); }
+    } catch (e) {}
+    var cola = S.contacts.filter(function (c) { return c.status === 'accepted' && c.partner && c.partner.id; }).slice(0, PRE_MAX)
+      .map(function (c) { return '/api/swap/pair/' + c.partner.id + '?from=' + r.from + '&to=' + r.to; })
+      .filter(function (p) { var x = cacheLee(p); return !x || ahora - x.at > PRE_CADA; });
+    if (!cola.length) return;
+    _prePidiendo = true;
+    (function sigue() {
+      var tam = 0; try { tam = (localStorage.getItem(SW_CACHE) || '').length; } catch (e) {}
+      var p = cola.shift();
+      if (!p || tam > PRE_TAM || navigator.onLine === false) { _prePidiendo = false; return; }
+      apiRed(p).then(function (j) { cacheGuarda(p, j); sigue(); }, function () { _prePidiendo = false; });
+    })();
+  }
+
   /* Al volver la cobertura se refresca lo que se esté viendo. */
   window.addEventListener('online', function () {
     if (!$('scr-swap')) return;
@@ -290,6 +362,7 @@
   window.swapOpen = function () {
     ensureScreen();
     S.partner = null; S.proposal = null; S.view = 'home';
+    hidrata();
     renderHome();
     if (typeof goTo === 'function') goTo('swap');
     /* Sin rol o sin nombre de chequeo el Swap no sirve: no se te puede encontrar ni
@@ -339,8 +412,11 @@
       if (!S.partner && S.view !== 'board') renderHome();
       badge(); pintaTabs();
       celebraPendiente();      // ¡SWAP! si te han aceptado un cambio y aún no lo has visto
+      precargaPares();
     }, function (e) {
-      if (!S.partner && S.view !== 'board') $('sw-body').innerHTML = '<div class="sw-pad"><div class="sw-err">' + esc(e.message) + '</div></div>';
+      // Con algo ya en pantalla, un fallo de red no lo borra.
+      if (e && e.__sinRed && S.dir) return;
+      if (!S.partner && S.view !== 'board') pintaFallo(e, function () { pintaCarga(); loadHome(); });
     });
   }
 
@@ -503,11 +579,12 @@
   }
   function renderHome() {
     var body = $('sw-body'); if (!body) return;
+    if (!S.dir && token()) { pintaTabs(); pintaGear(); pintaCarga(); return; }
     var me = (S.dir && S.dir.me) || { visible: false };
     pintaTabs(); pintaGear();
     /* Desconectado en el perfil: no hay Swap. Lo dice y deja encenderlo aquí. */
     if (!me.visible) {
-      body.innerHTML = '<div class="sw-pad"><div class="sw-card sw-off">' +
+      body.innerHTML = '<div class="sw-pad"><div class="sw-card sw-apagado">' +
         '<div class="sw-off-ico">⇄</div>' +
         '<div class="sw-name" style="font-size:17px">' + L('Tienes el Swap desconectado en tu perfil', 'Swap is turned off in your profile') + '</div>' +
         '<div class="sw-sub" style="margin:6px 0 14px">' + L('No puedes consultar cambios ni ver el roster de tus compañeros. Al conectarlo aparecerás para los pilotos de tu base y especialidad; solo se ve tu nombre, tu foto, tu base y tu especialidad.', 'You can\'t check swaps or see your colleagues\' rosters. Once it\'s on, pilots at your base and in your position can find you; they only see your name, photo, base and position.') + '</div>' +
@@ -994,15 +1071,17 @@
       var nuevo = (j.posts || []).filter(function (p) { return p.match && !matchVisto(p); })[0];
       if (nuevo && S.view === 'board' && !S.partner) setTimeout(function () { celebraMatch(nuevo); }, 350);
     }, function (e) {
-      if (S.view === 'board' && !S.partner && $('sw-body')) $('sw-body').innerHTML = '<div class="sw-pad"><div class="sw-err">' + esc(e.message) + '</div></div>';
+      if (e && e.__sinRed && S.board && S.board.posts) return;
+      if (S.view === 'board' && !S.partner && $('sw-body')) pintaFallo(e, function () { pintaCarga(); loadBoard(); });
     });
   }
 
   function renderBoard() {
     var body = $('sw-body'); if (!body) return;
     pintaTabs();
+    if (!S.board) { var cb = cacheLee('/api/swap/board'); if (cb) S.board = JSON.parse(JSON.stringify(cb.j)); }
     var B = S.board, tab = S.btab || 'board', filt = S.bfilt || 'all';
-    if (!B || !B.posts) { body.innerHTML = '<div class="sw-pad"><div class="sw-empty">' + L('Cargando el tablón…', 'Loading the board…') + '</div></div>'; return; }
+    if (!B || !B.posts) { pintaCarga(L('Cargando el tablón…', 'Loading the board…')); return; }
     if (B.needProfile) {
       body.innerHTML = '<div class="sw-pad"><div class="sw-card"><div class="sw-sub">' + L('Pon tu base y tu rol en Mi perfil para ver el tablón de tu base.', 'Set your base and role in My profile to see your base\'s board.') + '</div>' +
         '<button class="sw-btn pri" style="width:100%;margin-top:10px" onclick="goTo(\'perfil\')">' + L('Ir a Mi perfil', 'Go to My profile') + '</button></div></div>';
@@ -1425,10 +1504,9 @@
   function openPair(partner, preDates, proposal) {
     S.partner = partner; S.proposal = proposal || null; S.picked = []; S.msg = ''; S.state = 'idle'; S.hint = [];
     rotulaAtras(); pintaTabs();
-    var body = $('sw-body');
-    body.innerHTML = '<div class="sw-pad"><div class="sw-empty">' + L('Cargando los rosters…', 'Loading rosters…') + '</div></div>';
+    pintaCarga(L('Cargando los rosters…', 'Loading rosters…'));
     // Desde el día 1 del mes: la regla de «una imaginaria antes de libre al mes» cuenta el mes entero.
-    var t = today(), from = addDays(t, -7).slice(0, 8) + '01', to = addDays(t, 45);
+    var t = today(), rg = rangoPar(), from = rg.from, to = rg.to;
     if (preDates && preDates.length) {
       if (preDates[0] < from) from = addDays(preDates[0], -7);
       if (preDates[preDates.length - 1] > to) to = addDays(preDates[preDates.length - 1], 7);
@@ -1460,7 +1538,7 @@
         var w = $('sw-wrap'); if (w) w.scrollLeft = S.firstShown * DW;
         mesVisible();
       }
-    }, function (e) { body.innerHTML = '<div class="sw-pad"><div class="sw-err">' + esc(e.message) + '</div></div>'; });
+    }, function (e) { pintaFallo(e, function () { openPair(partner, preDates, proposal); }); });
   }
 
   function renderPair() {
