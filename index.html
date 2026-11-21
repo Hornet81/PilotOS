@@ -185,9 +185,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
 }
 </style>
 
-  <meta name="version" content="Estable.1275">
+  <meta name="version" content="Estable.1279">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1275","builtAt":"2026-11-20T19:28:53Z","commit":"81953ff","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1279","builtAt":"2026-11-21T19:01:43Z","commit":"d4b789f","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -22733,7 +22733,7 @@ function pcInvDesdeRoster(month){
       var _n = new Date();
       _hoyInv = _n.getFullYear() + '-' + String(_n.getMonth()+1).padStart(2,'0') + '-' + String(_n.getDate()).padStart(2,'0');
     } catch(e){}
-    if (_hoyInv && month === _hoyInv.slice(0,7)) {
+    if (_hoyInv && month === _hoyInv.slice(0,7) && !window.PC_MES_COMPLETO) {
       var _antes = trozo.length;
       trozo = trozo.filter(function(e){ return String(e.date) <= _hoyInv; });
       out.pendientes = _antes - trozo.length;   // días del mes aún por llegar
@@ -23311,6 +23311,7 @@ async function pcPaycheckFetch(month, source, token){
     try {
       var r = await fetch(bases[i] + '/api/paycheck?month=' + encodeURIComponent(month) +
                           '&source=' + encodeURIComponent(source) +
+                          (window.PC_MES_COMPLETO ? '&completo=1' : '') +
                           (basePerfil ? '&base=' + encodeURIComponent(basePerfil) : ''),
                           { headers: { 'Authorization': 'Bearer ' + token }, signal: ctrl.signal });
       clearTimeout(corta);
@@ -23359,6 +23360,15 @@ async function pcImportFromLogbook(month, opts) {
   // encima. Se ignora y ya.
   if (window._pcImportando) return;
   window._pcImportando = true;
+  /* ── Pestaña NÓMINA + mes en curso → el MES COMPLETO, con lo programado ──
+     Reporte de tester (21-nov-2026): «quan selecciono el mes en curs només calcula
+     els vols que ja he fet». En la pestaña Nómina el piloto quiere saber cuánto va
+     a cobrar por el mes, y el aviso de arriba ya dice que sale del roster
+     programado. El recorte a HOY se queda para el Acumulado y el widget del Home
+     (`opts.tracker`), que cuentan lo devengado hasta la fecha. La bandera vive lo
+     que dura esta importación y la leen el servidor (`completo=1`) y los
+     contadores locales (`pcRosterHastaHoy`, `pcInvDesdeRoster`). */
+  window.PC_MES_COMPLETO = (opts.form !== false && !opts.tracker);
 
   PC_SIN_ROSTER = null;
   var btn = document.getElementById('pc-import-btn');
@@ -23705,7 +23715,8 @@ async function pcImportFromLogbook(month, opts) {
       try { if (typeof pcCalc === 'function') pcCalc(); } catch(_e){}
       // Para que el paso 2 de Auditoría diga de qué mes y cuántos vuelos salió el cálculo.
       try { window.PC_IMPORT_INFO = { month: month, flights: data.flights_total || 0, at: Date.now() }; } catch(_e){}
-      showToast('✅ Datos importados para ' + month + (isRoster?' (roster)':(isConfirmed?' (confirmado)':' (estimado)')));
+      showToast('✅ Datos importados para ' + month + (isRoster?' (roster)':(isConfirmed?' (confirmado)':' (estimado)'))
+                + ((window.PC_MES_COMPLETO && data.clipped_to == null && month === new Date().toISOString().slice(0,7)) ? ' · mes completo' : ''));
     }
 
     // ── Render del TRACKER + detalle (solo pestaña Acumulado; opts.tracker) ──
@@ -23719,6 +23730,7 @@ async function pcImportFromLogbook(month, opts) {
     showToast('❌ ' + pcFallo, 'error');
   } finally {
     window._pcImportando = false;
+    window.PC_MES_COMPLETO = false;
     /* El fallo se enseña en el PROPIO botón unos segundos, no solo en un toast: el
        piloto está mirando el botón —es lo que acaba de pulsar— y un toast se le va
        mientras lee otra cosa. Después vuelve a su estado normal, listo para
@@ -25247,7 +25259,7 @@ function pcRosterHastaHoy(month){
     var n = new Date();
     var hoy = n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0') + '-' + String(n.getDate()).padStart(2,'0');
     out.hoy = hoy;
-    if (month !== hoy.slice(0,7)) { out.ents = delMes; return out; }
+    if (month !== hoy.slice(0,7) || window.PC_MES_COMPLETO) { out.ents = delMes; return out; }
     out.corte = hoy;
     delMes.forEach(function(e){ (String(e.date) <= hoy ? out.ents : out.futuroEnts).push(e); });
   } catch(e){}
