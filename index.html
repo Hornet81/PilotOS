@@ -185,9 +185,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
 }
 </style>
 
-  <meta name="version" content="Estable.1279">
+  <meta name="version" content="Estable.1280">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1279","builtAt":"2026-11-21T19:01:43Z","commit":"afeae9e","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1280","builtAt":"2026-11-21T22:44:30Z","commit":"PENDING","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -55995,6 +55995,7 @@ var _ecHusoCtx = null;
 var EC_HUSO_NOMBRE = { utc:'UTC (Z)', base:'hora de mi base', local:'hora de cada aeropuerto' };
 // Global a propósito: lo llama un onclick del HTML y este bloque no es global.
 window.ecHusoCambiar = function(){
+  window._ecHusoCambioManual = true;      // a partir de aquí, lo que conteste manda sobre el logbook
   window._ecHusoPregunta = true;
   if (_ecHusoCtx && _ecHusoCtx.sub) ecPintaHuso(_ecHusoCtx.sub, _ecHusoCtx.payload);
 };
@@ -56004,6 +56005,8 @@ window.ecHusoAyuda = function(el){
   try { var d = el && el.parentNode.querySelector('.ec-huso-ayuda'); if (d) d.classList.toggle('on'); } catch(e){}
 };
 function ecHusoDudoso(payload){
+  // Si su logbook ya demuestra el huso no hay nada que preguntar (Marc N., 21-nov).
+  if (typeof ecHusoLogbook === 'function' && ecHusoLogbook(payload)) return false;
   /* Respuesta guardada que choca con los datos: se vuelve a preguntar, UNA vez
      por sesión. Si el piloto la confirma, manda él — la prueba puede fallar y no
      se le puede dejar sin importar. */
@@ -56095,7 +56098,10 @@ function ecPintaHuso(sub, payload){
      tenga otro guardado (#GPH15)—, así que el rótulo no puede decir «lo has
      puesto tú»: diría una cosa y se haría otra. */
   var mandaLeido = (leido === 'UTC' || leido === 'LOCAL') && !(man && window._ecHusoConfirmado === man);
-  var comoLoSe = mandaLeido ? 'leído de eCrews'
+  var _porLogbook = (typeof ecHusoLogbook === 'function') && ecHusoLogbook(payload) === modo;
+  if (_porLogbook) mandaLeido = false;
+  var comoLoSe = _porLogbook ? 'comprobado con tu logbook'
+               : mandaLeido ? 'leído de eCrews'
                : (man ? 'lo has puesto tú'
                : (leido ? 'leído de eCrews' : 'deducido de tus horas reales'));
   // Respuesta guardada que ya no se usa: se dice, en una línea, y se puede recuperar.
@@ -56756,6 +56762,8 @@ setTimeout(function(){
    Si nada de esto habla, se asume UTC — que es lo que ha hecho la app toda la
    vida y lo que tiene la mayoría. */
 var K_EC_TZ = 'pilotos_ecrews_timesin';
+var K_EC_TZ_LOGBOOK = 'pilotos_ecrews_huso_logbook';  // huso ya demostrado con el logbook
+var K_EC_TZ_FORZADO = 'pilotos_ecrews_huso_forzado';  // el piloto lo cambió viendo la prueba
 /* Lo contestado viaja en el PERFIL (`ecHuso`) además de en este aparato: si no,
    el piloto tendría que contestar la pregunta del huso en cada móvil. */
 function ecTimesInManual(){
@@ -56767,6 +56775,13 @@ function ecTimesInManual(){
 window.ecSetTimesIn = function(modo){        // 'local' | 'base' | 'utc' | '' (=automático)
   try { modo ? localStorage.setItem(K_EC_TZ, modo) : localStorage.removeItem(K_EC_TZ); } catch(e){}
   try { if (window.PilotProfile && PilotProfile.save) PilotProfile.save({ ecHuso: modo || '' }); } catch(e){}
+  /* Sólo si vino de «cambiar», con la prueba del logbook a la vista: el piloto
+     siempre puede corregirnos, y esa corrección no se la vuelve a pisar la sonda. */
+  try {
+    if (window._ecHusoCambioManual && modo) localStorage.setItem(K_EC_TZ_FORZADO, modo);
+    else if (!modo) localStorage.removeItem(K_EC_TZ_FORZADO);
+    if (window._ecHusoCambioManual) localStorage.removeItem(K_EC_TZ_LOGBOOK);
+  } catch(e){}
   window._ecHusoPregunta = false;
   window._ecHusoConfirmado = modo || '';     // contestado en esta sesión: no se le vuelve a discutir
   if (typeof ecRenderMonths === 'function') { try { ecRenderMonths(); } catch(e){} }
@@ -56891,10 +56906,85 @@ function ecHusoProbado(payload){
   var ti = payload.TimesIn || (payload.meta && payload.meta.timesIn);
   if(ti === 'UTC' && modo === 'utc') return true;
   if(ti === 'LOCAL' && modo === 'local') return true;
+  if(typeof ecHusoLogbook === 'function' && ecHusoLogbook(payload) === modo) return true;
   return modo === 'local' && _ecSondaSimetria(payload.SchedulerEvents || payload.events) === 'local';
 }
 try { window.ecHusoContradice = ecHusoContradice; window.ecHusoProbado = ecHusoProbado; } catch(e){}
+/* ★★ SONDA DEL LOGBOOK (Marc N., 21-nov-2026) — la única que distingue UTC de hora
+   de base. Cuando el proxy no puede leer el selector («capturando en DESCONOCIDO»)
+   se pregunta al piloto; él ve eCrews en la hora de su base y contesta «hora de mi
+   base», pero lo que hemos recibido ya venía en UTC. Se restaba el huso a horas en
+   Zulu: 222 de 222 vuelos corridos −2 h en verano y −1 h en invierno.
+   El logbook importado de un FICHERO es una fuente independiente y va en Zulu: si
+   la salida real (A) de eCrews coincide con su ATD, la captura es UTC; si difiere
+   justo el huso de la base, es hora de base. Medido en los 6 pilotos con huso
+   guardado y logbook importado: sólo falla el que estaba mal.
+   Sólo ficheros (`importBatch.file`): un vuelo que entró al logbook DESDE el roster
+   arrastraría el mismo error y se daría la razón a sí mismo. */
+function _ecSondaLogbook(events){
+  var ng = window.NGasto;
+  if(!ng || !ng.tzFor || !ng.tzOffsetMin || !events || !events.length) return null;
+  var lb = window.ldEntries;
+  if(!lb || !lb.length){ try { lb = JSON.parse(localStorage.getItem('pilotOS_logbook_v1') || '[]'); } catch(e){ lb = []; } }
+  var norm = function(f){ return String(f || '').toUpperCase().replace(/^\*/, '').replace(/^VY/, '').replace(/^0+/, ''); };
+  var hm = function(t){ var m = String(t || '').match(/^(\d{2}):(\d{2})$/); return m ? (+m[1])*60 + (+m[2]) : null; };
+  var atd = {};
+  (lb || []).forEach(function(e){
+    if(!e || !e.importBatch || !e.importBatch.file || !e.date) return;
+    var a = hm(e.atd), f = norm(e.flight);
+    if(a != null && f) atd[e.date + '|' + f] = a;
+  });
+  var base = '';
+  try { base = (window.ppGet && ppGet('base', '')) || localStorage.getItem('pilotOS_home_base') || 'BCN'; } catch(e){ base = 'BCN'; }
+  var n = 0, utc = 0, enBase = 0;
+  events.forEach(function(ev){
+    var d = String(ev && ev.start || '').slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+    var off = 0;
+    try { off = ng.tzOffsetMin(Date.parse(d + 'T12:00:00Z'), ng.tzFor(base)); } catch(e){ return; }
+    if(!off) return;                                  // base a UTC+0: las dos hipótesis son la misma hora
+    String(ev.details || '').split('\n').forEach(function(l){
+      var m = l.trim().match(/^\*?([A-Z0-9]+)\s+-\s+\*?[A-Z]{3}\s+\(\s*A(\d{2})(\d{2})/);
+      if(!m) return;
+      var a = atd[d + '|' + norm(m[1])];
+      if(a == null) return;
+      var dif = (+m[2])*60 + (+m[3]) - a;
+      dif = ((dif % 1440) + 1440) % 1440; if(dif > 720) dif -= 1440;
+      n++;
+      if(Math.abs(dif) <= 3) utc++;
+      else if(Math.abs(dif - off) <= 3) enBase++;
+    });
+  });
+  if(n < 3) return null;
+  if(utc / n >= 0.9) return 'utc';
+  if(enBase / n >= 0.9) return 'base';
+  return null;
+}
+/* Lo demostrado se RECUERDA: un mes futuro aún no tiene horas reales con las que
+   comparar, y es justo el que el piloto mira para saber a qué hora trabaja. */
+function ecHusoLogbook(payload){
+  try {
+    var man = ecTimesInManual();
+    var forzado = localStorage.getItem(K_EC_TZ_FORZADO) || '';
+    if(forzado && forzado === man) return null;       // lo corrigió él viendo la prueba
+    var vivo = _ecSondaLogbook(payload && (payload.SchedulerEvents || payload.events));
+    if(vivo){
+      localStorage.setItem(K_EC_TZ_LOGBOOK, vivo);
+      if(man !== vivo){
+        localStorage.setItem(K_EC_TZ, vivo);
+        try { if (window.PilotProfile && PilotProfile.save) PilotProfile.save({ ecHuso: vivo }); } catch(e){}
+      }
+      return vivo;
+    }
+    var g = localStorage.getItem(K_EC_TZ_LOGBOOK);
+    return (g === 'utc' || g === 'base') ? g : null;
+  } catch(e){ return null; }
+}
+try { window._ecSondaLogbook = _ecSondaLogbook; window.ecHusoLogbook = ecHusoLogbook; } catch(e){}
 function ecTimesInModo(payload){
+  /* Antes que la respuesta guardada, y antes que el selector: es la única prueba
+     hecha con las horas de verdad del propio piloto. */
+  if(typeof ecHusoLogbook === 'function'){ var _lb = ecHusoLogbook(payload); if(_lb) return _lb; }
   var man = ecTimesInManual();
   var ti = payload && (payload.TimesIn || (payload.meta && payload.meta.timesIn));
   /* ★★ #GPH15 — EN QUÉ HUSO SE CAPTURÓ MANDA SOBRE LO QUE EL PILOTO CONTESTÓ.

@@ -571,6 +571,7 @@
     "la víspera tiene actividad pero no hay hora de fin legible": "the day before has activity but no readable end time",
     "las 00:00 clavadas ya invaden": "exactly 00:00 already intrudes",
     "leído de eCrews": "read from eCrews",
+    "comprobado con tu logbook": "checked against your logbook",
     "libre → vuelo": "day off → flight",
     "Libre por subasta": "Bid day off",
     "Libres": "Days off",
