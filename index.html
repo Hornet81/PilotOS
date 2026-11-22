@@ -185,9 +185,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
 }
 </style>
 
-  <meta name="version" content="Estable.1283">
+  <meta name="version" content="Estable.1284">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1283","builtAt":"2026-11-21T23:12:55Z","commit":"cc8159c","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1284","builtAt":"2026-11-22T11:38:36Z","commit":"2b8f2df","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -72939,3 +72939,45 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 </script>
 </body>
 </html>
+/* ── La GUARDIA activada guardada en hora LOCAL (22-nov-2026) ──
+   Una imaginaria de la que te sacan acaba en la firma: en la base, 132 casos de
+   21 pilotos con fin de guardia = firma al minuto. El 9-nov de un tester llegó
+   OSB2 06:05–12:45 con la firma a las 11:45Z: la guardia en LT y los vuelos en
+   UTC (Notify: OSB2 06:05 LT, firma 12:45 LT). Con eso la ficha corregía la
+   firma «al fin de la guardia» (12:45Z → 13:45 LT) y la guardia salía una hora
+   corrida. Misma regla que la firma: sólo con prueba física — el fin de la
+   guardia queda EXACTAMENTE el huso por delante de la firma, y en UTC cae en
+   ella. Idempotente: una vez en UTC, fin = firma. Devuelve los meses tocados. */
+function _rstSanaSbyLocal(entries){
+  var porDia = {}, meses = {};
+  (entries || []).forEach(function(e){
+    if(!e || !e.date) return;
+    var d = porDia[e.date] = porDia[e.date] || { f:[], s:[] };
+    if(e.type === 'flight' && _rstSchedHm(e.checkin) != null) d.f.push(e);
+    else if(e.type === 'standby' && _rstSchedHm(e.sta) != null) d.s.push(e);
+  });
+  Object.keys(porDia).forEach(function(dia){
+    var d = porDia[dia];
+    if(!d.f.length || !d.s.length) return;
+    var C = Math.min.apply(null, d.f.map(function(e){ return _rstSchedHm(e.checkin); }));
+    var pri = d.f.slice().sort(function(a,b){ return (_rstFirmaSal(a)||0) - (_rstFirmaSal(b)||0); })[0];
+    var apt = pri.dep;
+    d.s.forEach(function(s){
+      var S = _rstSchedHm(s.sta), Sz = _rstSchedAUtc(dia, S, apt);
+      if(Sz == null) return;
+      var off = _rstSchedWrap(S - Sz);
+      if(off <= 0) return;
+      if(Math.abs(_rstSchedWrap(S - C) - off) > 2 || Math.abs(_rstSchedWrap(Sz - C)) > 2) return;
+      ['std','sta','std_actual','sta_actual'].forEach(function(k){
+        var m = _rstSchedHm(s[k]); if(m == null) return;
+        var z = _rstSchedAUtc(dia, m, apt); if(z != null) s[k] = _rstSchedHhmm(z);
+      });
+      if(s.raw_data && typeof s.raw_data === 'object'){ if(s.raw_data.std) s.raw_data.std = s.std; if(s.raw_data.sta) s.raw_data.sta = s.sta; }
+      meses[dia.slice(0,7)] = 1;
+    });
+  });
+  return Object.keys(meses);
+}
+try{ window._rstSanaSbyLocal = _rstSanaSbyLocal; }catch(e){}
+      /* Y la guardia activada guardada en local (22-nov-2026): después de la firma, que es su referencia. */
+      try{ _rstSanaSbyLocal(RST.entries).forEach(function(m){ if(_sanados.indexOf(m) < 0) _sanados.push(m); }); }catch(e){}
