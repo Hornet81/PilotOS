@@ -185,9 +185,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
 }
 </style>
 
-  <meta name="version" content="Estable.1284">
+  <meta name="version" content="Estable.1289">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1284","builtAt":"2026-11-22T11:38:36Z","commit":"a25f8d9","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1289","builtAt":"2026-11-25T23:53:56Z","commit":"fe8fa5f","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -12280,6 +12280,13 @@ html.day .fp-ym-st-col.free .fp-ym-st-rng{color:var(--fp-gd)}
       </div>
       <div><div class="gear-label">Guía de uso</div><div class="gear-sub">Aprende a sacarle el máximo</div></div>
     </div>
+    <!-- Tutoriales en vídeo (js/tutoriales.js): la hoja con todas las series. -->
+    <div class="gear-item" onclick="closePilotPanel();if(window.pilotosTutoriales)pilotosTutoriales.abre()">
+      <div class="gear-icon" style="background:linear-gradient(135deg,rgba(0,200,168,.18),rgba(0,194,209,.14) 55%,rgba(255,184,0,.16));border-color:rgba(56,217,240,.32)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#5EEAD4" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="15" height="14" rx="3"/><path d="M17 10l5-3v10l-5-3"/><path d="M8 9.5v5l4-2.5z" fill="#5EEAD4"/></svg>
+      </div>
+      <div><div class="gear-label">Tutoriales</div><div class="gear-sub">Vídeos de cada sección</div></div>
+    </div>
     <!-- Idioma (js/i18n.js). No cierra el panel: al elegir, la app recarga en el idioma nuevo. -->
     <div class="gear-item" style="cursor:default">
       <div class="gear-icon" style="background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.3)">
@@ -18110,6 +18117,20 @@ html.day #ec-sync-overlay [style*="background:rgba(8,145,178,.15)"]{
   // Carga perezosa: el iframe no se carga hasta la 1ª vez que se abre la guía.
   window.__guideLoad=function(){ if(f.getAttribute('data-loaded')) return; f.src='/guide.html'+(v?('?v='+encodeURIComponent(v)):''); f.setAttribute('data-loaded','1'); };
   window.openGuide=function(){ try{ window.__guideLoad&&window.__guideLoad(); }catch(e){} if(typeof goTo==='function') goTo('guide'); };
+  /* Abrir la guía era cargarla en ese momento: documento, diccionarios y estilos
+     con la pantalla oscura delante. Se precarga cuando la app está ociosa, y
+     mientras no se ve se le pide que pause lo que se mueve sin fin. */
+  var _gScr=document.getElementById('scr-guide');
+  function _gVis(){ var on=!!(_gScr&&_gScr.classList.contains('active')); try{ f.contentWindow&&f.contentWindow.postMessage({type:'pilotos-guide-vis',on:on},'*'); }catch(e){} }
+  if(_gScr) try{ new MutationObserver(_gVis).observe(_gScr,{attributes:true,attributeFilter:['class']}); }catch(e){}
+  f.addEventListener('load',_gVis);
+  window.addEventListener('load',function(){
+    setTimeout(function(){
+      if(navigator.onLine===false) return;
+      var go=function(){ try{ window.__guideLoad(); }catch(e){} };
+      if(window.requestIdleCallback) requestIdleCallback(go,{timeout:6000}); else go();
+    },5000);
+  });
   // Deep-link desde dentro de la guía (postMessage) → navegar / cerrar.
   window.addEventListener('message',function(ev){
     var d=ev.data||{};
@@ -19487,7 +19508,7 @@ function clearAllUserData(){
        «ya lo he leído» y «Entendido» son decisiones del piloto, no datos de la
        sesión. Borrarlas al salir le devolvía la campana llena cada vez que
        entraba. Las dos llevan el uid dentro. */
-    var keep=['pilotOS_last_uid','pilotday','cafi_backend_url','pilotos_perfil_alta','pilotos_guia_nunca','pilotos_fat_intro','pilotos_plazos_reglas_v2','pilotos_home_cards','pilotos_tools_cards','pilotos_avisos_vistos','pilotos_avisos_nuevo'];
+    var keep=['pilotOS_last_uid','pilotday','cafi_backend_url','pilotos_perfil_alta','pilotos_guia_nunca','pilotos_tut_nunca','pilotos_fat_intro','pilotos_plazos_reglas_v2','pilotos_home_cards','pilotos_tools_cards','pilotos_avisos_vistos','pilotos_avisos_nuevo'];
     var prefixes=['pilotOS_','pilotos_','cafi_','pag_','ld_','LD_','logbook_'];
     for(var i=localStorage.length-1;i>=0;i--){
       var k=localStorage.key(i);
@@ -36056,6 +36077,7 @@ document.addEventListener('focusin',function(e){
 <script src="js/callsign.js"></script>
 <script src="js/home-orden.js"></script>
 <script src="js/admin-testers.js"></script>
+<script src="js/tutoriales.js"></script>
 <script>
 /* ── EL IDIOMA DE LA APP: una sola puerta ─────────────────────────────────────
    Había dos ajustes para lo mismo: el selector ES/EN de ARIA (localStorage

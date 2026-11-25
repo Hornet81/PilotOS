@@ -84,6 +84,8 @@
     'Ver planes →': 'See plans →',
     'Guía de uso': 'User guide',
     'Aprende a sacarle el máximo': 'Get the most out of PilotOS',
+    'Tutoriales': 'Tutorials',
+    'Vídeos de cada sección': 'Videos for every section',
     'Enviados': 'Sent',
     'Tus reportes y en qué van': 'Your reports and their status',
     'Cerrar sesion': 'Sign out',

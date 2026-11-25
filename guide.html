@@ -4,13 +4,15 @@
 <meta charset="UTF-8">
 <!-- Idioma: el mismo traductor que la app (lee pilotos_lang del mismo origen). -->
 <script src="js/i18n.js"></script>
-<script src="js/i18n-en.js"></script>
-<script src="js/i18n-en-rest.js"></script>
-<script src="js/i18n-en-guide.js"></script>
+<!-- Los diccionarios en inglés pesan ~180 KB y bloquean la carga: sólo se piden
+     si la app está en inglés. Siguen siendo síncronos (document.write), así que
+     la guía se pinta ya traducida, sin un instante en castellano. -->
+<script>if(window.pilotosLang==='en')document.write('<script src="js/i18n-en.js"><\/script><script src="js/i18n-en-rest.js"><\/script><script src="js/i18n-en-guide.js"><\/script>');</script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PilotOS · Guía de uso</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<!-- Las fuentes NO bloquean: una hoja pendiente frena el primer pintado y los <script>. -->
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -34,10 +36,13 @@ body{background:linear-gradient(160deg,#040d1a 0%,#071832 55%,#0a1e3a 100%);back
   background:linear-gradient(90deg,transparent,rgba(34,211,238,.55) 22%,rgba(167,139,250,.7) 50%,rgba(34,211,238,.55) 78%,transparent);
   filter:blur(2px);animation:hz 9s ease-in-out infinite}
 @keyframes hz{0%,100%{opacity:.45;transform:translateY(0)}50%{opacity:.9;transform:translateY(-9px)}}
-.orb{position:absolute;border-radius:50%;filter:blur(110px)}
-.o1{width:760px;height:760px;background:rgba(124,58,237,.20);top:-280px;left:-200px;animation:dr1 26s ease-in-out infinite}
-.o2{width:640px;height:640px;background:rgba(34,211,238,.13);top:44%;right:-240px;animation:dr2 30s ease-in-out infinite}
-.o3{width:520px;height:520px;background:rgba(49,46,129,.36);bottom:-160px;left:26%;animation:dr1 34s ease-in-out infinite}
+.orb{position:absolute;border-radius:50%}
+/* Antes: filter:blur(110px) sobre círculos de 760 px que se mueven sin parar —
+   un desenfoque enorme recompuesto en cada fotograma—. Un degradado radial pinta
+   lo mismo sin filtro. */
+.o1{width:760px;height:760px;background:radial-gradient(circle,rgba(124,58,237,.20) 0%,rgba(124,58,237,0) 68%);top:-280px;left:-200px;animation:dr1 26s ease-in-out infinite}
+.o2{width:640px;height:640px;background:radial-gradient(circle,rgba(34,211,238,.13) 0%,rgba(34,211,238,0) 68%);top:44%;right:-240px;animation:dr2 30s ease-in-out infinite}
+.o3{width:520px;height:520px;background:radial-gradient(circle,rgba(49,46,129,.36) 0%,rgba(49,46,129,0) 68%);bottom:-160px;left:26%;animation:dr1 34s ease-in-out infinite}
 @keyframes dr1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(110px,120px) scale(1.15)}}
 @keyframes dr2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-130px,-90px) scale(1.12)}}
 /* estrellas */
@@ -103,7 +108,7 @@ body{background:linear-gradient(160deg,#040d1a 0%,#071832 55%,#0a1e3a 100%);back
   border-left:7px solid transparent;border-right:7px solid transparent;border-top:11px solid var(--amber)}
 
 .adi-read{display:flex;gap:9px;flex-wrap:wrap;justify-content:center}
-.rd{background:rgba(7,20,40,.62);backdrop-filter:blur(20px);border:1px solid rgba(34,211,238,.18);
+.rd{background:rgba(7,20,40,.76);border:1px solid rgba(34,211,238,.18);
   border-radius:13px;padding:11px 15px;text-align:center;min-width:96px;position:relative;overflow:hidden}
 .rd::after{content:'';position:absolute;inset:0;background:linear-gradient(150deg,rgba(255,255,255,.09),transparent 46%)}
 .rd .k{font-family:var(--mono);font-size:7.5px;letter-spacing:.2em;color:var(--slate);text-transform:uppercase}
@@ -127,7 +132,7 @@ body{background:linear-gradient(160deg,#040d1a 0%,#071832 55%,#0a1e3a 100%);back
 .ch .ln{flex:1;min-width:60px;height:1px;background:linear-gradient(90deg,rgba(34,211,238,.4),transparent);margin-bottom:14px}
 
 .filters{display:flex;gap:7px;flex-wrap:wrap;margin:26px 0 34px}
-.fb{background:rgba(7,20,40,.6);backdrop-filter:blur(14px);border:1px solid rgba(34,211,238,.16);
+.fb{background:rgba(7,20,40,.74);border:1px solid rgba(34,211,238,.16);
   border-radius:100px;padding:8px 17px;cursor:pointer;font-family:var(--mono);font-size:10px;
   letter-spacing:.1em;text-transform:uppercase;color:var(--slate-l);transition:.22s}
 .fb:hover{border-color:rgba(34,211,238,.5);color:#fff}
@@ -210,6 +215,13 @@ body{background:linear-gradient(160deg,#040d1a 0%,#071832 55%,#0a1e3a 100%);back
 .term .q{color:var(--amber-l)} .term .a{color:var(--cyan-l)} .term .s{color:var(--slate);font-size:9px} .term .ok{color:var(--cyan)}
 .term .cr{display:inline-block;width:6px;height:12px;background:var(--acc);vertical-align:-2px;animation:bl 1.05s step-end infinite}
 
+.tvid{display:inline-flex;align-items:center;gap:9px;min-height:44px;padding:0 16px 0 7px;border-radius:100px;border:1px solid color-mix(in srgb,var(--tac) 55%,transparent);
+  background:linear-gradient(135deg,var(--tg1),var(--tg2) 62%,var(--tg3) 150%);color:#fff;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;cursor:pointer;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 8px 22px -10px var(--tg3);transition:transform .2s cubic-bezier(.2,.9,.3,1)}
+.tvid:active{transform:scale(.96)}
+.tvid i{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4)}
+.tvid i svg{width:12px;height:12px;margin-left:2px;fill:#fff}
+.tvid b{font-weight:400}
 .right{display:flex;flex-direction:column;align-items:flex-end;gap:9px;flex-shrink:0}
 @media(max-width:820px){.right{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:space-between;margin-top:4px}}
 .stat{font-family:var(--mono);font-size:8px;letter-spacing:.16em;padding:5px 12px;border-radius:100px;font-weight:700;border:1px solid;white-space:nowrap}
@@ -223,11 +235,11 @@ body{background:linear-gradient(160deg,#040d1a 0%,#071832 55%,#0a1e3a 100%);back
 /* ═══════════ CAFI ═══════════ */
 .cafi{margin-top:80px;position:relative;border-radius:30px;padding:52px;overflow:hidden;
   background:linear-gradient(132deg,rgba(109,40,217,.26),rgba(34,211,238,.1) 52%,rgba(7,20,40,.72));
-  backdrop-filter:blur(30px);border:1px solid rgba(124,58,237,.3)}
+  border:1px solid rgba(124,58,237,.3)}
 @media(max-width:700px){.cafi{padding:32px 24px}}
 .cafi::before{content:'';position:absolute;width:520px;height:520px;border-radius:50%;
-  background:radial-gradient(circle,rgba(34,211,238,.26),transparent 66%);top:-230px;right:-140px;
-  filter:blur(60px);animation:dr2 24s ease-in-out infinite}
+  background:radial-gradient(circle,rgba(34,211,238,.22),rgba(34,211,238,.08) 45%,transparent 72%);top:-230px;right:-140px;
+  animation:dr2 24s ease-in-out infinite}
 .cafi::after{content:'';position:absolute;inset:0;pointer-events:none;border-radius:30px;
   background:linear-gradient(150deg,rgba(255,255,255,.08),transparent 42%)}
 .ci{position:relative;display:grid;grid-template-columns:1fr 380px;gap:44px;align-items:center}
@@ -253,7 +265,7 @@ body{background:linear-gradient(160deg,#040d1a 0%,#071832 55%,#0a1e3a 100%);back
 .bh .cnt{font-family:var(--mono);font-size:10px;color:var(--slate);padding-bottom:6px}
 .meds{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}
 .med{position:relative;padding:28px 18px;text-align:center;border-radius:18px;overflow:hidden;
-  background:rgba(7,20,40,.58);backdrop-filter:blur(20px);border:1px solid rgba(34,211,238,.16);transition:.4s}
+  background:rgba(7,20,40,.72);border:1px solid rgba(34,211,238,.16);transition:.4s}
 .med::after{content:'';position:absolute;inset:0;pointer-events:none;
   background:linear-gradient(155deg,rgba(255,255,255,.08),transparent 44%)}
 .med:not(.lk):hover{transform:translateY(-6px);border-color:rgba(245,158,11,.5);
@@ -270,7 +282,7 @@ body{background:linear-gradient(160deg,#040d1a 0%,#071832 55%,#0a1e3a 100%);back
 .med.lk .mm{background:rgba(126,136,174,.05);border-color:rgba(126,136,174,.18)}
 
 .note{margin-top:60px;padding:26px 30px;border-radius:20px;font-size:13.5px;line-height:1.76;
-  color:var(--slate-l);background:rgba(7,20,40,.55);backdrop-filter:blur(16px);
+  color:var(--slate-l);background:rgba(7,20,40,.7);
   border:1px solid rgba(124,58,237,.18);border-left:3px solid var(--cyan)}
 .note b{color:var(--cyan);font-weight:600}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -312,7 +324,7 @@ body{background:linear-gradient(160deg,#040d1a 0%,#071832 55%,#0a1e3a 100%);back
 #g-acts button{display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:0 15px;
   border-radius:100px;cursor:pointer;
   font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--white);
-  background:rgba(7,20,40,.74);border:1px solid rgba(124,58,237,.32);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+  background:rgba(7,20,40,.86);border:1px solid rgba(124,58,237,.32)}
 #g-acts button:hover{border-color:var(--cyan);color:var(--cyan)}
 #g-acts button svg{flex:none}
 /* Pulsado: la guía se va enseguida, pero el mando lo confirma mientras se va. */
@@ -359,6 +371,7 @@ body{background:linear-gradient(160deg,#040d1a 0%,#071832 55%,#0a1e3a 100%);back
 .gx-soon .gx-st{font-family:var(--cond);font-size:16px;color:#FBBF24;letter-spacing:.04em}
 .gx-soon .gx-ss{font-size:11.5px;color:var(--slate-l);margin-top:2px}
 .soon-cta{font-family:var(--mono);font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:#FBBF24;white-space:nowrap;border:1px solid rgba(245,158,11,.4);padding:5px 11px;border-radius:100px}
+html.pausa .orb,html.pausa .sky::after,html.pausa *{animation-play-state:paused!important}
 </style>
 </head>
 <body>
@@ -776,6 +789,40 @@ document.querySelectorAll('.fb').forEach(function(b){
     try{ parent.postMessage({ type:'pilotos-guide-nunca' }, '*'); }catch(e){}
   });
 })();
+</script>
+
+<script>
+/* Vídeos de la app: la lista y el reproductor viven en la app (js/tutoriales.js).
+   Aquí sólo se pide la lista y se pinta un botón por sección; al tocarlo, la app
+   abre su hoja. Suelta en una pestaña no hay app que reproduzca: no sale nada. */
+(function(){
+  if(!(window.parent && window.parent !== window)) return;
+  var hecho=false;
+  window.addEventListener('message',function(ev){
+    var d=ev.data||{}; if(d.type!=='pilotos-tuts'||hecho||ev.source!==window.parent) return; hecho=true;
+    var en=d.lang==='en';
+    document.querySelectorAll('.row[data-nav]').forEach(function(r){
+      var nav=r.getAttribute('data-nav'), tab=r.getAttribute('data-skytab')||'';
+      var sr=(d.series||[]).filter(function(x){return x.pant===nav})[0]; if(!sr) return;
+      var idx=[]; sr.eps.forEach(function(e,i){ if((e.tab||'')===tab) idx.push(i); });
+      if(!idx.length) return;
+      var n=idx.length, sec=idx.reduce(function(a,i){return a+(sr.eps[i].s||0)},0), m=Math.max(1,Math.round(sec/60));
+      var b=document.createElement('button'); b.type='button'; b.className='tvid'; b.setAttribute('translate','no');
+      b.style.cssText='--tg1:'+sr.g[0]+';--tg2:'+sr.g[1]+';--tg3:'+sr.g[2]+';--tac:'+sr.ac;
+      b.innerHTML='<i><svg viewBox="0 0 10 12"><path d="M0 0l10 6-10 6z"/></svg></i><b>'+(en?(n>1?n+' videos':'Watch video'):(n>1?n+' vídeos':'Ver vídeo'))+' · '+m+' min</b>';
+      b.setAttribute('aria-label',en?'Watch the videos for this section':'Ver los vídeos de esta sección');
+      b.addEventListener('click',function(e){ e.stopPropagation(); try{ parent.postMessage({type:'pilotos-guide-tut',k:sr.k,i:n===1?idx[0]:undefined},'*'); }catch(_){} });
+      var rt=r.querySelector('.right'); if(rt) rt.insertBefore(b, rt.firstChild);
+    });
+  });
+  try{ parent.postMessage({type:'pilotos-guide-tuts'},'*'); }catch(e){}
+})();
+</script>
+
+<script>
+/* Precargada en la app, la guía vive en un iframe oculto: sus animaciones sin fin
+   seguirían corriendo detrás. La app avisa (pilotos-guide-vis) y aquí se pausan. */
+window.addEventListener('message',function(ev){var d=ev.data||{};if(d.type==='pilotos-guide-vis'&&ev.source===window.parent)document.documentElement.classList.toggle('pausa',!d.on);});
 </script>
 </body>
 </html>
