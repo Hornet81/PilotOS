@@ -209,7 +209,9 @@
     var sr = serie(k); if (!sr) return; var e = sr.eps[i]; if (!e) return;
     cierra('tut-pop');
     var el = document.getElementById('tut-hoja');
-    if (!el || !el.classList.contains('on')) { hoja(); el = document.getElementById('tut-hoja'); }
+    /* Si la hoja no estaba abierta (el aviso de la sección, o un vídeo pedido
+       desde fuera), cerrar el reproductor vuelve a la SECCIÓN, no a la lista. */
+    if (!el || !el.classList.contains('on')) { hoja(); el = document.getElementById('tut-hoja'); el.dataset.guia = '1'; }
     var pl = el.querySelector('.tut-pla');
     pl.setAttribute('style', vars(sr));
     pl.innerHTML = '<div class="bar"><b>' + esc(e.t) + '<span>' + esc(sr.nom) + ' · ' + (i + 1) + '/' + sr.eps.length + '</span></b>' +

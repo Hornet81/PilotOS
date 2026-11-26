@@ -264,13 +264,11 @@
   }
 
   // ── La barra se aparta al bajar con el dedo y vuelve al subir ─────────────
-  // Empezó en el Home y ahora vale para TODAS las pantallas que ruedan. SkyView tiene
-  // su propio plegado (pestañas propias y la pastilla que las devuelve) y CAFI lleva
-  // la caja de escribir pegada encima de la barra: esas dos se quedan como estaban.
+  // SÓLO en el Home (criterio del piloto, 26-nov-2026: se probó en todas las pantallas
+  // y lo quiere sólo aquí). En el resto de pantallas la barra se queda fija.
   // Se escucha el scroll en CAPTURA (no burbujea), sólo de lo que hay dentro de la
   // pantalla activa: una hoja o un modal que rueda no mueve la barra.
   var LAND = window.matchMedia ? window.matchMedia('(orientation: landscape) and (max-height: 520px)') : null;
-  var NO_PLIEGA = { skyview: 1, cafi: 1 };
   var lastY = typeof WeakMap === 'function' ? new WeakMap() : null, hacc = 0, hEl = null;
   function homeHide(off){ document.documentElement.classList.toggle('bn-home-off', !!off); hacc = 0; }
   function pantalla(){ try { return typeof curScreen !== 'undefined' ? curScreen : ''; } catch(e){ return ''; } }   // `let` del index: global léxico, no window
@@ -288,7 +286,7 @@
     if (!el || el.nodeType !== 1 || !lastY) return;
     if (Date.now() - gestoT > (dedo ? 300 : 1200)){ lastY.set(el, el.scrollTop); return; }
     var scr = pantalla();
-    if (NO_PLIEGA[scr]){ homeHide(false); return; }
+    if (scr !== 'home'){ homeHide(false); return; }
     if (LAND && LAND.matches){ homeHide(false); return; }   // en el móvil apaisado manda el cromo general
     var act = el.closest && el.closest('.screen');
     if (!act || !act.classList.contains('active')) return;
