@@ -5,6 +5,19 @@
 (function(){
   if (typeof window.pilotosI18nAdd !== 'function') return;
   window.pilotosI18nAdd('en', {
+    // Contador de días sin cambios (Art. 12.8, 14-nov-2026)
+    "Días sin cambios": "No-change days",
+    "Días sin cambios usados: {n} de {c} · temporada {t} · se reinicia el {r}": "No-change days used: {n} of {c} · season {t} · resets on {r}",
+    "Días sin cambios · temporada {t}": "No-change days · season {t}",
+    "{n} de {c} · se reinicia el {r}": "{n} of {c} · resets on {r}",
+    "Disfrutado": "Taken",
+    "Asignado": "Assigned",
+    "Cupo: 1 por temporada; 3 en base Barcelona (Art. 12.8). Los asigna Programación y llegan con el roster.": "Allowance: 1 per season; 3 at Barcelona base (Art. 12.8). Crew Planning assigns them and they arrive with your roster.",
+    "Sin base en el perfil: se cuenta con cupo de 1.": "No base in your profile: counted with an allowance of 1.",
+    "domingo": "Sunday", "lunes": "Monday", "martes": "Tuesday", "miércoles": "Wednesday",
+    "jueves": "Thursday", "viernes": "Friday", "sábado": "Saturday",
+    "ene": "Jan", "feb": "Feb", "mar": "Mar", "abr": "Apr", "may": "May", "jun": "Jun",
+    "jul": "Jul", "ago": "Aug", "sep": "Sep", "oct": "Oct", "nov": "Nov", "dic": "Dec",
     // Fatiga prevista (F1, 27-oct-2026)
     "Aterrizaje más crítico: {0} (hora de tu base)": "Most critical landing: {0} (your base time)",
     "Sueño posible antes de firmar: {0}h{1}": "Sleep opportunity before report: {0}h{1}",
