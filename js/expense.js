@@ -2683,14 +2683,14 @@ function drawSheet(){
   if (!exIsPro()) h += '<div class="ex-plan">' + exT('⚠️ Plan Free: las fotos se guardan <b>solo en este móvil</b>.','⚠️ Free plan: photos are stored <b>only on this phone</b>.') + '</div>';
   if (faltas.length && !enviada) h += '<div class="nh-falta">' + exT('Para enviarla te falta: ','To send it you still need: ') + '<b>' + faltas.join('</b> · <b>') + '</b></div>';
   h += (!envioEnCurso(n) && !enviada
-    ? '<div class="ex-row"><div class="ex-btn cic go nh-env' + (faltas.length ? ' apag' : '') + '" onclick="exClose();exEnviar(\'' + n.id + '\')">✈ ' + exT('Enviar a Vueling','Send to Vueling') + ' · ' + eur(recl || tope) + '</div></div>'
+    ? '<div class="ex-row"><div class="ex-btn cic go nh-env' + (faltas.length ? ' apag' : '') + '" onclick="exEnviar(\'' + n.id + '\')">✈ ' + exT('Enviar a Vueling','Send to Vueling') + ' · ' + eur(recl || tope) + '</div></div>'
     : '<div class="ex-row"><div class="ex-sent-note">' +
       (envioDe(n) && envioDe(n).state === 'sending' ? exT('Enviándose a Vueling…','Sending to Vueling…')
         : (EX.paid||{})[n.id] ? exT('Pagada','Paid')
         : exT('Ya está en Vueling','Already with Vueling') + (envioDe(n) && envioDe(n).number ? ' · ' + esc(envioDe(n).number) : '')) +
       '</div></div>' + (EX.sent[n.id] || envioDe(n) ? '<div class="ex-row">' + botonCiclo(n) + '</div>' : ''));
   h += '<div class="ex-row"><div class="ex-btn ghost" onclick="exClose()">✓ ' + exT('Guardar','Save') + '</div>' +
-       '<div class="ex-btn ghost" onclick="exMasMenu(\'' + n.id + '\')">⋯ ' + exT('Más','More') + '</div></div>';
+       '<div class="ex-btn ghost" onclick="exMasMenu(\'' + n.id + '\')">⋯ ' + exT('Más · eliminar…','More · delete…') + '</div></div>';
   /* El calco del portal: para quien la pase a mano. Plegado. */
   h += '<button type="button" class="nh-calco-b" onclick="exNhCalco()" aria-expanded="' + !!EX.calcoAbierto + '">' + (EX.calcoAbierto ? '▾ ' : '▸ ') + exT('Ver los campos del portal, para copiarlos a mano','See the portal fields, to copy them by hand') + '</button>';
   if (EX.calcoAbierto){
@@ -2702,9 +2702,7 @@ function drawSheet(){
     });
     h += '</div>';
   }
-  if (n.manual && (nTk || !enviada)) h += (nTk ? '<div class="ex-row"><div class="ex-btn ghost" onclick="exOutAll()">↓ ' + exT('Sacar los ','Export the ') + nTk + exT(' tickets',' receipts') + '</div></div>' : '') +
-    '<div class="ex-row ex-row-del"><button class="ex-del" title="' + exT('Eliminar nota','Delete note') + '" aria-label="' + exT('Eliminar nota','Delete note') + '" ' +
-    'onclick="exDelNota(\'' + n.id + '\')">' + iconoPapelera() + '<span>' + exT('Eliminar nota','Delete note') + '</span></button></div>';
+  if (nTk) h += '<div class="ex-row"><div class="ex-btn ghost" onclick="exOutAll()">↓ ' + exT('Sacar los ','Export the ') + nTk + exT(' tickets',' receipts') + '</div></div>';
   h += '</div>';
   document.getElementById('ex-sheetbody').innerHTML = h;
 }
@@ -2891,7 +2889,7 @@ function exPick(cfg){
         (o.hint ? '<div class="h">' + esc(o.hint) + '</div>' : '') + '</div>' +
         (o.on ? '<div class="c">✓</div>' : '') + '</div>';
     }).join('') + '</div></div>' +
-    '<div class="ex-send-foot"><div class="ex-btn ghost" onclick="exSendClose()">Cancelar</div></div>';
+    '<div class="ex-send-foot"><div class="ex-btn ghost" onclick="exSendClose()">' + exT('Cancelar','Cancel') + '</div></div>';
   document.getElementById('ex-send-box').innerHTML = h;
   el.classList.add('on');
   PICK_OPTS = cfg.opciones || [];
@@ -3684,15 +3682,15 @@ window.exDelNota = function(id){
   exPick({
     ic: '<svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">' + PICK_IC.trash + '</svg>',
     tono: 'danger',
-    titulo: '¿Eliminar esta nota?',
+    titulo: exT('¿Eliminar esta nota?','Delete this note?'),
     sub: (n ? esc(n.title || '') + ' · ' + fdate(n.date) : '') +
          (nTk ? ' — se van con ella ' + nTk + ' ticket' + (nTk > 1 ? 's' : '') : ''),
     /* ⚠ `exPickGo` llama al callback con `(o.v, o)` — el VALOR de la opción, no
        su índice. Mirando el índice, esto borraría con «No, dejarla». */
     opciones: [
-      { v: 'si', txt: 'Sí, eliminarla', ic: 'trash', tono: 'danger',
-        hint: nTk ? 'Los tickets adjuntos también' : 'No se puede deshacer' },
-      { v: 'no', txt: 'No, dejarla', ic: 'undo', ghost: true }
+      { v: 'si', txt: exT('Sí, eliminarla','Yes, delete it'), ic: 'trash', tono: 'danger',
+        hint: nTk ? exT('Los tickets adjuntos también','Its receipts too') : exT('No se puede deshacer','Cannot be undone') },
+      { v: 'no', txt: exT('No, dejarla','No, keep it'), ic: 'undo', ghost: true }
     ],
     onPick: function(v){ if (v === 'si') exDelNotaYa(id); }
   });
@@ -3939,20 +3937,21 @@ window.exMasMenu = function(id){
   var n = notaDe(id); if (!n) return;
   var st = estadoEnvio(n), ops = [];
   if (st !== 'paid') {
-    if (!EX.sent[id]) ops.push({ v:'mano', txt:'La he pasado yo a mano', ic:'check', tono:'ok',
-      hint:'La mandaste por el portal, no desde aquí' });
-    ops.push({ v:'pagada', txt:'Ya me la han pagado', ic:'euro', tono:'pay',
-      hint:'Aunque no la hayas enviado desde la app' });
+    if (!EX.sent[id]) ops.push({ v:'mano', txt:exT('La he pasado yo a mano','I submitted it by hand'), ic:'check', tono:'ok',
+      hint:exT('La mandaste por el portal, no desde aquí','You sent it through the portal, not from here') });
+    ops.push({ v:'pagada', txt:exT('Ya me la han pagado','It has been paid'), ic:'euro', tono:'pay',
+      hint:exT('Aunque no la hayas enviado desde la app','Even if you did not send it from the app') });
   }
-  if (EX.sent[id] && st !== 'paid') ops.push({ v:'nomano', txt:'No, aún no la he enviado', ic:'undo', ghost:true });
-  if (st === 'paid') ops.push({ v:'despagada', txt:'Volver a pendiente de cobro', ic:'undo', ghost:true });
+  if (EX.sent[id] && st !== 'paid') ops.push({ v:'nomano', txt:exT('No, aún no la he enviado','No, I have not sent it yet'), ic:'undo', ghost:true });
+  if (st === 'paid') ops.push({ v:'despagada', txt:exT('Volver a pendiente de cobro','Back to awaiting payment'), ic:'undo', ghost:true });
   /* La irreversible va en ROJO y la última. Antes era la fila MÁS apagada de
      las tres —gris pizarra, borde azul, sin un píxel rojo—: la única que no se
      puede deshacer, anunciada como la menos importante. */
-  if (n.manual) ops.push({ v:'borrar', txt:'Eliminar la nota', ic:'trash', tono:'danger' });
+  if (n.manual) ops.push({ v:'borrar', txt:exT('Eliminar la nota','Delete the note'), ic:'trash', tono:'danger',
+      hint:exT('Se borran también sus tickets · no se puede deshacer','Its receipts go too · cannot be undone') });
   if (!ops.length) return;
   exPick({
-    ic:'⋯', titulo:tituloDe(n), sub:'¿Qué quieres hacer con esta nota?',
+    ic:'⋯', titulo:tituloDe(n), sub:exT('¿Qué quieres hacer con esta nota?','What do you want to do with this note?'),
     opciones: ops,
     /* ⚠ `exPickGo` llama con (o.v, o) — el VALOR, no el índice. */
     onPick: function(v){
@@ -4111,7 +4110,7 @@ function preguntaSinComent(ids, seguir){
     ],
     onPick: function(v){
       if (v === 'send'){ falta.forEach(function(id){ SIN_COM_OK[id] = 1; }); seguir(); return; }
-      if (v === 'add'){ exOpen(falta[0]); setTimeout(function(){ var t = document.querySelector('#ex-sheetbody .nh-com textarea');
+      if (v === 'add'){ if (SHEET !== falta[0]) exOpen(falta[0]); else drawSheet(); setTimeout(function(){ var t = document.querySelector('#ex-sheetbody .nh-com textarea');
         if (t){ t.scrollIntoView({ block:'center' }); t.focus(); } }, 300); }
     }
   });
@@ -4220,9 +4219,13 @@ function drawSend(){
 }
 
 window.exSendGo = function(){
+  /* La hoja de la nota se queda debajo mientras se decide (la pregunta del
+     comentario, las pegas): si el piloto cancela, vuelve a SU nota tal cual.
+     Se cierra aquí, cuando el envío ya va. */
   var b = document.getElementById('ex-send-go');
   if (!b || b.classList.contains('off')) return;      // sin marcar la casilla no sale
   var n = notaDe(SEND && SEND.id); if (!n) return;
+  if (SHEET) exClose();
   var motivo = SEND.motivo, id = n.id;
   SEND_COM[id] = SEND.comentario != null ? SEND.comentario : comentarioDe(n);
   exSendClose();
@@ -4332,6 +4335,7 @@ function drawSendLote(){
 window.exSendPasoLote = function(p){ if (SEND){ SEND.paso = p; drawSendLote(); } };
 window.exSendGoLote = function(){
   var b = document.getElementById('ex-send-go');
+  if (b && !b.classList.contains('off') && SHEET) exClose();
   if (!b || b.classList.contains('off')) return;
   var sel = (SEND.lote || []).map(notaDe).filter(Boolean);
   exSendClose(); EX.selMode = false; EX.sel = {};

@@ -11,9 +11,9 @@
      la pestaña y sólo vuelven si el número SUBE: un aviso que no se va nunca deja de
      mirarse.
    · Más: hoja con CAFI, Pay Check, Examen, Documentos, Herramientas, perfil, plan y guía.
-   · En el Home la barra se aparta al bajar y vuelve al subir. En el resto de pantallas
-     se queda como estaba (en vertical fija; en el móvil apaisado la mueve el cromo
-     general, `chrome-off`).
+   · La barra se aparta al bajar con el dedo y vuelve al subir, en todas las pantallas
+     que ruedan menos SkyView (pliega lo suyo) y CAFI (la caja de escribir va encima).
+     En el móvil apaisado la mueve el cromo general, `chrome-off`.
 
    Depende de globales del index: goTo, curScreen, dhUpcomingFlights, dhStdOf, dhStaOf,
    dhArrMsOf, dhDutyLabelOf, rstIsWork, rstWorkStartMin, pilotosHoraTxt, _ldOACI,
@@ -263,19 +263,44 @@
     try { goTo('skyview'); } catch(e){}
   }
 
-  // ── Home: la barra se aparta al bajar y vuelve al subir ────────────────────
+  // ── La barra se aparta al bajar con el dedo y vuelve al subir ─────────────
+  // Empezó en el Home y ahora vale para TODAS las pantallas que ruedan. SkyView tiene
+  // su propio plegado (pestañas propias y la pastilla que las devuelve) y CAFI lleva
+  // la caja de escribir pegada encima de la barra: esas dos se quedan como estaban.
+  // Se escucha el scroll en CAPTURA (no burbujea), sólo de lo que hay dentro de la
+  // pantalla activa: una hoja o un modal que rueda no mueve la barra.
   var LAND = window.matchMedia ? window.matchMedia('(orientation: landscape) and (max-height: 520px)') : null;
-  var hy = 0, hacc = 0;
+  var NO_PLIEGA = { skyview: 1, cafi: 1 };
+  var lastY = typeof WeakMap === 'function' ? new WeakMap() : null, hacc = 0, hEl = null;
   function homeHide(off){ document.documentElement.classList.toggle('bn-home-off', !!off); hacc = 0; }
-  function onHomeScroll(ev){
+  function pantalla(){ try { return typeof curScreen !== 'undefined' ? curScreen : ''; } catch(e){ return ''; } }   // `let` del index: global léxico, no window
+  // Sólo cuenta lo que mueve el DEDO (o la rueda): una pantalla que se coloca sola al
+  // entrar (el Logbook salta a su mes, el Roster a hoy) no puede esconder la barra.
+  // La inercia sigue después de soltar, así que se da un margen tras el último toque.
+  var dedo = false, gestoT = 0;
+  function gesto(ev){
+    if (ev.type === 'touchstart'){ dedo = true; return; }               // un toque solo (pulsar una pestaña) no es deslizar
+    if (ev.type === 'touchend' || ev.type === 'touchcancel'){ dedo = false; return; }
+    gestoT = Date.now();                                               // touchmove o rueda
+  }
+  function onScroll(ev){
     var el = ev.target;
-    if (typeof curScreen !== 'undefined' && curScreen !== 'home') return;   // `let` del index: global léxico, no window
+    if (!el || el.nodeType !== 1 || !lastY) return;
+    if (Date.now() - gestoT > (dedo ? 300 : 1200)){ lastY.set(el, el.scrollTop); return; }
+    var scr = pantalla();
+    if (NO_PLIEGA[scr]){ homeHide(false); return; }
     if (LAND && LAND.matches){ homeHide(false); return; }   // en el móvil apaisado manda el cromo general
+    var act = el.closest && el.closest('.screen');
+    if (!act || !act.classList.contains('active')) return;
     var y = el.scrollTop, max = el.scrollHeight - el.clientHeight;
-    if (y <= 28){ hy = y; homeHide(false); return; }
-    if (y < 0 || y > max){ hy = y; return; }              // rebote elástico de iOS: no es un gesto
-    var d = y - hy; hy = y;
-    if (!d) return;
+    var prev = lastY.has(el) ? lastY.get(el) : y;
+    lastY.set(el, y);
+    if (max < 60) return;                                   // apenas rueda: no compensa esconder nada
+    if (hEl !== el){ hEl = el; hacc = 0; }
+    if (y <= 28){ homeHide(false); return; }
+    if (y < 0 || y > max) return;                          // rebote elástico de iOS: no es un gesto
+    var d = y - prev;
+    if (!d) return;                                        // scroll horizontal: no cambia scrollTop
     if ((hacc > 0) !== (d > 0)) hacc = 0;                  // histéresis: cambia de sentido → a cero
     hacc += d;
     if (hacc >= 32) homeHide(true);
@@ -284,7 +309,7 @@
 
   // Lo llama updateTabs() en cada cambio de pantalla.
   function afterNav(key){
-    if (key !== 'home') homeHide(false);
+    homeHide(false); gestoT = 0;                           // cada pantalla empieza con la barra puesta
     if (key === 'logbook') ackCount('log', counts.log);
     if (key === 'docs') ackCount('docs', counts.docs);
     closeMore(true);
@@ -297,8 +322,8 @@
   window.bnCenterTap = centerTap;
 
   function init(){
-    var sc = document.getElementById('dh-scroll');
-    if (sc) sc.addEventListener('scroll', onHomeScroll, { passive: true });
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    ['touchstart', 'touchmove', 'touchend', 'touchcancel', 'wheel'].forEach(function(n){ document.addEventListener(n, gesto, { capture: true, passive: true }); });
     refresh();
     setInterval(refresh, 60000);
     document.addEventListener('visibilitychange', function(){ if (!document.hidden) refresh(); });
