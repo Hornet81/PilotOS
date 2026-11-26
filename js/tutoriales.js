@@ -53,7 +53,7 @@
       ico: '<circle cx="50" cy="50" r="40"/><path d="M68 32A24 24 0 1 0 68 68"/><path d="M26 45h34M26 56h30"/>',
       eps: [
         { f: 'paycheck-01', s: 54, t: 'Know your pay', es: 'Acumulado, nómina calculada, auditoría del recibo y gastos.', en: 'Accrued pay, your payslip worked out, the audit and expenses.' },
-        { f: 'paycheck-02', s: 50, t: 'Snap, send, get paid', es: 'Gastos: la foto del ticket, enviar al portal y seguir el pago.', en: 'Expenses: snap the receipt, send it to the portal and track the payment.' }
+        { f: 'paycheck-02b', s: 50, t: 'Snap, send, get paid', es: 'Gastos: la foto del ticket, enviar al portal y seguir el pago.', en: 'Expenses: snap the receipt, send it to the portal and track the payment.' }
       ] }
   ];
   function serie(k) { for (var i = 0; i < SERIES.length; i++) if (SERIES[i].k === k || SERIES[i].pant === k) return SERIES[i]; return null; }
