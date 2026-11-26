@@ -185,9 +185,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
 }
 </style>
 
-  <meta name="version" content="Estable.1314">
+  <meta name="version" content="Estable.1318">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1314","builtAt":"2026-11-26T08:08:20Z","commit":"6f513697","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1318","builtAt":"2026-11-26T21:44:28Z","commit":"efa80a61","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -40112,6 +40112,7 @@ function _apsEnsureCss() {
     '@keyframes apsUp{from{transform:translateY(100%)}to{transform:none}}',
     /* la hoja es una columna de alto fijo: sin esto las tarjetas se ENCOGEN (la barra de 24 h desaparecía) */
     '.aps-sheet>*{flex-shrink:0}',
+    '.aps-zoom{display:flex;flex-direction:column;gap:14px}.aps-zoom>*{flex-shrink:0}',
     '.aps-grab{align-self:center;flex:0 0 5px;width:42px;height:5px;border-radius:3px;background:var(--aps-grab)}',
     '.aps-top{display:flex;align-items:center;gap:10px}',
     '.aps-id{flex-grow:1;min-width:0}',
@@ -40349,11 +40350,39 @@ var APS_CCI_PAL = {
    158, código «C-NN …» 110, «Effective DD-MMM-AAAA» y fechas sueltas ~300; y las líneas
    sueltas con el país o la ciudad, que vienen del mismo pie. */
 var _APS_PIE = /\bcci\b|vueling|please report|\bdraft\b\s*--|do not use for op|^\s*effective\s+\d|^\s*[cq]-\d|\b\d{1,2}-(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)-\d{2,4}\b|\b\d{4}-\d{2}-\d{2}\b|^\s*rwy\s?\d{2}[lrc]?\s*$/i;
+/* El PIE del documento empieza con su código («C-09», «C-04 CPH-EKCH»), la fecha o
+   «Please report…»: desde ahí hasta el final todo es pie («BCN-LEBL», «Barcelona (Spain)»…),
+   aunque alguna línea suelta no case con _APS_PIE. */
+var _APS_PIE_INI = /^\s*[cq]-\d|please report|\bdraft\b\s*--|^\s*effective\s+\d|^\s*\d{1,2}-(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)-\d{2,4}\s*$/i;
+/* El extractor parte cada renglón del PDF en un elemento: una amenaza que ocupa dos
+   renglones salía como dos viñetas («UNEXPECTED SHORTCUTS DURING» · «ARRIVAL/ APPROACH»).
+   Se une la línea con la anterior cuando ésta queda a medias (acaba en coma, barra,
+   guion, dos puntos o en una palabra que no puede cerrar una frase) o cuando la nueva
+   empieza en minúscula. */
+var _APS_CONT_FIN = /[,\/\-:;&(]\s*$|\b(a|an|the|of|to|in|on|at|by|for|with|from|into|during|and|or|but|nor|which|that|who|may|can|could|will|would|shall|should|must|be|is|are|was|were|has|have|being|its|their|between|near|than|as|via|per|determine|due|de|del|la|el|los|las|y|o|en|con|por|para|al)\s*$/i;
+function _apsUneLineas(arr) {
+  var out = [];
+  arr.forEach(function (t) {
+    var prev = out.length ? out[out.length - 1] : null;
+    if (prev != null && (_APS_CONT_FIN.test(prev) || /^[a-z]/.test(t))) out[out.length - 1] = prev.replace(/\s+$/, '') + ' ' + t;
+    else out.push(t);
+  });
+  return out;
+}
 function _apsLimpia(arr, d) {
   if (!Array.isArray(arr)) return [];
   var solo = [d && d.country, d && d.name].filter(Boolean).map(function (x) { return String(x).trim().toLowerCase(); });
-  return arr.filter(function (l) { var t = String(l || '').trim(); return t && !_APS_PIE.test(t) && solo.indexOf(t.toLowerCase()) < 0; });
+  var lin = [];
+  for (var i = 0; i < arr.length; i++) {
+    var t = String(arr[i] || '').trim();
+    if (!t) continue;
+    if (_APS_PIE_INI.test(t)) break;
+    if (_APS_PIE.test(t) || solo.indexOf(t.toLowerCase()) >= 0) continue;
+    lin.push(t);
+  }
+  return _apsUneLineas(lin);
 }
+try { window._apsLimpia = _apsLimpia; } catch (e) {}
 
 /* ¿Es una ficha del backend? La semilla de CCI_BY_ICAO no trae updated_at. */
 function _apsDeBackend(d) { return !!(d && d.updated_at); }
@@ -40876,6 +40905,15 @@ function ApsServicios(_p) {
   );
 }
 
+function _apsZoomStyle() {
+  try {
+    if (!(window.CSS && CSS.supports && CSS.supports('zoom', '1.5'))) return null;
+    var v = window.svZoomGet ? window.svZoomGet() : 1.35;
+    if (window.svZoomTope) v = Math.min(v, window.svZoomTope());
+    var z = Math.round(v / 1.35 * 1000) / 1000;
+    return (isFinite(z) && Math.abs(z - 1) > 0.01) ? { zoom: String(z) } : null;
+  } catch (e) { return null; }
+}
 function AirportSheet(_p) {
   var icao = _p.icao, role = _p.role, onClose = _p.onClose;
   _apsEnsureCss();
@@ -40987,6 +41025,10 @@ function AirportSheet(_p) {
   },
     React.createElement('div', { className: 'aps-sheet', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'aps-title' },
       React.createElement('div', { className: 'aps-grab' }),
+      /* El tamaño de texto de SkyView («Aa») no llega aquí: la hoja va en un portal a
+         <body>, fuera de #skyview-react-root. Se le aplica la MISMA escala, relativa al
+         «Normal» (1,35), que es el tamaño con el que se diseñó: en Normal no cambia nada. */
+      React.createElement('div', { className: 'aps-zoom', style: _apsZoomStyle() },
       React.createElement('div', { className: 'aps-top' },
         React.createElement('div', { className: 'aps-id' },
           React.createElement('div', { className: 'aps-kick' }, role === 'ARR' ? 'Ficha del aeropuerto · Llegada' : 'Ficha del aeropuerto · Salida'),
@@ -40998,6 +41040,7 @@ function AirportSheet(_p) {
       ),
       chips.length ? React.createElement('div', { className: 'aps-chips' }, chips) : null,
       cuerpo
+      )
     )
   );
   return (window.ReactDOM && ReactDOM.createPortal) ? ReactDOM.createPortal(hoja, document.body) : hoja;
@@ -45447,7 +45490,7 @@ function TabNotamV2(_refN2) {
               )
             )
           ),
-          React.createElement("div", { style: { fontSize: 9, fontWeight: 700, color: T.tx1, marginBottom: 1, lineHeight: 1.3, overflowWrap: "anywhere" } }, n.title),
+          React.createElement("div", { style: { fontSize: 9, fontWeight: 700, color: T.tx1, marginBottom: 1, lineHeight: 1.3, overflowWrap: "anywhere", textTransform: "uppercase" } }, n.title),
           React.createElement("div", { style: { fontFamily: mono, fontSize: "calc(8px * var(--tablet-wx-scale,1))", color: T.tx2, lineHeight: 1.45, overflowWrap: "anywhere" } }, n.short),
           isExp && n.raw && React.createElement("div", { style: { marginTop: 7, padding: "8px 10px", background: T.rawBg, color: T.rawTx, borderRadius: 8, border: "1px solid " + T.line, fontFamily: mono, fontSize: "calc(9.5px * var(--tablet-wx-scale,1))", whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.6, maxHeight: 200, overflowY: "auto" } }, n.raw)
         ),
@@ -58719,6 +58762,15 @@ function _ecParseSchedulerEvents(events, blockDutyTimes, opts){
   // Servicios mínimos: por la misma razón, una pasada y no seis. Ninguna puerta puede
   // dejarlo como día libre (9-nov-2026).
   entries.forEach(function(e){ if (e && String(e.code || '').toUpperCase() === 'SSMM') { e.type = 'other'; e.code = 'SSMM'; } });
+  /* Vacaciones (cód. 2108): tipo propio, igual que el parser del PDF y el patrón fijo.
+     eCrews las manda como 'off' y la rama `off` las guardaba así, de modo que el mismo
+     día tenía un tipo u otro según por dónde entrara (25-nov-2026, #57). La nómina ya
+     contaba por CÓDIGO y no cambia. ⚠ Solo VAC/RVAC/PVAC —la lista R_VAC del
+     servidor—: el servidor y pcVacFromRoster pagan el 2108 a TODA fila 'vacation',
+     así que VPER, PER o AL aquí cobrarían vacaciones sin confirmar. */
+  entries.forEach(function(e){
+    if (e && e.type === 'off' && /^(VAC|RVAC|PVAC)$/.test(String(e.code || '').toUpperCase())) e.type = 'vacation';
+  });
 
   /* ── El informe de eCrews: la marca de posicionamiento que SÍ es fiable ──────────
      `SchedulerEvents` no dice qué tramo se hace de pasajero (medido: 284 eventos, 0
@@ -72078,6 +72130,27 @@ document.addEventListener('DOMContentLoaded', function(){
      SIEMPRE es el AudioContext: ése es el que entrecorta el Bluetooth (T4/T5).
      `hard` sólo cuando el piloto cierra la conversación. */
   function releaseMic(hard){ try{ if(vStream)vStream.getTracks().forEach(function(t){ if(hard)t.stop(); else t.enabled=false; }); }catch(e){} if(hard)vStream=null; try{ if(vAC)vAC.close(); }catch(e){} vAC=null; try{ if(_ac&&_ac.state!=='closed')_ac.close(); }catch(e){} _ac=null; }
+  /* ⚠ EL VOLUMEN DE LA RESPUESTA (reporte del 26-nov).
+     `t.enabled=false` deja de grabar pero NO cierra la sesión de CAPTURA, y mientras iOS
+     tiene una captura viva mantiene la sesión de audio en «grabar y reproducir»: la salida
+     se atenúa muchísimo —en iPhone se va al auricular—. Desde el asiento del piloto eso es
+     «le pregunto y me contesta bajísimo». Soltar las pistas devuelve la salida a su volumen.
+     Pero soltarlas a secas es lo que costó el reporte del 19-sep (ver releaseMic): en los
+     aparatos que NO conservan la concesión, el siguiente getUserMedia vuelve a PREGUNTAR y
+     sin gesto iOS lo rechaza. Así que se decide POR APARATO con la máquina que ya existe:
+     si la concesión aguanta, se suelta de verdad; si no, se queda apagado y vivo como hasta
+     ahora. Y se corrige solo: si al reabrir apareciera el prompt, _micApuntaPrompt marca el
+     aparato y a partir de ese momento se vuelve al modo apagado-pero-vivo. */
+  function releaseMicParaHablar(){
+    releaseMic();                       /* deja de grabar YA, decida lo que decida lo de abajo */
+    try{
+      _micConcedido().then(function(ok){
+        if(!ok || !vStream) return;     /* este aparato no conserva el permiso: ni tocarlo */
+        _dbg('releaseMicParaHablar: la concesion aguanta -> se SUELTA el micro para que la voz suene fuerte');
+        releaseMic(true);
+      }).catch(function(){});
+    }catch(e){}
+  }
   function vStop(){ vOn=false; try{ if(vRec&&vRec.state!=='inactive')vRec.stop(); }catch(e){} releaseMic(true); vBtn('idle'); stat(''); }
   // Parada ROBUSTA de TODA la voz de ARIA: corta el bucle de habla (_spk++), el bucle de
   // conversación (_convOn=false, vOn=false) y suelta el micro. Sin esto, pausar por el
@@ -72120,7 +72193,7 @@ document.addEventListener('DOMContentLoaded', function(){
     if(vRec&&vRec._cleanup)vRec._cleanup();
     var chunks=vChunks; vChunks=[];
     var blob=chunks.length?new Blob(chunks,{type:(vRec&&vRec.mimeType)||'audio/webm'}):null;
-    releaseMic();
+    releaseMicParaHablar();
     // Si el VAD NO oyó voz (silencio real), NO mandar a Whisper: transcribiría ALUCINACIONES
     // (se inventa preguntas de la nada, sesgado por el prompt aeronáutico). Turno vacío.
     if(!blob || !_micHeard){ _emptyTurns++; if(_emptyTurns>=8){ var _ms=(CUR.lang==='en'?'I will close the mic to save battery. Tap it when you want to continue.':'Cierro el micro para ahorrar batería. Pulsa cuando quieras seguir.'); chatLog('aria',_ms); vSpeak(_ms, function(){ vStop(); }); } else if(vOn){ stat(CUR.lang==='en'?'● Listening…':'● Escuchando…'); vBtn('listen'); vTurn(); } return; }

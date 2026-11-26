@@ -1392,29 +1392,105 @@ function pintaDia(){
 }
 
 /* ── La lista: tres grupos, los enviados plegados ── */
+/* LISTA POR SERVICIO (26-nov-2026, propuesta «A con el bloque de B»).
+   Veinte filas iguales —cada una repitiendo «Falta el ticket», la ruta y su
+   plazo— no se podían leer. Ahora cada grupo va por DÍA de servicio: una
+   tarjeta con la fecha grande, la ruta y el plazo UNA vez, y dentro una fila
+   corta por nota (sigue siendo `.ex2-tira`: abre la hoja de siempre). Arriba,
+   lo próximo que caduca en grande, con su cuenta atrás. Lo caducado baja a una
+   barra plegada al final del grupo: ya no se puede reclamar y no puede tapar
+   lo que sí. */
+EX.cadAbierto = false;
+window.exCadToggle = function(){ EX.cadAbierto = !EX.cadAbierto; exRender(); };
+function filaV2(n, conChip){
+  var T = tipoDe(n.kind), ch = chipV2(n), e = estadoDe(n);
+  var sub = e === 'lista' ? (EX.tkCount[n.id] || 0) + exT(' ticket(s) · lista', ' receipt(s) · ready')
+          : e === 'enviado' ? (((envioDe(n) || {}).number) ? exT('nota ', 'sheet ') + envioDe(n).number : '') : '';
+  return '<button type="button" class="ex2-tira ex2-nf g-' + grupoV2(n) + '" style="--tcol:' + T.col + '" onclick="exTira(\'' + n.id + '\')">' +
+    '<span class="fr" aria-hidden="true"></span>' +
+    '<span class="tx"><span class="t1"><span class="cd">' + (COD_TIPO[n.kind] || 'GST') + '</span>' +
+      '<span class="ti">' + esc(tituloDe(n)) + '</span></span>' +
+      (sub ? '<span class="t2">' + esc(sub) + '</span>' : '') + '</span>' +
+    '<span class="dr"><span class="im">' + eur(pesoV2(n)) + '</span>' + (conChip ? '<span class="ch ' + ch[1] + '">' + ch[0] + '</span>' : '') + '</span>' +
+  '</button>';
+}
+function porDiaV2(notas){
+  var m = {}, orden = [];
+  notas.forEach(function(n){ if (!m[n.date]){ m[n.date] = []; orden.push(n.date); } m[n.date].push(n); });
+  return orden.map(function(f){ return { fecha: f, notas: m[f] }; });
+}
+function urgDiaV2(k, d){
+  if (k !== 'falta') return null;
+  var n0 = d.notas[0];
+  if (d.notas.every(esFutura)) return [exT('próximo','upcoming'), 'fut'];
+  var left = daysLeft(n0.date);
+  if (left < 0) return [exT('caducada','expired'), 'bad'];
+  return left <= 16 ? [exT('caduca en ','expires in ') + left + ' d', 'urg'] : [left + exT(' días',' days'), 'tra'];
+}
+function tarjetaDiaV2(k, d){
+  var p = String(d.fecha).split('-'), u = urgDiaV2(k, d);
+  var ruta = rutaCorta(d.fecha).replace(/·/g, ' ✈ ');
+  var mixto = k !== 'falta';
+  return '<article class="ex2-sd' + (u ? ' u-' + u[1] : '') + '">' +
+    '<div class="sdh"><span class="fe"><b>' + (Number(p[2]) || '') + '</b><i>' + (p[1] ? MES[Number(p[1]) - 1].toUpperCase() : '') + '</i></span>' +
+      '<span class="sdr"><span class="ru">' + esc(ruta || exT('Sin vuelo en el roster','No flight in the roster')) + '</span>' +
+      '<span class="su">' + d.notas.length + ' ' + (d.notas.length === 1 ? exT('nota','note') : exT('notas','notes')) + ' · ' + eur(sumaDe(d.notas, pesoV2)) + '</span></span>' +
+      (u ? '<span class="ug ' + u[1] + '">' + u[0] + '</span>' : '') +
+    '</div>' +
+    '<div class="sdn">' + d.notas.map(function(n){ return filaV2(n, mixto); }).join('') + '</div>' +
+  '</article>';
+}
+function heroV2(falta){
+  var cand = falta.filter(function(n){ return !esFutura(n) && daysLeft(n.date) >= 0; });
+  if (!cand.length) return '';
+  var f = cand[0].date, del = cand.filter(function(n){ return n.date === f; });
+  var left = daysLeft(f), frac = Math.max(0, Math.min(1, left / DEADLINE)), C = 251.3;
+  var p = f.split('-'), ruta = rutaCorta(f).replace(/·/g, ' ✈ ');
+  var urge = left <= 7 ? ' urge' : '';
+  return '<section class="ex2-hero' + urge + '">' +
+    '<span class="k">' + exT('LO PRÓXIMO QUE CADUCA','NEXT TO EXPIRE') + '</span>' +
+    '<div class="hb"><div class="ring"><svg viewBox="0 0 96 96" aria-hidden="true"><circle cx="48" cy="48" r="40" class="tr"/>' +
+      '<circle cx="48" cy="48" r="40" class="pr" stroke-dasharray="' + C + '" stroke-dashoffset="' + (C * (1 - frac)).toFixed(1) + '" transform="rotate(-90 48 48)"/></svg>' +
+      '<span class="nn"><b>' + left + '</b><i>' + (left === 1 ? exT('DÍA','DAY') : exT('DÍAS','DAYS')) + '</i></span></div>' +
+    '<div class="hi"><span class="hf">' + Number(p[2]) + ' ' + MES[Number(p[1]) - 1] + (ruta ? ' · ' + esc(ruta) : '') + '</span>' +
+      '<span class="hs">' + del.length + ' ' + (del.length === 1 ? exT('nota sin ticket','note without receipt') : exT('notas sin ticket','notes without receipt')) + ' · <b>' + eur(sumaDe(del, pesoV2)) + '</b></span>' +
+      '<span class="hc">' + del.map(function(n){ return '<span class="cd" style="--tcol:' + tipoDe(n.kind).col + '">' + (COD_TIPO[n.kind] || 'GST') + '</span>'; }).join('') + '</span></div></div>' +
+    '<button type="button" class="hgo" onclick="exTira(\'' + del[0].id + '\')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>' + exT('Hacer la foto del ticket','Take the receipt photo') + '</button>' +
+  '</section>';
+}
 function listaV2(todasN){
   var g = { falta:[], futura:[], lista:[], enviado:[] };
   todasN.forEach(function(n){ g[grupoV2(n)].push(n); });
-  g.falta.sort(function(a, b){ return daysLeft(a.date) - daysLeft(b.date); });
+  g.falta.sort(function(a, b){ return daysLeft(a.date) - daysLeft(b.date) || a.date.localeCompare(b.date); });
   g.futura.sort(function(a, b){ return a.date.localeCompare(b.date); });
   g.lista.sort(function(a, b){ return b.date.localeCompare(a.date); });
   g.enviado.sort(function(a, b){ return b.date.localeCompare(a.date); });
+  var vivas = g.falta.filter(function(n){ return daysLeft(n.date) >= 0; });
+  var cad = g.falta.filter(function(n){ return daysLeft(n.date) < 0; });
   var G = [
-    { k:'falta', t:exT('SIN TICKET','NO RECEIPT'), n:g.falta.concat(g.futura) },
+    { k:'falta', t:exT('SIN TICKET','NO RECEIPT'), n:vivas.concat(g.futura), cad:cad, todas:g.falta.concat(g.futura) },
     { k:'lista', t:exT('LISTAS PARA ENVIAR','READY TO SEND'), n:g.lista },
     { k:'enviado', t:exT('ENVIADOS','SENT'), n:g.enviado, plegable:true }
-  ].filter(function(x){ return x.n.length && (!EX.filtro || EX.filtro === x.k); });
+  ].filter(function(x){ return (x.todas || x.n).length && (!EX.filtro || EX.filtro === x.k); });
   if (!G.length) return '<div class="ex-empty">' + exT('Nada en este filtro.','Nothing in this filter.') + '</div>';
-  return G.map(function(x){
+  var hero = (!EX.filtro || EX.filtro === 'falta') ? heroV2(vivas) : '';
+  return hero + G.map(function(x){
     var abierto = !x.plegable || EX.filtro === x.k || EX.envAbierto;
+    var tot = x.todas || x.n, dias = porDiaV2(x.n);
     return '<section class="ex2-grupo g-' + x.k + '">' +
       (x.plegable && !EX.filtro
         ? '<button type="button" class="ex2-gh" onclick="exEnvToggle()" aria-expanded="' + abierto + '">'
         : '<div class="ex2-gh">') +
-        '<span class="t">' + x.t + ' · ' + x.n.length + '</span>' +
-        '<span class="v">' + eur(sumaDe(x.n, pesoV2)) + (x.plegable && !EX.filtro ? ' <span class="cv' + (abierto ? ' on' : '') + '" aria-hidden="true">⌄</span>' : '') + '</span>' +
+        '<span class="t">' + x.t + ' · ' + tot.length + (x.k === 'falta' && dias.length ? exT(' EN ',' IN ') + porDiaV2(tot).length + exT(' SERVICIOS',' DUTIES') : '') + '</span>' +
+        '<span class="v">' + eur(sumaDe(tot, pesoV2)) + (x.plegable && !EX.filtro ? ' <span class="cv' + (abierto ? ' on' : '') + '" aria-hidden="true">⌄</span>' : '') + '</span>' +
       (x.plegable && !EX.filtro ? '</button>' : '</div>') +
-      (abierto ? x.n.map(tiraV2).join('') : '') +
+      (abierto ? dias.map(function(d){ return tarjetaDiaV2(x.k, d); }).join('') : '') +
+      (x.cad && x.cad.length
+        ? '<button type="button" class="ex2-cad" onclick="exCadToggle()" aria-expanded="' + EX.cadAbierto + '"><span>' +
+            x.cad.length + ' ' + (x.cad.length === 1 ? exT('caducada','expired') : exT('caducadas','expired')) + ' · ' + eur(sumaDe(x.cad, pesoV2)) +
+          '</span><span class="cv' + (EX.cadAbierto ? ' on' : '') + '" aria-hidden="true">⌄</span></button>' +
+          (EX.cadAbierto ? porDiaV2(x.cad).map(function(d){ return tarjetaDiaV2(x.k, d); }).join('') : '')
+        : '') +
     '</section>';
   }).join('');
 }
