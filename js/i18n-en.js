@@ -141,6 +141,7 @@
     'Sin vuelos próximos': 'No upcoming flights',
     'Ver roster completo': 'View full roster',
     'Preguntas sobre FCOM & FCTM': 'Questions about FCOM & FCTM',
+    'FCOM · FCTM · Convenio Vueling · EASA · FTL': 'FCOM · FCTM · Vueling CLA · EASA · FTL',
     'Pregunta…': 'Ask…',
     'Preguntar a CAFI': 'Ask CAFI',
     'Acumulado del mes': 'Month to date',
