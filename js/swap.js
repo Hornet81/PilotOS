@@ -1346,7 +1346,7 @@
       h += fichaCambio(p);
       var v = p.verdict || {};
       h += '<div class="sw-verdict show" style="margin-top:14px;background:var(' + (v.ok ? '--sw-ok-bg' : '--sw-ko-bg') + ');color:var(' + (v.ok ? '--sw-ok' : '--sw-ko') + ')">' +
-           (v.ok ? L('✓ Vueling lo acepta', '✓ Vueling accepts it') : '✗ ' + esc(motivoKo(p))) + '</div>';
+           (v.ok ? L('✓ Cambio posible', '✓ Swap possible') : '✗ ' + esc(motivoKo(p))) + '</div>';
       h += '<div style="margin-top:8px">' + checks({ vBad: v.vBad, ftlBad: v.ftlBad, fueraAplica: v.fueraAplica, fueraBad: v.fueraBad, over7: v.over7, max7: v.max7 || 0, sLib: v.sLib, s3: v.s3, inv: v.inv, corte: v.corte, linea: v.linea }) +
         notaFOff(v.fOff && { who: v.fOff.who === 'me' ? L('Tú', 'You') : nm, day: v.fOff.day }, fCorta) +
         notaAerop(v.aerop && { who: v.aerop.who === 'me' ? L('Tú', 'You') : nm, day: v.aerop.day, apt: v.aerop.apt }, fCorta) + '</div>';
@@ -1851,7 +1851,7 @@
       draw(); countUp(); ui();
       var vd = $('sw-vd');
       vd.style.background = 'var(' + (r.ok ? '--sw-ok-bg' : '--sw-ko-bg') + ')'; vd.style.color = 'var(' + (r.ok ? '--sw-ok' : '--sw-ko') + ')';
-      vd.textContent = r.ok ? L('✓ Vueling lo acepta', '✓ Vueling accepts it') : L('✗ Vueling lo rechaza', '✗ Vueling rejects it');
+      vd.textContent = r.ok ? L('✓ Cambio posible', '✓ Swap possible') : L('✗ Cambio no posible', '✗ Swap not possible');
       requestAnimationFrame(function () { vd.className = 'sw-verdict show'; });
       try { navigator.vibrate && navigator.vibrate(r.ok ? 30 : [40, 60, 40]); } catch (x) {}
       if (r.ok) showOk(a, e, r); else showKo(a, e, r);
@@ -1861,7 +1861,7 @@
   /* Calzos locales de la predicción de invasión: «23:40» o «00:15 del día libre». */
   function finLocal(f) { var m = ((Math.round(f) % 1440) + 1440) % 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0') + ' LT'; }
   function txtInv(who, cuando) {
-    return who + ': ' + L('calzos a las ', 'on-blocks at ') + cuando + L(' la víspera de un día libre. Vueling no lo aceptará por posible invasión de día libre', ' the day before a day off. Vueling won\'t accept it: possible day-off invasion');
+    return who + ': ' + L('calzos a las ', 'on-blocks at ') + cuando + L(' la víspera de un día libre. No es posible: posible invasión de día libre', ' the day before a day off. Not possible: possible day-off invasion');
   }
   /* Bloques de STBY: «del 21 al 23». Se cambian enteros (piloto, 20-oct-2026). */
   /* Las líneas con pernocta se cambian ENTERAS (piloto, 25-oct-2026): partir una

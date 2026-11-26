@@ -86,6 +86,7 @@
     'Aprende a sacarle el máximo': 'Get the most out of PilotOS',
     'Tutoriales': 'Tutorials',
     'Vídeos de cada sección': 'Videos for every section',
+    'Guía y vídeos de cada sección': 'Guide and videos for every section',
     'Enviados': 'Sent',
     'Tus reportes y en qué van': 'Your reports and their status',
     'Cerrar sesion': 'Sign out',

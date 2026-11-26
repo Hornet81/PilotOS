@@ -192,7 +192,7 @@
 
   /* La hoja con todas las series (o una) */
   function hoja(soloK) {
-    var el = capa('tut-hoja');
+    var el = capa('tut-hoja'); delete el.dataset.guia;
     var lista = SERIES.filter(function (s) { return !soloK || s.k === soloK; });
     el.removeAttribute('style');
     el.innerHTML = '<div class="tut-velo"></div><div class="tut-pan">' +
@@ -222,15 +222,17 @@
     v.addEventListener('ended', function () { if (sr.eps[i + 1]) ver(k, i + 1); });
     var p = v.play(); if (p && p.catch) p.catch(function () {});   // sin gesto: quedan los controles
   }
-  function volver() { var el = document.getElementById('tut-hoja'); if (!el) return; var pl = el.querySelector('.tut-pla'); if (!pl) return; var v = pl.querySelector('video'); if (v) { try { v.pause(); } catch (e) {} } pl.classList.remove('on'); pl.innerHTML = ''; }
+  function volver() { var el = document.getElementById('tut-hoja'); if (!el) return; var pl = el.querySelector('.tut-pla'); if (!pl) return; var v = pl.querySelector('video'); if (v) { try { v.pause(); } catch (e) {} } pl.classList.remove('on'); pl.innerHTML = ''; if (el.dataset.guia) { delete el.dataset.guia; cierra('tut-hoja'); } }
 
   /* La Guía de uso (guide.html, en un iframe) pide la lista para poner su
      botón «▶ Ver en vídeo» en cada sección. Una sola lista y un solo
      reproductor: los de aquí. Una serie nueva aparece sola en la guía. */
   function paraGuia() {
     return SERIES.map(function (sr) {
-      return { k: sr.k, pant: sr.pant || sr.k, g: sr.g, ac: sr.ac,
-        eps: sr.eps.map(function (e) { return { t: e.t, s: e.s, tab: e.tab || '' }; }) };
+      /* nom, d y p: la pestaña «Vídeos» de la guía pinta la lista entera con
+         sus portadas. Reproducir lo sigue haciendo la app (ver). */
+      return { k: sr.k, pant: sr.pant || sr.k, nom: sr.nom, g: sr.g, ac: sr.ac,
+        eps: sr.eps.map(function (e) { return { t: e.t, s: e.s, tab: e.tab || '', d: L(e.es, e.en), p: BASE + (e.p || e.f) + '.jpg' }; }) };
     });
   }
   window.addEventListener('message', function (ev) {
@@ -240,6 +242,10 @@
       try { ev.source.postMessage({ type: 'pilotos-tuts', lang: EN() ? 'en' : 'es', series: paraGuia() }, '*'); } catch (e) {}
     } else if (d.type === 'pilotos-guide-tut' && serie(d.k)) {
       hoja(d.k);
+      /* Un vídeo concreto pedido desde la guía: «volver» del reproductor vuelve a
+         la GUÍA, no a una lista de la app que el piloto no ha pedido. */
+      var hj = document.getElementById('tut-hoja');
+      if (hj) { if (typeof d.i === 'number') hj.dataset.guia = '1'; else delete hj.dataset.guia; }
       if (typeof d.i === 'number') ver(d.k, d.i);
     }
   });
