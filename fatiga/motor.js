@@ -163,6 +163,47 @@ function solape(eps, a, b){
   return m / MIN;
 }
 
+/* ── El sueño MEDIDO (F2: Atajo de iPhone → Apple Salud) ──
+   Donde hay sueño medido, el estimado se quita y entra el medido. «Donde» es
+   cada episodio medido con COBERTURA horas a cada lado: una noche sin datos (el
+   reloj en la mesilla) no es una noche sin dormir, así que fuera de ahí sigue
+   mandando la estimación. Los medidos llevan real:true, y el día dice si su
+   último sueño fue medido o estimado. */
+var COBERTURA = 3 * 60;
+function conMedidos(eps, medidos){
+  var med = (medidos || []).filter(function(e){ return e && isFinite(e.ini) && isFinite(e.fin) && e.fin - e.ini >= 15 * MIN && e.fin - e.ini <= 16 * 3600000; })
+    .map(function(e){ return { ini: e.ini, fin: e.fin, real: true, f: e.f || 'dormido' }; })
+    .sort(function(x, y){ return x.ini - y.ini; });
+  if (!med.length) return eps;
+  var cub = [];
+  med.forEach(function(e){
+    var a = e.ini - COBERTURA * MIN, b = e.fin + COBERTURA * MIN, z = cub[cub.length - 1];
+    if (z && a <= z.b) z.b = Math.max(z.b, b); else cub.push({ a: a, b: b });
+  });
+  var resto = [];
+  eps.forEach(function(e){
+    var trozos = [{ ini: e.ini, fin: e.fin }];
+    cub.forEach(function(c){
+      var n = [];
+      trozos.forEach(function(t){
+        if (t.fin <= c.a || t.ini >= c.b) { n.push(t); return; }
+        if (t.ini < c.a) n.push({ ini: t.ini, fin: c.a });
+        if (t.fin > c.b) n.push({ ini: c.b, fin: t.fin });
+      });
+      trozos = n;
+    });
+    trozos.forEach(function(t){ if (t.fin - t.ini >= P.minEpisodio * MIN) resto.push(t); });
+  });
+  var todo = resto.concat(med).sort(function(x, y){ return x.ini - y.ini; });
+  var out = [];
+  todo.forEach(function(e){
+    var u = out[out.length - 1];
+    if (u && e.ini <= u.fin){ u.fin = Math.max(u.fin, e.fin); if (e.real) u.real = true; }
+    else out.push({ ini: e.ini, fin: e.fin, real: !!e.real, f: e.f });
+  });
+  return out;
+}
+
 /* jornadas: [{ fecha, inicio (ms UTC, firma), fin (ms UTC, último calzo),
                aterrizajes:[{ms, pos}], sectores, fuera }]
    offset(ms) → minutos que suma la hora local de la base a UTC. */
@@ -181,8 +222,9 @@ function calcula0(opts){
 
   var desde = medianoche(jor[0].inicio, offset) - 3 * 86400000 + 12 * 3600000;
   var hasta = jor[jor.length - 1].fin + 86400000;
-  var eps = suenos(jor, desde, hasta, offset);
+  var eps = conMedidos(suenos(jor, desde, hasta, offset), opts.medidos);
   var en = simula(eps, desde, hasta, offset);
+  res.medidos = eps.filter(function(e){ return e.real; }).length;
   // Para dibujar: los sueños estimados y la vigilia en cualquier tramo. La
   // pantalla no recalcula nada: lee lo mismo que decide el nivel.
   res.suenos = eps;
@@ -251,7 +293,7 @@ function calcula0(opts){
       fecha: j.fecha, inicio: j.inicio, fin: j.ultimo, sectores: j.sectores, fuera: j.fuera, nivel: niv, A: peor.A, kss: peor.kss, peor: peor,
       aterrizajes: puntos, peorJornada: peorJornada,
       sueno: Math.round(sueno), deuda: Math.round(deuda), despierto: Math.round(despierto),
-      ajusteDeuda: ajuste, factores: f,
+      ajusteDeuda: ajuste, factores: f, suenoReal: !!(ultimoSueno && ultimoSueno.real),
       ultimoSueno: ultimoSueno ? { ini: ultimoSueno.ini, fin: Math.min(ultimoSueno.fin, j.inicio) } : null
     };
     res.porFecha[j.fecha] = r; res.lista.push(r);
@@ -295,5 +337,5 @@ function calcula(opts){
   return res;
 }
 
-return { P: P, AJUSTABLE: AJUSTABLE, calcula: calcula, kss: kss, nivel: nivel, _suenos: suenos, _medianoche: medianoche };
+return { P: P, AJUSTABLE: AJUSTABLE, calcula: calcula, kss: kss, nivel: nivel, _suenos: suenos, _medianoche: medianoche, _conMedidos: conMedidos, COBERTURA: COBERTURA };
 });

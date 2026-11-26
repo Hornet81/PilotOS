@@ -43,7 +43,9 @@ function pilotosFatiga(){
     if (!es.length) return null;
     // El perfil de sueño del piloto (perfil.js) entra en el cálculo, así que entra en la clave.
     var perfil = window.FatigaPerfil ? FatigaPerfil.actual() : null;
-    var tz = _fatTz(), firma = _fatFirma(es, tz) + ':' + JSON.stringify(perfil);
+    // Y el sueño medido de Apple Salud (sueno.js), por lo mismo.
+    var medidos = window.FatigaSueno ? FatigaSueno.medidos() : [];
+    var tz = _fatTz(), firma = _fatFirma(es, tz) + ':' + JSON.stringify(perfil) + ':' + (window.FatigaSueno ? FatigaSueno.firma() : '0');
     if (_fatCache.firma === firma) return _fatCache.res;
     var dias = RstCambios.jornadas(RstStats.volado(es));
     var base = window.rstBaseEfectiva().base, fueraMes = {};
@@ -68,7 +70,7 @@ function pilotosFatiga(){
       jor.push({ fecha: k, inicio: t0 + a * 60000, fin: t0 + d.fin * 60000, aterrizajes: ater,
                  sectores: ater.filter(function(x){ return !x.pos; }).length, fuera: !!fueraMes[ym][k] });
     });
-    var res = FatigaMotor.calcula({ jornadas: jor, offset: function(ms){ return NGasto.tzOffsetMin(ms, tz); }, perfil: perfil });
+    var res = FatigaMotor.calcula({ jornadas: jor, offset: function(ms){ return NGasto.tzOffsetMin(ms, tz); }, perfil: perfil, medidos: medidos });
     res.tz = tz;
     _fatCache = { firma: firma, res: res };
     return res;

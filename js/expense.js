@@ -1077,6 +1077,362 @@ function porDias(list, isDone, sufijo){
 }
 
 /* ════════ RENDER ════════ */
+/* ════════ GASTOS v2 (26-nov-2026): anillo, filtros, calendario y tiras ════════
+   Diseñado sobre el prototipo «PilotOS · Gastos simplificado». La pantalla dice
+   cuánto falta por cobrar, filtra por estado con tres botones (sin ticket · listo
+   · enviados), y deja elegir entre un CALENDARIO —al tocar un día sale una
+   ventana con sus gastos— y una LISTA de tiras. Los enviados van plegados.
+   Lo que hay detrás no cambia: cada tira abre la hoja de siempre (exOpen) y
+   «Enviar a Vueling» usa el envío de siempre (exEnviar / exEnviarLote). */
+function exT(es, en){ return _EN ? en : es; }
+var K_VISTA = 'pilotos_gastos_vista';
+EX.filtro = null;            // null = todo · 'falta' · 'lista' · 'enviado'
+EX.envAbierto = false;       // los enviados, plegados por defecto
+EX.calMes = null;            // mes que enseña el calendario
+EX.diaPop = null;            // día abierto en la ventana
+EX.diaEnv = false;           // en la ventana, las enviadas del día desplegadas
+try { EX.vista = localStorage.getItem(K_VISTA) || 'cal'; } catch(e){ EX.vista = 'cal'; }
+var COD_TIPO = { position:'POS', voucher:'HTL', incident:'INC', oven:'OVN', second:'2RS', medical:'MED', training:'TRN', ops:'OPS' };
+var COL_EST = { falta:'#FBB040', lista:'#7EFBFE', enviado:'#60A5FA', cobrado:'#34D399' };
+function grupoV2(n){ return estadoDe(n) === 'falta' && esFutura(n) ? 'futura' : estadoDe(n); }
+/* Lo que pesa cada nota en el anillo y en los filtros: sin ticket, su tope (lo
+   que se pierde si no se justifica); con ticket, lo que reclamas; enviada, lo
+   que se reclamó. */
+function pesoV2(n){
+  var e = estadoDe(n);
+  return e === 'enviado' ? importeHecho(n) : e === 'lista' ? reclamaDe(n) : (topeDe(n) || 0);
+}
+function chipV2(n){
+  var e = estadoDe(n);
+  if (e === 'enviado'){
+    var st = estadoEnvio(n);
+    return st === 'rej' ? [exT('rechazada','rejected'), 'bad'] : st === 'err' ? [exT('no salió','not sent'), 'bad']
+         : st === 'paid' ? [exT('cobrada','paid'), 'ok'] : st === 'sending' ? [exT('enviando','sending'), 'env']
+         : [exT('enviada','sent'), 'env'];
+  }
+  if (e === 'lista') return [exT('lista','ready'), 'lis'];
+  if (esFutura(n)) return [exT('próxima','upcoming'), 'fut'];
+  var d = daysLeft(n.date);
+  return d < 0 ? [exT('caducada','expired'), 'bad'] : [exT('caduca en ','expires in ') + d + ' d', 'fal'];
+}
+function rutaCorta(fecha){ var r = rutaDia(fecha); return r ? r.replace(/ · /g, '·') : ''; }
+function tiraV2(n){
+  var T = tipoDe(n.kind), ch = chipV2(n), e = estadoDe(n);
+  var p = String(n.date || '').split('-');
+  var sub = e === 'falta' && !esFutura(n) ? exT('Falta el ticket', 'Receipt missing')
+          : e === 'lista' ? (EX.tkCount[n.id] || 0) + exT(' ticket(s) · lista para enviar', ' receipt(s) · ready to send')
+          : e === 'enviado' ? (((envioDe(n) || {}).number) ? exT('nota ', 'sheet ') + envioDe(n).number : exT('enviada', 'sent'))
+          : exT('Servicio aún por volar', 'Duty not flown yet');
+  var ruta = rutaCorta(n.date);
+  return '<button type="button" class="ex2-tira g-' + grupoV2(n) + '" style="--tcol:' + T.col + '" onclick="exTira(\'' + n.id + '\')">' +
+    '<span class="fr" aria-hidden="true"></span>' +
+    '<span class="fe"><b>' + (Number(p[2]) || '') + '</b><i>' + (p[1] ? MES[Number(p[1]) - 1].toUpperCase() : '') + '</i></span>' +
+    '<span class="tx"><span class="t1"><span class="cd">' + (COD_TIPO[n.kind] || 'GST') + '</span>' +
+      '<span class="ti">' + esc(tituloDe(n)) + '</span></span>' +
+      '<span class="t2">' + esc(sub + (ruta ? ' · ' + ruta : '')) + '</span></span>' +
+    '<span class="dr"><span class="im">' + eur(pesoV2(n)) + '</span><span class="ch ' + ch[1] + '">' + ch[0] + '</span></span>' +
+  '</button>';
+}
+window.exTira = function(id){ if (window.exOpen) exOpen(id); };
+window.exFiltro = function(k){ EX.filtro = (k && EX.filtro !== k) ? k : null; EX.diaEnv = false; exRender(); };
+window.exVistaV2 = function(v){ EX.vista = v; try { localStorage.setItem(K_VISTA, v); } catch(e){} exRender(); };
+window.exEnvToggle = function(){ EX.envAbierto = !EX.envAbierto; exRender(); };
+window.exCalMes = function(k){
+  var y = Number(EX.calMes.slice(0, 4)), m = Number(EX.calMes.slice(5, 7)) + k;
+  if (m < 1){ m = 12; y--; } if (m > 12){ m = 1; y++; }
+  EX.calMes = y + '-' + (m < 10 ? '0' : '') + m; exRender();
+};
+window.exNueva = function(fecha){ EX.fechaNueva = fecha || null; exDiaCerrar(); exPickTipo(); };
+/* «Enviar a Vueling»: lo listo y sin pegas sale por el envío de siempre. */
+window.exEnviarListas = function(){
+  var ok = todas().filter(function(n){ return estadoDe(n) === 'lista' && !pegasDe(n).length; });
+  if (!ok.length){
+    var lista = todas().filter(function(n){ return estadoDe(n) === 'lista'; })[0];
+    if (window.showToast) showToast(lista ? exT('A esta nota aún le falta algo · lo tienes abajo', 'This note still misses something · see below')
+                                         : exT('Haz la foto de los tickets y aquí aparecerán', 'Add the receipts and they will show up here'), 'warn');
+    if (lista) exOpen(lista.id);
+    return;
+  }
+  if (ok.length === 1) return exEnviar(ok[0].id);
+  EX.sel = {}; ok.slice(0, MAX_LOTE).forEach(function(n){ EX.sel[n.id] = 1; });
+  exEnviarLote();
+};
+
+/* ── El anillo, el total y los tres filtros ── */
+function radarV2(todasN){
+  var g = { falta:[], lista:[], enviado:[] };
+  todasN.forEach(function(n){ var k = grupoV2(n); if (g[k]) g[k].push(n); });
+  var cobr = g.enviado.filter(function(n){ return estadoEnvio(n) === 'paid'; });
+  var envV = g.enviado.filter(function(n){ return estadoEnvio(n) !== 'paid'; });
+  var seg = [['falta', sumaDe(g.falta, pesoV2), COL_EST.falta], ['lista', sumaDe(g.lista, pesoV2), COL_EST.lista],
+             ['enviado', sumaDe(envV, pesoV2), COL_EST.enviado], ['enviado', sumaDe(cobr, pesoV2), COL_EST.cobrado]];
+  var tot = seg.reduce(function(a, s){ return a + s[1]; }, 0) || 1, C = 2 * Math.PI * 38, acc = 0, arcos = '';
+  seg.forEach(function(s){
+    var len = s[1] / tot * C; if (len <= 0) return;
+    var gap = len > 4 ? 2 : 0, on = !EX.filtro || EX.filtro === s[0], sel = EX.filtro === s[0];
+    arcos += '<circle cx="46" cy="46" r="38" fill="none" stroke="' + s[2] + '" stroke-width="' + (sel ? 13 : 9) + '"' +
+      ' stroke-dasharray="' + (len - gap).toFixed(1) + ' ' + (C - len + gap).toFixed(1) + '" stroke-dashoffset="' + (-acc).toFixed(1) + '"' +
+      ' opacity="' + (on ? 1 : .22) + '"' + (sel ? ' style="filter:drop-shadow(0 0 5px ' + s[2] + ')"' : '') + '></circle>';
+    acc += len;
+  });
+  var F = [
+    { k:'falta', l:exT('Sin ticket','No receipt'), n:g.falta },
+    { k:'lista', l:exT('Listo','Ready'), n:g.lista },
+    { k:'enviado', l:exT('Enviados','Sent'), n:g.enviado }
+  ];
+  var fx = null; F.forEach(function(f){ if (EX.filtro === f.k) fx = f; });
+  var porCobrar = sumaDe(g.falta, pesoV2) + sumaDe(g.lista, pesoV2) + sumaDe(envV, pesoV2);
+  var listas = g.lista.length, sL = sumaDe(g.lista, pesoV2);
+  var cuenta = function(l){ return l.length + (l.length === 1 ? exT(' nota',' note') : exT(' notas',' notes')); };
+  return '<section class="ex2-radar">' +
+    '<div class="ex2-rfila">' +
+      '<div class="ex2-anillo"><svg width="92" height="92" viewBox="0 0 92 92" aria-hidden="true">' +
+        '<circle cx="46" cy="46" r="38" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="9"></circle>' + arcos + '</svg>' +
+        '<button type="button" class="ex2-centro" onclick="exFiltro(null)" aria-label="' + exT('Ver todos los gastos','See all expenses') + '">' +
+          '<b>' + todasN.length + '</b><i>' + exT('NOTAS','NOTES') + '</i></button></div>' +
+      '<div class="ex2-total"><span class="k' + (fx ? ' f-' + fx.k : '') + '">' + (fx ? fx.l.toUpperCase() : exT('TE FALTA COBRAR','STILL TO COLLECT')) + '</span>' +
+        '<span class="v">' + eur(fx ? sumaDe(fx.n, pesoV2) : porCobrar) + '</span>' +
+        '<span class="s">' + (fx ? cuenta(fx.n) + exT(' · toca el anillo para ver todo',' · tap the ring for all') : exT('toca un estado para filtrar','tap a status to filter')) + '</span></div>' +
+    '</div>' +
+    '<div class="ex2-filtros" role="tablist" aria-label="' + exT('Filtrar gastos','Filter expenses') + '">' +
+      F.map(function(f){
+        var sel = EX.filtro === f.k, otro = EX.filtro && !sel;
+        return '<button type="button" role="tab" aria-selected="' + sel + '" class="ex2-f f-' + f.k + (sel ? ' on' : '') + (otro ? ' off' : '') + '" onclick="exFiltro(\'' + f.k + '\')">' +
+          '<span class="l"><span class="p" aria-hidden="true"></span>' + f.l + ' · ' + f.n.length + '</span>' +
+          '<span class="v">' + eur(sumaDe(f.n, pesoV2)) + '</span></button>';
+      }).join('') +
+    '</div>' +
+    '<button type="button" class="ex2-enviar' + (listas ? '' : ' off') + '" onclick="exEnviarListas()">' +
+      '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>' +
+      (listas ? exT('Enviar a Vueling · ','Send to Vueling · ') + listas + (listas === 1 ? exT(' nota · ',' note · ') : exT(' notas · ',' notes · ')) + eur(sL)
+              : exT('Enviar a Vueling · nada listo aún','Send to Vueling · nothing ready yet')) +
+    '</button>' +
+  '</section>';
+}
+
+/* ── El calendario ── */
+// Qué se vuela cada día, para el calendario: los DESTINOS (los aeropuertos que no
+// son la base), en el orden en que se vuelan. Antes salía sólo la última llegada
+// y sólo si venía en IATA: un día de ida y vuelta enseñaba la base («BCN») y uno
+// importado en OACI no enseñaba nada. Sin base conocida, la última llegada.
+function codigosRoster(){
+  var m = {}, iata = window.rstToIata || function(c){ return c; };
+  var base = ''; try { var _b = window.rstBaseEfectiva && window.rstBaseEfectiva(); base = String((_b && _b.base) || '').toUpperCase(); if (base.length === 4) base = iata(base) || base; } catch(e){}
+  var mismo = window.pilotosMismoApt || function(a, b){ return a === b; };
+  function apt(c){ c = String(c || '').replace(/\*/g, '').trim().toUpperCase(); if (c.length === 4) c = iata(c) || c; return /^[A-Z]{3,4}$/.test(c) ? c : ''; }
+  rosterRows().forEach(function(e){
+    var v = e.raw_data || e, d = e.date || v.date; if (!d) return;
+    var o = m[d] || (m[d] = { legs:[], code:'' });
+    var dep = apt(e.dep || v.dep), arr = apt(e.arr || v.arr);
+    if (dep || arr) o.legs.push({ dep:dep, arr:arr, t:String(e.std || v.std || e.std_scheduled || v.std_scheduled || e.std_actual || v.std_actual || '') });
+    else if (!o.code && (e.code || v.code)) o.code = String(e.code || v.code);
+  });
+  Object.keys(m).forEach(function(d){ m[d].legs.sort(function(a, b){ return a.t.localeCompare(b.t); }); });
+  if (!base){            // sin base en el perfil: de donde salen la mayoría de las jornadas
+    var cuenta = {}, mejor = 0;
+    Object.keys(m).forEach(function(d){ var l = m[d].legs[0]; if (l && l.dep) cuenta[l.dep] = (cuenta[l.dep] || 0) + 1; });
+    Object.keys(cuenta).forEach(function(k){ if (cuenta[k] > mejor){ mejor = cuenta[k]; base = k; } });
+  }
+  Object.keys(m).forEach(function(d){
+    var o = m[d], vistos = [];
+    o.legs.forEach(function(l){ [l.dep, l.arr].forEach(function(c){
+      if (c && !(base && mismo(c, base)) && vistos.indexOf(c) < 0) vistos.push(c); }); });
+    o.dest = vistos;
+    o.arr = o.legs.length ? (o.legs[o.legs.length - 1].arr || '') : '';
+    o.base = base; o.enBase = !!(base && o.arr && mismo(o.arr, base));
+  });
+  return m;
+}
+
+// Icono DIBUJADO de cada tipo de gasto, para el calendario: de un vistazo se ve
+// qué día hubo un horno, una pernocta o una incidencia. Nunca un emoji: lo pinta
+// la fuente del aparato (la lección de la luna de las pernoctas).
+var ICO_TIPO = {
+  position:'<path class="f" d="M21 15.5v-1.8l-8-5V3.5a1.5 1.5 0 0 0-3 0v5.2l-8 5v1.8l8-2.5v5l-2 1.5V21l3.5-1 3.5 1v-1.5L13 18v-5l8 2.5z"/>',
+  voucher:'<path d="M3 19v-9M3 15h18v4M21 19v-3.5A3.5 3.5 0 0 0 17.5 12H11v3"/><circle class="f" cx="7" cy="12" r="2"/>',
+  incident:'<path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5M12 17.2v.1"/>',
+  oven:'<path class="f" d="M12 22c4.2 0 7-2.9 7-6.8 0-3.2-2-5.4-3.3-7.4-.8 1.8-1.8 2.8-3 2.8.2-3.2-1-6.2-4-8.6.2 4.4-4.7 7-4.7 13.2C4 19.1 7.8 22 12 22z"/>',
+  second:'<path class="f" d="M3 11.5 12 4l9 7.5V21h-6v-6H9v6H3z"/>',
+  medical:'<path class="f" d="M9.5 3.5h5v6h6v5h-6v6h-5v-6h-6v-5h6z"/>',
+  training:'<path d="M2 9.5 12 4.5l10 5-10 5z"/><path d="M6.5 11.8V16c3 2.2 8 2.2 11 0v-4.2"/>',
+  ops:'<path d="M8.5 4h7v3h-7zM6.5 5.5H5V21h14V5.5h-1.5M8.5 12h7M8.5 16h5"/>'
+};
+function icoTipo(k){ return '<svg viewBox="0 0 24 24" aria-hidden="true">' + (ICO_TIPO[k] || ICO_TIPO.ops) + '</svg>'; }
+var ICO_LUNA = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.8A8.6 8.6 0 0 1 9.2 3.5a8.6 8.6 0 1 0 11.3 11.3z"/></svg>';
+// Dónde se duerme cada noche del mes: la MISMA cuenta que pinta las lunas del
+// roster (`rstDiasFuera`). Sin ella (roster sin cargar), el último aterrizaje del
+// día fuera de la base. Devuelve { fecha: aeropuerto } sólo de las noches fuera.
+function nochesFuera(y, m, cod){
+  var r = {};
+  try {
+    if (window.rstDiasFuera && window.RST && RST.entries && RST.entries.length){
+      var f = window.rstDiasFuera(y, m - 1), pos = f.posiciones || {}, iata = window.rstToIata || function(c){ return c; };
+      Object.keys(f).forEach(function(d){ if (f[d]){ var a = String(pos[d] || ''); r[d] = a.length === 4 ? (iata(a) || a) : a; } });
+      return r;
+    }
+  } catch(e){}
+  Object.keys(cod).forEach(function(d){ var o = cod[d]; if (o.legs && o.legs.length && o.base && o.arr && !o.enBase) r[d] = o.arr; });
+  return r;
+}
+// La ciudad de un aeropuerto, para decirlo en palabras («Noche en París»). Primero
+// la tabla de la red (en castellano y corta, para que quepa en la casilla).
+(function(){ var _m = { ORY:'París',CDG:'París',BVA:'París',LGW:'Londres',LHR:'Londres',LTN:'Londres',STN:'Londres',LCY:'Londres',
+  AMS:'Ámsterdam',BRU:'Bruselas',CRL:'Bruselas',FCO:'Roma',CIA:'Roma',MXP:'Milán',LIN:'Milán',BGY:'Bérgamo',VCE:'Venecia',
+  FLR:'Florencia',PSA:'Pisa',NAP:'Nápoles',BLQ:'Bolonia',CTA:'Catania',PMO:'Palermo',OLB:'Olbia',CAG:'Cagliari',BRI:'Bari',
+  TRN:'Turín',GOA:'Génova',LIS:'Lisboa',OPO:'Oporto',FAO:'Faro',FNC:'Madeira',PDL:'Azores',MUC:'Múnich',FRA:'Fráncfort',BER:'Berlín',
+  HAM:'Hamburgo',DUS:'Düsseldorf',CGN:'Colonia',STR:'Stuttgart',ZRH:'Zúrich',GVA:'Ginebra',BSL:'Basilea',VIE:'Viena',PRG:'Praga',
+  BUD:'Budapest',WAW:'Varsovia',KRK:'Cracovia',CPH:'Copenhague',ARN:'Estocolmo',OSL:'Oslo',HEL:'Helsinki',KEF:'Reikiavik',
+  DUB:'Dublín',EDI:'Edimburgo',MAN:'Mánchester',BHX:'Birmingham',BRS:'Brístol',ATH:'Atenas',SKG:'Salónica',HER:'Creta',
+  JTR:'Santorini',JMK:'Míkonos',RHO:'Rodas',CFU:'Corfú',MLA:'Malta',TLV:'Tel Aviv',IST:'Estambul',SAW:'Estambul',AYT:'Antalya',
+  CAI:'El Cairo',RAK:'Marrakech',CMN:'Casablanca',TNG:'Tánger',ALG:'Argel',TUN:'Túnez',DKR:'Dakar',BEY:'Beirut',AMM:'Amán',
+  NCE:'Niza',MRS:'Marsella',TLS:'Toulouse',BOD:'Burdeos',NTE:'Nantes',LYS:'Lyon',BIQ:'Biarritz',LUX:'Luxemburgo',
+  MAD:'Madrid',BCN:'Barcelona',PMI:'Palma',IBZ:'Ibiza',MAH:'Menorca',AGP:'Málaga',SVQ:'Sevilla',VLC:'Valencia',ALC:'Alicante',
+  BIO:'Bilbao',SCQ:'Santiago',VGO:'Vigo',OVD:'Asturias',SDR:'Santander',GRX:'Granada',XRY:'Jerez',LEI:'Almería',RMU:'Murcia',
+  ZAZ:'Zaragoza',EAS:'S. Sebastián',LPA:'Gran Canaria',TFN:'Tenerife N',TFS:'Tenerife S',ACE:'Lanzarote',FUE:'Fuerteventura',
+  SPC:'La Palma',VDE:'El Hierro',GMZ:'La Gomera',MLN:'Melilla',CDT:'Castellón' };
+  Object.keys(_m).forEach(function(k){ if (!CIUDAD[k]) CIUDAD[k] = _m[k]; }); })();
+function ciudadDe(c){
+  c = String(c || '').toUpperCase(); if (c.length === 4 && window.rstToIata) c = window.rstToIata(c) || c;
+  if (CIUDAD[c]) return _EN ? ({ 'París':'Paris','Londres':'London','Ámsterdam':'Amsterdam','Bruselas':'Brussels','Roma':'Rome','Milán':'Milan','Bérgamo':'Bergamo','Venecia':'Venice','Florencia':'Florence','Nápoles':'Naples','Bolonia':'Bologna','Turín':'Turin','Génova':'Genoa','Lisboa':'Lisbon','Oporto':'Porto','Múnich':'Munich','Fráncfort':'Frankfurt','Berlín':'Berlin','Colonia':'Cologne','Zúrich':'Zurich','Ginebra':'Geneva','Basilea':'Basel','Viena':'Vienna','Praga':'Prague','Varsovia':'Warsaw','Cracovia':'Krakow','Copenhague':'Copenhagen','Estocolmo':'Stockholm','Reikiavik':'Reykjavik','Dublín':'Dublin','Edimburgo':'Edinburgh','Mánchester':'Manchester','Brístol':'Bristol','Atenas':'Athens','Salónica':'Thessaloniki','Creta':'Crete','Míkonos':'Mykonos','Rodas':'Rhodes','Corfú':'Corfu','Estambul':'Istanbul','El Cairo':'Cairo','Argel':'Algiers','Túnez':'Tunis','Amán':'Amman','Niza':'Nice','Marsella':'Marseille','Burdeos':'Bordeaux','Luxemburgo':'Luxembourg','Sevilla':'Seville','Málaga':'Malaga' }[CIUDAD[c]] || CIUDAD[c]) : CIUDAD[c];
+  try { if (typeof window.airportName === 'function'){ var n = window.airportName(c); if (n && n !== c) return n; } } catch(e){}
+  try { if (window.NGasto && NGasto.isSpanishAirport && !NGasto.isSpanishAirport(c) && NGasto.tzFor){
+    var tz = NGasto.tzFor(c); if (tz && tz.indexOf('/') > 0) return tz.split('/').pop().replace(/_/g, ' '); } } catch(e){}
+  return '';
+}
+function calendarioV2(todasN){
+  if (!EX.calMes) EX.calMes = hoyISO().slice(0, 7);   // el mes ACTUAL (pedido del piloto)
+  var y = Number(EX.calMes.slice(0, 4)), m = Number(EX.calMes.slice(5, 7));
+  var nD = new Date(Date.UTC(y, m, 0)).getUTCDate(), pri = (new Date(Date.UTC(y, m - 1, 1)).getUTCDay() + 6) % 7;
+  var cod = codigosRoster(), hoy = hoyISO(), porDia = {};
+  var noches = nochesFuera(Number(EX.calMes.slice(0, 4)), Number(EX.calMes.slice(5, 7)), cod);
+  todasN.forEach(function(n){ (porDia[n.date] = porDia[n.date] || []).push(n); });
+  var delMes = todasN.filter(function(n){ return String(n.date).slice(0, 7) === EX.calMes; });
+  var sinTk = delMes.filter(function(n){ return grupoV2(n) === 'falta'; }).length;
+  var h = '<section class="ex2-cal">' +
+    '<div class="ex2-calh"><button type="button" class="ex2-nav" onclick="exCalMes(-1)" aria-label="' + exT('Mes anterior','Previous month') + '">‹</button>' +
+      '<span class="m"><b>' + MES[m - 1].charAt(0).toUpperCase() + MES[m - 1].slice(1) + ' ' + y + '</b>' +
+      '<i>' + (delMes.length ? delMes.length + exT(' gastos · ',' expenses · ') + eur(sumaDe(delMes, pesoV2)) + (sinTk ? ' · ' + sinTk + exT(' sin ticket',' without receipt') : '')
+                             : exT('sin gastos este mes','no expenses this month')) + '</i></span>' +
+      '<button type="button" class="ex2-nav" onclick="exCalMes(1)" aria-label="' + exT('Mes siguiente','Next month') + '">›</button></div>' +
+    '<div class="ex2-grid">';
+  /* Las semanas son FILAS, y dentro de cada fila un día con algo (vuelo, gasto,
+     noche fuera, guardia…) se ensancha y un OFF o un día vacío se queda en una
+     columnita (pedido del piloto, «está muy apretado»). Por eso la letra del día
+     va DENTRO de la casilla: las columnas ya no coinciden de una semana a otra. */
+  var LET = (_EN ? 'MTWTFSS' : 'LMXJVSD').split(''), celdas = [];
+  for (var i = 0; i < pri; i++) celdas.push('<span class="ex2-v"></span>');
+  for (var d = 1; d <= nD; d++){
+    var iso = EX.calMes + '-' + (d < 10 ? '0' : '') + d, ns = porDia[iso] || [], c = cod[iso] || {};
+    var vuela = !!(c.legs && c.legs.length);
+    var txt = vuela ? ((c.dest && c.dest.length) ? c.dest.slice(0, 2).join('·') + (c.dest.length > 2 ? '+' : '') : c.arr) : (c.code || '');
+    var libre = !vuela && /OFF|VAC|ROF|^F$/.test(c.code || '');
+    var noche = noches[iso], ciuNoche = noche ? (ciudadDe(noche) || noche) : '';
+    var marcas = ns.slice(0, 3).map(function(n){
+      var g = grupoV2(n), col = tipoDe(n.kind).col, st = g === 'enviado' ? estadoEnvio(n) : '';
+      var cls = (EX.filtro && (g === 'futura' ? 'falta' : g) !== EX.filtro) ? 'apag'
+              : st === 'rej' || st === 'err' ? 'rech' : g === 'falta' ? 'hueca' : g === 'futura' ? 'fut'
+              : st === 'paid' ? 'cobr' : g === 'enviado' ? 'env' : 'llena';
+      return '<span class="tc ' + cls + '" style="--tcol:' + col + '" title="' + esc(tipoDe(n.kind).lbl) + '">' + icoTipo(n.kind) + '</span>';
+    }).join('') + (ns.length > 3 ? '<span class="mas">+' + (ns.length - 3) + '</span>' : '');
+    var activo = vuela || ns.length || noche || (c.code && !libre);
+    celdas.push('<button type="button" class="ex2-dia' + (activo ? ' ancho' : ' mini') + (ns.length ? ' con' : '') + (iso === hoy ? ' hoy' : '') + (EX.diaPop === iso ? ' sel' : '') + (libre ? ' libre' : '') + (vuela ? ' vuela' : '') + (noche ? ' noche' : '') + '"' +
+      ' onclick="exDia(\'' + iso + '\')" aria-label="' + d + ' ' + MES[m - 1] + (ns.length ? ' · ' + ns.length + exT(' gastos',' expenses') : '') + (noche ? ' · ' + exT('noche en ','night in ') + ciuNoche : '') + '">' +
+      '<em>' + LET[(pri + d - 1) % 7] + '</em><b>' + d + '</b>' + (noche ? '<i class="nf">' + ICO_LUNA + '<span>' + esc(ciuNoche) + '</span></i>' : '<i>' + (vuela ? '<svg class="av" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15.5v-1.8l-8-5V3.5a1.5 1.5 0 0 0-3 0v5.2l-8 5v1.8l8-2.5v5l-2 1.5V21l3.5-1 3.5 1v-1.5L13 18v-5l8 2.5z"/></svg>' : '') + esc(txt) + '</i>') + '<span class="mks">' + marcas + '</span></button>');
+  }
+  while (celdas.length % 7) celdas.push('<span class="ex2-v"></span>');
+  for (var w = 0; w < celdas.length; w += 7) h += '<div class="ex2-fila">' + celdas.slice(w, w + 7).join('') + '</div>';
+  var tcLey = function(cls){ return '<span class="tc ' + cls + '" style="--tcol:#FF6B1A">' + icoTipo('oven') + '</span>'; };
+  h += '</div><div class="ex2-ley">' +
+    '<span><span class="ley-v"><svg viewBox="0 0 24 24" aria-hidden="true">' + ICO_TIPO.position.replace('class="f" ','') + '</svg></span>' + exT('vuelas','flying') + '</span>' +
+    '<span><span class="ley-n">' + ICO_LUNA + '</span>' + exT('noche fuera','night away') + '</span>' +
+    '<span>' + tcLey('hueca') + exT('sin ticket','no receipt') + '</span>' +
+    '<span>' + tcLey('llena') + exT('lista','ready') + '</span>' +
+    '<span>' + tcLey('env') + exT('enviada','sent') + '</span>' +
+    '<span>' + tcLey('rech') + exT('rechazada','rejected') + '</span></div>' +
+    '<span class="ex2-pista">' + exT('Cada icono es un gasto: el horno, la pernocta, la incidencia…','Each icon is an expense: oven, layover, incident…') + '</span>' +
+    '<span class="ex2-pista">' + exT('Toca un día para ver y añadir sus gastos','Tap a day to see and add its expenses') + '</span>' +
+  '</section>';
+  return h;
+}
+
+/* ── La ventana del día: centrada, de cristal ── */
+window.exDia = function(fecha){ EX.diaPop = fecha; EX.diaEnv = false; pintaDia(); };
+window.exDiaEnv = function(){ EX.diaEnv = !EX.diaEnv; pintaDia(); };
+window.exDiaCerrar = function(){
+  EX.diaPop = null;
+  var el = document.getElementById('ex2-diapop'); if (el) el.remove();
+  document.querySelectorAll('#pc-tab-gastos .ex2-dia.sel').forEach(function(b){ b.classList.remove('sel'); });
+};
+function pintaDia(){
+  var f = EX.diaPop; if (!f) return;
+  var el = document.getElementById('ex2-diapop');
+  if (!el){
+    el = document.createElement('div'); el.id = 'ex2-diapop'; el.className = 'ex2-pop';
+    document.body.appendChild(el);
+  }
+  var ns = todas().filter(function(n){ return n.date === f && (!EX.filtro || (grupoV2(n) === 'futura' ? 'falta' : grupoV2(n)) === EX.filtro); });
+  var env = EX.filtro ? [] : ns.filter(function(n){ return estadoDe(n) === 'enviado'; });
+  var vis = ns.filter(function(n){ return EX.filtro || estadoDe(n) !== 'enviado' || EX.diaEnv; });
+  var dt = new Date(f + 'T12:00:00Z'), ruta = rutaDia(f);
+  el.innerHTML = '<button type="button" class="ex2-pop-fondo" onclick="exDiaCerrar()" aria-label="' + exT('Cerrar','Close') + '"></button>' +
+    '<div class="ex2-pop-caja" role="dialog" aria-label="' + exT('Gastos del día','Expenses of the day') + '">' +
+      '<button type="button" class="ex2-pop-x" onclick="exDiaCerrar()" aria-label="' + exT('Cerrar','Close') + '">' +
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>' +
+      '<div class="ex2-pop-h"><b>' + DIA[dt.getUTCDay()] + ' ' + dt.getUTCDate() + ' ' + MES[dt.getUTCMonth()] + '</b>' +
+        (ruta ? '<i>' + esc(ruta) + '</i>' : '') + '</div>' +
+      '<div class="ex2-pop-s">' + (ruta ? exT('Según tu roster','From your roster') : exT('Sin vuelos en el roster','No flights in your roster')) + '</div>' +
+      (function(){ var nf = nochesFuera(Number(f.slice(0, 4)), Number(f.slice(5, 7)), codigosRoster())[f]; if (!nf) return '';
+        var cd = ciudadDe(nf); return '<div class="ex2-pop-noche">' + ICO_LUNA + '<span>' + exT('Noche fuera en ','Night away in ') + '<b>' + esc(cd || nf) + '</b>' + (cd ? ' · ' + esc(nf) : '') + '</span></div>'; })() +
+      vis.map(tiraV2).join('') +
+      (env.length ? '<button type="button" class="ex2-pop-env" onclick="exDiaEnv()">' + (EX.diaEnv ? exT('Ocultar ','Hide ') : exT('Ver ','Show ')) + env.length +
+        (env.length === 1 ? exT(' enviada este día',' sent this day') : exT(' enviadas este día',' sent this day')) + '</button>' : '') +
+      (!ns.length ? '<p class="ex2-pop-v">' + exT('Ningún gasto este día.','No expenses this day.') + (ruta ? ' ' + exT('Si hubo una incidencia, añádela aquí.','If something happened, add it here.') : '') + '</p>' : '') +
+      '<button type="button" class="ex2-pop-add" onclick="exNueva(\'' + f + '\')">＋ ' + exT('Añadir un gasto el ','Add an expense on ') + dt.getUTCDate() + ' ' + MES[dt.getUTCMonth()] + '</button>' +
+    '</div>';
+}
+
+/* ── La lista: tres grupos, los enviados plegados ── */
+function listaV2(todasN){
+  var g = { falta:[], futura:[], lista:[], enviado:[] };
+  todasN.forEach(function(n){ g[grupoV2(n)].push(n); });
+  g.falta.sort(function(a, b){ return daysLeft(a.date) - daysLeft(b.date); });
+  g.futura.sort(function(a, b){ return a.date.localeCompare(b.date); });
+  g.lista.sort(function(a, b){ return b.date.localeCompare(a.date); });
+  g.enviado.sort(function(a, b){ return b.date.localeCompare(a.date); });
+  var G = [
+    { k:'falta', t:exT('SIN TICKET','NO RECEIPT'), n:g.falta.concat(g.futura) },
+    { k:'lista', t:exT('LISTAS PARA ENVIAR','READY TO SEND'), n:g.lista },
+    { k:'enviado', t:exT('ENVIADOS','SENT'), n:g.enviado, plegable:true }
+  ].filter(function(x){ return x.n.length && (!EX.filtro || EX.filtro === x.k); });
+  if (!G.length) return '<div class="ex-empty">' + exT('Nada en este filtro.','Nothing in this filter.') + '</div>';
+  return G.map(function(x){
+    var abierto = !x.plegable || EX.filtro === x.k || EX.envAbierto;
+    return '<section class="ex2-grupo g-' + x.k + '">' +
+      (x.plegable && !EX.filtro
+        ? '<button type="button" class="ex2-gh" onclick="exEnvToggle()" aria-expanded="' + abierto + '">'
+        : '<div class="ex2-gh">') +
+        '<span class="t">' + x.t + ' · ' + x.n.length + '</span>' +
+        '<span class="v">' + eur(sumaDe(x.n, pesoV2)) + (x.plegable && !EX.filtro ? ' <span class="cv' + (abierto ? ' on' : '') + '" aria-hidden="true">⌄</span>' : '') + '</span>' +
+      (x.plegable && !EX.filtro ? '</button>' : '</div>') +
+      (abierto ? x.n.map(tiraV2).join('') : '') +
+    '</section>';
+  }).join('');
+}
+
+function gastosV2(all){
+  var h = radarV2(all);
+  // Calendario / Lista: un TOGGLE (una pastilla con dos segmentos y su icono
+  // dibujado: el calendario y las barritas de la lista), como en el prototipo.
+  var icCal = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></svg>';
+  var icLis = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>';
+  h += '<div class="ex2-vistas"><div class="ex2-tgl" role="tablist" aria-label="' + exT('Vista','View') + '">' +
+    '<button type="button" role="tab" aria-selected="' + (EX.vista === 'cal') + '" class="' + (EX.vista === 'cal' ? 'on' : '') + '" onclick="exVistaV2(\'cal\')">' + icCal + exT('Calendario','Calendar') + '</button>' +
+    '<button type="button" role="tab" aria-selected="' + (EX.vista === 'lista') + '" class="' + (EX.vista === 'lista' ? 'on' : '') + '" onclick="exVistaV2(\'lista\')">' + icLis + exT('Lista','List') + '</button>' +
+    '</div><button type="button" class="nueva" onclick="exNueva(null)">＋ ' + exT('Nueva','New') + '</button></div>';
+  h += EX.vista === 'lista' ? listaV2(all) : calendarioV2(all);
+  return h;
+}
+
 function exRender(){
   var host = document.getElementById('pc-tab-gastos');
   if (!host) return;
@@ -1131,83 +1487,12 @@ function exRender(){
          'notas a mano aquí abajo.</div>';
   }
 
-  if (meses.length > 1) h += mesesStrip(meses);
-
-  /* ════════ EL NÚMERO GRANDE ES LO QUE RECLAMAS, NO EL TOPE ════════
-     Hasta Beta.770 mandaba el TOPE del convenio y justo debajo iba una línea
-     diciendo que sin tickets no se abona nada: el número que domina la pantalla
-     contradiciendo a la frase que tiene debajo. El tope es un máximo teórico —
-     dinero que no está—, así que pasa a segundo plano y manda lo que de verdad
-     vas a cobrar con los tickets que llevas puestos. La barra enseña cuánto de
-     ese tope llevas cubierto, que es el trabajo que queda por hacer. */
-  var pct = tope > 0 ? Math.max(0, Math.min(100, Math.round(recl / tope * 100))) : 0;
-  /* Cabecera CORTA (24-oct-2026): el número a la izquierda y de cuánto a la
-     derecha, en una fila. Antes eran cinco filas apiladas y el primer pase
-     quedaba bajo el pliegue. */
-  h += '<div class="ex-hero ex-hero-c">'+
-    '<div class="ex-hero-r"><div class="ex-hero-l">'+
-      '<div class="ex-lbl">RECLAMAS · '+(EX.mes==='*' ? 'TODOS LOS MESES' : mesLargo(EX.mes))+'</div>'+
-      '<div class="ex-big">'+eur(recl)+'</div></div>'+
-    '<div class="ex-sub">de <b>'+eur(tope)+'</b> reclamables · '+pendPas.length+
-      (pendPas.length===1?' nota que ya ha pasado' : ' notas que ya han pasado')+'</div></div>'+
-    barraDinero(totS, recl, margen)+
-    avisos(pendPas, prox, proxFuera, proxMes)+
-    /* Las futuras se NOMBRAN —son dinero que viene— pero en gris y sin ámbar:
-       no hay nada que arreglar. */
-    /* ⚠ EL BOLD VA DELANTE, Y NO ES ESTÉTICA: el traductor casa NODOS DE TEXTO
-       enteros, así que «Y hay <b>2 notas más (110 €)</b> de servicios…» son tres
-       nodos y ninguno de los tres es una frase — en inglés se quedaba entera en
-       castellano. Con el bold al principio quedan DOS nodos y los dos son una
-       frase traducible. Dos números en la misma línea → plantilla {0}/{1}. */
-    (futuras.length
-      ? '<div class="ex-real info"><b>'+futuras.length+
-        (futuras.length===1 ? ' nota más (' : ' notas más (')+eur(sumaDe(futuras, topeDe))+
-        ')</b> de servicios que aún no has volado</div>'
-      : '')+
-    nubeEstado()+'</div>';
-
-  /* ════════ LOS TRES PASOS ════════
-     El piloto no piensa "mis notas de gasto": piensa "¿qué me falta para cobrar
-     esto?". Los tres pasos son esa respuesta, con su recuento a la vista — así
-     que filtrar no esconde nada: lo que hay en los otros dos lo dice el propio
-     mando. Se eligen los que están, no un número guardado: si no queda nada sin
-     ticket, entrar en Gastos abre por el paso que sí tiene trabajo. */
-  var grupos = { falta:[], lista:[], enviado:[] }, futLista = [];
-  all.filter(enMes).forEach(function(n){
-    var e = estadoDe(n);
-    /* Una futura sin ticket no está en el paso «SIN TICKET»: no está bloqueada,
-       está esperando. Sale de la cuenta del chip y vive en su propio grupo al
-       final de la lista. */
-    if (e === 'falta' && esFutura(n)) { futLista.push(n); return; }
-    grupos[e].push(n);
-  });
-  if (!grupos[EX.estado] || !grupos[EX.estado].length) EX.estado = primerPaso(grupos);
-
-  if (all.length){
-    /* Los tres pasos y «＋ Nueva» en UNA fila (24-oct-2026). */
-    h += '<div class="ex-pasofila"><div class="ex-pasos ex-segc">'+ PASOS.map(function(p){
-      return '<div class="ex-paso'+(EX.estado===p.k?' on':'')+
-        (p.k==='falta' && grupos.falta.length ? ' urge':'')+'" onclick="exPaso(\''+p.k+'\')">'+
-        '<div class="n">'+grupos[p.k].length+'</div><div class="l">'+p.l+'</div></div>';
-    }).join('') +'</div>'+
-      '<div class="ex-nueva ex-nueva-g" role="button" onclick="exPickTipo()">'+
-        '<span class="i" aria-hidden="true">＋</span><span data-i18n-en="New">Nueva</span></div></div>';
-
-    var lista = grupos[EX.estado];
-    var hayProx = EX.estado === 'falta' && futLista.length;
-    if (lista.length || hayProx){
-      h += barraAccion(lista);
-      h += EX.estado === 'enviado' ? porEnvio(lista)
-         : EX.estado === 'falta'   ? porUrgencia(lista, futLista)
-         : porMeses(lista, false);
-    }
-    else h += '<div class="ex-empty">'+pasoDe(EX.estado).vacio+'</div>';
-  }
-
-  /* Lo que Vueling ha hecho con tus notas. Va antes de "añadir a mano": es
-     dinero que reclamaste y no vas a cobrar, y hasta hoy sólo estaba en un
-     correo del bot que nadie relee. */
+  /* GASTOS v2: los rechazos arriba (lo único que puede gritar), y debajo el
+     anillo, los filtros, «Enviar a Vueling» y el calendario o la lista. El
+     resumen viejo, los tres pasos y la tira de meses se sustituyen. */
   h += bannerPortal();
+  if (all.length) h += gastosV2(all);
+  else h += '<div class="ex2-vistas"><button type="button" class="nueva" onclick="exNueva(null)">＋ '+exT('Nueva nota','New note')+'</button></div>';
 
   /* Al final y no arriba: lo que se viene a hacer a esta pantalla es mirar lo
      que falta, no crear una nota. La app detecta sola las dos que más salen. */
@@ -1246,6 +1531,7 @@ function exRender(){
     if (on && on.scrollIntoView) try { on.scrollIntoView({ block:'nearest', inline:'nearest' }); } catch(e){}
   }
   barraSel();                       // la barra de "enviar varias", si toca
+  if (EX.diaPop) pintaDia();         // la ventana del día sigue al dato
 }
 
 /* ── Los avisos del resumen ───────────────────────────────────────────────────
@@ -2244,174 +2530,182 @@ window.exClose = function(){
   if (TK_SUCIO){ TK_SUCIO = false; contarTickets(); }
 };
 
+/* ════════ LA HOJA DE LA NOTA, rehecha (26-nov-2026) ════════
+   «No veo que sea fácil de leer y usar… mira si todo esto es necesario.» La hoja
+   era el CALCO del portal: cada campo del formulario de Vueling, para copiarlo a
+   mano. Desde que la app ENVÍA la nota, eso ya no es lo principal. Ahora:
+     1. arriba, qué nota es y cuánto vale;
+     2. cada línea con lo que el piloto toca de verdad: la fecha del ticket y
+        los tickets;
+     3. «Para Vueling»: nº de ISO, motivo y el COMENTARIO, que es OBLIGATORIO y va
+        abajo (la app propone un texto, pero lo tiene que poner el piloto). Todo
+        se escribe AQUÍ, sin el cuadro blanco de `prompt()`;
+     4. los botones, y el calco del portal plegado para quien la pase a mano. */
+function comentPropio(n){ if (!EX.coment) comentLoad(); var c = EX.coment[n.id]; return (c != null && String(c).trim()) ? String(c) : ''; }
+function comentPropuesta(n){ return tituloDe(n) + (n.route ? ' · ' + n.route : ''); }
+window.exNhCom = function(id, v, pinta){
+  if (!EX.coment) comentLoad(); EX.coment[id] = String(v || '').trim().slice(0, 400); comentSave();
+  if (pinta){ drawSheet(); exRender(); }
+};
+window.exNhIso = function(id, v){
+  var n = notaDe(id); if (!n || !n.manual) return;
+  v = String(v || '').trim().slice(0, 40); if (v) n.iso = v; else delete n.iso;
+  saveMan(); syncNota(id); exRender();
+};
+window.exNhMotivo = function(id, v){
+  v = String(v || '').trim().slice(0, 400); if (!v) return;
+  if (!EX.motivos) motivosLoad(); EX.motivos[id] = v; motivosSave(); exRender();
+};
+window.exNhCalco = function(){ EX.calcoAbierto = !EX.calcoAbierto; drawSheet(); };
+// Motivos que se ofrecen como pastillas. En la incidencia son los del desplegable
+// cerrado del portal; en el horno, los habituales y «Otro…» para escribirlo.
+var MOT_CHIPS = { oven: ['Oven not working', 'Crew meal not loaded', 'Flight delayed', 'AOG'] };
+var MOT_ES = { 'Oven not working':'Horno roto', 'Crew meal not loaded':'No cargaron comida', 'Flight delayed':'Retraso',
+  'AOG':'AOG', 'Airport activity':'Actividad en aeropuerto', 'Charter flight':'Chárter' };
+var ICO_SLOT = {
+  breakfast:'<circle cx="12" cy="13" r="4"/><path d="M12 4v2M5.6 7.6l1.4 1.4M18.4 7.6 17 9M3 17h18M7 20h10"/>',
+  lunch:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  dinner:'<path d="M20.5 14.8A8.6 8.6 0 0 1 9.2 3.5a8.6 8.6 0 1 0 11.3 11.3z"/>',
+  night:'<path d="M20.5 14.8A8.6 8.6 0 0 1 9.2 3.5a8.6 8.6 0 1 0 11.3 11.3z"/><path d="M17 3v3M15.5 4.5h3"/>'
+};
+window.exNhIsoFoco = function(){ var e = document.getElementById('nh-iso'); if (e){ e.scrollIntoView({ block:'center' }); setTimeout(function(){ e.focus(); }, 250); } };
+window.exNhMotChip = function(id, v){ if (v === '__otro'){ EX.nhMotOtro = id; drawSheet(); return; } EX.nhMotOtro = null; exNhMotivo(id, v); drawSheet(); };
+window.exNhDia = function(id, i, v){ if (v === '__otro'){ EX.nhFechaOtra = lineKey(notaDe(id), i); drawSheet(); return; } EX.nhFechaOtra = null; exFechaCal(id, i, v); };
+function nhFaltas(n){
+  var f = [];
+  if (!(EX.tkCount[n.id] || 0)) f.push(exT('la foto del ticket','the receipt photo'));
+  if (n.needsISO && !isoDe(n)) f.push(exT('el nº de ISO','the ISO no.'));
+  return f;
+}
 function drawSheet(){
   var n = notaDe(SHEET); if (!n) return;
-  var nTk = 0; n.lines.forEach(function(_,i){ nTk += tksOf(lineKey(n,i)).length; });
+  var T = tipoDe(n.kind), nTk = 0; n.lines.forEach(function(_,i){ nTk += tksOf(lineKey(n,i)).length; });
+  var tope = 0, recl = 0; n.lines.forEach(function(l, i){ var su = 0; tksOf(lineKey(n,i)).forEach(function(t){ su += Number(t.amount) || 0; }); tope += l.cap || 0; recl += l.cap ? Math.min(su, l.cap) : su; });
+  var est = estadoDe(n), dt = new Date(n.date + 'T12:00:00Z'), enviada = !!EX.sent[n.id], d = nfDia(n.date);
+  var estTxt = enviada ? ((EX.paid||{})[n.id] ? exT('Cobrada','Paid') : exT('Enviada','Sent')) : est === 'lista' ? exT('Lista','Ready') : exT('Falta ticket','No receipt');
+  var com = comentPropio(n), prop = comentPropuesta(n), mot = motivoDe(n), faltas = nhFaltas(n);
+  var DIAL = _EN ? ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'] : ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  var ruta = (rutaDia(n.date) || n.route || '').replace(/·/g, ' → ');
 
-  var h = '<div class="ex-lbl2">CALCO DEL PORTAL</div>'+
-    '<div class="ex-sh-t">'+esc(n.title||tipoDe(n.kind).lbl)+'</div>'+
-    '<div class="ex-sh-s">Toca cada campo para copiarlo · '+n.lines.length+
-      (n.lines.length===1?' línea':' líneas')+' en una sola nota</div>';
-  h += cp('SELECT EXPENSE TYPE', n.portalType);
-  /* El comentario es de la NOTA, no de cada línea: va una vez, arriba. */
-  h += '<div class="ex-cp coment" onclick="exSetComentario(\''+n.id+'\')">'+
-    '<div><div class="k">COMMENT</div><div class="v">'+esc(comentarioDe(n))+'</div>'+
-    '<div class="h">lo lee la Compañía · toca para cambiarlo</div></div><div class="c">✎</div></div>';
+  /* 1 · la tarjeta grande */
+  var h = '<div class="nh" style="--c:' + T.col + '">' +
+    '<div class="nh-hero"><div class="nh-hrow"><span class="nh-hic">' + icoTipo(n.kind) + '</span>' +
+      '<div class="nh-ht"><b>' + esc(n.title || T.lbl) + '</b><span>' + DIAL[dt.getUTCDay()] + ' ' + dt.getUTCDate() + ' ' + MES[dt.getUTCMonth()] + (ruta ? ' · ' + esc(ruta) : '') + '</span></div></div>' +
+      '<div class="nh-chips">' +
+        (d.hay ? '<span class="nh-chip">✈ ' + esc(d.txt.replace(/^.*?(\d\d:\d\d–\d\d:\d\d)$/, '$1')) + '</span>' : '') +
+        '<span class="nh-chip">' + (n.scope === 'int' ? exT('Internacional','International') : exT('Nacional','Domestic')) + '</span>' +
+        (n.needsISO ? '<button type="button" class="nh-chip iso' + (isoDe(n) ? '' : ' falta') + '" onclick="exNhIsoFoco()">' +
+          (isoDe(n) ? 'ISO ' + esc(isoDe(n)) + ' <u>✎ ' + exT('cambiar','change') + '</u>' : '<u>＋ ' + exT('Añadir el ISO','Add the ISO') + '</u>') + '</button>' : '') +
+      '</div>' +
+      '<div class="nh-amt"><div class="nh-big">' + eur(recl || tope) + '<small>' + exT('a reclamar','to claim') + '</small></div>' +
+        '<span class="nh-est e-' + (enviada ? 'env' : est) + '">' + estTxt + '</span></div></div>';
 
-  n.lines.forEach(function(l,i){
+  /* 2 · los pasos */
+  var p1 = nTk > 0, p2 = !(n.needsISO && !isoDe(n)) && !!com, p3 = enviada;
+  var pasos = [[exT('Nota','Note'), true], [exT('Ticket','Receipt'), p1], [exT('Para Vueling','For Vueling'), p2], [exT('Enviar','Send'), p3]], ahora = -1;
+  pasos.forEach(function(x, k){ if (ahora < 0 && !x[1]) ahora = k; });
+  h += '<div class="nh-pasos">' + pasos.map(function(x, k){
+    return (k ? '<span class="nh-pl' + (pasos[k-1][1] && x[1] ? ' ok' : '') + '"></span>' : '') +
+      '<span class="nh-paso' + (x[1] ? ' ok' : k === ahora ? ' ahora' : '') + '"><i>' + (x[1] ? '✓' : (k + 1)) + '</i>' + x[0] + '</span>'; }).join('') + '</div>';
+
+  /* 3 · cada gasto con su ticket */
+  h += '<div class="nh-st"><span class="nh-n">1</span>' + (T.meals ? exT('Tu comida y su ticket','Your meal and its receipt') : exT('Tu gasto y su ticket','Your expense and its receipt')) + '</div>';
+  n.lines.forEach(function(l, i){
     var key = lineKey(n,i), tks = tksOf(key);
     var suma = 0; tks.forEach(function(t){ suma += (Number(t.amount)||0); });
     suma = Math.round(suma*100)/100;
-    var claim = Math.min(suma, l.cap), room = Math.round((l.cap-claim)*100)/100;
-
-    h += '<div class="ex-grp ex-linea-h"><span>LÍNEA '+(i+1)+' de '+n.lines.length+
-      ' <i>· en el portal: «Add new expense line»</i></span>'+
-      (l.extra && i === n.lines.length - 1 && !EX.sent[n.id]
-        ? '<span class="q" role="button" onclick="exQuitarLinea(\''+n.id+'\')">✕ quitar</span>' : '')+'</div>';
-    /* ★ La FECHA se puede cambiar, y es el campo que más notas tumba.
-       El portal admite el ticket aunque la hora y el sitio no cuadren con tu
-       actividad —eso la guía lo permite expresamente— pero NO que la fecha se
-       salga de la ventana del concepto (§5): comida no cargada D y D+1, horno y
-       posicional D-1/D/D+1, cafeteras el día exacto. Como el ticket es de
-       cuando fuiste a comprar y no de cuando volaste, la fecha del roster no
-       siempre es la del recibo — y hasta ahora no había forma de corregirla.
-       Debajo se dice qué días admite este concepto, para no adivinar. */
-    var fDia = fechaLinea(n, i), movida = fDia !== (l.date || n.date);
-    h += '<div class="ex-cp fecha'+(movida?' movida':'')+'" onclick="exSetFecha(\''+n.id+'\','+i+')">'+
-      '<div><div class="k">DATE *</div><div class="v">'+esc(fDia.split('-').reverse().join('/'))+'</div>'+
-      '<div class="h">'+(movida ? 'cambiada por ti · ' : '')+
-        (dentroVentana(n, i, fDia) ? ventanaTxt(n) : '⚠ fuera de los días que admite el portal para este concepto')+'</div></div>'+
-      '<div class="c">✎</div></div>';
-    h += cp('EXPENSE TYPE', l.subtype);
-    /* Con número puesto la fila se comporta como las demás: se toca y se copia
-       para pegarla en el portal. Sin número no hay nada que copiar, así que lo
-       que hace es abrir el campo para escribirlo. */
-    if (n.needsISO) h += isoDe(n)
-      ? cp('ISO NUMBER *', isoDe(n), 'iso', 'toca para copiar · ✎ para cambiarlo') +
-        '<div class="ex-isoed" onclick="exSetIso(\''+n.id+'\')">✎ cambiar el nº de ISO</div>'
-      : '<div class="ex-cp iso vacio" onclick="exSetIso(\''+n.id+'\')">'+
-        '<div><div class="k">ISO NUMBER *</div><div class="v">Tocar para añadirlo</div>'+
-        '<div class="h">te lo da la tripulación técnica o de cabina</div></div><div class="c">✎</div></div>';
-    /* REASON: faltaba, y el portal lo pinta en rojo como obligatorio. En las
-       incidencias es un desplegable cerrado de seis opciones — se enseña cuál
-       va a salir y se puede cambiar sin salir de aquí. */
-    h += '<div class="ex-cp motivo" onclick="exSetMotivo(\''+n.id+'\')">'+
-      '<div><div class="k">REASON *</div><div class="v">'+esc(motivoDe(n))+'</div>'+
-      '<div class="h">'+(reasonCerrado(n)
-        ? 'desplegable del portal · toca para elegir otro'
-        : 'texto libre · toca para cambiarlo')+'</div></div><div class="c">✎</div></div>';
-    h += cp('COST *', (claim>0?claim:l.cap).toFixed(2).replace('.',','), '',
-            claim>0 ? 'suma de tus tickets' : 'tope · aún sin tickets');
-
-    /* Los que este aparato ha tocado y la nube aún no sabe. El dato ya existía
-       (`EX.pend`, la cola de subida); lo que faltaba era enseñarlo. */
+    var claim = l.cap ? Math.min(suma, l.cap) : suma, room = Math.round((l.cap-claim)*100)/100;
+    var sl = SLOTS.filter(function(x){ return x.id === l.slot; })[0];
     var sinSubir = tks.filter(function(t){ return !!EX.pend['t:' + t.id]; }).length;
-
-    h += '<div class="ex-tk"><div class="ex-tkhead"><div class="k">TICKETS DE ESTA LÍNEA</div>'+
-      '<div class="n">'+tks.length+'</div></div><div class="ex-thumbs">'+
-      tks.map(function(t){ return '<div class="ex-th">'+
-        (t.url?'<img src="'+t.url+'" alt="ticket">':'<div class="ex-noimg">'+iconoNube()+'</div>')+
-        /* ⚠️ DIBUJADA, no el carácter ☁: un glifo lo pinta la fuente del móvil
-           del piloto —la lección de la luna de las pernoctas—, y aquí la marca
-           es lo único que distingue «está en tu cuenta» de «sólo en este
-           teléfono». */
-        (EX.pend['t:' + t.id] ? '<div class="nb" title="Aún sin subir">'+iconoNube()+'</div>' : '')+
-        /* El importe se TOCA para cambiarlo (24-oct-2026: «poder modificar el
-           valor del importe una vez realizado»). */
-        '<div class="a" role="button" title="Cambiar el importe" onclick="exTkImporte(\''+t.id+'\')">'+
-          (Number(t.amount)||0).toFixed(2).replace('.',',')+' <i aria-hidden="true">✎</i></div>'+
-
-        '<div class="x" onclick="exDelTk(\''+t.id+'\')">✕</div>'+
-        '<div class="dl" onclick="exOutTk(\''+t.id+'\')">↓</div></div>'; }).join('')+
-      /* La casilla de lo que se está subiendo va DONDE VA A CAER el ticket, en
-         su sitio de la tira, y DICE en qué está. */
-      (SUBIENDO && SUBIENDO.key === key
-        ? '<div class="ex-th cargando"><div class="ex-carga"><span class="ex-spin"></span>'+
-          '<span class="t">'+esc(FASE_TXT[SUBIENDO.fase] || 'Un momento…')+'</span></div></div>'
-        : '')+
-      /* Cámara y galería siguen siendo dos botones —con capture="environment"
-         iOS abre la cámara y ya no ofrece la fototeca, así que un ticket ya
-         fotografiado no había forma de adjuntarlo (#GA5ST)— pero comparten UNA
-         sola entrada de fichero, a la que se le pone o se le quita `capture`
-         antes de abrirla.
-         Antes eran dos <label> con su <input> dentro. Al cerrar el selector de
-         la fototeca tocando FUERA, el primer toque en el otro botón se perdía y
-         había que tocar dos veces para que se abriera la cámara: el toque se iba
-         en devolver el foco al label anterior. Un onclick que llama a .click()
-         se ejecuta en el primer toque, tenga el foco quien lo tenga, y con una
-         única entrada no hay dos elementos peleándose por él. */
-      '<div class="ex-add'+(exIsPro()?' pro':'')+'" onclick="exPickTk(\''+key+'\',1)">'+
-        '<span class="i">📷</span><span class="l">Cámara</span></div>'+
-      '<div class="ex-add'+(exIsPro()?' pro':'')+'" onclick="exPickTk(\''+key+'\',0)">'+
-        '<span class="i">🖼</span><span class="l">Galería</span></div>'+
-      '</div>'+
-      (sinSubir
-        ? '<div class="ex-nosub">'+iconoNube()+' <b>'+sinSubir+
-          (sinSubir===1 ? ' ticket sin subir</b> — se sube solo' : ' tickets sin subir</b> — se suben solos')+
-          ' en cuanto haya red. La foto vive en este teléfono; a tu cuenta viaja el importe.</div>'
-        : '')+
-      '<div class="ex-sum">'+
-      (tks.length
-        ? 'Suma <b>'+suma.toFixed(2).replace('.',',')+' €</b> · tope '+l.cap.toFixed(2).replace('.',',')+' €<br>'+
-          (suma > l.cap
-            ? '<span class="over">Te pasas del tope — reclamas '+l.cap.toFixed(2).replace('.',',')+' €</span>'
-            : room > 0
-              ? 'Te quedan <b>'+room.toFixed(2).replace('.',',')+' €</b> de margen — puedes añadir otro ticket'
-              : '<span class="okc">Tope alcanzado</span>')
-        : 'Sin tickets. <b>Sin ticket adjunto no se aprueba.</b>')+
-      '</div></div>';
+    var fDia = fechaLinea(n, i), dentro = dentroVentana(n, i, fDia), base = l.date || n.date, v = ventanaDe(n);
+    var nom = l.slot ? (_EN ? ({breakfast:'Breakfast',lunch:'Lunch',dinner:'Dinner',night:'Snack'})[l.slot] : (l.slotLabel || '')) : (l.slotLabel || T.lbl);
+    h += '<section class="nh-card nh-linea">' +
+      '<div class="nh-com1"><span class="nh-sol">' + (l.slot && ICO_SLOT[l.slot] ? '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICO_SLOT[l.slot] + '</svg>' : icoTipo(n.kind)) + '</span>' +
+        '<div class="nh-cn"><b>' + esc(nom) + '</b><span>' + (sl ? sl.lbl + ' h · ' : '') + esc(l.subtype || '') + '</span></div>' +
+        (l.cap ? '<div class="nh-tope"><b>' + eur(l.cap) + '</b><span>' + exT('tope','cap') + '</span></div>' : '') +
+        (l.extra && i === n.lines.length - 1 && !enviada ? '<button type="button" class="nh-q" onclick="exQuitarLinea(\'' + n.id + '\')" aria-label="' + exT('Quitar línea','Remove line') + '">✕</button>' : '') + '</div>' +
+      (l.cap ? '<div class="nh-barra"><i style="width:' + Math.min(100, Math.round(suma / l.cap * 100)) + '%"></i></div>' +
+        '<div class="nh-bl"><span>' + eur(suma) + exT(' en tickets',' in receipts') + '</span><span>' +
+          (suma > l.cap ? exT('te pasas: reclamas ','over: you claim ') + eur(l.cap) : room > 0 ? exT('te quedan ','left ') + eur(room) : exT('tope alcanzado','cap reached')) + '</span></div>' : '');
+    /* los tickets: las miniaturas y la cámara GRANDE */
+    h += '<div class="ex-thumbs nh-thumbs">' + tks.map(function(t){ return '<div class="ex-th">' +
+        (t.url ? '<img src="' + t.url + '" alt="ticket">' : '<div class="ex-noimg">' + iconoNube() + '</div>') +
+        (EX.pend['t:' + t.id] ? '<div class="nb" title="Aún sin subir">' + iconoNube() + '</div>' : '') +
+        '<div class="a" role="button" title="Cambiar el importe" onclick="exTkImporte(\'' + t.id + '\')">' + (Number(t.amount)||0).toFixed(2).replace('.',',') + ' <i aria-hidden="true">✎</i></div>' +
+        '<div class="x" onclick="exDelTk(\'' + t.id + '\')">✕</div><div class="dl" onclick="exOutTk(\'' + t.id + '\')">↓</div></div>'; }).join('') +
+      (SUBIENDO && SUBIENDO.key === key ? '<div class="ex-th cargando"><div class="ex-carga"><span class="ex-spin"></span><span class="t">' + esc(FASE_TXT[SUBIENDO.fase] || 'Un momento…') + '</span></div></div>' : '') + '</div>' +
+      '<div class="nh-foto"><div class="ex-add nh-cam' + (exIsPro() ? ' pro' : '') + '" role="button" onclick="exPickTk(\'' + key + '\',1)">' +
+          '<span class="nh-camc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>' +
+          '<span class="nh-camt"><b>' + (tks.length ? exT('Añadir otro ticket','Add another receipt') : exT('Haz la foto del ticket','Take the receipt photo')) + '</b><span>' +
+          (tks.length ? tks.length + exT(' adjunto',' attached') + (tks.length > 1 ? exT('s','') : '') : exT('Sin ticket no se aprueba','No receipt, no approval')) + '</span></span></div>' +
+        '<div class="ex-add nh-gal" role="button" onclick="exPickTk(\'' + key + '\',0)">' + exT('Galería','Gallery') + '</div></div>' +
+      (sinSubir ? '<div class="ex-nosub">' + iconoNube() + ' <b>' + sinSubir + exT(' sin subir',' not uploaded') + '</b> — ' + exT('se sube solo en cuanto haya red','uploads by itself when online') + '</div>' : '');
+    /* la fecha del ticket, en botones */
+    var dias = []; for (var k = v.min; k <= v.max; k++) dias.push(new Date(new Date(base + 'T12:00:00Z').getTime() + k * 86400000).toISOString().slice(0, 10));
+    var otra = dias.indexOf(fDia) < 0 || EX.nhFechaOtra === key;
+    h += '<div class="nh-fl">' + exT('Fecha que pone en el ticket','Date on the receipt') + '</div><div class="nh-dias">' +
+      dias.map(function(f){ var x = new Date(f + 'T12:00:00Z');
+        return '<button type="button" class="nh-dia' + (f === fDia && !otra ? ' on' : '') + '" onclick="exNhDia(\'' + n.id + '\',' + i + ',\'' + f + '\')"><small>' + DIA[x.getUTCDay()] + '</small><b>' + x.getUTCDate() + '</b></button>'; }).join('') +
+      '<button type="button" class="nh-dia otro' + (otra ? ' on' : '') + '" onclick="exNhDia(\'' + n.id + '\',' + i + ',\'__otro\')">' + (otra && dias.indexOf(fDia) < 0 ? fDia.slice(8) + '/' + fDia.slice(5, 7) : exT('Otra…','Other…')) + '</button></div>' +
+      (otra ? '<label class="nh-f' + (dentro ? '' : ' mal') + '"><input type="date" value="' + fDia + '" onchange="exNhDia(\'' + n.id + '\',' + i + ',this.value)"></label>' +
+        (dentro ? '' : '<div class="nh-hint mal">' + exT('⚠ Fuera de los días que admite el portal','⚠ Outside the days the portal accepts') + '</div>') : '') +
+      '</section>';
   });
+  if (!enviada) h += '<button type="button" class="nh-add" onclick="exAddLinea(\'' + n.id + '\')">＋ ' + exT('Añadir otra comida, noche o fecha','Add another meal, night or date') + '</button>';
 
-  if (!EX.sent[n.id]) h += '<div class="ex-addlinea" role="button" onclick="exAddLinea(\''+n.id+'\')">'+
-    '<span class="i">＋</span><span><b>Añadir otra línea a esta nota</b>'+
-    '<small>otra comida, otra noche u otra fecha · en una sola nota del portal</small></span></div>';
+  /* 4 · para Vueling */
+  h += '<div class="nh-st"><span class="nh-n">2</span>' + exT('Para Vueling','For Vueling') + '</div><section class="nh-card nh-datos">';
+  var chips = reasonCerrado(n) ? REASONS : MOT_CHIPS[n.kind];
+  h += '<div class="nh-cl">' + exT('Motivo','Reason') + ' <em>*</em></div>';
+  if (chips){
+    var libre = !reasonCerrado(n), otroMot = libre && (chips.indexOf(mot) < 0 || EX.nhMotOtro === n.id);
+    h += '<div class="nh-mots">' + chips.map(function(r){ return '<button type="button" class="nh-mot' + (r === mot && !otroMot ? ' on' : '') + '" onclick="exNhMotChip(\'' + n.id + '\',this.dataset.v)" data-v="' + esc(r) + '">' + esc(_EN ? r : (MOT_ES[r] || REASON_ES[r] || r)) + '</button>'; }).join('') +
+      (libre ? '<button type="button" class="nh-mot' + (otroMot ? ' on' : '') + '" onclick="exNhMotChip(\'' + n.id + '\',\'__otro\')">' + exT('Otro…','Other…') + '</button>' : '') + '</div>' +
+      (otroMot ? '<label class="nh-f"><input type="text" value="' + esc(chips.indexOf(mot) < 0 ? mot : '') + '" placeholder="' + exT('Escribe el motivo','Write the reason') + '" onchange="exNhMotivo(\'' + n.id + '\',this.value)"></label>' : '');
+  } else h += '<label class="nh-f"><input type="text" value="' + esc(mot) + '" onchange="exNhMotivo(\'' + n.id + '\',this.value)"></label>';
+  if (n.needsISO){
+    h += '<div class="nh-cl">' + exT('Nº de ISO','ISO no.') + ' <em>*</em></div>';
+    h += n.manual
+      ? '<div class="nh-isor"><label class="nh-f' + (isoDe(n) ? '' : ' falta') + '"><input id="nh-iso" type="text" value="' + esc(isoDe(n)) + '" placeholder="CC-0000000" onchange="exNhIso(\'' + n.id + '\',this.value);drawSheet()"></label>' +
+        '<button type="button" class="nh-camb" onclick="exNhIsoFoco()">' + (isoDe(n) ? '✎ ' + exT('Cambiar','Change') : '＋ ' + exT('Añadir','Add')) + '</button></div>' +
+        '<div class="nh-hint">' + exT('Te lo da la tripulación · el portal no acepta la nota sin él','The crew gives it to you · the portal rejects the claim without it') + '</div>'
+      : '<div class="nh-hint">' + exT('Esta nota la genera el roster y aún no puede guardar el ISO.','This note comes from the roster and cannot store the ISO yet.') + '</div>';
+  }
+  h += '<div class="nh-cl">' + exT('Comentario para Vueling','Comment for Vueling') + ' <em>*</em></div>' +
+    '<label class="nh-f nh-com' + (com ? '' : ' falta') + '"><textarea rows="3" maxlength="400" placeholder="' + esc(exT('Cuenta qué pasó…','Say what happened…')) + '" ' +
+      'oninput="exNhCom(\'' + n.id + '\',this.value)" onchange="exNhCom(\'' + n.id + '\',this.value,1)">' + esc(com) + '</textarea></label>' +
+    (com ? '' : '<button type="button" class="nh-prop" onclick="exNhCom(\'' + n.id + '\',this.dataset.t,1)" data-t="' + esc(prop) + '">' +
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.6 5.3 5.9.9-4.2 4.1 1 5.8L12 16.4 6.7 19.1l1-5.8L3.5 9.2l5.9-.9z"/></svg><span>' + exT('Usar: ','Use: ') + '«' + esc(prop) + '»</span></button>') +
+    '</section>';
 
-  /* La entrada compartida por los botones de Cámara y Galería (ver exPickTk).
-     ⚠️ NO con `display:none`: un <input type=file> oculto así lo ignora el
-     Safari de iOS en algunos casos y el selector no llega a abrirse — se pulsa
-     Galería y no pasa absolutamente nada. Se deja en el árbol de render pero
-     invisible y sin tamaño, que es lo que sí respeta. */
-  h += '<input type="file" accept="image/*" id="ex-file" ' +
-       'style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;' +
-       'clip:rect(0 0 0 0);border:0;padding:0">';
-
-  h += '<div class="ex-note">El portal admite <b>5 recibos por nota</b> — llevas '+nTk+'.'+
-       (nTk>5 ? ' <b>Te pasas: harán falta 2 notas.</b>' : '')+'</div>';
-  h += exIsPro()
-    ? '<div class="ex-note">☁️ Copia en la nube activa: tus tickets están también en tu cuenta.</div>'
-    : '<div class="ex-plan">⚠️ Plan Free: las fotos se guardan <b>solo en este móvil</b>. '+
-      'Si lo pierdes o cambias de teléfono, se pierden. Con Pro se copian a tu cuenta '+
-      '(y la IA te lee el ticket y descuenta lo que no computa).</div>';
-
-  /* "Guardar", no "Cerrar": todo se guarda solo según lo tocas, pero el botón
-     de salida tiene que leerse como confirmar, no como descartar — si no, da
-     la sensación de que se pierde lo hecho. Va en cian (acción principal) y
-     "Sacar los N" baja a secundario. */
-  /* Enviar desde la hoja: es donde el piloto acaba de poner los tickets y ve
-     los importes cuadrados — el momento natural de mandarla. Mismo ciclo que
-     el botón de la tarjeta, para que no haya dos verdades sobre el estado. */
-  h += (!envioEnCurso(n) && !EX.sent[n.id]
-    ? '<div class="ex-row"><div class="ex-btn cic go" onclick="exClose();exEnviar(\''+n.id+'\')">'+
-      '✈ Enviar a Vueling</div></div>'
-    : '<div class="ex-row"><div class="ex-sent-note">'+
-      (envioDe(n) && envioDe(n).state === 'sending' ? 'Enviándose a Vueling…'
-        : (EX.paid||{})[n.id] ? 'Pagada'
-        : 'Ya está en Vueling' + (envioDe(n) && envioDe(n).number ? ' · ' + esc(envioDe(n).number) : ''))+
-      '</div></div>');
-  h += '<div class="ex-row"><div class="ex-btn" onclick="exClose()">✓ Guardar</div>'+
-       (nTk ? '<div class="ex-btn ghost" onclick="exOutAll()">↓ Sacar los '+nTk+'</div>' : '')+'</div>'+
-       /* Se queda para quien la pase a mano en el portal: ahí no molesta y es
-          la única forma de meterla en el ciclo sin enviarla desde la app. */
-       (EX.sent[n.id] ? '' :
-         '<div class="ex-row"><div class="ex-btn ghost" onclick="exMark(\''+n.id+'\');exClose()">'+
-         'La he pasado yo a mano</div></div>')+
-       /* La MISMA papelera que la tarjeta, dentro de la hoja de edición: es
-          donde el piloto está cuando decide que la nota sobra, y hasta ahora
-          era un botón de texto que no se parecía en nada al de fuera. */
-       (n.manual ? '<div class="ex-row ex-row-del">'+
-         '<button class="ex-del" title="Eliminar nota" aria-label="Eliminar nota" '+
-         'onclick="exDelNota(\''+n.id+'\')">'+iconoPapelera()+'<span>Eliminar nota</span></button></div>' : '');
-
+  h += '<input type="file" accept="image/*" id="ex-file" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0 0 0 0);border:0;padding:0">';
+  if (nTk > 5) h += '<div class="ex-note">' + exT('El portal admite <b>5 recibos por nota</b> — llevas ','The portal takes <b>5 receipts per claim</b> — you have ') + nTk + '.</div>';
+  if (!exIsPro()) h += '<div class="ex-plan">' + exT('⚠️ Plan Free: las fotos se guardan <b>solo en este móvil</b>.','⚠️ Free plan: photos are stored <b>only on this phone</b>.') + '</div>';
+  if (faltas.length && !enviada) h += '<div class="nh-falta">' + exT('Para enviarla te falta: ','To send it you still need: ') + '<b>' + faltas.join('</b> · <b>') + '</b></div>';
+  h += (!envioEnCurso(n) && !enviada
+    ? '<div class="ex-row"><div class="ex-btn cic go nh-env' + (faltas.length ? ' apag' : '') + '" onclick="exClose();exEnviar(\'' + n.id + '\')">✈ ' + exT('Enviar a Vueling','Send to Vueling') + ' · ' + eur(recl || tope) + '</div></div>'
+    : '<div class="ex-row"><div class="ex-sent-note">' +
+      (envioDe(n) && envioDe(n).state === 'sending' ? exT('Enviándose a Vueling…','Sending to Vueling…')
+        : (EX.paid||{})[n.id] ? exT('Pagada','Paid')
+        : exT('Ya está en Vueling','Already with Vueling') + (envioDe(n) && envioDe(n).number ? ' · ' + esc(envioDe(n).number) : '')) +
+      '</div></div>' + (EX.sent[n.id] || envioDe(n) ? '<div class="ex-row">' + botonCiclo(n) + '</div>' : ''));
+  h += '<div class="ex-row"><div class="ex-btn ghost" onclick="exClose()">✓ ' + exT('Guardar','Save') + '</div>' +
+       '<div class="ex-btn ghost" onclick="exMasMenu(\'' + n.id + '\')">⋯ ' + exT('Más','More') + '</div></div>';
+  /* El calco del portal: para quien la pase a mano. Plegado. */
+  h += '<button type="button" class="nh-calco-b" onclick="exNhCalco()" aria-expanded="' + !!EX.calcoAbierto + '">' + (EX.calcoAbierto ? '▾ ' : '▸ ') + exT('Ver los campos del portal, para copiarlos a mano','See the portal fields, to copy them by hand') + '</button>';
+  if (EX.calcoAbierto){
+    h += '<div class="nh-calco">' + cp('SELECT EXPENSE TYPE', n.portalType) + cp('COMMENT', com || prop);
+    n.lines.forEach(function(l, i){
+      var su = 0; tksOf(lineKey(n,i)).forEach(function(t){ su += Number(t.amount)||0; }); var cl = Math.min(su, l.cap);
+      h += '<div class="ex-grp">' + exT('LÍNEA ','LINE ') + (i+1) + '</div>' + cp('DATE *', fechaLinea(n,i).split('-').reverse().join('/')) + cp('EXPENSE TYPE', l.subtype) +
+        (n.needsISO && isoDe(n) ? cp('ISO NUMBER *', isoDe(n), 'iso') : '') + cp('REASON *', motivoDe(n)) + cp('COST *', (cl>0?cl:l.cap).toFixed(2).replace('.',','));
+    });
+    h += '</div>';
+  }
+  if (n.manual && (nTk || !enviada)) h += (nTk ? '<div class="ex-row"><div class="ex-btn ghost" onclick="exOutAll()">↓ ' + exT('Sacar los ','Export the ') + nTk + exT(' tickets',' receipts') + '</div></div>' : '') +
+    '<div class="ex-row ex-row-del"><button class="ex-del" title="' + exT('Eliminar nota','Delete note') + '" aria-label="' + exT('Eliminar nota','Delete note') + '" ' +
+    'onclick="exDelNota(\'' + n.id + '\')">' + iconoPapelera() + '<span>' + exT('Eliminar nota','Delete note') + '</span></button></div>';
+  h += '</div>';
   document.getElementById('ex-sheetbody').innerHTML = h;
 }
 function cp(k,v,cls,hint){
@@ -3199,32 +3493,108 @@ window.exPickTipo = function(){
   document.getElementById('ex-sheetbody').innerHTML = h;
   el.classList.add('on');
 };
+/* ════════ NUEVA NOTA, como el mock-up (26-nov-2026) ════════
+   Una sola hoja: el día del roster arriba (y «Cambiar» para otra fecha), las
+   comidas de TU ACTIVIDAD ya marcadas —las franjas que invade la jornada, con la
+   MISMA cuenta del motor (`buildTimeline` + `slotsInvaded`)—, Nacional /
+   Internacional según los aeropuertos del día (`dayScope`), el nº de ISO cuando
+   lo pide, y un botón que dice cuánto se puede reclamar. Antes eran ocho botones
+   franja × ámbito y cada toque creaba una nota de UNA línea. */
+var NF = null, NF_TID = '';
+// Un posicional sólo marca las franjas que el piloto pasa como pasajero o
+// esperando (las paga él); un horno o una incidencia, las de toda la jornada.
+function nfDia(fecha){
+  var dia = null; try { dia = diaDelRoster(fecha); } catch(e){}
+  var out = { hay: !!(dia && dia.legs && dia.legs.length), slots: {}, sc: null, txt: '', noche: '' };
+  if (!out.hay) return out;
+  try {
+    var segs = window.NGasto.buildTimeline(dia);
+    window.NGasto.slotsInvaded(segs).forEach(function(h){ if (h.date === fecha && (NF_TID !== 'position' || h.self)) out.slots[h.slot] = true; });
+    out.sc = window.NGasto.dayScope(dia);
+    var t0 = segs.length ? hLocal(segs[0].from, segs[0].tz) : '', t1 = segs.length ? hLocal(segs[segs.length-1].to, segs[segs.length-1].tz) : '';
+    var aps = [dia.legs[0].dep]; dia.legs.forEach(function(l){ aps.push(l.arr); });
+    var pos = dia.legs.some(function(l){ return l.positioning; });
+    out.txt = (pos ? exT('Posicional ','Positioning ') : '') + aps.map(function(c){ return String(c).replace(/\*/g,''); }).join('→') + (t0 ? ' ' + t0 + '–' + t1 : '');
+    if (dia.layover) out.noche = ciudadDe(dia.layoverCity) || dia.layoverCity || '';
+  } catch(e){}
+  return out;
+}
 window.exPickSub = function(tid){
-  var T = tipoDe(tid), hoy = new Date().toISOString().slice(0,10), opts = '';
+  NF_TID = tid;
+  var f = EX.fechaNueva || hoyISO(), T = tipoDe(tid), d = nfDia(f);
+  NF = { tid: tid, fecha: f, slots: T.meals ? d.slots : {}, sc: d.sc || 'nat', iso: '', cambiar: false, vou: 0 };
+  nfPinta();
+};
+window.exNF = function(k, v){
+  if (!NF) return;
+  if (k === 'slot') NF.slots[v] = !NF.slots[v];
+  else if (k === 'sc') NF.sc = v;
+  else if (k === 'vou') NF.vou = v;
+  else if (k === 'cambiar') NF.cambiar = !NF.cambiar;
+  else if (k === 'fecha' && v){ NF.fecha = v; NF.cambiar = false; var d = nfDia(v); if (tipoDe(NF.tid).meals) NF.slots = d.slots; if (d.sc) NF.sc = d.sc; }
+  else if (k === 'iso'){ NF.iso = v; return; }
+  nfPinta();
+};
+function nfTotal(T){
+  if (T.meals) return MEAL_SUB.filter(function(m){ return NF.slots[m.slot]; }).length * T.cap[NF.sc];
+  if (T.vouchers) return VOU_SUB[NF.vou].cap;
+  return 0;
+}
+function nfPinta(){
+  var T = tipoDe(NF.tid), d = nfDia(NF.fecha), dt = new Date(NF.fecha + 'T12:00:00Z'), tot = nfTotal(T);
+  var h = '<div class="nf-hoja" style="--c:' + T.col + '">' +
+    '<div class="nf-h"><button type="button" class="nf-back" onclick="exPickTipo()" aria-label="' + exT('Atrás','Back') + '">' +
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>' +
+      '<div><div class="nf-k">' + esc(T.lbl) + '</div><div class="nf-p">Portal: ' + esc(T.portal) + '</div></div></div>' +
+    '<div class="nf-dia"><b>' + dt.getUTCDate() + ' ' + MES[dt.getUTCMonth()] + '</b>' +
+      '<span>' + (d.hay ? esc(d.txt) + (d.noche ? ' · ' + exT('noche en ','night in ') + esc(d.noche) : '') : exT('Sin vuelos en tu roster ese día','No flights in your roster that day')) + '</span>' +
+      '<button type="button" onclick="exNF(\'cambiar\')">' + exT('Cambiar','Change') + '</button></div>' +
+    (NF.cambiar ? '<input class="ex-in nf-fecha" type="date" value="' + NF.fecha + '" onchange="exNF(\'fecha\',this.value)">' : '');
   if (T.meals){
-    opts = '<div class="ex-grp">FRANJA Y ÁMBITO</div><div class="ex-tsel">'+
-      MEAL_SUB.map(function(m){ return ['nat','int'].map(function(sc){
-        return '<div class="ex-topt" style="--c:'+T.col+'" onclick="exCrear(\''+tid+'\',\''+m[sc]+'\','+T.cap[sc]+',\''+m.slot+'\',\''+m.lbl+'\')">'+
-          '<div class="l">'+m.lbl+'<br><span>'+(sc==='nat'?'Nacional':'Internacional')+' · '+
-          T.cap[sc].toFixed(2).replace('.',',')+' €</span></div></div>'; }).join(''); }).join('')+'</div>';
+    h += '<div class="nf-g">' + exT('Comidas','Meals') + (d.hay ? ' · ' + exT('las de tu actividad vienen marcadas','the ones in your duty come ticked') : '') + '</div><div class="nf-meals">' +
+      MEAL_SUB.map(function(m){ var sl = SLOTS.filter(function(x){ return x.id === m.slot; })[0];
+        return '<button type="button" class="nf-m' + (NF.slots[m.slot] ? ' on' : '') + '" aria-pressed="' + !!NF.slots[m.slot] + '" onclick="exNF(\'slot\',\'' + m.slot + '\')">' +
+          '<b>' + (_EN ? ({breakfast:'Breakfast',lunch:'Lunch',dinner:'Dinner',night:'Snack'})[m.slot] : m.lbl) + '</b>' +
+          '<span>' + sl.lbl.replace('–','-') + ' · ' + exT('hasta ','up to ') + eur(T.cap[NF.sc]) + '</span></button>'; }).join('') + '</div>' +
+      '<div class="nf-sc" role="tablist">' +
+        '<button type="button" class="' + (NF.sc === 'nat' ? 'on' : '') + '" onclick="exNF(\'sc\',\'nat\')">' + exT('Nacional','Domestic') + '</button>' +
+        '<button type="button" class="' + (NF.sc === 'int' ? 'on' : '') + '" onclick="exNF(\'sc\',\'int\')">' + exT('Internacional','International') + '</button></div>';
   } else if (T.vouchers){
-    opts = '<div class="ex-grp">SUBTIPO DEL VOUCHER</div><div class="ex-tsel">'+
-      VOU_SUB.map(function(v){ return '<div class="ex-topt" style="--c:'+T.col+'" '+
-        'onclick="exCrear(\''+tid+'\',\''+v.s+'\','+v.cap+',null,\'Pernocta\')">'+
-        '<div class="l">'+v.s+'<br><span>'+v.cap.toFixed(2).replace('.',',')+' €</span></div></div>'; }).join('')+'</div>';
+    h += '<div class="nf-g">' + exT('Tipo de voucher','Voucher type') + '</div><div class="nf-meals">' +
+      VOU_SUB.map(function(v, i){ return '<button type="button" class="nf-m' + (NF.vou === i ? ' on' : '') + '" onclick="exNF(\'vou\',' + i + ')"><b>' + esc(v.s) + '</b><span>' + exT('hasta ','up to ') + eur(v.cap) + '</span></button>'; }).join('') + '</div>';
   } else {
-    opts = '<div class="ex-grp">SIN TOPE FIJO</div>'+
-      '<div class="ex-note" style="margin:0 0 8px">Este centro de coste no tiene tope de convenio: '+
-      'reclamas lo que sumen tus tickets.</div>'+
-      '<div class="ex-topt" style="--c:'+T.col+'" onclick="exCrear(\''+tid+'\',\''+T.lbl+'\',0,null,\''+T.lbl+'\')">'+
-      '<div class="i">'+T.ic+'</div><div class="l">Crear nota de '+T.lbl+'</div></div>';
+    h += '<p class="nf-nota">' + exT('Sin tope de convenio: reclamas lo que sumen tus tickets.','No agreed cap: you claim what your receipts add up to.') + '</p>';
   }
-  document.getElementById('ex-sheetbody').innerHTML =
-    '<div class="ex-lbl2" style="color:'+T.col+'">'+T.ic+' '+T.lbl.toUpperCase()+'</div>'+
-    '<div class="ex-sh-s">Portal: <b>'+esc(T.portal)+'</b>'+(T.iso?' · requiere nº de ISO':'')+'</div>'+
-    '<div class="ex-grp">FECHA DEL GASTO</div>'+
-    '<input class="ex-in" type="date" id="ex-mdate" value="'+hoy+'">'+ opts +
-    '<div class="ex-row"><div class="ex-btn ghost" onclick="exPickTipo()">‹ Atrás</div></div>';
+  if (T.iso) h += '<div class="nf-g">' + exT('Nº de ISO · obligatorio · puedes ponerlo después','ISO no. · required · you can add it later') + '</div>' +
+    '<input class="ex-in nf-iso" type="text" placeholder="CC-0000000" value="' + esc(NF.iso) + '" oninput="exNF(\'iso\',this.value)">';
+  var vale = !T.meals || tot > 0;
+  h += '<button type="button" class="nf-crear' + (vale ? '' : ' off') + '" onclick="exNFCrear()">' +
+    (vale ? exT('Crear nota','Create note') + (tot ? ' · ' + exT('hasta ','up to ') + eur(tot) : '') : exT('Elige al menos una comida','Pick at least one meal')) + '</button></div>';
+  document.getElementById('ex-sheetbody').innerHTML = h;
+}
+window.exNFCrear = function(salta){
+  if (!NF) return;
+  var T = tipoDe(NF.tid), f = NF.fecha, lines = [], cap = 0;
+  if (T.meals){
+    MEAL_SUB.forEach(function(m){ if (NF.slots[m.slot]){ lines.push({ date:f, subtype:m[NF.sc], cap:T.cap[NF.sc], slot:m.slot, slotLabel:m.lbl, window:null, where:null }); cap += T.cap[NF.sc]; } });
+    if (!lines.length) return;
+  } else if (T.vouchers){ var v = VOU_SUB[NF.vou]; lines.push({ date:f, subtype:v.s, cap:v.cap, slot:null, slotLabel:'Pernocta', window:null, where:null }); cap = v.cap; }
+  else lines.push({ date:f, subtype:T.lbl, cap:0, slot:null, slotLabel:T.lbl, window:null, where:null });
+  var chk = cuadraConRoster(NF.tid, f);
+  if (!chk.hay && !salta){
+    exPick({ ic:'⚠', titulo: exT('Esto no cuadra con tu roster','This does not match your roster'),
+      sub: esc(T.lbl) + ' · ' + f.split('-').reverse().join('/') + ' — ' + esc(chk.motivo) + '.<br>' + exT('Vueling cruza cada nota con el roster y rechaza sola las que no encajan.','Vueling checks every note against the roster and auto-rejects mismatches.'),
+      opciones: [ { txt: exT('Cambiar el día','Change the day'), v:'atras' }, { txt: exT('Crearla igualmente','Create it anyway'), v:'seguir', ghost:true } ],
+      onPick: function(v){ if (v === 'seguir') exNFCrear(true); else { NF.cambiar = true; nfPinta(); } } });
+    return;
+  }
+  var n = { id:'man-'+Date.now(), date:f, kind:NF.tid, manual:true, portalType:T.portal, title:T.lbl, route:'',
+    scope: NF.sc, needsISO: !!T.iso, single:false, maxTotal:cap, ticketWindow:T.win, lines:lines,
+    covered:{ catering:[], voucher:[] } };
+  var iso = String(NF.iso || '').trim().slice(0, 40); if (iso) n.iso = iso;
+  EX.manual.push(n); saveMan(); syncNota(n.id);
+  EX.mes = f.slice(0,7); EX.calMes = f.slice(0,7); NF = null; EX.fechaNueva = null;
+  exRender(); exOpen(n.id);
 };
 /* ── ¿Cuadra con el roster? ───────────────────────────────────────────────────
    La Compañía tiene un proceso que cruza cada nota con el roster y la rechaza
@@ -3719,8 +4089,37 @@ window.exSendClose = function(){
   SEND = null;
 };
 
+/* Sin comentario se PREGUNTA, no se bloquea (pedido del piloto, 26-nov-2026):
+   «¿Seguro que no quieres añadir ningún comentario?». Si dice que no, viaja el
+   texto propuesto (`comentarioDe`), como siempre. La respuesta vale para esa nota
+   en esta sesión: no se vuelve a preguntar en el mismo envío. */
+var SIN_COM_OK = {};
+function preguntaSinComent(ids, seguir){
+  var falta = ids.filter(function(id){ var n = notaDe(id); return n && !comentPropio(n) && !SIN_COM_OK[id]; });
+  if (!falta.length) return false;
+  var uno = falta.length === 1, n0 = notaDe(falta[0]);
+  exPick({
+    ic: '<svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M4 5h16v11H9l-5 4z"/><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M12 8v3.5M12 13.6v.1"/></svg>',
+    titulo: uno ? exT('¿Seguro que no quieres añadir ningún comentario?','Are you sure you don\'t want to add a comment?')
+                : exT('¿Seguro que no quieres añadir comentarios?','Are you sure you don\'t want to add comments?'),
+    sub: (uno ? exT('Es lo primero que lee quien revisa la nota en Vueling. Si no escribes nada, se enviará: ','It is the first thing the Vueling reviewer reads. If you write nothing, this will be sent: ') +
+                '<b>«' + esc(comentarioDe(n0)) + '»</b>'
+              : falta.length + exT(' notas van sin comentario. Es lo primero que lee quien las revisa en Vueling.',' notes have no comment. It is the first thing the Vueling reviewer reads.')),
+    opciones: [
+      { v:'add', txt: exT('Añadir un comentario','Add a comment'), hint: exT('te abro la nota en el comentario','opens the note at the comment'), ic:'check' },
+      { v:'send', txt: uno ? exT('Enviar sin comentario','Send without a comment') : exT('Enviarlas sin comentario','Send them without a comment'), ghost:true }
+    ],
+    onPick: function(v){
+      if (v === 'send'){ falta.forEach(function(id){ SIN_COM_OK[id] = 1; }); seguir(); return; }
+      if (v === 'add'){ exOpen(falta[0]); setTimeout(function(){ var t = document.querySelector('#ex-sheetbody .nh-com textarea');
+        if (t){ t.scrollIntoView({ block:'center' }); t.focus(); } }, 300); }
+    }
+  });
+  return true;
+}
 window.exEnviar = function(id){
   var n = notaDe(id); if (!n) return;
+  if (preguntaSinComent([id], function(){ exEnviar(id); })) return;
   var pegas = pegasDe(n);
   SEND = { id: id, motivo: motivoDe(n), paso: pegas.length ? 0 : 1, pegas: pegas };
   var el = sendEl(); drawSend(); el.classList.add('on');
@@ -3891,6 +4290,7 @@ window.exEnviarLote = function(){
       '\n\nQuítalas de la selección o arréglalas primero.');
     return;
   }
+  if (preguntaSinComent(sel.map(function(n){ return n.id; }), function(){ exEnviarLote(); })) return;
   SEND = { lote: sel.map(function(n){ return n.id; }), paso: 1 };
   var el = sendEl(); drawSendLote(); el.classList.add('on');
 };

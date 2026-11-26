@@ -30,7 +30,7 @@
      de 10 min (2–10 s, 500 ms) con 3 minutos pierden sensibilidad—. */
   var PVT_ISI = [2000, 5000], PVT_LAPSO = 355;
 
-  var ST = { tab: 'hoy', fecha: null, ay: null, doc: null, intro: null };
+  var ST = { tab: 'hoy', fecha: null, ay: null, doc: null, intro: null, sueno: false, hist: null };
   root.__fatST = ST;
 
   /* ── Datos ─────────────────────────────────────────────────────────────── */
@@ -67,6 +67,25 @@
   var NIV = { bajo: ['BAJO', 'LOW'], moderado: ['MODERADO', 'MODERATE'], alto: ['ALTO', 'HIGH'] };
   function nivTxt(n, may) { var t = NIV[n] ? L(NIV[n][0], NIV[n][1]) : '—'; return may ? t : t.charAt(0) + t.slice(1).toLowerCase(); }
 
+  /* El sueño de una jornada que aún no ha llegado es PREVISTO: decir «último
+     sueño» o esperar «medido» de una noche que no ha pasado confundía. */
+  function suenoFuturo(j) { return !!(j && j.ultimoSueno && j.ultimoSueno.fin > Date.now()); }
+  function suenoRot(j) {
+    if (j.suenoReal) return L('SUEÑO · MEDIDO', 'SLEEP · MEASURED');
+    if (suenoFuturo(j)) return L('SUEÑO PREVISTO', 'FORECAST SLEEP');
+    return L('ÚLTIMO SUEÑO', 'LAST SLEEP');
+  }
+  /* Lo que el reloj midió ANOCHE, debajo de la casilla: si Hoy enseña una
+     jornada futura, su sueño es previsto y la noche recibida no se veía en
+     ningún sitio («sigue poniendo sin medir», 31-oct-2026). */
+  function anocheTxt(j) {
+    if (j.suenoReal || !root.FatigaSueno || !root.FatigaSueno.noches) return '';
+    var fs = root.FatigaSueno.noches(root.FatigaSueno.medidos()).filter(function (f) { return f.min > 0; });
+    var u = fs.length ? fs[fs.length - 1] : null;
+    var hoyF = fechaMs(Date.now(), _rCache), ayer = fechaMs(Date.now() - DIA, _rCache);
+    if (!u || (u.fecha !== hoyF && u.fecha !== ayer)) return '<div class="fsub fanoche">' + L('Toca: tu sueño medido', 'Tap: your measured sleep') + '</div>';
+    return '<div class="fsub fanoche" data-fat-anoche><b class="t-acc">' + (u.fecha === hoyF ? L('Anoche ', 'Last night ') : L('Ayer ', 'Yesterday ')) + hm(u.min) + '</b> · ' + L('medido', 'measured') + '</div>';
+  }
   function motivos(j, r) {
     return (j.factores || []).map(function (f) {
       var h = function (m) { return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(Math.round(m % 60)).padStart(2, '0'); };
@@ -117,7 +136,7 @@
         L('Haz el briefing de esa aproximación pronto, cuando aún estás fresco.', 'Brief that approach early, while you are still fresh.')],
       sueno: [L('ESTIMADO DE TU ROSTER', 'ESTIMATED FROM YOUR ROSTER'), L('Último sueño', 'Last sleep'),
         L('Horas de sueño en tu último descanso antes de firmar, estimadas del hueco entre jornadas (hora de acostarte, de levantarte y de firma). Menos de 6 horas cuenta como sueño corto.', 'Hours of sleep in your last rest before reporting, estimated from the gap between duties (bedtime, wake-up and report time). Below 6 hours counts as short sleep.'),
-        L('Si dormiste distinto, díselo a la previsión en Check. Pronto podrás conectar tu reloj para que use tu sueño real.', 'If you slept differently, tell the forecast in Check. Soon you will be able to connect your watch so it uses your real sleep.')],
+        L('Si conectas Apple Salud (Check → Sueño de Apple Salud), las noches que tu reloj o tu iPhone midieron se usan tal cual y aquí pone «medido».', 'If you connect Apple Health (Check → Sleep from Apple Health), the nights your watch or iPhone measured are used as they are and this says «measured».')],
       despierto: [L('DESDE QUE TE LEVANTAS', 'TIME SINCE WAKING'), L('Horas despierto al aterrizar', 'Hours awake at landing'),
         L('Desde que te despiertas hasta el último aterrizaje de la jornada. A partir de 16 horas despierto, el tiempo de reacción se parece al de haber bebido.', 'From when you wake up to the last landing of the duty. After 16 hours awake, reaction time is like having had a drink.'),
         L('Una siesta antes de firmar baja esta cifra.', 'A nap before reporting cuts this number.')],
@@ -160,9 +179,6 @@
       pvt: [L('TEST DE VIGILANCIA PSICOMOTORA', 'PSYCHOMOTOR VIGILANCE TEST'), L('El test de reflejos', 'The reaction test'),
         L('Durante 3 minutos se enciende una luz en momentos al azar y tocas lo más rápido que puedas. La mediana es tu tiempo típico; tu base, tu mediana habitual (tras 3 tests). Los lapsos son reacciones de 355 ms o más: pequeñas ausencias. Es el test PVT-B, la versión validada de 3 minutos.', 'For 3 minutes a light comes on at random moments and you tap as fast as you can. The median is your typical time; your baseline, your usual median (after 3 tests). Lapses are reactions of 355 ms or more: tiny absences. It is the PVT-B, the validated 3-minute version.'),
         L('Si vas bastante más lento que tu base o tienes 3 lapsos o más, es una señal de fatiga.', 'If you are much slower than your baseline or have 3 or more lapses, that is a sign of fatigue.')],
-      relojMu: [L('PRÓXIMAMENTE', 'COMING SOON'), L('El sueño de tu reloj', 'Sleep from your watch'),
-        L('Podrás conectar Apple Salud o Google Fit para que PilotOS lea tu sueño real en vez de estimarlo del roster.', 'You will be able to connect Apple Health or Google Fit so PilotOS reads your real sleep instead of estimating it from the roster.'),
-        L('Los datos se quedarán en tu dispositivo.', 'The data will stay on your device.')],
       plan: [L('TU PLAN', 'YOUR PLAN'), L('Qué hacer para llegar más despierto', 'What to do to arrive more alert'),
         L('Son medidas para la jornada elegida, con su hora. Las marcadas «Calculado» son sueño —una siesta antes de firmar o un descanso controlado en cabina— y el mismo modelo calcula cuánto sube tu vigilia en el aterrizaje si lo haces. Las marcadas «Recomendación» (cafeína, luz, moverse, comer) no están en el modelo: se dan con su fuente y sin inventar un número.', 'These are measures for the chosen duty, with their time. Those marked «Calculated» are sleep —a nap before reporting or controlled rest in the cockpit— and the same model works out how much your alertness at landing goes up if you do it. Those marked «Guidance» (caffeine, light, moving, eating) are not in the model: they come with their source and without an invented number.'),
         L('El plan no cambia tus límites ni tu deber de reportar: te ayuda a llegar mejor.', 'The plan does not change your limits or your duty to report: it helps you arrive in better shape.')],
@@ -178,22 +194,35 @@
 
   /* ── Piezas ────────────────────────────────────────────────────────────── */
   function Q(k) { return '<button type="button" class="fq" aria-label="' + esc(L('¿Qué es esto?', 'What is this?')) + '" onclick="fatAyuda(\'' + k + '\')"><span>?</span></button>'; }
-  var ICO = {
-    wocl: '<path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z"/>',
-    reloj: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
-    despierto: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
-    deuda: '<path d="M4 18h16"/><path d="M6 18V9h3v9M11 18V6h3v12M16 18v-5h3v5"/>',
-    sueno: '<path d="M3 12h4l2-3 3 6 2-3h7"/>',
-    firma: '<path d="M4 18h16"/><path d="M7 14a5 5 0 0110 0"/><path d="M12 4v3M5 7l2 2M19 7l-2 2"/>',
-    sectores: '<path d="M2 16h20"/><path d="M4 16l3-6 5 1 8-4"/>',
-    avion: '<path d="M2 16h20"/><path d="M4 16l3-6 5 1 8-4"/><path d="M14 7l2 4"/>'
-  };
-  function ico(k, cls) { return '<svg class="fic ' + (cls || '') + '" viewBox="0 0 24 24" aria-hidden="true">' + (ICO[k] || ICO.reloj) + '</svg>'; }
+  /* Los iconos son «gemas»: el dibujo en blanco sobre su degradado
+     (public/fatiga/iconos.js). El segundo argumento era un color de trazo y ya
+     no hace falta: cada icono lleva el suyo. */
+  var ICO_ALIAS = { reloj: 'sueno' };
+  var FI = root.FatigaIconos;
+  function ico(k, cls) { return root.FatigaIconos ? root.FatigaIconos.gema(ICO_ALIAS[k] || k) : ''; }
 
+  /* Plan Free (31-oct-2026): el nivel del día y del próximo servicio, con su
+     Check antes de firmar (es seguridad: no se cobra). Pro: el Plan, el Reloj,
+     la Semana y cualquier otro día del roster. El motor calcula igual; aquí sólo
+     se decide qué se enseña. Sin isPro (bancos sueltos) = todo abierto. */
+  var TAB_PRO = { plan: 1, reloj: 1, semana: 1 };
+  function pro() { try { return typeof root.isPro === 'function' ? !!root.isPro() : true; } catch (e) { return true; } }
+  function diaFree(j, r) {
+    var ahora = Date.now();
+    return r.lista.filter(function (x) { return x.fin >= ahora; }).slice(0, 2).indexOf(j) >= 0;
+  }
+  function vistaPro(que) {
+    var t = que === 'dia'
+      ? L('En Free ves la fatiga de hoy y de tu próximo servicio. Con Pro, la de cualquier día de tu roster.', 'On Free you see the fatigue for today and your next duty. With Pro, any day in your roster.')
+      : L('El Plan del día, el Reloj de 24 h y tu Semana son de Pro: qué hacer para llegar más despierto, cuándo dormir y cómo se acumula el cansancio.', 'The day Plan, the 24 h Clock and your Week are Pro: what to do to arrive more alert, when to sleep and how tiredness builds up.');
+    return '<div class="fcard fvacio"><div class="ftit2">🔒 ' + L('Disponible en Pro', 'Available on Pro') + '</div><p class="fsub2">' + t + '</p>' +
+      '<button type="button" class="fbtnp" onclick="goTo(\'upgrade\')">' + L('Ver planes', 'See plans') + '</button></div>';
+  }
   function tabs() {
     var T = [['hoy', L('Hoy', 'Today')], ['plan', 'Plan'], ['reloj', L('Reloj', 'Clock')], ['semana', L('Semana', 'Week')], ['check', 'Check']];
+    var libre = pro();
     return '<div class="ftabs" role="tablist">' + T.map(function (t) {
-      return '<button type="button" role="tab" aria-selected="' + (ST.tab === t[0]) + '" class="' + (ST.tab === t[0] ? 'on' : '') + '" onclick="fatTab(\'' + t[0] + '\')">' + esc(t[1]) + '</button>';
+      return '<button type="button" role="tab" aria-selected="' + (ST.tab === t[0]) + '" class="' + (ST.tab === t[0] ? 'on' : '') + '" onclick="fatTab(\'' + t[0] + '\')">' + (!libre && TAB_PRO[t[0]] ? '<span style="white-space:nowrap">' + esc(t[1]) + '<span aria-label="Pro" style="font-size:9px;vertical-align:super;margin-left:1px">🔒</span></span>' : esc(t[1])) + '</button>';
     }).join('') + '</div>';
   }
   function cabecera(j, r) {
@@ -243,12 +272,14 @@
       '<div class="fgrow"><div class="flab">' + L('MOMENTO MÁS CRÍTICO', 'MOST CRITICAL MOMENT') + Q('critico') + '</div><div class="ftit">' + donde + '</div></div>' +
       '<div class="fright"><div class="fmono">' + hhmm(p.ms || j.fin, r) + '</div><div class="fsub">' + L('hora de tu base', 'base time') + '</div></div></div>';
     var bars = [
-      ['sueno', L('ÚLTIMO SUEÑO', 'LAST SLEEP'), hm(j.sueno), Math.min(1, j.sueno / 480), j.sueno < 360 ? 'b-amb' : 'b-teal'],
+      ['sueno', suenoRot(j), hm(j.sueno), Math.min(1, j.sueno / 480), j.sueno < 360 ? 'b-amb' : 'b-teal'],
       ['despierto', L('DESPIERTO', 'AWAKE'), hm(j.despierto), Math.min(1, j.despierto / (18 * 60)), j.despierto >= 960 ? 'b-red' : (j.despierto >= 780 ? 'b-amb' : 'b-teal')],
       ['deuda', L('DEUDA 3 DÍAS', '3-DAY DEBT'), hm(j.deuda), Math.min(1, j.deuda / 600), j.deuda >= 360 ? 'b-red' : (j.deuda >= 240 ? 'b-amb' : 'b-teal')]
     ];
     h += '<div class="fgrid3">' + bars.map(function (b) {
-      return '<div class="fcard fstat"><div class="flab fsp">' + b[1] + Q(b[0]) + '</div><div class="fmono fbig">' + b[2] + '</div><div class="fbar"><i class="' + b[4] + '" style="width:' + Math.round(b[3] * 100) + '%"></i></div></div>';
+      /* La casilla del sueño abre la gráfica de lo recibido de Apple Salud. */
+      var abre = b[0] === 'sueno' ? ' fstat-btn" role="button" tabindex="0" data-fsuh-abre onclick="if(!event.target.closest(\'.fq\'))fatSuenoHist(true)" onkeydown="if(event.key===\'Enter\')fatSuenoHist(true)' : '';
+      return '<div class="fcard fstat' + abre + '"><div class="flab fsp">' + b[1] + Q(b[0]) + '</div><div class="fmono fbig">' + b[2] + '</div><div class="fbar"><i class="' + b[4] + '" style="width:' + Math.round(b[3] * 100) + '%"></i></div>' + (b[0] === 'sueno' ? anocheTxt(j) : '') + '</div>';
     }).join('') + '</div>';
     var ms = motivos(j, r);
     h += '<div class="fcard flist">' + (ms.length ? ms.map(function (m) {
@@ -270,18 +301,8 @@
   }
 
   /* ── PLAN: qué hacer para llegar más despierto (public/fatiga/plan.js) ─── */
-  var PI = {
-    siesta: '<path d="M3 18v-6h18v6M3 15h18M6 12V9h5v3"/><path d="M15 4h4l-4 4h4"/>',
-    descanso: '<path d="M7 20v-7a2 2 0 012-2h6a2 2 0 012 2v7M5 20h14M9 11V6a3 3 0 016 0v5"/><path d="M18 3.5a2.5 2.5 0 01-3 3"/>',
-    cafeina: '<path d="M4 9h12v5a5 5 0 01-5 5H9a5 5 0 01-5-5z"/><path d="M16 11h1.5a2.5 2.5 0 010 5H16M8 3c0 1.5 1.5 1.5 1.5 3M12 3c0 1.5 1.5 1.5 1.5 3"/>',
-    moverse: '<circle cx="13" cy="4.5" r="1.8"/><path d="M10 21l2-6 3 3v3M12 15l-1-5 4 1 2 3M11 10l-3 2v3"/>',
-    luz: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
-    comida: '<path d="M12 3c3 4 5 7 5 10a5 5 0 01-10 0c0-3 2-6 5-10z"/><path d="M10 14a2 2 0 002 2"/>',
-    recupera: '<path d="M3 11l9-7 9 7v9H3z"/><path d="M15.5 13a3.5 3.5 0 11-3-3.4 2.6 2.6 0 003 3.4z"/>',
-    decirlo: '<path d="M4 5h16v10H9l-5 4z"/><path d="M12 8v3M12 13h.01"/>'
-  };
   var PC = { siesta: 'acc', descanso: 'acc', cafeina: 'amb', moverse: 'blue', luz: 'sun', comida: 'teal', recupera: 'vio', decirlo: 'red' };
-  function pico(k) { return '<svg class="fic" viewBox="0 0 24 24" aria-hidden="true">' + (PI[k] || PI.luz) + '</svg>'; }
+  function pico(k) { return ico(k); }
   function planDe(j, r) {
     try { return root.FatigaPlan ? root.FatigaPlan.calcula(j, r, function (ms) { return off(ms, r); }) : []; } catch (e) { return []; }
   }
@@ -397,7 +418,7 @@
     var pins = ms.filter(function (m) { return m.ini && m.k !== 'recupera'; }).map(function (m) {
       var x = TX(m.ini), w2 = m.fin ? Math.max(4, TX(m.fin) - x) : 0;
       return (w2 ? '<rect x="' + x.toFixed(1) + '" y="12" width="' + w2.toFixed(1) + '" height="90" rx="4" class="fpl-band c-' + PC[m.k] + '"/>' : '') +
-        '<g class="fpl-pin c-' + PC[m.k] + '" transform="translate(' + (x + w2 / 2 - 9).toFixed(1) + ' 0)"><circle cx="9" cy="9" r="9"/><g transform="translate(3.6 3.6) scale(.45)">' + PI[m.k] + '</g></g>';
+        '<g class="fpl-pin" transform="translate(' + (x + w2 / 2 - 9).toFixed(1) + ' 0)"><circle cx="9" cy="9" r="9" style="fill:' + ((FI && FI.G[m.k]) || ['#047857'])[0] + '"/><path fill-rule="evenodd" transform="translate(2.4 2.4) scale(.55)" d="' + ((FI && FI.D[m.k]) || '') + '"/></g>';
     }).join('');
     var pk = j.peor ? '<circle cx="' + TX(j.peor.ms).toFixed(1) + '" cy="' + TY(j.A).toFixed(1) + '" r="5" class="f-red"/>' : '';
     h += '<div class="fcard fplan-tl"><div class="fsp"><div class="flab">' + L('TU DÍA', 'YOUR DAY') + '</div><div class="fleg-mini"><span><i class="k-dash"></i>' + L('sin plan', 'no plan') + '</span>' + (conP ? '<span><i class="k-acc"></i>' + L('con plan', 'with plan') + '</span>' : '') + '</div></div>' +
@@ -551,7 +572,7 @@
       var z = n <= 4 ? 'bajo' : (n <= 6 ? 'moderado' : 'alto');
       kb += '<button type="button" class="fk k-' + z + (k === n ? ' on' : '') + '" aria-pressed="' + (k === n) + '" aria-label="' + esc(n + ', ' + L(KL[n - 1][0], KL[n - 1][1])) + '" onclick="fatKss(' + n + ')">' + n + '</button>';
     }
-    var h = '<div class="fcard"><div class="fsp"><div class="ftit2">' + L('¿Cómo de despierto estás?', 'How alert are you?') + '</div><div class="flab">' + L('escala KSS', 'KSS scale') + Q('kssMia') + '</div></div>' +
+    var h = '<div class="fcard"><div class="fsp"><div class="fck-h">' + ico('kss') + '<div class="ftit2">' + L('¿Cómo de despierto estás?', 'How alert are you?') + '</div></div><div class="flab">' + L('escala KSS', 'KSS scale') + Q('kssMia') + '</div></div>' +
       '<div class="fkss">' + kb + '</div>' +
       '<div class="fsp fsub"><span>' + L('Muy despierto', 'Very alert') + '</span><b class="t-' + (k ? (k <= 4 ? 'bajo' : k <= 6 ? 'moderado' : 'alto') : 'mut') + '">' + (k ? k + ' · ' + esc(L(KL[k - 1][0], KL[k - 1][1])) : L('Toca un número', 'Tap a number')) + '</b><span>' + L('Luchando', 'Fighting it') + '</span></div></div>';
     // PVT
@@ -563,12 +584,13 @@
         pv.rt.map(function (t, i) { var hgt = Math.min(60, t / 10); return '<rect x="' + (i * w + 1).toFixed(1) + '" y="' + (62 - hgt).toFixed(1) + '" width="' + Math.max(2, w - 2).toFixed(1) + '" height="' + hgt.toFixed(1) + '" rx="2" class="' + (t >= PVT_LAPSO ? 'f-red' : 'f-acc') + '"/>'; }).join('') +
         '<line x1="0" x2="326" y1="62" y2="62" class="s-grid"/></svg>';
     }
-    h += '<div class="fcard" id="fat-pvt"><div class="fsp"><div><div class="ftit2">' + L('Test de reflejos · 3 min', 'Reaction test · 3 min') + Q('pvt') + '</div><div class="fsub">' + L('Toca en cuanto se encienda la luz', 'Tap as soon as the light comes on') + '</div></div><i class="fluz"></i></div>' +
+    h += '<div class="fcard" id="fat-pvt"><div class="fsp"><div class="fck-h">' + ico('pvt') + '<div><div class="ftit2">' + L('Test de reflejos · 3 min', 'Reaction test · 3 min') + Q('pvt') + '</div><div class="fsub">' + L('Toca en cuanto se encienda la luz', 'Tap as soon as the light comes on') + '</div></div></div><i class="fluz"></i></div>' +
       (barras || '<div class="fsub2">' + L('Aún no has hecho el test de esta jornada.', 'You have not done the test for this duty yet.') + '</div>') +
       (pv ? '<div class="fgrid3 fpvt-n"><div><div class="flab">' + L('MEDIANA', 'MEDIAN') + '</div><div class="fmono">' + pv.med + ' ms</div></div><div><div class="flab">' + L('TU BASE', 'YOUR BASELINE') + '</div><div class="fmono t-teal">' + (b ? b + ' ms' : '—') + '</div></div><div><div class="flab">' + L('LAPSOS', 'LAPSES') + '</div><div class="fmono ' + (pv.lap >= 3 ? 't-red' : '') + '">' + pv.lap + '</div></div></div>' : '') +
       (b ? '' : '<div class="fsub2">' + L('Tu base sale después de 3 tests. Hazlos un día descansado.', 'Your baseline appears after 3 tests. Do them on a rested day.') + '</div>') +
       '<button type="button" class="fbtnp" onclick="fatPvt()">' + (pv ? L('Repetir el test', 'Repeat the test') : L('Empezar el test', 'Start the test')) + '</button></div>';
-    h += '<div class="fcard frw">' + ico('sueno', 'c-blue') + '<div class="fgrow"><div class="ftit2">' + L('Sueño de tu reloj', 'Sleep from your watch') + '</div><div class="fsub">' + L('Apple Salud · Google Fit — próximamente', 'Apple Health · Google Fit — coming soon') + '</div></div>' + Q('relojMu') + '</div>';
+    var es = root.FatigaSueno ? root.FatigaSueno.estado() : null;
+    h += '<button type="button" class="fcard frw fsu-card" data-fat-sueno onclick="fatSueno(true)">' + ico('salud') + '<div class="fgrow"><div class="ftit2">' + L('Sueño de Apple Salud', 'Sleep from Apple Health') + '</div><div class="fsub">' + esc(es ? es.t : L('Sin conectar', 'Not connected')) + '</div></div><svg class="fsu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>';
     // Veredicto
     var malPvt = pv && (pv.lap >= 3 || (b && pv.med - b > 40));
     var tuAlto = (k && k >= 7) || malPvt;
@@ -663,6 +685,7 @@
      (public/fatiga/perfil.js). Sale UNA vez por piloto al entrar en Fatiga, y
      después desde «Tus datos de sueño». Viene marcado con lo que el modelo
      supone hoy: quien no toca nada calcula igual que antes, y lo dice. */
+  var IQ_ICO = { coche: 'coche', hotel: 'avion', acostar: 'sueno', levantar: 'firma', sdw: 'siesta' };
   var IQ = [
     { k: 'coche', t: ['¿Cuánto tardas de casa a tu base?', 'How long from home to your base?'] },
     { k: 'prep', t: ['¿Y en arreglarte y salir de casa?', 'And to get ready and leave home?'] },
@@ -729,7 +752,7 @@
     var FP = root.FatigaPerfil; if (!FP || !ST.intro) return '';
     var r = ST.intro.r;
     var qs = IQ.map(function (q) {
-      return '<div class="fiq" role="group" aria-label="' + esc(L(q.t[0], q.t[1])) + '"><div class="fiq-t">' + esc(L(q.t[0], q.t[1])) + '</div><div class="fiq-o' + (q.k === 'crono' ? ' fiq-3' : '') + '">' +
+      return '<div class="fiq" role="group" aria-label="' + esc(L(q.t[0], q.t[1])) + '"><div class="fiq-t">' + (IQ_ICO[q.k] ? ico(IQ_ICO[q.k]) : '') + '<span>' + esc(L(q.t[0], q.t[1])) + '</span></div><div class="fiq-o' + (q.k === 'crono' ? ' fiq-3' : '') + '">' +
         (q.k === 'coche' && FP.OPC.coche.indexOf(r.coche) < 0 ? FP.OPC.coche.concat([r.coche]).sort(function (a, b) { return a - b; }) : FP.OPC[q.k]).map(function (v) {
           var on = r[q.k] === v, def = FP.DEF[q.k] === v;
           return '<button type="button" class="' + (on ? 'on' : '') + '" aria-pressed="' + on + '" data-k="' + q.k + '" data-v="' + v + '" onclick="fatIntroSel(\'' + q.k + '\',\'' + v + '\')">' + esc(opcTxt(q.k, v)) + (def ? '<i>' + L('habitual', 'typical') + '</i>' : q.k === 'coche' && FP.OPC.coche.indexOf(v) < 0 ? '<i>' + L('medido', 'measured') + '</i>' : '') + '</button>';
@@ -747,7 +770,7 @@
       '</div></div>';
   }
   function datosBtn() {
-    return '<button type="button" class="fdocb" data-fat-datos onclick="fatIntro()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.5A8 8 0 1 1 8.5 4 6.5 6.5 0 0 0 20 15.5z"/></svg>' +
+    return '<button type="button" class="fdocb" data-fat-datos onclick="fatIntro()">' + ico('datos') +
       '<span>' + L('Tus datos de sueño', 'Your sleep details') + '</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>';
   }
   root.fatIntro = function (primera) {
@@ -780,7 +803,7 @@
      En castellano y en inglés, con su propio conmutador: se lee en el idioma
      que se elija, sea cual sea el de la app. */
   function docBtn() {
-    return '<button type="button" class="fdocb" onclick="fatDoc(\'' + (en() ? 'en' : 'es') + '\')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/></svg>' +
+    return '<button type="button" class="fdocb" onclick="fatDoc(\'' + (en() ? 'en' : 'es') + '\')">' + ico('doc') +
       '<span>' + L('Cómo funciona y cómo se calcula', 'How it works and how it is calculated') + '</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>';
   }
   function doc() {
@@ -815,14 +838,14 @@
   function pintaHoja() {
     var h = document.getElementById('fat-hoja');
     if (!h) { h = document.createElement('div'); h.id = 'fat-hoja'; h.setAttribute('translate', 'no'); document.body.appendChild(h); }
-    h.innerHTML = ST.doc ? doc() : ST.intro ? intro() : hoja();
+    h.innerHTML = ST.doc ? doc() : ST.intro ? intro() : (ST.sueno && root.FatigaSueno) ? root.FatigaSueno.hoja() : (ST.hist && root.FatigaSueno) ? root.FatigaSueno.grafica(ST.hist) : hoja();
   }
   try {
     var _scrObs = function () {
       var s = document.getElementById('scr-fatigue');
       if (!s || !root.MutationObserver) return;
       new MutationObserver(function () {
-        if (!s.classList.contains('active') && (ST.ay || ST.doc || ST.intro)) { ST.ay = null; ST.doc = null; ST.intro = null; pintaHoja(); }
+        if (!s.classList.contains('active') && (ST.ay || ST.doc || ST.intro || ST.sueno || ST.hist)) { ST.ay = null; ST.doc = null; ST.intro = null; ST.sueno = false; ST.hist = null; pintaHoja(); }
         else if (s.classList.contains('active') && !ST.intro && root.FatigaPerfil && root.FatigaPerfil.toca()) root.fatIntro(true);
       }).observe(s, { attributes: true, attributeFilter: ['class'] });
     };
@@ -833,6 +856,7 @@
   function render() {
     var body = document.getElementById('fat-body'); if (!body) return;
     css();
+    try { if (root.FatigaSueno) root.FatigaSueno.sincroniza(false); } catch (e) {}
     var scr = document.getElementById('scr-fatigue');
     var r = res(); _rCache = r;
     var j = sel(r);
@@ -844,7 +868,8 @@
       return;
     }
     if (scr) scr.setAttribute('data-nivel', j.nivel);
-    var v = ST.tab === 'plan' ? vistaPlan(j, r) : ST.tab === 'reloj' ? vistaReloj(j, r) : ST.tab === 'semana' ? vistaSemana(j, r) : ST.tab === 'check' ? vistaCheck(j, r) : vistaHoy(j, r);
+    var esPro = pro();
+    var v = !esPro && !diaFree(j, r) ? vistaPro('dia') : !esPro && TAB_PRO[ST.tab] ? vistaPro('tab') : ST.tab === 'plan' ? vistaPlan(j, r) : ST.tab === 'reloj' ? vistaReloj(j, r) : ST.tab === 'semana' ? vistaSemana(j, r) : ST.tab === 'check' ? vistaCheck(j, r) : vistaHoy(j, r);
     body.innerHTML = cabecera(j, r) + tabs() + '<div class="fview">' + v + '</div>' + propuestaCoche() + datosBtn() + docBtn();
     introSiToca();
   }
@@ -855,6 +880,22 @@
     if (!ST.intro && root.FatigaPerfil && s && s.classList.contains('active') && root.FatigaPerfil.toca()) { root.fatIntro(true); return; }
     pintaHoja();
   }
+  /* La hoja del sueño de Apple Salud (sueno.js). Al cerrarla se repinta la
+     pantalla: lo recibido puede haber cambiado el nivel. */
+  root.fatSueno = function (abre) {
+    ST.sueno = !!abre; if (abre) { ST.ay = null; ST.doc = null; ST.hist = null; }
+    if (abre) pintaHoja(); else render();
+  };
+  /* La gráfica del sueño recibido. Al abrirla se pregunta al servidor: puede
+     haber llegado algo desde la última vez. */
+  root.fatSuenoHist = function (abre) {
+    if (abre) {
+      var r = res(), j = sel(r);
+      ST.hist = { prevista: j && suenoFuturo(j) ? nombreDia(j.fecha) : null };
+      ST.ay = null; ST.doc = null; ST.sueno = false; pintaHoja();
+      try { if (root.FatigaSueno) root.FatigaSueno.sincroniza(true).then(function () { if (ST.hist) pintaHoja(); }); } catch (e) {}
+    } else { ST.hist = null; render(); }
+  };
   root.fatTab = function (t) { if (PV) pvtAcaba(false); ST.tab = t; render(); };
   root.fatAyuda = function (k) { ST.ay = k; ST.doc = null; pintaHoja(); };
   root.fatVe = function (f, tab) { if (PV) pvtAcaba(false); ST.fecha = f; if (tab) ST.tab = tab; render(); };
@@ -890,8 +931,10 @@
   }
   root.fatigaHome = actualizaHome;
 
-  root.FatigaUI = { render: render, ayuda: AY, _st: ST, home: actualizaHome };
+  root.FatigaUI = { render: render, ayuda: AY, _st: ST, home: actualizaHome, pintaHoja: pintaHoja };
   try { root.addEventListener('pilotos-fatiga-perfil', function () { try { actualizaHome(); } catch (e) {} }); } catch (e) {}
+  // El sueño de Apple Salud entra en el cálculo: al llegar, se repinta.
+  try { root.addEventListener('pilotos-fatiga-sueno', function () { var s = document.getElementById('scr-fatigue'); if (s && s.classList.contains('active') && !ST.sueno && !ST.hist) render(); else if (ST.sueno || ST.hist) pintaHoja(); try { actualizaHome(); } catch (e) {} }); } catch (e) {}
   try { root.addEventListener('pilotos-roster-updated', function () { var s = document.getElementById('scr-fatigue'); if (s && s.classList.contains('active')) render(); actualizaHome(); }); } catch (e) {}
   // El Home se pinta antes que el roster: se repite cuando ya está cargado.
   try {

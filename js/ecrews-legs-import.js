@@ -796,7 +796,11 @@
     // Nombre propio para la casilla de tripulación: manda el que el piloto ya tenga
     // guardado para ESE rol; si no hay, el apellido que da la ficha de eCrews.
     var yo = '';
-    try { yo = lsGet(rol === 'CPT' ? 'pilotOS_myname_cpt' : 'pilotOS_myname_fo', '') || ''; } catch (e) {}
+    // El NOMBRE DE CHEQUEO del perfil manda: es el que el piloto rellena una vez y el
+    // que usa ya la importación desde el roster. Antes aquí sólo se miraba lo aprendido
+    // en localStorage, así que con el perfil relleno se seguía teniendo que teclear.
+    try { if (typeof window.ldMiNombreChequeo === 'function') yo = window.ldMiNombreChequeo(rol) || ''; } catch (e) {}
+    try { if (!yo) yo = lsGet(rol === 'CPT' ? 'pilotOS_myname_cpt' : 'pilotOS_myname_fo', '') || ''; } catch (e) {}
     if (!yo) yo = NOMBRE || '';
     // Y si vino de eCrews y no había nada guardado, se guarda: la próxima vez lo tiene
     // el resto de la app (alta manual, export EASA, estadísticas de tripulación).
@@ -832,6 +836,8 @@
         std: '', sta: '',
         block: l.block || '',
         acType: av.acType, engine: av.engine, reg: l.reg || '',
+        // Vuelo de línea → IFR. Sin esto la tarjeta y la ficha lo enseñaban vacío.
+        rules: 'IFR',
         role: rol,
         // El piloto se anota A SÍ MISMO en la casilla que le toca: cm1 es el comandante
         // y cm2 el copiloto. Al compañero no lo sabemos (eCrews no publica tripulación),

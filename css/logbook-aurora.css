@@ -1,0 +1,349 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   LOGBOOK · «AURORA» — piel del formulario de vuelo de la compañía.
+   Lo que se pinta aquí lo monta public/js/logbook-aurora.js.
+
+   · Lo de la compañía va colgado de `.ldm-aur:not(.otro-cream)`; «Otro tipo»
+     tiene su bloque al final (`.ldm-aur.otro-cream`).
+   · Dos paletas por VARIABLES (--la-*): noche y `html.day`. Los colores de las
+     piezas nuevas salen sólo de ahí.
+   · El fondo (las manchas de aurora) es el FONDO de la hoja, que no rueda: lo que
+     rueda es .ldm-body por encima. Sin animación.
+   · NADA de backdrop-filter ni animaciones infinitas (18-nov-2026): con siete
+     tarjetas desenfocando el fondo, el formulario iba a la MITAD de fotogramas
+     al rodar y en el iPhone llegó a colgarse. El fondo es fijo, así que el
+     desenfoque no se veía: el cristal es un tinte translúcido y punto.
+   · Va cargado DESPUÉS de los estilos del formulario y con un id delante: pisa
+     las reglas `html.day .ldm-card{…}` de index.html sin tocarlas.
+   ═══════════════════════════════════════════════════════════════════════════ */
+#ld_modal .ldm-sheet.ldm-aur{
+  --la-tx:#F8FAFC; --la-sub:#A9B4D0; --la-acc:#22D3EE; --la-acc2:#A78BFA; --la-amb:#FBBF24; --la-ok:#34D399;
+  --la-glass:rgba(20,28,62,.62); --la-bd:rgba(255,255,255,.13); --la-hi:rgba(255,255,255,.10); --la-sh:rgba(0,0,0,.34);
+  --la-chip:rgba(255,255,255,.07); --la-chipbd:rgba(255,255,255,.14); --la-trk:rgba(255,255,255,.09);
+  --la-accbg:rgba(34,211,238,.14); --la-acc2bg:rgba(167,139,250,.20); --la-ambbg:rgba(251,191,36,.12); --la-okbg:rgba(52,211,153,.14);
+  --la-fus:#F1F5F9; --la-fus2:#C7CEE6; --la-segon:#fff;
+}
+html.day #ld_modal .ldm-sheet.ldm-aur{
+  --la-tx:#0B1020; --la-sub:#3E4C66; --la-acc:#0E7490; --la-acc2:#6D28D9; --la-amb:#B45309; --la-ok:#047857;
+  --la-glass:rgba(255,255,255,.72); --la-bd:rgba(255,255,255,.88); --la-hi:rgba(255,255,255,.95); --la-sh:rgba(14,60,100,.14);
+  --la-chip:rgba(11,16,32,.05); --la-chipbd:rgba(11,16,32,.10); --la-trk:rgba(11,16,32,.09);
+  --la-accbg:rgba(14,116,144,.12); --la-acc2bg:rgba(109,40,217,.13); --la-ambbg:rgba(180,83,9,.09); --la-okbg:rgba(4,120,87,.10);
+  --la-fus:#FFFFFF; --la-fus2:#B9C3DB;
+}
+
+/* ── Fondo: aurora ─────────────────────────────────────────────────────── */
+#ld_modal .ldm-sheet.ldm-aur:not(.otro-cream){
+  background:
+    radial-gradient(circle 230px at 2% 3%, rgba(34,211,238,.30), transparent 70%),
+    radial-gradient(circle 250px at 104% 20%, rgba(124,58,237,.44), transparent 70%),
+    radial-gradient(circle 290px at -6% 56%, rgba(49,46,129,.72), transparent 70%),
+    radial-gradient(circle 260px at 106% 80%, rgba(236,72,153,.20), transparent 70%),
+    radial-gradient(circle 240px at 30% 108%, rgba(34,211,238,.22), transparent 70%),
+    #070B18 !important;
+  border-top:1px solid rgba(167,139,250,.38) !important;
+}
+html.day #ld_modal .ldm-sheet.ldm-aur:not(.otro-cream){
+  background:
+    radial-gradient(circle 230px at 2% 3%, rgba(34,211,238,.42), transparent 70%),
+    radial-gradient(circle 250px at 104% 20%, rgba(167,139,250,.42), transparent 70%),
+    radial-gradient(circle 290px at -6% 56%, rgba(255,255,255,.80), transparent 70%),
+    radial-gradient(circle 260px at 106% 80%, rgba(251,191,36,.26), transparent 70%),
+    radial-gradient(circle 240px at 30% 108%, rgba(34,211,238,.30), transparent 70%),
+    linear-gradient(180deg,#9FD3EE 0%,#CDEBF8 40%,#EEF8FD 100%) !important;
+  border-top:1px solid rgba(255,255,255,.9) !important;
+}
+#ld_modal .ldm-aur:not(.otro-cream) .ldm-body,
+#ld_modal .ldm-aur:not(.otro-cream) .ldm-hdr{background:transparent !important}
+#ld_modal .ldm-aur:not(.otro-cream) .ldm-hdr{border-bottom:1px solid var(--la-chipbd) !important}
+#ld_modal .ldm-aur:not(.otro-cream) .ldm-title{color:var(--la-tx) !important}
+#ld_modal .ldm-aur:not(.otro-cream) .ldm-sub{color:var(--la-acc) !important}
+
+/* ── Tarjetas de cristal ───────────────────────────────────────────────── */
+#ld_modal .ldm-aur:not(.otro-cream) .ldm-card{
+  background:var(--la-glass) !important;
+  border:1px solid var(--la-bd) !important;
+  border-radius:24px !important;
+  box-shadow:0 8px 20px var(--la-sh), inset 0 1px 0 var(--la-hi) !important;
+}
+#ld_modal .ldm-aur:not(.otro-cream) .ldm-card::before{background:linear-gradient(90deg,transparent,var(--la-hi),transparent) !important}
+
+/* La tarjeta de embarque de la ruta: el degradado de la marca (cian → violeta).
+   Las muescas laterales se pintaban del color del fondo LISO de antes; sobre la
+   aurora quedarían dos parches, así que se quitan. */
+#ld_modal .ldm-aur:not(.otro-cream) .ldm-route-hero.ldm-bp{
+  background:linear-gradient(118deg,#0E7490 0%,#0369A1 45%,#6D28D9 115%) !important;
+  box-shadow:0 8px 20px rgba(109,40,217,.28) !important;
+}
+#ld_modal .ldm-aur:not(.otro-cream) .ldm-bp::before,
+#ld_modal .ldm-aur:not(.otro-cream) .ldm-bp::after{display:none !important}
+
+/* ── Pie: el botón de guardar con el degradado ─────────────────────────── */
+#ld_modal .ldm-aur:not(.otro-cream) .ldm-ftr{
+  background:var(--la-glass) !important; border-top:1px solid var(--la-bd) !important;
+}
+#ld_modal .ldm-aur:not(.otro-cream) .ldm-btn-cancel{
+  background:var(--la-chip) !important; color:var(--la-tx) !important; border:1px solid var(--la-chipbd) !important;
+}
+#ld_modal .ldm-aur:not(.otro-cream) .ldm-btn-save{
+  background:linear-gradient(110deg,#0E7490,#6D28D9) !important; color:#fff !important; border:none !important;
+  box-shadow:0 10px 26px rgba(124,58,237,.38) !important;
+}
+
+/* ── Ficha (cabecera) ──────────────────────────────────────────────────── */
+.ldaur-prog{display:none}
+#ld_modal .ldm-aur:not(.otro-cream) .ldaur-prog{
+  display:flex; align-items:center; gap:7px; margin-left:auto; margin-right:10px;
+  min-height:44px; max-width:56%; padding:4px 12px 4px 4px; border-radius:22px; cursor:pointer;
+  background:var(--la-glass); border:1px solid var(--la-bd); color:var(--la-tx);
+  font-family:'Space Grotesk',sans-serif; text-align:left;
+}
+/* En día la cabecera va sobre el cielo claro: la ficha lleva fondo casi opaco
+   para que el ámbar del «Falta…» se lea (medido 2,9:1 con el cristal de las tarjetas). */
+html.day #ld_modal .ldm-aur:not(.otro-cream) .ldaur-prog{background:rgba(255,255,255,.86)}
+.ldaur-prog svg{width:36px;height:36px;flex:none}
+#ldaur-prog-arc{stroke:var(--la-amb);transition:stroke-dasharray .5s ease}
+.ldaur-prog.ok #ldaur-prog-arc{stroke:var(--la-ok)}
+.ldaur-prog-n{position:absolute;width:36px;text-align:center;font-family:'Space Mono',monospace;font-size:9.5px;font-weight:700}
+.ldaur-prog{position:relative}
+.ldaur-prog-t{font-size:11.5px;font-weight:600;line-height:1.25;color:var(--la-amb);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.ldaur-prog.ok .ldaur-prog-t{color:var(--la-ok)}
+.ldaur-trk{stroke:var(--la-trk)}
+
+/* ── Tarjeta del avión ─────────────────────────────────────────────────── */
+.ldaur-ac{
+  position:relative; display:block; width:100%; height:150px; margin:0 0 12px; padding:0; overflow:hidden; cursor:pointer;
+  border-radius:20px; border:1px solid var(--la-chipbd); background:var(--la-chip); color:var(--la-tx); text-align:left;
+  font-family:'Space Grotesk',sans-serif;
+}
+.ldaur-ac-glow{position:absolute;inset:0;background:radial-gradient(120% 90% at 88% 6%,var(--la-accbg),transparent 62%)}
+/* Sin dibujo de reserva: un tipo fuera de la flota no enseña avión (17-nov-2026). */
+.ldaur-ac-img{position:absolute;right:8px;bottom:6px;height:auto;pointer-events:none;
+  filter:drop-shadow(0 10px 12px rgba(0,0,0,.35))}
+.ldaur-ac-img[hidden]{display:none}
+.ldaur-ac-txt,.ldaur-ac-chip{z-index:1}
+.ldaur-ac-txt{position:absolute;left:16px;top:14px;max-width:62%;display:flex;flex-direction:column;gap:3px}
+.ldaur-lab{font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:2px;font-weight:700;color:var(--la-sub)}
+.ldaur-ac-reg{font-family:'Space Mono',monospace;font-size:27px;font-weight:700;line-height:1.05}
+.ldaur-ac.falta .ldaur-ac-reg{color:var(--la-amb)}
+.ldaur-ac-tipo{font-size:13.5px;font-weight:600;color:var(--la-sub)}
+/* Sin foto (tipo fuera de la flota o sin tipo): el título baja de tono y de tamaño. */
+.ldaur-ac:not(.foto) .ldaur-ac-reg{font-size:19px;font-weight:600;color:var(--la-sub)}
+.ldaur-ac:not(.foto) .ldaur-ac-tipo{font-size:12px;font-weight:500}
+.ldaur-ac:not(.foto).falta .ldaur-ac-reg{color:var(--la-amb)}
+.ldaur-ac-chip{position:absolute;right:14px;top:14px;font-family:'Space Mono',monospace;font-size:10.5px;font-weight:700;
+  padding:4px 9px;border-radius:11px;border:1px solid var(--la-amb);color:var(--la-amb);background:var(--la-ambbg)}
+.ldaur-ac-chip.ok{border-color:var(--la-ok);color:var(--la-ok);background:var(--la-okbg)}
+/* Día: el chip va sobre el cielo que asoma por la tarjeta — fondo blanco opaco
+   debajo del tinte, o el verde se queda en 3,6:1. */
+html.day .ldaur-ac-chip{background:#fff}
+html.day .ldaur-ac-chip.ok{background:#fff}
+.ldaur-ac-chip[hidden]{display:none}
+/* El chip va arriba a la derecha, sobre el brillo de la tarjeta: de noche, fondo
+   OPACO (con el tinte translúcido el verde se quedaba en 4,1:1). */
+html:not(.day) .ldaur-ac-chip{background:#141A33}
+html:not(.day) .ldaur-ac-chip.ok{background:#0C2228}
+
+/* ── Anillo del vuelo ──────────────────────────────────────────────────── */
+.ldaur-ring{display:flex;flex-direction:column;align-items:center;gap:10px;margin:2px 0 14px}
+.ldaur-ring-box{position:relative;width:200px;height:200px}
+.ldaur-ring-box svg{width:200px;height:200px}
+.ldaur-ring-box circle{transition:stroke-dasharray .55s ease,stroke-dashoffset .55s ease}
+.ldaur-air-glow{stroke:var(--la-acc2);stroke-opacity:.16}
+#ldaur-s-in{stroke:var(--la-acc)}
+#ldaur-s-in.falta{stroke:var(--la-amb);stroke-opacity:.6}
+.ldaur-ring-c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:var(--la-tx)}
+.ldaur-ring-b{font-family:'Space Mono',monospace;font-size:40px;font-weight:700;line-height:1}
+.ldaur-ring-b.falta{color:var(--la-amb)}
+.ldaur-ring-f{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:var(--la-acc2);margin-top:3px}
+.ldaur-ring-leg{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px;font-family:'Space Mono',monospace;font-size:10.5px;color:var(--la-sub)}
+.ldaur-ring-leg b{color:var(--la-tx)}
+.ldaur-ring-leg i{display:inline-block;width:8px;height:8px;border-radius:4px;margin-right:5px;vertical-align:0}
+.ldaur-ring-leg .d-out,.ldaur-ring-leg .d-in{background:var(--la-acc)}
+.ldaur-ring-leg .d-air{background:linear-gradient(90deg,var(--la-acc),var(--la-acc2))}
+.ldaur-ring-leg .falta,.ldaur-ring-leg .falta b{color:var(--la-amb)}
+.ldaur-ring-leg .falta .d-in{background:var(--la-amb)}
+.ldaur-easa{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));width:100%;padding:12px 4px 10px;border-radius:20px;background:var(--la-chip);border:1px solid var(--la-chipbd)}
+.ldaur-g{display:flex;flex-direction:column;align-items:center;gap:5px}
+.ldaur-g-c{position:relative;width:58px;height:58px}
+.ldaur-g-c svg{width:58px;height:58px}
+.ldaur-g-c circle{transition:stroke-dasharray .55s ease}
+.ldaur-g-v{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:var(--la-tx)}
+.ldaur-g-v.vacio{color:var(--la-sub)}
+.ldaur-g-l{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.8px;color:var(--la-sub);text-align:center}
+
+/* La hora que falta, a trazos en ámbar — en el MISMO campo, sin duplicarlo. */
+#ld_modal .ldm-aur:not(.otro-cream) .ldm-inp.ldaur-falta{border:1.5px dashed var(--la-amb) !important;background-color:var(--la-ambbg) !important}
+
+/* ── Segmentados ───────────────────────────────────────────────────────── */
+.ldaur-oculto{position:absolute !important;width:1px !important;height:1px !important;opacity:0 !important;pointer-events:none !important;overflow:hidden !important}
+.ldaur-seg{display:flex;gap:4px;padding:4px;border-radius:16px;background:var(--la-chip);border:1px solid var(--la-chipbd)}
+.ldaur-seg button{flex:1;min-width:0;min-height:48px;border:none;border-radius:12px;background:transparent;color:var(--la-sub);cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-family:'Space Grotesk',sans-serif;
+  transition:background .2s,color .2s}
+.ldaur-seg button.on{background:linear-gradient(135deg,#0E7490,#6D28D9);color:#fff;box-shadow:0 6px 16px rgba(124,58,237,.30)}
+.ldaur-seg-t{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.ldaur-seg-s{font-family:'Space Mono',monospace;font-size:9px;opacity:.85;white-space:nowrap}
+
+/* ── − y + ─────────────────────────────────────────────────────────────── */
+.ldaur-step{display:flex;align-items:stretch;border-radius:14px;background:var(--la-chip);border:1px solid var(--la-chipbd);overflow:hidden}
+.ldaur-step-b{flex:none;width:34px;min-height:44px;border:none;background:transparent;color:var(--la-tx);font-size:20px;line-height:1;cursor:pointer}
+.ldaur-step-b:active{background:var(--la-accbg)}
+#ld_modal .ldm-aur .ldaur-step .ldm-inp{flex:1;min-width:0;border:none !important;background:transparent !important;box-shadow:none !important;
+  text-align:center;font-family:'Space Mono',monospace;font-weight:700;font-size:17px;padding:0 !important;-moz-appearance:textfield}
+.ldaur-step .ldm-inp::-webkit-outer-spin-button,.ldaur-step .ldm-inp::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+
+#ld_modal .ldm-aur button:focus-visible{outline:2px solid var(--la-acc);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.ldaur-ring-box circle,.ldaur-g-c circle,#ldaur-prog-arc{transition:none}}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   «OTRO TIPO» CON AURORA (17-nov-2026) — elegido sobre el mock-up del canvas
+   «Logbook · pestaña Otros». El formulario es el de siempre (ldOtroRender, los
+   ids ldo_*); esto sólo lo viste. Lo crema (#E9F7EF) que lleva .otro-cream se
+   pisa por especificidad (id + 3 clases), sin tocar index.html.
+   Mismas reglas que arriba: nada de backdrop-filter ni animaciones infinitas.
+   ═══════════════════════════════════════════════════════════════════════════ */
+#ld_modal .ldm-sheet.ldm-aur{--la-inp:rgba(7,11,28,.55)}
+html.day #ld_modal .ldm-sheet.ldm-aur{--la-inp:rgba(255,255,255,.9)}
+
+#ld_modal .ldm-sheet.ldm-aur.otro-cream{
+  background:
+    radial-gradient(circle 230px at 2% 3%, rgba(34,211,238,.30), transparent 70%),
+    radial-gradient(circle 250px at 104% 20%, rgba(124,58,237,.44), transparent 70%),
+    radial-gradient(circle 290px at -6% 56%, rgba(49,46,129,.72), transparent 70%),
+    radial-gradient(circle 260px at 106% 80%, rgba(16,185,129,.20), transparent 70%),
+    radial-gradient(circle 240px at 30% 108%, rgba(34,211,238,.22), transparent 70%),
+    #070B18 !important;
+  border-top:1px solid rgba(167,139,250,.38) !important;
+}
+html.day #ld_modal .ldm-sheet.ldm-aur.otro-cream{
+  background:
+    radial-gradient(circle 230px at 2% 3%, rgba(34,211,238,.42), transparent 70%),
+    radial-gradient(circle 250px at 104% 20%, rgba(167,139,250,.42), transparent 70%),
+    radial-gradient(circle 290px at -6% 56%, rgba(255,255,255,.80), transparent 70%),
+    radial-gradient(circle 260px at 106% 80%, rgba(52,211,153,.26), transparent 70%),
+    radial-gradient(circle 240px at 30% 108%, rgba(34,211,238,.30), transparent 70%),
+    linear-gradient(180deg,#9FD3EE 0%,#CDEBF8 40%,#EEF8FD 100%) !important;
+  border-top:1px solid rgba(255,255,255,.9) !important;
+}
+#ld_modal .ldm-aur.otro-cream .ldm-body,
+#ld_modal .ldm-aur.otro-cream .ldm-hdr{background:transparent !important}
+#ld_modal .ldm-aur.otro-cream .ldm-hdr{border-bottom:1px solid var(--la-chipbd) !important}
+#ld_modal .ldm-aur.otro-cream .ldm-title{color:var(--la-tx) !important}
+#ld_modal .ldm-aur.otro-cream .ldm-sub{color:var(--la-acc) !important}
+#ld_modal .ldm-aur.otro-cream .ldm-close{color:var(--la-tx) !important;background:var(--la-chip) !important}
+#ld_modal .ldm-aur.otro-cream .ldm-ftr{background:var(--la-glass) !important;border-top:1px solid var(--la-bd) !important}
+#ld_modal .ldm-aur.otro-cream .ldm-btn-cancel{background:var(--la-chip) !important;color:var(--la-tx) !important;border:1px solid var(--la-chipbd) !important}
+#ld_modal .ldm-aur.otro-cream .ldm-btn-save{background:linear-gradient(110deg,#0E7490,#6D28D9) !important;color:#fff !important;border:none !important;
+  box-shadow:0 10px 26px rgba(124,58,237,.38) !important}
+/* La ficha de la cabecera también en «Otro», cuando ya hay tipo elegido. */
+#ld_modal .ldm-aur.otro-cream.ldaur-o-tipo .ldaur-prog{
+  display:flex; align-items:center; gap:7px; margin-left:auto; margin-right:10px;
+  min-height:44px; max-width:56%; padding:4px 12px 4px 4px; border-radius:22px; cursor:pointer;
+  background:var(--la-glass); border:1px solid var(--la-bd); color:var(--la-tx);
+  font-family:'Space Grotesk',sans-serif; text-align:left;
+}
+html.day #ld_modal .ldm-aur.otro-cream .ldaur-prog{background:rgba(255,255,255,.86)}
+
+/* Conmutador Vueling / Otro, en los dos modos */
+#ld_modal .ldm-aur .ldm-vo{color:var(--la-sub)}
+#ld_modal .ldm-aur .ldm-vo.on-v,
+#ld_modal .ldm-aur .ldm-vo.on-o{background:linear-gradient(135deg,#0E7490,#6D28D9) !important;color:#fff !important}
+
+/* Tarjetas de cristal */
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-box,
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-ai{
+  background:var(--la-glass) !important; border:1px solid var(--la-bd) !important; border-radius:22px !important;
+  box-shadow:0 8px 20px var(--la-sh), inset 0 1px 0 var(--la-hi) !important; padding:16px 14px 12px !important;
+}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-box::before{display:none}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-sec{color:var(--la-sub) !important;font-family:'Space Grotesk',sans-serif;font-size:12px;letter-spacing:1.6px}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-sec::before{display:none}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-fld label,
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-tt{color:var(--la-sub) !important}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-fld input,
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-fld select,
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-ai textarea{
+  background:var(--la-inp) !important; border:1px solid var(--la-chipbd) !important; color:var(--la-tx) !important;
+  border-radius:14px !important; min-height:46px; color-scheme:dark;
+}
+html.day #ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-fld input,
+html.day #ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-fld select,
+html.day #ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-ai textarea{color-scheme:light}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-fld input::placeholder,
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-ai textarea::placeholder{color:var(--la-sub) !important;opacity:.55}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-fld input:focus,
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-fld select:focus{border-color:var(--la-acc) !important;box-shadow:0 0 0 3px var(--la-accbg) !important}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form #ldo_dep,
+#ld_modal .ldm-aur.otro-cream #ld-otro-form #ldo_arr{font-family:'Space Mono',monospace;font-size:20px !important;text-align:center;letter-spacing:1px}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form #ldo_reg,
+#ld_modal .ldm-aur.otro-cream #ld-otro-form input[type="time"]{font-family:'Space Mono',monospace;font-weight:700}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-kv{border-bottom-color:var(--la-chipbd)}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-kv span:first-child{color:var(--la-sub) !important}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-kv b{color:var(--la-tx)}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-auto{background:var(--la-chip);border:1px solid var(--la-chipbd);color:var(--la-sub) !important;border-radius:12px}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-auto.warn{background:var(--la-ambbg);border-color:var(--la-amb);color:var(--la-amb) !important}
+/* El botón de la foto lleva su color EN LÍNEA (verde de noche): de día no se lee. */
+html.day #ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-mini[onclick*="Photo"]{color:#047857 !important;border-color:rgba(4,120,87,.45) !important}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-mini{min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:14px}
+
+/* Los tipos: dos columnas, icono arriba y nombre abajo, como en el mock-up */
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-act{grid-template-columns:1fr 1fr !important;gap:10px}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-chip{
+  min-height:100px; align-items:flex-start; justify-content:space-between; text-align:left; padding:14px !important;
+  background:var(--la-glass) !important; border:1px solid var(--la-bd) !important; border-radius:20px !important;
+  box-shadow:0 6px 16px var(--la-sh) !important; overflow:hidden;
+}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-chip .i{height:44px;font-size:36px;justify-content:flex-start}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-chip .i img{width:44px !important;height:44px !important}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-chip .n{color:var(--la-tx) !important;font-size:14px;margin-top:8px}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-chip.on{
+  background:color-mix(in srgb, var(--ldo-accent) 20%, transparent) !important;
+  border:1.5px solid var(--ldo-accent) !important;
+  box-shadow:0 0 0 4px var(--ldo-soft), 0 10px 26px var(--ldo-glow) !important;
+}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-chip.on .n{color:var(--la-tx) !important}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-chip[data-k="opening"]:not(.on){border:1px dashed var(--la-amb) !important;background:var(--la-ambbg) !important}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-chip[data-k="opening"] .i{color:var(--la-amb)}
+
+/* Con un tipo elegido, la rejilla se recoge en el tipo + «Cambiar». */
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-act.has-sel:not(.ldaur-abre){grid-template-columns:1fr !important}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-act.has-sel:not(.ldaur-abre) .ldo-chip:not(.on){display:none}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-act.has-sel:not(.ldaur-abre) .ldo-chip.on{
+  min-height:68px; flex-direction:row; align-items:center; justify-content:flex-start; gap:12px; padding:10px 118px 10px 12px !important}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-act.has-sel:not(.ldaur-abre) .ldo-chip.on .n{margin-top:0}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-act.has-sel:not(.ldaur-abre) .ldo-chip.on::before{display:none}
+#ld-otro-form .ldaur-o-cambia{display:none}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-act.has-sel:not(.ldaur-abre) .ldaur-o-cambia{
+  display:flex; align-items:center; justify-content:center; position:absolute; right:12px; top:50%; transform:translateY(-50%);
+  min-height:44px; padding:0 14px; border-radius:14px; border:1px solid var(--la-chipbd); background:var(--la-chip);
+  color:var(--la-tx); font:600 13px 'Space Grotesk',sans-serif; z-index:4; cursor:pointer}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-act{position:relative}
+
+/* Anillo del vuelo en «Otro»: más pequeño, con el reparto a la derecha */
+.ldaur-ro{display:flex;align-items:center;gap:14px;margin:4px 0 12px;padding:12px;border-radius:18px;background:var(--la-chip);border:1px solid var(--la-chipbd);color:var(--la-tx)}
+.ldaur-ro-box{position:relative;width:118px;height:118px;flex:none}
+.ldaur-ro-box svg{width:118px;height:118px}
+.ldaur-ro-box circle{transition:stroke-dasharray .55s ease,stroke-dashoffset .55s ease}
+.ldaur-ro-c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ldaur-ro-b{font-family:'Space Mono',monospace;font-size:24px;font-weight:700;line-height:1}
+.ldaur-ro-b.falta{color:var(--la-amb)}
+.ldaur-ro-leg{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px;font-size:12.5px}
+.ldaur-ro-leg span{display:flex;justify-content:space-between;gap:8px;color:var(--la-sub)}
+.ldaur-ro-leg b{font-family:'Space Mono',monospace;color:var(--la-tx)}
+.ldaur-ro-leg .air b{color:var(--la-acc)}
+.ldaur-ro-leg .falta,.ldaur-ro-leg .falta b{color:var(--la-amb)}
+.ldaur-ro-in.falta{stroke:var(--la-amb);stroke-opacity:.6}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form input.ldaur-falta{border:1.5px dashed var(--la-amb) !important;background-color:var(--la-ambbg) !important}
+
+/* Segmentados y − y + dentro de «Otro» */
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldaur-seg{margin-top:2px}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldaur-seg-o button{min-height:42px}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldaur-seg-o.w6{display:grid;grid-template-columns:repeat(3,1fr)}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldaur-step input{flex:1;min-width:0;min-height:44px !important;border:none !important;background:transparent !important;
+  box-shadow:none !important;text-align:center;font-family:'Space Mono',monospace;font-weight:700;font-size:17px;padding:0 !important;-moz-appearance:textfield}
+#ld-otro-form .ldaur-step input::-webkit-outer-spin-button,#ld-otro-form .ldaur-step input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldaur-step-b{width:44px}
+@media (prefers-reduced-motion:reduce){.ldaur-ro-box circle{transition:none}}
+.ldaur-ro-leg em{font-style:normal}
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-ai{color:var(--la-tx)}
+/* Seis funciones no caben en media fila: la Función va a lo ancho. */
+#ld_modal .ldm-aur.otro-cream #ld-otro-form .ldo-fld:has(#ldaur-seg-ldo_func){grid-column:1/-1}

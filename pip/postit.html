@@ -25,6 +25,8 @@
   video{width:100%;aspect-ratio:16/9;background:#334155;border-radius:16px;display:block;box-shadow:0 8px 30px rgba(0,0,0,.4)}
   button{display:block;width:100%;min-height:56px;margin-top:18px;border:0;border-radius:16px;background:#B45309;color:#fff;font-weight:800;font-size:18px}
   button[disabled]{background:#334155;color:#CBD5E1}
+  .dg{display:inline-block;width:auto;min-height:44px;margin-top:22px;padding:0 16px;background:transparent;border:1px solid #475569;color:#CBD5E1;font-weight:600;font-size:14px}
+  #diag{text-align:left;white-space:pre-wrap;font:11.5px ui-monospace,Menlo,monospace;color:#E2E8F0;background:#1E293B;border-radius:12px;padding:10px;margin-top:10px;max-height:50vh;overflow:auto}
   .m{margin-top:12px;color:#E2E8F0;font-size:14.5px;line-height:1.45;min-height:42px}
 </style>
 </head>
@@ -34,6 +36,8 @@
   <video id="v" playsinline webkit-playsinline muted loop autoplay></video>
   <button id="fijar" disabled>…</button>
   <div class="m" id="msg" aria-live="polite"></div>
+  <button type="button" id="diag-b" class="dg">Diagnóstico</button>
+  <pre id="diag" hidden></pre>
 </main>
 <script src="../js/postit-dibujo.js"></script>
 <script>
@@ -54,6 +58,16 @@
     wchR: String(q.get('wr') || '').replace(/\D/g, '').slice(0, 2), wchS: String(q.get('ws') || '').replace(/\D/g, '').slice(0, 2), wchC: String(q.get('wc') || '').replace(/\D/g, '').slice(0, 2)
   };
   var E = { color: q.get('col'), tema: q.get('tema'), forma: q.get('forma') };
+  /* La cara de atrás: los pesos del avión (20-nov-2026, prueba). Llegan como
+     mtow_mlw_zfw_dow_doi_js y una «p» detrás si son los de prueba. Sin `pw` la
+     página es la de siempre: una sola cara y nada que girar. */
+  var PW = null;
+  (function(){
+    var x = String(q.get('pw') || '').split('_'); if (x.length < 6) return;
+    var n = function(s, m){ return String(s || '').replace(/[^0-9.]/g, '').slice(0, m); };
+    PW = { mtow: n(x[0], 6), mlw: n(x[1], 6), zfw: n(x[2], 6), dow: n(x[3], 6), doi: n(x[4], 6), js: n(x[5], 1), prueba: x[6] === 'p' };
+    PW.reg = String(q.get('mat') || '').toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 8);
+  })();
   /* Los tramos que vienen (`sec`): esta página no puede leer el roster, así que la
      app le pasa los del día con su llegada en minutos UTC y aquí se elige por el
      reloj. A la llegada estimada pasa sola al siguiente: si no, el post-it de la
@@ -91,13 +105,42 @@
   }
   eligeTramo();
   // El MISMO dibujo que el post-it de la app: js/postit-dibujo.js.
-  var cv = document.createElement('canvas');
-  function pinta(){ if (window.PilotosPostit) window.PilotosPostit.pinta(cv, D, E, { sinConf: T('SIN CONFIRMAR', 'NOT CONFIRMED') }); }
+  // cv es el lienzo que se graba; cvF y cvB guardan las dos caras ya pintadas.
+  var cv = document.createElement('canvas'), cvF = document.createElement('canvas'), cvB = document.createElement('canvas');
+  function pintaCaras(){
+    var P = window.PilotosPostit; if (!P) return;
+    P.pinta(cvF, D, E, { sinConf: T('SIN CONFIRMAR', 'NOT CONFIRMED') });
+    if (PW && P.pintaAtras) P.pintaAtras(cvB, PW, E, { lang: EN ? 'en' : 'es' });
+  }
+  function copia(src){ var c = cv.getContext('2d'); cv.width = src.width; cv.height = src.height; c.drawImage(src, 0, 0); }
+  var cara = 'frente';
+  function pinta(){ pintaCaras(); copia(cara === 'atras' && PW ? cvB : cvF); }
   pinta();
   var v = document.getElementById('v'), b = document.getElementById('fijar'), msg = document.getElementById('msg');
+  /* CAJA NEGRA (4-nov-2026, «vuelve a fallar» con Beta.1237). Lo que hace el iPad
+     al bloquearse no se puede reproducir en Chromium: se apunta aquí, en el propio
+     aparato, y sobrevive a cerrar Safari. «Diagnóstico» lo enseña y lo copia. */
+  var LOGK = 'pip_caja_negra', VER = 'giro-pesos-1';
+  function hhmmss(){ var d = new Date(); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+':'+('0'+d.getSeconds()).slice(-2); }
+  function apunta(ev, x){
+    try {
+      var L = JSON.parse(localStorage.getItem(LOGK) || '[]');
+      var st = 'vis=' + document.visibilityState + ' rs=' + v.readyState + ' p=' + (v.paused?1:0) + ' t=' + (v.currentTime||0).toFixed(1) + (v.error ? ' err=' + v.error.code : '') + ' pip=' + ((document.pictureInPictureElement === v || v.webkitPresentationMode === 'picture-in-picture') ? 1 : 0) + ' sil=' + (sil ? (sil.paused ? 'parado' : 'suena') : 'no');
+      L.push(hhmmss() + ' ' + ev + (x ? ' ' + x : '') + ' · ' + st);
+      if (L.length > 120) L = L.slice(-120);
+      localStorage.setItem(LOGK, JSON.stringify(L));
+    } catch(e) {}
+  }
+  document.getElementById('diag-b').addEventListener('click', function(){
+    var pre = document.getElementById('diag'), L = [];
+    try { L = JSON.parse(localStorage.getItem(LOGK) || '[]'); } catch(e) {}
+    var txt = VER + ' · ' + navigator.userAgent + '\n' + L.join('\n');
+    pre.textContent = txt; pre.hidden = false;
+    try { navigator.clipboard.writeText(txt).then(function(){ pre.textContent = '✓ Copiado — pégamelo en el chat\n\n' + txt; }); } catch(e) {}
+  });
   try { v.autoPictureInPicture = true; } catch(e) {}
   var stream = null;
-  try { stream = cv.captureStream(10); v.srcObject = stream; v.play().catch(function(){}); } catch(e) {}
+  try { stream = cv.captureStream(30); v.srcObject = stream; v.play().catch(function(){}); } catch(e) {}
 
   // Clip grabado (el caso E de /pip/, el que entró en flotante en el iPhone).
   var mime = (typeof MediaRecorder !== 'undefined') ? ['video/mp4', 'video/webm'].filter(function(m){ try { return MediaRecorder.isTypeSupported(m); } catch(e){ return false; } })[0] : null;
@@ -105,40 +148,182 @@
   function aviso(){
     if (pasado) msg.textContent = T('Este post-it es de un vuelo que ya ha aterrizado. Vuelve a fijarlo desde PilotOS.', 'This note is for a flight that has already landed. Pin it again from PilotOS.');
   }
-  var grabando = false;
+  /* LOS CLIPS. iOS sólo deja flotar un FICHERO de vídeo (no el stream), así que
+     cada cosa que se ve es un clip grabado del lienzo: la cara de delante y, con
+     pesos, la de atrás y los dos giros (delante→atrás y atrás→delante). Todo se
+     graba AQUÍ, con la página delante: con Safari al fondo no se puede grabar.
+     Girar es cambiar el `src` del MISMO vídeo: la ventana flotante se queda. */
+  var grabando = false, clips = {}, girando = false, ultCambio = 0;
+  function grabaUno(dibuja, ms, hecho){
+    var tr = [], rec, t0;
+    try { rec = new MediaRecorder(stream, { mimeType: mime }); } catch(e) { return hecho(null); }
+    dibuja(0);
+    var tic = setInterval(function(){ dibuja(Math.min(1, (Date.now() - t0) / ms)); }, 33);
+    rec.ondataavailable = function(e){ if (e.data && e.data.size) tr.push(e.data); };
+    rec.onstop = function(){ clearInterval(tic); hecho(tr.length ? new Blob(tr, { type: mime }) : null); };
+    t0 = Date.now(); rec.start();
+    setTimeout(function(){ try { rec.stop(); } catch(e) { clearInterval(tic); hecho(null); } }, ms + 150);
+  }
+  function ponSrc(blob, bucle){
+    var viejo = v.src;
+    v.srcObject = null; v.loop = !!bucle; v.muted = true; ultCambio = Date.now();
+    v.src = URL.createObjectURL(blob); v.play().catch(function(){});
+    if (viejo && viejo.indexOf('blob:') === 0) setTimeout(function(){ try { URL.revokeObjectURL(viejo); } catch(e) {} }, 3000);
+  }
+  // Fija = estático (1,2 s en bucle); el giro dura 0,7 s y aguanta 0,3 s la cara nueva.
+  var GIRO_MS = 700, GIRO_TOTAL = 1000;
+  function giro(a, b){ return function(f){ var t = f * GIRO_TOTAL / GIRO_MS; if (window.PilotosPostit.pintaGiro && t < 1) window.PilotosPostit.pintaGiro(cv, a, b, t, E); else copia(b); }; }
   function graba(fin){
     if (!(stream && mime)) { if (fin) fin(); return; }
-    grabando = true;
-    var tr = [], rec = new MediaRecorder(stream, { mimeType: mime }), tic = setInterval(pinta, 100);
-    rec.ondataavailable = function(e){ if (e.data && e.data.size) tr.push(e.data); };
-    rec.onstop = function(){
-      clearInterval(tic); grabando = false;
-      if (tr.length) {
-        // Se cambia el `src` del MISMO vídeo: si está flotando, la ventana sigue y cambia de contenido.
-        var viejo = v.src;
-        v.srcObject = null; v.src = URL.createObjectURL(new Blob(tr, { type: mime })); v.play().catch(function(){});
-        if (viejo && viejo.indexOf('blob:') === 0) setTimeout(function(){ try { URL.revokeObjectURL(viejo); } catch(e) {} }, 3000);
+    grabando = true; pintaCaras();
+    var tareas = [['frente', function(){ copia(cvF); }, 1200]];
+    if (PW) tareas.push(['atras', function(){ copia(cvB); }, 1200], ['aAtras', giro(cvF, cvB), GIRO_TOTAL], ['aFrente', giro(cvB, cvF), GIRO_TOTAL]);
+    var i = 0;
+    (function sig(){
+      if (i >= tareas.length) {
+        grabando = false;
+        var est = clips[cara] || clips.frente;
+        if (est) ponSrc(est, true);
+        apunta('clips', Object.keys(clips).join(','));
+        if (fin) fin(); return;
       }
-      if (fin) fin();
-    };
-    rec.start(); setTimeout(function(){ try { rec.stop(); } catch(e) { clearInterval(tic); grabando = false; if (fin) fin(); } }, 1200);
+      var t = tareas[i++];
+      grabaUno(t[1], t[2], function(bl){ if (bl) clips[t[0]] = bl; sig(); });
+    })();
   }
+  /* GIRAR: el clip del giro una vez y, al acabar, la cara nueva en bucle. */
+  function ponCara(nueva, por){
+    if (!PW || grabando || girando || nueva === cara) { apunta('giro-ignorado', nueva + ' ' + (por || '')); return; }
+    var g = clips[nueva === 'atras' ? 'aAtras' : 'aFrente'], est = clips[nueva];
+    if (!g || !est) { apunta('giro-sin-clip', nueva); return; }
+    apunta('gira', nueva + ' ' + (por || '')); girando = true; cara = nueva;
+    ponSrc(g, false);
+    var acaba = function(){ if (!girando) return; girando = false; ponSrc(clips[cara], true); };
+    v.addEventListener('ended', acaba, { once: true });
+    setTimeout(acaba, GIRO_TOTAL + 900);   // por si iOS no avisa del final
+  }
+  window.__postitCara = function(){ return { cara: cara, girando: girando, clips: Object.keys(clips), src: v.src, loop: v.loop }; };   // para el banco
+  window.__postitGira = ponCara;
   if (stream && mime) { b.textContent = T('Preparando…', 'Preparing…'); graba(listo); } else listo();
   aviso();
   /* Al volver a esta página (o cada minuto mientras se ve): si ha aterrizado,
      se pasa al tramo siguiente y se regraba. Con Safari en segundo plano iOS
      congela la página: el cambio entra en cuanto se vuelve a ella. */
-  function revisa(){ if (document.hidden || grabando) return; if (eligeTramo()) { pinta(); graba(); } aviso(); }
+  function revisa(){ if (document.hidden || grabando || girando) return; if (eligeTramo()) { pinta(); graba(); } aviso(); }
   document.addEventListener('visibilitychange', revisa);
   setInterval(revisa, 60000);
   window.__postitTramo = function(){ return { fl: D.fl, std: D.std, sta: D.sta, cs: D.cs, pasado: pasado, src: v.src }; };   // para el banco
 
-  v.addEventListener('enterpictureinpicture', function(){ msg.textContent = T('✓ Fijado. Ya puedes volver a PilotOS o al EFB.', '✓ Pinned. You can go back to PilotOS or the EFB.'); });
+  /* ── LA VENTANA FLOTANTE SE QUEDABA EN NEGRO AL BLOQUEAR EL iPAD (4-nov-2026) ──
+     «Cuando el iPad se bloquea el post-it se pone en negro; tengo que abrir
+     Safari para que vuelva». Al bloquear, iOS PAUSA el vídeo flotante (es mudo:
+     para iOS no es «algo que suena») y suelta su fotograma; al desbloquear la
+     ventana vuelve, pero vacía, y Safari —en segundo plano— tiene el JS
+     congelado: nadie le da al play hasta que se vuelve a Safari, donde el
+     `autoplay` lo arranca solo. Dos piezas:
+     1. AUDIO MUDO en bucle, arrancado DENTRO del toque de «Fijar» (iOS sólo deja
+        sonar desde un gesto). Una página que «suena» es reproducción en segundo
+        plano: iOS no la congela, tampoco con la pantalla bloqueada, y la pieza 2
+        puede actuar. Es silencio de verdad (bytes a 128), generado aquí: sin
+        fichero que cachear. Coste: como cualquier reproductor, para la música
+        de otra app y sale en «Reproduciendo» de la pantalla de bloqueo.
+     2. REANIMAR: si el vídeo está pausado, vacío o con error, play(); si no
+        tiene fotograma, se rehace con el clip guardado (`clipBlob`). Se mira en
+        cada evento que significa «la pantalla ha vuelto» y cada segundo
+        mientras está fijado. El post-it es una nota fija en bucle: nadie quiere
+        pausarlo, así que el `pause` también se deshace.
+     No comprobable en Chromium: lo confirma el piloto en el iPad. */
+  var fijado = false, sil = null, ultRehecho = 0;
+  function wavSilencio(){
+    var n = 8000, b = new ArrayBuffer(44 + n), d = new DataView(b), i;
+    function s(o, t){ for (var k = 0; k < t.length; k++) d.setUint8(o + k, t.charCodeAt(k)); }
+    s(0, 'RIFF'); d.setUint32(4, 36 + n, true); s(8, 'WAVE'); s(12, 'fmt ');
+    d.setUint32(16, 16, true); d.setUint16(20, 1, true); d.setUint16(22, 1, true);
+    d.setUint32(24, 8000, true); d.setUint32(28, 8000, true); d.setUint16(32, 1, true); d.setUint16(34, 8, true);
+    s(36, 'data'); d.setUint32(40, n, true);
+    for (i = 0; i < n; i++) d.setUint8(44 + i, 128);   // 8 bits sin signo: 128 = silencio
+    return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
+  }
+  function mantenVivo(){
+    try {
+      if (!sil) { sil = new Audio(wavSilencio()); sil.loop = true; sil.setAttribute('playsinline', '');
+        ['play','pause','ended','error'].forEach(function(ev){ sil.addEventListener(ev, function(){ apunta('audio:' + ev); }); }); }
+      var p = sil.play(); if (p && p.catch) p.catch(function(e){ apunta('audio-play-rechazado', e && e.name); });
+    } catch(e) {}
+  }
+  function enFlotante(){
+    return document.pictureInPictureElement === v || v.webkitPresentationMode === 'picture-in-picture';
+  }
+  function reanima(){
+    if (!fijado) return;
+    try {
+      var vacio = v.error || v.readyState < 2 || v.networkState === 3;
+      var est = clips[cara] || clips.frente;
+      // Un `src` recién puesto (giro o cara nueva) todavía no tiene fotograma: no es «vacío».
+      if (vacio && est && !girando && Date.now() - ultCambio > 2500 && Date.now() - ultRehecho > 3000) {
+        ultRehecho = Date.now(); apunta('rehace-video');
+        ponSrc(est, true);
+      }
+      if (v.paused || v.ended) { apunta('reanima-play'); var p = v.play(); if (p && p.catch) p.catch(function(e){ apunta('video-play-rechazado', e && e.name); }); }
+      if (sil && sil.paused) { var q = sil.play(); if (q && q.catch) q.catch(function(e){ apunta('audio-play-rechazado', e && e.name); }); }
+    } catch(e) {}
+  }
+  window.__postitReanima = reanima;   // para el banco
+  ['pause', 'ended', 'emptied', 'stalled', 'suspend', 'error'].forEach(function(ev){
+    v.addEventListener(ev, function(){ if (!grabando && !girando) setTimeout(reanima, 250); });
+  });
+  ['pageshow', 'focus', 'resize'].forEach(function(ev){ window.addEventListener(ev, reanima); });
+  document.addEventListener('visibilitychange', reanima);
+  v.addEventListener('webkitpresentationmodechanged', function(){
+    if (v.webkitPresentationMode === 'picture-in-picture') { fijado = true; reanima(); }
+  });
+  setInterval(reanima, 1000);
+  // El clip va en bucle de 1,2 s: play/playing/waiting salen en cada vuelta. Sólo se apuntan con la pantalla oculta,
+  // que es cuando importan; lo que de verdad dice algo (pause, emptied, error, stalled) siempre.
+  ['play','playing','waiting','suspend'].forEach(function(ev){ v.addEventListener(ev, function(){ if (document.hidden) apunta('video:' + ev); }); });
+  ['pause','stalled','emptied','error','ended'].forEach(function(ev){ v.addEventListener(ev, function(){ apunta('video:' + ev); }); });
+  ['visibilitychange'].forEach(function(ev){ document.addEventListener(ev, function(){ apunta(ev); }); });
+  ['pageshow','pagehide','focus','blur','freeze','resume'].forEach(function(ev){ (ev === 'freeze' || ev === 'resume' ? document : window).addEventListener(ev, function(){ apunta(ev); }); });
+  v.addEventListener('webkitpresentationmodechanged', function(){ apunta('modo:' + v.webkitPresentationMode); });
+  // ¿corre el JS con la pantalla bloqueada? Un latido cada 15 s mientras está oculta.
+  setInterval(function(){ if (document.hidden && fijado) apunta('latido-oculto'); }, 15000);
+  apunta('carga');
+  // Los mandos de la pantalla de bloqueo y el ▶ de la propia ventana: siempre «reproducir».
+  try {
+    if (navigator.mediaSession) {
+      if (window.MediaMetadata) navigator.mediaSession.metadata = new MediaMetadata({ title: (D.cs || D.fl || 'Callsign'), artist: 'PilotOS' });
+      ['play', 'pause', 'stop'].forEach(function(a){ try { navigator.mediaSession.setActionHandler(a, function(){ apunta('sesion:' + a); reanima(); }); } catch(e) {} });
+      /* LOS BOTONES ±10 DE LA VENTANA FLOTANTE GIRAN EL POST-IT (sólo con pesos).
+         LOS DOS giran, sea cual sea la cara que se ve (piloto, 20-nov-2026: «desde
+         la frontal, el −10 no la giraba; que ambos puedan girarlo»). Si iOS los
+         manda como «pista siguiente/anterior», igual. No comprobable en Chromium:
+         la caja negra apunta qué llega («sesion:seekforward»…). */
+      if (PW) ['seekforward', 'nexttrack', 'seekbackward', 'previoustrack'].forEach(function(a){
+        try { navigator.mediaSession.setActionHandler(a, function(){ apunta('sesion:' + a); ponCara(cara === 'atras' ? 'frente' : 'atras', a); }); } catch(e) { apunta('sin-accion', a); }
+      });
+    }
+  } catch(e) {}
+
+  /* Si iOS no llama a la acción y salta él solo 10 s en un clip de 1,2 s, el
+     vídeo cae al FINAL: eso sólo puede ser el ⟳10 (el bucle vuelve a 0, no al
+     final). Se toma como «girar». Y en la propia página, tocar el vídeo gira:
+     así se prueba antes de fijarlo. */
+  if (PW) {
+    v.addEventListener('seeking', function(){
+      if (girando || grabando || !v.duration || !isFinite(v.duration)) return;
+      if (v.currentTime >= v.duration - 0.06 && Date.now() - ultCambio > 600) { apunta('salto-al-final'); ponCara(cara === 'atras' ? 'frente' : 'atras', 'salto'); }
+    });
+    v.addEventListener('click', function(){ ponCara(cara === 'atras' ? 'frente' : 'atras', 'toque'); });
+  }
+  v.addEventListener('enterpictureinpicture', function(){ fijado = true; apunta('entra-pip'); msg.textContent = T('✓ Fijado. Ya puedes volver a PilotOS o al EFB.', '✓ Pinned. You can go back to PilotOS or the EFB.'); });
+  // Si el piloto CIERRA la ventana flotante, se acaba: ni audio ni reanimar.
+  v.addEventListener('leavepictureinpicture', function(){ fijado = false; apunta('sale-pip'); try { if (sil) sil.pause(); } catch(e) {} });
   // Sin cobertura: el SW propio de /pip/ guarda esta página la primera vez que se
   // abre con red (Safari no comparte el SW de la app). Ver pip/sw.js.
   try { if (navigator.serviceWorker) navigator.serviceWorker.register('sw.js', { scope: './' }).catch(function(){}); } catch(e) {}
   b.addEventListener('click', function(){
     var pr;
+    apunta('toque-fijar'); mantenVivo();   // DENTRO del toque: iOS no deja sonar fuera de un gesto
     try {
       if (v.paused) v.play();
       if (v.requestPictureInPicture) pr = v.requestPictureInPicture();
@@ -146,7 +331,7 @@
       else pr = Promise.reject({ name: 'SinAPI' });
     } catch(e) { pr = Promise.reject(e); }
     Promise.resolve(pr).then(function(){ msg.textContent = T('✓ Fijado. Ya puedes volver a PilotOS o al EFB.', '✓ Pinned. You can go back to PilotOS or the EFB.'); })
-      .catch(function(e){ msg.textContent = T('Este aparato no ha dejado abrir la ventana flotante', 'This device did not allow the floating window') + (e && e.name ? ' (' + e.name + ')' : '') + '.'; });
+      .catch(function(e){ fijado = false; try { if (sil) sil.pause(); } catch(x) {} msg.textContent = T('Este aparato no ha dejado abrir la ventana flotante', 'This device did not allow the floating window') + (e && e.name ? ' (' + e.name + ')' : '') + '.'; });
   });
 })();
 </script>

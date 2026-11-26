@@ -77,7 +77,9 @@
   // ── Entrada del menú ────────────────────────────────────────────────────
   function gate() {
     var it = document.getElementById('pp-admin');
-    if (it) it.hidden = !esAdmin();
+    // En la build estable (pilotos.aero) no hay panel de testers: es cosa de beta.
+    var v = window.__PILOTOS_VERSION__, beta = !v || !v.channel || v.channel === 'beta';
+    if (it) it.hidden = !esAdmin() || !beta;
   }
   window.admTestersGate = gate;
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', gate); else gate();

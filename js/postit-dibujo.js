@@ -201,6 +201,90 @@
     return { tema: tema, paleta: p };
   }
 
+  /* ── LA CARA DE ATRÁS: LOS PESOS DEL AVIÓN (20-nov-2026, prueba) ──────────
+     «Que al pulsarla se girara y detrás hubiera los pesos del avión». Seis
+     datos: MTOW, MLW, ZFW, DOW, DOI y transportines. Hoy son de PRUEBA (el
+     piloto hará una base de datos por avión), y mientras lo sean el post-it lo
+     DICE arriba: un peso inventado leído como bueno es el avión inventado.
+     Mismo papel, misma forma y misma tinta que la cara de delante.
+     pesos: { reg, mtow, mlw, zfw, dow, doi, js, prueba } (cadenas; vacío = «—») */
+  var PESOS_CAMPOS = [
+    { k: 'mtow', es: 'MTOW', en: 'MTOW', u: 'kg' }, { k: 'mlw', es: 'MLW', en: 'MLW', u: 'kg' }, { k: 'zfw', es: 'ZFW', en: 'ZFW', u: 'kg' },
+    { k: 'dow', es: 'DOW', en: 'DOW', u: 'kg' }, { k: 'doi', es: 'DOI', en: 'DOI', u: '' }, { k: 'js', es: 'TRANSPORTINES', en: 'JUMP SEATS', u: '' }
+  ];
+  function pintaAtras(cv, pesos, estilo, txt, diaAhora) {
+    if (cv.width !== W) cv.width = W;
+    if (cv.height !== H) cv.height = H;
+    var c = cv.getContext('2d'), e = estiloDe(estilo), tema = temaDe(e, diaAhora), p = COLORES[e.color][tema];
+    var d = pesos || {}, t = txt || {}, eng = t.lang === 'en';
+    var caja = forma(c, e, p, tema);
+    var MONO = '"Space Mono", ui-monospace, Menlo, monospace', SANS = '-apple-system, system-ui, sans-serif';
+    c.textBaseline = 'middle'; c.fillStyle = p.tinta;
+    /* CABECERA: la MATRÍCULA en grande (es lo que dice de qué avión son los pesos)
+       y, si son inventados, la pastilla «DATOS DE PRUEBA» a la derecha. */
+    var xL = caja.x0 + 6, xR = caja.x1 - 6, yC = 53;
+    var der = xR;
+    if (d.prueba) {
+      var pt = t.prueba || (eng ? 'TEST DATA' : 'DATOS DE PRUEBA');
+      c.font = '800 17px ' + SANS; var pw = c.measureText(pt).width + 22;
+      redondo(c, xR - pw, yC - 16, pw, 32, 16); c.lineWidth = 2.5; c.strokeStyle = p.aviso; c.stroke();
+      c.fillStyle = p.aviso; c.textAlign = 'center'; c.fillText(pt, xR - pw / 2, yC + 1); c.fillStyle = p.tinta;
+      der = xR - pw - 14;
+    }
+    c.textAlign = 'left';
+    if (d.reg) {
+      c.font = '800 15px ' + SANS; c.globalAlpha = .78;
+      c.fillText(eng ? 'REGISTRATION' : 'MATRÍCULA', xL, yC - 17); c.globalAlpha = 1;
+      var tm = 38; do { c.font = '800 ' + tm + 'px ' + MONO; tm -= 2; } while (c.measureText(d.reg).width > der - xL && tm > 20);
+      c.fillText(d.reg, xL, yC + 12);
+    } else {
+      var tt = t.titulo || (eng ? 'AIRCRAFT WEIGHTS' : 'PESOS DEL AVIÓN'), ts = 26;
+      do { c.font = '800 ' + ts + 'px ' + SANS; ts -= 1; } while (c.measureText(tt).width > der - xL && ts > 14);
+      c.fillText(tt, xL, yC);
+    }
+    /* LAS SEIS CIFRAS, cada una en su caja: el rótulo arriba (MTOW · kg) y la cifra
+       grande debajo. Dos filas de 98 px que acaban en y=294, antes de la esquina
+       doblada del post-it (empieza en y=296): no hay que estrechar ninguna. */
+    var gap = 10, x0 = caja.x0, ancho = caja.x1 - caja.x0, cw = (ancho - 2 * gap) / 3, ch = 98;
+    PESOS_CAMPOS.forEach(function (f, i) {
+      var cx0 = x0 + (cw + gap) * (i % 3), cy0 = i < 3 ? 90 : 196, cx = cx0 + cw / 2;
+      redondo(c, cx0, cy0, cw, ch, 16);
+      c.fillStyle = p.tinta; c.globalAlpha = tema === 'dia' ? .07 : .09; c.fill(); c.globalAlpha = 1;
+      c.lineWidth = 2; c.strokeStyle = p.tinta; c.globalAlpha = .22; c.stroke(); c.globalAlpha = 1;
+      c.fillStyle = p.tinta; c.textAlign = 'center';
+      var rot = eng ? f.en : f.es, tr = 19;
+      do { c.font = '800 ' + tr + 'px ' + SANS; tr -= 1; } while (c.measureText(rot + (f.u ? '  ' + f.u : '')).width > cw - 16 && tr > 12);
+      var wr = c.measureText(rot).width, wu = 0;
+      if (f.u) { c.font = '600 ' + (tr + 1) + 'px ' + SANS; wu = c.measureText('  ' + f.u).width; c.font = '800 ' + (tr + 1) + 'px ' + SANS; }
+      c.globalAlpha = .85; c.textAlign = 'left';
+      var lx = cx - (wr + wu) / 2;
+      c.fillText(rot, lx, cy0 + 23);
+      if (f.u) { c.font = '600 ' + (tr + 1) + 'px ' + SANS; c.globalAlpha = .6; c.fillText('  ' + f.u, lx + wr, cy0 + 23); }
+      c.globalAlpha = 1; c.textAlign = 'center';
+      var v = String(d[f.k] == null || d[f.k] === '' ? '—' : d[f.k]), tv = 56;
+      do { c.font = '700 ' + tv + 'px ' + MONO; tv -= 2; } while (c.measureText(v).width > cw - 16 && tv > 22);
+      c.fillText(v, cx, cy0 + 64);
+    });
+    return { tema: tema, paleta: p };
+  }
+  /* EL GIRO: un fotograma de la tarjeta dando la vuelta, a partir de las dos
+     caras ya pintadas (a = la que se va, b = la que llega). prog 0→1. La tarjeta
+     se estrecha hasta el canto y se abre con la otra cara, con una sombra que
+     la oscurece al ponerse de canto. */
+  function pintaGiro(cv, a, b, prog, estilo, diaAhora) {
+    if (cv.width !== W) cv.width = W;
+    if (cv.height !== H) cv.height = H;
+    var c = cv.getContext('2d'), tema = temaDe(estiloDe(estilo), diaAhora);
+    var pr = Math.max(0, Math.min(1, prog)), ang = pr * Math.PI, s = Math.abs(Math.cos(ang)), src = pr < .5 ? a : b;
+    c.fillStyle = FONDO[tema]; c.fillRect(0, 0, W, H);
+    var w = Math.max(2, W * s), x = (W - w) / 2;
+    // un poco más pequeña a mitad del giro: se aleja al girar
+    var k = 1 - .08 * Math.sin(ang), hh = H * k, y = (H - hh) / 2;
+    c.drawImage(src, 0, 0, W, H, x, y, w, hh);
+    c.fillStyle = 'rgba(0,0,0,' + (.45 * (1 - s)).toFixed(3) + ')'; c.fillRect(x, y, w, hh);
+  }
+
   root.PilotosPostit = { W: W, H: H, COLORES: COLORES, ORDEN_COLORES: ORDEN_COLORES, FORMAS: FORMAS, FONDO: FONDO,
-    estiloDe: estiloDe, temaDe: temaDe, paleta: paleta, pinta: pinta, wchTxt: wchTxt, LUZ: LUZ };
+    estiloDe: estiloDe, temaDe: temaDe, paleta: paleta, pinta: pinta, wchTxt: wchTxt, LUZ: LUZ,
+    PESOS_CAMPOS: PESOS_CAMPOS, pintaAtras: pintaAtras, pintaGiro: pintaGiro };
 })(typeof window !== 'undefined' ? window : this);

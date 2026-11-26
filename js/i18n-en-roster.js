@@ -776,6 +776,7 @@
     "Usar otro método": "Use another method",
     "Vacaciones": "Leave",
     "Fatiga": "Fatigue",
+    "Servicios mínimos": "Minimum services",
     "vacaciones también son día libre": "leave also counts as a day off",
     "Vas de pasajero: no es tiempo de vuelo, no va al logbook": "You're positioning as passenger: not flight time, not logged",
     "Ventana: {0}h{1}m": "Window: {0}h{1}m",

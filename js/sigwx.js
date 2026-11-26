@@ -92,6 +92,32 @@
     TROF:  { col: '#f59e0b', dcol: '#92400E', name: 'VAGUADA',             sym: null }
   };
 
+  /* techo de la petición de frentes: por ENCIMA del tope del servidor (25 s) */
+  var FRONTS_TECHO_MS = 40000;
+
+  /* ¿Qué fuente de frentes cubre este punto?
+     · 'dwd' — dentro del encuadre de la carta del DWD (se da como proyección:
+       el borde de arriba de la carta pasa por encima del polo y en lon/lat
+       daría la vuelta al mundo)
+     · 'wpc' — al oeste de donde llega el boletín del WPC
+     · null  — ninguna */
+  function fuenteFrentes(fr, lon, lat) {
+    var srcs = (fr && fr.coverage && fr.coverage.sources) || [];
+    for (var i = 0; i < srcs.length; i++) {
+      var s = srcs[i];
+      if (s.src === 'dwd' && s.proj) {
+        var p = s.proj, r = p.k * Math.tan(Math.PI / 4 - lat * Math.PI / 360), t = (lon - p.lon0) * Math.PI / 180;
+        var x = p.x0 + r * Math.sin(t), y = p.y0 + r * Math.cos(t), m = p.margin || 0;
+        if (x >= m && y >= m && x <= p.w - m && y <= p.h - m) return 'dwd';
+      }
+    }
+    var lonMax = fr && fr.coverage ? fr.coverage.lonMax : null;
+    for (var j = 0; j < srcs.length; j++) if (srcs[j].src === 'wpc') lonMax = srcs[j].lonMax;
+    if (lonMax != null && lon <= lonMax) return 'wpc';
+    return null;
+  }
+  window.pilotosFuenteFrentes = fuenteFrentes;
+
   var SEV = { severe: 'SEVERA', moderate: 'MODERADA' };
   var EXT = { OCNL: 'OCASIONAL', FRQ: 'FRECUENTE', ISOL: 'AISLADO' };
 
@@ -348,14 +374,22 @@ window.pilotosParseRoute = parseRouteWithNames;
         ctx.stroke();
       }
     } else if (key === 'ICING') {
-      /* Engelamiento: la copa sobre su asta.
-           MODERADO → copa + asta
-           SEVERO   → lo mismo con la BARRA CRUZADA en el asta */
+      /* Engelamiento: la copa con los bordes abiertos hacia fuera y el asta
+         que la atraviesa, como la tabla OACI que mandó el piloto (28-oct-2026):
+           MODERADO → UN asta
+           FUERTE   → DOS astas
+         (Hasta ahora la severa llevaba una barra cruzada en el asta: no es lo
+         que dice la tabla.) */
       ctx.beginPath();
-      ctx.arc(0, -r * 0.2, r * 0.62, Math.PI, 0, true);
+      ctx.moveTo(-r * 0.9, -r * 0.62);
+      ctx.quadraticCurveTo(-r * 0.62, -r * 0.6, -r * 0.62, -r * 0.25);
+      ctx.quadraticCurveTo(-r * 0.62, r * 0.28, 0, r * 0.28);
+      ctx.quadraticCurveTo(r * 0.62, r * 0.28, r * 0.62, -r * 0.25);
+      ctx.quadraticCurveTo(r * 0.62, -r * 0.6, r * 0.9, -r * 0.62);
       ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, -r * 0.2); ctx.lineTo(0, r * 0.95); ctx.stroke();
-      if (sev) barra(ctx, 0, -r * 0.2, 0, r * 0.95, r);
+      (sev ? [-r * 0.2, r * 0.2] : [0]).forEach(function (dx) {
+        ctx.beginPath(); ctx.moveTo(dx, -r * 0.7); ctx.lineTo(dx, r * 0.95); ctx.stroke();
+      });
     } else if (key === 'CB') {
       /* El CB no tiene símbolo propio en el Model SN: su área se delimita
          con línea FESTONEADA (§4.1) y se rotula ISOL/OCNL/FRQ/EMBD. Lo que
@@ -370,8 +404,10 @@ window.pilotosParseRoute = parseRouteWithNames;
       ctx.moveTo(-r, r * 0.8); ctx.lineTo(-r * 0.3, -r * 0.2);
       ctx.lineTo(r * 0.3, -r * 0.2); ctx.lineTo(r, r * 0.8);
       ctx.closePath(); ctx.stroke();
-      [[-r * 0.45, -r * 0.6], [0, -r * 0.9], [r * 0.45, -r * 0.6]].forEach(function (q) {
-        ctx.beginPath(); ctx.arc(q[0], q[1], r * 0.15, 0, 7); ctx.fill();
+      /* tres rayas saliendo del cráter, como la tabla OACI */
+      [[-r * 0.3, -r * 0.35, -r * 0.62, -r * 0.95], [0, -r * 0.35, 0, -r * 1.05],
+       [r * 0.3, -r * 0.35, r * 0.62, -r * 0.95]].forEach(function (q) {
+        ctx.beginPath(); ctx.moveTo(q[0], q[1]); ctx.lineTo(q[2], q[3]); ctx.stroke();
       });
     } else if (key === 'JET') {
       /* Eje del chorro: la flecha con su banderola de 50 kt (§4.3). */
@@ -422,6 +458,9 @@ window.pilotosParseRoute = parseRouteWithNames;
         on = _o[0], setOn = _o[1];
     var _f = useState(true),        flOnly = _f[0],   setFlOnly = _f[1];
     var _s = useState(null),        sel = _s[0],      setSel = _s[1];
+    /* lo que hay EN EL PUNTO tocado, de arriba abajo: la tarjeta del corte
+       vertical sale de aquí (28-oct-2026, «las alturas de las nubes»). */
+    var _pi = useState(null),       pila = _pi[0],    setPila = _pi[1];
     var _r = useState(null),        route = _r[0],    setRoute = _r[1];
     var _n = useState(0),           nonce = _n[0],    setNonce = _n[1];   // fuerza recarga
     var _of = useState(null),       ofp = _of[0],     setOfp = _of[1];   // cabecera del OFP leido
@@ -467,7 +506,11 @@ window.pilotosParseRoute = parseRouteWithNames;
        lienzo y los chips del DOM. Escribir `LAY[k].col` en un sitio y `LC(k)` en
        otro sería `ES_AIRPORTS` / `ES_IATA` dentro del mismo fichero — la leyenda
        diciendo un color y el mapa pintando otro. */
-    function LC(k) { var e = LAY[k];   return (day && e && e.dcol) || (e && e.col); }
+    /* `colDe(k, false)` = el tono de NOCHE pase lo que pase: lo usa la tarjeta
+       del punto tocado, que es cristal ahumado en los dos temas y sobre ella los
+       de día no se leen. Sigue siendo el mismo resolutor, no una lectura suelta. */
+    function colDe(k, deDia) { var e = LAY[k]; return (deDia && e && e.dcol) || (e && e.col); }
+    function LC(k) { return colDe(k, day); }
     function FC(k) { var e = FRONT[k]; return (day && e && e.dcol) || (e && e.col); }
 
     /* El acento. `T.cyan` de día es #0891B2 y sobre blanco da **3,68:1**: vale
@@ -781,13 +824,36 @@ window.pilotosParseRoute = parseRouteWithNames;
     /* ── 1b · Frentes de superficie ──
        Van aparte del SIGWX porque son OTRO producto: el de alto nivel no lleva
        frentes. Se dibujan donde la fuente llega; donde no, se dice. */
+    /* `fuentes=2`: el servidor añade los frentes de la carta del DWD (análisis
+       a mano que sí cubre Europa y el Mediterráneo) y dice qué cubre cada fuente.
+       Sin él sale la respuesta de siempre, para los clientes que no la conocen.
+       Con techo (Beta.993): la primera lectura de una carta nueva tarda ~2 s en
+       el servidor, y el servidor corta sus descargas a los 25 s. */
     useEffect(function () {
       var dead = false;
-      fetch(ldBackendUrl() + '/api/wx/fronts' + (nonce ? '?fresh=1' : ''))
-        .then(function (r) { return r.json(); })
+      var ctl = window.AbortController ? new AbortController() : null;
+      var techo = setTimeout(function () { if (ctl) ctl.abort(); }, FRONTS_TECHO_MS);
+      var q = '/api/wx/fronts?fuentes=2' + (nonce ? '&fresh=1' : '');
+      var pide = function (base) {
+        return fetch(base + q, ctl ? { signal: ctl.signal } : {}).then(function (r) { return r.json(); });
+      };
+      /* Dos orígenes (el patrón de /api/ics, CLAUDE.md «beta llama a
+         producción»): un aparato que guardó la URL de producción le pregunta a
+         un servidor que aún no conoce `fuentes=2` y recibe la respuesta vieja,
+         sin `coverage.sources`. Entonces se pregunta al que sirve la página. */
+      var base = ldBackendUrl(), propio = '';
+      // la web pública (pilotos.aero) es estática: no tiene API a la que preguntar
+      try { var hn = location.hostname;
+        if (/^https?:/.test(location.origin) && location.origin !== base && hn !== 'pilotos.aero' && hn !== 'www.pilotos.aero') propio = location.origin; } catch (e) {}
+      pide(base)
+        .then(function (j) {
+          if (j && j.coverage && j.coverage.sources) return j;
+          return propio ? pide(propio).catch(function () { return j; }) : j;
+        })
         .then(function (j) { if (!dead && j && j.lines) setFronts(j); })
-        .catch(function () {});
-      return function () { dead = true; };
+        .catch(function () {})
+        .then(function () { clearTimeout(techo); });
+      return function () { dead = true; clearTimeout(techo); };
     }, [nonce]);
 
     /* ── 2 · Ruta ──
@@ -951,6 +1017,15 @@ window.pilotosParseRoute = parseRouteWithNames;
          porque una leyenda que dibuje su propia versión del símbolo es
          `ES_AIRPORTS` / `ES_IATA` con forma de icono. */
       function simbolo(x, y, key, sev, col, r) { dibujaSimbolo(ctx, x, y, key, sev, col, r); }
+      /* ── BRILLO de noche (diseño «noche neón», elegido el 28-oct-2026) ──
+         Sólo de noche: de día la carta es clara y un halo la ensucia. Y NUNCA
+         mientras se arrastra: un `shadowBlur` por trazo en cada frame del gesto
+         es justo la clase de coste que esta carta no paga (repinta sólo cuando
+         la tocas). Con el dedo quieto, se repinta con brillo. */
+      var arrastrando = !!(cvRef.current && cvRef.current._drag && cvRef.current._drag.moved > 6) || !!pinza.current;
+      var conBrillo = !day && !arrastrando;
+      function brillo(col, b) { if (conBrillo) { ctx.shadowColor = col; ctx.shadowBlur = b; } }
+      function sinBrillo() { ctx.shadowBlur = 0; ctx.shadowColor = 'transparent'; }
 
       /* Banderolas y plumas del viento máximo (§4.3). El asta se dibuja
          PERPENDICULAR al eje del chorro y las barbas salen de ella, que es como
@@ -1298,22 +1373,83 @@ window.pilotosParseRoute = parseRouteWithNames;
          Triángulos al lado del avance en el frío, semicírculos en el cálido,
          alternados en el ocluido, y enfrentados en el estacionario. */
       if (frOn && fronts && fronts.lines) {
-        fronts.lines.forEach(function (ln) {
-          var F = FRONT[ln.kind]; if (!F) return;
-          var scr = ln.pts.map(function (p) { return P(p[0], p[1]); });
-          // fuera de pantalla: no gastar en símbolos
-          if (scr.every(function (q) { return q[0] < -40 || q[0] > W + 40 || q[1] < -40 || q[1] > H + 40; })) return;
+        /* ── TAMAÑO: el de la carta, no el de un adorno ──
+           Con 2,4 px de trazo y triángulos de 6 px el frente se perdía sobre el
+           relieve y no se parecía a la carta del DWD («demasiado pequeños», el
+           piloto, 30-oct). Ahora el trazo y los símbolos crecen con el zoom,
+           con suelo y techo, y llevan un RIBETE del color del fondo que los
+           despega del relieve en los dos temas (+ brillo de noche). */
+        // alejado (z<1) también encoge: con la carta entera, letras de 19 px tapaban el mapa
+        var tam = Math.max(0.75, Math.min(1.45, 1 + 0.25 * Math.log(Math.max(0.3, cam.z)) / Math.LN2));
+        var RIBETE = day ? 'rgba(255,255,255,.92)' : 'rgba(0,8,28,.85)';
+        /* la proporción de la carta del DWD: un símbolo cada ~4,5 radios. Más
+           espaciados, de cerca quedaban uno o dos por frente y no se leía. */
+        var LW = 3 * tam, TRI_B = 7 * tam, TRI_H = 11 * tam, SEMI = 7 * tam, STEP = 32 * tam;
+
+        /* ── SENTIDO: los símbolos van SIEMPRE a la DERECHA del recorrido ──
+           (con la pantalla en y hacia abajo: rumbo este → derecha = sur).
+           Medido el 30-oct sobre 14 frentes en los que coinciden las dos
+           fuentes: el boletín del WPC los da con los símbolos a la IZQUIERDA y
+           la carta del DWD sale de `dwd-frentes.js` a la derecha. Con `fuentes=2`
+           el servidor ya le da la vuelta al WPC; con la respuesta vieja (sin
+           `coverage.sources`) se la da aquí. Antes el triángulo iba a la derecha
+           y el SEMICÍRCULO a la izquierda: en cada fuente salía mal uno de los
+           dos — en la del DWD, los semicírculos del cálido al revés. */
+        var normalizada = !!(fronts.coverage && fronts.coverage.sources);
+
+        function trazo(scr, col, lw, guiones) {
           ctx.beginPath();
           scr.forEach(function (q, i) { i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); });
-          ctx.strokeStyle = FC(ln.kind); ctx.lineWidth = ln.kind === 'TROF' ? 1.6 : 2.4;
-          ctx.setLineDash(ln.kind === 'TROF' ? [6, 4] : []);
-          ctx.lineCap = 'round'; ctx.stroke(); ctx.setLineDash([]);
+          ctx.setLineDash(guiones || []); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+          ctx.strokeStyle = RIBETE; ctx.lineWidth = lw + 3; ctx.stroke();
+          brillo(col, 8);
+          ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.stroke();
+          sinBrillo(); ctx.setLineDash([]);
+        }
+        function simbolo(isTri, x, y, ux, uy, side, col, hueco) {
+          var nx = -uy * side, ny = ux * side;                 // normal del lado del símbolo
+          ctx.beginPath();
+          if (isTri) {
+            ctx.moveTo(x - ux * TRI_B, y - uy * TRI_B);
+            ctx.lineTo(x + nx * TRI_H, y + ny * TRI_H);
+            ctx.lineTo(x + ux * TRI_B, y + uy * TRI_B);
+            ctx.closePath();
+          } else {
+            // de −rumbo a +rumbo pasando por la normal: el arco queda en el lado `side`
+            var ang = Math.atan2(uy, ux);
+            ctx.arc(x, y, SEMI, ang + Math.PI, ang + 2 * Math.PI, side > 0);
+            ctx.closePath();
+          }
+          ctx.lineJoin = 'round'; ctx.strokeStyle = RIBETE; ctx.lineWidth = 2.5; ctx.stroke();
+          if (hueco) {
+            // frente EN ALTURA: el símbolo va hueco, como en la carta del DWD
+            ctx.fillStyle = RIBETE; ctx.fill();
+            brillo(col, 6); ctx.strokeStyle = col; ctx.lineWidth = 1.8 * tam; ctx.stroke(); sinBrillo();
+          } else { brillo(col, 6); ctx.fillStyle = col; ctx.fill(); sinBrillo(); }
+        }
+
+        fronts.lines.forEach(function (ln) {
+          var F = FRONT[ln.kind]; if (!F) return;
+          var pts = (normalizada || ln.src === 'dwd') ? ln.pts : ln.pts.slice().reverse();
+          var scr = pts.map(function (p) { return P(p[0], p[1]); });
+          // fuera de pantalla: no gastar en símbolos
+          if (scr.every(function (q) { return q[0] < -40 || q[0] > W + 40 || q[1] < -40 || q[1] > H + 40; })) return;
+          if (ln.kind === 'TROF') { trazo(scr, FC('TROF'), 2 * tam, [9 * tam, 6 * tam]); return; }
+          trazo(scr, F.sym === 'stat' ? FC('WARM') : FC(ln.kind), LW);
+          if (F.sym === 'stat') {
+            /* el estacionario de la carta alterna los COLORES del trazo: rojo
+               bajo los semicírculos, azul bajo los triángulos */
+            // un tramo por símbolo: triángulo en 0,5·STEP (azul), semicírculo en 1,5·STEP (rojo)…
+            ctx.save(); ctx.setLineDash([STEP, STEP]); ctx.lineDashOffset = 0;
+            ctx.beginPath(); scr.forEach(function (q, i) { i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); });
+            ctx.strokeStyle = FC('COLD'); ctx.lineWidth = LW; ctx.lineCap = 'butt'; ctx.stroke(); ctx.restore();
+          }
           if (!F.sym) return;
 
           /* símbolos a intervalo constante recorriendo la polilínea entera.
              STNRY: triángulo y semicírculo a lados OPUESTOS (es lo que lo
              distingue). OCFNT: los dos al mismo lado, alternándose. */
-          var STEP = 34, next = STEP * 0.6, flip = 0;
+          var next = STEP * 0.5, flip = 0;
           for (var i = 1; i < scr.length; i++) {
             var a = scr[i - 1], b = scr[i];
             var dx = b[0] - a[0], dy = b[1] - a[1], seg = Math.hypot(dx, dy);
@@ -1321,44 +1457,46 @@ window.pilotosParseRoute = parseRouteWithNames;
             var ux = dx / seg, uy = dy / seg;
             var d = next;
             while (d <= seg) {
-              var x = a[0] + ux * d, y = a[1] + uy * d;
               var isTri = (F.sym === 'tri') || ((F.sym === 'alt' || F.sym === 'stat') && flip % 2 === 0);
               var side = (F.sym === 'stat' && !isTri) ? -1 : 1;
-              var nx = -uy * side, ny = ux * side;
-              ctx.fillStyle = F.sym === 'stat' ? (isTri ? FC('COLD') : FC('WARM')) : FC(ln.kind);
-              if (isTri) {
-                ctx.beginPath();
-                ctx.moveTo(x - ux * 4, y - uy * 4);
-                ctx.lineTo(x + ux * 4, y + uy * 4);
-                ctx.lineTo(x + nx * 6.5, y + ny * 6.5);
-                ctx.closePath(); ctx.fill();
-              } else {
-                var ang = Math.atan2(uy, ux);
-                ctx.beginPath();
-                ctx.arc(x, y, 4.5, ang + (side > 0 ? Math.PI : 0), ang + (side > 0 ? 2 * Math.PI : Math.PI));
-                ctx.fill();
-              }
+              var col = F.sym === 'stat' ? (isTri ? FC('COLD') : FC('WARM')) : FC(ln.kind);
+              simbolo(isTri, a[0] + ux * d, a[1] + uy * d, ux, uy, side, col, ln.alto);
               flip++; d += STEP;
             }
             next = d - seg;
           }
         });
-        /* centros de alta y baja */
-        (fronts.highs || []).concat([]).forEach(function (x) { mark(x, 'A', '#3b82f6'); });
-        (fronts.lows || []).forEach(function (x) { mark(x, 'B', '#ef4444'); });
+
+        /* ── centros de alta y baja ──
+           Letra grande con ribete, como en la carta. En castellano A/B, en
+           inglés H/L (antes salía A/B también en inglés: es lienzo y el
+           traductor del DOM no llega). Los del DWD no traen presión (su carta
+           no la escribe junto a la letra): no se inventa. */
+        var EN = window.pilotosLang === 'en';
+        (fronts.highs || []).forEach(function (x) { mark(x, EN ? 'H' : 'A', day ? '#1D4ED8' : '#5B9BFF'); });
+        (fronts.lows || []).forEach(function (x) { mark(x, EN ? 'L' : 'B', day ? '#B91C1C' : '#FF5A5A'); });
         function mark(x, letra, col) {
           var q = P(x.c[0], x.c[1]);
-          if (q[0] < 0 || q[0] > W || q[1] < 0 || q[1] > H) return;
-          ctx.fillStyle = col; ctx.font = '700 13px ' + sans;
-          ctx.textAlign = 'center'; ctx.fillText(letra, q[0], q[1] + 4);
-          ctx.font = '700 7px ' + mono; ctx.fillStyle = col + 'cc';
-          ctx.fillText(String(x.p), q[0], q[1] + 13);
+          if (q[0] < -20 || q[0] > W + 20 || q[1] < -20 || q[1] > H + 20) return;
+          var fs = Math.round(17 * Math.min(tam, 1.2));
+          ctx.textAlign = 'center'; ctx.lineJoin = 'round';
+          ctx.font = '800 ' + fs + 'px ' + sans;
+          ctx.strokeStyle = RIBETE; ctx.lineWidth = 4; ctx.strokeText(letra, q[0], q[1] + fs * 0.36);
+          brillo(col, 8); ctx.fillStyle = col; ctx.fillText(letra, q[0], q[1] + fs * 0.36); sinBrillo();
+          if (x.p != null) {
+            ctx.font = '700 ' + Math.round(9 * tam) + 'px ' + mono;
+            ctx.strokeStyle = RIBETE; ctx.lineWidth = 3; ctx.strokeText(String(x.p), q[0], q[1] + fs * 0.36 + 11 * tam);
+            ctx.fillStyle = col; ctx.fillText(String(x.p), q[0], q[1] + fs * 0.36 + 11 * tam);
+          }
           ctx.textAlign = 'left';
         }
         /* ★ el límite de la fuente, dibujado: sin esto un mapa vacío al este
            de Greenwich se lee como "no hay frentes", que es falso */
+        /* Con la carta del DWD Greenwich ya no es ningún límite: dentro de su
+           encuadre manda el DWD. La raya sólo se pinta si el DWD no llegó. */
         var cov = fronts.coverage;
-        if (cov && cov.lonMax != null) {
+        var hayDwd = !!(cov && (cov.sources || []).some(function (s) { return s.src === 'dwd'; }));
+        if (cov && cov.lonMax != null && !hayDwd) {
           var qa = P(cov.lonMax, 80), qb = P(cov.lonMax, 5);
           if (qa[0] > -20 && qa[0] < W + 20) {
             ctx.setLineDash([3, 5]); ctx.strokeStyle = 'rgba(148,163,184,.55)'; ctx.lineWidth = 1;
@@ -1391,7 +1529,8 @@ window.pilotosParseRoute = parseRouteWithNames;
             ctx.strokeStyle = col + (live ? (isSel ? 'ff' : 'cc') : '30');
             ctx.lineWidth = isSel ? 2.2 : 1.3;
             ctx.setLineDash(key === 'TURB' ? [5, 3] : []);
-            ctx.stroke(); ctx.setLineDash([]);
+            brillo(col, isSel ? 14 : 8);
+            ctx.stroke(); ctx.setLineDash([]); sinBrillo();
           });
           if (live) {
             /* Símbolo y niveles VIAJAN JUNTOS y sobre el trozo visible del
@@ -1420,7 +1559,8 @@ window.pilotosParseRoute = parseRouteWithNames;
           ctx.fillStyle = col + (live ? (isSel ? '38' : '1c') : '08'); ctx.fill();
           festoneada(ring);
           ctx.strokeStyle = col + (live ? 'ee' : '30'); ctx.lineWidth = isSel ? 2 : 1.4;
-          ctx.stroke();
+          if (live) brillo(col, isSel ? 16 : 10);
+          ctx.stroke(); sinBrillo();
         });
         if (live) {
           var ac = anclaVisible(f.c[0]);
@@ -1474,10 +1614,30 @@ window.pilotosParseRoute = parseRouteWithNames;
              chorro es lo que el piloto sigue con el dedo sobre la carta. */
           ctx.strokeStyle = col + '22'; ctx.lineWidth = 15; ctx.lineCap = 'round'; ctx.stroke();
           path(r, false);
-          ctx.strokeStyle = col + (isSel ? 'ff' : 'cc'); ctx.lineWidth = isSel ? 6.4 : 4.6; ctx.stroke();
+          ctx.strokeStyle = col + (isSel ? 'ff' : 'cc'); ctx.lineWidth = isSel ? 6.4 : 4.6;
+          brillo(col, isSel ? 16 : 10); ctx.stroke(); sinBrillo();
           flechasEje(r, col, isSel);
         });
         var fl = f.p.fleche || [];
+        /* BARRAS DE CAMBIO: doble raya cruzando el eje donde el viento ha
+           cambiado 20 kt desde la última (Model SN). Van entre los dos puntos
+           donde se cruza el umbral; con un solo punto no hay cambio que marcar. */
+        var vRef = fl.length ? fl[0].s : null;
+        for (var ib = 1; ib < fl.length; ib++) {
+          if (vRef == null || fl[ib].s == null || Math.abs(fl[ib].s - vRef) < 20) continue;
+          vRef = fl[ib].s;
+          var b0 = P(fl[ib - 1].lon, fl[ib - 1].lat), b1 = P(fl[ib].lon, fl[ib].lat);
+          var bx = (b0[0] + b1[0]) / 2, by = (b0[1] + b1[1]) / 2;
+          if (bx < -20 || bx > W + 20 || by < -20 || by > H + 20) continue;
+          var bL = Math.hypot(b1[0] - b0[0], b1[1] - b0[1]) || 1;
+          var tx = (b1[0] - b0[0]) / bL, ty = (b1[1] - b0[1]) / bL;
+          ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+          [-4, 4].forEach(function (o) {
+            var cx = bx + tx * o, cy = by + ty * o;
+            ctx.beginPath(); ctx.moveTo(cx + ty * 11, cy - tx * 11); ctx.lineTo(cx - ty * 11, cy + tx * 11); ctx.stroke();
+          });
+          ctx.restore();
+        }
         var ultH = null, ultQ = null, ultB = null;
         fl.forEach(function (a, i) {
           var q = P(a.lon, a.lat);
@@ -1512,15 +1672,11 @@ window.pilotosParseRoute = parseRouteWithNames;
         if (!on[key]) return;
         (L[key] || []).forEach(function (f) {
           var q = P(f.c[0][0][0], f.c[0][0][1]);
+          /* el MISMO símbolo de la tabla OACI que la leyenda, no un triángulo suyo */
+          brillo(LC(key), 8);
+          simbolo(q[0], q[1], key, false, LC(key), 9);
+          sinBrillo();
           ctx.fillStyle = LC(key);
-          if (key === 'VOLC') {
-            ctx.beginPath(); ctx.moveTo(q[0], q[1] - 6);
-            ctx.lineTo(q[0] + 6, q[1] + 5); ctx.lineTo(q[0] - 6, q[1] + 5);
-            ctx.closePath(); ctx.fill();
-          } else {
-            ctx.beginPath(); ctx.arc(q[0], q[1], 5, 0, 7); ctx.lineWidth = 2;
-            ctx.strokeStyle = LC(key); ctx.stroke();
-          }
           ctx.font = '700 7px ' + mono;
           ctx.fillText((f.p.name && window.t ? window.t(f.p.name) : f.p.name) || LAY[key].lbl, q[0] + 9, q[1] + 4);
         });
@@ -1687,7 +1843,8 @@ window.pilotosParseRoute = parseRouteWithNames;
       var cv = cvRef.current, st = cv && cv._drag; cv._drag = null;
       delete ptrs.current[e.pointerId];
       if (!dosDedos()) pinza.current = null;
-      if (!st || st.moved > 6) return;
+      if (st && st.moved > 6) { draw(); return; }      // vuelve el brillo de noche
+      if (!st) return;
       var ahora = Date.now();
       if (ahora - ultTap.current < 300) {          // DOBLE TOQUE: acercar aquí
         ultTap.current = 0;
@@ -1697,7 +1854,61 @@ window.pilotosParseRoute = parseRouteWithNames;
       ultTap.current = ahora;
       if (!data) return;
       var r = cv.getBoundingClientRect();
-      setSel(pick(e.clientX - r.left, e.clientY - r.top));
+      var px = e.clientX - r.left, py = e.clientY - r.top;
+      var f = pick(px, py);
+      setSel(f);
+      setPila(f ? apila(px, py) : null);
+    }
+    /* Todo lo que hay en el punto tocado: las áreas que lo contienen (CB, TURB,
+       ICING), el chorro que pasa cerca y la tropopausa más próxima. Es la
+       columna de aire de ESE sitio — lo que el piloto se pregunta al tocar. */
+    function apila(px, py) {
+      var cam = camRef.current, W = cam.W, H = cam.HH;
+      function P(lon, lat) {
+        return [W / 2 + (lon - cam.lon) * cam.sc * cam.z,
+                H / 2 - (my(lat) - my(cam.lat)) * cam.sc * cam.z];
+      }
+      function inside(scr) {
+        var ins = false;
+        for (var i = 0, j = scr.length - 1; i < scr.length; j = i++) {
+          var yi = scr[i][1], yj = scr[j][1];
+          if ((yi > py) !== (yj > py) &&
+              px < (scr[j][0] - scr[i][0]) * (py - yi) / (yj - yi) + scr[i][0]) ins = !ins;
+        }
+        return ins;
+      }
+      function dist(scr) {
+        var bd = 1e9;
+        for (var i = 1; i < scr.length; i++) {
+          var a = scr[i - 1], b = scr[i], vx = b[0] - a[0], vy = b[1] - a[1], L2 = vx * vx + vy * vy;
+          var t = L2 ? Math.max(0, Math.min(1, ((px - a[0]) * vx + (py - a[1]) * vy) / L2)) : 0;
+          bd = Math.min(bd, Math.hypot(px - (a[0] + t * vx), py - (a[1] + t * vy)));
+        }
+        return bd;
+      }
+      var L = (data && data.layers) || {}, out = [], trop = null, tropD = 1e9;
+      ['CB', 'TURB', 'ICING'].forEach(function (k) {
+        if (!on[k]) return;
+        (L[k] || []).forEach(function (f) {
+          if (f.c.some(function (r) { var sc = r.map(function (q) { return P(q[0], q[1]); }); return sc.length > 2 && inside(sc); }))
+            out.push({ k: k, f: f });
+        });
+      });
+      if (on.JET) (L.JET || []).forEach(function (f) {
+        var d = Math.min.apply(null, f.c.map(function (r) { return dist(r.map(function (q) { return P(q[0], q[1]); })); }));
+        if (d > 40) return;
+        var best = null, bd = 1e9;
+        (f.p.fleche || []).forEach(function (a) {
+          var q = P(a.lon, a.lat), dd = Math.hypot(q[0] - px, q[1] - py);
+          if (dd < bd) { bd = dd; best = a; }
+        });
+        out.push({ k: 'JET', f: f, s: best && best.s, h: best && best.h });
+      });
+      if (on.TROP) (L.TROP || []).forEach(function (f) {
+        var d = Math.min.apply(null, f.c.map(function (r) { return dist(r.map(function (q) { return P(q[0], q[1]); })); }));
+        if (d < tropD && flNum(f.p.height) != null) { tropD = d; trop = flNum(f.p.height); }
+      });
+      return { items: out, trop: trop };
     }
     function pick(px, py) {
       var cam = camRef.current, W = cam.W, H = cam.HH, best = null, bd = 14;
@@ -1893,6 +2104,121 @@ window.pilotosParseRoute = parseRouteWithNames;
                            style: { width: 18, height: 18, display: 'block', flex: 'none' } });
     }
 
+
+    function tarjetaCorte() {
+      var sk = selKey();
+      if (!sel || !sk || !pila) return null;
+      var p = sel.p || {};
+      var NC = function (k) { return colDe(k, false) || '#E9F4FF'; };
+      var col = NC(sk), tt = window.t || function (x) { return x; };
+      var tx1 = '#EEF5FF', tx2 = 'rgba(226,236,255,.74)', tx3 = 'rgba(226,236,255,.56)';
+      var fl = function (v) { var n = flNum(v); return n == null ? 'XXX' : 'FL' + n; };
+      var titulo, tiles;
+      if (sk === 'JET') {
+        var mx = 0, hh = null;
+        (p.fleche || []).forEach(function (a) { if (a.s > mx) { mx = a.s; hh = a.h; } });
+        titulo = 'Chorro' + (hh ? ' · núcleo FL' + hh : '');
+        tiles = [['VIENTO MÁX.', mx ? mx + ' kt' : '—'], ['NÚCLEO', hh ? 'FL' + hh : '—'],
+                 ['CRUCERO', 'FL' + CRUISE, hh ? (Math.abs(hh - CRUISE) <= 40 ? 'cerca del núcleo' : 'lejos del núcleo') : '']];
+      } else if (sk === 'TROP') {
+        titulo = 'Tropopausa FL' + p.height;
+        tiles = [['ALTURA', fl(p.height)], ['CRUCERO', 'FL' + CRUISE]];
+      } else if (sk === 'VOLC' || sk === 'TC') {
+        titulo = p.name || LAY[sk].name;
+        tiles = [['TIPO', LAY[sk].lbl]];
+      } else {
+        var fuerte = /SEV/i.test(p.severity || '');
+        titulo = sk === 'CB' ? ((p.extent ? p.extent + ' ' : '') + 'CB · ' + (EXT[p.extent] ? EXT[p.extent].toLowerCase() : 'cumulonimbos'))
+               : sk === 'TURB' ? (fuerte ? 'Turbulencia fuerte' : 'Turbulencia moderada')
+               : (fuerte ? 'Engelamiento fuerte' : 'Engelamiento moderado');
+        var dentro = affects(p, sk, CRUISE);
+        tiles = [['TOPE', fl(p.top)], ['BASE', sk === 'CB' ? 'XXX' : fl(p.base), (sk === 'CB' || flNum(p.base) == null) ? 'no publicada' : ''],
+                 ['CRUCERO', 'FL' + CRUISE, dentro ? 'DENTRO' : 'fuera', dentro]];
+      }
+
+      /* ── el corte vertical ── */
+      var cols = [];
+      (pila.items || []).forEach(function (it) {
+        var q = it.f.p || {};
+        if (it.k === 'JET') { if (it.h) cols.push({ k: 'JET', base: it.h - 20, top: it.h + 20, et: it.h, sub: (it.s || '') + ' kt' }); return; }
+        cols.push({ k: it.k, base: it.k === 'CB' ? null : flNum(q.base), top: flNum(q.top),
+                    sev: /SEV/i.test(q.severity || ''),
+                    sub: it.k === 'CB' ? (q.extent || 'CB') : (/SEV/i.test(q.severity || '') ? 'SEV' : 'MOD') });
+      });
+      cols = cols.slice(0, 5);
+      var tops = cols.map(function (c) { return c.top || 0; }).concat([CRUISE + 30, pila.trop ? pila.trop + 20 : 0, 450]);
+      var HI = Math.ceil(Math.max.apply(null, tops) / 50) * 50, LO = 200;
+      var VW = 300, VH = 138, X0 = 34, X1 = VW - 8, Y0 = 14, Y1 = VH - 18;
+      var Y = function (f) { return Y1 - (Math.max(LO, Math.min(HI, f)) - LO) / (HI - LO) * (Y1 - Y0); };
+      var svg = [];
+      for (var g = LO; g <= HI; g += 50) {
+        svg.push(h('line', { key: 'g' + g, x1: X0, x2: X1, y1: Y(g), y2: Y(g), stroke: 'rgba(255,255,255,.07)' }));
+        svg.push(h('text', { key: 't' + g, x: X0 - 5, y: Y(g) + 3, textAnchor: 'end', fontSize: 8.5, fill: tx3, fontFamily: mono }, String(g)));
+      }
+      var slot = cols.length ? (X1 - X0 - 8) / cols.length : 0;
+      cols.forEach(function (c, i) {
+        var cc = NC(c.k), w = Math.min(46, slot * 0.62), x = X0 + 8 + slot * i + (slot - w) / 2;
+        var yt = c.top == null ? Y0 : Y(c.top), yb = c.base == null ? Y1 : Y(c.base);
+        var gid = 'sgx-g' + i;
+        svg.push(h('defs', { key: 'd' + i }, h('linearGradient', { id: gid, x1: 0, x2: 0, y1: 0, y2: 1 },
+          h('stop', { offset: '0', stopColor: cc, stopOpacity: .95 }),
+          h('stop', { offset: '1', stopColor: cc, stopOpacity: c.base == null ? .08 : .45 }))));
+        svg.push(h('rect', { key: 'r' + i, x: x, y: yt, width: w, height: Math.max(4, yb - yt), rx: 7,
+                             fill: 'url(#' + gid + ')', style: { filter: 'drop-shadow(0 0 5px ' + cc + '88)' } }));
+        svg.push(h('text', { key: 'v' + i, x: x + w / 2, y: yt - 4, textAnchor: 'middle', fontSize: 10, fontWeight: 700, fill: cc, fontFamily: mono },
+          c.k === 'JET' ? 'FL' + c.et : (c.top == null ? 'XXX' : String(c.top))));
+        if (c.base == null && c.k !== 'JET')
+          svg.push(h('text', { key: 'b' + i, x: x + w / 2, y: Y1 - 3, textAnchor: 'middle', fontSize: 8, fill: tx3, fontFamily: mono }, 'XXX'));
+      });
+      if (pila.trop) {
+        svg.push(h('line', { key: 'tr', x1: X0, x2: X1, y1: Y(pila.trop), y2: Y(pila.trop), stroke: NC('TROP'), strokeDasharray: '5 4', strokeWidth: 1.4 }));
+        svg.push(h('text', { key: 'trt', x: X1 - 2, y: Y(pila.trop) - 4, textAnchor: 'end', fontSize: 8.5, fill: NC('TROP'), fontFamily: mono }, 'TROP FL' + pila.trop));
+      }
+      svg.push(h('line', { key: 'cr', x1: X0, x2: X1 - 8, y1: Y(CRUISE), y2: Y(CRUISE), stroke: '#FFFFFF', strokeWidth: 2.2 }));
+      svg.push(h('path', { key: 'cra', d: 'M' + X1 + ' ' + Y(CRUISE) + ' l-10 -5 l2 5 l-2 5 z', fill: '#FFFFFF' }));
+      svg.push(h('text', { key: 'crt', x: X0 + 3, y: Y(CRUISE) + 12, fontSize: 9, fontWeight: 700, fill: '#FFFFFF', fontFamily: mono }, 'TU FL' + CRUISE));
+
+      var lbl = { fontSize: 7, fontFamily: mono, letterSpacing: '1px', color: tx3 };
+      return h('div', { key: 'corte', 'data-sigwx-corte': sk, onPointerDown: function (e) { e.stopPropagation(); },
+          style: vidrio({ position: 'absolute', right: 8, zIndex: 6,
+            top: INM ? 'calc(100px + env(safe-area-inset-top))' : 52,
+            width: 'min(340px, calc(100% - 16px))', maxHeight: 'calc(100% - ' + (INM ? 190 : 140) + 'px)', overflowY: 'auto',
+            borderRadius: 16, padding: '12px 13px', boxSizing: 'border-box',
+            background: 'rgba(6,14,32,.9)', border: '1px solid ' + col + '66',
+            boxShadow: '0 10px 30px rgba(0,0,0,.45), 0 0 18px ' + col + '33' }) },
+        /* cabecera */
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 7 } },
+          h(SimboloChip, { k: sk, col: col, on: true, sev: /SEV/i.test(p.severity || '') }),
+          h('div', { style: Object.assign({}, lbl, { color: col, flex: 1 }) }, LAY[sk].name),
+          h('button', { onClick: function () { setSel(null); setPila(null); }, title: 'Cerrar',
+            style: { width: 30, height: 30, margin: '-6px -6px 0 0', border: 'none', background: 'transparent',
+                     color: tx2, fontSize: 15, cursor: 'pointer' } }, '✕')),
+        h('div', { style: { fontFamily: sans, fontSize: 15, fontWeight: 700, color: tx1, margin: '0 0 8px' } }, titulo),
+        /* las cifras grandes */
+        h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(' + tiles.length + ', 1fr)', gap: 6 } },
+          tiles.map(function (t, i) {
+            var warn = t[3] === true;
+            return h('div', { key: i, style: { borderRadius: 10, padding: '7px 8px',
+                background: warn ? 'rgba(255,61,110,.16)' : 'rgba(255,255,255,.06)',
+                boxShadow: warn ? 'inset 0 0 0 1px rgba(255,61,110,.7)' : 'none' } },
+              h('div', { style: lbl }, t[0]),
+              h('div', { style: { fontFamily: mono, fontSize: 15, fontWeight: 700, color: warn ? '#FF6B8E' : tx1, marginTop: 2 } }, t[1]),
+              t[2] ? h('div', { style: { fontFamily: mono, fontSize: 7.5, color: warn ? '#FF9DB4' : tx3, marginTop: 1 } }, t[2]) : null);
+          })),
+        /* el corte vertical */
+        cols.length ? h('div', { style: { marginTop: 8 } },
+          h('div', { style: lbl }, 'CORTE VERTICAL EN ESTE PUNTO'),
+          h('svg', { viewBox: '0 0 ' + VW + ' ' + VH, width: '100%', style: { display: 'block', marginTop: 4 } }, svg),
+          h('div', { style: { display: 'grid', gridTemplateColumns: '34px repeat(' + cols.length + ', 1fr)', alignItems: 'start' } },
+            [h('span', { key: 'sp' })].concat(cols.map(function (c, i) {
+              return h('div', { key: i, style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 } },
+                h(SimboloChip, { k: c.k, col: NC(c.k), on: true, sev: c.sev }),
+                h('div', { style: { fontFamily: mono, fontSize: 8, fontWeight: 700, color: NC(c.k) } }, LAY[c.k].lbl),
+                h('div', { style: { fontFamily: mono, fontSize: 7, color: tx3 } }, c.sub));
+            })))) : null,
+        sk === 'CB' ? h('div', { style: { fontFamily: mono, fontSize: 7.5, color: tx2, lineHeight: 1.5, marginTop: 8 } },
+          'Un CB en la carta implica tormenta, granizo, turbulencia y engelamiento moderados o fuertes. La carta da su TOPE; la base no se publica (XXX).') : null);
+    }
     /* ── EL CRISTAL de los mandos que van DENTRO del mapa ──────────────────
        AHUMADO en los DOS temas, nunca claro. Encima del lienzo —que en modo día
        es un mar claro— una pastilla clara se queda en fantasma; esta app ya lo
@@ -1992,6 +2318,9 @@ window.pilotosParseRoute = parseRouteWithNames;
     /* El VALID del boletín codificado viene en MMDDHH ("090706Z" = 7 de
        septiembre, 06Z). Enseñarlo crudo se lee como un día 9 que no es. */
     function validFronts(v) {
+      // el DWD la da en ISO (2026-10-29T00:00:00Z); el WPC como DDHHMMZ
+      var iso = String(v || '').match(/^\d{4}-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+      if (iso) return iso[2] + '/' + iso[1] + ' ' + iso[3] + ':' + iso[4] + 'Z';
       var m = String(v || '').match(/^(\d{2})(\d{2})(\d{2})Z?$/);
       if (!m) return v || '—';
       return m[2] + '/' + m[1] + ' ' + m[3] + ':00Z';
@@ -2016,7 +2345,8 @@ window.pilotosParseRoute = parseRouteWithNames;
       ? ['SIGWX WAFS · CICLO ', h('b', { key: 'c', style: { color: VID_TX } },
             data ? (data.cycle || '').slice(6, 8) + '/' + (data.cycle || '').slice(4, 6) + ' ' + (data.cycle || '').slice(9, 11) + 'Z' : '…'),
          data ? ' · VÁLIDO ' + z(data.validAt) + ' (+' + data.hour + 'h)' : ' · CARGANDO…']
-      : ['ANÁLISIS DE SUPERFICIE · ', h('b', { key: 'v', style: { color: VID_TX } },
+      : [(fronts && fronts.coverage && (fronts.coverage.sources || []).some(function (s) { return s.src === 'dwd'; })
+            ? 'ANÁLISIS DE SUPERFICIE DWD · ' : 'ANÁLISIS DE SUPERFICIE · '), h('b', { key: 'v', style: { color: VID_TX } },
             fronts ? 'VÁLIDO ' + validFronts(fronts.valid) : 'CARGANDO…')];
 
     /* ══ EL MAPA, con sus mandos DENTRO ═══════════════════════════════════
@@ -2114,6 +2444,15 @@ window.pilotosParseRoute = parseRouteWithNames;
           lineHeight: 1.45, maxWidth: 'calc(100% - 80px)', zIndex: 4 }) },
         selloTxt, band === 'high' ? ' · ' + (flOnly ? 'FL' + CRUISE : 'TODOS') : ''),
 
+      /* ── TARJETA DEL PUNTO TOCADO, dentro de la carta ──
+         «Cuando pulses sobre el mapa te aparezca en grande dentro del mapa un
+         cuadrado con la información, las alturas de las nubes» (28-oct-2026).
+         Diseño B+D: cristal ahumado (oscuro en los DOS temas, como el resto de
+         mandos de dentro del mapa) y el CORTE VERTICAL de lo que hay en ese
+         punto, con tu nivel de crucero y la tropopausa. Los colores son los de
+         noche de cada capa: sobre el ahumado los de día no se leen. */
+      tarjetaCorte(),
+
       !data && !err ? h('div', { key: 'ld', style: {
         position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
         justifyContent: 'center', fontFamily: mono, fontSize: 9, color: T.tx3
@@ -2175,37 +2514,76 @@ window.pilotosParseRoute = parseRouteWithNames;
        en cristal (ver el bloque del mapa). Eran otras dos filas por debajo de
        la carta que obligaban a bajar la vista para tocarlas. */
 
+    /* el símbolo de cada frente en pequeño, como en la leyenda de una carta:
+       una raya sola no distingue un frío de un ocluido */
+    function iconoFrente(k, hueco) {
+      var c = FC(k), az = FC('COLD'), ro = FC('WARM');
+      // en altura, el símbolo hueco: como en la carta del DWD
+      var pinta = function (col) { return hueco ? { fill: 'none', stroke: col, strokeWidth: 1.4 } : { fill: col }; };
+      var tri = function (x, col) { return h('path', Object.assign({ key: 't' + x, d: 'M' + (x - 4) + ' 8 L' + x + ' 2.5 L' + (x + 4) + ' 8 Z' }, pinta(col))); };
+      var semi = function (x, col, abajo) { return h('path', Object.assign({ key: 's' + x, d: abajo ? 'M' + (x - 4) + ' 8 A4 4 0 0 0 ' + (x + 4) + ' 8 Z' : 'M' + (x - 4) + ' 8 A4 4 0 0 1 ' + (x + 4) + ' 8 Z' }, pinta(col))); };
+      var linea = function (col, dash) { return h('line', { key: 'l', x1: 1, y1: 8, x2: 29, y2: 8, stroke: col, strokeWidth: 2.4, strokeDasharray: dash || null, strokeLinecap: 'round' }); };
+      var kids = k === 'COLD' ? [linea(c), tri(9, c), tri(21, c)]
+        : k === 'WARM' ? [linea(c), semi(9, c), semi(21, c)]
+        : k === 'OCFNT' ? [linea(c), tri(9, c), semi(21, c)]
+        : k === 'STNRY' ? [linea(ro), h('line', { key: 'la', x1: 1, y1: 8, x2: 15, y2: 8, stroke: az, strokeWidth: 2.4 }), tri(8, az), semi(22, ro, true)]
+        : [linea(c, '4 3')];
+      return h('svg', { width: 30, height: 14, viewBox: '0 0 30 14', style: { flex: '0 0 auto', overflow: 'visible' } }, kids);
+    }
+
     /* leyenda de frentes — sólo BAJO */
     if (band === 'low' && fronts) {
       var cnt = {};
-      (fronts.lines || []).forEach(function (l) { cnt[l.kind] = (cnt[l.kind] || 0) + 1; });
+      (fronts.lines || []).forEach(function (l) { var k = l.kind + (l.alto ? '_ALTO' : ''); cnt[k] = (cnt[k] || 0) + 1; });
+      var entradas = [];
+      Object.keys(FRONT).forEach(function (k) { if (cnt[k]) entradas.push([k, k, false]); if (cnt[k + '_ALTO']) entradas.push([k + '_ALTO', k, true]); });
       kids.push(h('div', { key: 'frleg', style: { display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 9 } },
-        Object.keys(FRONT).filter(function (k) { return cnt[k]; }).map(function (k) {
-          return h('div', { key: k, style: Object.assign(chipS(true, FC(k)), { cursor: 'default' }) },
-            h('span', { style: { width: 12, height: 3, borderRadius: 2, background: FC(k) } }),
-            FRONT[k].name,
-            h('span', { style: { color: T.tx3, fontWeight: 400 } }, String(cnt[k])));
+        entradas.map(function (e) {
+          return h('div', { key: e[0], style: Object.assign(chipS(true, FC(e[1])), { cursor: 'default' }) },
+            iconoFrente(e[1], e[2]),
+            FRONT[e[1]].name + (e[2] ? ' EN ALTURA' : ''),
+            h('span', { style: { color: T.tx3, fontWeight: 400 } }, String(cnt[e[0]])));
         })));
     }
 
     /* ── frentes: qué son y hasta dónde llegan ── */
     if (fronts && frOn) {
-      var covers = depC && arrC &&
-        Math.max(depC[0], arrC[0]) <= (fronts.coverage ? fronts.coverage.lonMax : -1);
+      /* ¿Qué fuente cubre la ruta? Se mira PUNTO A PUNTO (la ruta del OFP o el
+         gran círculo), no sólo los extremos: un BCN–LMML empieza y acaba dentro
+         del DWD, pero un vuelo largo puede salirse por el medio.
+         «TU RUTA QUEDA FUERA DE LA FUENTE» sólo si de verdad hay tramo que NO
+         cubre NINGUNA fuente. */
+      var rp = routePts() || [];
+      var usadas = {}, sinFuente = 0;
+      var srcD = ((fronts.coverage && fronts.coverage.sources) || []).filter(function (s) { return s.src === 'dwd'; })[0];
+      var srcW = ((fronts.coverage && fronts.coverage.sources) || []).filter(function (s) { return s.src === 'wpc'; })[0];
+      rp.forEach(function (q) { var f = fuenteFrentes(fronts, q[0], q[1]); if (f) usadas[f] = 1; else sinFuente++; });
+      /* Sin ruta (no hay vuelo o no se conocen los aeropuertos) no se afirma nada
+         sobre ella: se nombran las fuentes que hay y no se avisa de un «fuera». */
+      if (!rp.length) { if (srcD) usadas.dwd = 1; if (srcW || !srcD) usadas.wpc = 1; }
+      var covers = sinFuente === 0;
+      var frases = [];
+      if (usadas.dwd) frases.push('El SIGWX de alto nivel no lleva frentes: esto es el análisis de superficie del DWD '
+        + '(servicio meteorológico alemán), trazado a mano por un predictor. Los frentes se leen de su carta '
+        + 'y se dibujan aquí. Válido ' + validFronts(srcD ? srcD.valid : fronts.valid) + '.');
+      if (usadas.wpc) frases.push((usadas.dwd ? 'Fuera de la carta del DWD, ' : 'El SIGWX de alto nivel no lleva frentes: esto es ')
+        + 'el análisis de superficie del WPC (NOAA), trazado a mano cada 3 h. Válido '
+        + validFronts(srcW ? srcW.valid : fronts.valid) + '.');
+      if (!covers) frases.push(srcD
+        ? 'Parte de tu ruta queda fuera de las dos cartas. Que no veas frentes ahí NO significa que no los haya.'
+        : 'La carta del DWD no se pudo leer ahora y el boletín codificado del WPC se corta en Greenwich, así que '
+          + 'no llega a tu ruta. Que no veas frentes aquí NO significa que no los haya. Para esta zona, la carta oficial del DWD:');
+      var titulo = !covers ? 'FRENTES · TU RUTA QUEDA FUERA DE LA FUENTE'
+        : usadas.dwd ? 'FRENTES · ANÁLISIS DE SUPERFICIE DWD' : 'FRENTES · ANÁLISIS DE SUPERFICIE';
       kids.push(h(Panel, { key: 'frnote', style: {
         padding: '9px 11px', marginTop: 9,
         border: '1px solid ' + (covers ? T.line : T.amb + '44')
       } },
-        h('div', { style: { fontSize: 7, fontFamily: mono, letterSpacing: '1.2px', marginBottom: 4,
-                            color: covers ? T.tx3 : T.amb } },
-          covers ? 'FRENTES · ANÁLISIS DE SUPERFICIE' : 'FRENTES · TU RUTA QUEDA FUERA DE LA FUENTE'),
-        h('div', { style: { fontSize: 9, color: T.tx2, lineHeight: 1.55 } },
-          covers
-            ? 'El SIGWX de alto nivel no lleva frentes: esto es el análisis de superficie del WPC (NOAA), '
-              + 'trazado a mano cada 3 h. Válido ' + validFronts(fronts.valid) + '.'
-            : 'El boletín codificado del WPC sólo expresa longitud oeste, así que se corta en Greenwich '
-              + 'y no llega a tu ruta. Que no veas frentes aquí NO significa que no los haya. '
-              + 'Para esta zona, la carta oficial del DWD:'),
+        h('div', { 'data-frentes-titulo': '1', style: { fontSize: 7, fontFamily: mono, letterSpacing: '1.2px', marginBottom: 4,
+                            color: covers ? T.tx3 : T.amb } }, titulo),
+        frases.map(function (f, i) {
+          return h('div', { key: i, style: { fontSize: 9, color: T.tx2, lineHeight: 1.55, marginTop: i ? 5 : 0 } }, f);
+        }),
         h('button', {
           onClick: function () {
             if (chart) { setChart(null); return; }
@@ -2219,7 +2597,7 @@ window.pilotosParseRoute = parseRouteWithNames;
                    background: covers ? 'transparent' : 'rgba(255,184,0,.10)',
                    color: covers ? T.tx2 : T.amb, fontFamily: mono, fontSize: 8,
                    fontWeight: 700, letterSpacing: '.8px' }
-        }, chart ? 'CERRAR CARTA' : 'VER CARTA DE SUPERFICIE OFICIAL (DWD · ~5 MB)')));
+        }, chart ? 'CERRAR CARTA' : usadas.dwd ? 'VER LA CARTA ORIGINAL DEL DWD (~5 MB)' : 'VER CARTA DE SUPERFICIE OFICIAL (DWD · ~5 MB)')));
 
       if (chart) kids.push(h('div', { key: 'chart', style: { marginTop: 9 } },
         h('div', { style: { fontSize: 7, fontFamily: mono, color: T.tx3, letterSpacing: '1.2px', marginBottom: 5 } },
@@ -2250,37 +2628,10 @@ window.pilotosParseRoute = parseRouteWithNames;
       }, h('i', { style: { position: 'absolute', top: 2, left: flOnly ? 20 : 2, width: 15, height: 15,
                            borderRadius: '50%', background: flOnly ? T.cyan : T.tx3, transition: '.16s' } }))));
 
-    /* ficha del fenómeno seleccionado */
-    var sk = selKey();
-    if (sel && sk) {
-      var rows = [];
-      var p = sel.p;
-      if (sk === 'JET') {
-        var mx = 0, hh2 = null;
-        (p.fleche || []).forEach(function (a) { if (a.s > mx) { mx = a.s; hh2 = a.h; } });
-        if (mx) rows.push(['VIENTO MÁXIMO', mx + ' kt']);
-        if (hh2) rows.push(['NIVEL DEL NÚCLEO', 'FL' + hh2]);
-      } else if (sk === 'TROP') {
-        rows.push(['ALTURA', 'FL' + p.height]);
-      } else if (sk === 'VOLC' || sk === 'TC') {
-        rows.push(['NOMBRE', p.name || '—']);
-      } else {
-        if (p.severity) rows.push(['INTENSIDAD', SEV[p.severity] || p.severity.toUpperCase()]);
-        if (p.extent) rows.push(['EXTENSIÓN', EXT[p.extent] || p.extent]);
-        rows.push([sk === 'CB' ? 'TOPE' : 'CAPA AFECTADA', bandTxt(p, sk)]);
-        rows.push(['TU FL' + CRUISE, affects(p, sk, CRUISE) ? '⚠ DENTRO' : '✓ FUERA']);
-      }
-      kids.push(h(Panel, { key: 'sel', style: { padding: '10px 11px', marginTop: 9, border: '1px solid ' + LC(sk) + '33' } },
-        h('div', { style: { fontSize: 7, fontFamily: mono, color: LC(sk), letterSpacing: '1.2px', marginBottom: 6 } }, LAY[sk].name),
-        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 } },
-          rows.map(function (r, i) {
-            var warn = /DENTRO/.test(r[1]);
-            return h('div', { key: i },
-              h('div', { style: { fontSize: 7, fontFamily: mono, color: T.tx3, marginBottom: 2 } }, r[0]),
-              h('div', { style: { fontSize: 11, fontWeight: 700, fontFamily: mono, color: warn ? T.red : T.tx1 } }, r[1]));
-          })),
-        sk === 'CB' ? h('div', { style: { fontSize: 7, fontFamily: mono, color: T.tx3, marginTop: 7, lineHeight: 1.5 } },
-          'La carta da el TOPE del CB; no publica base (base "XXX"), así que aquí tampoco se inventa.') : null));
+    /* La ficha del fenómeno tocado vive ahora DENTRO del mapa (tarjetaCorte):
+       debajo sólo queda la pista de que se puede tocar. */
+    if (sel && selKey()) {
+      /* nada: la tarjeta está sobre la carta */
     } else if (data && band === 'high') {
       kids.push(h(Panel, { key: 'sel0', style: { padding: '10px 11px', marginTop: 9 } },
         h('div', { style: { fontSize: 7, fontFamily: mono, color: T.tx2, letterSpacing: '1.2px', marginBottom: 4 } },

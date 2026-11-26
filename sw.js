@@ -1,7 +1,7 @@
 // PilotOS Service Worker
 // APP_VERSION lo reescribe scripts/stamp-version.js en cada deploy → cambia el
 // nombre del caché → los cachés de versiones viejas se borran al activar.
-const APP_VERSION = 'Estable.1303';
+const APP_VERSION = 'Estable.1306';
 
 const STATIC_CACHE  = 'pilotos-static-' + APP_VERSION;
 const FONT_CACHE    = 'pilotos-fonts-'  + APP_VERSION;
@@ -52,6 +52,8 @@ const PRECACHE_URLS = [
   'fatiga/motor.js',
   'fatiga/roster.js',
   'fatiga/perfil.js',
+  'fatiga/iconos.js',
+  'fatiga/sueno.js',
   'fatiga/doc-figuras.js',
   'fatiga/plan.js',
   'fatiga/swap.js',
@@ -60,6 +62,15 @@ const PRECACHE_URLS = [
   'fatiga/fatiga.css',
   'js/roster-stats-viz.js',
   'js/career.js',
+  'js/logbook-aurora.js',
+  'css/logbook-aurora.css',
+  'js/paycheck-secciones.js',
+  'css/paycheck-secciones.css',
+  'img/aviones/a319.webp',
+  'img/aviones/a320.webp',
+  'img/aviones/a320neo.webp',
+  'img/aviones/a321.webp',
+  'img/aviones/a321neo.webp',
   'js/plazos.js',
   'js/plazos-ui.js',
   'js/postit-dibujo.js',

@@ -22,6 +22,48 @@
      arriba no solo sobra — en un objeto literal gana la ULTIMA, asi que la de
      arriba seria una traduccion muerta que se lee como si mandara. */
   "plan {0} kg": "planned {0} kg",
+  /* ── Combustible en las estadísticas (Stats › Combustible) ──────────────
+     «Combustible», «Quemado en bloque» y «Real» NO se declaran aquí: ya están
+     más abajo en este mismo archivo, y en un objeto literal manda la ÚLTIMA.
+     «Plan» tampoco: en inglés es la misma palabra.
+     Las que llevan un número dentro van de PLANTILLA, porque el motor sólo
+     traduce un nodo cuyo contenido COMPLETO esté en el diccionario. Y hay
+     singular Y plural donde el recuento puede ser 1: «1 sectores» no se
+     escribe en la pantalla de alguien que firma su logbook con esto. */
+  "Medias por sector": "Per-sector averages",
+  "Plan contra real": "Plan vs actual",
+  "Rodadura de salida por aeropuerto · kg": "Outbound taxi by airport · kg",
+  "Trip por hora, por tipo · kg/h": "Trip per hour, by type · kg/h",
+  "No se ha podido calcular: falta el motor de combustible de la ficha del vuelo.": "Could not calculate: the flight form's fuel engine is missing.",
+  "Todavía no hay ningún vuelo con combustible apuntado.": "No flight has fuel figures logged yet.",
+  "Se rellena en la ficha del vuelo, en «Combustible»: las ocho cifras de eCrews, o un pantallazo de la tabla.": "You fill it in on the flight form, under «Fuel»: the eight eCrews figures, or a screenshot of the table.",
+  "{0} de {1} sectores con combustible": "{0} of {1} sectors with fuel",
+  "ningún sector con OFF y ON BLOCK reales": "no sector with actual OFF and ON BLOCK",
+  "Trip por hora": "Trip per hour",
+  "Rodadura por sector": "Taxi per sector",
+  "Extra sobre el plan": "Extra over plan",
+  "Con combustible": "With fuel",
+  "sin bloque conocido": "block time unknown",
+  "sin las cuatro cifras reales": "the four actual figures are missing",
+  "sin OFF BLOCK en los dos lados": "no OFF BLOCK on both sides",
+  "de {0} vuelos": "of {0} flights",
+  "Ningún sector trae el bloque en los dos lados: hace falta OFF y ON BLOCK en plan y en real.": "No sector has block fuel on both sides: OFF and ON BLOCK are needed in planned and in actual.",
+  "Diferencia": "Difference",
+  "Reparto": "Split",
+  "los mismos {0}": "the same {0}",
+  "por encima / por debajo": "above / below",
+  "por encima / por debajo · {0} igual": "above / below · {0} equal",
+  "media por sector · mínimo {0} sectores por aeropuerto": "average per sector · at least {0} sectors per airport",
+  "media · mínimo {0} sectores por tipo": "average · at least {0} sectors per type",
+  "Ningún aeropuerto con {0} sectores o más todavía.": "No airport with {0} sectors or more yet.",
+  "Ningún tipo con {0} sectores o más todavía.": "No type with {0} sectors or more yet.",
+  "Lo que hay que saber": "What you should know",
+  "cifras que no cuadran en {0} sectores — fuera del cálculo": "figures that don't add up in {0} sectors — left out of the calculation",
+  "cifras que no cuadran en {0} sector — fuera del cálculo": "figures that don't add up in {0} sector — left out of the calculation",
+  "en otra unidad: {0} sectores — fuera del cálculo": "in another unit: {0} sectors — left out of the calculation",
+  "en otra unidad: {0} sector — fuera del cálculo": "in another unit: {0} sector — left out of the calculation",
+  "Llevar ese extra costó ≈{0} kg de más (3 % por hora a bordo), medido en {1} sectores.": "Carrying that extra cost ≈{0} kg more (3 % per hour on board), measured over {1} sectors.",
+  "Llevar ese extra costó ≈{0} kg de más (3 % por hora a bordo), medido en {1} sector.": "Carrying that extra cost ≈{0} kg more (3 % per hour on board), measured over {1} sector.",
   "Preparando el lector… la primera vez se baja (5,8 MB); después ya no.": "Getting the reader ready… it downloads the first time (5.8 MB), never again.",
   "Leyendo la foto…": "Reading the photo…",
   "No se ha podido bajar el lector. Hace falta conexión la PRIMERA vez; luego funciona sin ella.": "Could not download the reader. It needs a connection the FIRST time; after that it works offline.",
@@ -631,6 +673,18 @@
     "Prueba otra búsqueda": "Try another search",
     "Puntualidad": "Punctuality",
     "Quemado en bloque": "Block burn",
+  /* Combustible · los rotulos de las tarjetas. Los de dentro los pone el JS con
+     `data-i18n-en`, que es local y no parte la frase por un numero. */
+  "Dónde se fue el bloque": "Where the block went",
+  "Lo que te costó llevar extra": "What carrying extra cost you",
+  "Rodaje de salida · kg por minuto": "Departure taxi · kg per minute",
+  "Huella": "Footprint",
+  "Más eficiente · misma ruta": "Most efficient · same route",
+  "Neo contra ceo · rutas comunes": "Neo vs ceo · shared routes",
+  "Consumo contra distancia": "Burn vs distance",
+  /* El vacio de las barras: salia en castellano con la app en ingles, y el
+     barrido no lo cazaba porque sus palabras no estaban en el filtro. */
+  "Sin datos suficientes": "Not enough data",
     "Quemado en bloque · plan": "Block burn · plan",
     "quitar selección": "clear selection",
     "Rango de fechas": "Date range",

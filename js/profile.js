@@ -110,7 +110,7 @@
   function ppClear() {
     Object.keys(VACIO).forEach(function (k) { PROFILE[k] = VACIO[k]; });
     _fotoCache = null; _firmaCache = null;
-    try { localStorage.removeItem(PROF_KEY); } catch (e) {}
+    [PROF_KEY, PROF_SUCIOS, PROF_SYNC_AT].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
     try { if (typeof window.updateUserAvatar === 'function') window.updateUserAvatar(window.currentUser || {}); } catch (e) {}
     return _avDel();
   }
@@ -167,16 +167,22 @@
   }
 
   // ── ÚNICA puerta de escritura ────────────────────────────────────────────
-  function ppSave(cambios) {
+  /* `desdeNube`: lo que acaba de BAJAR no es un cambio del piloto. Ni se marca como
+     pendiente ni se vuelve a subir. */
+  function ppSave(cambios, desdeNube) {
+    var tocados = [];
     if (cambios) Object.keys(cambios).forEach(function (k) {
-      if (k in PROFILE) PROFILE[k] = cambios[k];
+      if (!(k in PROFILE)) return;
+      if (PROFILE[k] !== cambios[k]) tocados.push(k);
+      PROFILE[k] = cambios[k];
     });
     try { localStorage.setItem(PROF_KEY, JSON.stringify(PROFILE)); } catch (e) {}
+    if (!desdeNube) _marcaSucios(tocados);
     try { if (typeof window.updateUserAvatar === 'function') window.updateUserAvatar(window.currentUser || {}); } catch (e) {}
     // La cabecera tiene que reflejar el cambio EN EL ACTO: si no, el piloto cambia el
     // rol, se guarda bien, y el chip sigue diciendo lo de antes (#3IFUH).
     try { ppRefrescarCabecera(); } catch (e) {}
-    ppCloudPush();
+    if (!desdeNube && _haySucios()) ppCloudPush();
     // El idioma es el de toda la app (js/i18n.js): si cambia —a mano, desde ARIA o bajado
     // de otro dispositivo— la interfaz se recarga en el nuevo. Después del push, que el
     // traductor espera un momento antes de recargar para no cortarlo.
@@ -387,6 +393,32 @@
   function _syncAt() { try { return localStorage.getItem(PROF_SYNC_AT) || ''; } catch (e) { return ''; } }
   function _setSyncAt(v) { try { if (v) localStorage.setItem(PROF_SYNC_AT, v); } catch (e) {} }
 
+  /* ── LOS CAMPOS PENDIENTES DE SUBIR (#4T55Y, Nico) ────────────────────────
+     Antes cada ppSave subía el perfil ENTERO de este aparato, y el servidor lo
+     guarda tal cual. Cualquier guardado automático en un aparato con el perfil
+     viejo —el idioma al arrancar, el huso, la foto que baja, el nombre de
+     chequeo que aprende el logbook— subía SUS vacíos encima de lo que el piloto
+     acababa de escribir en el otro, con un sello más nuevo; y el otro aparato,
+     al bajar, perdía también su número de empleado y su fecha de contrato.
+     Ahora se apunta QUÉ campos cambió este aparato y sólo esos ganan: el resto
+     se toma de la nube justo antes de subir. */
+  var PROF_SUCIOS = 'pilotos_profile_dirty';
+  function _sucios() { try { return JSON.parse(localStorage.getItem(PROF_SUCIOS) || '{}') || {}; } catch (e) { return {}; } }
+  function _haySucios() { return Object.keys(_sucios()).length > 0; }
+  function _marcaSucios(ks) {
+    ks = (ks || []).filter(function (k) { return !PROF_SOLO_LOCAL[k]; });
+    if (!ks.length) return;
+    var s = _sucios(); ks.forEach(function (k) { s[k] = 1; });
+    try { localStorage.setItem(PROF_SUCIOS, JSON.stringify(s)); } catch (e) {}
+  }
+  // Sólo se limpia el campo si sigue valiendo lo que se subió: si el piloto lo
+  // tocó otra vez mientras iba la petición, sigue pendiente.
+  function _limpiaSucios(enviado) {
+    var s = _sucios();
+    Object.keys(enviado).forEach(function (k) { if (s[k] && PROFILE[k] === enviado[k]) delete s[k]; });
+    try { localStorage.setItem(PROF_SUCIOS, JSON.stringify(s)); } catch (e) {}
+  }
+
   /* ── LA FOTO Y LA FIRMA TAMBIÉN SON EL PERFIL ─────────────────────────────
      Viven en IndexedDB porque en localStorage no caben, y de ahí no salían: el
      piloto firmaba en el iPad y el logbook del móvil seguía saliendo sin firmar.
@@ -459,23 +491,59 @@
     return Promise.all(pend).then(function () { return true; });
   }
 
+  /* Subir = LEER la nube, fusionar campo a campo y escribir. El servidor guarda
+     el objeto que le llega tal cual, así que la fusión tiene que hacerse aquí.
+     Una sola subida a la vez (varios ppSave seguidos se juntan en la siguiente),
+     y sin red no se sube nada: los campos siguen pendientes y salen en la
+     próxima ronda — nunca a ciegas. */
+  var _pushEnCurso = null, _pushOtraVez = false;
   function ppCloudPush() {
-    try {
-      var token = _tok();
-      if (!token || typeof ldBackendUrl !== 'function') return;
-      var envio = {};
-      Object.keys(PROFILE).forEach(function (k) {
-        if (PROF_SOLO_LOCAL[k]) return;
-        envio[k] = PROFILE[k];
+    if (_pushEnCurso) { _pushOtraVez = true; return _pushEnCurso; }
+    _pushEnCurso = _ppPushFusion().catch(function () {}).then(function () {
+      _pushEnCurso = null;
+      if (_pushOtraVez) { _pushOtraVez = false; if (_haySucios()) return ppCloudPush(); }
+    });
+    return _pushEnCurso;
+  }
+  function _ppPushFusion() {
+    var token = _tok();
+    if (!token || typeof ldBackendUrl !== 'function') return Promise.resolve(null);
+    var H = { 'Authorization': 'Bearer ' + token };
+    return fetch(ldBackendUrl() + '/api/profile', { headers: H })
+      .then(function (r) { if (!r.ok) throw new Error('get ' + r.status); return r.json(); })
+      .then(function (j) {
+        var nube = (j && j.profile) || {};
+        var remoto = (j && j.updatedAt) || '';
+        var mio = _syncAt();
+        var nubeNueva = !!remoto && (!mio || remoto > mio);
+        var sucios = _sucios();
+        var envio = {}, bajan = {};
+        Object.keys(PROFILE).forEach(function (k) {
+          if (PROF_SOLO_LOCAL[k]) return;
+          if (!sucios[k] && (k in nube) && (nubeNueva || !PROFILE[k])) {
+            envio[k] = nube[k];
+            if (PROFILE[k] !== nube[k]) bajan[k] = nube[k];
+          } else envio[k] = PROFILE[k];
+        });
+        // Campos que este aparato aún no conoce (versión más nueva en otro): se conservan.
+        Object.keys(nube).forEach(function (k) { if (!(k in PROFILE)) envio[k] = nube[k]; });
+        return fetch(ldBackendUrl() + '/api/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': H.Authorization },
+          body: JSON.stringify({ profile: envio })
+        }).then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (res) {
+            if (!res) return null;
+            if (res.updatedAt) _setSyncAt(res.updatedAt);
+            _limpiaSucios(envio);
+            if (Object.keys(bajan).length) {
+              ppSave(bajan, true);
+              try { if (typeof window.ppRenderScreen === 'function' &&
+                        document.getElementById('pp-screen-body')) ppRenderScreen(); } catch (e) {}
+            }
+            return res;
+          });
       });
-      fetch(ldBackendUrl() + '/api/profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ profile: envio })
-      }).then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (j) { if (j && j.updatedAt) _setSyncAt(j.updatedAt); })
-        .catch(function () {});
-    } catch (e) {}
   }
 
   /* El sello `updatedAt` es lo que permite que el perfil del iPad PISE al del
@@ -500,16 +568,20 @@
           // La nube es más nueva → manda ENTERA. Si no, sólo rellena huecos, que
           // es lo que hacía antes y no puede quitarle nada a nadie.
           var pisa = !!remoto && (!mio || remoto > mio);
+          // Lo que este aparato cambió y aún no ha subido no lo pisa nadie.
+          var sucios = _sucios();
           var cambios = {};
           Object.keys(j.profile).forEach(function (k) {
-            if (!(k in PROFILE) || PROF_SOLO_LOCAL[k]) return;
+            if (!(k in PROFILE) || PROF_SOLO_LOCAL[k] || sucios[k]) return;
             var v = j.profile[k];
             if (pisa) { if (PROFILE[k] !== v) cambios[k] = v; }
             else if (!PROFILE[k] && v) cambios[k] = v;
           });
+          // Pendientes de una vez sin red: salen ahora, fusionados.
+          if (Object.keys(sucios).length) { try { ppCloudPush(); } catch (e) {} }
           if (Object.keys(cambios).length) {
-            _setSyncAt(remoto);      // antes de guardar: ppSave vuelve a empujar
-            ppSave(cambios);
+            _setSyncAt(remoto);
+            ppSave(cambios, true);
             /* Si el piloto está MIRANDO la pantalla del perfil cuando baja algo,
                hay que repintarla: si no, los campos siguen enseñando lo viejo con
                lo nuevo ya guardado — dos datos que se contradicen. */
@@ -1913,5 +1985,7 @@
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState === 'visible') ppCloudPull();
     });
+    // Lo que se cambió sin red sube en cuanto vuelve.
+    window.addEventListener('online', function () { if (_haySucios()) ppCloudPush(); });
   } catch (e) {}
 })();

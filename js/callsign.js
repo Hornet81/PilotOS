@@ -216,6 +216,53 @@
      «que el botón fuerce al siguiente leg si no cambia solo»). Cuentan como
      aterrizados aquí, en el Home y en Safari. Se guardan 3 días. */
   var K_SALTA = 'pilotos_cs_salta';
+  /* LOS PESOS DEL AVIÓN, la cara de atrás del post-it (20-nov-2026, prueba).
+     Son del AVIÓN, no del vuelo: no cambian con el tramo. Hoy van con valores
+     INVENTADOS para poder probar el giro; el piloto hará una base de datos por
+     avión. Mientras sean los inventados, el post-it dice «DATOS DE PRUEBA». */
+  var K_PESOS = 'pilotos_cs_pesos';
+  var PESOS_PRUEBA = { mtow: '78000', mlw: '66000', zfw: '62500', dow: '42350', doi: '48.6', js: '2' };
+  function pesos() {
+    var g = lee(K_PESOS, null), o = {};
+    Object.keys(PESOS_PRUEBA).forEach(function (k) { o[k] = g && typeof g[k] === 'string' ? g[k] : PESOS_PRUEBA[k]; });
+    o.prueba = Object.keys(PESOS_PRUEBA).every(function (k) { return o[k] === PESOS_PRUEBA[k]; });
+    // La matrícula: la escrita; si no hay, la del vuelo en el logbook o en el roster.
+    o.reg = g && typeof g.reg === 'string' && g.reg ? g.reg : matSugerida();
+    return o;
+  }
+  function limpiaMat(v) { return String(v || '').toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 8); }
+  function matSugerida() {
+    try {
+      var h = S ? S.h : lee(K_HOY, null); if (!h || !h.flight) return '';
+      var n = numDe({ flight: h.flight }), d = h.date, r = '';
+      var l = entradaLogbook({ flightNum: h.flight, date: d }); if (l && l.reg) r = l.reg;
+      if (!r) entradasRoster().forEach(function (e) { if (!r && e.date === d && numDe({ flight: e.flightNum }) === n) r = e.reg || e.acReg || e.registration || ''; });
+      return limpiaMat(r);
+    } catch (e) { return ''; }
+  }
+  function limpiaPeso(k, v) {
+    v = String(v || '').replace(',', '.');
+    if (k === 'doi') { v = v.replace(/[^0-9.]/g, ''); var i = v.indexOf('.'); if (i >= 0) v = v.slice(0, i + 1) + v.slice(i + 1).replace(/\./g, '').slice(0, 2); return v.slice(0, 6); }
+    return v.replace(/\D/g, '').slice(0, k === 'js' ? 1 : 6);
+  }
+  function pesosHtml() {
+    var D = window.PilotosPostit, w = pesos();
+    if (!D || !D.PESOS_CAMPOS) return '';
+    return '<details class="cs-pesos"><summary>' + T('Pesos del avión · detrás del post-it', 'Aircraft weights · back of the note') +
+      (w.prueba ? ' <span class="cs-prueba">' + T('PRUEBA', 'TEST') + '</span>' : '') + '</summary>' +
+      '<label class="cs-mat"><span>' + T('MATRÍCULA', 'REGISTRATION') + '</span><input class="cs-peso cs-peso-mat" data-p="reg" autocapitalize="characters" autocorrect="off" spellcheck="false" autocomplete="off" maxlength="8" value="' + esc(w.reg) + '" placeholder="EC-XXX"></label>' +
+      '<div class="cs-pesos-g">' + D.PESOS_CAMPOS.map(function (f) {
+        return '<label><span>' + T(f.es, f.en) + (f.u ? ' <i>' + f.u + '</i>' : '') + '</span><input class="cs-peso" data-p="' + f.k + '" inputmode="' + (f.k === 'doi' ? 'decimal' : 'numeric') + '" autocomplete="off" value="' + esc(w[f.k]) + '"></label>';
+      }).join('') + '</div>' +
+      '<canvas class="cs-atras" aria-label="' + T('Cara de atrás del post-it', 'Back of the note') + '"></canvas>' +
+      '<p class="cs-pesos-n">' + T('En la ventana flotante, ⟲10 o ⟳10 gira el post-it: pesos detrás, callsign delante.', 'In the floating window, ⟲10 or ⟳10 flips the note: weights on the back, callsign on the front.') + '</p>' +
+      '<button type="button" class="cs-nv" data-a="pesos-prueba">' + T('Volver a los pesos de prueba', 'Back to the test weights') + '</button></details>';
+  }
+  function pintaAtrasHoja() {
+    var cv = document.querySelector('#cs-ov canvas.cs-atras');
+    if (cv && window.PilotosPostit && window.PilotosPostit.pintaAtras) window.PilotosPostit.pintaAtras(cv, pesos(), estilo(), { lang: en() ? 'en' : 'es' });
+  }
+
   function saltados() { var m = lee(K_SALTA, {}); return m && typeof m === 'object' ? m : {}; }
   function saltado(e) { return !!saltados()[claveTramo(e)]; }
   function proximosVuelos(ahora) {
@@ -407,6 +454,7 @@
   }
 
   window.PilotosCallsign = { sugerencia: sugerencia, proximoVuelo: proximoVuelo, pinta: pinta, abre: abre };
+  window.PilotosCallsign.pesos = pesos;   // para el banco
 
   // ═══ La hoja ═════════════════════════════════════════════════════════════
   var S = null;   // { h, campo:'cs'|'fl' } — campo: el que se enfoca al abrir
@@ -547,6 +595,7 @@
           '<label><span>PAX</span><input class="cs-in" data-f="pax" inputmode="numeric" autocomplete="off" maxlength="3" value="' + esc(h.pax || '') + '" placeholder="' + T('pasajeros', 'passengers') + '"></label>' +
         '</div>' +
         wchHtml(h) +
+        pesosHtml() +
         '';
     sh.querySelector('.cs-pb').innerHTML =
         aspecto() +
@@ -570,6 +619,20 @@
       inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
     });
     var asp = ov.querySelector('.cs-asp'); if (asp) asp.addEventListener('toggle', function () { if (S) S.aspAbierto = asp.open; });
+    var pz = ov.querySelector('.cs-pesos');
+    if (pz) { if (S && S.pesosAbierto) pz.open = true; pz.addEventListener('toggle', function () { if (S) S.pesosAbierto = pz.open; if (pz.open) pintaAtrasHoja(); }); }
+    ov.querySelectorAll('.cs-peso').forEach(function (inp) {
+      inp.addEventListener('input', function () {
+        var k = inp.dataset.p, v = k === 'reg' ? limpiaMat(inp.value) : limpiaPeso(k, inp.value);
+        if (v !== inp.value) inp.value = v;
+        var g0 = lee(K_PESOS, {}) || {}, g = pesos(); delete g.prueba;
+        if (!g0.reg) delete g.reg;   // la sugerida (del logbook/roster) no se guarda: sigue al vuelo
+        g[k] = v; guarda(K_PESOS, g);
+        var pr = ov.querySelector('.cs-pesos .cs-prueba'); if (pr && !pesos().prueba) pr.remove();
+        pintaAtrasHoja(); var a = ov.querySelector('a.cs-safari'); if (a) a.setAttribute('href', urlSafari());
+      });
+    });
+    pintaAtrasHoja();
     if (!_pipVivo) programaClip();   // fijado, el vídeo no cambia hasta Guardar
     estadoBoton();
   }
@@ -637,6 +700,7 @@
       render(); pintaPostit(); return;
     }
     if (a === 'siguiente') { return siguienteTramo(); }
+    if (a === 'pesos-prueba') { var g0 = lee(K_PESOS, {}) || {}, gp = JSON.parse(JSON.stringify(PESOS_PRUEBA)); if (g0.reg) gp.reg = g0.reg; guarda(K_PESOS, gp); if (S) S.pesosAbierto = true; render(); return; }
     if (a === 'anterior') { return tramoAnterior(); }
     if (a === 'guardar') { guardaHoja(); if (_pipVivo) actualizaPip(); cierra(); return; }
     if (a === 'fijar') { guardaHoja(); fija(); return; }
@@ -708,6 +772,10 @@
     Object.keys(par).forEach(function (k) { if (par[k] !== '' && par[k] != null) q.push(k + '=' + encodeURIComponent(par[k])); });
     var sec = tramosParaSafari();
     if (sec) q.push('sec=' + encodeURIComponent(sec));
+    // Los pesos, la cara de atrás: mtow.mlw.zfw.dow.doi.js, y una «p» al final si son los de prueba.
+    var w = pesos();
+    q.push('pw=' + encodeURIComponent([w.mtow, w.mlw, w.zfw, w.dow, w.doi, w.js].join('_') + (w.prueba ? '_p' : '')));
+    if (w.reg) q.push('mat=' + encodeURIComponent(w.reg));
     return 'x-safari-' + location.origin + '/pip/postit.html?' + q.join('&');
   }
   /* La página de Safari no puede leer el roster (es otra app, sin el almacén de la

@@ -804,9 +804,15 @@
     var todos = mios.concat(otros);
     var fila = function (p) {
       var st = estado[p.id], sub = [p.chequeo && p.chequeo !== String(p.nombre || '').toUpperCase() ? p.chequeo : '', p.rol, p.base || L('sin base en su perfil', 'no base in profile')].filter(Boolean).join(' · ');
+      /* Pendiente mía: cuándo caduca y «Recordar» (1-nov: «no se la puedo volver a
+         mandar»). El servidor deja recordar una vez al día y reinicia los 7 días. */
+      var co = st === 'out' ? S.contacts.filter(function (x) { return !x.incoming && x.status === 'pending' && x.partner.id === p.id; })[0] : null;
+      var puedeRec = co && Date.now() - (Date.parse(co.created_at || '') || 0) >= 864e5;
+      if (co) sub = L('Enviada', 'Sent') + (co.expires_at ? ' · ' + caducaTxt(co.expires_at) : '');
       return '<div class="sw-pick" data-n="' + esc(((p.nombre || '') + ' ' + (p.chequeo || '')).toLowerCase()) + '">' + avatar(p, 'xs') +
         '<div class="x"><b>' + esc(p.nombre || '—') + '</b><span>' + esc(sub) + '</span></div>' +
-        (st === 'out' ? '<span class="sw-st">' + L('Enviada', 'Sent') + '</span>'
+        (st === 'out' ? (puedeRec ? '<button class="sw-btn" data-rem="' + p.id + '">' + L('Recordar', 'Remind') + '</button>'
+                                  : '<span class="sw-st">' + L('Enviada', 'Sent') + '</span>')
           : '<button class="sw-btn ' + (st === 'in' ? 'ok' : 'pri') + '" data-pick="' + p.id + '">' + (st === 'in' ? L('Aceptar', 'Accept') : L('Pedir', 'Request')) + '</button>') + '</div>';
     };
     var h = '<div class="grab"></div><div class="sw-name" style="font-size:18px">' + L('Añadir compañeros', 'Add colleagues') + '</div>' +
@@ -828,6 +834,16 @@
       e.sh.querySelectorAll('.sw-pick').forEach(function (r) { var v = !q || r.dataset.n.indexOf(q) >= 0; r.hidden = !v; if (v) n++; });
       $('sw-busca-0').hidden = !(q && !n);
     };
+    e.sh.querySelectorAll('[data-rem]').forEach(function (b) {
+      b.onclick = function () {
+        b.disabled = true; b.textContent = '…';
+        api('/api/swap/contacts', { userId: b.dataset.rem, remind: true }).then(function () {
+          b.outerHTML = '<span class="sw-st ok">✓ ' + L('Recordado', 'Reminded') + '</span>';
+          try { window.swapChime && window.swapChime(); } catch (x) {}
+          loadHome();
+        }, function (x) { b.disabled = false; b.textContent = L('Recordar', 'Remind'); alertErr(x); });
+      };
+    });
     e.sh.querySelectorAll('[data-pick]').forEach(function (b) {
       b.onclick = function () {
         var p = todos.filter(function (x) { return x.id === b.dataset.pick; })[0]; if (!p) return;
@@ -1380,7 +1396,7 @@
      otros días se retira y se publica otro (la hoja lo dice). */
   function openPublish(edit, preDate) {
     var ev = sheetEls();
-    PUB = { days: null, picked: [], wants: [], note: '', msg: '', edit: edit || null };
+    PUB = { days: null, picked: [], wants: [], note: '', msg: '', edit: edit || null }; S.sheetFija = true;
     if (edit) {
       PUB.wants = (edit.wants || []).slice(); PUB.note = edit.note || '';
       ev.sh.classList.add('open'); ev.bg.classList.add('open');
@@ -1392,7 +1408,7 @@
     api('/api/swap/board/days?from=' + from + '&to=' + to).then(function (j) {
       PUB.days = j.days || [];
       // Desde el inicio («Ofrecer este día») llega ya con el día marcado.
-      if (preDate) PUB.days.forEach(function (c, i) { if (c.date === preDate && c.kind !== 'empty') PUB.picked = [i]; });
+      if (preDate) PUB.days.forEach(function (c, i) { if (c.date === preDate && c.kind !== 'empty') PUB.picked = ampliaP(i, i); });
       fillPublish();
     },
       function (e) { ev.sh.innerHTML = '<div class="grab"></div><div class="sw-err">' + esc(e.message) + '</div>'; });
@@ -1414,23 +1430,27 @@
     });
     h += '</div>';
     var sel = P.picked.length ? P.picked.map(function (i) { return ds[i]; }) : [];
-    h += '<div class="sw-sub" style="min-height:18px;margin-top:6px">' + esc(P.msg || (sel.length ? sel.map(function (c) { return fCorta(c.date) + ' · ' + resumenDia(c); }).join(' / ') : L('Toca los días que quieres dar', 'Tap the days you want to give'))) + '</div>';
+    var porQue = motivoP(yaPub);
+    h += '<div class="sw-sub" style="min-height:18px;margin-top:6px">' + esc(P.msg || (sel.length ? sel.map(function (c) { return fCorta(c.date) + ' · ' + resumenDia(c); }).join(' / ') : L('Toca los días que quieres dar', 'Tap the days you want to give'))) + '</div>' +
+      (porQue && sel.length ? '<div class="sw-err" style="margin-top:4px">' + esc(porQue) + '</div>' : '');
     h += '<div class="sw-h">' + L('Qué buscas', 'What you want') + '</div><div class="sw-bd-chips wrap">' + CAT_ORD.concat(['any']).map(function (k) {
       return '<button class="sw-bd-chip' + (P.wants.indexOf(k) >= 0 ? ' on' : '') + '" data-w="' + k + '">' + (k === 'any' ? '' : '<i class="sw-dot k-' + k + '"></i>') + esc(catNom(k)) + '</button>';
     }).join('') + '</div>';
     h += '<div class="sw-h">' + L('Nota (opcional)', 'Note (optional)') + '</div><input class="sw-input" id="sw-pub-note" maxlength="140" value="' + esc(P.note) + '" placeholder="' + esc(L('Ej.: boda de un amigo, me vale cualquier mañana', 'E.g.: a friend\'s wedding, any morning works')) + '">';
     h += '<div class="sw-sub" style="margin-top:10px">' + L('Lo ven los pilotos de tu base y especialidad. Solo verán estos días, nunca tu roster. Se retira solo al pasar el día o si cambia tu roster.', 'Pilots at your base and in your position will see it. They only see these days, never your roster. It is withdrawn automatically when the day passes or your roster changes.') + '</div>';
-    h += '<button class="sw-go' + (P.picked.length && isSegP() ? '' : ' dim') + '" id="sw-pub-go" style="width:100%;margin-top:14px">' + L('Publicar en el tablón', 'Post on the board') + '</button>' +
+    h += '<button class="sw-go' + (porQue ? ' dim' : '') + '" id="sw-pub-go" style="width:100%;margin-top:14px">' + L('Publicar en el tablón', 'Post on the board') + '</button>' +
          '<div class="sw-err" id="sw-pub-err"></div><button class="sw-btn" id="sw-pub-no" style="width:100%;margin-top:8px">' + L('Cancelar', 'Cancel') + '</button>';
     sh.innerHTML = h;
     sh.querySelectorAll('[data-pd]').forEach(function (b) {
       b.onclick = function () {
-        var i = +b.dataset.pd; P.note = $('sw-pub-note').value; P.msg = '';
-        if (P.picked.indexOf(i) >= 0) P.picked = P.picked.filter(function (x) { return x !== i; });
-        else if (P.picked.length >= MAXD) P.msg = L('Como máximo ', 'At most ') + MAXD + L(' días', ' days');
-        else P.picked = P.picked.concat([i]).sort(function (a, c) { return a - c; });
-        if (P.picked.length && !isSegP()) P.msg = L('Tienen que ser días seguidos', 'The days must be in a row');
-        else if (P.picked.length) { var cb = corteP(); if (cb) P.msg = cb; }
+        var i = +b.dataset.pd, pk = P.picked, a = pk[0], z = pk[pk.length - 1]; P.note = $('sw-pub-note').value; P.msg = '';
+        if (pk.indexOf(i) >= 0) {
+          // Quitar por un extremo; si al quitarlo se parte un bloque o una línea, se suelta todo.
+          if (pk.length === 1) P.picked = [];
+          else if (i === a || i === z) { var q = pk.filter(function (x) { return x !== i; }); P.picked = cortaP(q[0], q[q.length - 1]) ? [] : q; }
+          else P.picked = ampliaP(i, i);
+        } else if (!pk.length || i < a - 1 || i > z + 1) P.picked = ampliaP(i, i);
+        else P.picked = ampliaP(Math.min(a, i), Math.max(z, i));
         fillPublish();
       };
     });
@@ -1445,8 +1465,7 @@
     $('sw-pub-no').onclick = closeSheet;
     $('sw-pub-go').onclick = function () {
       var er = $('sw-pub-err');
-      if (!P.picked.length || !isSegP()) { er.textContent = L('Elige de 1 a 6 días seguidos', 'Pick 1 to 6 days in a row'); return; }
-      var cb = corteP(); if (cb) { er.textContent = cb; return; }
+      var mv = motivoP(yaPub); if (mv) { er.textContent = mv; return; }
       var go = this; go.disabled = true; go.textContent = L('Publicando…', 'Posting…');
       api('/api/swap/board', { dates: P.picked.map(function (i) { return ds[i].date; }), wants: P.wants, note: $('sw-pub-note').value }).then(function () {
         go.textContent = L('✓ Publicado', '✓ Posted');
@@ -1497,6 +1516,28 @@
     var base = S.dir && S.dir.me && S.dir.me.base;
     var l = MOT.corteLinea(ds, P.picked[0], P.picked[P.picked.length - 1], 'me', base);
     return l ? L('Las líneas con pernocta van enteras: elige la línea completa (', 'Layover lines go as a whole: pick the complete line (') + fCorta(ds[l.a].date) + ' – ' + fCorta(ds[l.b].date) + ')' : '';
+  }
+  /* Rango [s,e] ampliado hasta no cortar ningún bloque de STBY ni línea con pernocta. */
+  function cortaP(s, e) {
+    var ds = PUB.days, base = S.dir && S.dir.me && S.dir.me.base;
+    return MOT.corteStby(ds, s, e, 'me') || MOT.corteLinea(ds, s, e, 'me', base);
+  }
+  function ampliaP(s, e) {
+    for (var n = 0, c; n < 10 && (c = cortaP(s, e)); n++) { s = Math.min(s, c.a); e = Math.max(e, c.b); }
+    var r = []; for (var k = s; k <= e; k++) r.push(k); return r;
+  }
+  /* '' si se puede publicar; si no, el motivo en una línea. */
+  function motivoP(yaPub) {
+    var P = PUB, ds = P.days || [];
+    if (!P.picked.length) return L('Elige al menos un día', 'Pick at least one day');
+    if (!isSegP()) return L('Tienen que ser días seguidos', 'The days must be in a row');
+    if (P.picked.length > MAXD) return L('Como máximo ', 'At most ') + MAXD + L(' días seguidos: ese bloque es más largo', ' days in a row: that block is longer');
+    for (var k = 0; k < P.picked.length; k++) {
+      var c = ds[P.picked[k]];
+      if (!c || c.kind === 'empty') return L('Hay un día sin roster en medio (', 'There is a day with no roster in the middle (') + (c ? fCorta(c.date) : '') + ')';
+      if (yaPub && yaPub[c.date]) return L('El ', '') + fCorta(c.date) + L(' ya está en otro anuncio tuyo', ' is already in another post of yours');
+    }
+    return corteP();
   }
   function isSegP() { var p = PUB.picked; return p.length > 0 && p[p.length - 1] - p[0] + 1 === p.length; }
 
@@ -1735,21 +1776,21 @@
          encima de cualquier cosa que viva dentro de un .screen. */
       var root = document.createElement('div'); root.id = 'sw-sheet-root'; root.setAttribute('translate', 'no');
       root.appendChild(bg); root.appendChild(sh); document.body.appendChild(root);
-      bg.onclick = closeSheet;
+      bg.onclick = function () { if (!S.sheetFija) closeSheet(); };
       var x0 = null, y0 = null;
-      sh.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+      sh.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; sh._top = sh.scrollTop <= 0; }, { passive: true });
       sh.addEventListener('touchend', function (e) {
         if (x0 === null) return;
         var dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
         if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) && S.sheetDia) { if (dx < 0 && shI < S.dates.length - 1) shI++; else if (dx > 0 && shI > 0) shI--; fillSheet(); }
-        else if (dy > 80 && Math.abs(dy) > Math.abs(dx)) closeSheet();
+        else if (dy > 80 && Math.abs(dy) > Math.abs(dx) && sh._top) closeSheet();
         x0 = null;
       }, { passive: true });
     }
     return { bg: bg, sh: sh };
   }
   function openSheet(i) { shI = i; S.sheetDia = true; var e = sheetEls(); fillSheet(); e.sh.classList.add('open'); e.bg.classList.add('open'); }
-  function closeSheet() { S.sheetDia = false; var bg = $('sw-shbg'), sh = $('sw-sh'); if (bg) bg.classList.remove('open'); if (sh) sh.classList.remove('open'); }
+  function closeSheet() { S.sheetDia = false; S.sheetFija = false; var bg = $('sw-shbg'), sh = $('sw-sh'); if (bg) bg.classList.remove('open'); if (sh) sh.classList.remove('open'); }
   function pilotBlock(label, cls, R, i) {
     var c = R[i], g = gaps(R), before = null, after = null;
     g.forEach(function (x) { if (x.b === i && x.a === i - 1) before = x; if (x.a === i && x.b === i + 1) after = x; });
@@ -1946,7 +1987,14 @@
       };
     } catch (err) { try { console.warn('[swap] fatiga', err); } catch (_) {} return null; }
   }
+  /* La fatiga del cambio es de Pro (31-oct-2026). En Free se dice que existe y
+     se lleva a los planes; el cambio en sí se comprueba igual (descansos, FTL). */
+  function fatPro() { try { return typeof isPro === 'function' ? !!isPro() : true; } catch (x) { return true; } }
   function notaFatiga(a, e) {
+    if (!fatPro()) return '<div class="sw-fat" data-fat="pro"><div class="sw-fat-h"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>' +
+      '<b>' + L('Fatiga prevista', 'Forecast fatigue') + '</b></div>' +
+      '<div class="sw-fat-eq">🔒 ' + L('Con Pro ves cómo cambia tu fatiga (y la de tu compañero) con este cambio, día a día.', 'With Pro you see how this swap changes your fatigue (and your partner’s), day by day.') + '</div>' +
+      '<button type="button" class="sw-fat-pie" style="background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;color:inherit;font:inherit" onclick="if(typeof goTo===\'function\')goTo(\'upgrade\')">' + L('Ver planes', 'See plans') + '</button></div>';
     var f = fatCambio(a, e);
     if (!f || (!f.me && !f.them)) return '';
     var nm = firstName(S.partner);
@@ -2184,7 +2232,13 @@
       if (a.post) ir = function () { abreMatch(a.post); };
       else if (a.prop) ir = function () {
         var p = S.proposals.filter(function (x) { return x.id === a.prop; })[0];
-        if (p && p.status !== 'cancelled') abrePropuesta(p); else window.swapOpen();
+        if (p && p.status !== 'cancelled') return abrePropuesta(p);
+        /* Caducada (o retirada) y aún por llegar: el simulador con ese compañero y esos
+           días ya marcados, para volver a proponerla con un toque (1-nov). */
+        var c = p && S.contacts.filter(function (x) { return x.partner.id === p.partnerId && x.status === 'accepted'; })[0];
+        var ds = p ? (p.dates || []).slice().sort() : [];
+        if (c && ds.length && ds[0] > today()) { window.swapOpen(); setTimeout(function () { openPair(c.partner, ds, null); }, 250); }
+        else window.swapOpen();
       };
       return { id: 'swap-n:' + a.id, icono: ICO[a.tag] || '⇄', titulo: a.title, texto: a.body, cuando: t(a.at), ir: ir };
     });
