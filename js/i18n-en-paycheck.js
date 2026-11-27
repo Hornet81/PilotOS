@@ -523,6 +523,8 @@
     "h de bloque real": "actual block h",
     "Ha llegado bien: la ha tumbado su revisión automática. Arregla lo que dice y vuelve a mandarla.": "It arrived fine: its automatic review rejected it. Fix what it says and send it again.",
     "Habla… envío automático al callar": "Speak… sends automatically when you stop",
+    "Habla y toca el micro para enviar": "Speak and tap the mic to send",
+    "No te oigo bien — toca el micro para enviar": "I can't hear you well — tap the mic to send",
     "hace {0} días": "{0} days ago",
     "Hace falta para dejar la nota en el portal. Es tu cuenta de siempre, la de Microsoft.": "Needed to file the claim in the portal. It's your usual Microsoft account.",
     "hace un momento": "just now",

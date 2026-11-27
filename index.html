@@ -185,9 +185,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
 }
 </style>
 
-  <meta name="version" content="Estable.1322">
+  <meta name="version" content="Estable.1323">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1322","builtAt":"2026-11-27T09:31:54Z","commit":"aff090d4","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1323","builtAt":"2026-11-27T09:32:37Z","commit":"35b92863","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -21792,32 +21792,59 @@ function _micUI(id,txt){var btn=document.getElementById(id+'-mic');if(btn)btn.cl
 // ── VAD (detección de voz): para y envía solo tras un silencio ──
 // Cambia este valor para ajustar cuántos ms de silencio disparan el envío automático.
 var CAFI_VAD_SILENCE_MS=1000;   // 1 s de silencio → parar y enviar (baja a 500 si lo quieres más agresivo)
-var CAFI_VAD_LEVEL=0.022;       // umbral RMS por encima del cual se considera que hay voz
+var CAFI_VAD_LEVEL=0.015;       // umbral RMS mínimo (sube con el ruido de fondo, ver _startVad) por encima del cual se considera que hay voz
 function _startVad(id,stream){
+  // ★ El VAD tiene que poder ESCUCHAR. Tres formas de quedarse sordo, y las tres dejaban
+  //   «Escuchando…» hasta el tope de 30 s (reporte 27-nov-2026):
+  //   1) el AudioContext suspendido (iOS lo crea así fuera del toque) → el analyser da 128
+  //      plano, rms 0, nunca «spoke». Se desbloquea en toggleMic (dentro del gesto) y aquí
+  //      se vigila: sin ninguna muestra ≠ 0 en VAD_SORDO_MS, el VAD está sordo y se dice;
+  //   2) ARIA (killAudioCtx) cierra window._aCtx → se rehace el VAD sobre uno nuevo;
+  //   3) ruido de fondo (coche) por encima del umbral fijo → nunca hay silencio. El listón
+  //      se mide contra el suelo de ruido de los primeros 400 ms.
   try{
-    var st=micSt[id];var ac=_ac();if(!ac)return;
+    var st=micSt[id];var ac=_ac();if(!ac)return _vadSordo(id);
+    try{if(ac.state!=='running')ac.resume();}catch(e){}
     var src=ac.createMediaStreamSource(stream);
     var an=ac.createAnalyser();an.fftSize=512;an.smoothingTimeConstant=0.5;
     src.connect(an);   // solo al analyser (no al destino) → sin eco
     var buf=new Uint8Array(an.fftSize);
-    st._vad={an:an,src:src,raf:null,spoke:false,silenceStart:0};
+    var t0=performance.now();
+    st._vad={an:an,src:src,ac:ac,raf:null,spoke:false,silenceStart:0,floor:0,nFloor:0,vivo:false,t0:t0,speakStart:0};
     var tick=function(){
       if(!st.on||!st.whisper||!st._vad){return;}
+      var V=st._vad;
+      if(V.ac.state==='closed'){_stopVad(id);if(st.stream)_startVad(id,st.stream);return;}
       an.getByteTimeDomainData(buf);
       var sum=0;for(var i=0;i<buf.length;i++){var v=(buf[i]-128)/128;sum+=v*v;}
       var rms=Math.sqrt(sum/buf.length);
       var now=performance.now();
-      if(rms>CAFI_VAD_LEVEL){
-        st._vad.spoke=true;st._vad.silenceStart=0;
+      if(rms>0)V.vivo=true;
+      if(!V.vivo&&now-V.t0>=CAFI_VAD_SORDO_MS){_stopVad(id);_vadSordo(id);return;}
+      if(!V.spoke&&!V.avisado&&now-V.t0>=5000){V.avisado=true;var vq=document.getElementById(id+'-vst-t');if(vq)vq.textContent='No te oigo bien — toca el micro para enviar';}
+      if(now-V.t0<400){V.floor=V.nFloor?Math.min(V.floor,rms):rms;V.nFloor++;if(V.floor>0.06)V.floor=0.06;}  // el MÍNIMO y con tope: quien habla nada más tocar no puede pasar por ruido
+      var fl=V.nFloor?V.floor:0;var habla=Math.max(CAFI_VAD_LEVEL,fl*2.5);
+      var calla=Math.max(CAFI_VAD_LEVEL*0.8,fl*1.6);
+      if(rms>habla){
+        if(!V.spoke){V.spoke=true;V.speakStart=now;}
+        V.silenceStart=0;
         var vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent='Escuchando…';
-      }else if(st._vad.spoke){
-        if(!st._vad.silenceStart){st._vad.silenceStart=now;}
-        else if(now-st._vad.silenceStart>=CAFI_VAD_SILENCE_MS){stopMic(id);return;}
+      }else if(V.spoke&&rms<calla){
+        if(!V.silenceStart){V.silenceStart=now;}
+        else if(now-V.silenceStart>=CAFI_VAD_SILENCE_MS){stopMic(id);return;}
       }
-      st._vad.raf=requestAnimationFrame(tick);
+      V.raf=requestAnimationFrame(tick);
     };
     st._vad.raf=requestAnimationFrame(tick);
-  }catch(e){}
+  }catch(e){_vadSordo(id);}
+}
+// Sin VAD no se puede saber cuándo has acabado: se DICE y se envía al tocar (o a los 15 s).
+var CAFI_VAD_SORDO_MS=1500;
+function _vadSordo(id){
+  var st=micSt[id];if(!st||!st.on)return;
+  var vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent='Habla y toca el micro para enviar';
+  if(st._to)clearTimeout(st._to);
+  st._to=setTimeout(function(){if(st.on&&st.whisper)stopMic(id);},15000);
 }
 function _stopVad(id){
   var st=micSt[id];if(!st||!st._vad)return;
@@ -21874,6 +21901,7 @@ function startBrowserSR(id){
   catch(e){var vt=document.getElementById(id+'-vst-t');if(vt)vt.textContent='Error: '+e.message;var vs=document.getElementById(id+'-vst');if(vs)vs.style.display='flex';}
 }
 function toggleMic(id){
+  try{_ac();}catch(e){}   // desbloquea el AudioContext DENTRO del toque (iOS): el VAD lo necesita corriendo
   var orbEl=document.getElementById(id+'-orb');
   if(orbEl){orbEl.classList.add('orb-tap');setTimeout(function(){orbEl.classList.remove('orb-tap');},400);}
   if(micSt[id].on){stopMic(id);return;}
