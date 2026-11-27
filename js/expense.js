@@ -1116,7 +1116,8 @@ function chipV2(n){
   return d < 0 ? [exT('caducada','expired'), 'bad'] : [exT('caduca en ','expires in ') + d + ' d', 'fal'];
 }
 function rutaCorta(fecha){ var r = rutaDia(fecha); return r ? r.replace(/ · /g, '·') : ''; }
-function tiraV2(n){
+function tiraV2(n){ return swV2(n, tiraV2b(n)); }
+function tiraV2b(n){
   var T = tipoDe(n.kind), ch = chipV2(n), e = estadoDe(n);
   var p = String(n.date || '').split('-');
   var sub = e === 'falta' && !esFutura(n) ? exT('Falta el ticket', 'Receipt missing')
@@ -1134,6 +1135,61 @@ function tiraV2(n){
   '</button>';
 }
 window.exTira = function(id){ if (window.exOpen) exOpen(id); };
+/* ── DESLIZAR A LA IZQUIERDA PARA BORRAR, en las tiras de la lista (27-nov-2026,
+   «tal y como estaba antes»). Es el mismo gesto de la tarjeta vieja
+   (`exSwipeInit`) con sus tres reglas: sólo las notas A MANO (una automática la
+   vuelve a poner el roster), el dedo vertical sigue rodando la lista, y deslizar
+   NO borra: descubre el botón, que pide la misma confirmación (`exDelNota`).
+   El panel nace FUERA del borde y entra con la tira: no hay nada que tapar. */
+var SW2_ANCHO = 96;
+function swV2(n, html){
+  if (!n.manual) return html;
+  return '<div class="ex2-sw">' + html +
+    '<button type="button" class="ex2-swdel" onclick="event.stopPropagation();exDelNota(\'' + n.id + '\')" aria-label="' + exT('Eliminar nota','Delete note') + '">' +
+      '<span class="dk">' + iconoPapelera() + '</span><span class="tx">' + exT('Eliminar','Delete') + '</span></button></div>';
+}
+var _sw2On = false, _sw2 = null, _sw2Fin = 0;
+function ex2SwipeInit(){
+  if (_sw2On) return; _sw2On = true;
+  function cierraTodas(menos){
+    var a = document.querySelectorAll('.ex2-sw.sw');
+    for (var i = 0; i < a.length; i++) if (a[i] !== menos) a[i].classList.remove('sw');
+  }
+  document.addEventListener('pointerdown', function(ev){
+    var t = ev.target, w = t.closest && t.closest('.ex2-sw');
+    if (t.closest && t.closest('.ex2-swdel')) return;
+    if (!w) { if (document.querySelector('.ex2-sw.sw')) { cierraTodas(null); _sw2Fin = Date.now(); } _sw2 = null; return; }
+    _sw2 = { w: w, x0: ev.clientX, y0: ev.clientY, dx: 0, vivo: false, abierta: w.classList.contains('sw') };
+  }, { passive: true, capture: true });
+  document.addEventListener('pointermove', function(ev){
+    if (!_sw2) return;
+    var dx = ev.clientX - _sw2.x0, dy = ev.clientY - _sw2.y0;
+    if (!_sw2.vivo) {
+      if (Math.abs(dy) > Math.abs(dx)) { _sw2 = null; return; }
+      if (Math.abs(dx) < 12) return;
+      _sw2.vivo = true; cierraTodas(_sw2.w);
+    }
+    _sw2.dx = Math.max(-SW2_ANCHO, Math.min(0, (_sw2.abierta ? -SW2_ANCHO : 0) + dx));
+    _sw2.w.style.setProperty('--dx', _sw2.dx + 'px');
+  }, { passive: true, capture: true });
+  function suelta(){
+    if (!_sw2) return;
+    var w = _sw2.w, vivo = _sw2.vivo, dx = _sw2.dx, abierta = _sw2.abierta;
+    _sw2 = null;
+    w.style.removeProperty('--dx');
+    if (vivo) { _sw2Fin = Date.now(); if (dx < -SW2_ANCHO / 3) w.classList.add('sw'); else w.classList.remove('sw'); }
+    else if (abierta) { w.classList.remove('sw'); _sw2Fin = Date.now(); }   // tocar una abierta la cierra
+  }
+  document.addEventListener('pointerup', suelta, { passive: true, capture: true });
+  document.addEventListener('pointercancel', suelta, { passive: true, capture: true });
+  /* El clic que llega detrás de un deslizamiento (o del toque que cierra) no
+     puede abrir la nota. */
+  document.addEventListener('click', function(ev){
+    if (Date.now() - _sw2Fin < 400 && !(ev.target.closest && ev.target.closest('.ex2-swdel'))) {
+      ev.stopPropagation(); ev.preventDefault(); _sw2Fin = 0;
+    }
+  }, true);
+}
 window.exFiltro = function(k){ EX.filtro = (k && EX.filtro !== k) ? k : null; EX.diaEnv = false; exRender(); };
 window.exVistaV2 = function(v){ EX.vista = v; try { localStorage.setItem(K_VISTA, v); } catch(e){} exRender(); };
 window.exEnvToggle = function(){ EX.envAbierto = !EX.envAbierto; exRender(); };
@@ -1402,7 +1458,8 @@ function pintaDia(){
    lo que sí. */
 EX.cadAbierto = false;
 window.exCadToggle = function(){ EX.cadAbierto = !EX.cadAbierto; exRender(); };
-function filaV2(n, conChip){
+function filaV2(n, conChip){ return swV2(n, filaV2b(n, conChip)); }
+function filaV2b(n, conChip){
   var T = tipoDe(n.kind), ch = chipV2(n), e = estadoDe(n);
   var sub = e === 'lista' ? (EX.tkCount[n.id] || 0) + exT(' ticket(s) · lista', ' receipt(s) · ready')
           : e === 'enviado' ? (((envioDe(n) || {}).number) ? exT('nota ', 'sheet ') + envioDe(n).number : '') : '';
@@ -1461,8 +1518,10 @@ function heroV2(falta){
 function listaV2(todasN){
   var g = { falta:[], futura:[], lista:[], enviado:[] };
   todasN.forEach(function(n){ g[grupoV2(n)].push(n); });
-  g.falta.sort(function(a, b){ return daysLeft(a.date) - daysLeft(b.date) || a.date.localeCompare(b.date); });
-  g.futura.sort(function(a, b){ return a.date.localeCompare(b.date); });
+  /* El más reciente arriba (27-nov-2026, pedido del piloto). Las futuras siguen
+     al final de su grupo: aún no cuentan como «sin ticket». */
+  g.falta.sort(function(a, b){ return b.date.localeCompare(a.date); });
+  g.futura.sort(function(a, b){ return b.date.localeCompare(a.date); });
   g.lista.sort(function(a, b){ return b.date.localeCompare(a.date); });
   g.enviado.sort(function(a, b){ return b.date.localeCompare(a.date); });
   var vivas = g.falta.filter(function(n){ return daysLeft(n.date) >= 0; });
@@ -1598,6 +1657,7 @@ function exRender(){
      rehacen enteras aquí—, y el aviso cierra las que hubiera abiertas: tras el
      repintado, la tarjeta de esa posición puede ser otra nota. */
   try { exSwipeInit(); } catch(e){}
+  try { ex2SwipeInit(); } catch(e){}
   try { window.dispatchEvent(new Event('pilotos-gastos-render')); } catch(e){}
   var nueva = host.querySelector('.ex-meses');
   if (nueva){
