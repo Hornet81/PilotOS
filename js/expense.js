@@ -1116,7 +1116,7 @@ function chipV2(n){
   return d < 0 ? [exT('caducada','expired'), 'bad'] : [exT('caduca en ','expires in ') + d + ' d', 'fal'];
 }
 function rutaCorta(fecha){ var r = rutaDia(fecha); return r ? r.replace(/ · /g, '·') : ''; }
-function tiraV2(n){ return swV2(n, tiraV2b(n)); }
+function tiraV2(n){ return swV2(n, conNueva(n, tiraV2b(n))); }
 function tiraV2b(n){
   var T = tipoDe(n.kind), ch = chipV2(n), e = estadoDe(n);
   var p = String(n.date || '').split('-');
@@ -1141,6 +1141,17 @@ window.exTira = function(id){ if (window.exOpen) exOpen(id); };
    vuelve a poner el roster), el dedo vertical sigue rodando la lista, y deslizar
    NO borra: descubre el botón, que pide la misma confirmación (`exDelNota`).
    El panel nace FUERA del borde y entra con la tira: no hay nada que tapar. */
+/* La ÚLTIMA nota creada a mano va resaltada en la lista hasta que se crea otra
+   (27-nov-2026, pedido del piloto): al volver a la lista se ve cuál acabas de
+   añadir. Se recuerda en el aparato; si esa nota se borra, deja de resaltar. */
+var K_NUEVA = 'pilotos_gastos_nueva';
+function marcaNueva(id){ try { localStorage.setItem(K_NUEVA, id); } catch(e){} }
+function esNueva(n){ try { return !!n.manual && localStorage.getItem(K_NUEVA) === n.id; } catch(e){ return false; } }
+function conNueva(n, html){
+  if (!esNueva(n)) return html;
+  return html.replace('class="ex2-tira ', 'class="ex2-tira ex2-nueva ')
+             .replace('<span class="ti">', '<span class="ex2-nv">' + exT('NUEVO','NEW') + '</span><span class="ti">');
+}
 var SW2_ANCHO = 96;
 function swV2(n, html){
   if (!n.manual) return html;
@@ -1458,7 +1469,7 @@ function pintaDia(){
    lo que sí. */
 EX.cadAbierto = false;
 window.exCadToggle = function(){ EX.cadAbierto = !EX.cadAbierto; exRender(); };
-function filaV2(n, conChip){ return swV2(n, filaV2b(n, conChip)); }
+function filaV2(n, conChip){ return swV2(n, conNueva(n, filaV2b(n, conChip))); }
 function filaV2b(n, conChip){
   var T = tipoDe(n.kind), ch = chipV2(n), e = estadoDe(n);
   var sub = e === 'lista' ? (EX.tkCount[n.id] || 0) + exT(' ticket(s) · lista', ' receipt(s) · ready')
@@ -1488,14 +1499,25 @@ function tarjetaDiaV2(k, d){
   var p = String(d.fecha).split('-'), u = urgDiaV2(k, d);
   var ruta = rutaCorta(d.fecha).replace(/·/g, ' ✈ ');
   var mixto = k !== 'falta';
-  return '<article class="ex2-sd' + (u ? ' u-' + u[1] : '') + '">' +
+  var solaMan = d.notas.length === 1 && d.notas[0].manual;   // la fila no se desliza sola: lo hace la tarjeta
+  var html = '<article class="ex2-sd' + (u ? ' u-' + u[1] : '') + '">' +
     '<div class="sdh"><span class="fe"><b>' + (Number(p[2]) || '') + '</b><i>' + (p[1] ? MES[Number(p[1]) - 1].toUpperCase() : '') + '</i></span>' +
       '<span class="sdr"><span class="ru">' + esc(ruta || exT('Sin vuelo en el roster','No flight in the roster')) + '</span>' +
       '<span class="su">' + d.notas.length + ' ' + (d.notas.length === 1 ? exT('nota','note') : exT('notas','notes')) + ' · ' + eur(sumaDe(d.notas, pesoV2)) + '</span></span>' +
       (u ? '<span class="ug ' + u[1] + '">' + u[0] + '</span>' : '') +
     '</div>' +
-    '<div class="sdn">' + d.notas.map(function(n){ return filaV2(n, mixto); }).join('') + '</div>' +
+    '<div class="sdn">' + d.notas.map(function(n){ return solaMan ? conNueva(n, filaV2b(n, mixto)) : filaV2(n, mixto); }).join('') + '</div>' +
   '</article>';
+  /* La TARJETA ENTERA se desliza para borrar (27-nov-2026): no sólo la fila de
+     abajo. Con una sola nota borra esa; con varias, las notas a mano del día
+     (las del roster volverían a salir), y la confirmación dice cuántas. */
+  var man = d.notas.filter(function(n){ return n.manual; });
+  if (!man.length) return html;
+  var ids = man.map(function(n){ return n.id; });
+  var onDel = ids.length === 1 ? 'exDelNota(\'' + ids[0] + '\')' : 'exDelNotas(\'' + ids.join(',') + '\')';
+  return '<div class="ex2-sw ex2-swc">' + html +
+    '<button type="button" class="ex2-swdel" onclick="event.stopPropagation();' + onDel + '" aria-label="' + exT('Eliminar','Delete') + '">' +
+      '<span class="dk">' + iconoPapelera() + '</span><span class="tx">' + exT('Eliminar','Delete') + (ids.length > 1 ? ' ' + ids.length : '') + '</span></button></div>';
 }
 function heroV2(falta){
   var cand = falta.filter(function(n){ return !esFutura(n) && daysLeft(n.date) >= 0; });
@@ -3726,7 +3748,7 @@ window.exNFCrear = function(salta){
     scope: NF.sc, needsISO: !!T.iso, single:false, maxTotal:cap, ticketWindow:T.win, lines:lines,
     covered:{ catering:[], voucher:[] } };
   var iso = String(NF.iso || '').trim().slice(0, 40); if (iso) n.iso = iso;
-  EX.manual.push(n); saveMan(); syncNota(n.id);
+  EX.manual.push(n); saveMan(); syncNota(n.id); marcaNueva(n.id);
   EX.mes = f.slice(0,7); EX.calMes = f.slice(0,7); NF = null; EX.fechaNueva = null;
   exRender(); exOpen(n.id);
 };
@@ -3799,7 +3821,7 @@ window.exCrear = function(tid, subtype, cap, slot, lbl, fechaFija){
     needsISO:!!T.iso, single:false, maxTotal:cap, ticketWindow:T.win,
     lines:[{ date:d, subtype:subtype, cap:cap, slot:slot||null, slotLabel:lbl, window:null, where:null }],
     covered:{ catering:[], voucher:[] } };
-  EX.manual.push(n); saveMan(); syncNota(n.id);
+  EX.manual.push(n); saveMan(); syncNota(n.id); marcaNueva(n.id);
   // Saltar al mes de la nota recién creada. Si no, con el filtro puesto en otro
   // mes —y por defecto se abre el que caduca antes, que suele ser el anterior—
   // la nota se crea y NO se ve: parece que no se ha guardado.
@@ -3829,6 +3851,20 @@ window.exDelNota = function(id){
       { v: 'no', txt: exT('No, dejarla','No, keep it'), ic: 'undo', ghost: true }
     ],
     onPick: function(v){ if (v === 'si') exDelNotaYa(id); }
+  });
+};
+window.exDelNotas = function(lista){
+  var ids = String(lista || '').split(',').filter(Boolean);
+  exPick({
+    ic: '<svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">' + PICK_IC.trash + '</svg>',
+    tono: 'danger',
+    titulo: exT('¿Eliminar las ' + ids.length + ' notas de este día?', 'Delete the ' + ids.length + ' notes of this day?'),
+    sub: ids.map(function(id){ var n = (EX.manual || []).filter(function(x){ return x.id === id; })[0]; return n ? esc(n.title || '') : ''; }).filter(Boolean).join(' · '),
+    opciones: [
+      { v: 'si', txt: exT('Sí, eliminarlas','Yes, delete them'), ic: 'trash', tono: 'danger', hint: exT('Con sus tickets. No se puede deshacer','With their receipts. Cannot be undone') },
+      { v: 'no', txt: exT('No, dejarlas','No, keep them'), ic: 'undo', ghost: true }
+    ],
+    onPick: function(v){ if (v === 'si') ids.forEach(function(id){ exDelNotaYa(id); }); }
   });
 };
 window.exDelNotaYa = function(id){
