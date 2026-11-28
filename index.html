@@ -185,9 +185,9 @@ html.zooming *, html.zooming *::before, html.zooming *::after{
 }
 </style>
 
-  <meta name="version" content="Estable.1323">
+  <meta name="version" content="Estable.1328">
   <!-- Versión embebida en el build (la inyecta scripts/stamp-version.js) = lo que ESTE HTML ejecuta -->
-  <script>window.__PILOTOS_VERSION__={"version":"Estable.1323","builtAt":"2026-11-27T09:32:37Z","commit":"35b92863","channel":"stable"};</script>
+  <script>window.__PILOTOS_VERSION__={"version":"Estable.1328","builtAt":"2026-11-27T20:26:27Z","commit":"5d184935","channel":"stable"};</script>
   <!-- Idioma de la interfaz. Va en el <head> y ANTES que nada que pinte texto: el
        traductor observa el DOM desde que el parser empieza el <body>. En español no hace nada. -->
   <script src="js/i18n.js"></script>
@@ -16472,7 +16472,12 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
     var body=document.getElementById('ld-otro-form')||document.getElementById('ldo-body'); if(!body) return;
     _ldoSaveLabel(_ldoType==='opening');
     var ai='<div class="ldo-ai"><div style="font-weight:700;margin-bottom:7px">🤖 Añadir con IA</div><textarea id="ldo_ai" placeholder="Ayer volé un Extra 300 en Sabadell, 45 min, acrobacia, looping y tonneau, G +5 -2."></textarea><div class="ldo-mini" style="background:linear-gradient(135deg,#8B5CF6,#6d28d9);color:#fff" onclick="ldOtroAI()">✨ Analizar y rellenar</div><div id="ldo_ai_out"></div></div>';
-    var photo='<div class="ldo-mini" style="border:1px dashed rgba(16,185,129,.5);color:#10B981;margin-bottom:13px" onclick="ldOtroPhoto()">📷 Importar por foto / logbook de papel</div>';
+    // #85PDP: los vuelos ANTERIORES a la compañía entran por aquí, y lo único que había
+    // era la entrada manual y un botón de foto que no hacía nada (un esqueleto con un
+    // toast). La importación de verdad —Excel, CSV, PDF de LogTen/Jeppesen y la foto
+    // del logbook de papel— ya existe (ldShowImport): los dos botones llevan a ELLA.
+    var photo='<div class="ldo-mini" data-ldo-imp="archivo" style="border:1px dashed rgba(16,185,129,.5);color:#10B981;margin-bottom:8px" onclick="ldOtroImport(false)">'+_ldL('📥 Importar archivo · Excel · CSV · PDF · LogTen','📥 Import a file · Excel · CSV · PDF · LogTen')+'</div>'
+             +'<div class="ldo-mini" data-ldo-imp="foto" style="border:1px dashed rgba(16,185,129,.5);color:#10B981;margin-bottom:13px" onclick="ldOtroImport(true)">'+_ldL('📷 Foto del logbook de papel','📷 Photo of a paper logbook')+'</div>';
     // Esqueleto estable: intro (IA+foto) · picker · detalle
     if(!document.getElementById('ldo-picker')){
       body.innerHTML='<div id="ldo-intro">'+ai+photo+'</div>'
@@ -16515,7 +16520,20 @@ html.day #scr-oes .ot-act-item,html.day #scr-oes .ot-dg-panel{background:#0d1530
     var rows=[['Fecha',/ayer/.test(t)?'ayer':'hoy'],['Avión',av||'—'],['Salida',dep||'—'],['Flight time',ft||'—'],['Tipo',{aero:'Acrobacia',glider:'Velero',sim:'Simulador',ga:'Aviación general'}[act]]];
     document.getElementById('ldo_ai_out').innerHTML='<div class="ldo-box" style="margin-top:10px;margin-bottom:0">'+rows.map(function(r){return '<div class="ldo-kv"><span>'+r[0]+'</span><b>'+r[1]+'</b></div>';}).join('')+'<div class="ldo-mini" style="background:rgba(16,185,129,.9);color:#08331F;margin-top:9px" onclick="ldOtroPick(\''+act+'\');setTimeout(function(){var d=document.getElementById(\'ldo_type\');if(d)d.value=\''+(av||'')+'\';var f=document.getElementById(\'ldo_ft\');if(f)f.value=\''+ft+'\';var dp=document.getElementById(\'ldo_dep\');if(dp)dp.value=\''+dep+'\';},60)">Usar y completar →</div></div>';
   }
-  function ldOtroPhoto(){ if(window.showToast)showToast('📷 OCR de foto — preparado (scaffold)'); }
+  // Cierra la entrada y abre la hoja de importar. Con `foto`, además abre el selector
+  // EN EL MISMO TOQUE (iOS no deja abrirlo desde un setTimeout): ahí salen la cámara
+  // y la fototeca. Si antes toca preguntar los totales de apertura, manda esa hoja.
+  function ldOtroImport(foto){
+    try{ ldCloseModal(); }catch(e){}
+    if(typeof ldShowImport!=='function') return;
+    ldShowImport();
+    var m=document.getElementById('ld_import_modal');
+    if(foto && m && m.style.display==='flex'){
+      var f=document.getElementById('ld_import_file'); if(f) f.click();
+    }
+  }
+  window.ldOtroImport=ldOtroImport;
+  function ldOtroPhoto(){ ldOtroImport(true); }
   function _gv(id){ var e=document.getElementById('ldo_'+id); return e?e.value.trim():''; }
   /* Contador: un 0 EXPLÍCITO es un dato, no un hueco. Con `||1` un sector que el
      piloto no voló recuperaría su aterrizaje, que es el fallo que ya costó una
@@ -63312,7 +63330,7 @@ async function rstatsRenderMes(host, tk){
      + '<div class="rs-leg">' + leyenda + '</div>'
      + '<div class="rs-foot">cuenta como cambio si cambia el nº de vuelo o el TIPO de día.<br>'
      +   'Mover la hora de los mismos vuelos no es un cambio de trabajo: va aparte.<br>'
-     +   'Cambios (Art. 12.9) cuenta por VUELO y con umbral, no por día: ahí son <b>' + (d.nComputables || 0) + '</b>.'
+     +   'Cambios (Art. 12.9) también cuenta por día, pero pide más de 60 min y cambio de nº de vuelo: ahí son <b>' + (d.nComputables || 0) + '</b>.'
      +   (c.soloIni || c.soloAct ? '<br>' + (c.soloIni + c.soloAct) + ' día(s) están en una sola de las dos fotos y no se cuentan.' : '')
      + '</div></div>';
 
@@ -71567,13 +71585,23 @@ document.addEventListener('DOMContentLoaded', function(){
     curAudio.onpause=function(){ if(!paused&&!_userPaused) _audLog('pausa-ajena'); };
     curAudio.onended=function(){ _audLog('fin'); _vigilaPara(); playing=false; var pb=q('#ar-play'); if(pb)pb.textContent='▶'; hi(-1,-1); stat('✓ Fin del briefing'); var f=q('#ar-fill'); if(f)f.style.width='100%'; applyChrome(); autoAsk(); };
     var pp=curAudio.play();
-    if(pp&&pp.catch)pp.catch(function(){
+    if(pp&&pp.catch)pp.catch(function(err){
       /* El navegador rechaza play() fuera de un gesto (iOS lo hace con el arranque
          automático del chip del Home). Tragarse el rechazo dejaba el botón en ⏸ sin
          que sonara nada. Volvemos a un estado de PAUSA de verdad, para que el
          siguiente toque reanude en lugar de pausar algo que nunca empezó.
          `curAudio.paused` filtra el AbortError de un pause()/seek legítimo. */
       try{ if(!curAudio || !curAudio.paused) return; }catch(_e){ return; }
+      var nom=(err&&err.name)||'';
+      try{ _audLog('play-rechazado',{ n:nom }); }catch(_e){}
+      /* ★ «EMPIEZA Y SE PARA» (27-nov-2026). Sólo el NotAllowedError es «hace falta un
+         toque». Un AbortError —o cualquier otro— con el piloto sin haber pausado es iOS
+         interrumpiendo el arranque (sesión de audio, Bluetooth, otro elemento): la caja
+         negra lo enseñaba como un `suena` con el audio ya en pausa y NADA después, porque
+         aquí se ponía `paused=true` y el vigía se apagaba en su primer tick. Ahora se le
+         deja el caso al vigía, con su escalera (play · soltar micro · recargar · rendirse
+         diciéndolo). */
+      if(nom!=='NotAllowedError' && playing && !paused && !_userPaused){ _vigilaArranca(); return; }
       paused=true; _userPaused=false;
       try{ paintDeck(); }catch(_e){}
       try{ if('mediaSession' in navigator)navigator.mediaSession.playbackState='paused'; }catch(_e){}
@@ -71658,7 +71686,7 @@ document.addEventListener('DOMContentLoaded', function(){
   function togglePlay(){ if(!audios.length)return; var pb=q('#ar-play'); if(!playing){ killAudioCtx(); _gen++; /* ⚠ Aquí había un `prefetchQ()` sin await, UNA línea después del
        `killAudioCtx()` que existe para que no haya ningún AudioContext abierto
        durante la reproducción — y hornear la pregunta abre uno. La pregunta se
-       hornea ahora en `prepareVoice`, sobre el contexto que YA está abierto ahí. */ mediaSetup(); mediaMeta(); playing=true; paused=false; _userPaused=false; acc=0; k=0; if(pb)pb.textContent='⏸'; unlockAudio();
+       hornea ahora en `prepareVoice`, sobre el contexto que YA está abierto ahí. */ mediaSetup(); mediaMeta(); playing=true; paused=false; _userPaused=false; acc=0; k=0; if(pb)pb.textContent='⏸'; if(!_vaOk) unlockAudio();
       /* ★ NO SE REBOBINA LO QUE SE ESTABA OYENDO. Reportado el 7-oct-2026: «se ha
          vuelto a cortar y ha empezado otra vez de nuevo». Esta rama es «arrancar», y
          ponía `currentTime=0` a ciegas —correcto cuando el piloto pulsa ▶ tras generar,
@@ -71835,6 +71863,7 @@ document.addEventListener('DOMContentLoaded', function(){
   try{ window.addEventListener('online', function(){ try{ if(_ariaMounted){ var s=(q('#ar-status')||{}).textContent||''; if(/^📡/.test(s)) stat(CUR.lang==='en'?'Back online':'Conexión recuperada'); } }catch(e){} }); }catch(e){}
   var _micRetried=false;
   async function generate(){
+    try{ _bendiceAudio(); }catch(e){}   /* síncrono: todavía dentro del toque */
     // Pide el micro AQUÍ, en el gesto DIRECTO del tap. En iOS getUserMedia solo funciona dentro
     // del gesto y no permite dos prompts de permiso a la vez (por eso no se puede encadenar tras
     // la posición: se rechazaba y el micro acababa pidiéndose al final). Así ambos permisos
@@ -71949,7 +71978,15 @@ document.addEventListener('DOMContentLoaded', function(){
   function _micVivo(s){ try{ if(!s)return false; var t=s.getTracks?s.getTracks():[]; for(var i=0;i<t.length;i++) if(t[i].readyState==='live'&&!t[i].muted) return true; }catch(e){} return false; }
   function ensureMic(){ if(_micVivo(vStream)){ /* Conversación en marcha: las pistas viajan apagadas entre turnos y aquí se encienden. */ try{ vStream.getTracks().forEach(function(t){ t.enabled=true; }); }catch(e){} _dbg('ensureMic reusa el stream vivo'); return Promise.resolve(vStream); } if(vStream){ _dbg('ensureMic: el stream cacheado estaba MUERTO — se pide otro'); try{ releaseMic(true); }catch(e){} } if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) return Promise.reject(new Error('NoGUM')); var gum=function(c){ return navigator.mediaDevices.getUserMedia(c); }; var _t0=Date.now(); var chain=gum(MIC_CONSTRAINTS).catch(function(e){ if(e&&(e.name==='OverconstrainedError'||e.name==='NotReadableError'||e.name==='TypeError')) return gum({audio:true}); throw e; }).then(function(s){ vStream=s; _micApuntaPrompt(Date.now()-_t0); return s; }); return Promise.race([ chain, new Promise(function(_,rej){ setTimeout(function(){ if(!vStream)rej(new Error('TimeoutMic')); }, 9000); }) ]); }
   function killAudioCtx(){ /* Banco audiotest T4/T5: un AudioContext abierto (aunque no suene) entrecorta el Bluetooth del coche. Cerrar TODOS antes de reproducir; se recrean solos al volver a necesitarse. */ try{ if(window._aCtx&&window._aCtx.state!=='closed')window._aCtx.close(); }catch(e){} try{ window._aCtx=null; }catch(e){} try{ if(_ac&&_ac.state!=='closed')_ac.close(); }catch(e){} _ac=null; try{ if(vAC&&vAC.state!=='closed')vAC.close(); }catch(e){} vAC=null; }
-  function unlockAudio(){ try{ if(!_va)_va=new Audio(); _va.muted=true; _va.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACBWAQACABAAZGF0YQAAAAA='; var pp=_va.play(); if(pp&&pp.then){ pp.then(function(){ try{_va.pause();_va.currentTime=0;}catch(e){} _va.muted=false; }).catch(function(){ _va.muted=false; }); } }catch(e){} /* NO abrir AudioContext aquí: en iOS mantener _ac vivo degrada el Bluetooth a HFP y entrecorta el briefing. El AudioContext solo se crea cuando hace falta el micro. */ }
+  var _vaOk=false, _briefOk=false, _SILENCIO='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACBWAQACABAAZGF0YQAAAAA=';
+  /* ★ Bendecir los dos <audio> DENTRO del toque que pide el briefing (27-nov-2026). iOS sólo
+     deja sonar sin gesto a un elemento que ya ha sonado una vez con gesto, y el briefing
+     arranca solo al acabar de generarse —medio minuto después del toque—. Además, desbloquear
+     `_va` en el MISMO instante en que arranca el briefing ponía dos elementos a arrancar a la
+     vez, que es justo lo que iOS corta. Se hace una vez por sesión y con nada sonando. */
+  function _bendiceAudio(){ if(!_vaOk) unlockAudio();
+    if(_briefOk) return; try{ if(!_brief)_brief=new Audio(); if(_brief.src && _brief.src.indexOf('blob:')===0) return; _brief.muted=true; _brief.src=_SILENCIO; var pb=_brief.play(); if(pb&&pb.then){ pb.then(function(){ try{ _brief.pause(); }catch(e){} _brief.muted=false; _briefOk=true; }).catch(function(){ _brief.muted=false; }); } }catch(e){ try{ _brief.muted=false; }catch(_e){} } }
+  function unlockAudio(){ try{ if(!_va)_va=new Audio(); _va.muted=true; _va.src=_SILENCIO; var pp=_va.play(); if(pp&&pp.then){ pp.then(function(){ try{_va.pause();_va.currentTime=0;}catch(e){} _va.muted=false; _vaOk=true; }).catch(function(){ _va.muted=false; }); } }catch(e){} /* NO abrir AudioContext aquí: en iOS mantener _ac vivo degrada el Bluetooth a HFP y entrecorta el briefing. El AudioContext solo se crea cuando hace falta el micro. */ }
   /* ⚠ Por la MISMA puerta con techo. `prefetchQ()` se espera con `await` dentro de
      `prepareVoice`, asi que un cierre colgado deja el briefing SIN llegar a «▶ Listo»
      con la voz ya horneada: el fallo del reporte por la puerta de atras. */

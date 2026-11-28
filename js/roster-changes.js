@@ -83,14 +83,14 @@ var REGLAS = {
   exigeCambioVuelo: true,
   // El 1.º y el 2.º del mes no devengan, pero cuentan para la numeración.
   gratisAlMes: 2,
-  /* La unidad es el VUELO CAMBIADO, no la jornada. Si en un mismo día te
-     sustituyen dos sectores y la jornada se mueve más de 60 min, son DOS cambios.
-     El artículo no define la unidad; esta es la lectura que se aplica —«aquellos
-     cambios que conlleven un cambio de número de vuelo»— y es la favorable al
-     piloto. Lo que NO se cuenta dos veces es el mismo día por dos vías: si la
-     jornada ya cuenta por sus vuelos, la pernocta nueva de ese día no suma otro.
-     Cambiar esta constante NO basta: la expansión está en detectar(). */
-  unidad: 'vuelo'
+  /* La unidad es la JORNADA: un día distinto entre la programación inicial y la
+     ejecutada es UN cambio, cambien uno o cuatro vuelos. El artículo no define la
+     unidad; hasta el 27-nov-2026 se contaba por VUELO (la lectura favorable al
+     piloto) y salía más de lo que paga la compañía: Roberto, 30-oct, ZRH ida y
+     vuelta cambiado por SVQ y ORY → 4 cambios y «te deben 2» con la nómina en 0
+     (reporte ILHFT). Criterio del piloto: se comparan las dos programaciones y
+     cada día distinto es un cambio. Con 'vuelo' vuelve la lectura anterior. */
+  unidad: 'jornada'
 };
 
 /* Tarifas del Anexo A. Se pasan por parámetro (el backend las lee de
@@ -348,9 +348,9 @@ function detectar(opts){
     var cambiaVuelo = a.numeros !== b.numeros;
     var pernoctaNueva = !!pAct[fecha] && !pIni[fecha];
 
-    /* Qué vuelos han cambiado. Se emparejan los que se van con los que llegan:
-       dos sectores sustituidos son dos cambios, uno cancelado sin reemplazo es
-       uno. Es lo que decide CUÁNTOS cambios sale ese día. */
+    /* Qué vuelos han cambiado: los que se van y los que llegan. Con la unidad
+       'jornada' sólo se usan para nombrarlos en el par; con 'vuelo' decidirían
+       CUÁNTOS cambios sale ese día. */
     var numIni = a.vuelos.map(function(v){ return v.num; }).filter(Boolean);
     var numAct = b.vuelos.map(function(v){ return v.num; }).filter(Boolean);
     var fuera  = numIni.filter(function(x){ return numAct.indexOf(x) < 0; });
@@ -378,7 +378,8 @@ function detectar(opts){
        sectores, así que en un día que cumpla las dos da igual o más. Y así el
        mismo día no se cuenta dos veces por dos vías distintas. */
     if (!cand && mueve && (!REGLAS.exigeCambioVuelo || cambiaVuelo)){
-      cand = { tipo:'vuelo_tiempo', unidades: Math.max(1, nVuelos),
+      cand = { tipo:'vuelo_tiempo',
+               unidades: REGLAS.unidad === 'vuelo' ? Math.max(1, nVuelos) : 1,
                motivo: (cambiaVuelo ? 'cambia el nº de vuelo y ' : '') + mov.txt
                      + (pernoctaNueva ? ', y añade pernocta' : '') };
     }
@@ -408,17 +409,20 @@ function detectar(opts){
       firmaIni: a.firma, firmaAct: b.firma
     };
 
-    /* Una entrada POR VUELO cambiado, cada una con su sitio en la escalera y su
-       tarifa. Se listan por separado —y con qué vuelo sustituye a cuál— porque un
-       «2» que no se puede desglosar no se puede reclamar. Las demás reglas
-       (pernoctas, imaginarias) siguen siendo una por día: no van por sectores. */
+    /* Una entrada por DÍA (REGLAS.unidad 'jornada'). Con 'vuelo' sería una por
+       vuelo cambiado, cada una con su sitio en la escalera. */
     var uds = cand.unidades || 1;
     var ex  = excluye(fecha, a, b, cand, marcas, vistoEn);
     for (var u = 0; u < uds; u++){
       var it = mezcla(base, uds > 1 ? { unidad: u + 1, unidades: uds } : {});
-      if (uds > 1 || cand.tipo === 'vuelo_tiempo'){
+      if (uds > 1){
         it.vueloIni = fuera[u]  || null;
         it.vueloAct = nuevos[u] || null;
+      } else if (cand.tipo === 'vuelo_tiempo'){
+        /* Un cambio por día: el par lleva TODOS los vuelos que se van y los que
+           llegan, para que se pueda comprobar contra el roster. */
+        it.vueloIni = fuera.join(' · ')  || null;
+        it.vueloAct = nuevos.join(' · ') || null;
       }
       if (ex) descartados.push(mezcla(it, ex));
       else    computables.push(it);
@@ -816,12 +820,11 @@ var ESCENARIOS = [
                actual:  jornada('2026-09-11','VY7422','VY7423',-105,0),
                marcas:  { '2026-09-11': { mine:true, motivo:'permuta' } } }; } },
 
-  { id:'dos_vuelos', nombre:'dos sectores cambiados el mismo día', espera:'2',
+  { id:'dos_vuelos', nombre:'dos sectores cambiados el mismo día', espera:'1',
     lee:function(r){ return String(r.nComputables); },
     caso:function(){
-      /* La unidad es el VUELO, no la jornada: dos sectores sustituidos en un día
-         que se mueve más de 60 min son dos cambios, y se listan por separado con
-         qué vuelo sustituye a cuál. */
+      /* La unidad es la JORNADA: dos sectores sustituidos en un día que se mueve
+         más de 60 min son UN cambio (ILHFT, 27-nov-2026). */
       return { inicial: jornada('2026-09-02','VY2472','VY2473',0,0),
                actual:  jornada('2026-09-02','VY3ITU','VY2YYY',0,170) }; } },
 

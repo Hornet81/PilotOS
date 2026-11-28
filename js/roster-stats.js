@@ -260,9 +260,9 @@ function categoriaTocado(a, b){
    por primera vez que un día se apartaba de la inicial (`anotaDivergencias`):
    cambia el número de vuelo, o se mueve el inicio, o se mueve el fin.
 
-   ⚠ No es el contador del Art. 12.9 y no tiene por qué coincidir. Aquél cuenta
-   por VUELO (dos sectores sustituidos el mismo día son dos cambios) y además
-   exige umbral, dirección y cambio de vuelo simultáneos. Éste cuenta DÍAS y no
+   ⚠ No es el contador del Art. 12.9 y no tiene por qué coincidir. Aquél también
+   cuenta por día (desde ILHFT, 27-nov-2026; antes por vuelo) pero exige umbral,
+   dirección y cambio de vuelo simultáneos. Éste cuenta DÍAS y no
    pide umbral: es una foto de cuánto te han movido el mes, no una reclamación.
    Los dos números salen juntos en la pantalla y hay que rotularlos, o parecen
    un fallo. */

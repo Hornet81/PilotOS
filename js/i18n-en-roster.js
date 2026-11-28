@@ -338,6 +338,7 @@
     "cambio(s) en": "change(s) across",
     "cambio(s) en {0} días con actividad": "change(s) across {0} duty days",
     "Cambios (Art. 12.9) cuenta por VUELO y con umbral, no por día: ahí son": "Changes (Art. 12.9) counts per FLIGHT with a threshold, not per day: there it's",
+    "Cambios (Art. 12.9) también cuenta por día, pero pide más de 60 min y cambio de nº de vuelo: ahí son": "Changes (Art. 12.9) also counts per day, but needs over 60 min and a new flight number: there it's",
     "Cambios de programación · por mes": "Roster changes · by month",
     "Cambios de programación e invasión OFF": "Roster changes and OFF intrusion",
     "CLAUDE VISION · OCR · VALIDACIÓN": "CLAUDE VISION · OCR · VALIDATION",
